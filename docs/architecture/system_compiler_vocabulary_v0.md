@@ -141,6 +141,7 @@ v0 阶段的使用规则如下：
 
 - `platform::board::BoardCaps`
 - 各板级 `make_board_caps()`
+- `platform.board_facts` 对 `BoardCaps` / board package 已知事实的只读投影
 
 当前还可能伴随：
 
@@ -163,6 +164,15 @@ v0 阶段的使用规则如下：
 - `BoardPackage` 仍是更上位的汇总词
 - `artifact report.system_input.resolved_input.board`
   现在已经把 board 取值及来源正式投影出来，但还不是完整 `BoardPackage`
+- `board-package-facts-smoke`
+  已经把 `platform.board.stm32_stub::make_board_caps()` 投影成
+  `system_compiler.fact_evidence/v0`，证明 board/package facts 可以作为
+  artifact report 的 sidecar 事实来源进入系统编译器结果物
+- `board-i2c-fact-composition-smoke`
+  已经把 I2C contract-required facts 与 board/package/adapter 提供的
+  audit facts 合进同一份 `system_compiler.fact_evidence/v0`，
+  用于展示 `BoardPackage` facts 不只是“可列出”，也可以参与回答
+  某条设备契约为什么成立
 
 ### 3.4 `Binding`
 
@@ -376,10 +386,14 @@ report / system 侧的现实载体包括：
 当前对应载体包括：
 
 - `export case manifest` 里的 per-case `declared_facts`
+- `system_compiler.fact_evidence/v0` sidecar 里的 contract-local facts
+- `system_compiler.fact_evidence/v0` sidecar 里的 board/package-local facts
+- `system_compiler.fact_evidence/v0` sidecar 里的多来源 fact composition
 - `export case manifest` 里的 per-case `declared_contracts.requires`
 - `required_facts`
 - `provided_facts`
 - `artifact report.fact_resolution.fact_inventory`
+- `artifact report.fact_resolution.required_fact_resolution`
 - board 已知资源与环境条件
 
 这里需要特别注意：
@@ -584,6 +598,39 @@ report / system 侧的现实载体包括：
 - runtime observe / publish / export 状态
 - `artifact report` 作为 explain 输入工件
 
+### 4.13 `OpeningJudgmentCorridor`
+
+它回答的是：
+
+> **当 lower seam 已经导出“该看什么”的 opening judgment 之后，这个判决如何被上层阅读、路由、解释，并继续 handoff。**
+
+它当前是一个结构主语，而不是新的 schema 家族。
+
+当前对应载体包括：
+
+- `docs/system/opening_judgment_corridor_v0.md`
+- runtime-session bridge 到 `open_event_witness` 的 testimony 入口
+- `opening_testimony_landing -> front_page_route -> opening_testimony_explain_entry -> handoff`
+  这条上行阅读通路
+- `system_compiler.world_shelf_review/v0` 当前已经具备的 `front_page + route_provenance`
+  作为下一扩域目标
+
+这里要特别避免两个误写：
+
+> **`OpeningJudgmentCorridor` 不等于 runtime-session 特例。**
+
+> **`OpeningJudgmentCorridor` 也不等于 FrontPageReadingLaw。**
+
+更安全的理解是：
+
+```text
+OpeningJudgmentCorridor
+  = 完整的判决运输与阅读通路法
+
+FrontPageReadingLaw
+  = 这条 corridor 在 front_page / explain_entry 层的阅读规则别名
+```
+
 ## 5. 最小概念映射表
 
 | 目标词汇 | 当前主要载体 | 当前状态 | 当前不要误写成 |
@@ -597,7 +644,7 @@ report / system 侧的现实载体包括：
 | `InterfaceAdmission` | `interface_admission_policy.md` | 新补入公共契约准入词汇，先作为文档级门槛 | 普通代码评审或随手加接口 |
 | `Case` | export case manifest、export bundle / CI / report 的 case 名 | 工具链已稳定使用 | 完整 `SystemSpec` |
 | `Capability` | `init.graph`、registry、slot export | 最稳定的统一语言之一 | 任意板级细节或内部 handle |
-| `Fact` | `export case manifest.declared_facts` / `declared_contracts.requires` / `required_facts` / `provided_facts` | 已有输入侧与报告侧载体 | 单纯等于 capability 名字 |
+| `Fact` | `export case manifest.declared_facts` / `required_facts` / `audit_provided_facts`、`system_compiler.fact_evidence/v0`、`declared_contracts.requires`、artifact report `required_facts` / `provided_facts` / `fact_inventory` | 已有输入侧、sidecar 侧与报告侧载体；`fact_only` case 现在也能把 contract-local facts 作为 evidence sidecar 送入 artifact report | 单纯等于 capability 名字 |
 | `SystemCompilerSummary` | `system_compiler_summary`、`comparison.system_compiler_summary`、artifact_root 默认总览、[`../../schemas/system_compiler_summary.v0.schema.json`](../../schemas/system_compiler_summary.v0.schema.json)、`cases[*].formation_basis / binding_summary / bringup_summary`、`blocker_reason_matrix / blocker_missing_requires_matrix / blocker_depends_on_matrix`、`binding_reason_matrix / bringup_phase_matrix / bringup_dependency_matrix`、`formation_basis / binding_basis / bringup_basis / formation_drift / binding_drift / bringup_drift / result_map` | root 级跨阶段总结果物已经出现，并开始携带单 case 成立 basis、formation/binding/bringup 三段 stage block，以及这些 block 与分阶段 summary 的 machine-readable 对应关系；现在对象本身也会显式带出 `kind = system_compiler_summary/v0` 与 `mode = summary | comparison` 两个自描述字段。其中 `result_map.stage_blocks[*].root_fields` 用来标出 `system_compiler_summary` 根上的 stage 归属字段，`result_map.*.field_relations[*]` 继续把 root field 到 block 字段、summary 字段之间的 `same_field / field_alias / none` 关系正式导出，而 `result_map.case_projection_field_relations.<stage>[*]` 则把单 case projection 字段到 stage case summary 字段之间的 `same_field / field_alias` 关系与 fallback source 一并导出 | 单个阶段摘要或单条 compare 统计 |
 | `SystemInput` | `artifact report.system_input`、`comparison.system_input`、`system_input_summary`、`comparison.system_input_summary`、[`../../schemas/system_input_summary.v0.schema.json`](../../schemas/system_input_summary.v0.schema.json)、默认总览 `InpCmp` | 已有正式输入侧结果物载体，并开始进入 root 级聚合摘要；其中 input-side summary object 现在也会显式带出 `kind = system_input_summary/v0` 与 `mode = summary | comparison`，把 normalized input 与 input drift 汇总对象正式锚定为独立协议 | 单个 subject 字段或 metadata diff |
 | `BindingResult` | `artifact report.binding_result`、`binding_result_summary`、`comparison.binding_result_summary`、[`../../schemas/binding_result_summary.v0.schema.json`](../../schemas/binding_result_summary.v0.schema.json)、`required_facts / unresolved_bindings` | 已有正式结果物载体；其中 binding-side summary object 现在也会显式带出 `kind = binding_result_summary/v0` 与 `mode = summary | comparison`，把 binding hotspot 与 binding drift 汇总对象正式锚定为独立协议 | 图本身或单条 explain query |
@@ -605,6 +652,7 @@ report / system 侧的现实载体包括：
 | `BringupOrder` | `artifact report.bringup_order`、`bringup_order_summary`、`comparison.bringup_order_summary`、[`../../schemas/bringup_order_summary.v0.schema.json`](../../schemas/bringup_order_summary.v0.schema.json)、materialized graph 节点顺序 | 已有正式结果物载体；其中 bringup-side summary object 现在也会显式带出 `kind = bringup_order_summary/v0` 与 `mode = summary | comparison`，把 bringup 顺序热点与 bringup drift 汇总对象正式锚定为独立协议 | 仅仅等于 DOT 展示顺序 |
 | `SystemFormation` | `artifact report.system_formation`、`comparison.system_formation`、`system_formation_summary`、`comparison.system_formation_summary`、[`../../schemas/system_formation_summary.v0.schema.json`](../../schemas/system_formation_summary.v0.schema.json)、默认总览 `Formation / FormCmp` | 已有正式结果物载体；其中 formation-side summary object 现在也会显式带出 `kind = system_formation_summary/v0` 与 `mode = summary | comparison`，把 formation 结果与 formation drift 汇总对象正式锚定为独立协议 | 单纯等于 `binding_result` 或 `bringup_order` |
 | `Artifact Report` | schema + export script + CI 输出 | 已有真实最小生成链 | explain surface 本身 |
+| `OpeningJudgmentCorridor` | `docs/system/opening_judgment_corridor_v0.md` + runtime-session bridge/witness/landing/route/explain-entry/handoff contracts + `world_shelf_review.front_page / route_provenance` | 文档级主语已成立，用来冻结“下层导出判决、上层只解释判决”的共同法律 | runtime-session 特例、第二套 compare brain、单纯等于 FrontPageReadingLaw |
 
 ## 6. 一个最小 worked example
 

@@ -1,0 +1,458 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://charm-os.local/schemas/system_compiler.front_page_entry_opening_testimony_explain_entry_handoff.v0.schema.json",
+  "title": "system_compiler.front_page_entry_opening_testimony_explain_entry_handoff/v0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "kind",
+    "generated_at_utc",
+    "generator",
+    "result",
+    "opening_testimony_explain_entry_handoff",
+    "front_page",
+    "artifact_context",
+    "source_explain_entry_ref",
+    "handoff_decision",
+    "open_target",
+    "supporting_targets",
+    "opening_reason",
+    "handoff_action",
+    "next_questions",
+    "violations"
+  ],
+  "properties": {
+    "schema": {
+      "const": "system_compiler.front_page_entry_opening_testimony_explain_entry_handoff/v0"
+    },
+    "kind": {
+      "const": "system_compiler.front_page_entry_opening_testimony_explain_entry_handoff"
+    },
+    "generated_at_utc": {
+      "type": "string"
+    },
+    "generator": {
+      "type": "string"
+    },
+    "result": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "fail"
+      ]
+    },
+    "opening_testimony_explain_entry_handoff": {
+      "$ref": "#/$defs/titleBlock"
+    },
+    "front_page": {
+      "$ref": "#/$defs/frontPage"
+    },
+    "artifact_context": {
+      "$ref": "#/$defs/artifactContext"
+    },
+    "source_explain_entry_ref": {
+      "$ref": "#/$defs/sourceExplainEntryRef"
+    },
+    "handoff_decision": {
+      "$ref": "#/$defs/handoffDecision"
+    },
+    "open_target": {
+      "$ref": "#/$defs/explainSurface"
+    },
+    "supporting_targets": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/explainSurface"
+      }
+    },
+    "opening_reason": {
+      "$ref": "#/$defs/openingReason"
+    },
+    "handoff_action": {
+      "$ref": "#/$defs/handoffAction"
+    },
+    "next_questions": {
+      "type": "array",
+      "minItems": 3,
+      "items": {
+        "$ref": "#/$defs/typedQuestion"
+      }
+    },
+    "violations": {
+      "$ref": "#/$defs/stringArray"
+    }
+  },
+  "$defs": {
+    "nullableInteger": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "stringArray": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "titleBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "title",
+        "summary"
+      ],
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        }
+      }
+    },
+    "frontPageSurface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "role",
+        "summary_schema",
+        "summary_path",
+        "report_markdown_path",
+        "check_text_path"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        },
+        "summary_schema": {
+          "type": "string"
+        },
+        "summary_path": {
+          "type": "string"
+        },
+        "report_markdown_path": {
+          "type": "string"
+        },
+        "check_text_path": {
+          "type": "string"
+        }
+      }
+    },
+    "frontPage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "summary_path",
+        "report_markdown_path",
+        "check_text_path",
+        "supporting_surfaces"
+      ],
+      "properties": {
+        "summary_path": {
+          "type": "string"
+        },
+        "report_markdown_path": {
+          "type": "string"
+        },
+        "check_text_path": {
+          "type": "string"
+        },
+        "supporting_surfaces": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/frontPageSurface"
+          }
+        }
+      }
+    },
+    "artifactContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_summary_path",
+        "source_report_markdown_path",
+        "source_check_text_path",
+        "output_root",
+        "handoff_summary_path",
+        "report_markdown_path",
+        "check_text_path"
+      ],
+      "properties": {
+        "source_summary_path": {
+          "type": "string"
+        },
+        "source_report_markdown_path": {
+          "type": "string"
+        },
+        "source_check_text_path": {
+          "type": "string"
+        },
+        "output_root": {
+          "type": "string"
+        },
+        "handoff_summary_path": {
+          "type": "string"
+        },
+        "report_markdown_path": {
+          "type": "string"
+        },
+        "check_text_path": {
+          "type": "string"
+        }
+      }
+    },
+    "sourceExplainEntryRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "summary_schema",
+        "summary_kind",
+        "summary_path",
+        "report_markdown_path",
+        "check_text_path",
+        "result",
+        "decision_status",
+        "selection_kind",
+        "selected_surface_id"
+      ],
+      "properties": {
+        "summary_schema": {
+          "type": "string",
+          "const": "system_compiler.front_page_entry_opening_testimony_explain_entry/v0"
+        },
+        "summary_kind": {
+          "type": "string",
+          "const": "system_compiler.front_page_entry_opening_testimony_explain_entry"
+        },
+        "summary_path": {
+          "type": "string"
+        },
+        "report_markdown_path": {
+          "type": "string"
+        },
+        "check_text_path": {
+          "type": "string"
+        },
+        "result": {
+          "type": "string"
+        },
+        "decision_status": {
+          "type": "string"
+        },
+        "selection_kind": {
+          "type": "string"
+        },
+        "selected_surface_id": {
+          "type": "string"
+        }
+      }
+    },
+    "handoffDecision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "handoff_id",
+        "selected_tab_id",
+        "selected_role"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "ready",
+            "blocked"
+          ]
+        },
+        "handoff_id": {
+          "type": "string",
+          "const": "open-selected-explain-surface"
+        },
+        "selected_tab_id": {
+          "type": "string",
+          "const": "opening_testimony_explain"
+        },
+        "selected_role": {
+          "type": "string",
+          "const": "opening_testimony_explain_handoff"
+        }
+      }
+    },
+    "explainSurface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "surface_id",
+        "label",
+        "role",
+        "summary_schema",
+        "summary_kind",
+        "summary_path",
+        "report_markdown_path",
+        "check_text_path",
+        "route_id",
+        "depth",
+        "source"
+      ],
+      "properties": {
+        "surface_id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        },
+        "summary_schema": {
+          "type": "string"
+        },
+        "summary_kind": {
+          "type": "string"
+        },
+        "summary_path": {
+          "type": "string"
+        },
+        "report_markdown_path": {
+          "type": "string"
+        },
+        "check_text_path": {
+          "type": "string"
+        },
+        "route_id": {
+          "type": "string"
+        },
+        "depth": {
+          "$ref": "#/$defs/nullableInteger"
+        },
+        "source": {
+          "type": "string"
+        }
+      }
+    },
+    "openingReason": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "source_reason_summary",
+        "summary",
+        "source_summary_path"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "route_default_explain_surface",
+            "route_compare_default_explain_surface"
+          ]
+        },
+        "source_reason_summary": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "source_summary_path": {
+          "type": "string"
+        }
+      }
+    },
+    "handoffAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "action_kind",
+        "query_kind",
+        "query_scope",
+        "expected_consumer_operation",
+        "target_summary_schema",
+        "target_summary_kind",
+        "target_summary_path",
+        "target_report_markdown_path",
+        "target_check_text_path",
+        "blockers"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "ready",
+            "blocked"
+          ]
+        },
+        "action_kind": {
+          "type": "string",
+          "const": "open_explain_surface"
+        },
+        "query_kind": {
+          "type": "string",
+          "const": "default_explain_surface"
+        },
+        "query_scope": {
+          "type": "string",
+          "const": "selected_surface"
+        },
+        "expected_consumer_operation": {
+          "type": "string",
+          "const": "open-selected-summary"
+        },
+        "target_summary_schema": {
+          "type": "string"
+        },
+        "target_summary_kind": {
+          "type": "string"
+        },
+        "target_summary_path": {
+          "type": "string"
+        },
+        "target_report_markdown_path": {
+          "type": "string"
+        },
+        "target_check_text_path": {
+          "type": "string"
+        },
+        "blockers": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "typedQuestion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "summary",
+        "target_ref"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "inspect_open_target",
+            "inspect_source_explain_entry",
+            "inspect_supporting_targets"
+          ]
+        },
+        "summary": {
+          "type": "string"
+        },
+        "target_ref": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

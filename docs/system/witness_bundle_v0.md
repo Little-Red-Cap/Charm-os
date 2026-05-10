@@ -12,6 +12,7 @@
 
 - `artifact report` 是 case 级结论页。
 - `runtime evidence bundle` 是某条 runtime 主线的总证词。
+- `kernel runtime session` 是 host 语义与 QEMU 机器入口共同证明的 session 对象。
 - `witness bundle` 则是把一个 canonical world 需要的 witness 收成同一个对象。
 
 如果说 `artifact report` 更像单案卷宗，
@@ -53,14 +54,17 @@
 - 校验脚本：
   - `scripts/validate_system_compiler_witness_bundle.py`
 
-它当前可以组合三类输入：
+它当前可以组合四类输入：
 
 - `canonical world`
 - `artifact report`
 - `minimal kernel runtime evidence bundle summary`
+- `kernel runtime session summary`
 
 并可附带：
 
+- `kernel_runtime_session`
+- `open_event_witness`
 - `example_ref`
 
 这意味着 v0 先不追求“世界里的所有证据都必须是结构化 summary”，
@@ -93,8 +97,16 @@
 回答：
 
 - 这份 bundle 从哪里导出
+- artifact report root 的 first-read index 在哪里
 - 用了哪些 artifact report
 - 是否接了 runtime evidence summary
+
+其中 `artifact_context.artifact_report_index` 是来源锚点：
+
+- 当导出时传入 `ArtifactRoot` 且其中存在 `index.json`，脚本会把它记录为 `artifact_report_index`
+- 该 index 必须是 `system_compiler.artifact_report_index/v0`
+- 它负责让上层 proof / IDE / CI 先找到 artifact report root 的轻量入口
+- 它不替代 `artifact_reports`，也不把 case 级结论复制进 witness bundle
 
 ### `front_page`
 
@@ -106,6 +118,7 @@
 对于 root `witness bundle` 来说，`front_page.supporting_surfaces` 允许被更上层 workflow 继续补强。
 
 - 基础导出至少应能路由到 `runtime_evidence`
+- 如果 runtime evidence summary 已经带有 `session` 或历史兼容的 `session_summary`，基础导出也应把它路由成 `kernel_runtime_session`
 - 当同轮交付已经生成 `biography`、`world_compare`、`world_shelf_review` 时，wrapper 可以把这些上层 surface 一并挂回 root `front_page`
 
 它不替代 `artifact_context`。
@@ -171,6 +184,21 @@
 `witness bundle` 不重写它，
 而是引用它、总结它在这个 world 里的角色。
 
+### 1.1 与 `artifact report index`
+
+`artifact report index` 是 artifact report root 的 first-read 入口。
+
+`witness bundle` 不把它当成单独 witness entry，
+而是在 `artifact_context.artifact_report_index` 中记录其路径。
+
+这表示：
+
+- `artifact_report_index` 负责回答“这批 artifact report 从哪里开始读”
+- `artifact_reports` 负责回答“这份 witness bundle 实际拿哪些 case 作证”
+- `witness_entries` 负责回答“每个 witness 在 canonical world 里承担什么角色”
+
+三者各自分工，不互相替代。
+
 ### 2. 与 `minimal kernel runtime evidence bundle`
 
 当前最小内核这条线已经有自己的 host + QEMU 总证据包。
@@ -178,7 +206,65 @@
 `witness bundle` 不替代这条 bundle，
 而是把它当成某个 canonical world 的一名正式 witness。
 
-### 3. 与 `compare`
+### 3. 与 `kernel runtime session`
+
+`kernel_runtime_session` 是 runtime evidence bundle 内部收出的共同被证明对象。
+
+`witness bundle` 不直接解析 host/QEMU 的散日志，
+而是通过 runtime evidence summary 找到 session summary，
+再把它作为 `kernel_runtime_session` witness entry 暴露给 world compare。
+
+`witness bundle` 也可以把它作为独立 `kernel_runtime_session` entry 消费：
+
+- 优先使用 canonical world witness plan 中显式声明的 `path`
+- 如果 `path` 为空，则从 `runtime_evidence_summary.session.summary_path` 解析
+- 只有当 session verdict 为 `standing` 且 failure count 为 0 时，entry 才视为 `ok`
+
+同时，`kernel_runtime_session` 也会进入 `front_page.supporting_surfaces`。
+
+- `witness_entries[kind=kernel_runtime_session]` 负责证明对象是否成立
+- `front_page.supporting_surfaces[id=kernel_runtime_session]` 负责让上层 reader / IDE / proof workflow 能从交付封面直接追到 session summary、report 与 check
+
+这表示 world compare 后续可以追问：
+
+> 不是“QEMU 日志是否还像昨天”，而是“这个 kernel runtime session witness 是否还站住”。
+
+### 3.1 与 `open_event_witness`
+
+`open_event_witness` 是 front-page opening judgment 已经收口后的 testimony 对象。
+
+`witness bundle` 消费它时，只接收：
+
+- opening selection / route / facade 是否站住
+- selected artifact / consumer summary / explain hop 是否还能被引用
+
+它不在 bundle 上层重新解释：
+
+- raw runtime evidence
+- raw session witness
+- raw world compare
+
+当 canonical world 明确声明 `kind=open_event_witness` 的 witness plan 时，
+bundle 会同时把它放进：
+
+- `witness_entries[kind=open_event_witness]`
+- `front_page.supporting_surfaces[role=supporting_testimony]`
+
+这样上层 reader / router / opener 可以先从 root witness bundle 进入 testimony，
+再继续沿着它自己的 evidence refs 追问，而不是在更上层复制一套 compare brain。
+
+当前这条 testimony witness 已经可以继续进入 `world compare`。
+
+第一刀的世界级 compare smoke 使用：
+
+- baseline：runtime-session `open_event_witness`，`accepted_with_drift / witness_status=ok`
+- candidate：blocked runtime-session `open_event_witness`，由 blocked bridge 继续导出到 `status=fail`
+
+这证明的不是上层又重新解释一次 runtime/session/world evidence，
+而是 `open_event_witness` 这个 testimony 对象本身已经可以作为
+`witness bundle -> world compare` 的正式输入，并在 blocked 候选时产出 `collapsed` verdict。
+
+### 4. 与 `compare`
 
 当前 `witness bundle` 还不是最终的反事实审判器。
 
@@ -187,7 +273,7 @@
 - compare 不是对散文件 diff
 - compare 是对一个 world 的 witness 面做漂移追问
 
-### 4. 与 `world compare`
+### 5. 与 `world compare`
 
 当前 `world compare`
 
@@ -202,7 +288,7 @@
 ## 当前推荐工作流
 
 1. 先定义 canonical world。
-2. 再把相关 `artifact report / runtime evidence bundle / example_ref` 填进 witness plan。
+2. 再把相关 `artifact report / runtime evidence bundle / kernel_runtime_session / open_event_witness / example_ref` 填进 witness plan。
 3. 再导出 `witness bundle`。
 4. 如需比较世界漂移，再导出 `world compare`。
 5. 最后把它和 binary、report、check 一起视作完整交付。

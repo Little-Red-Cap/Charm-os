@@ -58,10 +58,11 @@
 - `contract_refs`
 - `witness_plan`
 
-其中 `witness_plan` 当前只支持三类 witness：
+其中 `witness_plan` 当前只支持四类 witness：
 
 - `artifact_report`
 - `runtime_evidence_bundle`
+- `kernel_runtime_session`
 - `example_ref`
 
 这是刻意收敛的。
@@ -71,6 +72,7 @@
 
 - system compiler 报告对象
 - 最小内核运行时总证据包
+- 最小内核运行时 session / witness 对象
 - 代表性样本目录
 
 ## 当前语义

@@ -1,0 +1,173 @@
+name: minimal-kernel-runtime-session-witness
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/minimal-kernel-runtime-session-witness.yml
+      - scripts/minimal_kernel_runtime_session_witness_smoke.ps1
+      - scripts/ci_minimal_kernel_runtime_session_witness_smoke.ps1
+      - scripts/inspect_minimal_kernel_runtime_session_witness_smoke.ps1
+      - scripts/inspect_minimal_kernel_runtime_session_witness_smoke_compare_smoke.ps1
+      - scripts/inspect_minimal_kernel_runtime_session_witness_compare_summary_smoke.ps1
+      - scripts/export_minimal_kernel_runtime_session_witness_inspect_compare_consumer.py
+      - scripts/validate_minimal_kernel_runtime_session_witness_inspect_compare_consumer.py
+      - scripts/system_compiler_minimal_kernel_runtime_session_witness_inspect_compare_consumer_smoke.ps1
+      - scripts/inspect_minimal_kernel_runtime_session_witness_inspect_compare_consumer.ps1
+      - scripts/inspect_minimal_kernel_runtime_session_witness_inspect_compare_consumer_smoke.ps1
+      - scripts/validate_minimal_kernel_runtime_session_witness_smoke.py
+      - scripts/validate_minimal_kernel_runtime_session_witness_inspect_compare.py
+      - scripts/check_minimal_kernel_runtime_session_witness_smoke_summary.ps1
+      - scripts/minimal_kernel_runtime_session_smoke.ps1
+      - scripts/export_minimal_kernel_runtime_session.py
+      - scripts/system_compiler_world_compare_session_drift_smoke.ps1
+      - scripts/system_compiler_witness_session_failure_export_smoke.ps1
+      - scripts/compare_system_compiler_world.py
+      - scripts/validate_system_compiler_world_compare.py
+      - scripts/check_system_compiler_world_compare_summary.ps1
+      - scripts/export_system_compiler_witness_bundle.ps1
+      - scripts/validate_system_compiler_witness_bundle.py
+      - Examples/kernel/canonical_worlds/**
+      - Examples/kernel/runtime*_host/**
+      - Examples/kernel/armv7a/qemu/**
+      - Modules/core/**
+      - Modules/io/out/**
+      - Modules/system/kernel/**
+      - targets/armv7a/**
+      - cmake/**
+      - schemas/minimal_kernel.runtime_evidence_bundle.summary.v1.schema.json
+      - schemas/minimal_kernel.kernel_runtime_session.v0.schema.json
+      - schemas/minimal_kernel.runtime_session_witness_inspect_compare.v0.schema.json
+      - schemas/minimal_kernel.runtime_session_witness_inspect_compare_consumer.v0.schema.json
+      - schemas/minimal_kernel.runtime_session_witness_smoke.v0.schema.json
+      - schemas/examples/minimal_kernel.kernel_runtime_session.v0.sample.json
+      - schemas/examples/minimal_kernel.runtime_session_witness_inspect_compare.v0.sample.json
+      - schemas/examples/minimal_kernel.runtime_session_witness_inspect_compare_consumer.v0.sample.json
+      - schemas/examples/minimal_kernel.runtime_session_witness_smoke.v0.sample.json
+      - schemas/examples/minimal_kernel.runtime_evidence_bundle.summary.v1.sample.json
+      - schemas/examples/system_compiler.witness_bundle.v0.sample.json
+      - schemas/system_compiler.canonical_world.v0.schema.json
+      - schemas/system_compiler.witness_bundle.v0.schema.json
+      - schemas/system_compiler.world_compare.v0.schema.json
+      - docs/README.md
+      - docs/system/README.md
+      - docs/system/kernel_runtime_session_witness_v0.md
+      - docs/system/minimal_kernel_runtime_session_witness_inspect_compare_consumer_v0.md
+      - docs/system/minimal_kernel_runtime_evidence_bundle_contract.md
+      - docs/system/minimal_kernel_runtime_evidence_matrix.md
+
+permissions:
+  contents: read
+
+jobs:
+  minimal_kernel_runtime_session_witness:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install session witness validator dependency
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check jsonschema
+
+      - name: Run minimal kernel runtime session witness smoke
+        shell: pwsh
+        run: |
+          ./scripts/ci_minimal_kernel_runtime_session_witness_smoke.ps1 `
+            -OutputRoot out/minimal-kernel-runtime-session-witness-smoke `
+            -InspectCompareSummaryOutputRoot out/minimal-kernel-runtime-session-witness-inspect-compare `
+            -InspectCompareConsumerOutputRoot out/minimal-kernel-runtime-session-witness-inspect-compare-consumer `
+            -Clean
+
+      - name: Publish minimal kernel runtime session witness summary
+        if: always()
+        shell: pwsh
+        run: |
+          $reportPath = "out/minimal-kernel-runtime-session-witness-smoke/report.md"
+          $checkPath = "out/minimal-kernel-runtime-session-witness-smoke/check.txt"
+          $inspectCompareSummaryPath = "out/minimal-kernel-runtime-session-witness-inspect-compare/session-witness.inspect.compare.summary.json"
+          $inspectCompareConsumerSummaryPath = "out/minimal-kernel-runtime-session-witness-inspect-compare-consumer/session-witness.inspect.compare.consumer.summary.json"
+
+          if (Test-Path $reportPath) {
+            Get-Content -LiteralPath $reportPath -Raw -Encoding utf8 | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+            if (Test-Path $inspectCompareSummaryPath) {
+              @(
+                ""
+                "## Minimal Kernel Runtime Session Witness Inspect Compare"
+                ""
+                "- summary: `$inspectCompareSummaryPath`"
+              ) | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+            }
+            if (Test-Path $inspectCompareConsumerSummaryPath) {
+              @(
+                ""
+                "## Minimal Kernel Runtime Session Witness Inspect Compare Consumer"
+                ""
+                "- summary: `$inspectCompareConsumerSummaryPath`"
+                "- inspect: `./scripts/inspect_minimal_kernel_runtime_session_witness_inspect_compare_consumer.ps1 -Summary $inspectCompareConsumerSummaryPath -ShowFallbacks`"
+              ) | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+            }
+            return
+          }
+
+          if (Test-Path $checkPath) {
+            @(
+              "## Minimal Kernel Runtime Session Witness"
+              ""
+              "Root report was not generated. Fallback check output:"
+              ""
+              "```text"
+              (Get-Content -LiteralPath $checkPath -Raw -Encoding utf8)
+              "```"
+            ) | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+            if (Test-Path $inspectCompareSummaryPath) {
+              @(
+                ""
+                "## Minimal Kernel Runtime Session Witness Inspect Compare"
+                ""
+                "- summary: `$inspectCompareSummaryPath`"
+              ) | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+            }
+            if (Test-Path $inspectCompareConsumerSummaryPath) {
+              @(
+                ""
+                "## Minimal Kernel Runtime Session Witness Inspect Compare Consumer"
+                ""
+                "- summary: `$inspectCompareConsumerSummaryPath`"
+                "- inspect: `./scripts/inspect_minimal_kernel_runtime_session_witness_inspect_compare_consumer.ps1 -Summary $inspectCompareConsumerSummaryPath -ShowFallbacks`"
+              ) | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+            }
+            return
+          }
+
+          "## Minimal Kernel Runtime Session Witness`n`nReport not generated.`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+
+      - name: Upload minimal kernel runtime session witness artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: minimal-kernel-runtime-session-witness
+          path: out/minimal-kernel-runtime-session-witness-smoke
+          if-no-files-found: error
+
+      - name: Upload minimal kernel runtime session witness inspect compare artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: minimal-kernel-runtime-session-witness-inspect-compare
+          path: out/minimal-kernel-runtime-session-witness-inspect-compare
+          if-no-files-found: error
+
+      - name: Upload minimal kernel runtime session witness inspect compare consumer artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: minimal-kernel-runtime-session-witness-inspect-compare-consumer
+          path: out/minimal-kernel-runtime-session-witness-inspect-compare-consumer
+          if-no-files-found: error

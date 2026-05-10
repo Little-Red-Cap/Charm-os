@@ -26,6 +26,20 @@ It answers a narrower question:
 That makes it a useful bridge between the current artifact layer and a future
 stronger explain surface.
 
+The runtime-session testimony ladder now uses this same generic route object as
+its upper consumer walk:
+
+```text
+open_event_witness
+  -> opening_testimony_landing
+  -> front_page_route
+  -> opening_testimony_explain_entry
+```
+
+That reuse is deliberate. No runtime-session-specific route schema is added in
+this phase; the runtime-session wrappers only feed the existing route exporter
+with already-projected landing summaries.
+
 ## Current shape
 
 Current `system_compiler.front_page_route` includes:
@@ -38,6 +52,7 @@ Current `system_compiler.front_page_route` includes:
   - `scripts/validate_system_compiler_front_page_route.py`
 - smoke
   - `scripts/system_compiler_front_page_route_smoke.ps1`
+  - `scripts/system_compiler_front_page_route_sample_smoke.ps1`
 
 ## Current outputs
 
@@ -99,11 +114,24 @@ The route summary currently records:
   - `leaf_entry_count`
   - `max_depth`
 
+For the witness bundle sample, the current level-1 consumer route is expected
+to expose:
+
+- `runtime_evidence`
+- `kernel_runtime_session`
+
+The latter is intentionally a direct front-page surface, not just a witness
+entry buried inside the root bundle.
+
 The traversal semantics stay intentionally conservative.
 
 - graph expansion still follows only `front_page.supporting_surfaces`
 - `route_provenance` is consumed as a sidecar witness of which lower
   front-page roots that summary actually used while assembling itself
+- `artifact_context.artifact_report_index` is also lifted as
+  `provenance_route_kind = artifact_report_index` when present, so tools can
+  discover the artifact report root first-read index without pretending it is a
+  `front_page.supporting_surfaces` edge
 
 That keeps consumer behavior stable while still lifting lower-layer route
 evidence into one higher-level object.
@@ -130,6 +158,17 @@ route object can now record that it actually consumed:
 without pretending those provenance records are new traversal edges by
 themselves.
 
+Similarly, if a `witness bundle` records
+`artifact_context.artifact_report_index`, the route can expose that index as
+provenance:
+
+- `source_summary_schema = system_compiler.artifact_report_index/v0`
+- `source_summary_path = <artifact-report-root>/index.json`
+- `source_front_page_* = ""`
+
+This is intentionally not a normal front-page root. It is a provenance source
+for finding case-level artifact reports.
+
 ## Manual example
 
 ```powershell
@@ -150,6 +189,13 @@ compiler entry worlds:
 
 ```powershell
 ./scripts/system_compiler_front_page_route_smoke.ps1 -Clean
+```
+
+For a lighter schema/sample guard that does not require the full generated
+front-page workspace, run:
+
+```powershell
+./scripts/system_compiler_front_page_route_sample_smoke.ps1 -Clean
 ```
 
 Or inspect the route artifact that now appears automatically under a witness
@@ -174,3 +220,17 @@ Instead, it proves a more basic claim:
 
 That makes `front_page_route` a good staging object for future explain surface
 consumers, review tools, and route-aware CI summaries.
+
+## Relationship to OpeningJudgmentCorridor
+
+Within `OpeningJudgmentCorridor`, `front_page_route` belongs to the
+`Reading corridor`.
+
+Its job is to walk already-declared `front_page` surfaces and preserve
+`route_provenance` without inventing a second lower graph model.
+
+It must not:
+
+- reopen raw runtime/session/world-compare evidence
+- replace landing decisions
+- replace explain-entry selection or handoff policy

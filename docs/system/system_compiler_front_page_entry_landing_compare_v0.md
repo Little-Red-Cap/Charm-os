@@ -33,6 +33,7 @@ Current `system_compiler.front_page_entry_landing_compare` includes:
   - `scripts/validate_system_compiler_front_page_entry_landing_compare.py`
 - smoke
   - `scripts/system_compiler_front_page_entry_landing_compare_smoke.ps1`
+  - `scripts/system_compiler_front_page_entry_runtime_session_compare_sample_smoke.ps1`
 
 ## Current outputs
 
@@ -48,11 +49,17 @@ The compare summary currently records:
 
 - baseline and candidate landing provenance
 - default landing mode / tier / primary-tab drift
+- baseline and candidate primary opening query status
+- query-plan drift for each landing tab
 - direct explain mode changes
+  - including `runtime_session` as a distinct direct mode, separate from
+    generic `evidence`
 - tab additions, removals, and alias drift
-- provenance root additions and removals
+- provenance root additions, removals, and same-id source-detail drift
 - a `landing_regression_surface` that highlights the smallest consumer-facing
   opening breakage surface
+- a `query_regression_surface` that highlights the smallest
+  consumer-facing explain-opening breakage surface
 
 This matters because the landing layer is where "which page opens first" stops
 being an implementation detail and becomes a consumer contract.
@@ -69,8 +76,40 @@ Current `landing_verdict` mirrors the broader compare language:
 - `drifted`
   - the candidate lost tabs or direct modes, downgraded entry tier, or changed
     the opening plan without staying equivalent
+  - this also includes provenance roots that keep the same id but point at a
+    different kind, schema, source summary path, or front-page summary path
+  - this now also includes opening-query regressions such as:
+    - losing the primary query
+    - narrowing a compare-aware artifact-root opening back to report scope
+    - dropping compare-aware query semantics from a tab that used to have them
 - `collapsed`
   - the candidate landing summary itself no longer stands as `result=ok`
+
+## Opening query drift
+
+`front_page_entry_landing_compare` now compares two layers at once:
+
+- tab / mode / provenance drift
+- explain opening-query drift
+
+That second layer stays intentionally thin.
+
+It does not diff arbitrary explain responses.
+
+It only compares the consumer-side opening plan already exported by
+`front_page_entry_landing`:
+
+- which query opens the primary tab
+- whether that opening is `report` or `artifact_root` scoped
+- whether the opening expects compare-aware overview semantics
+- which no-argument follow-up queries remain nearest to that tab
+
+This means the compare object can now answer:
+
+- the default tab stayed the same, but did the default query change?
+- did the candidate keep an artifact-root compare opening, or collapse back to
+  a narrower report opening?
+- which tab query plans drifted even when the tab list itself still stands?
 
 ## Manual example
 
@@ -94,6 +133,12 @@ Or run the dedicated smoke:
 ./scripts/system_compiler_front_page_entry_landing_compare_smoke.ps1 -Clean
 ```
 
+For the narrow `runtime_session` direct-mode compare path, use:
+
+```powershell
+./scripts/system_compiler_front_page_entry_runtime_session_compare_sample_smoke.ps1 -Clean
+```
+
 ## Why this matters
 
 This object gives later explain-entry tools a thinner compare seam.
@@ -101,15 +146,20 @@ This object gives later explain-entry tools a thinner compare seam.
 Instead of re-deriving:
 
 - whether the default open tab changed
+- whether the default explain query changed
 - whether a direct compare or review landing disappeared
-- whether provenance roots got richer
+- whether the dedicated runtime session landing appeared or disappeared
+- whether provenance roots got richer or changed source detail
 
 a consumer can read one compare object that already says:
 
 - this landing stands / improved / drifted / collapsed
 - this primary tab changed
+- this primary opening query changed or narrowed
 - these tabs or direct modes were added or removed
-- these provenance roots are new or missing
+- these query plans were added, removed, or regressed
+- these provenance roots are new, missing, or still present but pointing at a
+  different source detail
 
 That keeps later tools closer to "consume the artifact plan" and further from
 "rebuild landing drift policy in code".

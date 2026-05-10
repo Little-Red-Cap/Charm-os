@@ -33,6 +33,24 @@ def expect_equal(actual, expected, label: str, errors: list[str]) -> None:
         errors.append(f"{label}: expected {expected!r} but got {actual!r}")
 
 
+def validate_source_schema(path_value: str | None, expected_schema: str, label: str, errors: list[str]) -> None:
+    if expected_schema != "system_compiler.artifact_report_index/v0":
+        return
+
+    text = str(path_value or "").strip()
+    if not text:
+        return
+
+    try:
+        source = load_json(Path(text).resolve())
+    except Exception as exc:
+        errors.append(f"{label}: invalid json -> {exc}")
+        return
+
+    if source.get("schema") != expected_schema:
+        errors.append(f"{label}: expected schema {expected_schema!r} but got {source.get('schema')!r}")
+
+
 def validate_references(summary: dict, errors: list[str]) -> None:
     artifact_context = summary.get("artifact_context", {})
     front_page = summary.get("front_page", {})
@@ -70,10 +88,17 @@ def validate_references(summary: dict, errors: list[str]) -> None:
             errors.append(f"route_provenance[{index}]: invalid route entry")
             continue
         ensure_exists(route.get("source_summary_path"), f"route_provenance[{index}].source_summary_path", errors)
-        ensure_exists(route.get("source_input_summary_path"), f"route_provenance[{index}].source_input_summary_path", errors)
-        ensure_exists(route.get("source_root_summary_path"), f"route_provenance[{index}].source_root_summary_path", errors)
-        ensure_exists(route.get("source_report_markdown_path"), f"route_provenance[{index}].source_report_markdown_path", errors)
-        ensure_exists(route.get("source_check_text_path"), f"route_provenance[{index}].source_check_text_path", errors)
+        validate_source_schema(
+            route.get("source_summary_path"),
+            str(route.get("source_summary_schema") or ""),
+            f"route_provenance[{index}].source_summary_path",
+            errors,
+        )
+        if route.get("route_kind") != "artifact_report_index":
+            ensure_exists(route.get("source_input_summary_path"), f"route_provenance[{index}].source_input_summary_path", errors)
+            ensure_exists(route.get("source_root_summary_path"), f"route_provenance[{index}].source_root_summary_path", errors)
+            ensure_exists(route.get("source_report_markdown_path"), f"route_provenance[{index}].source_report_markdown_path", errors)
+            ensure_exists(route.get("source_check_text_path"), f"route_provenance[{index}].source_check_text_path", errors)
 
     if isinstance(summary.get("primary_landing"), dict):
         ensure_exists(summary["primary_landing"].get("entry", {}).get("summary_path"), "primary_landing.entry.summary_path", errors)
@@ -94,6 +119,12 @@ def validate_references(summary: dict, errors: list[str]) -> None:
             errors.append(f"provenance_roots[{index}]: invalid root")
             continue
         ensure_exists(root.get("source_summary_path"), f"provenance_roots[{index}].source_summary_path", errors)
+        validate_source_schema(
+            root.get("source_summary_path"),
+            str(root.get("source_summary_schema") or ""),
+            f"provenance_roots[{index}].source_summary_path",
+            errors,
+        )
 
 
 def main() -> int:
@@ -171,6 +202,7 @@ def main() -> int:
         expect_equal(summary.get("secondary_landings"), expected_summary.get("secondary_landings"), "secondary_landings", errors)
         expect_equal(summary.get("landing_tabs"), expected_summary.get("landing_tabs"), "landing_tabs", errors)
         expect_equal(summary.get("provenance_roots"), expected_summary.get("provenance_roots"), "provenance_roots", errors)
+        expect_equal(summary.get("query_hints"), expected_summary.get("query_hints"), "query_hints", errors)
         expect_equal(summary.get("questions"), expected_summary.get("questions"), "questions", errors)
         expect_equal(summary.get("violations"), [], "violations", errors)
         expect_equal(
@@ -196,4 +228,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

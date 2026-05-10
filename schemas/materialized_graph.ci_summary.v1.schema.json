@@ -457,16 +457,34 @@
       "additionalProperties": false,
       "required": [
         "output_root",
+        "index",
         "count",
+        "compiler_headline",
         "cases"
       ],
       "properties": {
         "output_root": {
           "type": "string"
         },
+        "index": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "count": {
           "type": "integer",
           "minimum": 0
+        },
+        "compiler_headline": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "https://charm-os.local/schemas/system_compiler.artifact_report_index.v0.schema.json#/$defs/compilerHeadline"
+            }
+          ]
         },
         "cases": {
           "type": "array",

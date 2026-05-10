@@ -18,11 +18,15 @@
 - `decide_motion_compose_profile()` 验证 dry-run budget 到 effective profile / fallback reason 的裁决桥。
 - `execute_motion_compose()` 验证 transition frame 经 `Scene` 执行 pixel snapshot compose 的最小路径。
 - `PageMotionTransition` 验证 `PageLayer` freeze / transitioning / execute / thaw 的最小路径。
+- 最终 `causal_chain` 将托管时间、recipe、compose、budget、trace 与 page motion 证据收束为 `motion_time.managed` 判决，并在最终行显式输出 `time_ok` / `recipe_ok` / `compose_ok` / `budget_ok` / `trace_ok` / `page_motion_ok`。
+
+示例 stdout 遵守 `docs/ui/vivid_evidence_stdout_law.md`：统一为 `[mt] run=motion_time_demo phase=begin/end` 与 `[mt] case=...` 的 summary 形式，并由 CTest 约束最终 `result=ok cases=13`。
 
 构建：
 
 ```bash
-cmake -S Examples/ui/vivid/motion_time_demo -B Examples/ui/vivid/motion_time_demo/build -G Ninja
-cmake --build Examples/ui/vivid/motion_time_demo/build
-Examples/ui/vivid/motion_time_demo/build/vivid-motion-time-demo
+cmake -S Examples/ui/vivid/motion_time_demo -B cmake-build-vivid-motion-time-demo-codex -G Ninja
+cmake --build cmake-build-vivid-motion-time-demo-codex -j 22
+ctest --test-dir cmake-build-vivid-motion-time-demo-codex --output-on-failure
+cmake-build-vivid-motion-time-demo-codex/vivid-motion-time-demo
 ```

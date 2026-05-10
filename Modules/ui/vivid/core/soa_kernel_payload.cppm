@@ -2958,27 +2958,6 @@ import alg_list_scroll;
         return static_cast<SoaLayoutKind>(common_.layout_kind[idx]);
     }
 
-    void SoaKernel::set_layout_state_influence(bool on) noexcept {
-        layout_state_influence_ = on;
-        mark_layout_dirty();
-    }
-
-    bool SoaKernel::layout_state_influence() const noexcept {
-        return layout_state_influence_;
-    }
-
-    std::uint8_t SoaKernel::layout_state_influence_mask(WidgetKind kind) const noexcept {
-        return layout_state_mask_for_kind(kind);
-    }
-
-    std::uint32_t SoaKernel::layout_dirty_version() const noexcept {
-        return layout_dirty_version_;
-    }
-
-    std::uint32_t SoaKernel::paint_dirty_version() const noexcept {
-        return paint_dirty_version_;
-    }
-
     bool SoaKernel::payload_overflowed() const noexcept {
         return payloads_.overflowed();
     }
@@ -2990,38 +2969,6 @@ import alg_list_scroll;
 #if defined(VIVID_SOA_TRACE_INPUT)
     soa_detail::PayloadStats SoaKernel::payload_stats() const noexcept {
         return payloads_.stats();
-    }
-#endif
-
-    std::uint32_t SoaKernel::layout_applied_version() const noexcept {
-        return layout_applied_version_;
-    }
-
-    void SoaKernel::set_layout_applied_version(std::uint32_t v) noexcept {
-        layout_applied_version_ = v;
-    }
-
-#if defined(VIVID_SOA_TRACE_INPUT)
-    void SoaKernel::layout_trace_reset() noexcept {
-        layout_invalidated_count_ = 0;
-        layout_pass_count_ = 0;
-        paint_invalidated_count_ = 0;
-    }
-
-    std::uint32_t SoaKernel::layout_invalidated_count() const noexcept {
-        return layout_invalidated_count_;
-    }
-
-    std::uint32_t SoaKernel::layout_pass_count() const noexcept {
-        return layout_pass_count_;
-    }
-
-    std::uint32_t SoaKernel::paint_invalidated_count() const noexcept {
-        return paint_invalidated_count_;
-    }
-
-    void SoaKernel::layout_trace_on_pass() noexcept {
-        layout_pass_count_ += 1u;
     }
 #endif
 

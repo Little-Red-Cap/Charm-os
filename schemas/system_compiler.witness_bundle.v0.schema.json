@@ -111,6 +111,8 @@
       "enum": [
         "artifact_report",
         "runtime_evidence_bundle",
+        "kernel_runtime_session",
+        "open_event_witness",
         "example_ref"
       ]
     },
@@ -298,6 +300,7 @@
       "required": [
         "canonical_world",
         "artifact_root",
+        "artifact_report_index",
         "artifact_reports",
         "runtime_evidence_summary",
         "output_root",
@@ -309,6 +312,9 @@
           "$ref": "#/$defs/nullableString"
         },
         "artifact_root": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "artifact_report_index": {
           "$ref": "#/$defs/nullableString"
         },
         "artifact_reports": {

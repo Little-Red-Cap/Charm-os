@@ -288,6 +288,114 @@
         }
       }
     },
+    "routeProvenanceDetailChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provenance_id",
+        "baseline_route_kind",
+        "candidate_route_kind",
+        "baseline_provenance_route_kind",
+        "candidate_provenance_route_kind",
+        "baseline_source_summary_schema",
+        "candidate_source_summary_schema",
+        "baseline_source_summary_path",
+        "candidate_source_summary_path",
+        "baseline_source_front_page_summary_path",
+        "candidate_source_front_page_summary_path",
+        "baseline_source_front_page_report_markdown_path",
+        "candidate_source_front_page_report_markdown_path",
+        "baseline_source_front_page_check_text_path",
+        "candidate_source_front_page_check_text_path",
+        "baseline_available_supporting_surface_ids",
+        "candidate_available_supporting_surface_ids",
+        "route_kind_changed",
+        "provenance_route_kind_changed",
+        "schema_changed",
+        "source_path_changed",
+        "front_page_path_changed",
+        "front_page_report_path_changed",
+        "front_page_check_path_changed",
+        "supporting_surface_changes"
+      ],
+      "properties": {
+        "provenance_id": {
+          "type": "string"
+        },
+        "baseline_route_kind": {
+          "type": "string"
+        },
+        "candidate_route_kind": {
+          "type": "string"
+        },
+        "baseline_provenance_route_kind": {
+          "type": "string"
+        },
+        "candidate_provenance_route_kind": {
+          "type": "string"
+        },
+        "baseline_source_summary_schema": {
+          "type": "string"
+        },
+        "candidate_source_summary_schema": {
+          "type": "string"
+        },
+        "baseline_source_summary_path": {
+          "type": "string"
+        },
+        "candidate_source_summary_path": {
+          "type": "string"
+        },
+        "baseline_source_front_page_summary_path": {
+          "type": "string"
+        },
+        "candidate_source_front_page_summary_path": {
+          "type": "string"
+        },
+        "baseline_source_front_page_report_markdown_path": {
+          "type": "string"
+        },
+        "candidate_source_front_page_report_markdown_path": {
+          "type": "string"
+        },
+        "baseline_source_front_page_check_text_path": {
+          "type": "string"
+        },
+        "candidate_source_front_page_check_text_path": {
+          "type": "string"
+        },
+        "baseline_available_supporting_surface_ids": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "candidate_available_supporting_surface_ids": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "route_kind_changed": {
+          "type": "boolean"
+        },
+        "provenance_route_kind_changed": {
+          "type": "boolean"
+        },
+        "schema_changed": {
+          "type": "boolean"
+        },
+        "source_path_changed": {
+          "type": "boolean"
+        },
+        "front_page_path_changed": {
+          "type": "boolean"
+        },
+        "front_page_report_path_changed": {
+          "type": "boolean"
+        },
+        "front_page_check_path_changed": {
+          "type": "boolean"
+        },
+        "supporting_surface_changes": {
+          "$ref": "#/$defs/arrayChange"
+        }
+      }
+    },
     "artifactContext": {
       "type": "object",
       "additionalProperties": false,
@@ -472,6 +580,7 @@
         "cycle_anchor_changes",
         "revisit_anchor_changes",
         "expanded_anchor_changes",
+        "route_provenance_detail_changes",
         "changed"
       ],
       "properties": {
@@ -516,6 +625,12 @@
         },
         "expanded_anchor_changes": {
           "$ref": "#/$defs/arrayChange"
+        },
+        "route_provenance_detail_changes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/routeProvenanceDetailChange"
+          }
         },
         "changed": {
           "type": "boolean"
@@ -737,6 +852,7 @@
         "regressed_entries",
         "removed_level1_surfaces",
         "missing_key_surface_ids",
+        "route_provenance_detail_changed_ids",
         "candidate_surface_ids",
         "affected_surface_ids",
         "narratives"
@@ -752,6 +868,9 @@
           "$ref": "#/$defs/stringArray"
         },
         "missing_key_surface_ids": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "route_provenance_detail_changed_ids": {
           "$ref": "#/$defs/stringArray"
         },
         "candidate_surface_ids": {

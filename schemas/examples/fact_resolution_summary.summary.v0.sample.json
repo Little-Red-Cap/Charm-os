@@ -42,6 +42,19 @@
       "all_available_facts": [
         "system.clock"
       ],
+      "required_fact_resolution": [
+        {
+          "fact": "system.clock",
+          "state": "satisfied",
+          "fact_sources": [
+            "audit_provided_facts",
+            "graph_provided_facts"
+          ],
+          "providers": [],
+          "provider_count": 0,
+          "status_text": "required_fact satisfied [system.clock] by source buckets [audit_provided_facts, graph_provided_facts]"
+        }
+      ],
       "resource_hotspots": [],
       "contracts": [
         {
@@ -86,6 +99,16 @@
       "graph_provided_facts": [],
       "audit_provided_facts": [],
       "all_available_facts": [],
+      "required_fact_resolution": [
+        {
+          "fact": "system.heap",
+          "state": "missing",
+          "fact_sources": [],
+          "providers": [],
+          "provider_count": 0,
+          "status_text": "required_fact missing [system.heap]"
+        }
+      ],
       "resource_hotspots": [
         "missing system.heap"
       ],
@@ -265,6 +288,53 @@
           "case": "usb-host-runtime-multi-smoke",
           "profile": "",
           "board": ""
+        }
+      ]
+    }
+  ],
+  "required_fact_resolution_matrix": [
+    {
+      "fact": "system.clock",
+      "case_count": 1,
+      "cases_satisfied": 1,
+      "cases_missing": 0,
+      "provider_count": 0,
+      "provider_sources": [],
+      "provider_roles": [],
+      "cases": [
+        {
+          "case": "bringup-minimal-observe-demo",
+          "profile": "mcu_min",
+          "board": "win_stub",
+          "state": "satisfied",
+          "fact_sources": [
+            "audit_provided_facts",
+            "graph_provided_facts"
+          ],
+          "provider_count": 0,
+          "providers": [],
+          "status_text": "required_fact satisfied [system.clock] by source buckets [audit_provided_facts, graph_provided_facts]"
+        }
+      ]
+    },
+    {
+      "fact": "system.heap",
+      "case_count": 1,
+      "cases_satisfied": 0,
+      "cases_missing": 1,
+      "provider_count": 0,
+      "provider_sources": [],
+      "provider_roles": [],
+      "cases": [
+        {
+          "case": "usb-host-runtime-multi-smoke",
+          "profile": "",
+          "board": "",
+          "state": "missing",
+          "fact_sources": [],
+          "provider_count": 0,
+          "providers": [],
+          "status_text": "required_fact missing [system.heap]"
         }
       ]
     }

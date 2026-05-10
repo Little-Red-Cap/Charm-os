@@ -1,0 +1,334 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://charm-os.local/schemas/system_compiler.artifact_report_index.v0.schema.json",
+  "title": "system_compiler.artifact_report_index/v0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "generated_at_utc",
+    "generator",
+    "report_kind",
+    "mode",
+    "artifact_root",
+    "bundle",
+    "artifacts",
+    "case_count",
+    "compiler_headline",
+    "cases"
+  ],
+  "properties": {
+    "schema": {
+      "const": "system_compiler.artifact_report_index/v0"
+    },
+    "generated_at_utc": {
+      "type": "string"
+    },
+    "generator": {
+      "type": "string"
+    },
+    "report_kind": {
+      "const": "system_compiler.artifact_report_index"
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "export_only",
+        "compare"
+      ]
+    },
+    "artifact_root": {
+      "type": "string"
+    },
+    "bundle": {
+      "$ref": "#/$defs/bundleRefs"
+    },
+    "artifacts": {
+      "$ref": "#/$defs/supportingArtifacts"
+    },
+    "case_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "compiler_headline": {
+      "$ref": "#/$defs/compilerHeadline"
+    },
+    "cases": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/caseEntry"
+      }
+    }
+  },
+  "$defs": {
+    "nullableString": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "stringArray": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "countMap": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "formationStatus": {
+      "type": "string",
+      "enum": [
+        "formed",
+        "blocked",
+        "unknown"
+      ]
+    },
+    "comparisonStatus": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "changed",
+        "added",
+        "removed",
+        "unchanged",
+        null
+      ]
+    },
+    "driftDimension": {
+      "type": "string",
+      "enum": [
+        "metadata",
+        "input",
+        "formation",
+        "binding",
+        "bringup_order",
+        "bringup_evidence",
+        "resource",
+        "fact_resolution"
+      ]
+    },
+    "driftDimensions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/driftDimension"
+      }
+    },
+    "bundleRefs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "root",
+        "index",
+        "input_manifest"
+      ],
+      "properties": {
+        "root": {
+          "type": "string"
+        },
+        "index": {
+          "type": "string"
+        },
+        "input_manifest": {
+          "$ref": "#/$defs/nullableString"
+        }
+      }
+    },
+    "supportingArtifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "diff",
+        "ci_summary",
+        "report_manifest"
+      ],
+      "properties": {
+        "diff": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "ci_summary": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "report_manifest": {
+          "$ref": "#/$defs/nullableString"
+        }
+      }
+    },
+    "compilerHeadline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "text",
+        "status",
+        "formation_text",
+        "drift_text",
+        "has_comparison",
+        "has_drift",
+        "case_count",
+        "formed_case_count",
+        "blocked_case_count",
+        "unresolved_binding_count",
+        "blocked_node_count",
+        "blocker_count",
+        "compared_case_count",
+        "changed_dimension_count",
+        "drift_dimensions",
+        "dimension_counts",
+        "blocked_cases",
+        "unresolved_capabilities",
+        "blocked_nodes"
+      ],
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/formationStatus"
+        },
+        "formation_text": {
+          "type": "string"
+        },
+        "drift_text": {
+          "type": "string"
+        },
+        "has_comparison": {
+          "type": "boolean"
+        },
+        "has_drift": {
+          "type": "boolean"
+        },
+        "case_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "formed_case_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blocked_case_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unresolved_binding_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blocked_node_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blocker_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "compared_case_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "changed_dimension_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "drift_dimensions": {
+          "$ref": "#/$defs/driftDimensions"
+        },
+        "dimension_counts": {
+          "$ref": "#/$defs/countMap"
+        },
+        "blocked_cases": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "unresolved_capabilities": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "blocked_nodes": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "caseEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "path",
+        "mode",
+        "profile",
+        "board",
+        "active_facets",
+        "formation_status",
+        "comparison_status",
+        "has_drift",
+        "drift_dimensions",
+        "unresolved_binding_count",
+        "blocked_node_count",
+        "blocker_count",
+        "unresolved_capabilities",
+        "blocked_nodes"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "export_only",
+            "compare"
+          ]
+        },
+        "profile": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "board": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "active_facets": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "formation_status": {
+          "$ref": "#/$defs/formationStatus"
+        },
+        "comparison_status": {
+          "$ref": "#/$defs/comparisonStatus"
+        },
+        "has_drift": {
+          "type": "boolean"
+        },
+        "drift_dimensions": {
+          "$ref": "#/$defs/driftDimensions"
+        },
+        "unresolved_binding_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blocked_node_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blocker_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unresolved_capabilities": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "blocked_nodes": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    }
+  }
+}

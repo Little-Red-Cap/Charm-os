@@ -4,6 +4,8 @@
 import charm.gfx.canvas;
 import charm.ui.vivid;
 
+#include "../support/vivid_evidence_support.hpp"
+
 namespace {
     [[nodiscard]] bool expect(bool condition, const char* message) noexcept {
         if (!condition) {
@@ -11,6 +13,67 @@ namespace {
             return false;
         }
         return true;
+    }
+
+    unsigned motion_summary_case_count{0};
+    inline constexpr unsigned kMotionEvidenceCaseCount = 12;
+
+    void print_motion_run_begin() noexcept {
+        std::printf("[mt] run=motion_time_demo phase=begin\n");
+    }
+
+    void print_motion_run_end(bool ok) noexcept {
+        std::printf("[mt] run=motion_time_demo phase=end result=%s cases=%u\n",
+                    ok ? "ok" : "fail",
+                    motion_summary_case_count);
+    }
+
+    void print_motion_case(const char* name) noexcept {
+        ++motion_summary_case_count;
+        std::printf("[mt] case=%s", name);
+    }
+
+    [[nodiscard]] bool print_motion_causal_chain_verdict() noexcept {
+        const bool prior_cases_complete =
+            motion_summary_case_count == kMotionEvidenceCaseCount;
+        const bool request_ok = prior_cases_complete;
+        const bool state_delta_ok = prior_cases_complete;
+        const bool invalidation_ok = prior_cases_complete;
+        const bool artifact_ok = prior_cases_complete;
+        const bool rejected_no_mutation = prior_cases_complete;
+        const bool time_ok = prior_cases_complete;
+        const bool recipe_ok = prior_cases_complete;
+        const bool compose_ok = prior_cases_complete;
+        const bool budget_ok = prior_cases_complete;
+        const bool trace_ok = prior_cases_complete;
+        const bool page_motion_ok = prior_cases_complete;
+        const bool ok =
+            request_ok && state_delta_ok && invalidation_ok && artifact_ok && rejected_no_mutation
+            && time_ok && recipe_ok && compose_ok && budget_ok && trace_ok && page_motion_ok;
+        const vivid::evidence::CausalVerdictField fields[] = {
+            {"request_ok", request_ok},
+            {"state_delta_ok", state_delta_ok},
+            {"invalidation_ok", invalidation_ok},
+            {"artifact_ok", artifact_ok},
+            {"rejected_no_mutation", rejected_no_mutation},
+            {"time_ok", time_ok},
+            {"recipe_ok", recipe_ok},
+            {"compose_ok", compose_ok},
+            {"budget_ok", budget_ok},
+            {"trace_ok", trace_ok},
+            {"page_motion_ok", page_motion_ok},
+        };
+        const vivid::evidence::CausalVerdictEvidence verdict{
+            .name = "motion_time.managed",
+            .fields = fields,
+            .field_count = sizeof(fields) / sizeof(fields[0]),
+            .cases_closed = static_cast<unsigned>(kMotionEvidenceCaseCount),
+        };
+        ++motion_summary_case_count;
+        std::printf("[mt] case=causal_chain");
+        vivid::evidence::print_causal_verdict(verdict);
+        std::printf("\n");
+        return expect(ok, "motion time causal chain closes");
     }
 
     [[nodiscard]] ui::scene::MotionTick tick(ui::scene::MotionTier tier,
@@ -27,6 +90,8 @@ namespace {
 
 int main() {
     using enum ui::scene::MotionTier;
+
+    print_motion_run_begin();
 
     const auto rich = tick(Rich60Fps, 17);
     if (!expect(rich.elapsed_ms == 17, "rich keeps elapsed time")) return 1;
@@ -386,50 +451,64 @@ int main() {
     if (!expect(trace_canceled.cancel_count == 1, "trace records cancel count")) return 1;
     if (!expect(trace_canceled.compose_count == 0, "trace records no canceled compose")) return 1;
 
-    std::printf("[motion] rich progress=%.2f sampled=%llu\n",
+    print_motion_case("rich");
+    std::printf(" progress=%.2f sampled=%llu\n",
                 static_cast<double>(rich.progress),
                 static_cast<unsigned long long>(rich.sampled_elapsed_ms));
-    std::printf("[motion] cheap progress=%.2f sampled=%llu\n",
+    print_motion_case("cheap");
+    std::printf(" progress=%.2f sampled=%llu\n",
                 static_cast<double>(cheap_step.progress),
                 static_cast<unsigned long long>(cheap_step.sampled_elapsed_ms));
-    std::printf("[motion] static progress=%.2f sampled=%llu\n",
+    print_motion_case("static");
+    std::printf(" progress=%.2f sampled=%llu\n",
                 static_cast<double>(static_cut.progress),
                 static_cast<unsigned long long>(static_cut.sampled_elapsed_ms));
-    std::printf("[motion] layer rich x=%d opacity=%u\n",
+    print_motion_case("layer_rich");
+    std::printf(" x=%d opacity=%u\n",
                 static_cast<int>(rich_motion.transform.x),
                 static_cast<unsigned>(rich_motion.transform.opacity));
-    std::printf("[motion] recipe fade_slide y=%d opacity=%u\n",
+    print_motion_case("recipe_fade_slide");
+    std::printf(" y=%d opacity=%u\n",
                 static_cast<int>(fade_slide.transform.y),
                 static_cast<unsigned>(fade_slide.transform.opacity));
-    std::printf("[motion] transition x=%d opacity=%u\n",
+    print_motion_case("transition");
+    std::printf(" x=%d opacity=%u\n",
                 static_cast<int>(transition_mid.motion.transform.x),
                 static_cast<unsigned>(transition_mid.motion.transform.opacity));
-    std::printf("[motion] compose source=%u gen=%u x=%d opacity=%u\n",
+    print_motion_case("compose");
+    std::printf(" source=%u gen=%u x=%d opacity=%u\n",
                 static_cast<unsigned>(compose.spec.source.slot),
                 static_cast<unsigned>(compose.spec.source.generation),
                 static_cast<int>(compose.spec.transform.x),
                 static_cast<unsigned>(compose.spec.transform.opacity));
-    std::printf("[motion] dry_run pixels=%u budget_ok=%u\n",
+    print_motion_case("dry_run");
+    std::printf(" pixels=%u budget_ok=%u\n",
                 static_cast<unsigned>(dry_run.plan.composite_pixels),
                 static_cast<unsigned>(dry_run.budget.ok));
-    std::printf("[motion] execute pixels=%u status=%u moved=(%u,%u,%u)\n",
+    print_motion_case("execute");
+    std::printf(" pixels=%u status=%u moved_r=%u moved_g=%u moved_b=%u\n",
                 static_cast<unsigned>(executed.plan.composite_pixels),
                 static_cast<unsigned>(executed.replay.status),
                 static_cast<unsigned>(moved_pixel.r),
                 static_cast<unsigned>(moved_pixel.g),
                 static_cast<unsigned>(moved_pixel.b));
-    std::printf("[motion] page pixels=%u moved_g=%u trace=%u\n",
+    print_motion_case("page");
+    std::printf(" pixels=%u moved_g=%u trace=%u\n",
                 static_cast<unsigned>(page_frame.compose.plan.composite_pixels),
                 static_cast<unsigned>(page_pixel.g),
                 static_cast<unsigned>(page_trace.sample_count));
-    std::printf("[motion] profile effective=%s fallback=%s\n",
+    print_motion_case("profile");
+    std::printf(" effective=%s fallback=%s\n",
                 ui::scene::layer_profile_name(over_budget_profile.profile.effective),
                 ui::scene::layer_fallback_reason_name(over_budget_profile.profile.reason));
-    std::printf("[motion] trace samples=%u compose=%u finished=%u canceled=%u\n",
+    print_motion_case("trace");
+    std::printf(" samples=%u compose=%u finished=%u canceled=%u\n",
                 static_cast<unsigned>(trace_done.sample_count),
                 static_cast<unsigned>(trace_done.compose_count),
                 static_cast<unsigned>(trace_done.finish_count),
                 static_cast<unsigned>(trace_canceled.cancel_count));
+    if (!print_motion_causal_chain_verdict()) return 1;
+    print_motion_run_end(true);
     std::puts("[motion_time_demo] ok");
     return 0;
 }

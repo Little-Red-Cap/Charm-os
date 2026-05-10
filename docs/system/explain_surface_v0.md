@@ -226,6 +226,17 @@ v0 阶段建议至少覆盖：
 - declared facts / declared contracts 是什么
 - profile / board / facets 是从显式参数、默认值还是 case subject 解析出来的
 
+与此同时，artifact report root 现在也有了一份更轻的机器入口：
+
+- `artifact-report/index.json`
+- `schema = system_compiler.artifact_report_index/v0`
+
+它不是新的 explain query，也不替代 inspector 默认总览。
+它的职责是给 CI、IDE 原型和外部脚本一个 first-read entrypoint：
+先读取 `compiler_headline`、case 路径、formation 状态、drift 维度与阻塞热点，
+再决定是否打开完整 `*.artifact_report.json`
+或调用 inspector 继续追问。
+
 ## 6. v0 的最小 `explain surface`
 
 当前建议先把问题面收敛为五类最小查询，而不是先发明很大的命令系统。
@@ -312,13 +323,28 @@ v0 阶段建议至少覆盖：
 - `comparison.bringup_changed / comparison.bringup_change_kinds`
 - `comparison.resource_changed / comparison.resource_change_kinds`
 - `comparison.resource_contracts`
+- `comparison.fact_resolution_changed`
+- `comparison.required_fact_resolution_change_kinds`
+- `comparison.required_facts_changed`
+- `comparison.required_fact_resolution_changes`
 
 与此同时，
 单 report 默认总览里的 `comparison` 现在也会继续附带：
 
+- `comparison.drift_headline.text`
+- `comparison.drift_headline.changed_dimensions`
+- `comparison.drift_headline.dimension_counts`
 - `comparison.capability_summary.compared_capability_count`
-- `comparison.capability_summary.bringup_compare_capability_count / resource_compare_capability_count`
+- `comparison.capability_summary.bringup_compare_capability_count / resource_compare_capability_count / fact_resolution_compare_capability_count`
 - `comparison.capability_summary.compared_capabilities`
+- `comparison.capability_summary.fact_resolution_compare_capabilities`
+- `comparison.capability_summary.required_fact_resolution_change_kinds`
+- `comparison.capability_summary.required_facts_changed`
+
+这里的 `comparison.drift_headline` 是单 report 默认视图的人类扫读入口。
+它复用 artifact_root 默认总览的字段形状，
+但每个 `dimension_counts` 值只表达当前 case 是否命中该维度，
+因此取值稳定为 `0` 或 `1`。
 
 当前实现支持两种读取作用域：
 
@@ -351,16 +377,19 @@ v0 阶段建议至少覆盖：
 如果选择的是整组 compare report，
 artifact_root 级 `-CapList -AsJson` 现在也会继续暴露：
 
-- capability 级 `compare_cases / bringup_compare_cases / resource_compare_cases`
-- capability 级 `bringup_change_kinds / resource_change_kinds`
+- capability 级 `compare_cases / bringup_compare_cases / resource_compare_cases / fact_resolution_compare_cases`
+- capability 级 `bringup_change_kinds / resource_change_kinds / required_fact_resolution_change_kinds`
+- capability 级 `required_facts_changed`
 - query 级 `comparison.compared_capability_count`
-- query 级 `comparison.bringup_compare_capability_count / resource_compare_capability_count`
+- query 级 `comparison.bringup_compare_capability_count / resource_compare_capability_count / fact_resolution_compare_capability_count`
+- query 级 `comparison.fact_resolution_compare_capabilities`
+- query 级 `comparison.required_fact_resolution_change_kinds / required_facts_changed`
 
 这意味着 `cap list` 现在已经不只会回答“这个 capability 出现在哪些 case 里”，
 还可以直接回答：
 
 - 哪些 capability 本身已经进入 compare drift 热点
-- 这些热点更偏 bringup 漂移还是资源法律漂移
+- 这些热点更偏 bringup 漂移、资源法律漂移还是事实解析漂移
 - 某个 capability 的 compare 漂移究竟覆盖了哪些 case
 
 与此同时，
@@ -369,16 +398,32 @@ artifact_root 级 `-CapList -AsJson` 现在也会继续暴露：
 至少包括：
 
 - `capability_summary.compared_capability_count`
-- `capability_summary.bringup_compare_capability_count / resource_compare_capability_count`
+- `capability_summary.bringup_compare_capability_count / resource_compare_capability_count / fact_resolution_compare_capability_count`
 - `capability_summary.compared_capabilities`
+- `capability_summary.fact_resolution_compare_capabilities`
+- `capability_summary.required_fact_resolution_change_kinds`
+- `capability_summary.required_facts_changed`
 
 默认总览本身现在还会继续直接给出：
 
+- 顶层 `compiler_headline.text`
+- 顶层 `compiler_headline.status / has_comparison / has_drift`
+- 顶层 `compiler_headline.formation_text / drift_text`
+- 顶层 `compiler_headline.drift_dimensions`
+- 顶层 `compiler_headline.blocked_cases / unresolved_capabilities / blocked_nodes`
+- 顶层 `formation_headline.text`
+- 顶层 `formation_headline.status / status_counts`
+- 顶层 `formation_headline.formed_cases / blocked_cases`
+- 顶层 `formation_headline.unresolved_capabilities / blocked_nodes / blockers`
 - `comparison.input_changed_case_count`
 - `comparison.system_formation_changed_case_count`
 - `comparison.binding_result_changed_case_count`
 - `comparison.bringup_order_changed_case_count`
 - `comparison.fact_resolution_changed_case_count`
+- `comparison.drift_headline.text`
+- `comparison.drift_headline.changed_dimensions`
+- `comparison.drift_headline.dimension_counts`
+- case summary 行级 `FactCmp`
 - `system_compiler_summary.case_count / formed_case_count / blocked_case_count`
 - `system_compiler_summary.case_kind_matrix`
 - `system_compiler_summary.resolved_profile_matrix / resolved_board_matrix / resolved_active_facet_matrix`
@@ -423,12 +468,41 @@ artifact_root 级 `-CapList -AsJson` 现在也会继续暴露：
 - `comparison.system_formation_summary.status_change_matrix / blocker_change_matrix`
 - `comparison.fact_resolution_summary.changed_case_count`
 - `comparison.fact_resolution_summary.fact_inventory_change_matrix`
+- `comparison.fact_resolution_summary.required_fact_resolution_change_matrix`
 - `comparison.fact_resolution_summary.kind / mode`
+- `comparison.drift_headline`
 - `cases[*].Formation`
 - `cases[*].InpCmp`
 - `cases[*].FormCmp`
 - `cases[*].BindCmp`
 - `cases[*].OrdCmp`
+
+其中顶层 `compiler_headline` 是默认总览的第一眼扫读入口：
+它把当前结果的 `formation_headline` 与 compare 侧的 `comparison.drift_headline`
+合成一行 `text`，用于回答“当前系统是否成立 + 相比 baseline 漂移在哪些维度”。
+它不替代 `formation_headline` 的成立性细节，也不替代 `comparison.drift_headline`
+或各个 `comparison.*_summary` 的 drift 诊断；如果当前没有 compare 结果，
+`has_comparison` 为 `false`，`text` 中的 `drift` 为 `n/a`。
+
+同一组 first-read 语义现在也会被投影进 `artifact-report/index.json`。
+这让轻量工具可以先读 root index 的 `compiler_headline`，
+不用为了回答“当前是否 blocked、drift 在哪些维度、哪些 case 需要深挖”
+而预先加载完整 artifact root 默认总览。
+两者的边界是：
+
+- root index 负责入口、路径和热点。
+- inspector 默认总览负责完整 summary、matrix 和 explain query 起点。
+
+其中顶层 `formation_headline` 是当前结果“如何成立”的人类扫读入口：
+它把 `formed / blocked / unresolved_bindings / blocked_nodes / blockers`
+压成一行 `text`，并保留 blocked case、unresolved capability 与 blocked node 热点
+给轻量工具消费。它不表达 compare drift；
+drift 仍然由 `comparison.drift_headline` 与各个 `comparison.*_summary` 负责。
+
+其中 `comparison.drift_headline` 是默认总览的人类扫读入口：
+它把 `metadata / input / formation / binding / bringup_order / bringup_evidence / resource / fact_resolution`
+这些 compare 维度压成一行 `text`，并保留 `changed_dimensions` 与 `dimension_counts`
+给轻量工具消费。它不替代各个 summary matrix，只负责让默认视图第一眼能看出“漂移发生在哪些维度”。
 
 对机器消费者来说，`system_compiler_summary` 现在也不再只是
 artifact_root 默认总览里的匿名嵌套块。
@@ -542,6 +616,7 @@ artifact_root 默认总览里的匿名嵌套块。
 “有多少 case 发生了 system formation 漂移”，
 还会继续直接带出：
 
+- 一行 `formation_headline`，先说明当前结果整体是 formed 还是 blocked
 - 这一组 case 的 system compiler 总结果当前是怎样收口的
 - 这一组 case 当前有哪些 `case_kind / resolved profile / resolved board / active facet`
 - 单个 case 的 `formation_basis / binding_summary / bringup_summary` 是怎样收口的
@@ -694,6 +769,10 @@ artifact_root 级 `-BringupEvidence -AsJson` 现在也会继续暴露
 - `comparison.bringup_changed / comparison.bringup_change_kinds`
 - `comparison.resource_changed / comparison.resource_change_kinds`
 - `comparison.resource_contracts`
+- `comparison.fact_resolution_changed`
+- `comparison.required_fact_resolution_change_kinds`
+- `comparison.required_facts_changed`
+- `comparison.fact_resolution.required_fact_resolution_changes`
 
 如果选择的是整组 compare report，
 artifact_root 级 `-WhyCapability -AsJson` 现在也会继续带出：
@@ -702,6 +781,8 @@ artifact_root 级 `-WhyCapability -AsJson` 现在也会继续带出：
 - `compared_case_count / bringup_compare_case_count / resource_compare_case_count`
 - `compared_cases / bringup_compare_cases / resource_compare_cases`
 - `resource_contracts`
+- `fact_resolution_compare_case_count / fact_resolution_compare_cases`
+- `required_facts_changed`
 
 这意味着调用方现在不只可以追问：
 
@@ -783,6 +864,10 @@ artifact_root 级 `-WhyCapability -AsJson` 现在也会继续带出：
 - `comparison.bringup_changed / comparison.bringup_change_kinds`
 - `comparison.resource_changed / comparison.resource_change_kinds`
 - `comparison.resource_contracts`
+- `comparison.fact_resolution_changed`
+- `comparison.required_fact_resolution_change_kinds`
+- `comparison.required_facts_changed`
+- `comparison.fact_resolution.required_fact_resolution_changes`
 
 也就是说，v0 当前还不是“图查询语言”，
 而是一个面向 explain surface 的最小稳定问题面：
@@ -887,6 +972,11 @@ artifact_root 级 `-WhyCapability -AsJson` 现在也会继续带出：
 
 - 行级 `BrCmp / ResCmp`
 - 一行最小 `TRANSITION COMPARE` 摘要
+
+这里不额外给 transition 行塞 `FactCmp`：
+`recent transitions` 仍然只解释已经发生的 runtime publish/export 切换，
+required fact resolution 漂移则通过默认总览 case summary 行级 `FactCmp`
+和 `cap list` 的 `FactCmp / ReqFacts` 观察。
 
 当前仓库里已经有一条真实 runtime-only producer：
 
@@ -998,6 +1088,7 @@ artifact_root 级 `-WhyCapability -AsJson` 现在也会继续带出：
 - `left / right`
 - `summary_changes`
 - `fact_inventory_changes`
+- `required_fact_resolution_changes`
 - `contract_changes`
 - `hotspot_changes`
 
@@ -1024,6 +1115,7 @@ artifact_root 级 `-ResourceSummary -AsJson` 现在也会继续暴露
 - `changed_cases / unchanged_cases`
 - `summary_change_matrix`
 - `contract_change_matrix`
+- `required_fact_resolution_change_matrix`
 - `fact_inventory_change_matrix`
 
 这让资源解释面不只会横向看“哪些合同在哪些 case 中成立”，
@@ -1065,6 +1157,7 @@ artifact_root 级 `-ResourceSummary -AsJson` 现在也会继续暴露
 ### 7.2 工件组织层
 
 - `bundle`
+- `artifact report index`
 - `report manifest`
 
 用途：
@@ -1072,6 +1165,7 @@ artifact_root 级 `-ResourceSummary -AsJson` 现在也会继续暴露
 - 批量导出结果组织
 - 报告工件发现
 - 上层工具稳定引用
+- CI / IDE / 外部脚本的 first-read 入口
 
 ### 7.3 比较与 CI 层
 
@@ -1083,6 +1177,14 @@ artifact_root 级 `-ResourceSummary -AsJson` 现在也会继续暴露
 - 增量变化分析
 - 自动化审阅
 - CI 状态汇总
+
+其中 `ci summary` 可以继续暴露：
+
+- `artifact_report.index`
+- `artifact_report.compiler_headline`
+
+这条路径只负责把 root index 的第一眼结论接到 CI 摘要里。
+完整诊断仍保留在 artifact report root 与 inspector 查询面。
 
 ### 7.4 解释层
 

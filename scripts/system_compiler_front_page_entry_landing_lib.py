@@ -24,6 +24,7 @@ MODE_TO_CAPABILITY_ORDER = {
         "delivery_biography",
         "counterfactual_verdict",
         "supporting_evidence",
+        "runtime_session",
         "supporting_testimony",
         "route_provenance",
     ],
@@ -31,6 +32,7 @@ MODE_TO_CAPABILITY_ORDER = {
         "counterfactual_verdict",
         "delivery_biography",
         "supporting_evidence",
+        "runtime_session",
         "supporting_testimony",
         "shelf_compare",
         "candidate_shelf",
@@ -40,6 +42,7 @@ MODE_TO_CAPABILITY_ORDER = {
     "biography": [
         "delivery_biography",
         "supporting_evidence",
+        "runtime_session",
         "supporting_testimony",
         "counterfactual_verdict",
         "shelf_compare",
@@ -49,6 +52,7 @@ MODE_TO_CAPABILITY_ORDER = {
     ],
     "evidence": [
         "supporting_evidence",
+        "runtime_session",
         "delivery_biography",
         "supporting_testimony",
         "counterfactual_verdict",
@@ -65,6 +69,7 @@ MODE_TO_CAPABILITY_ORDER = {
         "delivery_biography",
         "counterfactual_verdict",
         "supporting_evidence",
+        "runtime_session",
         "supporting_testimony",
     ],
 }
@@ -77,6 +82,7 @@ CAPABILITY_LABELS = {
     "delivery_biography": "delivery biography",
     "counterfactual_verdict": "counterfactual verdict",
     "supporting_evidence": "supporting evidence",
+    "runtime_session": "runtime session",
     "supporting_testimony": "supporting testimony",
     "route_provenance": "route provenance",
 }
@@ -88,6 +94,20 @@ MODE_FALLBACK_ORDER = {
     "evidence": ["evidence", "route"],
     "route": ["route"],
 }
+
+ARTIFACT_ROOT_DEFAULT_QUERY_KINDS = [
+    "default_overview",
+    "resource_summary",
+    "bringup_evidence",
+    "cap_list",
+]
+
+REPORT_DEFAULT_QUERY_KINDS = [
+    "default_overview",
+    "bringup_evidence",
+    "resource_summary",
+    "cap_list",
+]
 
 
 def choose_text(value: Any) -> str:
@@ -261,8 +281,15 @@ def build_provenance_roots(capability_summary: dict[str, Any]) -> list[OrderedDi
             root = OrderedDict(
                 [
                     ("root_id", choose_text(hint.get("provenance_id"))),
+                    ("root_kind", choose_text(hint.get("provenance_route_kind"))),
                     ("source_summary_schema", choose_text(hint.get("source_summary_schema"))),
                     ("source_summary_path", source_summary_path),
+                    (
+                        "source_front_page_summary_path",
+                        normalize_path(hint.get("source_front_page_summary_path", ""))
+                        if choose_text(hint.get("source_front_page_summary_path"))
+                        else "",
+                    ),
                     ("owner_route_ids", []),
                     ("owner_surface_ids", []),
                     ("available_supporting_surface_ids", []),
@@ -285,6 +312,90 @@ def build_provenance_roots(capability_summary: dict[str, Any]) -> list[OrderedDi
     return list(roots_by_path.values())
 
 
+def build_query_hint(tab: dict[str, Any]) -> OrderedDict[str, Any]:
+    tab_id = choose_text(tab.get("tab_id"))
+    title = choose_text(tab.get("title"))
+    entry = get_mapping(tab.get("entry"))
+    summary_kind = choose_text(entry.get("summary_kind"))
+    summary_schema = choose_text(entry.get("summary_schema"))
+    entry_role = choose_text(entry.get("role"))
+
+    if tab_id in {"grouped_review", "shelf_compare", "counterfactual_verdict"}:
+        scope = "artifact_root"
+        selection_rule = "artifact_root_or_subset"
+        query_kind = "default_overview"
+        compare_expected = True
+        followup_query_kinds = [
+            "resource_summary",
+            "bringup_evidence",
+            "cap_list",
+        ]
+        rationale = "Open the artifact_root overview first so compare drift and aggregate evidence stay visible."
+    elif tab_id in {"candidate_shelf", "baseline_shelf", "route_provenance"}:
+        scope = "artifact_root"
+        selection_rule = "artifact_root_or_subset"
+        query_kind = "default_overview"
+        compare_expected = False
+        followup_query_kinds = [
+            "cap_list",
+            "resource_summary",
+            "bringup_evidence",
+        ]
+        rationale = "Open the artifact_root overview first so shelf-style navigation can pivot into shared aggregate explain surfaces."
+    elif tab_id in {"supporting_evidence", "runtime_session"}:
+        scope = "report"
+        selection_rule = "single_report"
+        query_kind = "bringup_evidence"
+        compare_expected = False
+        followup_query_kinds = [
+            "resource_summary",
+            "default_overview",
+            "cap_list",
+        ]
+        rationale = "Start from report-scoped bringup evidence when the landing is already evidence-oriented."
+    else:
+        scope = "report"
+        selection_rule = "single_report"
+        query_kind = "default_overview"
+        compare_expected = summary_kind in {
+            "system_compiler.world_compare",
+            "system_compiler.world_shelf_review",
+            "system_compiler.biography_index_compare",
+        }
+        followup_query_kinds = list(REPORT_DEFAULT_QUERY_KINDS)
+        rationale = "Open the report overview first so single-world summary, bringup, resource, and capability reads stay nearby."
+
+    if scope == "artifact_root" and query_kind == "cap_list":
+        selection_rule = "artifact_root_full"
+
+    return OrderedDict(
+        [
+            ("tab_id", tab_id),
+            ("tab_title", title),
+            ("entry_role", entry_role),
+            ("summary_schema", summary_schema),
+            ("summary_kind", summary_kind),
+            ("scope", scope),
+            ("selection_rule", selection_rule),
+            ("query_kind", query_kind),
+            ("compare_expected", compare_expected),
+            ("followup_query_kinds", followup_query_kinds),
+            ("rationale", rationale),
+        ]
+    )
+
+
+def build_query_hints(tabs: list[OrderedDict[str, Any]]) -> OrderedDict[str, Any]:
+    tab_queries = [build_query_hint(tab) for tab in tabs]
+    primary_query = get_mapping(tab_queries[0]) if tab_queries else None
+    return OrderedDict(
+        [
+            ("primary_query", primary_query),
+            ("tab_queries", tab_queries),
+        ]
+    )
+
+
 def build_landing_status(
     summary: dict[str, Any],
     tabs: list[OrderedDict[str, Any]],
@@ -302,6 +413,7 @@ def build_landing_status(
             ("landing_result", choose_text(summary.get("result"))),
             ("recommended_entry_mode", recommended_mode),
             ("entry_tier", choose_text(entry_status.get("entry_tier"))),
+            ("opening_reason", get_mapping(entry_status.get("opening_reason"))),
             ("primary_tab_id", primary_tab_id),
             ("primary_summary_schema", choose_text(get_mapping(primary_entry).get("summary_schema")) if isinstance(primary_entry, dict) else ""),
             ("primary_summary_kind", choose_text(get_mapping(primary_entry).get("summary_kind")) if isinstance(primary_entry, dict) else ""),
@@ -315,6 +427,7 @@ def build_landing_status(
             ("direct_compare_available", "counterfactual_verdict" in available_tab_ids),
             ("direct_biography_available", "delivery_biography" in available_tab_ids),
             ("direct_evidence_available", "supporting_evidence" in available_tab_ids),
+            ("direct_runtime_session_available", "runtime_session" in available_tab_ids),
         ]
     )
 
@@ -374,6 +487,7 @@ def build_summary_model(
     tabs = build_landing_tabs(capability_summary, recommended_mode)
     provenance_roots = build_provenance_roots(capability_summary)
     landing_status = build_landing_status(capability_summary, tabs, provenance_roots)
+    query_hints = build_query_hints(tabs)
     questions = build_questions(capability_summary, landing_status, tabs, provenance_roots)
     front_page_surface = build_front_page_surface(capability_summary_path, capability_summary)
 
@@ -427,8 +541,8 @@ def build_summary_model(
             ("secondary_landings", secondary_landings),
             ("landing_tabs", tabs),
             ("provenance_roots", provenance_roots),
+            ("query_hints", query_hints),
             ("questions", questions),
             ("violations", []),
         ]
     )
-

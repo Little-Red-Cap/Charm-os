@@ -17,10 +17,10 @@
   - 同时产出 cold start 与 warm reuse 两套 host 证据
 - `scripts/minimal_kernel_runtime_armv7a_qemu_smoke_bundle.ps1`
   - 下半层证据入口
-  - 聚焦 `runtime-trap / runtime-live / task-syscall` 等 ARMv7-A QEMU lower-half smoke
+  - 聚焦 `runtime-trap / runtime-live / task-syscall / handoff-live` 等 ARMv7-A QEMU lower-half smoke
 - `scripts/minimal_kernel_runtime_evidence_bundle.ps1`
   - 总证据入口
-  - 把 host dual bundle、qemu bundle 与 system compiler witness bundle 收进同一个 artifact 根目录
+  - 把 host dual bundle、qemu bundle、kernel runtime session summary 与 system compiler witness bundle 收进同一个 artifact 根目录
 
 ## 证据边界
 
@@ -46,8 +46,10 @@ qemu bundle 主要证明：
 - `runtime-trap`
 - `runtime-live`
 - `task-syscall`
+- `handoff-live`
 
 这些 lower-half smoke 在同一个 `debug` 构建上仍然闭环成立，并且会留下每个 case 的独立日志工件。
+总证据入口不再硬编码早期 case 数，而是消费 qemu bundle 自身导出的 `case_count / completed_case_count`，避免 session 证词在 lower-half case 缺席时误判为站立。
 
 它不证明：
 
@@ -66,6 +68,11 @@ out/minimal-kernel-runtime-evidence/
     daily/
   qemu/
     cases/
+  session/
+    kernel_runtime_session.summary.json
+    runtime_ledger.json
+    report.md
+    check.txt
   witness/
   summary.json
   report.md
@@ -80,15 +87,31 @@ out/minimal-kernel-runtime-evidence/
 - `host/ci` 对应 cold start host 证据
 - `host/daily` 对应 warm reuse host 证据
 - `qemu/cases/*` 保留 lower-half case 日志
+- `session/*` 收口 `kernel_runtime_session` 对象、runtime ledger 与 session check
 - `witness/*` 收口 canonical world 对应的 witness summary / report / check
 - 根 `summary.json / report.md / check.txt` 是这次总证据包的聚合视图
-- 根 `summary.json` 现在也会直接回填 `report_markdown_path / check_text_path / witness_bundle`，方便上层自动化只消费一个入口
+- 根 `summary.json` 现在也会直接回填 `report_markdown_path / check_text_path / session / witness_bundle`，方便上层自动化只消费一个入口
+
+## Kernel Runtime Session
+
+`session/kernel_runtime_session.summary.json` 是当前 bundle 的共同被证明对象。
+
+它把 host 侧 semantic witness、ARMv7-A QEMU 侧 machine witness、runtime facts、
+runtime ledger 引用和 session verdict 收成一个对象。它不替代 host 或 QEMU 原始证据，
+而是先作为 runtime evidence bundle 的正式 `session` 侧车 artifact，
+再由 system compiler witness bundle 提升为 `kernel_runtime_session` witness entry。
+
+对应契约入口：
+
+- `docs/system/kernel_runtime_session_witness_v0.md`
+- `schemas/minimal_kernel.kernel_runtime_session.v0.schema.json`
 
 ## 机器可读契约
 
 当前总证据 summary 已补齐独立 schema：
 
 - `schemas/minimal_kernel.runtime_evidence_bundle.summary.v1.schema.json`
+- `schemas/minimal_kernel.kernel_runtime_session.v0.schema.json`
 
 本地或 CI 如需校验 summary 结构与引用工件完整性，使用：
 
@@ -100,7 +123,77 @@ python ./scripts/validate_minimal_kernel_runtime_evidence.py `
 这个校验器会做两件事：
 
 - 用 schema 校验根 `summary.json` 的结构
-- 检查 summary 中引用到的 host / qemu / witness / report / check / case log 工件是否都存在
+- 检查 summary 中引用到的 host / qemu / session / witness / report / check / case log 工件是否都存在
+- 复核 `session`、`kernel_runtime_session.summary.json` 与 `runtime_ledger.json` 的基础一致性
+
+如果只想验证 session 对象的第一版出口，可以先跑旁路 smoke：
+
+```powershell
+./scripts/minimal_kernel_runtime_session_smoke.ps1
+```
+
+它默认消费 `schemas/examples/minimal_kernel.runtime_evidence_bundle.summary.v1.sample.json`，
+并输出：
+
+```text
+cmake-build-minimal-kernel-runtime-session-smoke/
+  kernel_runtime_session.summary.json
+  runtime_ledger.json
+  report.md
+  check.txt
+```
+
+这条旁路入口先证明 `session` 对象本身站得住；总 runtime evidence bundle 已经会把 `session` 作为侧车视图回填到根 `summary.json`。
+system compiler witness bundle 会把它提升为独立 `kernel_runtime_session` witness entry。
+
+如果要验证 `session` 作为 witness 聚合对象的完整闭环，优先跑：
+
+```powershell
+./scripts/ci_minimal_kernel_runtime_session_witness_smoke.ps1 `
+  -Clean `
+  -InspectCompareSummaryOutputRoot out/minimal-kernel-runtime-session-witness-inspect-compare
+```
+
+这样可以同时守住两层对象：
+
+- 根 `minimal_kernel.runtime_session_witness_smoke/v0` summary
+- `minimal_kernel.runtime_session_witness_inspect_compare/v0` compare 对象
+
+它默认输出：
+
+```text
+out/minimal-kernel-runtime-session-witness-smoke/
+  summary.json
+  report.md
+  check.txt
+  session/
+  world_compare_session_drift/
+  witness_session_failure_export/
+```
+
+这条入口会同时证明：
+
+- standing `kernel_runtime_session` 可以导出为根证据对象
+- synthetic session drift 可以被 world compare 投影
+- collapsed session 可以经由 witness exporter 进入 world compare
+- 根 `summary.json` 可以通过 schema validator 与语义 gate
+
+如果只是想消费这条聚合根、确认 session standing / drift / failure taxonomy，而不想重新执行 smoke，可以直接运行：
+
+```powershell
+./scripts/inspect_minimal_kernel_runtime_session_witness_smoke.ps1 `
+  -Summary out/minimal-kernel-runtime-session-witness-smoke/summary.json `
+  -ShowArtifacts
+./scripts/inspect_minimal_kernel_runtime_session_witness_smoke.ps1 `
+  -Summary out/minimal-kernel-runtime-session-witness-smoke/summary.json `
+  -BaselineSummary baseline/minimal-kernel-runtime-session-witness/summary.json
+./scripts/inspect_minimal_kernel_runtime_session_witness_smoke.ps1 `
+  -Summary out/minimal-kernel-runtime-session-witness-smoke/summary.json `
+  -BaselineSummary baseline/minimal-kernel-runtime-session-witness/summary.json `
+  -CompareSummaryPath out/minimal-kernel-runtime-session-witness-compare/summary.json
+```
+
+它会把根 `summary.json` 里的 session 状态、两条 drift 投影、missing runtime facts、failure codes 与关键 artifact path 收成稳定的只读视图；如果同时给出 `-BaselineSummary`，还会额外收口 result / runtime facts / failure taxonomy 的差分视图；如果再给 `-CompareSummaryPath`，这份差分会被落成正式 compare 对象，方便上层继续消费。
 
 ## 本地验证
 
@@ -120,6 +213,7 @@ python ./scripts/validate_minimal_kernel_runtime_evidence.py `
 - `host/daily/report.md` 显示 `Profile: daily`
 - `host/daily/report.md` 带 `Comparison` 段
 - `qemu/report.md` 显示 lower-half bundle 当前 smoke 集合全部站住
+- `session/kernel_runtime_session.summary.json` 显示 `session_status: standing`
 - `witness/report.md` 显示 canonical world 与 witness entry 汇总
 - 根 `report.md` 同时汇总上半层、下半层与 witness 证据
 

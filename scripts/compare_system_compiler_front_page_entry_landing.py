@@ -15,9 +15,14 @@ from system_compiler_front_page_entry_landing_compare_lib import (
 
 def build_report(summary: dict) -> str:
     landing_status = summary["landing_status"]
+    primary_query_status = summary["primary_query_status"]
     landing_changes = summary["landing_changes"]
+    query_plan_changes = summary["query_plan_changes"]
+    query_summary = summary["query_summary"]
     tab_summary = summary["tab_summary"]
+    query_changes = summary["query_changes"]
     regression_surface = summary["landing_regression_surface"]
+    query_regression_surface = summary["query_regression_surface"]
     tab_changes = summary["tab_changes"]
     questions = summary["questions"]
 
@@ -48,6 +53,22 @@ def build_report(summary: dict) -> str:
         "- Baseline tabs: `{0}`".format(", ".join(landing_status["baseline_available_tab_ids"]) or "none"),
         "- Candidate tabs: `{0}`".format(", ".join(landing_status["candidate_available_tab_ids"]) or "none"),
         "",
+        "## Opening Query Status",
+        "- Baseline primary query: `tab={0} query={1} scope={2} selection={3} compare_expected={4}`".format(
+            primary_query_status["baseline_tab_id"] or "none",
+            primary_query_status["baseline_query_kind"] or "none",
+            primary_query_status["baseline_scope"] or "none",
+            primary_query_status["baseline_selection_rule"] or "none",
+            "yes" if primary_query_status["baseline_compare_expected"] else "no",
+        ),
+        "- Candidate primary query: `tab={0} query={1} scope={2} selection={3} compare_expected={4}`".format(
+            primary_query_status["candidate_tab_id"] or "none",
+            primary_query_status["candidate_query_kind"] or "none",
+            primary_query_status["candidate_scope"] or "none",
+            primary_query_status["candidate_selection_rule"] or "none",
+            "yes" if primary_query_status["candidate_compare_expected"] else "no",
+        ),
+        "",
         "## Landing Drift",
         "- Tab changes: `changed={0} added={1} removed={2} regressions={3} improvements={4} neutral={5}`".format(
             tab_summary["changed_tab_count"],
@@ -62,6 +83,22 @@ def build_report(summary: dict) -> str:
             tab_summary["capability_alias_changed_count"],
             tab_summary["primary_flag_changed_count"],
             tab_summary["path_changed_count"],
+        ),
+        "- Query opening changes: `changed={0} added={1} removed={2} regressions={3} improvements={4} neutral={5}`".format(
+            query_summary["changed_query_count"],
+            query_summary["added_query_count"],
+            query_summary["removed_query_count"],
+            query_summary["regression_count"],
+            query_summary["improvement_count"],
+            query_summary["neutral_change_count"],
+        ),
+        "- Query structure: `scope={0} selection={1} query_kind={2} compare_expected={3} followup={4} primary={5}`".format(
+            query_summary["scope_changed_count"],
+            query_summary["selection_rule_changed_count"],
+            query_summary["query_kind_changed_count"],
+            query_summary["compare_expectation_changed_count"],
+            query_summary["followup_changed_count"],
+            query_summary["primary_query_change_count"],
         ),
     ]
 
@@ -147,6 +184,33 @@ def build_report(summary: dict) -> str:
                 ", ".join(landing_changes["provenance_root_changes"]["removed"]),
             )
         )
+    if landing_changes["provenance_root_detail_changes"]:
+        lines.append(
+            "- Provenance root detail changes: `{0}`".format(
+                ", ".join(
+                    change["root_id"]
+                    for change in landing_changes["provenance_root_detail_changes"]
+                )
+            )
+        )
+    if query_plan_changes["primary_query_changed"]:
+        lines.append(
+            "- Primary query: `tab {0}->{1} query {2}->{3} scope {4}->{5}`".format(
+                primary_query_status["baseline_tab_id"] or "none",
+                primary_query_status["candidate_tab_id"] or "none",
+                primary_query_status["baseline_query_kind"] or "none",
+                primary_query_status["candidate_query_kind"] or "none",
+                primary_query_status["baseline_scope"] or "none",
+                primary_query_status["candidate_scope"] or "none",
+            )
+        )
+    if has_array_changes(query_plan_changes["available_query_tab_changes"]):
+        lines.append(
+            "- Query plan tabs: `+[{0}] -[{1}]`".format(
+                ", ".join(query_plan_changes["available_query_tab_changes"]["added"]),
+                ", ".join(query_plan_changes["available_query_tab_changes"]["removed"]),
+            )
+        )
 
     lines.extend(["", "## Regression Surface"])
     if regression_surface["changed"]:
@@ -162,10 +226,39 @@ def build_report(summary: dict) -> str:
             lines.append(f"- Missing baseline primary tab: `{regression_surface['missing_primary_tab_id']}`")
         if regression_surface["downgraded_tier"]:
             lines.append("- Candidate entry tier regressed")
+        if regression_surface["provenance_root_detail_changed_ids"]:
+            lines.append(
+                "- Provenance root detail changed: `{0}`".format(
+                    "`, `".join(regression_surface["provenance_root_detail_changed_ids"])
+                )
+            )
         for narrative in regression_surface["narratives"]:
             lines.append(f"- {narrative}")
     else:
         lines.append("- No landing regression surface detected")
+
+    lines.extend(["", "## Query Regression Surface"])
+    if query_regression_surface["changed"]:
+        if query_regression_surface["removed_query_tab_ids"]:
+            lines.append(
+                "- Removed query tabs: `{0}`".format("`, `".join(query_regression_surface["removed_query_tab_ids"]))
+            )
+        if query_regression_surface["lost_compare_expected_tab_ids"]:
+            lines.append(
+                "- Lost compare-aware tabs: `{0}`".format(
+                    "`, `".join(query_regression_surface["lost_compare_expected_tab_ids"])
+                )
+            )
+        if query_regression_surface["primary_query_missing"]:
+            lines.append("- Candidate primary opening query is missing")
+        if query_regression_surface["primary_query_scope_narrowed"]:
+            lines.append("- Candidate primary opening narrowed from artifact-root to report scope")
+        if query_regression_surface["primary_query_compare_expected_regressed"]:
+            lines.append("- Candidate primary opening no longer advertises compare-aware semantics")
+        for narrative in query_regression_surface["narratives"]:
+            lines.append(f"- {narrative}")
+    else:
+        lines.append("- No opening-query regression surface detected")
 
     lines.extend(
         [
@@ -193,6 +286,32 @@ def build_report(summary: dict) -> str:
     else:
         lines.append("none | unchanged | none | none | none | none->none | none -> none")
 
+    lines.extend(
+        [
+            "",
+            "## Query Changes",
+            "Anchor | Change | Impact | Baseline query | Candidate query | Scope | Follow-up",
+            "--- | --- | --- | --- | --- | --- | ---",
+        ]
+    )
+    if query_changes:
+        for change in query_changes:
+            lines.append(
+                "{0} | {1} | {2} | {3} | {4} | {5}->{6} | {7} -> {8}".format(
+                    change["anchor_id"],
+                    change["change_kind"],
+                    change["impact"],
+                    change["baseline_query_kind"],
+                    change["candidate_query_kind"],
+                    change["baseline_scope"],
+                    change["candidate_scope"],
+                    ", ".join(change["baseline_followup_query_kinds"]),
+                    ", ".join(change["candidate_followup_query_kinds"]),
+                )
+            )
+    else:
+        lines.append("none | unchanged | none | none | none | none->none | none -> none")
+
     lines.extend(["", "## Questions"])
     for question in questions["compare_questions"]:
         lines.append(f"- compare: {question}")
@@ -204,8 +323,11 @@ def build_report(summary: dict) -> str:
 
 def build_check(summary: dict) -> str:
     landing_changes = summary["landing_changes"]
+    query_plan_changes = summary["query_plan_changes"]
     tab_summary = summary["tab_summary"]
+    query_summary = summary["query_summary"]
     regression_surface = summary["landing_regression_surface"]
+    query_regression_surface = summary["query_regression_surface"]
     return "\n".join(
         [
             f"baseline_landing_summary_path: {summary['artifact_context']['baseline_landing_summary_path']}",
@@ -221,6 +343,16 @@ def build_check(summary: dict) -> str:
                 tab_summary["improvement_count"],
                 tab_summary["neutral_change_count"],
             ),
+            "query_changes: changed={0} added={1} removed={2}".format(
+                query_summary["changed_query_count"],
+                query_summary["added_query_count"],
+                query_summary["removed_query_count"],
+            ),
+            "query_impact: regressions={0} improvements={1} neutral={2}".format(
+                query_summary["regression_count"],
+                query_summary["improvement_count"],
+                query_summary["neutral_change_count"],
+            ),
             "available_tab_changes: +[{0}] -[{1}]".format(
                 ", ".join(landing_changes["available_tab_changes"]["added"]),
                 ", ".join(landing_changes["available_tab_changes"]["removed"]),
@@ -233,9 +365,23 @@ def build_check(summary: dict) -> str:
                 ", ".join(landing_changes["provenance_root_changes"]["added"]),
                 ", ".join(landing_changes["provenance_root_changes"]["removed"]),
             ),
+            "provenance_root_detail_changes: [{0}]".format(
+                ", ".join(
+                    change["root_id"]
+                    for change in landing_changes["provenance_root_detail_changes"]
+                )
+            ),
+            "query_plan_tabs: +[{0}] -[{1}]".format(
+                ", ".join(query_plan_changes["available_query_tab_changes"]["added"]),
+                ", ".join(query_plan_changes["available_query_tab_changes"]["removed"]),
+            ),
             "landing_regression_surface: changed={0} affected={1}".format(
                 regression_surface["changed"],
                 len(regression_surface["affected_tab_ids"]),
+            ),
+            "query_regression_surface: changed={0} affected={1}".format(
+                query_regression_surface["changed"],
+                len(query_regression_surface["affected_tab_ids"]),
             ),
         ]
     ) + "\n"

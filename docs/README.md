@@ -82,8 +82,16 @@
 - 装配与启动：`docs/system/init_graph_contract.md`
 - ARMv7-A 平台契约：`docs/system/armv7a_platform_contract.md`
 - 最小内核运行时 bridge 契约：`docs/system/minimal_kernel_runtime_bridge_contract.md`
+- 最小内核运行会话 witness v0：`docs/system/kernel_runtime_session_witness_v0.md`
 - 最小内核运行时证据矩阵：`docs/system/minimal_kernel_runtime_evidence_matrix.md`
 - 最小内核运行时总回归：`scripts/minimal_kernel_runtime_smoke.ps1`
+- 最小内核运行会话 witness CI 入口：`scripts/ci_minimal_kernel_runtime_session_witness_smoke.ps1`
+- 最小内核运行会话 witness inspect 入口：`scripts/inspect_minimal_kernel_runtime_session_witness_smoke.ps1`
+- 最小内核运行会话 witness inspect compare smoke：`scripts/inspect_minimal_kernel_runtime_session_witness_smoke_compare_smoke.ps1`
+- 最小内核运行会话 witness inspect compare summary smoke：`scripts/inspect_minimal_kernel_runtime_session_witness_compare_summary_smoke.ps1`
+- 最小内核运行会话 witness inspect compare consumer v0：`docs/system/minimal_kernel_runtime_session_witness_inspect_compare_consumer_v0.md`
+- 最小内核运行会话 witness inspect compare consumer smoke：`scripts/system_compiler_minimal_kernel_runtime_session_witness_inspect_compare_consumer_smoke.ps1`
+- 最小内核运行会话 witness workflow：`.github/workflows/minimal-kernel-runtime-session-witness.yml`
 - 最小内核 runtime mailbox 契约：`docs/system/minimal_kernel_runtime_mailbox_contract.md`
 - 最小内核 task message API 契约：`docs/system/minimal_kernel_task_message_api_contract.md`
 - 最小内核 task message table 契约：`docs/system/minimal_kernel_task_message_table_contract.md`
@@ -118,6 +126,7 @@
 - 最小内核 trap/syscall 契约：`docs/system/minimal_kernel_trap_syscall_contract.md`
 - 最小内核 trap ingress adapter 契约：`docs/system/minimal_kernel_trap_ingress_contract.md`
 - ARMv7-A SVC 到 trap frame 映射证据：`docs/system/armv7a_runtime_trap_mapping_contract.md`
+- 最小内核运行会话 witness v0：`docs/system/kernel_runtime_session_witness_v0.md`
 - 网络协议栈双表面设计：`docs/io/net_stack_dual_surface_design.md`
 - POSIX 兼容总览：`docs/system/posix_support_overview.md`
 - POSIX 分层与演进原则：`docs/system/posix_subsystem_principles.md`
@@ -139,11 +148,48 @@
 - System Compiler Biography Index v0：`docs/system/system_compiler_biography_index_v0.md`
 - System Compiler Biography Index Compare v0：`docs/system/system_compiler_biography_index_compare_v0.md`
 - System Compiler World Shelf Review v0：`docs/system/system_compiler_world_shelf_review_v0.md`
+- Opening Judgment Corridor v0：`docs/system/opening_judgment_corridor_v0.md`
 - System Compiler Front Page Route v0：`docs/system/system_compiler_front_page_route_v0.md`
 - System Compiler Front Page Route Compare v0：`docs/system/system_compiler_front_page_route_compare_v0.md`
 - System Compiler Front Page Entry Capability v0：`docs/system/system_compiler_front_page_entry_capability_v0.md`
 - System Compiler Front Page Entry Landing v0：`docs/system/system_compiler_front_page_entry_landing_v0.md`
 - System Compiler Front Page Entry Landing Compare v0：`docs/system/system_compiler_front_page_entry_landing_compare_v0.md`
+- System Compiler Front Page Entry Opener v0：`docs/system/system_compiler_front_page_entry_opener_v0.md`
+- System Compiler Front Page Entry Opening Flow v0：`docs/system/system_compiler_front_page_entry_opening_flow_v0.md`
+- System Compiler Front Page Entry Opening Flow Consumer v0：`docs/system/system_compiler_front_page_entry_opening_flow_consumer_v0.md`
+- System Compiler Front Page Entry Opening Flow Consumer Selector v0：`docs/system/system_compiler_front_page_entry_opening_flow_consumer_selector_v0.md`
+- System Compiler Front Page Entry Opening Flow Consumer Plan v0：`docs/system/system_compiler_front_page_entry_opening_flow_consumer_plan_v0.md`
+- System Compiler Front Page Entry Opening Flow Consumer Plan Action v0：`docs/system/system_compiler_front_page_entry_opening_flow_consumer_plan_action_v0.md`
+- System Compiler Front Page Entry Opening Flow Consumer Plan Compare v0：`docs/system/system_compiler_front_page_entry_opening_flow_consumer_plan_compare_v0.md`
+- System Compiler Front Page Entry Opening Flow Consumer Selector Compare v0：`docs/system/system_compiler_front_page_entry_opening_flow_consumer_selector_compare_v0.md`
+- System Compiler Front Page Entry Opening Flow Compare v0：`docs/system/system_compiler_front_page_entry_opening_flow_compare_v0.md`
+- System Compiler Front Page Entry Runtime Session Opening Flow Plan Action v0：`docs/system/system_compiler_front_page_entry_runtime_session_opening_flow_plan_action_v0.md`
+- System Compiler Front Page Entry Runtime Session Opening Flow bridge smoke：`scripts/system_compiler_front_page_entry_runtime_session_opening_flow_plan_action_bridge_smoke.ps1`
+- System Compiler Front Page Entry Runtime Session Opening Flow blocked bridge smoke：`scripts/system_compiler_front_page_entry_runtime_session_opening_flow_plan_action_bridge_blocked_smoke.ps1`
+- System Compiler Front Page Entry Runtime Session open event witness smoke：`scripts/system_compiler_front_page_entry_runtime_session_open_event_witness_smoke.ps1`
+- System Compiler Front Page Entry Opener open event witness smoke：`scripts/system_compiler_front_page_entry_opener_open_event_witness_smoke.ps1`
+- System Compiler Witness open event witness export smoke：`scripts/system_compiler_witness_open_event_witness_export_smoke.ps1`
+- System Compiler Witness open event witness world compare smoke：`scripts/system_compiler_witness_open_event_witness_world_compare_smoke.ps1`
+- System Compiler Front Page Entry Opening Flow smoke：`scripts/system_compiler_front_page_entry_opening_flow_smoke.ps1`
+- System Compiler Front Page Entry Opening Flow consumer smoke：`scripts/system_compiler_front_page_entry_opening_flow_consumer_smoke.ps1`
+- System Compiler Front Page Entry Opening Flow consumer selector smoke：`scripts/system_compiler_front_page_entry_opening_flow_consumer_selector_smoke.ps1`
+- System Compiler Front Page Entry Opening Flow consumer plan smoke：`scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_smoke.ps1`
+- System Compiler Front Page Entry Opening Flow consumer plan action smoke：`scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_smoke.ps1`
+- System Compiler Front Page Entry Opening Flow consumer plan action compare smoke：`scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_compare_smoke.ps1`
+- System Compiler Front Page Entry Opening Flow consumer plan action workspace compare：`scripts/compare_system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace.ps1`
+- System Compiler Front Page Entry Opening Flow consumer plan action workspace compare smoke：`scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace_compare_smoke.ps1`
+- System Compiler Front Page Entry Opening Flow consumer plan action workspace exporter：`scripts/export_system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace.ps1`
+- System Compiler Front Page Entry Opening Flow consumer plan action workspace smoke：`scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace_smoke.ps1`
+- System Compiler Front Page Entry Opening Flow consumer plan compare smoke：`scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_compare_smoke.ps1`
+- System Compiler Front Page Entry Opening Flow consumer plan workspace exporter：`scripts/export_system_compiler_front_page_entry_opening_flow_consumer_plan_workspace.ps1`
+- System Compiler Front Page Entry Opening Flow consumer plan workspace compare smoke：`scripts/system_compiler_front_page_entry_opening_flow_consumer_plan_workspace_compare_smoke.ps1`
+- System Compiler Front Page Entry Opening Flow consumer plan workspace compare：`scripts/compare_system_compiler_front_page_entry_opening_flow_consumer_plan_workspace.ps1`
+- System Compiler Front Page Entry Opening Flow consumer selector compare smoke：`scripts/system_compiler_front_page_entry_opening_flow_consumer_selector_compare_smoke.ps1`
+- System Compiler Front Page Entry Opening Flow consumer selector workspace exporter：`scripts/export_system_compiler_front_page_entry_opening_flow_consumer_selector_workspace.ps1`
+- System Compiler Front Page Entry Opening Flow consumer selector workspace compare：`scripts/compare_system_compiler_front_page_entry_opening_flow_consumer_selector_workspace.ps1`
+- System Compiler Front Page Entry Opening Flow consumer workspace exporter：`scripts/export_system_compiler_front_page_entry_opening_flow_consumer_workspace.ps1`
+- System Compiler Front Page Entry Opening Flow workspace exporter：`scripts/export_system_compiler_front_page_entry_opening_flow_workspace.ps1`
+- System Compiler Front Page Entry Opening Flow workspace compare：`scripts/compare_system_compiler_front_page_entry_opening_flow_workspace.ps1`
 - Explain Surface / Artifact Report v0：`docs/system/explain_surface_v0.md`
 - 资源契约 v0：`docs/system/resource_contract_v0.md`
 - bringup 证据流水线 v0：`docs/system/bringup_evidence_pipeline_v0.md`
@@ -196,6 +242,12 @@ flowchart TD
 | 上 RK3506 板 / 查早期寄存器 | `docs/board/rk3506/README.md` → `docs/board/rk3506/post_ddr_handoff_contract.md` → `docs/system/armv7a_platform_contract.md` |
 | 推进 ARMv7-A 平台 bring-up | `docs/system/armv7a_platform_contract.md` → `docs/boot/bootloader_overview.md` |
 | 推进最小内核运行时 glue / bridge | `docs/system/minimal_kernel_runtime_bridge_contract.md` → `docs/system/armv7a_minimal_kernel_staging_plan.md` |
+| 推进最小内核运行会话 witness / session 证据对象 | `docs/system/kernel_runtime_session_witness_v0.md` → `docs/system/minimal_kernel_runtime_evidence_bundle_contract.md` → `schemas/README.md` |
+| 看 runtime-session testimony / handoff 与 future shelf-review 共享的上层阅读通路法 | `docs/system/opening_judgment_corridor_v0.md` → `docs/system/system_compiler_front_page_entry_runtime_session_opening_flow_plan_action_v0.md` → `docs/system/system_compiler_front_page_route_v0.md` → `docs/system/system_compiler_front_page_entry_opening_testimony_explain_entry_handoff_v0.md` |
+| 回归最小内核运行会话 witness 聚合证据 | `scripts/ci_minimal_kernel_runtime_session_witness_smoke.ps1` → `.github/workflows/minimal-kernel-runtime-session-witness.yml` → `docs/system/kernel_runtime_session_witness_v0.md` |
+| 查看最小内核运行会话 witness 聚合状态 | `scripts/inspect_minimal_kernel_runtime_session_witness_smoke.ps1` → `docs/system/kernel_runtime_session_witness_v0.md` → `docs/system/minimal_kernel_runtime_evidence_bundle_contract.md` |
+| 比较两份最小内核运行会话 witness 聚合状态 | `scripts/inspect_minimal_kernel_runtime_session_witness_smoke.ps1 -BaselineSummary ...` → `scripts/inspect_minimal_kernel_runtime_session_witness_smoke_compare_smoke.ps1` → `docs/system/kernel_runtime_session_witness_v0.md` |
+| 导出最小内核运行会话 witness inspect compare 对象 | `scripts/inspect_minimal_kernel_runtime_session_witness_smoke.ps1 -CompareSummaryPath ...` → `scripts/inspect_minimal_kernel_runtime_session_witness_compare_summary_smoke.ps1` → `schemas/README.md` |
 | 查看最小内核运行时证据覆盖 | `docs/system/minimal_kernel_runtime_evidence_matrix.md` → `docs/system/minimal_kernel_runtime_bridge_contract.md` |
 | 回归最小内核运行时总入口 | `scripts/minimal_kernel_runtime_smoke.ps1` → `docs/system/README.md` |
 | 推进第一个 stateful kernel object / runtime mailbox | `docs/system/minimal_kernel_runtime_mailbox_contract.md` → `docs/system/minimal_kernel_runtime_bridge_contract.md` |
@@ -348,11 +400,13 @@ docs/
 - `docs/system/system_compiler_biography_index_v0.md`
 - `docs/system/system_compiler_biography_index_compare_v0.md`
 - `docs/system/system_compiler_world_shelf_review_v0.md`
+- `docs/system/opening_judgment_corridor_v0.md`
 - `docs/system/system_compiler_front_page_route_v0.md`
 - `docs/system/system_compiler_front_page_route_compare_v0.md`
 - `docs/system/system_compiler_front_page_entry_capability_v0.md`
 - `docs/system/system_compiler_front_page_entry_landing_v0.md`
 - `docs/system/system_compiler_front_page_entry_landing_compare_v0.md`
+- `docs/system/system_compiler_front_page_entry_opener_v0.md`
 - `docs/system/explain_surface_v0.md`
 - `docs/system/resource_contract_v0.md`
 - `docs/system/bringup_evidence_pipeline_v0.md`
@@ -363,6 +417,7 @@ docs/
 - `docs/system/init_materialized_graph_tooling_milestone.md`
 - `docs/system/armv7a_platform_contract.md`
 - `docs/system/minimal_kernel_runtime_bridge_contract.md`
+- `docs/system/kernel_runtime_session_witness_v0.md`
 - `docs/system/minimal_kernel_runtime_evidence_matrix.md`
 - `docs/system/minimal_kernel_runtime_mailbox_contract.md`
 - `docs/system/minimal_kernel_task_message_api_contract.md`

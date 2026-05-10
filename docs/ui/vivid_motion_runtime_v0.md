@@ -328,8 +328,8 @@ v0 规则：
 
 | requested / admission | runtime shape | source ownership | destination shape | begin result | page truth result | evidence |
 | --- | --- | --- | --- | --- | --- | --- |
-| `Rich/Cheap -> PixelDouble` | 双 PixelSurface snapshot compose | runner 持有 source snapshot | runner 持有 destination snapshot | `Started` | commit 后 source hidden，destination live | `normal_commit` / `cancel_during_compose` |
-| `Rich/Cheap -> PixelSingle` | source snapshot over live destination | runner 持有 source snapshot | destination prepare 后保持 live | `Started` | commit 后 source hidden，destination live；cancel 后恢复 begin 前 | `pixel_single_live_destination` / `pixel_single_cancel` / `pixel_single_rebegin_interrupt` |
+| `Rich/Cheap -> PixelDouble` | 双 PixelSurface snapshot compose | runner 持有 source snapshot | runner 持有 destination snapshot | `Started` | commit 后 source hidden，destination live | `normal_commit` / `fade_slide_pixel_double` / `cancel_during_compose` |
+| `Rich/Cheap -> PixelSingle` | source snapshot over live destination | runner 持有 source snapshot | destination prepare 后保持 live | `Started` | commit 后 source hidden，destination live；cancel 后恢复 begin 前 | `pixel_single_fade_slide_live_destination` / `pixel_single_cancel` / `pixel_single_rebegin_interrupt` |
 | `Static -> StaticCut` | 主动 static cut | 无 snapshot | destination prepare 后直接提交 | `StaticCut` | source hidden，destination live | `static_profile_static_cut` |
 | `None -> Reject` | 拒绝事务 | 无 snapshot | 不调用 prepare | `Rejected` | begin 前 page truth 不变 | `none_profile_reject` |
 | budget / caps -> `CommandSnapshot` | 当前合法降级为 static cut | 无 snapshot / 无 command payload | destination prepare 后直接提交 | `StaticCut` | source hidden，destination live | `command_snapshot_static_cut` |
@@ -354,12 +354,15 @@ Examples/ui/vivid/page_transition_demo
 当前覆盖：
 
 - normal commit：双 snapshot capture、双层 compose、commit 后 `snapshot_count == 0`
+- fade slide pixel double：`fade_slide` recipe 在双 snapshot compose 中同时输出 transform / opacity
+- fade slide cheap quantized：同一 recipe 在 Cheap profile 下量化 motion time 与 opacity
 - cancel during compose：abort 后恢复 begin 前可见性，`snapshot_count == 0`
 - static profile：`LayerProfile::Static` 主动选择 `StaticCut` admission，不依赖预算失败
 - none profile：`LayerProfile::None` 主动拒绝事务，不调用 prepare，不改变 page truth
 - pixel single：只捕获 source snapshot，destination 保持 live，commit / cancel 后 `snapshot_count == 0`
 - command snapshot static cut：`CommandSnapshot` admission 在双页 replay 实现前不发生 capture，显式 static cut 并直接提交目标页
 - destination prepare fail：释放已捕获的 source snapshot，恢复 page truth
+- causal chain verdict：15 条事务局部证据全部通过后输出 `page_transition.transaction` 最终因果判决，并显式引用 admission / commit / cancel / interrupt / static cut / snapshot lifecycle / page truth 证据段
 
 ## 2026-05 补记：PageTransition interrupt law
 
@@ -401,6 +404,47 @@ Examples/ui/vivid/page_transition_demo
 
 `Examples/ui/vivid/page_transition_demo` 已对 normal commit、cancel、Static/None profile、CommandSnapshot static-cut、prepare fail、capture fail 与 rebegin interrupt 的账本字段做断言。
 
+## 2026-05 补记：PageTransition fade_slide recipe evidence
+
+`PageTransitionRunner` 已有第一条 Motion recipe 接入证据：`fade_slide_pixel_double`，并补充了 Cheap profile 下的量化证据 `fade_slide_cheap_quantized`。
+
+这条用例验证的是：
+
+- `PixelDouble` admission 下 source / destination 都以 PixelSurface snapshot 参与 compose。
+- `PixelSingle` admission 下 source 以 PixelSurface snapshot 参与 compose，destination 保持 live 且不执行 destination snapshot compose。
+- `MotionRecipeKind::FadeSlide` 会进入 `MotionTransitionTrace`。
+- sample frame 同时携带位移与 opacity。
+- source compose plan 使用 sampled transform / opacity。
+- destination snapshot 仍以 identity transform 参与 compose。
+- Rich profile 下 sample time 直接按输入时间推进。
+- Cheap profile 下 motion time 量化到 30fps step，opacity 量化到 4-step 档位；该规则同时覆盖 PixelDouble 与 PixelSingle。
+- Static profile 下同一 `fade_slide` 请求仍直接 static cut，不启动 motion runner。
+- None profile 下同一 `fade_slide` 请求仍直接 reject，不调用 prepare，也不启动 motion runner。
+- commit 后释放所有 snapshot，回到 idle。
+
+### PageTransition fade_slide profile 矩阵
+
+这张表收口的是同一个 `fade_slide` 请求在不同 admission / profile 下的已验证行为。
+
+| requested / admission | recipe execution | time / opacity policy | composed artifacts | evidence |
+| --- | --- | --- | --- | --- |
+| `Rich -> PixelDouble` | motion runner starts | 直接采样输入时间；opacity 不量化 | source snapshot + destination snapshot | `fade_slide_pixel_double` |
+| `Cheap -> PixelDouble` | motion runner starts | 30fps 时间量化；opacity 4-step 量化 | source snapshot + destination snapshot | `fade_slide_cheap_quantized` |
+| `Rich -> PixelSingle` | motion runner starts | 直接采样输入时间；opacity 不量化 | source snapshot over live destination | `pixel_single_fade_slide_live_destination` |
+| `Cheap -> PixelSingle` | motion runner starts | 30fps 时间量化；opacity 4-step 量化 | source snapshot over live destination | `pixel_single_fade_slide_cheap_quantized` |
+| `Static -> StaticCut` | motion runner 不启动 | recipe 被 profile 裁掉 | 无 snapshot compose，直接提交目标页 | `static_profile_static_cut` |
+| `None -> Reject` | motion runner 不启动 | recipe 被 profile 拒绝 | 无 prepare / capture / compose | `none_profile_reject` |
+| budget / caps -> `CommandSnapshot` | motion runner 不启动 | command replay 未实现，合法降级 | 无 snapshot / command compose，直接提交目标页 | `command_snapshot_static_cut` |
+
+收口原则：
+
+- Recipe 是请求，不是保证；profile / admission 先裁决 runtime shape。
+- `PixelDouble` 与 `PixelSingle` 都可以执行同一个 recipe，但 artifacts 不同。
+- Cheap 的时间与 opacity 量化是 profile law，不是单独页面逻辑。
+- Static / None / CommandSnapshot static-cut 不能因为 recipe 存在而启动 motion runner。
+
+这不是完整 Motion system，只是 PageTransition 事务骨架上的第一块 recipe 肌肉：同一 recipe 已开始受 profile 裁决，并且不能绕过 Static / None 的运行时宪法。
+
 ## 2026-05 补记：PageTransition None profile law
 
 `LayerProfile::None` 是显式禁用转场事务的 profile。它与 `Static` 不同：`Static` 会提交目标页，`None` 会拒绝本次 begin。
@@ -416,7 +460,7 @@ Examples/ui/vivid/page_transition_demo
 - trace / ledger 保留 `requested_profile == None`、`effective_profile == None` 与 `admission == Reject`。
 - 回到 idle 后 `snapshot_count == 0`，`peak_layer_bytes == 0`，`total_composite_pixels == 0`。
 
-`Examples/ui/vivid/page_transition_demo` 已覆盖 `none_profile_reject`。
+`Examples/ui/vivid/page_transition_demo` 已覆盖 `none_profile_reject`，该用例使用 `fade_slide` 请求来验证 recipe 不会绕过 `None` 的拒绝语义。
 
 ## 2026-05 补记：PageTransition Static profile law
 
@@ -431,7 +475,7 @@ Examples/ui/vivid/page_transition_demo
 - trace / ledger 保留 `requested_profile == Static`、`effective_profile == Static` 与 `admission == StaticCut`。
 - 回到 idle 后 `snapshot_count == 0`，`peak_layer_bytes == 0`，`total_composite_pixels == 0`。
 
-`Examples/ui/vivid/page_transition_demo` 已覆盖 `static_profile_static_cut`。
+`Examples/ui/vivid/page_transition_demo` 已覆盖 `static_profile_static_cut`，该用例使用 `fade_slide` 请求来验证 recipe 不会绕过 `Static` 的 static cut 语义。
 
 ## 2026-05 补记：PageTransition CommandSnapshot static-cut law
 
@@ -458,4 +502,16 @@ Examples/ui/vivid/page_transition_demo
 - sample 阶段只执行 source snapshot compose，destination compose result 保持 invalid。
 - commit / cancel 后 runner 释放所持 source snapshot，回到 idle 时 `snapshot_count == 0`。
 
-`Examples/ui/vivid/page_transition_demo` 已覆盖 `pixel_single_live_destination`、`pixel_single_cancel` 与 `pixel_single_rebegin_interrupt`，并断言 source-only bytes、source-only composite pixels、destination capture count 为 0，以及 cancel / interrupt 后恢复 begin 前 page truth。
+`Examples/ui/vivid/page_transition_demo` 已覆盖 `pixel_single_fade_slide_live_destination`、`pixel_single_fade_slide_cheap_quantized`、`pixel_single_cancel` 与 `pixel_single_rebegin_interrupt`，并断言 source-only bytes、source-only composite pixels、destination capture count 为 0，以及 Cheap profile 量化、cancel / interrupt 后恢复 begin 前 page truth。
+
+## 2026-05 补记：Motion time causal verdict
+
+`Examples/ui/vivid/motion_time_demo` 现在输出最终 `motion_time.managed` 因果判决。
+
+它在托管时间、profile opacity law、motion recipe、transition trace、compose dry-run、budget fallback、stale rejection、pixel snapshot compose 与单页 `PageMotionTransition` 证据全部通过后，输出：
+
+```text
+[mt] case=causal_chain causal_chain=1 name=motion_time.managed ok=1 time_ok=1 recipe_ok=1 compose_ok=1 budget_ok=1 trace_ok=1 page_motion_ok=1 ...
+```
+
+这条 verdict 把单页 Motion Runtime 的局部事实收束为“UI 时间由 runtime 托管，compose / budget / page freeze-thaw 都可审计”的证据出口。它仍保留 `cases_closed` 作为 v0 过渡护栏，同时按 `vivid_causal_verdict_law_v0.md` 开始显式引用 time / recipe / compose / budget / trace / page motion 证据段。

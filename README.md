@@ -97,16 +97,16 @@ Capability Graph
 
 Charm 提供一组可组合的系统能力。
 
-| Domain         | Key Capabilities                            |
-|----------------|---------------------------------------------|
-| System         | InitGraph · EDA Scheduler · Sync primitives |
-| IO             | Channel · Reactor · Registry                |
-| Debug / Output | Out formatting · Logging                    |
-| Storage        | VFS                                         |
-| USB            | USB Device framework                        |
-| UI             | Ink (lightweight UI) · Vivid (rich UI)      |
-| Media          | Audio pipeline                              |
-| Platform       | HAL drivers                                 |
+|     Domain     |              Key Capabilities               |
+|:--------------:|:-------------------------------------------:|
+|     System     | InitGraph · EDA Scheduler · Sync primitives |
+|       IO       |        Channel · Reactor · Registry         |
+| Debug / Output |          Out formatting · Logging           |
+|    Storage     |                     VFS                     |
+|      USB       |            USB Device framework             |
+|       UI       |   Ink (lightweight UI) · Vivid (rich UI)    |
+|     Media      |               Audio pipeline                |
+|    Platform    |                 HAL drivers                 |
 
 * 完整能力列表 → **[Capability Map](docs/capability_map.md)**
 
@@ -335,7 +335,7 @@ input-pump-win-demo
 本项目中使用了一些开源项目，感谢以下项目：
 
 | 名字       | 路径                         | 许可       | 链接                                         |
-|----------|----------------------------|----------|--------------------------------------------|
+|:---------|----------------------------|----------|--------------------------------------------|
 | etl      |                            |          |                                            |
 | freetype |                            | FreeType | https://freetype.org/                      |
 | lua      |                            | MIT      | https://www.lua.org/                       |

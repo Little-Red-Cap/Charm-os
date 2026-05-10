@@ -58,9 +58,28 @@ namespace {
         }
         return true;
     }
+
+    unsigned widget_signal_summary_case_count{0};
+
+    void print_widget_signal_run_begin() noexcept {
+        std::printf("[ws] run=widget_signal_demo phase=begin\n");
+    }
+
+    void print_widget_signal_run_end(bool ok) noexcept {
+        std::printf("[ws] run=widget_signal_demo phase=end result=%s cases=%u\n",
+                    ok ? "ok" : "fail",
+                    widget_signal_summary_case_count);
+    }
+
+    void print_widget_signal_case(const char* name) noexcept {
+        ++widget_signal_summary_case_count;
+        std::printf("[ws] case=%s", name);
+    }
 }
 
 int main() {
+    print_widget_signal_run_begin();
+
     Probe probe{};
 
     Button button{"Apply"};
@@ -181,17 +200,21 @@ int main() {
     if (!expect(probe.list_secondary_clicks == 2, "disabled list does not emit hidden edge")) return 1;
     if (!expect(g_list_legacy_clicks == 2, "disabled list does not invoke legacy callback")) return 1;
 
-    std::printf("[button] primary=%d secondary=%d legacy=%d\n",
+    print_widget_signal_case("button_click_edge");
+    std::printf(" primary=%d secondary=%d legacy=%d\n",
                 probe.primary_clicks,
                 probe.secondary_clicks,
                 g_button_legacy_clicks);
-    std::printf("[menu_item] clicks=%d legacy=%d\n",
+    print_widget_signal_case("menu_item_click_edge");
+    std::printf(" clicks=%d legacy=%d\n",
                 probe.menu_clicks,
                 g_menu_legacy_clicks);
-    std::printf("[list_item] primary=%d secondary=%d legacy=%d\n",
+    print_widget_signal_case("list_item_click_edge");
+    std::printf(" primary=%d secondary=%d legacy=%d\n",
                 probe.list_clicks,
                 probe.list_secondary_clicks,
                 g_list_legacy_clicks);
+    print_widget_signal_run_end(true);
     std::puts("[widget_signal_demo] ok");
     return 0;
 }

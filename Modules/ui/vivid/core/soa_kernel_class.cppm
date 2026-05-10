@@ -51,6 +51,10 @@ namespace soa_detail {
         std::array<StyleClassId, N> style_class{};
         std::array<std::uint8_t, N> text_align_h{};
         std::array<std::uint8_t, N> text_align_v{};
+        std::array<SemanticRole, N> semantic_role{};
+        std::array<soa_detail::TextId, N> semantic_id{};
+        std::array<soa_detail::TextId, N> semantic_label{};
+        std::array<SemanticActionMask, N> semantic_actions{};
     };
 
 }
@@ -61,141 +65,15 @@ class SoaKernel {
 public:
     static constexpr std::size_t kMaxNodes = soa_max_nodes;
 
-    SoaKernel() noexcept {
-        free_head_ = 0;
-        for (std::uint16_t i = 0; i < kMaxNodes; ++i) {
-            common_.free_next[i] = (i + 1 < kMaxNodes) ? static_cast<std::uint16_t>(i + 1) : kInvalidIndex;
-            common_.kind[i] = WidgetKind::None;
-            common_.generation[i] = 1;
-            common_.flags[i] = 0;
-            common_.state_flags[i] = 0;
-            common_.variant[i] = 0;
-            common_.rects[i] = Rect{};
-            common_.paint_bounds[i] = Rect{};
-            common_.parent[i] = kInvalidIndex;
-            common_.first_child[i] = kInvalidIndex;
-            common_.last_child[i] = kInvalidIndex;
-            common_.next_sibling[i] = kInvalidIndex;
-            common_.prev_sibling[i] = kInvalidIndex;
-            common_.child_count[i] = 0;
-            common_.layout_kind[i] = static_cast<std::uint8_t>(SoaLayoutKind::None);
-            common_.payload[i] = soa_detail::invalid_payload_handle();
-            common_.style_patch[i] = StylePatch{};
-            common_.style_patch_on[i] = 0;
-            common_.style_patch_kind[i] = static_cast<std::uint8_t>(StylePatchKind::None);
-            common_.style_class[i] = kStyleClassInvalid;
-            common_.text_align_h[i] = static_cast<std::uint8_t>(TextAlignH::Left);
-            common_.text_align_v[i] = static_cast<std::uint8_t>(TextAlignV::Center);
-        }
-        payloads_.reset();
-    }
+    SoaKernel() noexcept;
 
-    WidgetHandle create(WidgetKind kind) noexcept {
-        if (!widget_kind_enabled(kind)) {
-            unsupported_kind(kind);
-            return {};
-        }
-        const auto desc = payload_descriptor(kind);
-        if (!desc.supported) {
-            unsupported_kind(kind);
-            return {};
-        }
-        if (free_head_ == kInvalidIndex) return {};
-        const std::uint16_t idx = free_head_;
-        free_head_ = common_.free_next[idx];
-        const SoaDefaults defaults = default_for_kind(kind);
-        common_.kind[idx] = kind;
-        common_.flags[idx] = static_cast<std::uint8_t>(SoaNodeFlag::Used)
-            | static_cast<std::uint8_t>(SoaNodeFlag::Visible)
-            | static_cast<std::uint8_t>(SoaNodeFlag::Enabled)
-            | (defaults.hit_test ? static_cast<std::uint8_t>(SoaNodeFlag::HitTest) : std::uint8_t{0})
-            | (defaults.focusable ? static_cast<std::uint8_t>(SoaNodeFlag::Focusable) : std::uint8_t{0})
-            | (defaults.clip_children ? static_cast<std::uint8_t>(SoaNodeFlag::ClipChildren) : std::uint8_t{0});
-        common_.state_flags[idx] = 0;
-        common_.variant[idx] = 0;
-        common_.rects[idx] = Rect{};
-        common_.paint_bounds[idx] = Rect{};
-        common_.parent[idx] = kInvalidIndex;
-        common_.first_child[idx] = kInvalidIndex;
-        common_.last_child[idx] = kInvalidIndex;
-        common_.next_sibling[idx] = kInvalidIndex;
-        common_.prev_sibling[idx] = kInvalidIndex;
-        common_.child_count[idx] = 0;
-        common_.layout_kind[idx] = static_cast<std::uint8_t>(defaults.layout_kind);
-        common_.style_patch[idx] = StylePatch{};
-        common_.style_patch_on[idx] = 0;
-        common_.style_patch_kind[idx] = static_cast<std::uint8_t>(StylePatchKind::None);
-        common_.style_class[idx] = kStyleClassInvalid;
-        common_.text_align_h[idx] = static_cast<std::uint8_t>(TextAlignH::Left);
-        common_.text_align_v[idx] = static_cast<std::uint8_t>(TextAlignV::Center);
-        const auto payload = payload_alloc(kind, idx);
-        if (desc.payload != soa_detail::PayloadKind::None && !soa_detail::payload_valid(payload)) {
-            common_.kind[idx] = WidgetKind::None;
-            common_.flags[idx] = 0;
-            common_.state_flags[idx] = 0;
-            common_.variant[idx] = 0;
-            common_.rects[idx] = Rect{};
-            common_.paint_bounds[idx] = Rect{};
-            common_.parent[idx] = kInvalidIndex;
-            common_.first_child[idx] = kInvalidIndex;
-            common_.last_child[idx] = kInvalidIndex;
-            common_.next_sibling[idx] = kInvalidIndex;
-            common_.prev_sibling[idx] = kInvalidIndex;
-            common_.child_count[idx] = 0;
-            common_.layout_kind[idx] = static_cast<std::uint8_t>(SoaLayoutKind::None);
-            common_.payload[idx] = soa_detail::invalid_payload_handle();
-            common_.style_patch[idx] = StylePatch{};
-            common_.style_patch_on[idx] = 0;
-            common_.style_patch_kind[idx] = static_cast<std::uint8_t>(StylePatchKind::None);
-            common_.style_class[idx] = kStyleClassInvalid;
-            common_.text_align_h[idx] = static_cast<std::uint8_t>(TextAlignH::Left);
-            common_.text_align_v[idx] = static_cast<std::uint8_t>(TextAlignV::Center);
-            common_.free_next[idx] = free_head_;
-            free_head_ = idx;
-            return {};
-        }
-        common_.payload[idx] = payload;
-        mark_layout_dirty();
-        return WidgetHandle{kind, idx, common_.generation[idx]};
-    }
+    WidgetHandle create(WidgetKind kind) noexcept;
 
-    void destroy(WidgetHandle h) noexcept {
-        const std::uint16_t idx = index_of(h);
-        if (idx == kInvalidIndex) return;
-        input_on_destroy(h);
-        clear_scrollbar_targets(h);
-        const WidgetKind old_kind = common_.kind[idx];
-        detach_from_parent(idx);
-        detach_children(idx);
-        common_.kind[idx] = WidgetKind::None;
-        common_.flags[idx] = 0;
-        common_.state_flags[idx] = 0;
-        common_.variant[idx] = 0;
-        common_.rects[idx] = Rect{};
-        common_.paint_bounds[idx] = Rect{};
-        common_.layout_kind[idx] = static_cast<std::uint8_t>(SoaLayoutKind::None);
-        common_.style_patch[idx] = StylePatch{};
-        common_.style_patch_on[idx] = 0;
-        common_.style_patch_kind[idx] = static_cast<std::uint8_t>(StylePatchKind::None);
-        common_.style_class[idx] = kStyleClassInvalid;
-        common_.text_align_h[idx] = static_cast<std::uint8_t>(TextAlignH::Left);
-        common_.text_align_v[idx] = static_cast<std::uint8_t>(TextAlignV::Center);
-        payload_free(old_kind, common_.payload[idx], idx);
-        common_.payload[idx] = soa_detail::invalid_payload_handle();
-        mark_layout_dirty();
-        common_.generation[idx] = static_cast<std::uint16_t>(common_.generation[idx] + 1);
-        common_.free_next[idx] = free_head_;
-        free_head_ = idx;
-    }
+    void destroy(WidgetHandle h) noexcept;
 
-    bool valid(WidgetHandle h) const noexcept {
-        return index_of(h) != kInvalidIndex;
-    }
+    bool valid(WidgetHandle h) const noexcept;
 
-    WidgetKind kind(WidgetHandle h) const noexcept {
-        const std::uint16_t idx = index_of(h);
-        return (idx == kInvalidIndex) ? WidgetKind::None : common_.kind[idx];
-    }
+    WidgetKind kind(WidgetHandle h) const noexcept;
 
     Rect rect(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
@@ -244,74 +122,21 @@ public:
         common_.paint_bounds[idx] = r;
     }
 
-    bool link(WidgetHandle parent, WidgetHandle child) noexcept {
-        const std::uint16_t p = index_of(parent);
-        const std::uint16_t c = index_of(child);
-        if (p == kInvalidIndex || c == kInvalidIndex) return false;
-        if (p == c) return false;
-        if (creates_cycle(p, c)) return false;
-        detach_from_parent(c);
-        common_.parent[c] = p;
-        if (common_.last_child[p] != kInvalidIndex) {
-            const std::uint16_t last = common_.last_child[p];
-            common_.next_sibling[last] = c;
-            common_.prev_sibling[c] = last;
-            common_.last_child[p] = c;
-        } else {
-            common_.first_child[p] = c;
-            common_.last_child[p] = c;
-            common_.prev_sibling[c] = kInvalidIndex;
-        }
-        common_.next_sibling[c] = kInvalidIndex;
-        common_.child_count[p] = static_cast<std::uint16_t>(common_.child_count[p] + 1);
-        mark_layout_dirty();
-        return true;
-    }
+    bool link(WidgetHandle parent, WidgetHandle child) noexcept;
 
-    bool unlink(WidgetHandle parent, WidgetHandle child) noexcept {
-        const std::uint16_t p = index_of(parent);
-        const std::uint16_t c = index_of(child);
-        if (p == kInvalidIndex || c == kInvalidIndex) return false;
-        if (common_.parent[c] != p) return false;
-        detach_from_parent(c);
-        mark_layout_dirty();
-        return true;
-    }
+    bool unlink(WidgetHandle parent, WidgetHandle child) noexcept;
 
-    WidgetHandle parent(WidgetHandle h) const noexcept {
-        const std::uint16_t idx = index_of(h);
-        if (idx == kInvalidIndex) return {};
-        return handle_from_index(common_.parent[idx]);
-    }
+    WidgetHandle parent(WidgetHandle h) const noexcept;
 
-    WidgetHandle first_child(WidgetHandle h) const noexcept {
-        const std::uint16_t idx = index_of(h);
-        if (idx == kInvalidIndex) return {};
-        return handle_from_index(common_.first_child[idx]);
-    }
+    WidgetHandle first_child(WidgetHandle h) const noexcept;
 
-    WidgetHandle last_child(WidgetHandle h) const noexcept {
-        const std::uint16_t idx = index_of(h);
-        if (idx == kInvalidIndex) return {};
-        return handle_from_index(common_.last_child[idx]);
-    }
+    WidgetHandle last_child(WidgetHandle h) const noexcept;
 
-    WidgetHandle next_sibling(WidgetHandle h) const noexcept {
-        const std::uint16_t idx = index_of(h);
-        if (idx == kInvalidIndex) return {};
-        return handle_from_index(common_.next_sibling[idx]);
-    }
+    WidgetHandle next_sibling(WidgetHandle h) const noexcept;
 
-    WidgetHandle prev_sibling(WidgetHandle h) const noexcept {
-        const std::uint16_t idx = index_of(h);
-        if (idx == kInvalidIndex) return {};
-        return handle_from_index(common_.prev_sibling[idx]);
-    }
+    WidgetHandle prev_sibling(WidgetHandle h) const noexcept;
 
-    std::size_t child_count(WidgetHandle h) const noexcept {
-        const std::uint16_t idx = index_of(h);
-        return (idx == kInvalidIndex) ? std::size_t{0} : static_cast<std::size_t>(common_.child_count[idx]);
-    }
+    std::size_t child_count(WidgetHandle h) const noexcept;
 
     void set_visible(WidgetHandle h, bool on) noexcept {
         set_flag(h, SoaNodeFlag::Visible, on);
@@ -346,6 +171,47 @@ public:
     bool focusable(WidgetHandle h) const noexcept {
         return get_flag(h, SoaNodeFlag::Focusable);
     }
+
+    void set_semantic(WidgetHandle h,
+                      SemanticRole role,
+                      const char* id,
+                      const char* label) noexcept;
+
+    void set_semantic_default(WidgetHandle h,
+                              const char* id,
+                              const char* label = nullptr) noexcept;
+
+    void clear_semantic(WidgetHandle h) noexcept;
+
+    void set_semantic_actions(WidgetHandle h, SemanticActionMask actions) noexcept;
+
+    SemanticFocusSnapshot semantic_snapshot(WidgetHandle h) const noexcept;
+
+    SemanticActionSnapshot semantic_action_snapshot(WidgetHandle h) const noexcept;
+
+    SemanticFocusSnapshot semantic_focus_snapshot() const noexcept;
+
+    SemanticIntentResolution resolve_semantic_intent(WidgetHandle root,
+                                                     const char* id,
+                                                     SemanticAction action) const noexcept;
+
+    SemanticActionAdmission admit_semantic_action(WidgetHandle root,
+                                                  const char* id,
+                                                  SemanticAction action) const noexcept;
+
+    SemanticActionRequest request_semantic_action(WidgetHandle root,
+                                                  const char* id,
+                                                  SemanticAction action) noexcept;
+
+    SemanticFocusQuery query_semantic_focus(WidgetHandle root, const char* id) const noexcept;
+
+    SemanticFocusAdmission admit_semantic_focus(WidgetHandle root, const char* id) const noexcept;
+
+    SemanticFocusRequest request_semantic_focus(WidgetHandle root, const char* id) noexcept;
+
+    SemanticTreeSnapshot semantic_tree_snapshot(
+        WidgetHandle root,
+        std::size_t max_nodes = kSemanticTreeMaxNodes) const noexcept;
 
     void set_hit_testable(WidgetHandle h, bool on) noexcept {
         set_flag(h, SoaNodeFlag::HitTest, on);
@@ -445,12 +311,65 @@ public:
         return input_.focused;
     }
 
+    WidgetHandle input_focus_scope() const noexcept {
+        return input_.focus_scope;
+    }
+
+    WidgetHandle input_focus_scope_fallback() const noexcept {
+        return input_.focus_scope_fallback;
+    }
+
+    bool input_focus_scope_trap() const noexcept {
+        return input_.focus_scope_trap;
+    }
+
     WidgetHandle input_captured() const noexcept {
         return input_.captured;
     }
 
     bool input_dragging() const noexcept {
         return input_.dragging;
+    }
+
+    void set_focus_scope(WidgetHandle scope,
+                         WidgetHandle fallback = {},
+                         bool trap = true) noexcept {
+        input_.focus_scope = scope;
+        input_.focus_scope_fallback = fallback;
+        input_.focus_scope_trap = trap;
+    }
+
+    void clear_focus_scope() noexcept {
+        input_.focus_scope = {};
+        input_.focus_scope_fallback = {};
+        input_.focus_scope_trap = false;
+        input_focus_scope_stack_size_ = 0;
+    }
+
+    bool push_focus_scope(WidgetHandle scope,
+                          WidgetHandle fallback = {},
+                          bool trap = true) noexcept {
+        if (input_focus_scope_stack_size_ >= kMaxFocusScopeStack) return false;
+        input_focus_scope_stack_[input_focus_scope_stack_size_++] = FocusScopeFrame{
+            input_.focus_scope,
+            input_.focus_scope_fallback,
+            input_.focus_scope_trap,
+        };
+        set_focus_scope(scope, fallback, trap);
+        return true;
+    }
+
+    bool pop_focus_scope() noexcept {
+        if (input_focus_scope_stack_size_ == 0) return false;
+        const FocusScopeFrame frame = input_focus_scope_stack_[--input_focus_scope_stack_size_];
+        input_.focus_scope = frame.scope;
+        input_.focus_scope_fallback = frame.fallback;
+        input_.focus_scope_trap = frame.trap;
+        return true;
+    }
+
+    std::size_t input_focus_scope_stack_size() const noexcept {
+        return input_focus_scope_stack_size_;
     }
 
     Rect world_rect(WidgetHandle h) const noexcept;
@@ -557,6 +476,7 @@ public:
         case Event::Type::FocusOut:
             break;
         case Event::Type::KeyDown:
+            input_handle_key_down(e.key_code);
             break;
         case Event::Type::KeyUp:
             break;
@@ -905,51 +825,21 @@ public:
     }
 
 private:
-    void mark_layout_dirty() noexcept {
-        layout_dirty_version_ += 1u;
-#if defined(VIVID_SOA_TRACE_INPUT)
-        layout_invalidated_count_ += 1u;
-#endif
+    void mark_layout_dirty() noexcept;
+    void mark_paint_dirty() noexcept;
+
+    static bool text_equal(const char* lhs, const char* rhs) noexcept {
+        if (!lhs || !rhs) return lhs == rhs;
+        while (*lhs && *rhs) {
+            if (*lhs != *rhs) return false;
+            ++lhs;
+            ++rhs;
+        }
+        return *lhs == *rhs;
     }
 
-    void mark_paint_dirty() noexcept {
-        paint_dirty_version_ += 1u;
-#if defined(VIVID_SOA_TRACE_INPUT)
-        paint_invalidated_count_ += 1u;
-#endif
-    }
-
-    void on_state_change(std::uint16_t idx, SoaStateMask bit) noexcept {
-        if (!layout_state_influence_) {
-            mark_paint_dirty();
-            return;
-        }
-        const std::uint8_t mask = layout_state_mask_for_kind(common_.kind[idx]);
-        if ((mask & static_cast<std::uint8_t>(bit)) != 0) {
-            mark_layout_dirty();
-            return;
-        }
-        mark_paint_dirty();
-    }
-
-    static constexpr std::uint8_t layout_state_mask_for_kind(WidgetKind kind) noexcept {
-        switch (kind) {
-        case WidgetKind::Container:
-        case WidgetKind::ScrollContainer:
-        case WidgetKind::Label:
-        case WidgetKind::Button:
-        case WidgetKind::Switch:
-        case WidgetKind::Slider:
-        case WidgetKind::Progress:
-        case WidgetKind::Checkbox:
-        case WidgetKind::Radio:
-        case WidgetKind::List:
-        case WidgetKind::ListItem:
-            return 0;
-        default:
-            return 0;
-        }
-    }
+    void on_state_change(std::uint16_t idx, SoaStateMask bit) noexcept;
+    static constexpr std::uint8_t layout_state_mask_for_kind(WidgetKind kind) noexcept;
 
     static StyleState input_make_state(const SoaKernel& kernel, WidgetHandle h) noexcept;
     static bool input_is_scrollable_kind(WidgetKind kind) noexcept;
@@ -1034,6 +924,8 @@ private:
         WidgetHandle focused{};
         WidgetHandle captured{};
         WidgetHandle scroll_target{};
+        WidgetHandle focus_scope{};
+        WidgetHandle focus_scope_fallback{};
         int drag_start_x{0};
         int drag_start_y{0};
         int drag_last_x{0};
@@ -1044,10 +936,22 @@ private:
         int button{0};
         int drag_threshold_sq{25};
         bool dragging{false};
+        bool focus_scope_trap{false};
     };
 
     InputEventQueue input_events_{};
     InputState input_{};
+    static constexpr std::size_t kMaxFocusScopeStack = 4;
+
+    struct FocusScopeFrame {
+        WidgetHandle scope{};
+        WidgetHandle fallback{};
+        bool trap{false};
+    };
+
+    std::array<FocusScopeFrame, kMaxFocusScopeStack> input_focus_scope_stack_{};
+    std::size_t input_focus_scope_stack_size_{0};
+
     static int clamp_int(int v, int lo, int hi) noexcept ;
     static int div_floor(int num, int den) noexcept ;
     void input_emit_event(WidgetHandle target, const Event& e) noexcept ;
@@ -1064,6 +968,7 @@ private:
     void input_handle_release(int x, int y, int button) ;
     void input_handle_wheel(int x, int y, int dy) ;
     void input_handle_cancel(int x, int y, int button) ;
+    void input_handle_key_down(Event::Key key) ;
     void input_handle_click(WidgetHandle h, int x, int y) ;
     bool scrollbar_track_info(WidgetHandle h, const ResolvedMetrics* metrics, ScrollBarTrackInfo& info) ;
     bool input_scrollbar_page_click(WidgetHandle h, int x, int y, const ResolvedMetrics* metrics) ;
@@ -1084,6 +989,11 @@ private:
     SoaWheelAxisPolicy input_wheel_axis_override(WidgetHandle hit, WidgetHandle target,
         SoaWheelAxisPolicy fallback, int x, int y) const noexcept ;
     void input_apply_scroll_by(WidgetHandle h, int dy, int dx) ;
+    bool input_is_focus_candidate(WidgetHandle h) const noexcept ;
+    WidgetHandle input_first_focus_candidate(WidgetHandle root) const noexcept ;
+    WidgetHandle input_next_focus_candidate(WidgetHandle root, WidgetHandle current, bool reverse) const noexcept ;
+    WidgetHandle input_spatial_focus_candidate(WidgetHandle root, WidgetHandle current, Event::Key key) const noexcept ;
+    WidgetHandle input_resolve_focus_request(WidgetHandle h) const noexcept ;
     void input_set_focus(WidgetHandle h) ;
     WidgetHandle input_drag_target() const noexcept ;
     std::uint16_t index_of(WidgetHandle h) const noexcept ;

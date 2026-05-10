@@ -1,11 +1,13 @@
 module;
 
 #include <array>
+#include <span>
 
 export module platform.board.stm32_stub;
 
 import platform.board;
 import hal_core;
+import hal_i2c;
 import hal_input;
 import hal_uart;
 import hal_stm32_stub;
@@ -15,6 +17,10 @@ import util.core;
 namespace platform::board::stm32_stub::detail {
     struct Stm32UartCtx {
         hal::UartHandle handle{};
+    };
+
+    struct Stm32I2cCtx {
+        hal::I2cHandle handle{};
     };
 
     hal::Result stm32_uart_init(void* ctx, const hal::UartConfig& cfg) noexcept {
@@ -55,6 +61,43 @@ namespace platform::board::stm32_stub::detail {
     void stm32_uart_clear_irq(void* ctx, util::u32 mask) noexcept {
         auto* self = static_cast<Stm32UartCtx*>(ctx);
         hal::stm32_stub::Uart::clear_irq(self->handle, mask);
+    }
+
+    hal::Result stm32_i2c_init(void* ctx, const hal::I2cConfig& cfg) noexcept {
+        auto* self = static_cast<Stm32I2cCtx*>(ctx);
+        return hal::stm32_stub::I2c::init(self->handle, cfg);
+    }
+
+    hal::Result stm32_i2c_enable(void* ctx) noexcept {
+        auto* self = static_cast<Stm32I2cCtx*>(ctx);
+        return hal::stm32_stub::I2c::enable(self->handle);
+    }
+
+    hal::Result stm32_i2c_disable(void* ctx) noexcept {
+        auto* self = static_cast<Stm32I2cCtx*>(ctx);
+        return hal::stm32_stub::I2c::disable(self->handle);
+    }
+
+    hal::Result stm32_i2c_write(void* ctx,
+                                util::u16 addr,
+                                std::span<const util::u8> data) noexcept {
+        auto* self = static_cast<Stm32I2cCtx*>(ctx);
+        return hal::stm32_stub::I2c::write(self->handle, addr, data);
+    }
+
+    hal::Result stm32_i2c_read(void* ctx,
+                               util::u16 addr,
+                               std::span<util::u8> data) noexcept {
+        auto* self = static_cast<Stm32I2cCtx*>(ctx);
+        return hal::stm32_stub::I2c::read(self->handle, addr, data);
+    }
+
+    hal::Result stm32_i2c_write_read(void* ctx,
+                                     util::u16 addr,
+                                     std::span<const util::u8> tx,
+                                     std::span<util::u8> rx) noexcept {
+        auto* self = static_cast<Stm32I2cCtx*>(ctx);
+        return hal::stm32_stub::I2c::write_read(self->handle, addr, tx, rx);
     }
 
     util::u64 stm32_now_ms(void*) noexcept {
@@ -172,6 +215,15 @@ export namespace platform::board::stm32_stub {
             &detail::stm32_uart_clear_irq
         };
         static const hal::RawInputDriver kStm32RawInput = hal::stm32_stub::RawInput::driver();
+        static detail::Stm32I2cCtx i2c1_ctx{hal::I2cHandle{1, nullptr}};
+        static const hal::I2cOps kStm32I2cOps{
+            &detail::stm32_i2c_init,
+            &detail::stm32_i2c_enable,
+            &detail::stm32_i2c_disable,
+            &detail::stm32_i2c_write,
+            &detail::stm32_i2c_read,
+            &detail::stm32_i2c_write_read
+        };
         static detail::CanLoopbackCtx can0_ctx{};
         static io::Channel can0_channel{
             &can0_ctx,
@@ -185,6 +237,9 @@ export namespace platform::board::stm32_stub {
         caps.clock = ClockDesc{nullptr, &detail::stm32_now_ms, &detail::stm32_now_us};
         caps.console_cap = "io.console0";
         caps.input.driver = &kStm32RawInput;
+        caps.i2c1.handle = hal::I2cIoHandle{&i2c1_ctx, &kStm32I2cOps};
+        caps.i2c1.config = hal::I2cConfig{};
+        caps.i2c1.hal_cap = "hal.i2c1";
         caps.can0.channel = &can0_channel;
         caps.can0.io_cap = "io.can0";
         return with_boot_caps(caps, make_boot_caps());

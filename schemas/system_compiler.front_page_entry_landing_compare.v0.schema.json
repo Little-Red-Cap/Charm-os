@@ -16,10 +16,15 @@
     "artifact_context",
     "landing_verdict",
     "landing_status",
+    "primary_query_status",
     "landing_changes",
+    "query_plan_changes",
+    "query_summary",
+    "query_changes",
     "tab_summary",
     "tab_changes",
     "landing_regression_surface",
+    "query_regression_surface",
     "questions",
     "violations"
   ],
@@ -70,8 +75,23 @@
     "landing_status": {
       "$ref": "#/$defs/landingStatus"
     },
+    "primary_query_status": {
+      "$ref": "#/$defs/primaryQueryStatus"
+    },
     "landing_changes": {
       "$ref": "#/$defs/landingChanges"
+    },
+    "query_plan_changes": {
+      "$ref": "#/$defs/queryPlanChanges"
+    },
+    "query_summary": {
+      "$ref": "#/$defs/querySummary"
+    },
+    "query_changes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/queryChange"
+      }
     },
     "tab_summary": {
       "$ref": "#/$defs/tabSummary"
@@ -84,6 +104,9 @@
     },
     "landing_regression_surface": {
       "$ref": "#/$defs/landingRegressionSurface"
+    },
+    "query_regression_surface": {
+      "$ref": "#/$defs/queryRegressionSurface"
     },
     "questions": {
       "$ref": "#/$defs/questionBlock"
@@ -130,6 +153,66 @@
         },
         "removed": {
           "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "provenanceRootDetailChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "root_id",
+        "baseline_root_kind",
+        "candidate_root_kind",
+        "baseline_source_summary_schema",
+        "candidate_source_summary_schema",
+        "baseline_source_summary_path",
+        "candidate_source_summary_path",
+        "baseline_source_front_page_summary_path",
+        "candidate_source_front_page_summary_path",
+        "root_kind_changed",
+        "schema_changed",
+        "source_path_changed",
+        "front_page_path_changed"
+      ],
+      "properties": {
+        "root_id": {
+          "type": "string"
+        },
+        "baseline_root_kind": {
+          "type": "string"
+        },
+        "candidate_root_kind": {
+          "type": "string"
+        },
+        "baseline_source_summary_schema": {
+          "type": "string"
+        },
+        "candidate_source_summary_schema": {
+          "type": "string"
+        },
+        "baseline_source_summary_path": {
+          "type": "string"
+        },
+        "candidate_source_summary_path": {
+          "type": "string"
+        },
+        "baseline_source_front_page_summary_path": {
+          "type": "string"
+        },
+        "candidate_source_front_page_summary_path": {
+          "type": "string"
+        },
+        "root_kind_changed": {
+          "type": "boolean"
+        },
+        "schema_changed": {
+          "type": "boolean"
+        },
+        "source_path_changed": {
+          "type": "boolean"
+        },
+        "front_page_path_changed": {
+          "type": "boolean"
         }
       }
     },
@@ -343,7 +426,9 @@
         "baseline_direct_biography_available",
         "candidate_direct_biography_available",
         "baseline_direct_evidence_available",
-        "candidate_direct_evidence_available"
+        "candidate_direct_evidence_available",
+        "baseline_direct_runtime_session_available",
+        "candidate_direct_runtime_session_available"
       ],
       "properties": {
         "baseline_result": {
@@ -489,6 +574,12 @@
         },
         "candidate_direct_evidence_available": {
           "type": "boolean"
+        },
+        "baseline_direct_runtime_session_available": {
+          "type": "boolean"
+        },
+        "candidate_direct_runtime_session_available": {
+          "type": "boolean"
         }
       }
     },
@@ -508,6 +599,7 @@
         "available_tab_changes",
         "direct_capability_changes",
         "provenance_root_changes",
+        "provenance_root_detail_changes",
         "changed"
       ],
       "properties": {
@@ -546,6 +638,124 @@
         },
         "provenance_root_changes": {
           "$ref": "#/$defs/arrayChange"
+        },
+        "provenance_root_detail_changes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/provenanceRootDetailChange"
+          }
+        },
+        "changed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "primaryQueryStatus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "baseline_present",
+        "candidate_present",
+        "baseline_tab_id",
+        "candidate_tab_id",
+        "baseline_query_kind",
+        "candidate_query_kind",
+        "baseline_scope",
+        "candidate_scope",
+        "baseline_selection_rule",
+        "candidate_selection_rule",
+        "baseline_compare_expected",
+        "candidate_compare_expected",
+        "baseline_followup_query_kinds",
+        "candidate_followup_query_kinds"
+      ],
+      "properties": {
+        "baseline_present": {
+          "type": "boolean"
+        },
+        "candidate_present": {
+          "type": "boolean"
+        },
+        "baseline_tab_id": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "candidate_tab_id": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "baseline_query_kind": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "candidate_query_kind": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "baseline_scope": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "candidate_scope": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "baseline_selection_rule": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "candidate_selection_rule": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "baseline_compare_expected": {
+          "$ref": "#/$defs/nullableBoolean"
+        },
+        "candidate_compare_expected": {
+          "$ref": "#/$defs/nullableBoolean"
+        },
+        "baseline_followup_query_kinds": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "candidate_followup_query_kinds": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "queryPlanChanges": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "primary_query_presence_changed",
+        "primary_query_tab_changed",
+        "primary_query_kind_changed",
+        "primary_query_scope_changed",
+        "primary_query_selection_rule_changed",
+        "primary_query_compare_expected_changed",
+        "primary_followup_query_changes",
+        "available_query_tab_changes",
+        "primary_query_changed",
+        "changed"
+      ],
+      "properties": {
+        "primary_query_presence_changed": {
+          "type": "boolean"
+        },
+        "primary_query_tab_changed": {
+          "type": "boolean"
+        },
+        "primary_query_kind_changed": {
+          "type": "boolean"
+        },
+        "primary_query_scope_changed": {
+          "type": "boolean"
+        },
+        "primary_query_selection_rule_changed": {
+          "type": "boolean"
+        },
+        "primary_query_compare_expected_changed": {
+          "type": "boolean"
+        },
+        "primary_followup_query_changes": {
+          "$ref": "#/$defs/arrayChange"
+        },
+        "available_query_tab_changes": {
+          "$ref": "#/$defs/arrayChange"
+        },
+        "primary_query_changed": {
+          "type": "boolean"
         },
         "changed": {
           "type": "boolean"
@@ -620,6 +830,89 @@
           "minimum": 0
         },
         "path_changed_count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "querySummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "baseline_query_tab_count",
+        "candidate_query_tab_count",
+        "changed_query_count",
+        "added_query_count",
+        "removed_query_count",
+        "unchanged_query_count",
+        "regression_count",
+        "improvement_count",
+        "neutral_change_count",
+        "scope_changed_count",
+        "selection_rule_changed_count",
+        "query_kind_changed_count",
+        "compare_expectation_changed_count",
+        "followup_changed_count",
+        "primary_query_change_count"
+      ],
+      "properties": {
+        "baseline_query_tab_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "candidate_query_tab_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "changed_query_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "added_query_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "removed_query_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unchanged_query_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "regression_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "improvement_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "neutral_change_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "scope_changed_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "selection_rule_changed_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "query_kind_changed_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "compare_expectation_changed_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "followup_changed_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "primary_query_change_count": {
           "type": "integer",
           "minimum": 0
         }
@@ -759,6 +1052,100 @@
         }
       }
     },
+    "queryChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "anchor_id",
+        "baseline_tab_id",
+        "candidate_tab_id",
+        "change_kind",
+        "impact",
+        "baseline_tab_title",
+        "candidate_tab_title",
+        "baseline_scope",
+        "candidate_scope",
+        "baseline_selection_rule",
+        "candidate_selection_rule",
+        "baseline_query_kind",
+        "candidate_query_kind",
+        "baseline_compare_expected",
+        "candidate_compare_expected",
+        "baseline_followup_query_kinds",
+        "candidate_followup_query_kinds",
+        "followup_query_changes",
+        "change_notes"
+      ],
+      "properties": {
+        "anchor_id": {
+          "type": "string"
+        },
+        "baseline_tab_id": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "candidate_tab_id": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "change_kind": {
+          "type": "string",
+          "enum": [
+            "added",
+            "removed",
+            "changed"
+          ]
+        },
+        "impact": {
+          "type": "string",
+          "enum": [
+            "regression",
+            "improvement",
+            "neutral"
+          ]
+        },
+        "baseline_tab_title": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "candidate_tab_title": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "baseline_scope": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "candidate_scope": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "baseline_selection_rule": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "candidate_selection_rule": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "baseline_query_kind": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "candidate_query_kind": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "baseline_compare_expected": {
+          "$ref": "#/$defs/nullableBoolean"
+        },
+        "candidate_compare_expected": {
+          "$ref": "#/$defs/nullableBoolean"
+        },
+        "baseline_followup_query_kinds": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "candidate_followup_query_kinds": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "followup_query_changes": {
+          "$ref": "#/$defs/arrayChange"
+        },
+        "change_notes": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
     "landingRegressionSurface": {
       "type": "object",
       "additionalProperties": false,
@@ -769,6 +1156,7 @@
         "missing_primary_tab_id",
         "downgraded_tier",
         "regressed_tabs",
+        "provenance_root_detail_changed_ids",
         "affected_tab_ids",
         "narratives"
       ],
@@ -789,6 +1177,53 @@
           "type": "boolean"
         },
         "regressed_tabs": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "provenance_root_detail_changed_ids": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "affected_tab_ids": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "narratives": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    },
+    "queryRegressionSurface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "changed",
+        "removed_query_tab_ids",
+        "lost_compare_expected_tab_ids",
+        "primary_query_missing",
+        "primary_query_scope_narrowed",
+        "primary_query_compare_expected_regressed",
+        "regressed_query_tabs",
+        "affected_tab_ids",
+        "narratives"
+      ],
+      "properties": {
+        "changed": {
+          "type": "boolean"
+        },
+        "removed_query_tab_ids": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "lost_compare_expected_tab_ids": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "primary_query_missing": {
+          "type": "boolean"
+        },
+        "primary_query_scope_narrowed": {
+          "type": "boolean"
+        },
+        "primary_query_compare_expected_regressed": {
+          "type": "boolean"
+        },
+        "regressed_query_tabs": {
           "$ref": "#/$defs/stringArray"
         },
         "affected_tab_ids": {

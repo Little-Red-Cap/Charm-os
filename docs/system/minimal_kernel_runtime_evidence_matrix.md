@@ -59,6 +59,7 @@ QEMU 叶子和板级落地仍然是单独的证据线，不属于这页的编辑
 | `TaskSyscall frame caller` | `kernel.task_syscall_frame` | `Examples/kernel/runtime_task_syscall_frame_caller_host` | `sys_* -> frame -> table` 的独立 host 闭环 | 不证明真实 leaf frame capture | 接 `trap ingress` |
 | `Trap / syscall bridge` | `kernel.runtime_trap` / `kernel.runtime_service` | `Examples/kernel/runtime_minimal_host`, `Examples/kernel/runtime_trap_armv7a_host` | generic host 与 ARMv7-A host 上的 trap/service 证据链 | 不证明真实 leaf frame 的最终写回布局 | 接 `trap ingress` |
 | `Trap ingress adapter` | `kernel.runtime_trap_ingress` | `Examples/kernel/runtime_trap_armv7a_host`, `Examples/kernel/runtime_task_syscall_frame_armv7a_host` | frame capture / writeback 的 ingress 入口边界 | 不证明上半层 syscall 语义本身 | 接 ARMv7-A leaf / QEMU 叶子 |
+| `KernelRuntimeSessionWitnessAggregate` | `minimal_kernel.runtime_session_witness_smoke` | `scripts/ci_minimal_kernel_runtime_session_witness_smoke.ps1` | standing `kernel_runtime_session`、synthetic session drift、witness-exported collapsed session 与根 `summary/report/check` 聚合证据包 | 不证明真实 QEMU 新执行路径，也不替代总 runtime evidence bundle | 接 CI / front page / evidence shelf |
 
 ## 这页的边界
 

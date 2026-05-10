@@ -75,6 +75,7 @@
 - `contract_drift`
 - `witness_summary`
 - `witness_changes`
+- `session_drift`
 - `collapse_surface`
 - `questions`
 
@@ -122,6 +123,22 @@
 
 这层开始正式把“哪条 witness 先坏”收成结构化对象。
 
+对于 `open_event_witness` 这类 testimony witness，v0 当前沿用同一套 witness-level compare 语义：
+
+- route / facade / evidence ref 的变化会先体现在 `witness_changes`
+- 如果 candidate witness 仍然 `ok`，这些 testimony drift 当前默认先保留在 witness change 层
+- 如果 world / contract 本身没有同步漂移，单独的 neutral testimony drift 当前不会把 `world_verdict` 从 `standing` 抬成 `drifted`
+- 如果 candidate witness 进入 `fail`，它就会和其他 required witness 一样进入 `collapse_surface`
+
+runtime-session opening judgment 这条线当前已经有一条定向 smoke，
+用 blocked candidate 证明 `open_event_witness -> witness bundle -> world compare`
+可以正式产出 `collapsed` world verdict，而不需要在上层重建第二套 compare brain。
+同一条线现在也有 neutral-drift smoke，
+证明 runtime-session opening route 改到另一条合法 explain hop 后，
+`open_event_witness compare` 会记录 testimony drift，
+但只要 witness bundle 仍然 `ok` 且 canonical world 本身没变，
+world compare 仍然保持 `standing`。
+
 ### `collapse_surface`
 
 这是 v0 最重要的部分。
@@ -136,6 +153,30 @@
 
 也就是说，`collapse_surface` 当前先不做完整自动根因分析，
 但已经能把“最小塌陷面”压到一个相对可行动的层级。
+
+### `session_drift`
+
+`session_drift` 是 `kernel_runtime_session` 进入 world compare 后的专用解释面。
+
+它仍然只消费 witness bundle 中的 `kernel_runtime_session` witness entry，
+不会直接读取 QEMU 日志、runtime evidence summary 或 session summary 原始文件。
+
+它回答：
+
+- session witness 是否存在
+- entry status 是否从 `ok / missing / fail / absent` 发生变化
+- `session_status` 是否仍为 `standing`
+- 漂移落在 `semantic / machine / runtime / handoff / verdict / source` 哪个 domain
+- 哪些 session fact 发生了变化
+
+这让 world compare 不只知道“某条 witness changed”，
+还可以进一步回答：
+
+> 如果 runtime session 漂了，漂的是 host 语义、机器入口、runtime loop、
+> handoff continuity，还是证据来源本身？
+
+v0 的边界仍然很克制：`session_drift` 是 witness entry observation 的结构化投影，
+不是完整 runtime 根因分析器。
 
 ## 当前推荐工作流
 

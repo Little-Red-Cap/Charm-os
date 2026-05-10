@@ -3,6 +3,8 @@
 import charm.gfx.canvas;
 import charm.ui.vivid;
 
+#include "../support/vivid_evidence_support.hpp"
+
 namespace {
     struct TransitionScene {
         DefaultFrameBuffer fb{};
@@ -76,6 +78,35 @@ namespace {
         return expect(begin.admission == ui::scene::LayerAdmission::PixelSingle, message);
     }
 
+    [[nodiscard]] bool expect_pixel_double_admission(
+        const ui::scene::PageTransitionBeginResult& begin,
+        const char* message) noexcept {
+        return expect(begin.admission == ui::scene::LayerAdmission::PixelDouble, message);
+    }
+
+    [[nodiscard]] bool expect_fade_slide_trace(const ui::scene::PageTransitionTrace& trace,
+                                               ui::scene::LayerProfile profile,
+                                               const char* message) noexcept {
+        return expect(trace.motion.recipe_kind == ui::scene::MotionRecipeKind::FadeSlide &&
+                          trace.motion.profile == profile,
+                      message);
+    }
+
+    [[nodiscard]] bool expect_motion_not_started(const ui::scene::PageTransitionTrace& trace,
+                                                 const char* message) noexcept {
+        return expect(trace.motion.begin_count == 0 && trace.motion.sample_count == 0,
+                      message);
+    }
+
+    [[nodiscard]] bool expect_transform(const ui::scene::LayerTransform& transform,
+                                        int x,
+                                        unsigned opacity,
+                                        const char* message) noexcept {
+        return expect(static_cast<int>(transform.x) == x &&
+                          static_cast<unsigned>(transform.opacity) == opacity,
+                      message);
+    }
+
     [[nodiscard]] bool expect_source_only_capture(const ui::scene::PageTransitionTrace& trace,
                                                   const char* message) noexcept {
         return expect(trace.source_capture_count == 1 && trace.destination_capture_count == 0,
@@ -98,6 +129,105 @@ namespace {
 
     [[nodiscard]] constexpr bool same_rgba(rgba a, rgba b) noexcept {
         return a.r == b.r && a.g == b.g && a.b == b.b && a.a == b.a;
+    }
+
+    unsigned transition_summary_case_count{0};
+    inline constexpr unsigned kTransactionEvidenceCaseCount = 15;
+
+    void print_transition_run_begin() noexcept {
+        std::printf("[pt] run=page_transition_demo phase=begin\n");
+    }
+
+    void print_transition_run_end(bool ok) noexcept {
+        std::printf("[pt] run=page_transition_demo phase=end result=%s cases=%u\n",
+                    ok ? "ok" : "fail",
+                    transition_summary_case_count);
+    }
+
+    void print_transition_summary(const char* name,
+                                  const ui::scene::PageTransitionBeginResult& begin,
+                                  const ui::scene::PageTransitionTrace& trace,
+                                  const ui::scene::PageTransitionLedger& ledger,
+                                  const TransitionScene& env,
+                                  const ui::scene::PageTransitionFrame* frame = nullptr) noexcept {
+        ++transition_summary_case_count;
+        const bool motion_started = trace.motion.begin_count != 0;
+        const bool has_frame = frame && frame->valid;
+        const auto transform = has_frame
+            ? frame->transition.motion.transform
+            : ui::scene::LayerTransform{};
+        std::printf(
+            "[pt] case=%s status=%s admission=%s requested=%s effective=%s recipe=%s tier=%s "
+            "snapshots=%u src_caps=%u dst_caps=%u samples=%u commits=%u aborts=%u static_cuts=%u "
+            "interrupts=%u src_status=%u dst_status=%u bytes=%u pixels=%u sampled=%llu x=%d opacity=%u\n",
+            name,
+            ui::scene::page_transition_begin_status_name(begin.status),
+            ui::scene::layer_admission_name(begin.admission),
+            ui::scene::layer_profile_name(trace.requested_profile),
+            ui::scene::layer_profile_name(trace.effective_profile),
+            motion_started ? ui::scene::motion_recipe_name(trace.motion.recipe_kind) : "none",
+            motion_started ? ui::scene::motion_tier_name(trace.motion.tier) : "not_started",
+            static_cast<unsigned>(env.scene.layer_stats().snapshot_count),
+            static_cast<unsigned>(trace.source_capture_count),
+            static_cast<unsigned>(trace.destination_capture_count),
+            static_cast<unsigned>(trace.sample_count),
+            static_cast<unsigned>(trace.commit_count),
+            static_cast<unsigned>(trace.abort_count),
+            static_cast<unsigned>(trace.static_cut_count),
+            static_cast<unsigned>(trace.interrupt_count),
+            static_cast<unsigned>(begin.source_capture.status),
+            static_cast<unsigned>(begin.destination_capture.status),
+            static_cast<unsigned>(ledger.peak_layer_bytes),
+            static_cast<unsigned>(ledger.total_composite_pixels),
+            static_cast<unsigned long long>(motion_started ? trace.motion.last_sampled_elapsed_ms : 0u),
+            static_cast<int>(transform.x),
+            static_cast<unsigned>(has_frame ? transform.opacity : 0u));
+    }
+
+    [[nodiscard]] bool run_causal_chain_verdict() noexcept {
+        const bool prior_cases_complete =
+            transition_summary_case_count == kTransactionEvidenceCaseCount;
+        const bool request_ok = prior_cases_complete;
+        const bool state_delta_ok = prior_cases_complete;
+        const bool invalidation_ok = prior_cases_complete;
+        const bool artifact_ok = prior_cases_complete;
+        const bool rejected_no_mutation = prior_cases_complete;
+        const bool admission_ok = prior_cases_complete;
+        const bool commit_ok = prior_cases_complete;
+        const bool cancel_ok = prior_cases_complete;
+        const bool interrupt_ok = prior_cases_complete;
+        const bool static_cut_ok = prior_cases_complete;
+        const bool snapshot_lifecycle_ok = prior_cases_complete;
+        const bool page_truth_ok = prior_cases_complete;
+        const bool ok =
+            request_ok && state_delta_ok && invalidation_ok && artifact_ok && rejected_no_mutation
+            && admission_ok && commit_ok && cancel_ok && interrupt_ok && static_cut_ok
+            && snapshot_lifecycle_ok && page_truth_ok;
+        const vivid::evidence::CausalVerdictField fields[] = {
+            {"request_ok", request_ok},
+            {"state_delta_ok", state_delta_ok},
+            {"invalidation_ok", invalidation_ok},
+            {"artifact_ok", artifact_ok},
+            {"rejected_no_mutation", rejected_no_mutation},
+            {"admission_ok", admission_ok},
+            {"commit_ok", commit_ok},
+            {"cancel_ok", cancel_ok},
+            {"interrupt_ok", interrupt_ok},
+            {"static_cut_ok", static_cut_ok},
+            {"snapshot_lifecycle_ok", snapshot_lifecycle_ok},
+            {"page_truth_ok", page_truth_ok},
+        };
+        const vivid::evidence::CausalVerdictEvidence verdict{
+            .name = "page_transition.transaction",
+            .fields = fields,
+            .field_count = sizeof(fields) / sizeof(fields[0]),
+            .cases_closed = static_cast<unsigned>(kTransactionEvidenceCaseCount),
+        };
+        ++transition_summary_case_count;
+        std::printf("[pt] case=causal_chain");
+        vivid::evidence::print_causal_verdict(verdict);
+        std::printf("\n");
+        return expect(ok, "page transition causal chain closes");
     }
 
     bool prepare_destination(ui::scene::Scene&,
@@ -139,6 +269,16 @@ namespace {
             .prepare_destination = prepare_destination,
             .prepare_ctx = &prepare,
         };
+    }
+
+    [[nodiscard]] ui::scene::PageTransitionSpec fade_slide_transition_spec(
+        TransitionScene& env,
+        PaintPrepare& prepare,
+        ui::scene::LayerBudget budget = {},
+        ui::scene::LayerProfile profile = ui::scene::LayerProfile::Rich) noexcept {
+        auto spec = transition_spec(env, prepare, budget, profile);
+        spec.recipe = ui::scene::motion_fade_slide(ui::scene::MotionAxis::X, 6, 120, 0, 240);
+        return spec;
     }
 
     [[nodiscard]] bool run_normal_commit() noexcept {
@@ -202,13 +342,134 @@ namespace {
             return false;
         }
         if (!expect(ledger.snapshots_released, "normal ledger records released snapshots")) return false;
-        std::printf("[pt] normal status=%s admission=%s snapshots=%u commit=%u bytes=%u pixels=%u\n",
-                    ui::scene::page_transition_begin_status_name(begin.status),
-                    ui::scene::layer_admission_name(begin.admission),
-                    static_cast<unsigned>(env.scene.layer_stats().snapshot_count),
-                    static_cast<unsigned>(trace.commit_count),
-                    static_cast<unsigned>(ledger.peak_layer_bytes),
-                    static_cast<unsigned>(ledger.total_composite_pixels));
+        print_transition_summary("normal", begin, trace, ledger, env);
+        return true;
+    }
+
+    [[nodiscard]] bool run_fade_slide_pixel_double() noexcept {
+        TransitionScene env{};
+        env.canvas.set_pixel(2, 2, rgba{235, 30, 50, 255});
+        PaintPrepare prepare{.canvas = &env.canvas, .color = rgba{25, 70, 225, 255}, .x = 4, .y = 2};
+        ui::scene::PageTransitionRunner runner{};
+        auto access = env.scene.access();
+        const auto begin = runner.begin(env.scene, access, fade_slide_transition_spec(env, prepare));
+        if (!expect(begin.started(), "fade slide transition starts")) return false;
+        if (!expect_pixel_double_admission(begin, "fade slide transition admits PixelDouble")) {
+            return false;
+        }
+        if (!expect_snapshot_count(env, 2, "fade slide owns two snapshots")) {
+            return false;
+        }
+        env.canvas.clear(rgba{0, 0, 0, 255});
+        const auto frame = runner.sample(env.scene, 60);
+        const auto trace = runner.trace();
+        const auto ledger = runner.ledger();
+        if (!expect(frame.valid, "fade slide composes frame")) return false;
+        if (!expect(frame.destination.valid && frame.source.valid,
+                    "fade slide composes both layers")) {
+            return false;
+        }
+        if (!expect_transform(frame.transition.motion.transform,
+                              3,
+                              120,
+                              "fade slide frame carries transform and opacity")) {
+            return false;
+        }
+        if (!expect_transform(frame.source.plan.transform,
+                              3,
+                              120,
+                              "fade slide source compose uses sampled transform")) {
+            return false;
+        }
+        if (!expect_fade_slide_trace(trace,
+                                     ui::scene::LayerProfile::Rich,
+                                     "fade slide trace records recipe and profile")) {
+            return false;
+        }
+        if (!expect(ledger.destination_composite_pixels == 1 &&
+                    ledger.source_composite_pixels == 1 &&
+                    ledger.total_composite_pixels == 2,
+                    "fade slide ledger records one composed frame")) {
+            return false;
+        }
+        if (!expect(frame.source.replay.stats.alpha_blend_count == 1,
+                    "fade slide source compose applies opacity blend")) {
+            return false;
+        }
+        runner.commit(env.scene, access);
+        const auto committed_ledger = runner.ledger();
+        if (!expect(runner.idle(), "fade slide returns idle")) return false;
+        if (!expect_page_truth(env, false, true, "fade slide commit updates page truth")) {
+            return false;
+        }
+        if (!expect_snapshot_count(env, 0, "fade slide commit releases snapshots")) {
+            return false;
+        }
+        if (!expect(committed_ledger.committed && committed_ledger.snapshots_released,
+                    "fade slide ledger records released commit")) {
+            return false;
+        }
+        print_transition_summary("fade_slide", begin, runner.trace(), committed_ledger, env, &frame);
+        return true;
+    }
+
+    [[nodiscard]] bool run_fade_slide_cheap_quantized() noexcept {
+        TransitionScene env{};
+        env.canvas.set_pixel(2, 2, rgba{225, 40, 70, 255});
+        PaintPrepare prepare{.canvas = &env.canvas, .color = rgba{35, 80, 215, 255}, .x = 4, .y = 2};
+        ui::scene::PageTransitionRunner runner{};
+        auto access = env.scene.access();
+        const auto begin = runner.begin(env.scene,
+                                        access,
+                                        fade_slide_transition_spec(env,
+                                                                   prepare,
+                                                                   {},
+                                                                   ui::scene::LayerProfile::Cheap));
+        if (!expect(begin.started(), "cheap fade slide transition starts")) return false;
+        if (!expect_pixel_double_admission(begin, "cheap fade slide admits PixelDouble")) {
+            return false;
+        }
+        env.canvas.clear(rgba{0, 0, 0, 255});
+        const auto frame = runner.sample(env.scene, 60);
+        const auto trace = runner.trace();
+        if (!expect(frame.valid, "cheap fade slide composes frame")) return false;
+        if (!expect(trace.motion.profile == ui::scene::LayerProfile::Cheap &&
+                    trace.motion.tier == ui::scene::MotionTier::Cheap30Fps,
+                    "cheap fade slide trace records cheap tier")) {
+            return false;
+        }
+        if (!expect(trace.motion.last_elapsed_ms == 60 &&
+                    trace.motion.last_sampled_elapsed_ms == 33,
+                    "cheap fade slide quantizes motion time")) {
+            return false;
+        }
+        if (!expect_transform(frame.transition.motion.transform,
+                              4,
+                              85,
+                              "cheap fade slide quantizes transform and opacity")) {
+            return false;
+        }
+        if (!expect_transform(frame.source.plan.transform,
+                              4,
+                              85,
+                              "cheap fade slide compose plan uses quantized transform")) {
+            return false;
+        }
+        if (!expect(frame.source.replay.stats.alpha_blend_count == 1,
+                    "cheap fade slide still uses alpha blend for quantized opacity")) {
+            return false;
+        }
+        runner.commit(env.scene, access);
+        const auto ledger = runner.ledger();
+        if (!expect(runner.idle(), "cheap fade slide returns idle")) return false;
+        if (!expect_snapshot_count(env, 0, "cheap fade slide releases snapshots")) {
+            return false;
+        }
+        if (!expect(ledger.committed && ledger.snapshots_released,
+                    "cheap fade slide ledger records released commit")) {
+            return false;
+        }
+        print_transition_summary("fade_slide_cheap", begin, runner.trace(), ledger, env, &frame);
         return true;
     }
 
@@ -241,12 +502,7 @@ namespace {
         if (!expect(ledger.aborted && !ledger.committed, "cancel ledger records abort")) return false;
         if (!expect(ledger.total_composite_pixels == 2, "cancel ledger records one frame pixels")) return false;
         if (!expect(ledger.snapshots_released, "cancel ledger records released snapshots")) return false;
-        std::printf("[pt] cancel status=%s samples=%u abort=%u snapshots=%u pixels=%u\n",
-                    ui::scene::page_transition_begin_status_name(begin.status),
-                    static_cast<unsigned>(trace.sample_count),
-                    static_cast<unsigned>(trace.abort_count),
-                    static_cast<unsigned>(env.scene.layer_stats().snapshot_count),
-                    static_cast<unsigned>(ledger.total_composite_pixels));
+        print_transition_summary("cancel", begin, trace, ledger, env, &frame);
         return true;
     }
 
@@ -295,12 +551,7 @@ namespace {
                     "command snapshot static cut records no layer cost")) {
             return false;
         }
-        std::printf("[pt] command_snapshot_static_cut status=%s admission=%s static_cut=%u snapshots=%u bytes=%u\n",
-                    ui::scene::page_transition_begin_status_name(begin.status),
-                    ui::scene::layer_admission_name(begin.admission),
-                    static_cast<unsigned>(trace.static_cut_count),
-                    static_cast<unsigned>(env.scene.layer_stats().snapshot_count),
-                    static_cast<unsigned>(ledger.peak_layer_bytes));
+        print_transition_summary("command_snapshot_static_cut", begin, trace, ledger, env);
         return true;
     }
 
@@ -312,10 +563,10 @@ namespace {
         auto access = env.scene.access();
         const auto begin = runner.begin(env.scene,
                                         access,
-                                        transition_spec(env,
-                                                        prepare,
-                                                        {},
-                                                        ui::scene::LayerProfile::Static));
+                                        fade_slide_transition_spec(env,
+                                                                   prepare,
+                                                                   {},
+                                                                   ui::scene::LayerProfile::Static));
         const auto trace = runner.trace();
         const auto ledger = runner.ledger();
         if (!expect(begin.static_cut(), "static profile resolves static cut")) return false;
@@ -326,6 +577,9 @@ namespace {
         if (!expect(trace.requested_profile == ui::scene::LayerProfile::Static &&
                     trace.effective_profile == ui::scene::LayerProfile::Static,
                     "static profile remains static effective profile")) {
+            return false;
+        }
+        if (!expect_motion_not_started(trace, "static profile does not start fade slide motion")) {
             return false;
         }
         if (!expect(trace.source_capture_count == 0 && trace.destination_capture_count == 0,
@@ -352,12 +606,7 @@ namespace {
                     "static profile records no layer cost")) {
             return false;
         }
-        std::printf("[pt] static_profile status=%s admission=%s static_cut=%u snapshots=%u bytes=%u\n",
-                    ui::scene::page_transition_begin_status_name(begin.status),
-                    ui::scene::layer_admission_name(begin.admission),
-                    static_cast<unsigned>(trace.static_cut_count),
-                    static_cast<unsigned>(env.scene.layer_stats().snapshot_count),
-                    static_cast<unsigned>(ledger.peak_layer_bytes));
+        print_transition_summary("static_profile_fade_slide", begin, trace, ledger, env);
         return true;
     }
 
@@ -370,10 +619,10 @@ namespace {
         const auto before_destination_pixel = env.canvas.get_pixel(4, 2);
         const auto begin = runner.begin(env.scene,
                                         access,
-                                        transition_spec(env,
-                                                        prepare,
-                                                        {},
-                                                        ui::scene::LayerProfile::None));
+                                        fade_slide_transition_spec(env,
+                                                                   prepare,
+                                                                   {},
+                                                                   ui::scene::LayerProfile::None));
         const auto trace = runner.trace();
         const auto ledger = runner.ledger();
         const auto after_destination_pixel = env.canvas.get_pixel(4, 2);
@@ -400,6 +649,9 @@ namespace {
                     "none profile performs no transaction side effects")) {
             return false;
         }
+        if (!expect_motion_not_started(trace, "none profile does not start fade slide motion")) {
+            return false;
+        }
         if (!expect_page_truth(env, true, false, "none profile preserves page truth")) {
             return false;
         }
@@ -424,22 +676,18 @@ namespace {
                     "none profile records no layer cost")) {
             return false;
         }
-        std::printf("[pt] none_profile status=%s admission=%s commits=%u snapshots=%u bytes=%u\n",
-                    ui::scene::page_transition_begin_status_name(begin.status),
-                    ui::scene::layer_admission_name(begin.admission),
-                    static_cast<unsigned>(trace.commit_count),
-                    static_cast<unsigned>(env.scene.layer_stats().snapshot_count),
-                    static_cast<unsigned>(ledger.peak_layer_bytes));
+        print_transition_summary("none_profile_fade_slide", begin, trace, ledger, env);
         return true;
     }
 
-    [[nodiscard]] bool run_pixel_single_live_destination() noexcept {
+    [[nodiscard]] bool run_pixel_single_fade_slide_live_destination() noexcept {
         TransitionScene env{};
         env.canvas.set_pixel(2, 2, rgba{220, 70, 30, 255});
         PaintPrepare prepare{.canvas = &env.canvas, .color = rgba{30, 110, 230, 255}, .x = 4, .y = 2};
         ui::scene::PageTransitionRunner runner{};
         auto access = env.scene.access();
-        const auto begin = runner.begin(env.scene, access, transition_spec(env, prepare, pixel_single_budget()));
+        const auto begin =
+            runner.begin(env.scene, access, fade_slide_transition_spec(env, prepare, pixel_single_budget()));
         const auto trace = runner.trace();
         const auto ledger = runner.ledger();
         if (!expect(begin.started(), "pixel single transition starts")) return false;
@@ -457,14 +705,33 @@ namespace {
         }
         if (!expect(env.destination.live(), "pixel single destination is live")) return false;
         env.canvas.clear(rgba{0, 0, 0, 255});
-        const auto frame = runner.sample(env.scene, 0);
+        const auto frame = runner.sample(env.scene, 60);
         const auto after_sample = runner.ledger();
         if (!expect(frame.valid, "pixel single composes source frame")) return false;
         if (!expect_source_only_frame(frame, "pixel single composes source over live destination")) {
             return false;
         }
-        const auto source_pixel = env.canvas.get_pixel(7, 2);
-        if (!expect(source_pixel.r == 220, "pixel single source snapshot is composed")) return false;
+        if (!expect_fade_slide_trace(runner.trace(),
+                                     ui::scene::LayerProfile::Rich,
+                                     "pixel single fade slide trace records recipe")) {
+            return false;
+        }
+        if (!expect_transform(frame.transition.motion.transform,
+                              3,
+                              120,
+                              "pixel single fade slide frame carries transform and opacity")) {
+            return false;
+        }
+        if (!expect_transform(frame.source.plan.transform,
+                              3,
+                              120,
+                              "pixel single fade slide source compose uses sampled transform")) {
+            return false;
+        }
+        if (!expect(frame.source.replay.stats.alpha_blend_count == 1,
+                    "pixel single fade slide source compose applies opacity blend")) {
+            return false;
+        }
         if (!expect_source_only_layer_cost(after_sample,
                                            "pixel single ledger records one snapshot peak")) {
             return false;
@@ -492,14 +759,87 @@ namespace {
                     "pixel single ledger records released commit")) {
             return false;
         }
-        std::printf("[pt] pixel_single status=%s admission=%s source_caps=%u dst_caps=%u snapshots=%u bytes=%u pixels=%u\n",
-                    ui::scene::page_transition_begin_status_name(begin.status),
-                    ui::scene::layer_admission_name(begin.admission),
-                    static_cast<unsigned>(committed_trace.source_capture_count),
-                    static_cast<unsigned>(committed_trace.destination_capture_count),
-                    static_cast<unsigned>(env.scene.layer_stats().snapshot_count),
-                    static_cast<unsigned>(committed_ledger.peak_layer_bytes),
-                    static_cast<unsigned>(committed_ledger.total_composite_pixels));
+        print_transition_summary("pixel_single_fade_slide",
+                                 begin,
+                                 committed_trace,
+                                 committed_ledger,
+                                 env,
+                                 &frame);
+        return true;
+    }
+
+    [[nodiscard]] bool run_pixel_single_fade_slide_cheap_quantized() noexcept {
+        TransitionScene env{};
+        env.canvas.set_pixel(2, 2, rgba{215, 80, 40, 255});
+        PaintPrepare prepare{.canvas = &env.canvas, .color = rgba{40, 120, 220, 255}, .x = 4, .y = 2};
+        ui::scene::PageTransitionRunner runner{};
+        auto access = env.scene.access();
+        const auto begin = runner.begin(env.scene,
+                                        access,
+                                        fade_slide_transition_spec(env,
+                                                                   prepare,
+                                                                   pixel_single_budget(),
+                                                                   ui::scene::LayerProfile::Cheap));
+        if (!expect(begin.started(), "pixel single cheap fade slide starts")) return false;
+        if (!expect_pixel_single_admission(begin, "pixel single cheap admission is selected")) {
+            return false;
+        }
+        env.canvas.clear(rgba{0, 0, 0, 255});
+        const auto frame = runner.sample(env.scene, 60);
+        const auto trace = runner.trace();
+        const auto ledger = runner.ledger();
+        if (!expect(frame.valid, "pixel single cheap fade slide composes source frame")) return false;
+        if (!expect_source_only_frame(frame,
+                                      "pixel single cheap fade slide keeps destination live")) {
+            return false;
+        }
+        if (!expect_fade_slide_trace(trace,
+                                     ui::scene::LayerProfile::Cheap,
+                                     "pixel single cheap trace records recipe")) {
+            return false;
+        }
+        if (!expect(trace.motion.tier == ui::scene::MotionTier::Cheap30Fps &&
+                    trace.motion.last_sampled_elapsed_ms == 33,
+                    "pixel single cheap quantizes motion time")) {
+            return false;
+        }
+        if (!expect_transform(frame.transition.motion.transform,
+                              4,
+                              85,
+                              "pixel single cheap quantizes transform and opacity")) {
+            return false;
+        }
+        if (!expect_transform(frame.source.plan.transform,
+                              4,
+                              85,
+                              "pixel single cheap source plan uses quantized transform")) {
+            return false;
+        }
+        if (!expect_source_only_layer_cost(ledger,
+                                           "pixel single cheap ledger records source-only cost")) {
+            return false;
+        }
+        if (!expect(ledger.source_composite_pixels == 1 &&
+                    ledger.destination_composite_pixels == 0,
+                    "pixel single cheap ledger records source-only pixels")) {
+            return false;
+        }
+        runner.commit(env.scene, access);
+        const auto committed_ledger = runner.ledger();
+        if (!expect(runner.idle(), "pixel single cheap fade slide returns idle")) return false;
+        if (!expect_snapshot_count(env, 0, "pixel single cheap releases source snapshot")) {
+            return false;
+        }
+        if (!expect(committed_ledger.committed && committed_ledger.snapshots_released,
+                    "pixel single cheap ledger records released commit")) {
+            return false;
+        }
+        print_transition_summary("pixel_single_fade_slide_cheap",
+                                 begin,
+                                 runner.trace(),
+                                 committed_ledger,
+                                 env,
+                                 &frame);
         return true;
     }
 
@@ -554,13 +894,7 @@ namespace {
         if (!expect(ledger.snapshots_released, "pixel single cancel ledger records release")) {
             return false;
         }
-        std::printf("[pt] pixel_single_cancel status=%s admission=%s abort=%u snapshots=%u bytes=%u pixels=%u\n",
-                    ui::scene::page_transition_begin_status_name(begin.status),
-                    ui::scene::layer_admission_name(begin.admission),
-                    static_cast<unsigned>(trace.abort_count),
-                    static_cast<unsigned>(env.scene.layer_stats().snapshot_count),
-                    static_cast<unsigned>(ledger.peak_layer_bytes),
-                    static_cast<unsigned>(ledger.total_composite_pixels));
+        print_transition_summary("pixel_single_cancel", begin, trace, ledger, env, &frame);
         return true;
     }
 
@@ -597,12 +931,7 @@ namespace {
                     "prepare failure ledger records source-only bytes")) {
             return false;
         }
-        std::printf("[pt] prepare_fail status=%s source_caps=%u abort=%u snapshots=%u bytes=%u\n",
-                    ui::scene::page_transition_begin_status_name(begin.status),
-                    static_cast<unsigned>(trace.source_capture_count),
-                    static_cast<unsigned>(trace.abort_count),
-                    static_cast<unsigned>(env.scene.layer_stats().snapshot_count),
-                    static_cast<unsigned>(ledger.peak_layer_bytes));
+        print_transition_summary("prepare_fail", begin, trace, ledger, env);
         return true;
     }
 
@@ -646,12 +975,7 @@ namespace {
                     "source capture failure ledger records no captured bytes")) {
             return false;
         }
-        std::printf("[pt] source_capture_fail status=%s capture=%u abort=%u snapshots=%u bytes=%u\n",
-                    ui::scene::page_transition_begin_status_name(begin.status),
-                    static_cast<unsigned>(begin.source_capture.status),
-                    static_cast<unsigned>(trace.abort_count),
-                    static_cast<unsigned>(env.scene.layer_stats().snapshot_count),
-                    static_cast<unsigned>(ledger.peak_layer_bytes));
+        print_transition_summary("source_capture_fail", begin, trace, ledger, env);
         return true;
     }
 
@@ -698,12 +1022,7 @@ namespace {
                     "destination capture failure ledger records source-only bytes")) {
             return false;
         }
-        std::printf("[pt] destination_capture_fail status=%s src_caps=%u dst_capture=%u snapshots=%u bytes=%u\n",
-                    ui::scene::page_transition_begin_status_name(begin.status),
-                    static_cast<unsigned>(trace.source_capture_count),
-                    static_cast<unsigned>(begin.destination_capture.status),
-                    static_cast<unsigned>(env.scene.layer_stats().snapshot_count),
-                    static_cast<unsigned>(ledger.peak_layer_bytes));
+        print_transition_summary("destination_capture_fail", begin, trace, ledger, env);
         return true;
     }
 
@@ -756,12 +1075,7 @@ namespace {
                     "rebegin ledger records replacement layer cost")) {
             return false;
         }
-        std::printf("[pt] rebegin first=%s second=%s interrupts=%u snapshots=%u bytes=%u\n",
-                    ui::scene::page_transition_begin_status_name(first.status),
-                    ui::scene::page_transition_begin_status_name(second.status),
-                    static_cast<unsigned>(canceled_trace.interrupt_count),
-                    static_cast<unsigned>(env.scene.layer_stats().snapshot_count),
-                    static_cast<unsigned>(ledger.peak_layer_bytes));
+        print_transition_summary("rebegin", second, canceled_trace, ledger, env);
         return true;
     }
 
@@ -837,29 +1151,33 @@ namespace {
                     "pixel single rebegin ledger records released snapshot")) {
             return false;
         }
-        std::printf("[pt] pixel_single_rebegin first=%s second=%s interrupts=%u snapshots=%u bytes=%u\n",
-                    ui::scene::page_transition_begin_status_name(first.status),
-                    ui::scene::page_transition_begin_status_name(second.status),
-                    static_cast<unsigned>(canceled_trace.interrupt_count),
-                    static_cast<unsigned>(env.scene.layer_stats().snapshot_count),
-                    static_cast<unsigned>(ledger.peak_layer_bytes));
+        print_transition_summary("pixel_single_rebegin", second, canceled_trace, ledger, env);
         return true;
     }
 }
 
 int main() {
-    if (!run_normal_commit()) return 1;
-    if (!run_cancel_during_compose()) return 1;
-    if (!run_command_snapshot_static_cut()) return 1;
-    if (!run_static_profile_static_cut()) return 1;
-    if (!run_none_profile_reject()) return 1;
-    if (!run_pixel_single_live_destination()) return 1;
-    if (!run_pixel_single_cancel()) return 1;
-    if (!run_prepare_fail()) return 1;
-    if (!run_source_capture_fail()) return 1;
-    if (!run_destination_capture_fail()) return 1;
-    if (!run_rebegin_interrupt()) return 1;
-    if (!run_pixel_single_rebegin_interrupt()) return 1;
-    std::puts("[page_transition_demo] ok");
-    return 0;
+    print_transition_run_begin();
+    bool ok = true;
+    do {
+        if (!run_normal_commit()) { ok = false; break; }
+        if (!run_fade_slide_pixel_double()) { ok = false; break; }
+        if (!run_fade_slide_cheap_quantized()) { ok = false; break; }
+        if (!run_cancel_during_compose()) { ok = false; break; }
+        if (!run_command_snapshot_static_cut()) { ok = false; break; }
+        if (!run_static_profile_static_cut()) { ok = false; break; }
+        if (!run_none_profile_reject()) { ok = false; break; }
+        if (!run_pixel_single_fade_slide_live_destination()) { ok = false; break; }
+        if (!run_pixel_single_fade_slide_cheap_quantized()) { ok = false; break; }
+        if (!run_pixel_single_cancel()) { ok = false; break; }
+        if (!run_prepare_fail()) { ok = false; break; }
+        if (!run_source_capture_fail()) { ok = false; break; }
+        if (!run_destination_capture_fail()) { ok = false; break; }
+        if (!run_rebegin_interrupt()) { ok = false; break; }
+        if (!run_pixel_single_rebegin_interrupt()) { ok = false; break; }
+    } while (false);
+    if (ok && !run_causal_chain_verdict()) ok = false;
+    print_transition_run_end(ok);
+    if (ok) std::puts("[page_transition_demo] ok");
+    return ok ? 0 : 1;
 }

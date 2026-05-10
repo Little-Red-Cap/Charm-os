@@ -106,6 +106,19 @@ import charm.core.soa_registry;
         const bool hovered_hit = input_is_invalid(input_.hovered) || input_is_descendant(input_.hovered, h);
         const bool focused_hit = input_is_invalid(input_.focused) || input_is_descendant(input_.focused, h);
         const bool scroll_hit = input_is_invalid(input_.scroll_target) || input_is_descendant(input_.scroll_target, h);
+        const bool focus_scope_hit = input_.focus_scope
+            && (input_is_invalid(input_.focus_scope) || input_is_descendant(input_.focus_scope, h));
+        const bool focus_scope_fallback_hit = input_.focus_scope_fallback
+            && (input_is_invalid(input_.focus_scope_fallback) || input_is_descendant(input_.focus_scope_fallback, h));
+        bool focus_scope_stack_hit = false;
+        for (std::size_t index = 0; index < input_focus_scope_stack_size_; ++index) {
+            const auto& frame = input_focus_scope_stack_[index];
+            if ((frame.scope && (input_is_invalid(frame.scope) || input_is_descendant(frame.scope, h)))
+                || (frame.fallback && (input_is_invalid(frame.fallback) || input_is_descendant(frame.fallback, h)))) {
+                focus_scope_stack_hit = true;
+                break;
+            }
+        }
 
         WidgetHandle drag_target{};
         if (captured_hit && valid(input_.captured)) {
@@ -135,6 +148,17 @@ import charm.core.soa_registry;
         }
         if (scroll_hit) {
             input_.scroll_target = {};
+        }
+        if (focus_scope_hit) {
+            input_.focus_scope = {};
+            input_.focus_scope_fallback = {};
+            input_.focus_scope_trap = false;
+            input_focus_scope_stack_size_ = 0;
+        } else if (focus_scope_fallback_hit) {
+            input_.focus_scope_fallback = {};
+        }
+        if (focus_scope_stack_hit) {
+            input_focus_scope_stack_size_ = 0;
         }
         if (hovered_hit) {
             if (valid(input_.hovered)) {
@@ -354,6 +378,30 @@ import charm.core.soa_registry;
         }
         input_.scroll_target = {};
         input_.button = 0;
+    }
+
+    void SoaKernel::input_handle_key_down(Event::Key key) {
+        const bool tab = key == Event::Key::Tab;
+        const bool reverse = key == Event::Key::Left || key == Event::Key::Up;
+        const bool forward = tab || key == Event::Key::Right || key == Event::Key::Down;
+        if (!forward && !reverse) {
+            if (input_.focused) {
+                input_emit_event(input_.focused, Event::key(Event::Type::KeyDown, key, input_.last_ms));
+            }
+            return;
+        }
+
+        const WidgetHandle root = input_.focus_scope ? input_.focus_scope : input_.root;
+        WidgetHandle next = tab ? WidgetHandle{} : input_spatial_focus_candidate(root, input_.focused, key);
+        if (!next) {
+            next = input_next_focus_candidate(root, input_.focused, reverse);
+        }
+        if (!next) {
+            next = input_first_focus_candidate(root);
+        }
+        if (next) {
+            input_set_focus(next);
+        }
     }
 
     void SoaKernel::input_handle_click(WidgetHandle h, int x, int y) {
@@ -875,6 +923,137 @@ import charm.core.soa_registry;
         input_emit_action(SoaInputAction{SoaInputActionType::ScrollBy, h, dy, dx});
     }
 
+    bool SoaKernel::input_is_focus_candidate(WidgetHandle h) const noexcept {
+        return h && valid(h) && visible(h) && enabled(h) && focusable(h);
+    }
+
+    WidgetHandle SoaKernel::input_first_focus_candidate(WidgetHandle root) const noexcept {
+        if (!root || !valid(root)) return {};
+        std::array<WidgetHandle, 256> stack{};
+        std::size_t sp = 0;
+        stack[sp++] = root;
+        while (sp > 0) {
+            const WidgetHandle h = stack[--sp];
+            if (!valid(h) || !visible(h) || !enabled(h)) continue;
+            if (input_is_focus_candidate(h)) return h;
+            for (auto child = last_child(h); child; child = prev_sibling(child)) {
+                if (sp >= stack.size()) break;
+                stack[sp++] = child;
+            }
+        }
+        return {};
+    }
+
+    WidgetHandle SoaKernel::input_next_focus_candidate(WidgetHandle root,
+                                                       WidgetHandle current,
+                                                       bool reverse) const noexcept {
+        if (!root || !valid(root)) return {};
+        std::array<WidgetHandle, 256> candidates{};
+        std::size_t count = 0;
+        std::array<WidgetHandle, 256> stack{};
+        std::size_t sp = 0;
+        stack[sp++] = root;
+        while (sp > 0) {
+            const WidgetHandle h = stack[--sp];
+            if (!valid(h) || !visible(h) || !enabled(h)) continue;
+            if (input_is_focus_candidate(h) && count < candidates.size()) {
+                candidates[count++] = h;
+            }
+            for (auto child = last_child(h); child; child = prev_sibling(child)) {
+                if (sp >= stack.size()) break;
+                stack[sp++] = child;
+            }
+        }
+        if (count == 0) return {};
+        if (!current) return reverse ? candidates[count - 1] : candidates[0];
+        for (std::size_t index = 0; index < count; ++index) {
+            if (candidates[index] != current) continue;
+            if (reverse) {
+                return index == 0 ? candidates[count - 1] : candidates[index - 1];
+            }
+            return (index + 1 == count) ? candidates[0] : candidates[index + 1];
+        }
+        return reverse ? candidates[count - 1] : candidates[0];
+    }
+
+    WidgetHandle SoaKernel::input_spatial_focus_candidate(WidgetHandle root,
+                                                          WidgetHandle current,
+                                                          Event::Key key) const noexcept {
+        if (!root || !valid(root) || !input_is_focus_candidate(current)) return {};
+        if (current != root && !input_is_descendant(current, root)) return {};
+        const Rect from = input_world_rect(current);
+        if (!rect_valid(from)) return {};
+        const int from_cx = from.x + from.w / 2;
+        const int from_cy = from.y + from.h / 2;
+
+        WidgetHandle best{};
+        std::int64_t best_major = 0;
+        std::int64_t best_minor = 0;
+        std::int64_t best_order = 0;
+        std::int64_t order = 0;
+
+        std::array<WidgetHandle, 256> stack{};
+        std::size_t sp = 0;
+        stack[sp++] = root;
+        while (sp > 0) {
+            const WidgetHandle h = stack[--sp];
+            if (!valid(h) || !visible(h) || !enabled(h)) continue;
+            if (input_is_focus_candidate(h) && h != current) {
+                const Rect to = input_world_rect(h);
+                if (rect_valid(to)) {
+                    const int to_cx = to.x + to.w / 2;
+                    const int to_cy = to.y + to.h / 2;
+                    std::int64_t major = 0;
+                    std::int64_t minor = 0;
+                    bool directional = false;
+                    switch (key) {
+                    case Event::Key::Left:
+                        directional = to_cx < from_cx;
+                        major = static_cast<std::int64_t>(from_cx - to_cx);
+                        minor = static_cast<std::int64_t>(to_cy - from_cy);
+                        break;
+                    case Event::Key::Right:
+                        directional = to_cx > from_cx;
+                        major = static_cast<std::int64_t>(to_cx - from_cx);
+                        minor = static_cast<std::int64_t>(to_cy - from_cy);
+                        break;
+                    case Event::Key::Up:
+                        directional = to_cy < from_cy;
+                        major = static_cast<std::int64_t>(from_cy - to_cy);
+                        minor = static_cast<std::int64_t>(to_cx - from_cx);
+                        break;
+                    case Event::Key::Down:
+                        directional = to_cy > from_cy;
+                        major = static_cast<std::int64_t>(to_cy - from_cy);
+                        minor = static_cast<std::int64_t>(to_cx - from_cx);
+                        break;
+                    default:
+                        break;
+                    }
+                    if (directional) {
+                        if (minor < 0) minor = -minor;
+                        const bool better = !best
+                            || major < best_major
+                            || (major == best_major && minor < best_minor)
+                            || (major == best_major && minor == best_minor && order < best_order);
+                        if (better) {
+                            best = h;
+                            best_major = major;
+                            best_minor = minor;
+                            best_order = order;
+                        }
+                    }
+                }
+                ++order;
+            }
+            for (auto child = last_child(h); child; child = prev_sibling(child)) {
+                if (sp >= stack.size()) break;
+                stack[sp++] = child;
+            }
+        }
+        return best;
+    }
+
     SoaWheelAxisPolicy SoaKernel::input_wheel_axis_override(WidgetHandle hit, WidgetHandle target,
         SoaWheelAxisPolicy fallback, int x, int y) const noexcept {
         if (!target) return fallback;
@@ -909,7 +1088,21 @@ import charm.core.soa_registry;
         }
     }
 
+    WidgetHandle SoaKernel::input_resolve_focus_request(WidgetHandle h) const noexcept {
+        if (!h) return {};
+        if (!input_.focus_scope || !input_.focus_scope_trap) return h;
+        if (input_is_descendant(h, input_.focus_scope)) return h;
+        if (input_.focused && input_is_descendant(input_.focused, input_.focus_scope)) {
+            return input_.focused;
+        }
+        if (input_.focus_scope_fallback && input_is_descendant(input_.focus_scope_fallback, input_.focus_scope)) {
+            return input_.focus_scope_fallback;
+        }
+        return {};
+    }
+
     void SoaKernel::input_set_focus(WidgetHandle h) {
+        h = input_resolve_focus_request(h);
         if (input_.focused == h) return;
         if (input_.focused) {
             input_emit_event(input_.focused, Event::key(Event::Type::FocusOut, Event::Key::Unknown, input_.last_ms));
@@ -929,104 +1122,5 @@ import charm.core.soa_registry;
         if (input_.dragging == on) return;
         const WidgetHandle target = input_drag_target();
         input_emit_action(SoaInputAction{SoaInputActionType::SetDragging, target, on ? 1 : 0, 0});
-    }
-
-    std::uint16_t SoaKernel::index_of(WidgetHandle h) const noexcept {
-        const std::uint16_t idx = h.index;
-        if (idx >= kMaxNodes) return kInvalidIndex;
-        if (common_.kind[idx] != h.kind) return kInvalidIndex;
-        if (common_.generation[idx] != h.generation) return kInvalidIndex;
-        if (!flag_raw(idx, SoaNodeFlag::Used)) return kInvalidIndex;
-        return idx;
-    }
-
-    WidgetHandle SoaKernel::handle_from_index(std::uint16_t idx) const noexcept {
-        if (idx == kInvalidIndex || idx >= kMaxNodes) return {};
-        if (!flag_raw(idx, SoaNodeFlag::Used)) return {};
-        return WidgetHandle{common_.kind[idx], idx, common_.generation[idx]};
-    }
-
-    void SoaKernel::detach_from_parent(std::uint16_t idx) noexcept {
-        const std::uint16_t p = common_.parent[idx];
-        if (p == kInvalidIndex) return;
-        const std::uint16_t prev = common_.prev_sibling[idx];
-        const std::uint16_t next = common_.next_sibling[idx];
-        if (prev != kInvalidIndex) {
-            common_.next_sibling[prev] = next;
-        } else {
-            common_.first_child[p] = next;
-        }
-        if (next != kInvalidIndex) {
-            common_.prev_sibling[next] = prev;
-        } else {
-            common_.last_child[p] = prev;
-        }
-        common_.parent[idx] = kInvalidIndex;
-        common_.prev_sibling[idx] = kInvalidIndex;
-        common_.next_sibling[idx] = kInvalidIndex;
-        if (common_.child_count[p] > 0) {
-            common_.child_count[p] = static_cast<std::uint16_t>(common_.child_count[p] - 1);
-        }
-    }
-
-    void SoaKernel::detach_children(std::uint16_t idx) noexcept {
-        std::uint16_t child = common_.first_child[idx];
-        while (child != kInvalidIndex) {
-            common_.parent[child] = kInvalidIndex;
-            const std::uint16_t next = common_.next_sibling[child];
-            common_.prev_sibling[child] = kInvalidIndex;
-            common_.next_sibling[child] = kInvalidIndex;
-            child = next;
-        }
-        common_.first_child[idx] = kInvalidIndex;
-        common_.last_child[idx] = kInvalidIndex;
-        common_.child_count[idx] = 0;
-    }
-
-    bool SoaKernel::creates_cycle(std::uint16_t parent, std::uint16_t child) const noexcept {
-        std::uint16_t p = parent;
-        while (p != kInvalidIndex) {
-            if (p == child) return true;
-            p = common_.parent[p];
-        }
-        return false;
-    }
-
-    bool SoaKernel::flag_raw(std::uint16_t idx, SoaNodeFlag flag) const noexcept {
-        return (common_.flags[idx] & static_cast<std::uint8_t>(flag)) != 0;
-    }
-
-    bool SoaKernel::get_flag(WidgetHandle h, SoaNodeFlag flag) const noexcept {
-        const std::uint16_t idx = index_of(h);
-        if (idx == kInvalidIndex) return false;
-        return flag_raw(idx, flag);
-    }
-
-    void SoaKernel::set_flag(WidgetHandle h, SoaNodeFlag flag, bool on) noexcept {
-        const std::uint16_t idx = index_of(h);
-        if (idx == kInvalidIndex) return;
-        const std::uint8_t mask = static_cast<std::uint8_t>(flag);
-        if (on) {
-            common_.flags[idx] |= mask;
-        } else {
-            common_.flags[idx] = static_cast<std::uint8_t>(common_.flags[idx] & ~mask);
-        }
-    }
-
-    bool SoaKernel::get_state_flag(WidgetHandle h, SoaStateFlag flag) const noexcept {
-        const std::uint16_t idx = index_of(h);
-        if (idx == kInvalidIndex) return false;
-        return (common_.state_flags[idx] & static_cast<std::uint8_t>(flag)) != 0;
-    }
-
-    void SoaKernel::set_state_flag(WidgetHandle h, SoaStateFlag flag, bool on) noexcept {
-        const std::uint16_t idx = index_of(h);
-        if (idx == kInvalidIndex) return;
-        const std::uint8_t mask = static_cast<std::uint8_t>(flag);
-        if (on) {
-            common_.state_flags[idx] |= mask;
-        } else {
-            common_.state_flags[idx] = static_cast<std::uint8_t>(common_.state_flags[idx] & ~mask);
-        }
     }
 

@@ -19,9 +19,7 @@ Examples/kernel/rtos/qemu/build-*/
 Examples/kernel/rtos/qemu/qemu-ci.log
 Examples/kernel/rtos/qemu/qemu-ci.err.log
 Examples/kernel/armv7a/qemu/out/
-Examples/kernel/armv7a/qemu/qemu-ci.log
-Examples/kernel/armv7a/qemu/qemu-ci.err.log
-Examples/kernel/armv7a/qemu/qemu-ci.debug.log
+Examples/kernel/armv7a/qemu/qemu-*.log
 Examples/kernel/posix/qemu/qemu-ci.log
 Examples/kernel/posix/qemu/qemu-ci.err.log
 Examples/kernel/posix/qemu/qemu-ci.debug.log
@@ -30,3 +28,5 @@ Examples/kernel/posix/qemu/qemu-ci.tmp.err
 Examples/kernel/posix/qemu/ci-wrapper.out
 _tmp/*
 Examples/posix/elf_samples/out/
+__pycache__/
+*.pyc

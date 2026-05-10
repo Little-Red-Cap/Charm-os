@@ -175,6 +175,96 @@ def build_entry_maps(index_summary: dict):
     return mapping, order
 
 
+def front_page_surfaces_by_id(index_summary: dict):
+    front_page = index_summary.get("front_page", {}) or {}
+    surfaces = {}
+    for surface in front_page.get("supporting_surfaces", []):
+        if not isinstance(surface, dict):
+            continue
+        surface_id = str(surface.get("id", "")).strip()
+        if not surface_id or surface_id in surfaces:
+            continue
+        surfaces[surface_id] = surface
+    return surfaces
+
+
+def normalize_surface_detail(surface: dict | None):
+    if surface is None:
+        return {
+            "surface_id": None,
+            "summary_schema": None,
+            "summary_path": None,
+            "report_markdown_path": None,
+            "check_text_path": None,
+        }
+
+    return {
+        "surface_id": nullable_text(surface.get("id")),
+        "summary_schema": nullable_text(surface.get("summary_schema")),
+        "summary_path": nullable_text(surface.get("summary_path")),
+        "report_markdown_path": nullable_text(surface.get("report_markdown_path")),
+        "check_text_path": nullable_text(surface.get("check_text_path")),
+    }
+
+
+def build_front_page_entry_detail_changes(baseline_index: dict, candidate_index: dict):
+    baseline_entries, baseline_order = build_entry_maps(baseline_index)
+    candidate_entries, candidate_order = build_entry_maps(candidate_index)
+    anchor_order = ordered_unique(candidate_order + baseline_order)
+    baseline_surfaces = front_page_surfaces_by_id(baseline_index)
+    candidate_surfaces = front_page_surfaces_by_id(candidate_index)
+    changes = []
+
+    for anchor_id in anchor_order:
+        baseline_entry = baseline_entries.get(anchor_id)
+        candidate_entry = candidate_entries.get(anchor_id)
+        if baseline_entry is None or candidate_entry is None:
+            continue
+
+        baseline_surface = normalize_surface_detail(baseline_surfaces.get(str(baseline_entry.get("id", ""))))
+        candidate_surface = normalize_surface_detail(candidate_surfaces.get(str(candidate_entry.get("id", ""))))
+
+        surface_id_changed = baseline_surface["surface_id"] != candidate_surface["surface_id"]
+        schema_changed = baseline_surface["summary_schema"] != candidate_surface["summary_schema"]
+        summary_path_changed = baseline_surface["summary_path"] != candidate_surface["summary_path"]
+        report_path_changed = baseline_surface["report_markdown_path"] != candidate_surface["report_markdown_path"]
+        check_path_changed = baseline_surface["check_text_path"] != candidate_surface["check_text_path"]
+
+        if not any(
+            [
+                surface_id_changed,
+                schema_changed,
+                summary_path_changed,
+                report_path_changed,
+                check_path_changed,
+            ]
+        ):
+            continue
+
+        changes.append(
+            {
+                "anchor_id": anchor_id,
+                "baseline_surface_id": baseline_surface["surface_id"],
+                "candidate_surface_id": candidate_surface["surface_id"],
+                "baseline_summary_schema": baseline_surface["summary_schema"],
+                "candidate_summary_schema": candidate_surface["summary_schema"],
+                "baseline_summary_path": baseline_surface["summary_path"],
+                "candidate_summary_path": candidate_surface["summary_path"],
+                "baseline_report_markdown_path": baseline_surface["report_markdown_path"],
+                "candidate_report_markdown_path": candidate_surface["report_markdown_path"],
+                "baseline_check_text_path": baseline_surface["check_text_path"],
+                "candidate_check_text_path": candidate_surface["check_text_path"],
+                "surface_id_changed": surface_id_changed,
+                "schema_changed": schema_changed,
+                "summary_path_changed": summary_path_changed,
+                "report_path_changed": report_path_changed,
+                "check_path_changed": check_path_changed,
+            }
+        )
+
+    return changes
+
+
 def entry_health_rank(entry: dict | None):
     if entry is None:
         return -1
@@ -409,6 +499,7 @@ def build_shelf_changes(baseline_index: dict, candidate_index: dict):
     candidate_shelf = candidate_index.get("shelf", {})
     baseline_questions = baseline_index.get("questions", {})
     candidate_questions = candidate_index.get("questions", {})
+    front_page_entry_detail_changes = build_front_page_entry_detail_changes(baseline_index, candidate_index)
 
     question_changes = {
         "core_question_changes": string_array_changes(
@@ -436,6 +527,7 @@ def build_shelf_changes(baseline_index: dict, candidate_index: dict):
         or str(baseline_index.get("profile", "")) != str(candidate_index.get("profile", ""))
         or has_array_changes(world_name_changes)
         or any(has_array_changes(change) for change in question_changes.values())
+        or bool(front_page_entry_detail_changes)
     )
 
     return {
@@ -445,12 +537,18 @@ def build_shelf_changes(baseline_index: dict, candidate_index: dict):
         "profile_changed": str(baseline_index.get("profile", "")) != str(candidate_index.get("profile", "")),
         "question_changes": question_changes,
         "world_name_changes": world_name_changes,
+        "front_page_entry_detail_changes": front_page_entry_detail_changes,
     }
 
 
 def build_collapse_surface(entry_changes, shelf_changes, candidate_index: dict):
+    candidate_entries, _ = build_entry_maps(candidate_index)
     regressed_changes = [change for change in entry_changes if change["impact"] == "regression"]
     removed_worlds = shelf_changes["world_name_changes"]["removed"]
+    front_page_entry_detail_changed_anchors = [
+        change["anchor_id"]
+        for change in shelf_changes["front_page_entry_detail_changes"]
+    ]
     added_failed_entries = [
         change["anchor_id"]
         for change in entry_changes
@@ -460,12 +558,19 @@ def build_collapse_surface(entry_changes, shelf_changes, candidate_index: dict):
     affected_worlds = ordered_unique(
         [change["world_name"] for change in regressed_changes]
         + [change["world_name"] for change in entry_changes if change["anchor_id"] in added_failed_entries]
+        + [
+            str(candidate_entries.get(anchor_id, {}).get("world_name", ""))
+            for anchor_id in front_page_entry_detail_changed_anchors
+        ]
         + removed_worlds
     )
     affected_profiles = ordered_unique(
-        change["profile"]
-        for change in regressed_changes
-        if change["profile"]
+        [change["profile"] for change in regressed_changes if change["profile"]]
+        + [
+            str(candidate_entries.get(anchor_id, {}).get("profile", ""))
+            for anchor_id in front_page_entry_detail_changed_anchors
+            if str(candidate_entries.get(anchor_id, {}).get("profile", ""))
+        ]
     )
 
     narratives = []
@@ -481,14 +586,23 @@ def build_collapse_surface(entry_changes, shelf_changes, candidate_index: dict):
         narratives.append(f"world `{world_name}` disappeared from the candidate shelf")
     for anchor_id in added_failed_entries[:3]:
         narratives.append(f"candidate added failing shelf entry `{anchor_id}`")
+    for anchor_id in front_page_entry_detail_changed_anchors[:3]:
+        narratives.append(f"shelf entry `{anchor_id}` changed front-page entry source detail")
     if str(candidate_index.get("result", "fail")) != "ok":
         narratives.append("candidate shelf no longer stands as `ok`")
 
     return {
-        "changed": bool(regressed_changes or removed_worlds or added_failed_entries or str(candidate_index.get("result", "fail")) != "ok"),
+        "changed": bool(
+            regressed_changes
+            or removed_worlds
+            or added_failed_entries
+            or front_page_entry_detail_changed_anchors
+            or str(candidate_index.get("result", "fail")) != "ok"
+        ),
         "regressed_entries": [change["anchor_id"] for change in regressed_changes],
         "removed_worlds": removed_worlds,
         "added_failed_entries": added_failed_entries,
+        "front_page_entry_detail_changed_anchors": front_page_entry_detail_changed_anchors,
         "affected_worlds": affected_worlds,
         "affected_profiles": affected_profiles,
         "narratives": narratives,
@@ -527,6 +641,13 @@ def build_next_questions(candidate_index: dict, entry_changes, shelf_changes: di
 
     for world_name in shelf_changes["world_name_changes"]["removed"][:2]:
         next_questions.append(f"Which route should restore removed world `{world_name}` to the shelf?")
+
+    for change in shelf_changes["front_page_entry_detail_changes"][:2]:
+        next_questions.append(
+            "Should shelf entry `{0}` still be treated as the same front-page source?".format(
+                change["anchor_id"]
+            )
+        )
 
     for change in [
         item
@@ -725,6 +846,16 @@ def build_summary(args):
                         ", ".join(change["removed"]),
                     )
                 )
+        if shelf_changes["front_page_entry_detail_changes"]:
+            report_lines.append("- Front-page entry detail changes:")
+            for change in shelf_changes["front_page_entry_detail_changes"]:
+                report_lines.append(
+                    "  - `{0}`: summary `{1}` -> `{2}`".format(
+                        change["anchor_id"],
+                        change["baseline_summary_path"],
+                        change["candidate_summary_path"],
+                    )
+                )
 
     report_lines.extend(["", "## Collapse Surface"])
     if collapse_surface["changed"]:
@@ -744,6 +875,12 @@ def build_summary(args):
             report_lines.append(
                 "- Added failing entries: `{0}`".format(
                     "`, `".join(collapse_surface["added_failed_entries"])
+                )
+            )
+        if collapse_surface["front_page_entry_detail_changed_anchors"]:
+            report_lines.append(
+                "- Front-page entry detail changed: `{0}`".format(
+                    "`, `".join(collapse_surface["front_page_entry_detail_changed_anchors"])
                 )
             )
         if collapse_surface["affected_worlds"]:
@@ -812,6 +949,12 @@ def build_summary(args):
         "world_drift: added={0} removed={1}".format(
             len(shelf_changes["world_name_changes"]["added"]),
             len(shelf_changes["world_name_changes"]["removed"]),
+        ),
+        "front_page_entry_detail_changes: [{0}]".format(
+            ", ".join(
+                change["anchor_id"]
+                for change in shelf_changes["front_page_entry_detail_changes"]
+            )
         ),
         "collapse_surface: changed={0} regressed={1}".format(
             collapse_surface["changed"],

@@ -284,6 +284,7 @@
         "route_result",
         "recommended_entry_mode",
         "entry_tier",
+        "opening_reason",
         "root_summary_schema",
         "root_summary_kind",
         "root_label",
@@ -328,6 +329,9 @@
             "evidence_only",
             "route_only"
           ]
+        },
+        "opening_reason": {
+          "$ref": "#/$defs/openingReason"
         },
         "root_summary_schema": {
           "type": "string"
@@ -390,6 +394,44 @@
         }
       }
     },
+    "openingReason": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "summary",
+        "source_summary_path",
+        "drift_changed",
+        "drift_verdict"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "world_shelf_review_drift",
+            "world_shelf_review",
+            "grouped_review",
+            "counterfactual_verdict",
+            "delivery_biography",
+            "supporting_evidence",
+            "runtime_session",
+            "route"
+          ]
+        },
+        "summary": {
+          "type": "string"
+        },
+        "source_summary_path": {
+          "type": "string"
+        },
+        "drift_changed": {
+          "type": "boolean"
+        },
+        "drift_verdict": {
+          "type": "string"
+        }
+      }
+    },
     "capabilityFlagMap": {
       "type": "object",
       "additionalProperties": false,
@@ -398,6 +440,7 @@
         "counterfactual_verdict",
         "grouped_review",
         "supporting_evidence",
+        "runtime_session",
         "supporting_testimony",
         "shelf_compare",
         "candidate_shelf",
@@ -415,6 +458,9 @@
           "type": "boolean"
         },
         "supporting_evidence": {
+          "type": "boolean"
+        },
+        "runtime_session": {
           "type": "boolean"
         },
         "supporting_testimony": {
@@ -442,6 +488,7 @@
         "counterfactual_verdict",
         "grouped_review",
         "supporting_evidence",
+        "runtime_session",
         "supporting_testimony",
         "shelf_compare",
         "candidate_shelf",
@@ -462,6 +509,10 @@
           "minimum": 0
         },
         "supporting_evidence": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "runtime_session": {
           "type": "integer",
           "minimum": 0
         },
@@ -566,6 +617,7 @@
         "counterfactual_verdict",
         "grouped_review",
         "supporting_evidence",
+        "runtime_session",
         "supporting_testimony",
         "shelf_compare",
         "candidate_shelf",
@@ -622,6 +674,22 @@
           ]
         },
         "supporting_evidence": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "allOf": [
+            {
+              "if": {
+                "type": "object"
+              },
+              "then": {
+                "$ref": "#/$defs/entryRef"
+              }
+            }
+          ]
+        },
+        "runtime_session": {
           "type": [
             "object",
             "null"
@@ -759,6 +827,7 @@
         "provenance_route_kind",
         "source_summary_schema",
         "source_summary_path",
+        "source_front_page_summary_path",
         "available_supporting_surface_ids"
       ],
       "properties": {
@@ -787,10 +856,34 @@
         "source_summary_path": {
           "type": "string"
         },
+        "source_front_page_summary_path": {
+          "type": "string"
+        },
         "available_supporting_surface_ids": {
           "$ref": "#/$defs/stringArray"
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "provenance_route_kind": {
+                "const": "artifact_report_index"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "source_summary_schema": {
+                "const": "system_compiler.artifact_report_index/v0"
+              },
+              "source_front_page_summary_path": {
+                "const": ""
+              }
+            }
+          }
+        }
+      ]
     },
     "questionBlock": {
       "type": "object",

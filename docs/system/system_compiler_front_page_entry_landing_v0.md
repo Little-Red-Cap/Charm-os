@@ -32,6 +32,7 @@ Current `system_compiler.front_page_entry_landing` includes:
   - `scripts/validate_system_compiler_front_page_entry_landing.py`
 - smoke
   - `scripts/system_compiler_front_page_entry_landing_smoke.ps1`
+  - `scripts/system_compiler_front_page_entry_runtime_session_sample_smoke.ps1`
 
 ## Current outputs
 
@@ -51,17 +52,27 @@ The current summary records:
 - `secondary_landings`
 - one `fallback_mode_order`
 - de-duplicated `provenance_roots`
+- one `query_hints` block that says:
+  - which existing explain query should open first for each landing tab
+  - whether that query is `report` or `artifact_root` scoped
+  - whether the landing is expected to surface compare-aware overview semantics
+  - which no-argument follow-up queries stay nearest to that landing
 - a compact `landing_status` block with:
   - recommended mode
   - entry tier
+  - opening reason
   - primary tab id
-  - direct review / compare / biography / evidence availability
+  - direct review / compare / biography / evidence / runtime session availability
 
 That means a tool no longer needs to infer:
 
 - which preferred entry should win first
 - whether two capabilities point to the same route entry
 - whether provenance roots should be shown as separate expandable worlds
+- whether a landing should immediately open a report overview or an
+  artifact-root overview
+- which stable no-argument explain query is the safest next hop after a tab
+  has been chosen
 
 ## Current ordering rules
 
@@ -74,18 +85,52 @@ Examples:
   - `shelf_compare`
   - `candidate_shelf`
   - `baseline_shelf`
-  - then biography / compare / evidence
+  - then biography / compare / evidence / runtime session
 - `compare`
   - `counterfactual_verdict`
   - `delivery_biography`
   - `supporting_evidence`
+  - `runtime_session`
 - `biography`
   - `delivery_biography`
   - `supporting_evidence`
+  - `runtime_session`
   - `supporting_testimony`
 
 If multiple capabilities resolve to the same route entry, the landing plan
 collapses them into one tab and keeps the capability aliases together.
+
+`landing_status.opening_reason` is passed through from the capability map.
+
+For drifted `system_compiler.world_shelf_review/v0` roots this reason can be
+`world_shelf_review_drift`, which tells consumers that the primary grouped
+review tab is not merely present, but is being opened first because the review
+already summarized shelf drift in its `drift_digest`.
+
+## Query hints
+
+`query_hints` is intentionally modest.
+
+It does not try to freeze every future explain interaction, and it does not
+guess parameterized queries such as `-WhyCapability <cap>` or
+`-GraphPath <capability>`.
+
+Instead it only binds each landing tab to the smallest stable no-argument
+explain read that already exists today:
+
+- report-first landings such as `delivery_biography`
+  - open `default_overview` in `report` scope first
+- evidence-first landings such as `supporting_evidence`
+  - open `bringup_evidence` in `report` scope first
+- runtime-session landings such as `runtime_session`
+  - also open `bringup_evidence` in `report` scope first, but keep the tab
+    distinct so a tool can show a dedicated runtime session entry
+- compare / review / shelf-style landings such as `counterfactual_verdict`,
+  `grouped_review`, and `shelf_compare`
+  - open `default_overview` in `artifact_root` scope first
+
+That keeps the object consumer-side and low-risk while still welding the older
+landing line to the newer `artifact_report` / `explain_surface` query line.
 
 ## Provenance roots
 
@@ -93,6 +138,12 @@ collapses them into one tab and keeps the capability aliases together.
 
 They are meant for expandable "open another declared front-page root" actions,
 not for duplicate top-level tabs.
+
+Some provenance roots are discovery sources rather than front-page roots. The
+current example is `root_kind = artifact_report_index`, which points at a
+`system_compiler.artifact_report_index/v0` first-read index. A consumer may show
+it as an expandable provenance source, but should not treat it as a normal
+`front_page.supporting_surfaces` traversal root.
 
 So if grouped review and route provenance both point back to the same root
 summary, the landing plan keeps:
@@ -120,6 +171,12 @@ Or run the dedicated smoke:
 
 ```powershell
 ./scripts/system_compiler_front_page_entry_landing_smoke.ps1 -Clean
+```
+
+For the narrow `kernel_runtime_session` route/capability/landing chain, use:
+
+```powershell
+./scripts/system_compiler_front_page_entry_runtime_session_sample_smoke.ps1 -Clean
 ```
 
 ## Why this matters

@@ -20,6 +20,7 @@ CAPABILITY_IDS = [
     "counterfactual_verdict",
     "grouped_review",
     "supporting_evidence",
+    "runtime_session",
     "supporting_testimony",
     "shelf_compare",
     "candidate_shelf",
@@ -47,8 +48,9 @@ ROOT_KIND_TO_CAPABILITY = {
     "system_compiler.biography_index": "candidate_shelf",
 }
 
-ROOT_SCHEMA_TO_CAPABILITY = {
+SUMMARY_SCHEMA_TO_CAPABILITY = {
     "minimal_kernel.runtime_evidence_bundle.summary/v1": "supporting_evidence",
+    "minimal_kernel.kernel_runtime_session/v0": "runtime_session",
 }
 
 
@@ -183,15 +185,16 @@ def capability_ids_for_entry(entry: dict[str, Any]) -> list[str]:
     if mapped_role:
         capability_ids.append(mapped_role)
 
+    summary_schema = choose_text(entry.get("summary_schema"))
+    mapped_summary_schema = SUMMARY_SCHEMA_TO_CAPABILITY.get(summary_schema)
+    if mapped_summary_schema:
+        capability_ids.append(mapped_summary_schema)
+
     if choose_text(entry.get("route_id")) == "root":
         summary_kind = choose_text(entry.get("summary_kind"))
-        summary_schema = choose_text(entry.get("summary_schema"))
         mapped_root_kind = ROOT_KIND_TO_CAPABILITY.get(summary_kind)
-        mapped_root_schema = ROOT_SCHEMA_TO_CAPABILITY.get(summary_schema)
         if mapped_root_kind:
             capability_ids.append(mapped_root_kind)
-        if mapped_root_schema:
-            capability_ids.append(mapped_root_schema)
 
     return ordered_unique(capability_ids)
 
@@ -290,6 +293,8 @@ def determine_recommended_entry_mode(capability_summary: dict[str, Any]) -> str:
         return "biography"
     if bool(flags.get("supporting_evidence")):
         return "evidence"
+    if bool(flags.get("runtime_session")):
+        return "evidence"
     return "route"
 
 
@@ -298,7 +303,7 @@ def determine_entry_tier(capability_summary: dict[str, Any]) -> str:
     has_review = bool(flags.get("grouped_review"))
     has_compare = bool(flags.get("counterfactual_verdict"))
     has_biography = bool(flags.get("delivery_biography"))
-    has_evidence = bool(flags.get("supporting_evidence"))
+    has_evidence = bool(flags.get("supporting_evidence") or flags.get("runtime_session"))
     has_shelf = bool(flags.get("shelf_compare") or flags.get("candidate_shelf"))
 
     if has_review and has_shelf and has_biography and has_evidence:
@@ -310,6 +315,104 @@ def determine_entry_tier(capability_summary: dict[str, Any]) -> str:
     if has_evidence:
         return "evidence_only"
     return "route_only"
+
+
+def build_opening_reason(route_summary: dict[str, Any], capability_summary: dict[str, Any]) -> OrderedDict[str, Any]:
+    flags = get_mapping(capability_summary.get("capability_flags"))
+    root_surface = get_mapping(route_summary.get("root_surface"))
+    root_summary_kind = choose_text(root_surface.get("summary_kind"))
+    root_summary_path_text = choose_text(root_surface.get("summary_path"))
+    root_summary_path = normalize_path(root_summary_path_text) if root_summary_path_text else ""
+
+    if bool(flags.get("grouped_review")):
+        if root_summary_kind == "system_compiler.world_shelf_review" and root_summary_path:
+            try:
+                root_summary = load_json(Path(root_summary_path))
+            except Exception:
+                root_summary = {}
+            drift_digest = get_mapping(root_summary.get("drift_digest"))
+            drift_changed = bool(drift_digest.get("changed"))
+            drift_verdict = choose_text(drift_digest.get("verdict")) or choose_text(root_summary.get("review_verdict"))
+            if drift_changed:
+                return OrderedDict(
+                    [
+                        ("kind", "world_shelf_review_drift"),
+                        (
+                            "summary",
+                            "Grouped review is recommended because the world shelf review drift digest reports consumer-visible drift.",
+                        ),
+                        ("source_summary_path", root_summary_path),
+                        ("drift_changed", True),
+                        ("drift_verdict", drift_verdict),
+                    ]
+                )
+            return OrderedDict(
+                [
+                    ("kind", "world_shelf_review"),
+                    ("summary", "Grouped review is recommended because the route root is a world shelf review."),
+                    ("source_summary_path", root_summary_path),
+                    ("drift_changed", False),
+                    ("drift_verdict", drift_verdict),
+                ]
+            )
+        return OrderedDict(
+            [
+                ("kind", "grouped_review"),
+                ("summary", "Grouped review is recommended because a grouped review capability is available."),
+                ("source_summary_path", root_summary_path),
+                ("drift_changed", False),
+                ("drift_verdict", ""),
+            ]
+        )
+    if bool(flags.get("counterfactual_verdict")):
+        return OrderedDict(
+            [
+                ("kind", "counterfactual_verdict"),
+                ("summary", "Compare mode is recommended because a counterfactual verdict capability is available."),
+                ("source_summary_path", root_summary_path),
+                ("drift_changed", False),
+                ("drift_verdict", ""),
+            ]
+        )
+    if bool(flags.get("delivery_biography")):
+        return OrderedDict(
+            [
+                ("kind", "delivery_biography"),
+                ("summary", "Biography mode is recommended because a delivery biography capability is available."),
+                ("source_summary_path", root_summary_path),
+                ("drift_changed", False),
+                ("drift_verdict", ""),
+            ]
+        )
+    if bool(flags.get("supporting_evidence")):
+        return OrderedDict(
+            [
+                ("kind", "supporting_evidence"),
+                ("summary", "Evidence mode is recommended because a supporting evidence capability is available."),
+                ("source_summary_path", root_summary_path),
+                ("drift_changed", False),
+                ("drift_verdict", ""),
+            ]
+        )
+    if bool(flags.get("runtime_session")):
+        return OrderedDict(
+            [
+                ("kind", "runtime_session"),
+                ("summary", "Evidence mode is recommended because a runtime session capability is available."),
+                ("source_summary_path", root_summary_path),
+                ("drift_changed", False),
+                ("drift_verdict", ""),
+            ]
+        )
+    return OrderedDict(
+        [
+            ("kind", "route"),
+            ("summary", "Route mode is recommended because no higher-level explain capability is available yet."),
+            ("source_summary_path", root_summary_path),
+            ("drift_changed", False),
+            ("drift_verdict", ""),
+        ]
+    )
 
 
 def build_entry_status(route_summary: dict[str, Any], capability_summary: dict[str, Any]) -> OrderedDict[str, Any]:
@@ -344,6 +447,7 @@ def build_entry_status(route_summary: dict[str, Any], capability_summary: dict[s
             ("route_result", choose_text(route_summary.get("result"))),
             ("recommended_entry_mode", determine_recommended_entry_mode(capability_summary)),
             ("entry_tier", determine_entry_tier(capability_summary)),
+            ("opening_reason", build_opening_reason(route_summary, capability_summary)),
             ("root_summary_schema", choose_text(root_surface.get("summary_schema"))),
             ("root_summary_kind", choose_text(root_surface.get("summary_kind"))),
             ("root_label", choose_text(root_surface.get("label"))),
@@ -382,6 +486,12 @@ def build_provenance_hints(route_summary: dict[str, Any]) -> list[OrderedDict[st
                     ("source_summary_schema", choose_text(entry.get("source_summary_schema"))),
                     ("source_summary_path", normalize_path(entry.get("source_summary_path", ""))),
                     (
+                        "source_front_page_summary_path",
+                        normalize_path(entry.get("source_front_page_summary_path", ""))
+                        if choose_text(entry.get("source_front_page_summary_path"))
+                        else "",
+                    ),
+                    (
                         "available_supporting_surface_ids",
                         ordered_unique(
                             [
@@ -418,6 +528,8 @@ def build_questions(capability_summary: dict[str, Any], entry_status: dict[str, 
         next_questions.append("Should this route expose a direct world-compare landing?")
     if "grouped_review" in missing_capability_ids:
         next_questions.append("Should this route publish a grouped review landing?")
+    if "runtime_session" in missing_capability_ids:
+        next_questions.append("Should this route expose a direct runtime session landing?")
     if "route_provenance" in missing_capability_ids:
         next_questions.append("Should this route publish route provenance for deeper explain consumers?")
     if not next_questions and choose_text(entry_status.get("recommended_entry_mode")) == "review":

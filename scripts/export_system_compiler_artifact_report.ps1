@@ -48,6 +48,32 @@ function Ensure-ParentDirectory {
     }
 }
 
+function Get-OptionalMemberValue {
+    param(
+        $Object,
+        [string]$Name
+    )
+
+    if ($null -eq $Object -or [string]::IsNullOrWhiteSpace($Name)) {
+        return $null
+    }
+
+    if ($Object -is [System.Collections.IDictionary]) {
+        if ($Object.Contains($Name)) {
+            return $Object[$Name]
+        }
+
+        return $null
+    }
+
+    $property = $Object.PSObject.Properties[$Name]
+    if ($null -ne $property) {
+        return $property.Value
+    }
+
+    return $null
+}
+
 function Resolve-IndexPath {
     if (-not [string]::IsNullOrWhiteSpace($Index)) {
         return Resolve-FullPath $Index
@@ -116,7 +142,7 @@ function Get-CaseKind {
     }
 
     $normalized = [string]$CaseEntry.case_kind
-    if ($normalized -notin @('materialized_graph', 'runtime_only')) {
+    if ($normalized -notin @('materialized_graph', 'runtime_only', 'fact_only')) {
         throw "unsupported case kind '$normalized' in bundle case entry"
     }
 
@@ -152,7 +178,7 @@ function Load-CaseGraph {
         ''
     }
     if ([string]::IsNullOrWhiteSpace($jsonValue)) {
-        if ($caseKind -eq 'runtime_only') {
+        if ($caseKind -ne 'materialized_graph') {
             return $null
         }
         throw "case json missing for materialized_graph case: $([string]$CaseEntry.name)"
@@ -197,6 +223,48 @@ function Load-CaseRuntimeObserve {
         Path = $runtimeObservePath
         Data = $runtimeObserve
     }
+}
+
+function Get-CaseFactEvidenceInfo {
+    param(
+        $Bundle,
+        $CaseEntry
+    )
+
+    if ($null -eq $CaseEntry -or
+        $null -eq $CaseEntry.PSObject.Properties['fact_evidence'] -or
+        [string]::IsNullOrWhiteSpace([string]$CaseEntry.fact_evidence)) {
+        return $null
+    }
+
+    $factEvidencePath = Resolve-CaseArtifactPath -BundleRootPath $Bundle.BundleRoot -RelativeOrAbsolutePath ([string]$CaseEntry.fact_evidence)
+    if (-not (Test-Path $factEvidencePath)) {
+        throw "case fact evidence artifact not found: $factEvidencePath"
+    }
+
+    $factEvidence = Get-Content -LiteralPath $factEvidencePath -Raw -Encoding utf8 | ConvertFrom-Json
+    if ([string]$factEvidence.schema -ne 'system_compiler.fact_evidence/v0') {
+        throw "unsupported fact evidence schema: $([string]$factEvidence.schema)"
+    }
+
+    return [pscustomobject]@{
+        Path = $factEvidencePath
+        Data = $factEvidence
+    }
+}
+
+function Get-CaseFactEvidencePath {
+    param(
+        $Bundle,
+        $CaseEntry
+    )
+
+    $factEvidenceInfo = Get-CaseFactEvidenceInfo -Bundle $Bundle -CaseEntry $CaseEntry
+    if ($null -eq $factEvidenceInfo) {
+        return $null
+    }
+
+    return $factEvidenceInfo.Path
 }
 
 function Get-SelectedCases {
@@ -798,12 +866,13 @@ function Get-OptionalStringArrayValue {
         [string]$PropertyName
     )
 
-    if ($null -eq $Object -or $null -eq $Object.PSObject.Properties[$PropertyName]) {
+    $value = Get-OptionalMemberValue -Object $Object -Name $PropertyName
+    if ($null -eq $value) {
         return @()
     }
 
     return @(
-        @($Object.$PropertyName) |
+        @($value) |
             Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
             ForEach-Object { [string]$_ }
     )
@@ -996,6 +1065,40 @@ function Get-CaseDeclaredFacts {
     )
 }
 
+function Get-CaseRequiredFacts {
+    param(
+        $CaseEntry
+    )
+
+    if ($null -eq $CaseEntry -or $null -eq $CaseEntry.PSObject.Properties['required_facts']) {
+        return @()
+    }
+
+    return @(
+        @($CaseEntry.required_facts) |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            ForEach-Object { [string]$_ } |
+            Select-Object -Unique
+    )
+}
+
+function Get-CaseAuditProvidedFacts {
+    param(
+        $CaseEntry
+    )
+
+    if ($null -eq $CaseEntry -or $null -eq $CaseEntry.PSObject.Properties['audit_provided_facts']) {
+        return @()
+    }
+
+    return @(
+        @($CaseEntry.audit_provided_facts) |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            ForEach-Object { [string]$_ } |
+            Select-Object -Unique
+    )
+}
+
 function Get-CaseDeclaredContracts {
     param(
         $CaseEntry
@@ -1085,7 +1188,9 @@ function Format-DeclaredContractEntry {
 function Get-ResourceContractSummary {
     param(
         $DeclaredContracts,
-        [string[]]$AvailableFacts
+        [string[]]$AvailableFacts,
+        [string[]]$AuditProvidedFacts = @(),
+        [string[]]$RequiredFacts = @()
     )
 
     $availableSet = @{}
@@ -1100,7 +1205,11 @@ function Get-ResourceContractSummary {
     $violations = @()
     $unknownContracts = @()
     $resourceHotspots = @()
-    $providedFacts = @()
+    $providedFacts = @(
+        @($AuditProvidedFacts) |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            ForEach-Object { [string]$_ }
+    )
 
     foreach ($contractEntry in @($DeclaredContracts)) {
         if ($null -eq $contractEntry) {
@@ -1149,6 +1258,15 @@ function Get-ResourceContractSummary {
         $violationText = "$contractName missing [$((@($missingFacts) -join ', '))] requires [$((@($requires) -join ', '))]"
         $violations += $violationText
         $resourceHotspots += $violationText
+    }
+
+    foreach ($requiredFact in @($RequiredFacts | Sort-Object -Unique)) {
+        $factName = [string]$requiredFact
+        if ([string]::IsNullOrWhiteSpace($factName) -or $availableSet.ContainsKey($factName)) {
+            continue
+        }
+
+        $resourceHotspots += "required_fact missing [$factName]"
     }
 
     return [ordered]@{
@@ -1262,6 +1380,229 @@ function Get-FactResolutionFactSourceMap {
     return $factSourceMap
 }
 
+function Get-FactEvidenceProviderEntries {
+    param(
+        $FactEvidenceInfo,
+        [string]$FactName
+    )
+
+    if ($null -eq $FactEvidenceInfo -or
+        $null -eq $FactEvidenceInfo.Data -or
+        $null -eq $FactEvidenceInfo.Data.PSObject.Properties['raw_facts']) {
+        return @()
+    }
+
+    $providers = @()
+    foreach ($rawFact in @($FactEvidenceInfo.Data.raw_facts)) {
+        if ($null -eq $rawFact -or [string]$rawFact.name -ne $FactName) {
+            continue
+        }
+
+        $state = if ($null -ne $rawFact.PSObject.Properties['state']) {
+            [string]$rawFact.state
+        } else {
+            ''
+        }
+        if ($state -ne 'provided') {
+            continue
+        }
+
+        $providers += [pscustomobject][ordered]@{
+            source = [string]$rawFact.source
+            role = if ($null -ne $rawFact.PSObject.Properties['role']) { [string]$rawFact.role } else { '' }
+            kind = if ($null -ne $rawFact.PSObject.Properties['kind']) { [string]$rawFact.kind } else { '' }
+            state = $state
+        }
+    }
+
+    return @($providers | Sort-Object source, role, kind -Unique)
+}
+
+function New-RequiredFactResolutionEntries {
+    param(
+        [string[]]$RequiredFacts,
+        $FactSourceMap,
+        $FactEvidenceInfo
+    )
+
+    $entries = @()
+    foreach ($requiredFact in @($RequiredFacts | Sort-Object -Unique)) {
+        $factName = [string]$requiredFact
+        if ([string]::IsNullOrWhiteSpace($factName)) {
+            continue
+        }
+
+        $factSources = if ($null -ne $FactSourceMap -and $FactSourceMap.ContainsKey($factName)) {
+            @($FactSourceMap[$factName] | Sort-Object -Unique)
+        } else {
+            @()
+        }
+        $providers = @(Get-FactEvidenceProviderEntries -FactEvidenceInfo $FactEvidenceInfo -FactName $factName)
+        $state = if ($factSources.Count -gt 0) { 'satisfied' } else { 'missing' }
+        $providerText = @(
+            @($providers) |
+                ForEach-Object {
+                    $providerSource = [string]$_.source
+                    $providerRole = [string]$_.role
+                    if ([string]::IsNullOrWhiteSpace($providerRole)) {
+                        $providerSource
+                    } else {
+                        "${providerSource}:${providerRole}"
+                    }
+                } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+        $statusText = if ($state -eq 'satisfied') {
+            if ($providerText.Count -gt 0) {
+                "required_fact satisfied [$factName] by [$((@($providerText) -join ', '))]"
+            } else {
+                "required_fact satisfied [$factName] by source buckets [$((@($factSources) -join ', '))]"
+            }
+        } else {
+            "required_fact missing [$factName]"
+        }
+
+        $entries += [ordered]@{
+            fact = $factName
+            state = $state
+            fact_sources = @($factSources)
+            providers = @($providers)
+            provider_count = [int]$providers.Count
+            status_text = $statusText
+        }
+    }
+
+    return @($entries)
+}
+
+function New-RequiredFactResolutionStateMap {
+    param(
+        [object[]]$RequiredFactResolution
+    )
+
+    $stateMap = @{}
+    foreach ($entry in @($RequiredFactResolution)) {
+        if ($null -eq $entry) {
+            continue
+        }
+
+        $factName = [string]$entry.fact
+        if ([string]::IsNullOrWhiteSpace($factName)) {
+            continue
+        }
+
+        $stateMap[$factName] = [ordered]@{
+            fact = $factName
+            state = [string]$entry.state
+            fact_sources = @($entry.fact_sources)
+            providers = @($entry.providers)
+            provider_count = [int]$entry.provider_count
+            status_text = [string]$entry.status_text
+        }
+    }
+
+    return $stateMap
+}
+
+function Format-RequiredFactProviderKey {
+    param(
+        $Provider
+    )
+
+    if ($null -eq $Provider) {
+        return ''
+    }
+
+    return "$([string]$Provider.source)|$([string]$Provider.role)|$([string]$Provider.kind)|$([string]$Provider.state)"
+}
+
+function Compare-RequiredFactProviders {
+    param(
+        [object[]]$Left,
+        [object[]]$Right
+    )
+
+    $leftKeys = @(
+        @($Left) |
+            ForEach-Object { Format-RequiredFactProviderKey -Provider $_ } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            Sort-Object -Unique
+    )
+    $rightKeys = @(
+        @($Right) |
+            ForEach-Object { Format-RequiredFactProviderKey -Provider $_ } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            Sort-Object -Unique
+    )
+
+    return Compare-StringArrays -Left $leftKeys -Right $rightKeys
+}
+
+function New-RequiredFactResolutionChanges {
+    param(
+        [object[]]$LeftRequiredFactResolution,
+        [object[]]$RightRequiredFactResolution
+    )
+
+    $leftStateMap = New-RequiredFactResolutionStateMap -RequiredFactResolution $LeftRequiredFactResolution
+    $rightStateMap = New-RequiredFactResolutionStateMap -RequiredFactResolution $RightRequiredFactResolution
+    $factNames = @(
+        @($leftStateMap.Keys) +
+        @($rightStateMap.Keys) |
+            Sort-Object -Unique
+    )
+
+    $changes = @()
+    foreach ($factName in @($factNames)) {
+        $leftEntry = if ($leftStateMap.ContainsKey($factName)) { $leftStateMap[$factName] } else { $null }
+        $rightEntry = if ($rightStateMap.ContainsKey($factName)) { $rightStateMap[$factName] } else { $null }
+
+        $leftState = if ($null -eq $leftEntry) { 'absent' } else { [string]$leftEntry.state }
+        $rightState = if ($null -eq $rightEntry) { 'absent' } else { [string]$rightEntry.state }
+        $leftSources = if ($null -eq $leftEntry) { @() } else { @($leftEntry.fact_sources) }
+        $rightSources = if ($null -eq $rightEntry) { @() } else { @($rightEntry.fact_sources) }
+        $leftProviders = if ($null -eq $leftEntry) { @() } else { @($leftEntry.providers) }
+        $rightProviders = if ($null -eq $rightEntry) { @() } else { @($rightEntry.providers) }
+        $leftStatusText = if ($null -eq $leftEntry) { $null } else { [string]$leftEntry.status_text }
+        $rightStatusText = if ($null -eq $rightEntry) { $null } else { [string]$rightEntry.status_text }
+
+        $changeKind = 'unchanged'
+        if ($leftState -eq 'absent' -and $rightState -ne 'absent') {
+            $changeKind = 'added'
+        } elseif ($leftState -ne 'absent' -and $rightState -eq 'absent') {
+            $changeKind = 'removed'
+        } elseif ($leftState -ne $rightState) {
+            $changeKind = 'state_changed'
+        } elseif (-not (Compare-StringArrays -Left $leftSources -Right $rightSources) -or
+            -not (Compare-RequiredFactProviders -Left $leftProviders -Right $rightProviders) -or
+            [string]$leftStatusText -ne [string]$rightStatusText) {
+            $changeKind = 'provider_changed'
+        }
+
+        if ($changeKind -eq 'unchanged') {
+            continue
+        }
+
+        $changes += [ordered]@{
+            fact = [string]$factName
+            change_kind = $changeKind
+            left_state = $leftState
+            right_state = $rightState
+            left_fact_sources = @($leftSources)
+            right_fact_sources = @($rightSources)
+            left_provider_count = @($leftProviders).Count
+            right_provider_count = @($rightProviders).Count
+            left_providers = @($leftProviders)
+            right_providers = @($rightProviders)
+            left_status_text = $leftStatusText
+            right_status_text = $rightStatusText
+        }
+    }
+
+    return @($changes | Sort-Object fact)
+}
+
 function New-FactResolutionContractEntrySummary {
     param(
         $ContractEntry,
@@ -1326,7 +1667,8 @@ function New-FactResolutionSummary {
         $SystemInputSummary,
         [string[]]$RequiredFacts,
         [string[]]$GraphProvidedFacts,
-        $ResourceContractSummary
+        $ResourceContractSummary,
+        $FactEvidenceInfo = $null
     )
 
     $resourceSummaryValue = if ($null -eq $ResourceContractSummary) {
@@ -1347,6 +1689,10 @@ function New-FactResolutionSummary {
             $contracts += $entrySummary
         }
     }
+    $requiredFactResolution = New-RequiredFactResolutionEntries `
+        -RequiredFacts $factInventory.required_facts `
+        -FactSourceMap $factSourceMap `
+        -FactEvidenceInfo $FactEvidenceInfo
 
     return [ordered]@{
         declared_contracts = [int]$resourceSummaryValue.declared_contracts
@@ -1355,6 +1701,7 @@ function New-FactResolutionSummary {
         violated_count = [int]$resourceSummaryValue.violated_count
         unknown_count = [int]$resourceSummaryValue.unknown_count
         fact_inventory = $factInventory
+        required_fact_resolution = @($requiredFactResolution)
         contracts = @($contracts | Sort-Object contract)
         satisfied_contracts = @($resourceSummaryValue.satisfied_contracts)
         violations = @($resourceSummaryValue.violations)
@@ -1394,6 +1741,7 @@ function New-EmptyFactResolutionSummary {
             audit_provided_facts = @()
             all_available_facts = @()
         }
+        required_fact_resolution = @()
         contracts = @()
         satisfied_contracts = @()
         violations = @()
@@ -2323,16 +2671,35 @@ function New-CaseResourceContractSummary {
     } else {
         @()
     }
+    $graphRequiredFacts = if ($null -ne $graph) {
+        @(Get-RequiredFacts -Graph $graph)
+    } else {
+        @()
+    }
+    $caseRequiredFacts = @(Get-CaseRequiredFacts -CaseEntry $CaseEntry)
+    $requiredFacts = @(
+        @($graphRequiredFacts) +
+        @($caseRequiredFacts) |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            ForEach-Object { [string]$_ } |
+            Sort-Object -Unique
+    )
     $runtimeCapabilities = @(Get-RuntimeCapabilityNames -RuntimeObserveInfo $runtimeObserveInfo)
+    $caseAuditProvidedFacts = @(Get-CaseAuditProvidedFacts -CaseEntry $CaseEntry)
     $availableFacts = @(
         @($graphProvidedFacts) +
         @($runtimeCapabilities) +
         @(Get-CaseDeclaredFacts -CaseEntry $CaseEntry) +
+        @($caseAuditProvidedFacts) +
         @(Get-SubjectFacts -ProfileValue $resolvedSubject.Profile -BoardValue $resolvedSubject.Board -ActiveFacets $resolvedSubject.ActiveFacets) |
             Sort-Object -Unique
     )
 
-    return Get-ResourceContractSummary -DeclaredContracts @(Get-CaseDeclaredContracts -CaseEntry $CaseEntry) -AvailableFacts $availableFacts
+    return Get-ResourceContractSummary `
+        -DeclaredContracts @(Get-CaseDeclaredContracts -CaseEntry $CaseEntry) `
+        -AvailableFacts $availableFacts `
+        -AuditProvidedFacts $caseAuditProvidedFacts `
+        -RequiredFacts $requiredFacts
 }
 
 function New-CaseFactResolutionSummary {
@@ -2348,6 +2715,7 @@ function New-CaseFactResolutionSummary {
 
     $resolvedSubject = New-ResolvedCaseSubject -CaseEntry $CaseEntry -ArtifactContext $ArtifactContext
     $systemInputSummary = New-SystemInputSummary -CaseEntry $CaseEntry -ResolvedCaseSubject $resolvedSubject
+    $factEvidenceInfo = Get-CaseFactEvidenceInfo -Bundle $Bundle -CaseEntry $CaseEntry
     $caseGraph = Load-CaseGraph -Bundle $Bundle -CaseEntry $CaseEntry
     $runtimeObserveInfo = Load-CaseRuntimeObserve -Bundle $Bundle -CaseEntry $CaseEntry
     $graph = if ($null -ne $caseGraph) { $caseGraph.Data } else { $null }
@@ -2356,26 +2724,41 @@ function New-CaseFactResolutionSummary {
     } else {
         @()
     }
-    $requiredFacts = if ($null -ne $graph) {
+    $graphRequiredFacts = if ($null -ne $graph) {
         @(Get-RequiredFacts -Graph $graph)
     } else {
         @()
     }
+    $caseRequiredFacts = @(Get-CaseRequiredFacts -CaseEntry $CaseEntry)
+    $requiredFacts = @(
+        @($graphRequiredFacts) +
+        @($caseRequiredFacts) |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            ForEach-Object { [string]$_ } |
+            Sort-Object -Unique
+    )
     $runtimeCapabilities = @(Get-RuntimeCapabilityNames -RuntimeObserveInfo $runtimeObserveInfo)
+    $caseAuditProvidedFacts = @(Get-CaseAuditProvidedFacts -CaseEntry $CaseEntry)
     $availableFacts = @(
         @($graphProvidedFacts) +
         @($runtimeCapabilities) +
         @(Get-CaseDeclaredFacts -CaseEntry $CaseEntry) +
+        @($caseAuditProvidedFacts) +
         @(Get-SubjectFacts -ProfileValue $resolvedSubject.Profile -BoardValue $resolvedSubject.Board -ActiveFacets $resolvedSubject.ActiveFacets) |
             Sort-Object -Unique
     )
-    $resourceContractSummary = Get-ResourceContractSummary -DeclaredContracts @(Get-CaseDeclaredContracts -CaseEntry $CaseEntry) -AvailableFacts $availableFacts
+    $resourceContractSummary = Get-ResourceContractSummary `
+        -DeclaredContracts @(Get-CaseDeclaredContracts -CaseEntry $CaseEntry) `
+        -AvailableFacts $availableFacts `
+        -AuditProvidedFacts $caseAuditProvidedFacts `
+        -RequiredFacts $requiredFacts
 
     return New-FactResolutionSummary `
         -SystemInputSummary $systemInputSummary `
         -RequiredFacts $requiredFacts `
         -GraphProvidedFacts $graphProvidedFacts `
-        -ResourceContractSummary $resourceContractSummary
+        -ResourceContractSummary $resourceContractSummary `
+        -FactEvidenceInfo $factEvidenceInfo
 }
 
 function New-BringupEvidenceStateMap {
@@ -3197,6 +3580,14 @@ function New-FactResolutionComparisonSide {
     } else {
         $FactResolutionSummary
     }
+    $requiredFactResolutionValue = Get-OptionalMemberValue `
+        -Object $summaryValue `
+        -Name 'required_fact_resolution'
+    $requiredFactResolution = if ($null -ne $requiredFactResolutionValue) {
+        @($requiredFactResolutionValue)
+    } else {
+        @()
+    }
 
     return [ordered]@{
         declared_contracts = [int]$summaryValue.declared_contracts
@@ -3212,6 +3603,7 @@ function New-FactResolutionComparisonSide {
             audit_provided_facts = @($summaryValue.fact_inventory.audit_provided_facts)
             all_available_facts = @($summaryValue.fact_inventory.all_available_facts)
         }
+        required_fact_resolution = @($requiredFactResolution)
         contracts = @($summaryValue.contracts)
         satisfied_contracts = @($summaryValue.satisfied_contracts)
         violations = @($summaryValue.violations)
@@ -3351,10 +3743,18 @@ function New-FactResolutionComparison {
         $summaryChanges += "resource_hotspots:[$(Join-Names @($leftSide.resource_hotspots))]->[$(Join-Names @($rightSide.resource_hotspots))]"
     }
 
+    $requiredFactResolutionChanges = New-RequiredFactResolutionChanges `
+        -LeftRequiredFactResolution $leftSide.required_fact_resolution `
+        -RightRequiredFactResolution $rightSide.required_fact_resolution
+    if (@($requiredFactResolutionChanges).Count -gt 0) {
+        $summaryChanges += "required_fact_resolution_changed:$(@($requiredFactResolutionChanges).Count)"
+    }
+
     return [ordered]@{
         changed = (
             @($summaryChanges).Count -gt 0 -or
             @($contractChanges).Count -gt 0 -or
+            @($requiredFactResolutionChanges).Count -gt 0 -or
             @($hotspotsAdded).Count -gt 0 -or
             @($hotspotsRemoved).Count -gt 0
         )
@@ -3362,6 +3762,7 @@ function New-FactResolutionComparison {
         right = $rightSide
         summary_changes = @($summaryChanges)
         fact_inventory_changes = $factInventoryChanges
+        required_fact_resolution_changes = @($requiredFactResolutionChanges)
         contract_changes = @($contractChanges | Sort-Object contract)
         hotspot_changes = [ordered]@{
             added = @($hotspotsAdded)
@@ -3578,6 +3979,300 @@ function Get-OutputPathForCase {
     return Join-Path $outputRootPath ($CaseName + '.artifact_report.json')
 }
 
+function Get-ArtifactIndexPath {
+    if (-not [string]::IsNullOrWhiteSpace($OutputPath)) {
+        return $null
+    }
+
+    $outputRootPath = Resolve-FullPath $OutputRoot
+    if (-not (Test-Path $outputRootPath)) {
+        New-Item -ItemType Directory -Path $outputRootPath -Force | Out-Null
+    }
+
+    return Join-Path $outputRootPath 'index.json'
+}
+
+function Test-ComparisonDimensionChanged {
+    param(
+        $Comparison,
+        [string]$PropertyName
+    )
+
+    $dimension = Get-OptionalMemberValue -Object $Comparison -Name $PropertyName
+    if ($null -eq $dimension) {
+        return $false
+    }
+
+    return [bool](Get-OptionalMemberValue -Object $dimension -Name 'changed')
+}
+
+function Get-ArtifactReportIndexDriftDimensionNames {
+    return @(
+        'metadata',
+        'input',
+        'formation',
+        'binding',
+        'bringup_order',
+        'bringup_evidence',
+        'resource',
+        'fact_resolution'
+    )
+}
+
+function Get-ArtifactIndexNullableString {
+    param(
+        $Object,
+        [string]$PropertyName
+    )
+
+    $value = Get-OptionalMemberValue -Object $Object -Name $PropertyName
+    if ($null -eq $value -or [string]::IsNullOrWhiteSpace([string]$value)) {
+        return $null
+    }
+
+    return [string]$value
+}
+
+function Get-ReportDriftDimensions {
+    param(
+        $Report
+    )
+
+    $comparison = Get-OptionalMemberValue -Object $Report -Name 'comparison'
+    if ($null -eq $comparison) {
+        return @()
+    }
+
+    $changedDimensions = @{}
+    if (@(Get-OptionalStringArrayValue -Object $comparison -PropertyName 'metadata_changes').Count -gt 0) {
+        $changedDimensions['metadata'] = $true
+    }
+    if (Test-ComparisonDimensionChanged -Comparison $comparison -PropertyName 'system_input') {
+        $changedDimensions['input'] = $true
+    }
+    if (Test-ComparisonDimensionChanged -Comparison $comparison -PropertyName 'system_formation') {
+        $changedDimensions['formation'] = $true
+    }
+    if (Test-ComparisonDimensionChanged -Comparison $comparison -PropertyName 'binding_result') {
+        $changedDimensions['binding'] = $true
+    }
+    if (Test-ComparisonDimensionChanged -Comparison $comparison -PropertyName 'bringup_order') {
+        $changedDimensions['bringup_order'] = $true
+    }
+    if (Test-ComparisonDimensionChanged -Comparison $comparison -PropertyName 'bringup_evidence') {
+        $changedDimensions['bringup_evidence'] = $true
+    }
+    if (Test-ComparisonDimensionChanged -Comparison $comparison -PropertyName 'resource_contract') {
+        $changedDimensions['resource'] = $true
+    }
+    if (Test-ComparisonDimensionChanged -Comparison $comparison -PropertyName 'fact_resolution') {
+        $changedDimensions['fact_resolution'] = $true
+    }
+
+    return @(
+        Get-ArtifactReportIndexDriftDimensionNames |
+            Where-Object { $changedDimensions.ContainsKey([string]$_) }
+    )
+}
+
+function New-ArtifactIndexCase {
+    param(
+        $Report,
+        [string]$ReportPath
+    )
+
+    $subject = Get-OptionalMemberValue -Object $Report -Name 'subject'
+    $systemFormation = Get-OptionalMemberValue -Object $Report -Name 'system_formation'
+    $bindingSummary = Get-OptionalMemberValue -Object $systemFormation -Name 'binding_summary'
+    $bringupSummary = Get-OptionalMemberValue -Object $systemFormation -Name 'bringup_summary'
+    $comparison = Get-OptionalMemberValue -Object $Report -Name 'comparison'
+    $comparisonStatus = Get-OptionalMemberValue -Object $comparison -Name 'status'
+    if ($null -ne $comparisonStatus) {
+        $comparisonStatus = [string]$comparisonStatus
+    }
+    $driftDimensions = @(Get-ReportDriftDimensions -Report $Report)
+
+    return [ordered]@{
+        name = [string](Get-OptionalMemberValue -Object $subject -Name 'case')
+        path = $ReportPath
+        mode = [string](Get-OptionalMemberValue -Object $Report -Name 'mode')
+        profile = Get-ArtifactIndexNullableString -Object $subject -PropertyName 'profile'
+        board = Get-ArtifactIndexNullableString -Object $subject -PropertyName 'board'
+        active_facets = @(Get-OptionalStringArrayValue -Object $subject -PropertyName 'active_facets')
+        formation_status = [string](Get-OptionalMemberValue -Object $systemFormation -Name 'status')
+        comparison_status = $comparisonStatus
+        has_drift = @($driftDimensions).Count -gt 0
+        drift_dimensions = @($driftDimensions)
+        unresolved_binding_count = [int](Get-OptionalMemberValue -Object $bindingSummary -Name 'unresolved_binding_count')
+        blocked_node_count = [int](Get-OptionalMemberValue -Object $bringupSummary -Name 'blocked_node_count')
+        blocker_count = [int](Get-OptionalMemberValue -Object $systemFormation -Name 'blocker_count')
+        unresolved_capabilities = @(Get-OptionalStringArrayValue -Object $bindingSummary -PropertyName 'unresolved_capabilities')
+        blocked_nodes = @(Get-OptionalStringArrayValue -Object $bringupSummary -PropertyName 'blocked_nodes')
+    }
+}
+
+function New-ArtifactIndexCompilerHeadline {
+    param(
+        [object[]]$Cases
+    )
+
+    $caseItems = @($Cases)
+    $formedCases = @(
+        $caseItems |
+            Where-Object { [string]$_.formation_status -eq 'formed' } |
+            ForEach-Object { [string]$_.name }
+    )
+    $blockedCases = @(
+        $caseItems |
+            Where-Object { [string]$_.formation_status -ne 'formed' } |
+            ForEach-Object { [string]$_.name }
+    )
+    $unresolvedCapabilities = @(
+        $caseItems |
+            ForEach-Object { @(Get-OptionalMemberValue -Object $_ -Name 'unresolved_capabilities') } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            Sort-Object -Unique
+    )
+    $blockedNodes = @(
+        $caseItems |
+            ForEach-Object { @(Get-OptionalMemberValue -Object $_ -Name 'blocked_nodes') } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            Sort-Object -Unique
+    )
+    $dimensionCounts = [ordered]@{}
+    foreach ($dimensionName in @(Get-ArtifactReportIndexDriftDimensionNames)) {
+        $dimensionCounts[$dimensionName] = @(
+            $caseItems |
+                Where-Object { @(Get-OptionalMemberValue -Object $_ -Name 'drift_dimensions') -contains $dimensionName }
+        ).Count
+    }
+    $driftDimensions = @(
+        foreach ($dimensionName in @(Get-ArtifactReportIndexDriftDimensionNames)) {
+            if ([int]$dimensionCounts[$dimensionName] -gt 0) {
+                [string]$dimensionName
+            }
+        }
+    )
+    $hasComparison = @(
+        $caseItems |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_.comparison_status) }
+    ).Count -gt 0
+    $hasDrift = @($driftDimensions).Count -gt 0
+    $status = if (@($blockedCases).Count -gt 0) { 'blocked' } else { 'formed' }
+    if ($caseItems.Count -eq 0) {
+        $status = 'unknown'
+    }
+    $driftToken = if (-not $hasComparison) {
+        'n/a'
+    } elseif ($hasDrift) {
+        @($driftDimensions) -join ','
+    } else {
+        'none'
+    }
+    $formationParts = @(
+        "status:$status",
+        "formed:$(@($formedCases).Count)",
+        "blocked:$(@($blockedCases).Count)"
+    )
+    $unresolvedBindingCount = [int]((
+        $caseItems |
+            ForEach-Object { [int](Get-OptionalMemberValue -Object $_ -Name 'unresolved_binding_count') } |
+            Measure-Object -Sum
+    ).Sum)
+    $blockedNodeCount = [int]((
+        $caseItems |
+            ForEach-Object { [int](Get-OptionalMemberValue -Object $_ -Name 'blocked_node_count') } |
+            Measure-Object -Sum
+    ).Sum)
+    $blockerCount = [int]((
+        $caseItems |
+            ForEach-Object { [int](Get-OptionalMemberValue -Object $_ -Name 'blocker_count') } |
+            Measure-Object -Sum
+    ).Sum)
+    if ($unresolvedBindingCount -gt 0) {
+        $formationParts += "unresolved_bindings:$unresolvedBindingCount"
+    }
+    if ($blockedNodeCount -gt 0) {
+        $formationParts += "blocked_nodes:$blockedNodeCount"
+    }
+    if ($blockerCount -gt 0) {
+        $formationParts += "blockers:$blockerCount"
+    }
+
+    $driftText = if ($hasDrift) {
+        @(
+            foreach ($dimensionName in @($driftDimensions)) {
+                "$dimensionName`:$([int]$dimensionCounts[$dimensionName])"
+            }
+        ) -join ' '
+    } elseif ($hasComparison) {
+        'no drift'
+    } else {
+        ''
+    }
+
+    return [ordered]@{
+        text = "status:$status drift:$driftToken"
+        status = $status
+        formation_text = (@($formationParts) -join ' ')
+        drift_text = $driftText
+        has_comparison = [bool]$hasComparison
+        has_drift = [bool]$hasDrift
+        case_count = $caseItems.Count
+        formed_case_count = @($formedCases).Count
+        blocked_case_count = @($blockedCases).Count
+        unresolved_binding_count = $unresolvedBindingCount
+        blocked_node_count = $blockedNodeCount
+        blocker_count = $blockerCount
+        compared_case_count = @(
+            $caseItems |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_.comparison_status) }
+        ).Count
+        changed_dimension_count = @($driftDimensions).Count
+        drift_dimensions = @($driftDimensions)
+        dimension_counts = $dimensionCounts
+        blocked_cases = @($blockedCases | Sort-Object -Unique)
+        unresolved_capabilities = @($unresolvedCapabilities)
+        blocked_nodes = @($blockedNodes)
+    }
+}
+
+function New-ArtifactReportIndex {
+    param(
+        $Bundle,
+        $ArtifactContext,
+        [object[]]$Reports
+    )
+
+    $caseEntries = @(
+        @($Reports) |
+            ForEach-Object { New-ArtifactIndexCase -Report $_.Report -ReportPath ([string]$_.Path) } |
+            Sort-Object name
+    )
+
+    return [ordered]@{
+        schema = 'system_compiler.artifact_report_index/v0'
+        generated_at_utc = (Get-Date).ToUniversalTime().ToString('o')
+        generator = 'scripts/export_system_compiler_artifact_report.ps1'
+        report_kind = 'system_compiler.artifact_report_index'
+        mode = $ArtifactContext.Mode
+        artifact_root = Resolve-FullPath $OutputRoot
+        bundle = [ordered]@{
+            root = $Bundle.BundleRoot
+            index = $Bundle.IndexPath
+            input_manifest = $Bundle.InputManifestPath
+        }
+        artifacts = [ordered]@{
+            diff = $ArtifactContext.Diff
+            ci_summary = $ArtifactContext.CiSummary
+            report_manifest = $ArtifactContext.ReportManifest
+        }
+        case_count = @($caseEntries).Count
+        compiler_headline = New-ArtifactIndexCompilerHeadline -Cases @($caseEntries)
+        cases = @($caseEntries)
+    }
+}
+
 function New-ArtifactReport {
     param(
         $Bundle,
@@ -3589,6 +4284,8 @@ function New-ArtifactReport {
     $runtimeObserveInfo = Load-CaseRuntimeObserve -Bundle $Bundle -CaseEntry $CaseEntry
     $runtimeObserveSummary = Get-RuntimeObserveSummary -RuntimeObserveInfo $runtimeObserveInfo
     $runtimeCapabilities = @(Get-RuntimeCapabilityNames -RuntimeObserveInfo $runtimeObserveInfo)
+    $factEvidenceInfo = Get-CaseFactEvidenceInfo -Bundle $Bundle -CaseEntry $CaseEntry
+    $factEvidencePath = if ($null -ne $factEvidenceInfo) { $factEvidenceInfo.Path } else { $null }
 
     $graph = if ($null -ne $CaseGraph) { $CaseGraph.Data } else { $null }
     $graphProvidedFacts = if ($null -ne $graph) {
@@ -3596,11 +4293,19 @@ function New-ArtifactReport {
     } else {
         @()
     }
-    $requiredFacts = if ($null -ne $graph) {
+    $graphRequiredFacts = if ($null -ne $graph) {
         @(Get-RequiredFacts -Graph $graph)
     } else {
         @()
     }
+    $caseRequiredFacts = @(Get-CaseRequiredFacts -CaseEntry $CaseEntry)
+    $requiredFacts = @(
+        @($graphRequiredFacts) +
+        @($caseRequiredFacts) |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            ForEach-Object { [string]$_ } |
+            Sort-Object -Unique
+    )
     $providedFacts = if ($null -ne $graph) {
         @($graphProvidedFacts)
     } else {
@@ -3674,18 +4379,25 @@ function New-ArtifactReport {
     $resolvedFacets = @($resolvedSubject.ActiveFacets)
     $systemInputSummary = New-SystemInputSummary -CaseEntry $CaseEntry -ResolvedCaseSubject $resolvedSubject
     $declaredContracts = @(Get-CaseDeclaredContracts -CaseEntry $CaseEntry)
+    $caseAuditProvidedFacts = @(Get-CaseAuditProvidedFacts -CaseEntry $CaseEntry)
     $resourceAvailableFacts = @(
         @($providedFacts) +
         @($runtimeCapabilities) +
         @(Get-CaseDeclaredFacts -CaseEntry $CaseEntry) +
+        @($caseAuditProvidedFacts) +
         @(Get-SubjectFacts -ProfileValue $resolvedProfile -BoardValue $resolvedBoard -ActiveFacets $resolvedFacets)
     ) | Sort-Object -Unique
-    $resourceContractSummary = Get-ResourceContractSummary -DeclaredContracts $declaredContracts -AvailableFacts $resourceAvailableFacts
+    $resourceContractSummary = Get-ResourceContractSummary `
+        -DeclaredContracts $declaredContracts `
+        -AvailableFacts $resourceAvailableFacts `
+        -AuditProvidedFacts $caseAuditProvidedFacts `
+        -RequiredFacts $requiredFacts
     $factResolutionSummary = New-FactResolutionSummary `
         -SystemInputSummary $systemInputSummary `
         -RequiredFacts $requiredFacts `
         -GraphProvidedFacts $graphProvidedFacts `
-        -ResourceContractSummary $resourceContractSummary
+        -ResourceContractSummary $resourceContractSummary `
+        -FactEvidenceInfo $factEvidenceInfo
     $materializedOrder = if ($null -ne $graph) { @(Get-MaterializedOrder -Graph $graph) } else { @() }
     $bindingResultSummary = Get-BindingResultSummary -Graph $graph
     $bringupOrderSummary = Get-BringupOrderSummary -Graph $graph
@@ -3776,6 +4488,7 @@ function New-ArtifactReport {
             dot = $dotArtifactPath
             sample_json = $sampleJsonPath
             runtime_observe = if ($null -ne $runtimeObserveInfo) { $runtimeObserveInfo.Path } else { $null }
+            fact_evidence = $factEvidencePath
             diff = $ArtifactContext.Diff
             ci_summary = $ArtifactContext.CiSummary
             report_manifest = $ArtifactContext.ReportManifest
@@ -3796,6 +4509,7 @@ $selectedCases = @(Get-SelectedCases -Bundle $bundle)
 $artifactContext = Get-ArtifactContext
 
 $written = @()
+$writtenReports = @()
 foreach ($caseEntry in $selectedCases) {
     $caseGraph = Load-CaseGraph -Bundle $bundle -CaseEntry $caseEntry
     $report = New-ArtifactReport -Bundle $bundle -CaseEntry $caseEntry -CaseGraph $caseGraph -ArtifactContext $artifactContext
@@ -3803,7 +4517,19 @@ foreach ($caseEntry in $selectedCases) {
     Ensure-ParentDirectory -Path $reportPath
     $report | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $reportPath -Encoding utf8
     $written += $reportPath
+    $writtenReports += [pscustomobject]@{
+        Report = $report
+        Path = $reportPath
+    }
     Write-Host "[ARTIFACT][$($caseEntry.name)] $reportPath"
+}
+
+$indexPath = Get-ArtifactIndexPath
+if ($null -ne $indexPath) {
+    Ensure-ParentDirectory -Path $indexPath
+    $artifactIndex = New-ArtifactReportIndex -Bundle $bundle -ArtifactContext $artifactContext -Reports @($writtenReports)
+    $artifactIndex | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $indexPath -Encoding utf8
+    Write-Host "[INDEX] $indexPath"
 }
 
 Write-Host "[OK] generated $($written.Count) artifact report(s)"

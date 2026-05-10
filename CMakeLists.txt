@@ -364,6 +364,7 @@ message(STATUS "${target_name} Examples: Service -> ${CMAKE_CURRENT_SOURCE_DIR}/
 message(STATUS "${target_name} Examples: Service/DS -> ${CMAKE_CURRENT_SOURCE_DIR}/Examples/service/service_ds_demo")
 message(STATUS "${target_name} Examples: Service/SignalState -> ${CMAKE_CURRENT_SOURCE_DIR}/Examples/service/service_signal_state_demo")
 message(STATUS "${target_name} Examples: UI/Vivid/WidgetState -> ${CMAKE_CURRENT_SOURCE_DIR}/Examples/ui/vivid/widget_state_demo")
+message(STATUS "${target_name} Examples: UI/Vivid/IntentArtifact -> ${CMAKE_CURRENT_SOURCE_DIR}/Examples/ui/vivid/intent_artifact_demo")
 message(STATUS "${target_name} Examples: HAL/Demo -> ${CMAKE_CURRENT_SOURCE_DIR}/Examples/hal/hal_demo")
 message(STATUS "${target_name} Examples: Alg/Demo -> ${CMAKE_CURRENT_SOURCE_DIR}/Examples/alg/alg_demo")
 

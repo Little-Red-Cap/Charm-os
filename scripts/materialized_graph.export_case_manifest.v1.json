@@ -137,6 +137,164 @@
       }
     },
     {
+      "name": "i2c-device-contract-facts-smoke",
+      "source": "Examples/io/i2c_facts_smoke",
+      "build_dir": "cmake-build-i2c-facts-smoke-clang",
+      "build_target": "i2c-facts-smoke",
+      "case_kind": "fact_only",
+      "fact_evidence_target": "export_i2c_facts_evidence",
+      "fact_evidence_cache": "I2C_FACTS_EVIDENCE_PATH",
+      "default_fact_evidence": "i2c_facts.evidence.json",
+      "export_target": null,
+      "dot_cache": null,
+      "json_cache": null,
+      "runtime_observe_cache": null,
+      "default_dot": null,
+      "default_json": null,
+      "default_runtime_observe": null,
+      "declared_facts": [
+      ],
+      "required_facts": [],
+      "audit_provided_facts": [],
+      "declared_contracts": [],
+      "extra_cache": [],
+      "subject": {
+        "profile": "MCU_MIN",
+        "board": "hqzy",
+        "active_facets": [
+          "io",
+          "driver_contract"
+        ]
+      }
+    },
+    {
+      "name": "i2c-whoami-probe-evidence-smoke",
+      "source": "Examples/io/i2c_whoami_probe_smoke",
+      "build_dir": "cmake-build-i2c-whoami-probe-smoke-clang",
+      "build_target": "i2c-whoami-probe-smoke",
+      "case_kind": "fact_only",
+      "fact_evidence_target": "export_i2c_whoami_probe_evidence",
+      "fact_evidence_cache": "I2C_WHOAMI_PROBE_EVIDENCE_PATH",
+      "default_fact_evidence": "i2c_whoami_probe.evidence.json",
+      "export_target": null,
+      "dot_cache": null,
+      "json_cache": null,
+      "runtime_observe_cache": null,
+      "default_dot": null,
+      "default_json": null,
+      "default_runtime_observe": null,
+      "declared_facts": [],
+      "required_facts": [],
+      "audit_provided_facts": [],
+      "declared_contracts": [],
+      "extra_cache": [],
+      "subject": {
+        "profile": "MCU_MIN",
+        "board": "mock_i2c",
+        "active_facets": [
+          "io",
+          "driver_contract",
+          "probe_evidence"
+        ]
+      }
+    },
+    {
+      "name": "board-package-facts-smoke",
+      "source": "Examples/platform/board_facts_smoke",
+      "build_dir": "cmake-build-board-facts-smoke-clang",
+      "build_target": "board-facts-smoke",
+      "case_kind": "fact_only",
+      "fact_evidence_target": "export_board_facts_evidence",
+      "fact_evidence_cache": "BOARD_FACTS_EVIDENCE_PATH",
+      "default_fact_evidence": "board_facts.evidence.json",
+      "export_target": null,
+      "dot_cache": null,
+      "json_cache": null,
+      "runtime_observe_cache": null,
+      "default_dot": null,
+      "default_json": null,
+      "default_runtime_observe": null,
+      "declared_facts": [],
+      "required_facts": [],
+      "audit_provided_facts": [],
+      "declared_contracts": [],
+      "extra_cache": [],
+      "subject": {
+        "profile": null,
+        "board": "stm32_stub",
+        "active_facets": [
+          "platform",
+          "board_package"
+        ]
+      }
+    },
+    {
+      "name": "board-i2c-fact-composition-smoke",
+      "source": "Examples/platform/board_i2c_fact_composition_smoke",
+      "build_dir": "cmake-build-board-i2c-fact-composition-smoke-clang",
+      "build_target": "board-i2c-fact-composition-smoke",
+      "case_kind": "fact_only",
+      "fact_evidence_target": "export_board_i2c_fact_composition_evidence",
+      "fact_evidence_cache": "BOARD_I2C_FACT_COMPOSITION_EVIDENCE_PATH",
+      "default_fact_evidence": "board_i2c_fact_composition.evidence.json",
+      "export_target": null,
+      "dot_cache": null,
+      "json_cache": null,
+      "runtime_observe_cache": null,
+      "default_dot": null,
+      "default_json": null,
+      "default_runtime_observe": null,
+      "declared_facts": [],
+      "required_facts": [],
+      "audit_provided_facts": [],
+      "declared_contracts": [],
+      "extra_cache": [],
+      "subject": {
+        "profile": "MCU_MIN",
+        "board": "stm32_stub",
+        "active_facets": [
+          "platform",
+          "board_package",
+          "io",
+          "driver_contract"
+        ]
+      }
+    },
+    {
+      "name": "board-i2c-whoami-bringup-evidence-smoke",
+      "source": "Examples/platform/board_i2c_whoami_bringup_evidence_smoke",
+      "build_dir": "cmake-build-board-i2c-whoami-bringup-evidence-smoke-clang",
+      "build_target": "board-i2c-whoami-bringup-evidence-smoke",
+      "case_kind": "fact_only",
+      "fact_evidence_target": "export_board_i2c_whoami_bringup_evidence",
+      "fact_evidence_cache": "BOARD_I2C_WHOAMI_BRINGUP_EVIDENCE_PATH",
+      "default_fact_evidence": "board_i2c_whoami_bringup.evidence.json",
+      "export_target": null,
+      "dot_cache": null,
+      "json_cache": null,
+      "runtime_observe_cache": null,
+      "default_dot": null,
+      "default_json": null,
+      "default_runtime_observe": null,
+      "declared_facts": [],
+      "required_facts": [],
+      "audit_provided_facts": [],
+      "declared_contracts": [],
+      "extra_cache": [],
+      "subject": {
+        "profile": "MCU_MIN",
+        "board": "stm32_stub",
+        "active_facets": [
+          "platform",
+          "board_package",
+          "io",
+          "driver_contract",
+          "probe_evidence",
+          "bringup_evidence"
+        ]
+      }
+    },
+    {
       "name": "usb-host-runtime-multi-smoke",
       "source": "Examples/usb/usb_host_runtime_multi_smoke",
       "build_dir": "cmake-build-usb-host-runtime-multi-smoke-clang",

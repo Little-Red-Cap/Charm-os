@@ -16,9 +16,9 @@
   "system_input": {
     "system_spec": {
       "case_name": "i2c-device-contract-facts-smoke",
-      "case_kind": "materialized_graph",
+      "case_kind": "fact_only",
       "source": "Examples/io/i2c_facts_smoke",
-      "build_dir": "cmake-build-i2c-facts-smoke-core",
+      "build_dir": "cmake-build-i2c-facts-smoke-clang",
       "build_target": "i2c-facts-smoke",
       "export_target": null
     },
@@ -32,7 +32,6 @@
         ]
       },
       "declared_facts": [
-        "board.hqzy",
         "i2c.bus:i2c1",
         "i2c.device:i2c1@0x18"
       ],
@@ -68,7 +67,6 @@
     "edge_count": 0,
     "materialized_order": [],
     "declared_facts": [
-      "board.hqzy",
       "i2c.bus:i2c1",
       "i2c.device:i2c1@0x18"
     ],
@@ -99,8 +97,8 @@
   "system_formation": {
     "status": "formed",
     "formation_basis": {
-      "case_kind": "materialized_graph",
-      "declared_fact_count": 3,
+      "case_kind": "fact_only",
+      "declared_fact_count": 2,
       "declared_contract_count": 0,
       "subject_fact_count": 4
     },
@@ -148,7 +146,7 @@
     "violations": [],
     "unknown_contracts": [],
     "resource_hotspots": [
-      "pinmux:pb8/pb9.af4"
+      "required_fact missing [pinmux:pb8/pb9.af4]"
     ]
   },
   "fact_resolution": {
@@ -159,7 +157,6 @@
     "unknown_count": 0,
     "fact_inventory": {
       "declared_facts": [
-        "board.hqzy",
         "i2c.bus:i2c1",
         "i2c.device:i2c1@0x18"
       ],
@@ -197,12 +194,109 @@
         "profile.MCU_MIN"
       ]
     },
+    "required_fact_resolution": [
+      {
+        "fact": "clock.domain:rcc.i2c1",
+        "state": "satisfied",
+        "fact_sources": [
+          "audit_provided_facts"
+        ],
+        "providers": [
+          {
+            "source": "board.hqzy",
+            "role": "",
+            "kind": "clock.domain",
+            "state": "provided"
+          }
+        ],
+        "provider_count": 1,
+        "status_text": "required_fact satisfied [clock.domain:rcc.i2c1] by [board.hqzy]"
+      },
+      {
+        "fact": "i2c.backend:io.device_i2c_hal",
+        "state": "satisfied",
+        "fact_sources": [
+          "audit_provided_facts"
+        ],
+        "providers": [
+          {
+            "source": "adapter",
+            "role": "",
+            "kind": "i2c.backend",
+            "state": "provided"
+          }
+        ],
+        "provider_count": 1,
+        "status_text": "required_fact satisfied [i2c.backend:io.device_i2c_hal] by [adapter]"
+      },
+      {
+        "fact": "i2c.bus:i2c1",
+        "state": "satisfied",
+        "fact_sources": [
+          "audit_provided_facts",
+          "declared_facts"
+        ],
+        "providers": [
+          {
+            "source": "board.hqzy",
+            "role": "",
+            "kind": "i2c.bus",
+            "state": "provided"
+          }
+        ],
+        "provider_count": 1,
+        "status_text": "required_fact satisfied [i2c.bus:i2c1] by [board.hqzy]"
+      },
+      {
+        "fact": "i2c.controller:hal.i2c1",
+        "state": "satisfied",
+        "fact_sources": [
+          "audit_provided_facts"
+        ],
+        "providers": [
+          {
+            "source": "init.graph",
+            "role": "",
+            "kind": "i2c.controller",
+            "state": "provided"
+          }
+        ],
+        "provider_count": 1,
+        "status_text": "required_fact satisfied [i2c.controller:hal.i2c1] by [init.graph]"
+      },
+      {
+        "fact": "i2c.device:i2c1@0x18",
+        "state": "satisfied",
+        "fact_sources": [
+          "audit_provided_facts",
+          "declared_facts"
+        ],
+        "providers": [
+          {
+            "source": "board.hqzy",
+            "role": "",
+            "kind": "i2c.device",
+            "state": "provided"
+          }
+        ],
+        "provider_count": 1,
+        "status_text": "required_fact satisfied [i2c.device:i2c1@0x18] by [board.hqzy]"
+      },
+      {
+        "fact": "pinmux:pb8/pb9.af4",
+        "state": "missing",
+        "fact_sources": [],
+        "providers": [],
+        "provider_count": 0,
+        "status_text": "required_fact missing [pinmux:pb8/pb9.af4]"
+      }
+    ],
     "contracts": [],
     "satisfied_contracts": [],
     "violations": [],
     "unknown_contracts": [],
     "resource_hotspots": [
-      "pinmux:pb8/pb9.af4"
+      "required_fact missing [pinmux:pb8/pb9.af4]"
     ]
   },
   "runtime_observe": {
@@ -224,6 +318,7 @@
     "dot": null,
     "sample_json": null,
     "runtime_observe": null,
+    "fact_evidence": "system_compiler.fact_evidence.v0.i2c_facts.sample.json",
     "diff": null,
     "ci_summary": null,
     "report_manifest": null

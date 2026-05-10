@@ -33,6 +33,24 @@ def expect_equal(actual, expected, label: str, errors: list[str]) -> None:
         errors.append(f"{label}: expected {expected!r} but got {actual!r}")
 
 
+def validate_source_schema(path_value: str | None, expected_schema: str, label: str, errors: list[str]) -> None:
+    if expected_schema != "system_compiler.artifact_report_index/v0":
+        return
+
+    text = str(path_value or "").strip()
+    if not text:
+        return
+
+    try:
+        source = load_json(Path(text).resolve())
+    except Exception as exc:
+        errors.append(f"{label}: invalid json -> {exc}")
+        return
+
+    if source.get("schema") != expected_schema:
+        errors.append(f"{label}: expected schema {expected_schema!r} but got {source.get('schema')!r}")
+
+
 def validate_references(summary: dict, errors: list[str]) -> None:
     artifact_context = summary.get("artifact_context", {})
     front_page = summary.get("front_page", {})
@@ -70,16 +88,29 @@ def validate_references(summary: dict, errors: list[str]) -> None:
             errors.append(f"route_provenance[{index}]: invalid route entry")
             continue
         ensure_exists(route.get("source_summary_path"), f"route_provenance[{index}].source_summary_path", errors)
-        ensure_exists(route.get("source_input_summary_path"), f"route_provenance[{index}].source_input_summary_path", errors)
-        ensure_exists(route.get("source_root_summary_path"), f"route_provenance[{index}].source_root_summary_path", errors)
-        ensure_exists(route.get("source_report_markdown_path"), f"route_provenance[{index}].source_report_markdown_path", errors)
-        ensure_exists(route.get("source_check_text_path"), f"route_provenance[{index}].source_check_text_path", errors)
+        validate_source_schema(
+            route.get("source_summary_path"),
+            str(route.get("source_summary_schema") or ""),
+            f"route_provenance[{index}].source_summary_path",
+            errors,
+        )
+        if route.get("route_kind") != "artifact_report_index":
+            ensure_exists(route.get("source_input_summary_path"), f"route_provenance[{index}].source_input_summary_path", errors)
+            ensure_exists(route.get("source_root_summary_path"), f"route_provenance[{index}].source_root_summary_path", errors)
+            ensure_exists(route.get("source_report_markdown_path"), f"route_provenance[{index}].source_report_markdown_path", errors)
+            ensure_exists(route.get("source_check_text_path"), f"route_provenance[{index}].source_check_text_path", errors)
 
     for index, hint in enumerate(summary.get("provenance_hints", [])):
         if not isinstance(hint, dict):
             errors.append(f"provenance_hints[{index}]: invalid hint")
             continue
         ensure_exists(hint.get("source_summary_path"), f"provenance_hints[{index}].source_summary_path", errors)
+        validate_source_schema(
+            hint.get("source_summary_path"),
+            str(hint.get("source_summary_schema") or ""),
+            f"provenance_hints[{index}].source_summary_path",
+            errors,
+        )
 
     preferred_entries = summary.get("capability_summary", {}).get("preferred_entries", {})
     if isinstance(preferred_entries, dict):

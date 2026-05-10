@@ -1,0 +1,33 @@
+# Vivid Focus Scope Demo
+
+`focus_scope_demo` 是 Vivid Evidence Lab 的 focus scope 样本。
+
+它验证：
+
+```text
+FocusScope allows transfer inside scope
+FocusScope rejects focus commit outside scope
+rejected request keeps input focus truth at fallback/current
+rejected request does not leak focus ring artifact to outside target
+inside allow + outside reject closes a final causal_chain verdict
+```
+
+stdout 遵守 `docs/ui/vivid_evidence_stdout_law.md`：
+
+```text
+[fs] run=focus_scope_demo phase=begin
+[fs] case=scope_model ...
+[fs] case=runtime_scope_install ...
+[fs] case=initial_focus ...
+[fs] case=inside_request_decision ...
+[fs] case=inside_transfer_dispatch ...
+[fs] case=inside_transfer_artifact ...
+[fs] case=outside_request_decision ...
+[fs] case=outside_trap_dispatch ...
+[fs] case=scope_trap_artifact ...
+[fs] case=causal_chain ...
+[fs] run=focus_scope_demo phase=end result=ok cases=10
+```
+
+CTest 守住最终 `result=ok cases=10`。
+详细法律见 `docs/ui/vivid_focus_scope_evidence_v0.md`。

@@ -596,6 +596,11 @@ function New-ArtifactReportSummary {
     )
 
     $entries = @()
+    $indexPath = Join-Path $OutputRootPath 'index.json'
+    $indexData = $null
+    if (Test-Path $indexPath) {
+        $indexData = Get-Content -LiteralPath $indexPath -Raw -Encoding utf8 | ConvertFrom-Json
+    }
     foreach ($caseName in @($CaseNames)) {
         $path = Join-Path $OutputRootPath ($caseName + '.artifact_report.json')
         if (-not (Test-Path $path)) {
@@ -610,7 +615,9 @@ function New-ArtifactReportSummary {
 
     return [ordered]@{
         output_root = $OutputRootPath
+        index = if (Test-Path $indexPath) { $indexPath } else { $null }
         count = $entries.Count
+        compiler_headline = if ($null -ne $indexData -and $null -ne $indexData.PSObject.Properties['compiler_headline']) { $indexData.compiler_headline } else { $null }
         cases = $entries
     }
 }

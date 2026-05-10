@@ -415,7 +415,34 @@
         "available_supporting_surface_ids": {
           "$ref": "#/$defs/stringArray"
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "provenance_route_kind": {
+                "const": "artifact_report_index"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "source_summary_schema": {
+                "const": "system_compiler.artifact_report_index/v0"
+              },
+              "source_front_page_summary_path": {
+                "const": ""
+              },
+              "source_front_page_report_markdown_path": {
+                "const": ""
+              },
+              "source_front_page_check_text_path": {
+                "const": ""
+              }
+            }
+          }
+        }
+      ]
     }
   }
 }

@@ -36,6 +36,7 @@ Current `system_compiler.front_page_entry_capability` includes:
   - `scripts/validate_system_compiler_front_page_entry_capability.py`
 - smoke
   - `scripts/system_compiler_front_page_entry_capability_smoke.ps1`
+  - `scripts/system_compiler_front_page_entry_runtime_session_sample_smoke.ps1`
 
 ## Current outputs
 
@@ -62,11 +63,13 @@ The current summary records:
   - `biography_ready`
   - `evidence_only`
   - `route_only`
+- one `opening_reason` explaining why that mode won
 - capability presence and counts for:
   - `delivery_biography`
   - `counterfactual_verdict`
   - `grouped_review`
   - `supporting_evidence`
+  - `runtime_session`
   - `supporting_testimony`
   - `shelf_compare`
   - `candidate_shelf`
@@ -74,6 +77,24 @@ The current summary records:
   - `route_provenance`
 - one preferred route entry for each available capability
 - condensed provenance hints for route-aware consumers
+
+`runtime_session` is intentionally separate from generic
+`supporting_evidence`.
+
+It means a route exposes a direct `minimal_kernel.kernel_runtime_session/v0`
+object, usually via `front_page.supporting_surfaces[id=kernel_runtime_session]`.
+It still participates in evidence mode and can produce `evidence_only` or
+richer tiers, but tools may render it as its own runtime-session entry instead
+of hiding it inside the broader evidence bucket.
+
+`provenance_hints` may point to two kinds of source:
+
+- front-page roots, such as shelf or compare summaries
+- non-front-page first-read sources, currently
+  `system_compiler.artifact_report_index/v0`
+
+For the latter, `source_front_page_summary_path` remains empty on purpose.
+It is a provenance root for discovery, not a traversal edge.
 
 That makes it useful for tools that want to decide:
 
@@ -100,6 +121,14 @@ It is only trying to say:
 > If a tool needs one landing for this capability right now, this is the most
 > reasonable declared route entry to start from.
 
+For `system_compiler.world_shelf_review/v0` roots, `opening_reason` also reads
+the review object's own `drift_digest`.
+
+If that digest reports `changed=true`, the reason kind becomes
+`world_shelf_review_drift`. This does not re-run shelf compare logic; it only
+lets consumer-side landing/opening tools explain why grouped review is the
+default entry.
+
 ## Manual example
 
 ```powershell
@@ -119,6 +148,12 @@ Or run the dedicated smoke:
 
 ```powershell
 ./scripts/system_compiler_front_page_entry_capability_smoke.ps1 -Clean
+```
+
+For the narrow `kernel_runtime_session` route/capability/landing chain, use:
+
+```powershell
+./scripts/system_compiler_front_page_entry_runtime_session_sample_smoke.ps1 -Clean
 ```
 
 ## Why this matters

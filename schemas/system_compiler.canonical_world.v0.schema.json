@@ -93,6 +93,8 @@
       "enum": [
         "artifact_report",
         "runtime_evidence_bundle",
+        "kernel_runtime_session",
+        "open_event_witness",
         "example_ref"
       ]
     },

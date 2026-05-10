@@ -14,6 +14,10 @@ Charm 要在这条路上再往前走一步：
 
 > **公共设备契约不仅要让 driver 跨平台，还要进入 system compiler，成为系统成立前就能被检查、裁剪和解释的事实。**
 
+本文是路线总览，不承担逐项准入台账职责。
+具体候选契约的等级、证据、缺口与下一步，统一维护在
+[`device_contract_admission_matrix_v0.md`](device_contract_admission_matrix_v0.md)。
+
 ## 1. 窄腰保护谁
 
 设备契约窄腰优先保护：
@@ -330,6 +334,10 @@ concept I2cBus =
 
 优先级较高，但要晚于 I2C 一点。
 
+当前 proposed card 见：
+
+- [`spi_device_contract_v0.md`](spi_device_contract_v0.md)
+
 核心不是 `transfer` 函数，而是 `Bus / Device` 责任拆分：
 
 - `SpiBus` 代表受管 bus 能力
@@ -340,6 +348,10 @@ concept I2cBus =
 ### 5.3 `GpioInput` / `GpioOutput` / `GpioEdgeSource`
 
 适合作为 Foundation 级小契约。
+
+当前 proposed card 见：
+
+- [`gpio_device_contract_v0.md`](gpio_device_contract_v0.md)
 
 需要特别区分：
 
@@ -355,6 +367,10 @@ concept I2cBus =
 
 应与当前 block registry、stable slot、live state 经验对齐。
 
+当前 proposed card 见：
+
+- [`block_device_contract_v0.md`](block_device_contract_v0.md)
+
 关键语义：
 
 - sector size
@@ -369,6 +385,10 @@ concept I2cBus =
 
 应与当前 `io::Channel` 非阻塞纪律对齐。
 
+当前 proposed card 见：
+
+- [`stream_io_device_contract_v0.md`](stream_io_device_contract_v0.md)
+
 关键语义：
 
 - read / write 非阻塞
@@ -380,6 +400,10 @@ concept I2cBus =
 ### 5.6 `Timebase`
 
 应与 `charm.system.clock` 对齐。
+
+当前 proposed card 见：
+
+- [`timebase_device_contract_v0.md`](timebase_device_contract_v0.md)
 
 关键语义：
 
@@ -491,10 +515,10 @@ system compiler reports:
 v0 最值得推进的是：
 
 1. 保持 [`interface_admission_policy.md`](interface_admission_policy.md) 作为公共接口准入法律
-2. 继续收敛现有 I2C transaction mock 窄链
-3. 在 HAL adapter backend 之后继续补真实硬件 backend
-4. 在 register device 准 driver 之后继续写一个小型真实 driver，例如 sensor / codec / EEPROM / PMIC
-5. 把 required facts / error kind / execution semantics 写进更正式的 I2C contract 文档
+2. 维护 [`device_contract_admission_matrix_v0.md`](device_contract_admission_matrix_v0.md) 作为候选契约准入台账
+3. 继续收敛现有 I2C transaction mock 窄链
+4. 在 HAL adapter backend 之后继续补真实硬件 backend
+5. 在 register device 准 driver 之后继续写一个小型真实 driver，例如 sensor / codec / EEPROM / PMIC
 6. 让 artifact / evidence 能说明这条链如何成立
 
 这条路线小，但很锋利。

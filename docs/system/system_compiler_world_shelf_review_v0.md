@@ -47,6 +47,30 @@ In other words, `world shelf review` is no longer only a wrapper object.
 It can now route the next read without forcing higher layers to rediscover the
 candidate shelf, compare seam, or baseline shelf on their own.
 
+That also makes it the first explicit non-runtime candidate for future
+`OpeningJudgmentCorridor` expansion.
+
+It is not yet a corridor-specific carrier, but it already exposes the two
+surfaces the corridor needs to reuse one shared upper reading law:
+
+- `front_page`
+- `route_provenance`
+
+The review object also emits a thin `drift_digest`.
+
+This digest is a projection of the lower shelf compare, not a second compare
+engine. It records:
+
+- whether the reviewed shelf changed
+- the promoted verdict
+- entry change / regression / improvement counts
+- same-anchor front-page entry detail drift count and anchors
+- removed worlds, added failing entries, affected worlds/profiles
+- short drift narratives
+
+When compare is skipped, the digest is empty and reports `verdict =
+candidate-only`.
+
 ## Current shape
 
 Current `system compiler world shelf review` includes:
@@ -134,6 +158,11 @@ candidate shelf and, when present, its baseline shelf.
 review artifact together with the candidate shelf, the review questions, and a
 front-page route back down into the lower shelf surfaces.
 
+When compare is attached, the review envelope mirrors the lower shelf compare
+`collapse_surface`, including `front_page_entry_detail_changed_anchors`. Empty
+detail-change sets are still emitted as empty arrays so the review and compare
+objects stay structurally aligned.
+
 ### 3. Versus `world compare`
 
 `world compare` answers whether one candidate witness world still stands
@@ -151,3 +180,8 @@ This v0 still does not try to solve:
 - multi-shelf batch review
 - cross-world review aggregation
 - replacing the lower shelf compare object
+
+It also does not yet try to become a dedicated `OpeningJudgmentCorridor`
+carrier. The future expansion target is to let shelf-review-side reading reuse
+the same `landing -> route -> explain_entry -> handoff` law without creating a
+review-only upper brain.

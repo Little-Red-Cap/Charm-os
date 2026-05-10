@@ -225,6 +225,18 @@ the `ARMv7-A handoff launch, target=0x..., ... launch=yes` summary, and
 treats `ARMv7-A runtime live debug` as unexpected output so the mainline log
 only stays green once the live path is fully closed.
 
+For a phase-ledger view of the same default boot, use:
+
+```powershell
+.\run_qemu_phase_ledger_ci.ps1
+```
+
+That focused smoke treats the serial log as an ordered stage ledger. It checks
+that the default QEMU image moves from boot evidence through runtime,
+task-syscall, and handoff launch in order, that every non-idle stage has a
+matching `phase complete` marker, and that optional edge-only phases such as
+`special-irq-smoke` or `handoff-live` do not leak into the default boot.
+
 For a shorter failure loop around just this lower-half seam, use the focused
 runtime-live smoke:
 
@@ -349,8 +361,9 @@ use:
 ```
 
 That aggregate lower-half smoke now clean-rebuilds the shared `debug` preset
-before fanning out into the focused runtime/task-syscall cases, and also asks
-the dedicated `handoff-live` smoke to clean-rebuild `debug-handoff-live`.
+before fanning out into the phase-ledger, focused runtime/task-syscall cases,
+and also asks the dedicated `handoff-live` smoke to clean-rebuild
+`debug-handoff-live`.
 This keeps wide lower-half regressions from being masked or invented by stale
 object files after contract/header layout changes.
 The same bundle output now also carries one explicit `canonical world`,

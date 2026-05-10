@@ -40,6 +40,13 @@
 - [`vivid_widget_state_observe.md`](vivid_widget_state_observe.md)
 - `Examples/ui/vivid/list_row_flags_demo`
 
+### SoA table/tree evidence boundary
+
+Read first:
+
+- [`vivid_soa_table_tree_evidence_law_v0.md`](vivid_soa_table_tree_evidence_law_v0.md)
+- `Examples/ui/vivid/soa_demo`
+
 ### 我想看 Vivid 这条线
 
 建议顺序：
@@ -51,25 +58,26 @@
 5. [`vivid_evidence_lab_manifest_v0.md`](vivid_evidence_lab_manifest_v0.md)
 6. [`vivid_render_evidence_chain_v0.md`](vivid_render_evidence_chain_v0.md)
 7. [`vivid_draw_cmd_evidence_boundary_v0.md`](vivid_draw_cmd_evidence_boundary_v0.md)
-8. [`vivid_scene_support_boundary_v0.md`](vivid_scene_support_boundary_v0.md)
-9. [`vivid_causal_verdict_law_v0.md`](vivid_causal_verdict_law_v0.md)
-10. [`vivid_evidence_artifact_promotion_v0.md`](vivid_evidence_artifact_promotion_v0.md)
-11. [`vivid_evidence_vocabulary_law_v0.md`](vivid_evidence_vocabulary_law_v0.md)
-12. [`vivid_intent_to_artifact_evidence_v0.md`](vivid_intent_to_artifact_evidence_v0.md)
-13. [`vivid_style_token_law_v0.md`](vivid_style_token_law_v0.md)
-14. [`vivid_layer_runtime_v0.md`](vivid_layer_runtime_v0.md)
-15. [`vivid_motion_runtime_v0.md`](vivid_motion_runtime_v0.md)
-16. [`vivid_display_hotkeys.md`](vivid_display_hotkeys.md)
-17. [`vivid_focus_evidence_boundary_v0.md`](vivid_focus_evidence_boundary_v0.md)
-18. [`vivid_focus_transfer_evidence_v0.md`](vivid_focus_transfer_evidence_v0.md)
-19. [`vivid_focus_scope_evidence_v0.md`](vivid_focus_scope_evidence_v0.md)
-20. [`vivid_focus_semantic_evidence_v0.md`](vivid_focus_semantic_evidence_v0.md)
-21. [`vivid_semantic_request_ledger_law_v0.md`](vivid_semantic_request_ledger_law_v0.md)
-22. [`vivid_semantic_transition_law_v0.md`](vivid_semantic_transition_law_v0.md)
-23. [`vivid_semantic_transition_evidence_v0.md`](vivid_semantic_transition_evidence_v0.md)
-24. [`vivid_semantic_action_state_transition_law_v0.md`](vivid_semantic_action_state_transition_law_v0.md)
-25. [`vivid_semantic_action_state_transition_evidence_v0.md`](vivid_semantic_action_state_transition_evidence_v0.md)
-26. [`vivid_page_layer_style_patch.md`](vivid_page_layer_style_patch.md)
+8. [`vivid_soa_table_tree_evidence_law_v0.md`](vivid_soa_table_tree_evidence_law_v0.md)
+9. [`vivid_scene_support_boundary_v0.md`](vivid_scene_support_boundary_v0.md)
+10. [`vivid_causal_verdict_law_v0.md`](vivid_causal_verdict_law_v0.md)
+11. [`vivid_evidence_artifact_promotion_v0.md`](vivid_evidence_artifact_promotion_v0.md)
+12. [`vivid_evidence_vocabulary_law_v0.md`](vivid_evidence_vocabulary_law_v0.md)
+13. [`vivid_intent_to_artifact_evidence_v0.md`](vivid_intent_to_artifact_evidence_v0.md)
+14. [`vivid_style_token_law_v0.md`](vivid_style_token_law_v0.md)
+15. [`vivid_layer_runtime_v0.md`](vivid_layer_runtime_v0.md)
+16. [`vivid_motion_runtime_v0.md`](vivid_motion_runtime_v0.md)
+17. [`vivid_display_hotkeys.md`](vivid_display_hotkeys.md)
+18. [`vivid_focus_evidence_boundary_v0.md`](vivid_focus_evidence_boundary_v0.md)
+19. [`vivid_focus_transfer_evidence_v0.md`](vivid_focus_transfer_evidence_v0.md)
+20. [`vivid_focus_scope_evidence_v0.md`](vivid_focus_scope_evidence_v0.md)
+21. [`vivid_focus_semantic_evidence_v0.md`](vivid_focus_semantic_evidence_v0.md)
+22. [`vivid_semantic_request_ledger_law_v0.md`](vivid_semantic_request_ledger_law_v0.md)
+23. [`vivid_semantic_transition_law_v0.md`](vivid_semantic_transition_law_v0.md)
+24. [`vivid_semantic_transition_evidence_v0.md`](vivid_semantic_transition_evidence_v0.md)
+25. [`vivid_semantic_action_state_transition_law_v0.md`](vivid_semantic_action_state_transition_law_v0.md)
+26. [`vivid_semantic_action_state_transition_evidence_v0.md`](vivid_semantic_action_state_transition_evidence_v0.md)
+27. [`vivid_page_layer_style_patch.md`](vivid_page_layer_style_patch.md)
 
 Semantic Tree Artifact v0 runtime sample:
 

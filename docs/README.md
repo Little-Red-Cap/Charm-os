@@ -297,6 +297,7 @@ flowchart TD
 | 拆网络底座收口任务 | `docs/io/net_stack_foundation_tasklist.md` |
 | 看网络底座是否已可关单 | `docs/io/net_stack_v0_closure_checklist.md` |
 | 看 Vivid object-level widget `observe_*`、SoA helper 与 `SceneAccess` 边界 | `docs/ui/vivid_widget_state_observe.md` → `Examples/ui/vivid/widget_state_demo` → `Examples/ui/vivid/dropdown_popup_demo` → `Examples/ui/vivid/menu_tree_demo` → `Examples/ui/vivid/scene_state_demo` |
+| 看 Vivid SoA table/tree 证据边界 | `docs/ui/vivid_soa_table_tree_evidence_law_v0.md` → `Examples/ui/vivid/soa_demo` |
 | 做主框架全仓体检 / 收敛排期 | `docs/project/tracking/README.md` → `docs/project/tracking/主框架全仓审查与收敛_backlog.md` |
 | POSIX 兼容总览 | `docs/system/posix_support_overview.md` |
 | POSIX 分层与演进原则 | `docs/system/posix_subsystem_principles.md` |

@@ -221,6 +221,11 @@ namespace {
         std::uint8_t count{0};
     };
 
+    struct TextProbe {
+        Rect rect{};
+        std::string_view text{};
+    };
+
     const std::array<int, 8> kTableColWidths{
         64, 96, 72, 120, 80, 88, 68, 104
     };
@@ -252,6 +257,88 @@ namespace {
         const auto* src = static_cast<const TableViewColWidthSource*>(ctx);
         if (!src || !src->widths || src->count == 0) return 0;
         return src->widths[col % src->count];
+    }
+
+    bool rects_intersect(const Rect& a, const Rect& b) noexcept {
+        if (a.w <= 0 || a.h <= 0 || b.w <= 0 || b.h <= 0) return false;
+        const int a_right = a.x + a.w;
+        const int a_bottom = a.y + a.h;
+        const int b_right = b.x + b.w;
+        const int b_bottom = b.y + b.h;
+        return a.x < b_right && a_right > b.x && a.y < b_bottom && a_bottom > b.y;
+    }
+
+    bool collect_text_probes(const ui::draw_cmd::DefaultDrawCmdBuffer& buf,
+                             std::vector<TextProbe>& out) noexcept {
+        out.clear();
+        out.reserve(buf.size());
+        ui::draw_cmd::DrawCmd cmd{};
+        const std::size_t cmd_count = buf.size();
+        for (std::size_t i = 0; i < cmd_count; ++i) {
+            if (!buf.read_cmd(i, cmd)) return false;
+            switch (cmd.type) {
+            case ui::draw_cmd::CmdType::DrawTextBox: {
+                if (cmd.text.length == 0) break;
+                const char* text = buf.text_at(cmd.text.offset);
+                if (!text) return false;
+                out.push_back(TextProbe{cmd.rect, std::string_view(text, cmd.text.length)});
+                break;
+            }
+            case ui::draw_cmd::CmdType::GlyphRun: {
+                if (cmd.p0 <= 0) return false;
+                const std::size_t count = static_cast<std::size_t>(cmd.p0);
+                const auto blob_span = buf.blob_at(cmd.blob);
+                if (blob_span.size() < count * sizeof(ui::draw_cmd::GlyphRunItem)) return false;
+                for (std::size_t j = 0; j < count; ++j) {
+                    ui::draw_cmd::GlyphRunItem item{};
+                    std::memcpy(&item,
+                                blob_span.data() + (j * sizeof(ui::draw_cmd::GlyphRunItem)),
+                                sizeof(item));
+                    if (item.text.length == 0) continue;
+                    const char* text = buf.text_at(item.text.offset);
+                    if (!text) return false;
+                    out.push_back(TextProbe{item.rect, std::string_view(text, item.text.length)});
+                }
+                break;
+            }
+            default:
+                break;
+            }
+        }
+        return true;
+    }
+
+    bool collect_fill_rects(const ui::draw_cmd::DefaultDrawCmdBuffer& buf,
+                            std::vector<Rect>& out) noexcept {
+        out.clear();
+        out.reserve(buf.size());
+        ui::draw_cmd::DrawCmd cmd{};
+        const std::size_t cmd_count = buf.size();
+        for (std::size_t i = 0; i < cmd_count; ++i) {
+            if (!buf.read_cmd(i, cmd)) return false;
+            switch (cmd.type) {
+            case ui::draw_cmd::CmdType::FillRect:
+                out.push_back(cmd.rect);
+                break;
+            case ui::draw_cmd::CmdType::FillRectBatch: {
+                if (cmd.p0 <= 0) return false;
+                const std::size_t count = static_cast<std::size_t>(cmd.p0);
+                const auto blob_span = buf.blob_at(cmd.blob);
+                if (blob_span.size() < count * sizeof(ui::draw_cmd::RectBatchItem)) return false;
+                for (std::size_t j = 0; j < count; ++j) {
+                    ui::draw_cmd::RectBatchItem item{};
+                    std::memcpy(&item,
+                                blob_span.data() + (j * sizeof(ui::draw_cmd::RectBatchItem)),
+                                sizeof(item));
+                    out.push_back(item.rect);
+                }
+                break;
+            }
+            default:
+                break;
+            }
+        }
+        return true;
     }
 
     struct TreeViewTextSource {
@@ -2228,18 +2315,69 @@ namespace {
 
         const Rect table_root_r = kernel.rect(table_root);
         const Rect table_r = kernel.rect(table_view);
-        const int table_hit_x = table_root_r.x + table_r.x + 8;
+        const Rect table_world{table_root_r.x + table_r.x, table_root_r.y + table_r.y, table_r.w, table_r.h};
+        const int table_hit_x = table_world.x + 8;
         const int header_h = kernel.table_view_header_height(table_view);
-        const int table_hit_y = table_root_r.y + table_r.y + header_h + 8;
+        const int header_hit_y = table_world.y + ((header_h > 0) ? (header_h / 2) : 0);
+        const int table_hit_y = table_world.y + header_h + 8;
+
+        const TableViewHeaderStyle header_style_cases[] = {
+            TableViewHeaderStyle::Default,
+            TableViewHeaderStyle::Muted,
+            TableViewHeaderStyle::Accent
+        };
+        for (const TableViewHeaderStyle style : header_style_cases) {
+            kernel.layout_trace_reset();
+            factory.set_table_view_header_style(table_view, style);
+            gui.render();
+            expect_true(gui.last_exec_stats().failed_cmds == 0, "tableview: header style failed_cmds", fails);
+            expect_true(kernel.layout_invalidated_count() == 0,
+                        "tableview: header style invalidated layout", fails);
+            expect_true(kernel.layout_pass_count() == 0, "tableview: header style pass", fails);
+            expect_true(kernel.paint_invalidated_count() > 0, "tableview: header style missing paint", fails);
+
+            if (style == TableViewHeaderStyle::Muted) {
+                ui::draw_cmd::DefaultDrawCmdBuffer muted_buf{};
+                gui.record_commands(muted_buf);
+                std::vector<Rect> fill_rects{};
+                const bool fill_decode_ok = collect_fill_rects(muted_buf, fill_rects);
+                expect_true(fill_decode_ok, "tableview: muted fill decode", fails);
+                if (fill_decode_ok) {
+                    std::vector<Rect> table_fills{};
+                    for (const Rect& fill : fill_rects) {
+                        if (rects_intersect(fill, table_world)) {
+                            table_fills.push_back(fill);
+                        }
+                    }
+                    expect_true(table_fills.size() >= 3, "tableview: muted fill sequence", fails);
+                    if (table_fills.size() >= 3) {
+                        const Rect& header_fill = table_fills[1];
+                        const Rect& next_fill = table_fills[2];
+                        const bool has_inset_fill =
+                            next_fill.x == header_fill.x + 1
+                            && next_fill.y == header_fill.y + 1
+                            && next_fill.w == header_fill.w - 2
+                            && next_fill.h == header_fill.h - 2;
+                        expect_true(!has_inset_fill, "tableview: muted header inset fill", fails);
+                    }
+                }
+            }
+        }
 
         kernel.layout_trace_reset();
         const int table_before = kernel.scroll_y(table_view);
+        const int table_x_before_body_wheel = kernel.table_view_scroll_x(table_view);
         gui.dispatch_event(Event::mouse(Event::Type::MouseMove, table_hit_x, table_hit_y, 0));
         gui.dispatch_event(Event::wheel(table_hit_x, table_hit_y, -6));
         gui.render();
         const int table_after = kernel.scroll_y(table_view);
+        const int table_x_after_body_wheel = kernel.table_view_scroll_x(table_view);
         expect_true(table_after != table_before, "tableview: wheel did not scroll", fails);
+        expect_true(table_x_after_body_wheel == table_x_before_body_wheel,
+                    "tableview: body wheel moved x", fails);
         expect_true(kernel.layout_invalidated_count() == 0, "tableview: wheel invalidated layout", fails);
+        expect_true(kernel.layout_pass_count() == 0, "tableview: wheel pass", fails);
+        expect_true(kernel.paint_invalidated_count() > 0, "tableview: wheel missing paint", fails);
 
         kernel.layout_trace_reset();
         const int table_x_before = kernel.table_view_scroll_x(table_view);
@@ -2250,6 +2388,86 @@ namespace {
         expect_true(kernel.layout_invalidated_count() == 0, "tableview: horiz invalidated layout", fails);
         expect_true(kernel.layout_pass_count() == 0, "tableview: horiz pass", fails);
         expect_true(kernel.paint_invalidated_count() > 0, "tableview: horiz missing paint", fails);
+
+        kernel.set_scroll_y(table_view, 0);
+        gui.render();
+        ui::draw_cmd::DefaultDrawCmdBuffer align_buf{};
+        gui.record_commands(align_buf);
+        std::vector<TextProbe> text_probes{};
+        const bool text_probe_ok = collect_text_probes(align_buf, text_probes);
+        expect_true(text_probe_ok, "tableview: align text decode", fails);
+        if (text_probe_ok) {
+            const auto probe_in_table = [&](const TextProbe& probe) noexcept {
+                return rects_intersect(probe.rect, table_world)
+                    && probe.rect.y >= table_world.y
+                    && probe.rect.y < table_world.y + table_world.h;
+            };
+            std::vector<int> row_ys{};
+            for (const TextProbe& probe : text_probes) {
+                if (probe_in_table(probe)) {
+                    row_ys.push_back(probe.rect.y);
+                }
+            }
+            std::sort(row_ys.begin(), row_ys.end());
+            row_ys.erase(std::unique(row_ys.begin(), row_ys.end()), row_ys.end());
+            expect_true(row_ys.size() >= 2, "tableview: align row bands", fails);
+            if (row_ys.size() >= 2) {
+                const auto find_text_at = [&](std::string_view text, int y) noexcept -> const TextProbe* {
+                    for (const TextProbe& probe : text_probes) {
+                        if (probe.rect.y != y) continue;
+                        if (!probe_in_table(probe)) continue;
+                        if (probe.text == text) return &probe;
+                    }
+                    return nullptr;
+                };
+                const auto row_has_columns = [&](int y) noexcept {
+                    return find_text_at("Name", y) && find_text_at("State", y) && find_text_at("Value", y);
+                };
+                int header_y = -1;
+                int body_y = -1;
+                const int header_band_bottom = table_world.y + header_h;
+                for (const int y : row_ys) {
+                    if (!row_has_columns(y)) continue;
+                    if (header_y < 0 && y < header_band_bottom) {
+                        header_y = y;
+                    } else if (body_y < 0 && y >= header_band_bottom) {
+                        body_y = y;
+                        break;
+                    }
+                }
+                expect_true(header_y >= 0 && body_y >= 0, "tableview: align row selection", fails);
+                const TextProbe* header_name = find_text_at("Name", header_y);
+                const TextProbe* header_state = find_text_at("State", header_y);
+                const TextProbe* header_value = find_text_at("Value", header_y);
+                const TextProbe* body_name = find_text_at("Name", body_y);
+                const TextProbe* body_state = find_text_at("State", body_y);
+                const TextProbe* body_value = find_text_at("Value", body_y);
+                const bool aligned =
+                    header_name && header_state && header_value
+                    && body_name && body_state && body_value
+                    && (header_state->rect.x - header_name->rect.x) == (body_state->rect.x - body_name->rect.x)
+                    && (header_value->rect.x - header_name->rect.x) == (body_value->rect.x - body_name->rect.x);
+                expect_true(aligned, "tableview: header/body columns misaligned", fails);
+            }
+        }
+
+        kernel.set_table_view_scroll_x(table_view, 0);
+        kernel.layout_trace_reset();
+        const int table_x_before_header_wheel = kernel.table_view_scroll_x(table_view);
+        const int table_y_before_header_wheel = kernel.scroll_y(table_view);
+        gui.dispatch_event(Event::mouse(Event::Type::MouseMove, table_hit_x, header_hit_y, 0));
+        gui.dispatch_event(Event::wheel(table_hit_x, header_hit_y, -6));
+        gui.render();
+        const int table_x_after_header_wheel = kernel.table_view_scroll_x(table_view);
+        const int table_y_after_header_wheel = kernel.scroll_y(table_view);
+        expect_true(table_x_after_header_wheel != table_x_before_header_wheel,
+                    "tableview: header wheel did not scroll x", fails);
+        expect_true(table_y_after_header_wheel == table_y_before_header_wheel,
+                    "tableview: header wheel moved y", fails);
+        expect_true(kernel.layout_invalidated_count() == 0,
+                    "tableview: header wheel invalidated layout", fails);
+        expect_true(kernel.layout_pass_count() == 0, "tableview: header wheel pass", fails);
+        expect_true(kernel.paint_invalidated_count() > 0, "tableview: header wheel missing paint", fails);
 
         kernel.layout_trace_reset();
         const Rect hscroll_r = kernel.rect(table_scroll_x);
@@ -2269,8 +2487,8 @@ namespace {
         const bool hinfo_ok = build_scrollbar_info(kernel, table_scroll_x, table_root_r, hinfo);
         expect_true(hinfo_ok, "tableview: hscroll info", fails);
         if (hinfo_ok && hinfo.max_scroll > 0) {
-            kernel.layout_trace_reset();
             kernel.set_table_view_scroll_x(table_view, 0);
+            kernel.layout_trace_reset();
             gui.dispatch_event(Event::mouse(Event::Type::MouseMove, hinfo.track_start + hinfo.track_len - 1,
                                             hscroll_hit_y, 0));
             gui.dispatch_event(Event::mouse(Event::Type::MouseDown, hinfo.track_start + hinfo.track_len - 1,
@@ -2281,9 +2499,11 @@ namespace {
             const int table_x_page = kernel.table_view_scroll_x(table_view);
             expect_true(table_x_page > 0, "tableview: hscroll page click", fails);
             expect_true(kernel.layout_invalidated_count() == 0, "tableview: hscroll page invalidated layout", fails);
+            expect_true(kernel.layout_pass_count() == 0, "tableview: hscroll page pass", fails);
+            expect_true(kernel.paint_invalidated_count() > 0, "tableview: hscroll page missing paint", fails);
 
-            kernel.layout_trace_reset();
             kernel.set_table_view_scroll_x(table_view, hinfo.max_scroll);
+            kernel.layout_trace_reset();
             gui.dispatch_event(Event::mouse(Event::Type::MouseMove, hinfo.track_start + 1, hscroll_hit_y, 0));
             gui.dispatch_event(Event::mouse(Event::Type::MouseDown, hinfo.track_start + 1, hscroll_hit_y, 1));
             gui.dispatch_event(Event::mouse(Event::Type::MouseUp, hinfo.track_start + 1, hscroll_hit_y, 1));
@@ -2291,9 +2511,11 @@ namespace {
             const int table_x_back = kernel.table_view_scroll_x(table_view);
             expect_true(table_x_back < hinfo.max_scroll, "tableview: hscroll page back", fails);
             expect_true(kernel.layout_invalidated_count() == 0, "tableview: hscroll back invalidated layout", fails);
+            expect_true(kernel.layout_pass_count() == 0, "tableview: hscroll back pass", fails);
+            expect_true(kernel.paint_invalidated_count() > 0, "tableview: hscroll back missing paint", fails);
 
-            kernel.layout_trace_reset();
             kernel.set_table_view_scroll_x(table_view, hinfo.max_scroll);
+            kernel.layout_trace_reset();
             gui.dispatch_event(Event::mouse(Event::Type::MouseMove, hinfo.track_start + hinfo.track_len - 1,
                                             hscroll_hit_y, 0));
             gui.dispatch_event(Event::mouse(Event::Type::MouseDown, hinfo.track_start + hinfo.track_len - 1,
@@ -2304,11 +2526,12 @@ namespace {
             const int table_x_clamp = kernel.table_view_scroll_x(table_view);
             expect_true(table_x_clamp == hinfo.max_scroll, "tableview: hscroll clamp max", fails);
             expect_true(kernel.layout_invalidated_count() == 0, "tableview: hscroll clamp invalidated layout", fails);
+            expect_true(kernel.layout_pass_count() == 0, "tableview: hscroll clamp pass", fails);
 
-            kernel.layout_trace_reset();
             const int mid_scroll = hinfo.max_scroll / 2;
             kernel.set_table_view_scroll_x(table_view, mid_scroll);
             build_scrollbar_info(kernel, table_scroll_x, table_root_r, hinfo);
+            kernel.layout_trace_reset();
             const int thumb_center = hinfo.thumb_start + hinfo.thumb_len / 2;
             gui.dispatch_event(Event::mouse(Event::Type::MouseMove, thumb_center, hscroll_hit_y, 0));
             gui.dispatch_event(Event::mouse(Event::Type::MouseDown, thumb_center, hscroll_hit_y, 1));
@@ -2318,9 +2541,12 @@ namespace {
             const int table_x_drag = kernel.table_view_scroll_x(table_view);
             expect_true(table_x_drag != mid_scroll, "tableview: hscroll drag", fails);
             expect_true(kernel.layout_invalidated_count() == 0, "tableview: hscroll drag invalidated layout", fails);
+            expect_true(kernel.layout_pass_count() == 0, "tableview: hscroll drag pass", fails);
+            expect_true(kernel.paint_invalidated_count() > 0, "tableview: hscroll drag missing paint", fails);
         }
         const int hscroll_x = table_root_r.x + hscroll_r.x + hscroll_r.w - 2;
         const int hscroll_y = table_root_r.y + hscroll_r.y + hscroll_r.h / 2;
+        kernel.layout_trace_reset();
         const int table_x_before_bar = kernel.table_view_scroll_x(table_view);
         gui.dispatch_event(Event::mouse(Event::Type::MouseMove, hscroll_x, hscroll_y, 0));
         gui.dispatch_event(Event::mouse(Event::Type::MouseDown, hscroll_x, hscroll_y, 1));

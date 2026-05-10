@@ -1028,7 +1028,7 @@ Write-Host ("host_output_root={0}" -f $resolvedHostOutputRoot)
 Write-Host ("qemu_output_root={0}" -f $resolvedQemuOutputRoot)
 if (-not $SkipSession) {
     Write-Host ("session_output_root={0}" -f $resolvedSessionOutputRoot)
-    Write-Host ("session_summary={0}" -f $sessionSummaryPathResolved)
+    Write-Host ("session_path={0}" -f $sessionSummaryPathResolved)
 }
 if (-not $SkipWitnessBundle) {
     Write-Host ("witness_output_root={0}" -f $resolvedWitnessBundleOutputRoot)

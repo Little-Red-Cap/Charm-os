@@ -118,7 +118,7 @@
 对于 root `witness bundle` 来说，`front_page.supporting_surfaces` 允许被更上层 workflow 继续补强。
 
 - 基础导出至少应能路由到 `runtime_evidence`
-- 如果 runtime evidence summary 已经带有 `session` 或历史兼容的 `session_summary`，基础导出也应把它路由成 `kernel_runtime_session`
+- 如果 runtime evidence summary 已经带有 `session`，基础导出也应把它路由成 `kernel_runtime_session`
 - 当同轮交付已经生成 `biography`、`world_compare`、`world_shelf_review` 时，wrapper 可以把这些上层 surface 一并挂回 root `front_page`
 
 它不替代 `artifact_context`。

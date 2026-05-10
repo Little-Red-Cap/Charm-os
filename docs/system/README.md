@@ -214,6 +214,7 @@
 - [`bringup_evidence_pipeline_v0.md`](bringup_evidence_pipeline_v0.md)
 - [`board_evidence_fixture_catalog_v0.md`](board_evidence_fixture_catalog_v0.md)
 - [`i2c_board_probe_evidence_readiness_checklist_v0.md`](i2c_board_probe_evidence_readiness_checklist_v0.md)
+- [`spi_device_transaction_mock_readiness_checklist_v0.md`](spi_device_transaction_mock_readiness_checklist_v0.md)
 
 再按工具链继续：
 

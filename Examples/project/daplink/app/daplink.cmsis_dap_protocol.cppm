@@ -14,6 +14,7 @@ module;
 export module daplink.cmsis_dap:protocol;
 
 export import :core;
+import daplink.app_config;
 
 namespace daplink::cmsis_dap::detail {
     constexpr std::uint8_t kCmsisDapInfo = 0x00;
@@ -74,7 +75,7 @@ namespace daplink::cmsis_dap::detail {
 
     constexpr std::uint8_t kCapabilities =
         kCapSwd |
-        kCapAtomic |
+        ((daplink::app_config::kConfig.dap.packet_count > 1U) ? kCapAtomic : 0U) |
         (CHARM_DAP_ENABLE_SWO ? kCapSwoUart : 0U) |
         (CHARM_DAP_ENABLE_SWO_STREAM ? kCapSwoStreaming : 0U) |
         (CHARM_DAP_ENABLE_DAP_UART ? kCapDapUart : 0U);

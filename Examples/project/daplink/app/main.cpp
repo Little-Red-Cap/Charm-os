@@ -139,7 +139,7 @@ int main()
             dap_transport,
             [&]() noexcept {
                 dap_state = {};
-                dap_transport.reset();
+                dap_transport.reset_session();
                 if constexpr (kEnableCdc) {
                     uart_tx = {};
                     uart_rx = {};

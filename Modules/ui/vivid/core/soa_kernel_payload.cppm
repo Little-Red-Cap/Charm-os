@@ -710,6 +710,7 @@ import alg_list_scroll;
         return payloads_.text_c_str(payload->labels[index]);
     }
 
+#if 0
     void SoaKernel::set_text_list_count(WidgetHandle h, std::uint16_t count) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
@@ -1180,6 +1181,7 @@ import alg_list_scroll;
             set_scroll_y_clamped(h, max_scroll(h));
         }
     }
+#endif
 
     void SoaKernel::set_toggle_group_kind(WidgetHandle h, WidgetKind group_kind) noexcept {
         const std::uint16_t idx = index_of(h);
@@ -1357,6 +1359,7 @@ import alg_list_scroll;
         return 0;
     }
 
+#if 0
     void SoaKernel::set_scrollbar_orientation(WidgetHandle h, ScrollBarOrientation orient) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
@@ -1444,6 +1447,7 @@ import alg_list_scroll;
         if (!target) return {};
         return valid(target) ? target : WidgetHandle{};
     }
+#endif
 
     void SoaKernel::set_checked(WidgetHandle h, bool on) noexcept {
         const std::uint16_t idx = index_of(h);
@@ -1922,6 +1926,7 @@ import alg_list_scroll;
         }
     }
 
+#if 0
     void SoaKernel::set_layout_kind(WidgetHandle h, SoaLayoutKind kind) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
@@ -1934,6 +1939,7 @@ import alg_list_scroll;
         if (idx == kInvalidIndex) return SoaLayoutKind::None;
         return static_cast<SoaLayoutKind>(common_.layout_kind[idx]);
     }
+#endif
 
     bool SoaKernel::payload_overflowed() const noexcept {
         return payloads_.overflowed();
@@ -1949,6 +1955,7 @@ import alg_list_scroll;
     }
 #endif
 
+#if 0
     void SoaKernel::set_style_patch(WidgetHandle h, const StylePatch& patch) noexcept {
         set_style_adjust(h, patch);
     }
@@ -2025,4 +2032,5 @@ import alg_list_scroll;
         if (idx == kInvalidIndex) return kStyleClassInvalid;
         return common_.style_class[idx];
     }
+#endif
 

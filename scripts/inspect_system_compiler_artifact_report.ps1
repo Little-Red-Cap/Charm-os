@@ -769,23 +769,35 @@ function Get-CapabilityScopedReasons {
 function Get-ReportCapabilityNames {
     param(
         $ReportData,
-        $GraphInfo
+        $GraphInfo,
+        $ResourceProjection = $null
     )
 
     $names = @()
     $names += @(Get-CapabilityNamesFromGraph -GraphInfo $GraphInfo)
 
     if ($null -ne $ReportData) {
+        $resourceProjectionValue = if ($null -ne $ResourceProjection) {
+            $ResourceProjection
+        } else {
+            New-ReportResourceProjection -ReportData $ReportData -GraphInfo $GraphInfo
+        }
+        $resourceContract = if ($null -ne $resourceProjectionValue) { $resourceProjectionValue.resource_contract } else { $null }
+
         $names += @($ReportData.structure.declared_facts)
         $names += @($ReportData.structure.required_facts)
         $names += @($ReportData.structure.unresolved_bindings)
         $names += @($ReportData.bringup_evidence.published_capabilities)
         $names += @(Get-BringupEvidenceEntriesFromReport -ReportData $ReportData | ForEach-Object { [string]$_.capability })
-        $names += @($ReportData.resource_contract.provided_facts)
+        if ($null -ne $resourceContract) {
+            $names += @($resourceContract.provided_facts)
+        }
         $names += @(Get-RuntimeObservedCapabilitiesFromReport -ReportData $ReportData)
 
-        foreach ($entry in @($ReportData.resource_contract.declared_contract_entries)) {
-            $names += @($entry.requires)
+        if ($null -ne $resourceContract) {
+            foreach ($entry in @($resourceContract.declared_contract_entries)) {
+                $names += @($entry.requires)
+            }
         }
 
         foreach ($transition in @($ReportData.runtime_observe.recent_transitions)) {
@@ -1260,6 +1272,7 @@ function New-WhyCapabilityComparisonResult {
 function Get-ResourceContractMentions {
     param(
         $ReportData,
+        $GraphInfo,
         [string]$CapabilityName
     )
 
@@ -1275,22 +1288,25 @@ function Get-ResourceContractMentions {
         return $mentions
     }
 
-    if ($null -ne $ReportData.resource_contract) {
-        $mentions.provided_fact = @($ReportData.resource_contract.provided_facts) -contains $CapabilityName
+    $resourceProjection = New-ReportResourceProjection -ReportData $ReportData -GraphInfo $GraphInfo
+    $resourceContract = if ($null -ne $resourceProjection) { $resourceProjection.resource_contract } else { $null }
+
+    if ($null -ne $resourceContract) {
+        $mentions.provided_fact = @($resourceContract.provided_facts) -contains $CapabilityName
         $mentions.satisfied = @(
-            @($ReportData.resource_contract.satisfied_contracts) |
+            @($resourceContract.satisfied_contracts) |
                 Where-Object { [string]$_ -like "*$CapabilityName*" }
         )
         $mentions.violations = @(
-            @($ReportData.resource_contract.violations) |
+            @($resourceContract.violations) |
                 Where-Object { [string]$_ -like "*$CapabilityName*" }
         )
         $mentions.unknown = @(
-            @($ReportData.resource_contract.unknown_contracts) |
+            @($resourceContract.unknown_contracts) |
                 Where-Object { [string]$_ -like "*$CapabilityName*" }
         )
         $mentions.hotspots = @(
-            @($ReportData.resource_contract.resource_hotspots) |
+            @($resourceContract.resource_hotspots) |
                 Where-Object { [string]$_ -like "*$CapabilityName*" }
         )
     }
@@ -1321,6 +1337,418 @@ function Get-ReportSubjectFacts {
     }
 
     return @($facts | Sort-Object -Unique)
+}
+
+function New-ReportSystemInputProjection {
+    param(
+        $ReportData
+    )
+
+    if ($null -eq $ReportData -or
+        $null -eq $ReportData.PSObject.Properties['system_input'] -or
+        $null -eq $ReportData.system_input) {
+        return $null
+    }
+
+    $reportSubject = if ($null -ne $ReportData.PSObject.Properties['subject']) { $ReportData.subject } else { $null }
+    $systemInput = $ReportData.system_input
+    $systemSpec = Get-OptionalMemberValue -Object $systemInput -Name 'system_spec'
+    $declaredInput = Get-OptionalMemberValue -Object $systemInput -Name 'declared_input'
+    $declaredSubject = Get-OptionalMemberValue -Object $declaredInput -Name 'subject'
+    $resolvedInput = Get-OptionalMemberValue -Object $systemInput -Name 'resolved_input'
+    $resolvedProfile = Get-OptionalMemberValue -Object $resolvedInput -Name 'profile'
+    $resolvedBoard = Get-OptionalMemberValue -Object $resolvedInput -Name 'board'
+    $resolvedFacets = Get-OptionalMemberValue -Object $resolvedInput -Name 'active_facets'
+
+    $subjectCase = Get-OptionalMemberValue -Object $reportSubject -Name 'case'
+    if ([string]::IsNullOrWhiteSpace([string]$subjectCase)) {
+        $subjectCase = Get-OptionalMemberValue -Object $systemSpec -Name 'case_name'
+    }
+    $subjectProfile = Get-OptionalMemberValue -Object $reportSubject -Name 'profile'
+    if ([string]::IsNullOrWhiteSpace([string]$subjectProfile)) {
+        $subjectProfile = Get-OptionalMemberValue -Object $resolvedProfile -Name 'value'
+    }
+    if ([string]::IsNullOrWhiteSpace([string]$subjectProfile)) {
+        $subjectProfile = Get-OptionalMemberValue -Object $declaredSubject -Name 'profile'
+    }
+    $subjectBoard = Get-OptionalMemberValue -Object $reportSubject -Name 'board'
+    if ([string]::IsNullOrWhiteSpace([string]$subjectBoard)) {
+        $subjectBoard = Get-OptionalMemberValue -Object $resolvedBoard -Name 'value'
+    }
+    if ([string]::IsNullOrWhiteSpace([string]$subjectBoard)) {
+        $subjectBoard = Get-OptionalMemberValue -Object $declaredSubject -Name 'board'
+    }
+    $subjectFacets = @(
+        @(Get-OptionalMemberValue -Object $reportSubject -Name 'active_facets') |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            ForEach-Object { [string]$_ }
+    )
+    if (@($subjectFacets).Count -eq 0) {
+        $subjectFacets = @(
+            @(Get-OptionalMemberValue -Object $resolvedFacets -Name 'values') |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                ForEach-Object { [string]$_ }
+        )
+    }
+    if (@($subjectFacets).Count -eq 0) {
+        $subjectFacets = @(
+            @(Get-OptionalMemberValue -Object $declaredSubject -Name 'active_facets') |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                ForEach-Object { [string]$_ }
+        )
+    }
+
+    $subjectFacts = if ($null -ne $resolvedInput -and $null -ne $resolvedInput.PSObject.Properties['subject_facts']) {
+        @(
+            @($resolvedInput.subject_facts) |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                ForEach-Object { [string]$_ } |
+                Sort-Object -Unique
+        )
+    } else {
+        @(Get-ReportSubjectFacts -ReportData $ReportData)
+    }
+    $declaredActiveFacets = @(
+        @(Get-OptionalMemberValue -Object $declaredSubject -Name 'active_facets') |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            ForEach-Object { [string]$_ }
+    )
+    $declaredFacts = @(
+        @(Get-OptionalMemberValue -Object $declaredInput -Name 'declared_facts') |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            ForEach-Object { [string]$_ }
+    )
+    $declaredContractEntries = @(
+        @(Get-OptionalMemberValue -Object $declaredInput -Name 'declared_contract_entries') |
+            Where-Object { $null -ne $_ }
+    )
+    $resolvedFacetValues = @(
+        @(Get-OptionalMemberValue -Object $resolvedFacets -Name 'values') |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            ForEach-Object { [string]$_ }
+    )
+
+    return [pscustomobject][ordered]@{
+        subject = [ordered]@{
+            case = if ([string]::IsNullOrWhiteSpace([string]$subjectCase)) { $null } else { [string]$subjectCase }
+            profile = if ([string]::IsNullOrWhiteSpace([string]$subjectProfile)) { $null } else { [string]$subjectProfile }
+            board = if ([string]::IsNullOrWhiteSpace([string]$subjectBoard)) { $null } else { [string]$subjectBoard }
+            active_facets = @($subjectFacets)
+        }
+        system_spec = [ordered]@{
+            case_name = Get-OptionalMemberValue -Object $systemSpec -Name 'case_name'
+            case_kind = Get-OptionalMemberValue -Object $systemSpec -Name 'case_kind'
+            source = Get-OptionalMemberValue -Object $systemSpec -Name 'source'
+            build_dir = Get-OptionalMemberValue -Object $systemSpec -Name 'build_dir'
+            build_target = Get-OptionalMemberValue -Object $systemSpec -Name 'build_target'
+            export_target = Get-OptionalMemberValue -Object $systemSpec -Name 'export_target'
+        }
+        declared_input = [ordered]@{
+            subject = [ordered]@{
+                profile = Get-OptionalMemberValue -Object $declaredSubject -Name 'profile'
+                board = Get-OptionalMemberValue -Object $declaredSubject -Name 'board'
+                active_facets = @($declaredActiveFacets)
+            }
+            declared_facts = @($declaredFacts)
+            declared_contract_entries = @($declaredContractEntries)
+        }
+        resolved_input = [ordered]@{
+            profile = [ordered]@{
+                value = Get-OptionalMemberValue -Object $resolvedProfile -Name 'value'
+                source = Get-OptionalMemberValue -Object $resolvedProfile -Name 'source'
+            }
+            board = [ordered]@{
+                value = Get-OptionalMemberValue -Object $resolvedBoard -Name 'value'
+                source = Get-OptionalMemberValue -Object $resolvedBoard -Name 'source'
+            }
+            active_facets = [ordered]@{
+                values = @($resolvedFacetValues)
+                source = Get-OptionalMemberValue -Object $resolvedFacets -Name 'source'
+            }
+            subject_facts = @($subjectFacts)
+        }
+    }
+}
+
+function Copy-OrderedCountMap {
+    param(
+        $CountMapLike
+    )
+
+    $result = [ordered]@{}
+    if ($null -eq $CountMapLike) {
+        return $result
+    }
+
+    if ($CountMapLike -is [System.Collections.IDictionary]) {
+        foreach ($key in @($CountMapLike.Keys | Sort-Object)) {
+            $result[[string]$key] = [int]$CountMapLike[$key]
+        }
+
+        return $result
+    }
+
+    foreach ($property in @($CountMapLike.PSObject.Properties | Sort-Object Name)) {
+        $result[[string]$property.Name] = [int]$property.Value
+    }
+
+    return $result
+}
+
+function New-EmptyBindingResultSummary {
+    return [ordered]@{
+        required_binding_count = 0
+        resolved_binding_count = 0
+        unresolved_binding_count = 0
+        resolved_capabilities = @()
+        unresolved_capabilities = @()
+        binding_entries = @()
+    }
+}
+
+function New-EmptyBringupOrderSummary {
+    return [ordered]@{
+        ordered_node_count = 0
+        blocked_node_count = 0
+        phase_counts = [ordered]@{}
+        entries = @()
+    }
+}
+
+function New-EmptyReportBindingBringupProjection {
+    return [ordered]@{
+        binding = [ordered]@{
+            counts = [ordered]@{
+                required_binding_count = 0
+                resolved_binding_count = 0
+                unresolved_binding_count = 0
+            }
+            resolved_capabilities = @()
+            unresolved_capabilities = @()
+            binding_entries = @()
+        }
+        bringup = [ordered]@{
+            counts = [ordered]@{
+                ordered_node_count = 0
+                blocked_node_count = 0
+            }
+            phase_counts = [ordered]@{}
+            blocked_nodes = @()
+            entries = @()
+        }
+        formation = [ordered]@{
+            status = $null
+            formation_basis = [ordered]@{
+                case_kind = $null
+                declared_fact_count = 0
+                declared_contract_count = 0
+                subject_fact_count = 0
+            }
+            binding_summary = [ordered]@{
+                required_binding_count = 0
+                resolved_binding_count = 0
+                unresolved_binding_count = 0
+                unresolved_capabilities = @()
+            }
+            bringup_summary = [ordered]@{
+                ordered_node_count = 0
+                blocked_node_count = 0
+                blocked_nodes = @()
+            }
+            blocker_count = 0
+            blockers = @()
+        }
+    }
+}
+
+function Get-ReportBlockedBringupNodes {
+    param(
+        $BringupOrderLike
+    )
+
+    if ($null -eq $BringupOrderLike) {
+        return @()
+    }
+
+    $blockedNodes = @(
+        @(Get-OptionalMemberValue -Object $BringupOrderLike -Name 'blocked_nodes') |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            ForEach-Object { [string]$_ }
+    )
+    if (@($blockedNodes).Count -gt 0) {
+        return @($blockedNodes | Sort-Object -Unique)
+    }
+
+    return @(
+        @(Get-OptionalMemberValue -Object $BringupOrderLike -Name 'entries') |
+            Where-Object { [string]$_.state -eq 'blocked' } |
+            ForEach-Object { [string]$_.node } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            Sort-Object -Unique
+    )
+}
+
+function New-ReportBindingBringupProjection {
+    param(
+        $ReportData
+    )
+
+    if ($null -eq $ReportData) {
+        return New-EmptyReportBindingBringupProjection
+    }
+
+    $bindingResult = if ($null -ne $ReportData.PSObject.Properties['binding_result'] -and $null -ne $ReportData.binding_result) {
+        $ReportData.binding_result
+    } else {
+        $null
+    }
+    $systemFormation = if ($null -ne $ReportData.PSObject.Properties['system_formation'] -and $null -ne $ReportData.system_formation) {
+        $ReportData.system_formation
+    } else {
+        $null
+    }
+    $formationBinding = if ($null -ne $systemFormation -and $null -ne $systemFormation.PSObject.Properties['binding_summary']) {
+        $systemFormation.binding_summary
+    } else {
+        $null
+    }
+    $bringupOrder = if ($null -ne $ReportData.PSObject.Properties['bringup_order'] -and $null -ne $ReportData.bringup_order) {
+        $ReportData.bringup_order
+    } else {
+        $null
+    }
+    $formationBringup = if ($null -ne $systemFormation -and $null -ne $systemFormation.PSObject.Properties['bringup_summary']) {
+        $systemFormation.bringup_summary
+    } else {
+        $null
+    }
+
+    $bindingSource = if ($null -ne $bindingResult) { $bindingResult } elseif ($null -ne $formationBinding) { $formationBinding } else { New-EmptyBindingResultSummary }
+    $bringupSource = if ($null -ne $bringupOrder) { $bringupOrder } elseif ($null -ne $formationBringup) { $formationBringup } else { New-EmptyBringupOrderSummary }
+
+    $bindingEntries = if ($null -ne $bindingResult -and $null -ne $bindingResult.PSObject.Properties['binding_entries']) {
+        @($bindingResult.binding_entries)
+    } else {
+        @()
+    }
+    $resolvedCapabilities = if ($null -ne $bindingResult -and $null -ne $bindingResult.PSObject.Properties['resolved_capabilities']) {
+        @($bindingResult.resolved_capabilities)
+    } else {
+        @()
+    }
+    $unresolvedCapabilities = if ($null -ne $bindingResult -and $null -ne $bindingResult.PSObject.Properties['unresolved_capabilities']) {
+        @($bindingResult.unresolved_capabilities)
+    } elseif ($null -ne $formationBinding -and $null -ne $formationBinding.PSObject.Properties['unresolved_capabilities']) {
+        @($formationBinding.unresolved_capabilities)
+    } else {
+        @()
+    }
+
+    $bringupEntries = if ($null -ne $bringupOrder -and $null -ne $bringupOrder.PSObject.Properties['entries']) {
+        @($bringupOrder.entries)
+    } else {
+        @()
+    }
+    $phaseCounts = if ($null -ne $bringupOrder -and $null -ne $bringupOrder.PSObject.Properties['phase_counts']) {
+        Copy-OrderedCountMap -CountMapLike $bringupOrder.phase_counts
+    } else {
+        [ordered]@{}
+    }
+    $blockedNodes = if (@($bringupEntries).Count -gt 0) {
+        @(
+            @($bringupEntries) |
+                Where-Object { [string]$_.state -eq 'blocked' } |
+                ForEach-Object { [string]$_.node } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                Sort-Object -Unique
+        )
+    } else {
+        Get-ReportBlockedBringupNodes -BringupOrderLike $bringupOrder
+    }
+
+    $formationBasis = if ($null -ne $systemFormation -and $null -ne $systemFormation.PSObject.Properties['formation_basis']) {
+        [ordered]@{
+            case_kind = if ($null -eq $systemFormation.formation_basis) { $null } else { [string]$systemFormation.formation_basis.case_kind }
+            declared_fact_count = if ($null -eq $systemFormation.formation_basis) { 0 } else { [int]$systemFormation.formation_basis.declared_fact_count }
+            declared_contract_count = if ($null -eq $systemFormation.formation_basis) { 0 } else { [int]$systemFormation.formation_basis.declared_contract_count }
+            subject_fact_count = if ($null -eq $systemFormation.formation_basis) { 0 } else { [int]$systemFormation.formation_basis.subject_fact_count }
+        }
+    } else {
+        [ordered]@{
+            case_kind = $null
+            declared_fact_count = 0
+            declared_contract_count = 0
+            subject_fact_count = 0
+        }
+    }
+
+    $formationBindingSummary = if ($null -ne $systemFormation -and $null -ne $systemFormation.PSObject.Properties['binding_summary']) {
+        [ordered]@{
+            required_binding_count = [int]$systemFormation.binding_summary.required_binding_count
+            resolved_binding_count = [int]$systemFormation.binding_summary.resolved_binding_count
+            unresolved_binding_count = [int]$systemFormation.binding_summary.unresolved_binding_count
+            unresolved_capabilities = @($systemFormation.binding_summary.unresolved_capabilities)
+        }
+    } else {
+        [ordered]@{
+            required_binding_count = [int]$bindingSource.required_binding_count
+            resolved_binding_count = [int]$bindingSource.resolved_binding_count
+            unresolved_binding_count = [int]$bindingSource.unresolved_binding_count
+            unresolved_capabilities = @($unresolvedCapabilities)
+        }
+    }
+
+    $formationBringupSummary = if ($null -ne $systemFormation -and $null -ne $systemFormation.PSObject.Properties['bringup_summary']) {
+        [ordered]@{
+            ordered_node_count = [int]$systemFormation.bringup_summary.ordered_node_count
+            blocked_node_count = [int]$systemFormation.bringup_summary.blocked_node_count
+            blocked_nodes = @($systemFormation.bringup_summary.blocked_nodes)
+        }
+    } else {
+        [ordered]@{
+            ordered_node_count = [int]$bringupSource.ordered_node_count
+            blocked_node_count = [int]$bringupSource.blocked_node_count
+            blocked_nodes = @($blockedNodes)
+        }
+    }
+
+    $formationBlocks = if ($null -ne $systemFormation -and $null -ne $systemFormation.PSObject.Properties['blockers']) {
+        @($systemFormation.blockers)
+    } else {
+        @()
+    }
+
+    return [ordered]@{
+        binding = [ordered]@{
+            source = $bindingSource
+            counts = [ordered]@{
+                required_binding_count = [int]$bindingSource.required_binding_count
+                resolved_binding_count = [int]$bindingSource.resolved_binding_count
+                unresolved_binding_count = [int]$bindingSource.unresolved_binding_count
+            }
+            resolved_capabilities = @($resolvedCapabilities)
+            unresolved_capabilities = @($unresolvedCapabilities)
+            entries = @($bindingEntries)
+        }
+        bringup = [ordered]@{
+            source = $bringupSource
+            counts = [ordered]@{
+                ordered_node_count = [int]$bringupSource.ordered_node_count
+                blocked_node_count = [int]$bringupSource.blocked_node_count
+            }
+            phase_counts = $phaseCounts
+            blocked_nodes = @($blockedNodes)
+            entries = @($bringupEntries)
+        }
+        formation = [ordered]@{
+            status = if ($null -ne $systemFormation) { [string]$systemFormation.status } else { $null }
+            formation_basis = $formationBasis
+            binding_summary = $formationBindingSummary
+            bringup_summary = $formationBringupSummary
+            blocker_count = if ($null -ne $systemFormation) { [int]$systemFormation.blocker_count } else { 0 }
+            blockers = @($formationBlocks)
+        }
+    }
 }
 
 function Get-GraphProvidedFacts {
@@ -1481,22 +1909,83 @@ function New-ResourceContractEntrySummary {
     }
 }
 
-function New-ResourceSummaryResult {
+function New-ReportResourceProjection {
     param(
         $ReportData,
         $GraphInfo
     )
 
+    if ($null -eq $ReportData) {
+        return [ordered]@{
+            resource_contract = [ordered]@{
+                declared_contracts = 0
+                declared_contract_entries = @()
+                provided_facts = @()
+                audited_count = 0
+                satisfied_count = 0
+                violated_count = 0
+                unknown_count = 0
+                satisfied_contracts = @()
+                violations = @()
+                unknown_contracts = @()
+                resource_hotspots = @()
+            }
+            fact_resolution = [ordered]@{
+                declared_contracts = 0
+                audited_count = 0
+                satisfied_count = 0
+                violated_count = 0
+                unknown_count = 0
+                fact_inventory = [ordered]@{
+                    declared_facts = @()
+                    subject_facts = @()
+                    required_facts = @()
+                    graph_provided_facts = @()
+                    audit_provided_facts = @()
+                    all_available_facts = @()
+                }
+                required_fact_resolution = @()
+                contracts = @()
+                satisfied_contracts = @()
+                violations = @()
+                unknown_contracts = @()
+                resource_hotspots = @()
+            }
+        }
+    }
+
+    $resourceContract = if ($null -ne $ReportData.PSObject.Properties['resource_contract'] -and
+        $null -ne $ReportData.resource_contract) {
+        $ReportData.resource_contract
+    } else {
+        [ordered]@{
+            declared_contracts = 0
+            declared_contract_entries = @()
+            provided_facts = @()
+            audited_count = 0
+            satisfied_count = 0
+            violated_count = 0
+            unknown_count = 0
+            satisfied_contracts = @()
+            violations = @()
+            unknown_contracts = @()
+            resource_hotspots = @()
+        }
+    }
+
     if ($null -ne $ReportData -and
         $null -ne $ReportData.PSObject.Properties['fact_resolution'] -and
         $null -ne $ReportData.fact_resolution) {
-        return $ReportData.fact_resolution
+        return [ordered]@{
+            resource_contract = $resourceContract
+            fact_resolution = $ReportData.fact_resolution
+        }
     }
 
     $factInventory = New-ResourceFactInventory -ReportData $ReportData -GraphInfo $GraphInfo
     $factSourceMap = Get-ResourceFactSourceMap -FactInventory $factInventory
     $contracts = @()
-    foreach ($contractEntry in @($ReportData.resource_contract.declared_contract_entries)) {
+    foreach ($contractEntry in @($resourceContract.declared_contract_entries)) {
         $entrySummary = New-ResourceContractEntrySummary -ContractEntry $contractEntry -FactSourceMap $factSourceMap
         if ($null -ne $entrySummary) {
             $contracts += $entrySummary
@@ -1504,18 +1993,31 @@ function New-ResourceSummaryResult {
     }
 
     return [ordered]@{
-        declared_contracts = [int]$ReportData.resource_contract.declared_contracts
-        audited_count = [int]$ReportData.resource_contract.audited_count
-        satisfied_count = [int]$ReportData.resource_contract.satisfied_count
-        violated_count = [int]$ReportData.resource_contract.violated_count
-        unknown_count = [int]$ReportData.resource_contract.unknown_count
-        fact_inventory = $factInventory
-        contracts = @($contracts | Sort-Object contract)
-        satisfied_contracts = @($ReportData.resource_contract.satisfied_contracts)
-        violations = @($ReportData.resource_contract.violations)
-        unknown_contracts = @($ReportData.resource_contract.unknown_contracts)
-        resource_hotspots = @($ReportData.resource_contract.resource_hotspots)
+        resource_contract = $resourceContract
+        fact_resolution = [ordered]@{
+            declared_contracts = [int]$resourceContract.declared_contracts
+            audited_count = [int]$resourceContract.audited_count
+            satisfied_count = [int]$resourceContract.satisfied_count
+            violated_count = [int]$resourceContract.violated_count
+            unknown_count = [int]$resourceContract.unknown_count
+            fact_inventory = $factInventory
+            contracts = @($contracts | Sort-Object contract)
+            satisfied_contracts = @($resourceContract.satisfied_contracts)
+            violations = @($resourceContract.violations)
+            unknown_contracts = @($resourceContract.unknown_contracts)
+            resource_hotspots = @($resourceContract.resource_hotspots)
+        }
     }
+}
+
+function New-ResourceSummaryResult {
+    param(
+        $ReportData,
+        $GraphInfo
+    )
+
+    $resourceProjection = New-ReportResourceProjection -ReportData $ReportData -GraphInfo $GraphInfo
+    return $resourceProjection.fact_resolution
 }
 
 function New-ArtifactRootFactResolutionCaseSummary {
@@ -1525,7 +2027,8 @@ function New-ArtifactRootFactResolutionCaseSummary {
 
     $report = $LoadedReport.Data
     $graphInfo = Load-GraphFromArtifactReport -ReportData $report
-    $resourceSummary = New-ResourceSummaryResult -ReportData $report -GraphInfo $graphInfo
+    $resourceProjection = New-ReportResourceProjection -ReportData $report -GraphInfo $graphInfo
+    $resourceSummary = $resourceProjection.fact_resolution
     $requiredFactResolution = if ($null -ne $resourceSummary.PSObject.Properties['required_fact_resolution']) {
         @($resourceSummary.required_fact_resolution)
     } else {
@@ -2087,7 +2590,8 @@ function New-ArtifactRootSystemInputContractMatrixEntry {
 
 function New-ArtifactRootSystemInputCaseSummary {
     param(
-        $LoadedReport
+        $LoadedReport,
+        $ProjectionContext = $null
     )
 
     if ($null -eq $LoadedReport -or $null -eq $LoadedReport.Data) {
@@ -2095,24 +2599,24 @@ function New-ArtifactRootSystemInputCaseSummary {
     }
 
     $report = $LoadedReport.Data
-    if ($null -eq $report.PSObject.Properties['system_input'] -or $null -eq $report.system_input) {
+    $projection = if ($null -ne $ProjectionContext) { $ProjectionContext } else { New-ReportSystemInputProjection -ReportData $report }
+    if ($null -eq $projection) {
         return $null
     }
 
-    $systemInput = $report.system_input
-    $systemSpec = if ($null -ne $systemInput.PSObject.Properties['system_spec']) { $systemInput.system_spec } else { $null }
-    $declaredInput = if ($null -ne $systemInput.PSObject.Properties['declared_input']) { $systemInput.declared_input } else { $null }
+    $systemSpec = $projection.system_spec
+    $declaredInput = $projection.declared_input
     $declaredSubject = if ($null -ne $declaredInput -and $null -ne $declaredInput.PSObject.Properties['subject']) { $declaredInput.subject } else { $null }
-    $resolvedInput = if ($null -ne $systemInput.PSObject.Properties['resolved_input']) { $systemInput.resolved_input } else { $null }
+    $resolvedInput = $projection.resolved_input
     $resolvedProfile = if ($null -ne $resolvedInput -and $null -ne $resolvedInput.PSObject.Properties['profile']) { $resolvedInput.profile } else { $null }
     $resolvedBoard = if ($null -ne $resolvedInput -and $null -ne $resolvedInput.PSObject.Properties['board']) { $resolvedInput.board } else { $null }
     $resolvedFacets = if ($null -ne $resolvedInput -and $null -ne $resolvedInput.PSObject.Properties['active_facets']) { $resolvedInput.active_facets } else { $null }
 
     return [pscustomobject][ordered]@{
-        case = [string]$report.subject.case
-        profile = [string]$report.subject.profile
-        board = [string]$report.subject.board
-        active_facets = @($report.subject.active_facets)
+        case = [string]$projection.subject.case
+        profile = [string]$projection.subject.profile
+        board = [string]$projection.subject.board
+        active_facets = @($projection.subject.active_facets)
         case_kind = if ($null -eq $systemSpec -or [string]::IsNullOrWhiteSpace([string]$systemSpec.case_kind)) { $null } else { [string]$systemSpec.case_kind }
         source = if ($null -eq $systemSpec -or [string]::IsNullOrWhiteSpace([string]$systemSpec.source)) { $null } else { [string]$systemSpec.source }
         build_target = if ($null -eq $systemSpec -or [string]::IsNullOrWhiteSpace([string]$systemSpec.build_target)) { $null } else { [string]$systemSpec.build_target }
@@ -2622,7 +3126,8 @@ function New-ArtifactRootSystemInputComparisonResult {
 
 function New-ArtifactRootBindingResultCaseSummary {
     param(
-        $LoadedReport
+        $LoadedReport,
+        $ProjectionContext = $null
     )
 
     if ($null -eq $LoadedReport -or $null -eq $LoadedReport.Data) {
@@ -2630,19 +3135,29 @@ function New-ArtifactRootBindingResultCaseSummary {
     }
 
     $report = $LoadedReport.Data
-    $bindingResult = Get-BindingResultFromReport -ReportData $report
+    if ($null -eq $report.PSObject.Properties['system_formation'] -or $null -eq $report.system_formation) {
+        return $null
+    }
+    $systemInputProjection = New-ReportSystemInputProjection -ReportData $report
+    $subjectProjection = if ($null -ne $systemInputProjection -and $null -ne $systemInputProjection.subject) {
+        $systemInputProjection.subject
+    } else {
+        $report.subject
+    }
+    $projection = if ($null -ne $ProjectionContext) { $ProjectionContext } else { New-ReportBindingBringupProjection -ReportData $report }
+    $bindingResult = $projection.binding
 
     return [pscustomobject][ordered]@{
-        case = [string]$report.subject.case
-        profile = [string]$report.subject.profile
-        board = [string]$report.subject.board
-        active_facets = @($report.subject.active_facets)
-        required_binding_count = [int]$bindingResult.required_binding_count
-        resolved_binding_count = [int]$bindingResult.resolved_binding_count
-        unresolved_binding_count = [int]$bindingResult.unresolved_binding_count
+        case = [string]$subjectProjection.case
+        profile = [string]$subjectProjection.profile
+        board = [string]$subjectProjection.board
+        active_facets = @($subjectProjection.active_facets)
+        required_binding_count = [int]$bindingResult.counts.required_binding_count
+        resolved_binding_count = [int]$bindingResult.counts.resolved_binding_count
+        unresolved_binding_count = [int]$bindingResult.counts.unresolved_binding_count
         resolved_capabilities = @($bindingResult.resolved_capabilities)
         unresolved_capabilities = @($bindingResult.unresolved_capabilities)
-        binding_entries = @($bindingResult.binding_entries)
+        binding_entries = @($bindingResult.entries)
     }
 }
 
@@ -2786,7 +3301,8 @@ function New-ArtifactRootBindingResultSummaryResult {
 
 function New-ArtifactRootBringupOrderCaseSummary {
     param(
-        $LoadedReport
+        $LoadedReport,
+        $ProjectionContext = $null
     )
 
     if ($null -eq $LoadedReport -or $null -eq $LoadedReport.Data) {
@@ -2794,23 +3310,24 @@ function New-ArtifactRootBringupOrderCaseSummary {
     }
 
     $report = $LoadedReport.Data
-    $bringupOrder = Get-BringupOrderFromReport -ReportData $report
+    $systemInputProjection = New-ReportSystemInputProjection -ReportData $report
+    $subjectProjection = if ($null -ne $systemInputProjection -and $null -ne $systemInputProjection.subject) {
+        $systemInputProjection.subject
+    } else {
+        $report.subject
+    }
+    $projection = if ($null -ne $ProjectionContext) { $ProjectionContext } else { New-ReportBindingBringupProjection -ReportData $report }
+    $bringupOrder = $projection.bringup
 
     return [pscustomobject][ordered]@{
-        case = [string]$report.subject.case
-        profile = [string]$report.subject.profile
-        board = [string]$report.subject.board
-        active_facets = @($report.subject.active_facets)
-        ordered_node_count = [int]$bringupOrder.ordered_node_count
-        blocked_node_count = [int]$bringupOrder.blocked_node_count
+        case = [string]$subjectProjection.case
+        profile = [string]$subjectProjection.profile
+        board = [string]$subjectProjection.board
+        active_facets = @($subjectProjection.active_facets)
+        ordered_node_count = [int]$bringupOrder.counts.ordered_node_count
+        blocked_node_count = [int]$bringupOrder.counts.blocked_node_count
         phase_counts = $bringupOrder.phase_counts
-        blocked_nodes = @(
-            @($bringupOrder.entries) |
-                Where-Object { [string]$_.state -eq 'blocked' } |
-                ForEach-Object { [string]$_.node } |
-                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
-                Sort-Object -Unique
-        )
+        blocked_nodes = @($bringupOrder.blocked_nodes)
         entries = @($bringupOrder.entries)
     }
 }
@@ -2931,7 +3448,7 @@ function New-ArtifactRootBringupOrderSummaryResult {
             continue
         }
 
-        foreach ($phaseEntry in @($caseSummary.phase_counts.PSObject.Properties)) {
+        foreach ($phaseEntry in @(Get-MapEntries -Map $caseSummary.phase_counts)) {
             Add-AggregatedCountMapEntry -Counts $phaseCounts -Name ([string]$phaseEntry.Name) -Amount ([int]$phaseEntry.Value)
         }
     }
@@ -3637,7 +4154,7 @@ function Get-CapabilityEvidence {
     $unresolved = @($ReportData.structure.unresolved_bindings) -contains $CapabilityName
     $declaredFact = @($ReportData.structure.declared_facts) -contains $CapabilityName
     $requiredFact = @($ReportData.structure.required_facts) -contains $CapabilityName
-    $resourceMentions = Get-ResourceContractMentions -ReportData $ReportData -CapabilityName $CapabilityName
+    $resourceMentions = Get-ResourceContractMentions -ReportData $ReportData -GraphInfo $GraphInfo -CapabilityName $CapabilityName
     $materialized = if ($null -ne $entry -and $null -ne $entry.PSObject.Properties['materialized']) {
         [bool]$entry.materialized
     } else {
@@ -4251,7 +4768,8 @@ function Get-CapListEntries {
     )
 
     $entries = @()
-    foreach ($capabilityName in @(Get-ReportCapabilityNames -ReportData $ReportData -GraphInfo $GraphInfo)) {
+    $resourceProjection = New-ReportResourceProjection -ReportData $ReportData -GraphInfo $GraphInfo
+    foreach ($capabilityName in @(Get-ReportCapabilityNames -ReportData $ReportData -GraphInfo $GraphInfo -ResourceProjection $resourceProjection)) {
         $entries += New-CapListEntry -ReportData $ReportData -GraphInfo $GraphInfo -CapabilityName $capabilityName
     }
 
@@ -4675,7 +5193,8 @@ function New-CapListArtifactRootView {
 
 function New-ArtifactRootSystemFormationCaseSummary {
     param(
-        $LoadedReport
+        $LoadedReport,
+        $ProjectionContext = $null
     )
 
     if ($null -eq $LoadedReport -or $null -eq $LoadedReport.Data) {
@@ -4683,44 +5202,51 @@ function New-ArtifactRootSystemFormationCaseSummary {
     }
 
     $report = $LoadedReport.Data
-    if ($null -eq $report.PSObject.Properties['system_formation'] -or $null -eq $report.system_formation) {
+    $systemInputProjection = New-ReportSystemInputProjection -ReportData $report
+    $subjectProjection = if ($null -ne $systemInputProjection -and $null -ne $systemInputProjection.subject) {
+        $systemInputProjection.subject
+    } else {
+        $report.subject
+    }
+    $projection = if ($null -ne $ProjectionContext) { $ProjectionContext } else { New-ReportBindingBringupProjection -ReportData $report }
+    $formation = $projection.formation
+    if ($null -eq $formation) {
         return $null
     }
 
-    $formation = $report.system_formation
     return [pscustomobject][ordered]@{
-        case = [string]$report.subject.case
-        profile = [string]$report.subject.profile
-        board = [string]$report.subject.board
-        active_facets = @($report.subject.active_facets)
+        case = [string]$subjectProjection.case
+        profile = [string]$subjectProjection.profile
+        board = [string]$subjectProjection.board
+        active_facets = @($subjectProjection.active_facets)
         status = [string]$formation.status
-        case_kind = if ($null -ne $formation.PSObject.Properties['formation_basis'] -and $null -ne $formation.formation_basis) { [string]$formation.formation_basis.case_kind } else { $null }
-        declared_fact_count = if ($null -ne $formation.PSObject.Properties['formation_basis'] -and $null -ne $formation.formation_basis) { [int]$formation.formation_basis.declared_fact_count } else { 0 }
-        declared_contract_count = if ($null -ne $formation.PSObject.Properties['formation_basis'] -and $null -ne $formation.formation_basis) { [int]$formation.formation_basis.declared_contract_count } else { 0 }
-        subject_fact_count = if ($null -ne $formation.PSObject.Properties['formation_basis'] -and $null -ne $formation.formation_basis) { [int]$formation.formation_basis.subject_fact_count } else { 0 }
+        case_kind = if ($null -ne $formation.formation_basis) { [string]$formation.formation_basis.case_kind } else { $null }
+        declared_fact_count = if ($null -ne $formation.formation_basis) { [int]$formation.formation_basis.declared_fact_count } else { 0 }
+        declared_contract_count = if ($null -ne $formation.formation_basis) { [int]$formation.formation_basis.declared_contract_count } else { 0 }
+        subject_fact_count = if ($null -ne $formation.formation_basis) { [int]$formation.formation_basis.subject_fact_count } else { 0 }
         formation_basis = [ordered]@{
-            case_kind = if ($null -ne $formation.PSObject.Properties['formation_basis'] -and $null -ne $formation.formation_basis) { [string]$formation.formation_basis.case_kind } else { $null }
-            declared_fact_count = if ($null -ne $formation.PSObject.Properties['formation_basis'] -and $null -ne $formation.formation_basis) { [int]$formation.formation_basis.declared_fact_count } else { 0 }
-            declared_contract_count = if ($null -ne $formation.PSObject.Properties['formation_basis'] -and $null -ne $formation.formation_basis) { [int]$formation.formation_basis.declared_contract_count } else { 0 }
-            subject_fact_count = if ($null -ne $formation.PSObject.Properties['formation_basis'] -and $null -ne $formation.formation_basis) { [int]$formation.formation_basis.subject_fact_count } else { 0 }
+            case_kind = if ($null -ne $formation.formation_basis) { [string]$formation.formation_basis.case_kind } else { $null }
+            declared_fact_count = if ($null -ne $formation.formation_basis) { [int]$formation.formation_basis.declared_fact_count } else { 0 }
+            declared_contract_count = if ($null -ne $formation.formation_basis) { [int]$formation.formation_basis.declared_contract_count } else { 0 }
+            subject_fact_count = if ($null -ne $formation.formation_basis) { [int]$formation.formation_basis.subject_fact_count } else { 0 }
         }
-        required_binding_count = if ($null -ne $formation.PSObject.Properties['binding_summary'] -and $null -ne $formation.binding_summary) { [int]$formation.binding_summary.required_binding_count } else { 0 }
-        resolved_binding_count = if ($null -ne $formation.PSObject.Properties['binding_summary'] -and $null -ne $formation.binding_summary) { [int]$formation.binding_summary.resolved_binding_count } else { 0 }
-        unresolved_binding_count = if ($null -ne $formation.PSObject.Properties['binding_summary'] -and $null -ne $formation.binding_summary) { [int]$formation.binding_summary.unresolved_binding_count } else { 0 }
-        unresolved_capabilities = if ($null -ne $formation.PSObject.Properties['binding_summary'] -and $null -ne $formation.binding_summary) { @($formation.binding_summary.unresolved_capabilities) } else { @() }
+        required_binding_count = if ($null -ne $formation.binding_summary) { [int]$formation.binding_summary.required_binding_count } else { 0 }
+        resolved_binding_count = if ($null -ne $formation.binding_summary) { [int]$formation.binding_summary.resolved_binding_count } else { 0 }
+        unresolved_binding_count = if ($null -ne $formation.binding_summary) { [int]$formation.binding_summary.unresolved_binding_count } else { 0 }
+        unresolved_capabilities = if ($null -ne $formation.binding_summary) { @($formation.binding_summary.unresolved_capabilities) } else { @() }
         binding_summary = [ordered]@{
-            required_binding_count = if ($null -ne $formation.PSObject.Properties['binding_summary'] -and $null -ne $formation.binding_summary) { [int]$formation.binding_summary.required_binding_count } else { 0 }
-            resolved_binding_count = if ($null -ne $formation.PSObject.Properties['binding_summary'] -and $null -ne $formation.binding_summary) { [int]$formation.binding_summary.resolved_binding_count } else { 0 }
-            unresolved_binding_count = if ($null -ne $formation.PSObject.Properties['binding_summary'] -and $null -ne $formation.binding_summary) { [int]$formation.binding_summary.unresolved_binding_count } else { 0 }
-            unresolved_capabilities = if ($null -ne $formation.PSObject.Properties['binding_summary'] -and $null -ne $formation.binding_summary) { @($formation.binding_summary.unresolved_capabilities) } else { @() }
+            required_binding_count = if ($null -ne $formation.binding_summary) { [int]$formation.binding_summary.required_binding_count } else { 0 }
+            resolved_binding_count = if ($null -ne $formation.binding_summary) { [int]$formation.binding_summary.resolved_binding_count } else { 0 }
+            unresolved_binding_count = if ($null -ne $formation.binding_summary) { [int]$formation.binding_summary.unresolved_binding_count } else { 0 }
+            unresolved_capabilities = if ($null -ne $formation.binding_summary) { @($formation.binding_summary.unresolved_capabilities) } else { @() }
         }
-        ordered_node_count = if ($null -ne $formation.PSObject.Properties['bringup_summary'] -and $null -ne $formation.bringup_summary) { [int]$formation.bringup_summary.ordered_node_count } else { 0 }
-        blocked_node_count = if ($null -ne $formation.PSObject.Properties['bringup_summary'] -and $null -ne $formation.bringup_summary) { [int]$formation.bringup_summary.blocked_node_count } else { 0 }
-        blocked_nodes = if ($null -ne $formation.PSObject.Properties['bringup_summary'] -and $null -ne $formation.bringup_summary) { @($formation.bringup_summary.blocked_nodes) } else { @() }
+        ordered_node_count = if ($null -ne $formation.bringup_summary) { [int]$formation.bringup_summary.ordered_node_count } else { 0 }
+        blocked_node_count = if ($null -ne $formation.bringup_summary) { [int]$formation.bringup_summary.blocked_node_count } else { 0 }
+        blocked_nodes = if ($null -ne $formation.bringup_summary) { @($formation.bringup_summary.blocked_nodes) } else { @() }
         bringup_summary = [ordered]@{
-            ordered_node_count = if ($null -ne $formation.PSObject.Properties['bringup_summary'] -and $null -ne $formation.bringup_summary) { [int]$formation.bringup_summary.ordered_node_count } else { 0 }
-            blocked_node_count = if ($null -ne $formation.PSObject.Properties['bringup_summary'] -and $null -ne $formation.bringup_summary) { [int]$formation.bringup_summary.blocked_node_count } else { 0 }
-            blocked_nodes = if ($null -ne $formation.PSObject.Properties['bringup_summary'] -and $null -ne $formation.bringup_summary) { @($formation.bringup_summary.blocked_nodes) } else { @() }
+            ordered_node_count = if ($null -ne $formation.bringup_summary) { [int]$formation.bringup_summary.ordered_node_count } else { 0 }
+            blocked_node_count = if ($null -ne $formation.bringup_summary) { [int]$formation.bringup_summary.blocked_node_count } else { 0 }
+            blocked_nodes = if ($null -ne $formation.bringup_summary) { @($formation.bringup_summary.blocked_nodes) } else { @() }
         }
         blocker_count = [int]$formation.blocker_count
         blockers = @($formation.blockers)
@@ -5637,10 +6163,21 @@ function New-ArtifactRootSystemCompilerCaseProjection {
     }
 
     $report = $LoadedReport.Data
-    $systemInputSummary = New-ArtifactRootSystemInputCaseSummary -LoadedReport $LoadedReport
-    $bindingResultSummary = New-ArtifactRootBindingResultCaseSummary -LoadedReport $LoadedReport
-    $bringupOrderSummary = New-ArtifactRootBringupOrderCaseSummary -LoadedReport $LoadedReport
-    $systemFormationSummary = New-ArtifactRootSystemFormationCaseSummary -LoadedReport $LoadedReport
+    $graphInfo = Load-GraphFromArtifactReport -ReportData $report
+    $systemInputProjection = New-ReportSystemInputProjection -ReportData $report
+    $bindingBringupProjection = New-ReportBindingBringupProjection -ReportData $report
+    $resourceProjection = New-ReportResourceProjection -ReportData $report -GraphInfo $graphInfo
+    $systemInputSummary = New-ArtifactRootSystemInputCaseSummary -LoadedReport $LoadedReport -ProjectionContext $systemInputProjection
+    $bindingResultSummary = New-ArtifactRootBindingResultCaseSummary -LoadedReport $LoadedReport -ProjectionContext $bindingBringupProjection
+    $bringupOrderSummary = New-ArtifactRootBringupOrderCaseSummary -LoadedReport $LoadedReport -ProjectionContext $bindingBringupProjection
+    $systemFormationSummary = New-ArtifactRootSystemFormationCaseSummary -LoadedReport $LoadedReport -ProjectionContext $bindingBringupProjection
+    $systemInputComparison = Get-SystemInputComparisonFromReport -ReportData $report
+    $systemFormationComparison = Get-SystemFormationComparisonFromReport -ReportData $report
+    $bindingResultComparison = Get-BindingResultComparisonFromReport -ReportData $report
+    $bringupOrderComparison = Get-BringupOrderComparisonFromReport -ReportData $report
+    $bringupComparison = Get-BringupEvidenceComparisonFromReport -ReportData $report
+    $resourceComparison = Get-ResourceContractComparisonFromReport -ReportData $report
+    $factResolutionComparison = Get-FactResolutionComparisonFromReport -ReportData $report
 
     if ($null -eq $systemInputSummary -and
         $null -eq $bindingResultSummary -and
@@ -5703,8 +6240,14 @@ function New-ArtifactRootSystemCompilerCaseProjection {
         $null
     }
 
+    $subjectProjection = if ($null -ne $systemInputProjection -and $null -ne $systemInputProjection.subject) {
+        $systemInputProjection.subject
+    } else {
+        New-ArtifactRootSystemCompilerSubjectProjection -Report $report
+    }
+
     return [pscustomobject][ordered]@{
-        subject = New-ArtifactRootSystemCompilerSubjectProjection -Report $report
+        subject = $subjectProjection
         stages = [ordered]@{
             system_input = $systemInputSummary
             binding_result = $bindingResultSummary
@@ -5715,6 +6258,31 @@ function New-ArtifactRootSystemCompilerCaseProjection {
             formation_basis = $formationBasis
             binding_summary = $bindingSummary
             bringup_summary = $bringupSummary
+        }
+        root_summary = [ordered]@{
+            mode = [string]$report.mode
+            structure = [ordered]@{
+                node_count = [int]$report.structure.node_count
+                edge_count = [int]$report.structure.edge_count
+                unresolved_binding_count = [int]@($report.structure.unresolved_bindings).Count
+            }
+            resource_contract = [ordered]@{
+                declared_contracts = if ($null -eq $resourceProjection) { 0 } else { [int]$resourceProjection.resource_contract.declared_contracts }
+                satisfied_count = if ($null -eq $resourceProjection) { 0 } else { [int]$resourceProjection.resource_contract.satisfied_count }
+                violated_count = if ($null -eq $resourceProjection) { 0 } else { [int]$resourceProjection.resource_contract.violated_count }
+                unknown_count = if ($null -eq $resourceProjection) { 0 } else { [int]$resourceProjection.resource_contract.unknown_count }
+            }
+            comparison = [ordered]@{
+                status = Get-ComparisonStatus -ReportData $report
+                metadata_change_count = Get-MetadataChangeCount -ReportData $report
+                system_input_change_count = Get-SystemInputComparisonChangeCount -SystemInputComparison $systemInputComparison
+                system_formation_change_count = Get-SystemFormationComparisonChangeCount -SystemFormationComparison $systemFormationComparison
+                binding_change_count = if ($null -ne $bindingResultComparison -and [bool]$bindingResultComparison.changed) { [int]@($bindingResultComparison.binding_changes).Count } else { 0 }
+                bringup_order_change_count = if ($null -ne $bringupOrderComparison -and [bool]$bringupOrderComparison.changed) { [int]@($bringupOrderComparison.entry_changes).Count } else { 0 }
+                bringup_evidence_change_count = if ($null -ne $bringupComparison -and [bool]$bringupComparison.changed) { [int]@($bringupComparison.capability_changes).Count } else { 0 }
+                resource_contract_change_count = if ($null -ne $resourceComparison -and [bool]$resourceComparison.changed) { [int]@($resourceComparison.contract_changes).Count } else { 0 }
+                fact_resolution_change_count = if ($null -ne $factResolutionComparison -and [bool]$factResolutionComparison.changed) { [int]@($factResolutionComparison.required_fact_resolution_changes).Count } else { 0 }
+            }
         }
         totals = [ordered]@{
             declared_fact_count = if ($null -eq $systemInputSummary) { 0 } else { [int]@($systemInputSummary.declared_facts).Count }
@@ -5789,6 +6357,47 @@ function New-ArtifactRootSystemCompilerCaseSummary {
     return Convert-ArtifactRootSystemCompilerCaseProjectionToSummary -CaseProjection (
         New-ArtifactRootSystemCompilerCaseProjection -LoadedReport $LoadedReport
     )
+}
+
+function Convert-ArtifactRootSystemCompilerCaseProjectionToOverviewRow {
+    param(
+        $CaseProjection
+    )
+
+    if ($null -eq $CaseProjection) {
+        return $null
+    }
+
+    $subject = $CaseProjection.subject
+    $rootSummary = $CaseProjection.root_summary
+    $structure = if ($null -eq $rootSummary) { $null } else { $rootSummary.structure }
+    $resourceContract = if ($null -eq $rootSummary) { $null } else { $rootSummary.resource_contract }
+    $comparison = if ($null -eq $rootSummary) { $null } else { $rootSummary.comparison }
+
+    return [pscustomobject]@{
+        Case = [string]$subject.case
+        Mode = if ($null -eq $rootSummary) { $null } else { [string]$rootSummary.mode }
+        Profile = [string]$subject.profile
+        Board = [string]$subject.board
+        Facets = Format-StringArray @($subject.active_facets)
+        Nodes = if ($null -eq $structure) { 0 } else { [int]$structure.node_count }
+        Edges = if ($null -eq $structure) { 0 } else { [int]$structure.edge_count }
+        Unresolved = if ($null -eq $structure) { 0 } else { [int]$structure.unresolved_binding_count }
+        Contracts = if ($null -eq $resourceContract) { 0 } else { [int]$resourceContract.declared_contracts }
+        Satisfied = if ($null -eq $resourceContract) { 0 } else { [int]$resourceContract.satisfied_count }
+        Violated = if ($null -eq $resourceContract) { 0 } else { [int]$resourceContract.violated_count }
+        Unknown = if ($null -eq $resourceContract) { 0 } else { [int]$resourceContract.unknown_count }
+        Formation = if ([string]::IsNullOrWhiteSpace([string]$CaseProjection.status)) { $null } else { [string]$CaseProjection.status }
+        Compare = if ($null -eq $comparison -or [string]::IsNullOrWhiteSpace([string]$comparison.status)) { $null } else { [string]$comparison.status }
+        Metadata = if ($null -eq $comparison) { 0 } else { [int]$comparison.metadata_change_count }
+        InpCmp = if ($null -eq $comparison) { 0 } else { [int]$comparison.system_input_change_count }
+        FormCmp = if ($null -eq $comparison) { 0 } else { [int]$comparison.system_formation_change_count }
+        BindCmp = if ($null -eq $comparison) { 0 } else { [int]$comparison.binding_change_count }
+        OrdCmp = if ($null -eq $comparison) { 0 } else { [int]$comparison.bringup_order_change_count }
+        BrCmp = if ($null -eq $comparison) { 0 } else { [int]$comparison.bringup_evidence_change_count }
+        ResCmp = if ($null -eq $comparison) { 0 } else { [int]$comparison.resource_contract_change_count }
+        FactCmp = if ($null -eq $comparison) { 0 } else { [int]$comparison.fact_resolution_change_count }
+    }
 }
 
 function New-ArtifactRootSystemCompilerBindingReasonMatrixEntry {
@@ -6206,6 +6815,25 @@ function New-ArtifactRootSystemCompilerAggregateProjection {
     }
 }
 
+function New-ArtifactRootSystemCompilerProjectionContext {
+    param(
+        [object[]]$LoadedReports,
+        [switch]$IncludeComparison
+    )
+
+    $summaryProjection = New-ArtifactRootSystemCompilerAggregateProjection -LoadedReports $LoadedReports
+    $comparisonProjection = if ($IncludeComparison) {
+        New-ArtifactRootSystemCompilerCompareAggregateProjection -LoadedReports $LoadedReports
+    } else {
+        $null
+    }
+
+    return [pscustomobject][ordered]@{
+        summary = $summaryProjection
+        comparison = $comparisonProjection
+    }
+}
+
 function New-ArtifactRootSystemCompilerResultMapFieldRelation {
     param(
         [string]$RootField,
@@ -6538,10 +7166,16 @@ function New-ArtifactRootSystemCompilerResultMap {
 
 function New-ArtifactRootSystemCompilerSummaryResult {
     param(
-        [object[]]$LoadedReports
+        [object[]]$LoadedReports,
+        $ProjectionContext = $null
     )
 
-    $aggregateProjection = New-ArtifactRootSystemCompilerAggregateProjection -LoadedReports $LoadedReports
+    $projectionContextValue = if ($null -ne $ProjectionContext) {
+        $ProjectionContext
+    } else {
+        New-ArtifactRootSystemCompilerProjectionContext -LoadedReports $LoadedReports
+    }
+    $aggregateProjection = $projectionContextValue.summary
     if ($null -eq $aggregateProjection) {
         return $null
     }
@@ -7402,10 +8036,20 @@ function New-ArtifactRootSystemCompilerStageChangeEntry {
 
 function New-ArtifactRootSystemCompilerComparisonResult {
     param(
-        [object[]]$LoadedReports
+        [object[]]$LoadedReports,
+        $ProjectionContext = $null
     )
 
-    $aggregateProjection = New-ArtifactRootSystemCompilerCompareAggregateProjection -LoadedReports $LoadedReports
+    $projectionContextValue = if ($null -ne $ProjectionContext) {
+        $ProjectionContext
+    } else {
+        New-ArtifactRootSystemCompilerProjectionContext -LoadedReports $LoadedReports -IncludeComparison
+    }
+    $aggregateProjection = if ($null -ne $projectionContextValue.comparison) {
+        $projectionContextValue.comparison
+    } else {
+        New-ArtifactRootSystemCompilerCompareAggregateProjection -LoadedReports $LoadedReports
+    }
     if ($null -eq $aggregateProjection) {
         return $null
     }
@@ -7675,7 +8319,8 @@ function New-BringupEvidenceResult {
     )
 
     $entries = @()
-    foreach ($capabilityName in @(Get-ReportCapabilityNames -ReportData $ReportData -GraphInfo $GraphInfo)) {
+    $resourceProjection = New-ReportResourceProjection -ReportData $ReportData -GraphInfo $GraphInfo
+    foreach ($capabilityName in @(Get-ReportCapabilityNames -ReportData $ReportData -GraphInfo $GraphInfo -ResourceProjection $resourceProjection)) {
         $entries += New-BringupEvidenceEntryResult -ReportData $ReportData -GraphInfo $GraphInfo -CapabilityName $capabilityName
     }
 
@@ -8744,38 +9389,9 @@ function New-CaseSummaryRow {
         $LoadedReport
     )
 
-    $report = $LoadedReport.Data
-    $systemInputComparison = Get-SystemInputComparisonFromReport -ReportData $report
-    $systemFormationComparison = Get-SystemFormationComparisonFromReport -ReportData $report
-    $bindingResultComparison = Get-BindingResultComparisonFromReport -ReportData $report
-    $bringupOrderComparison = Get-BringupOrderComparisonFromReport -ReportData $report
-    $bringupComparison = Get-BringupEvidenceComparisonFromReport -ReportData $report
-    $resourceComparison = Get-ResourceContractComparisonFromReport -ReportData $report
-    $factResolutionComparison = Get-FactResolutionComparisonFromReport -ReportData $report
-    return [pscustomobject]@{
-        Case = [string]$report.subject.case
-        Mode = [string]$report.mode
-        Profile = [string]$report.subject.profile
-        Board = [string]$report.subject.board
-        Facets = Format-StringArray @($report.subject.active_facets)
-        Nodes = [int]$report.structure.node_count
-        Edges = [int]$report.structure.edge_count
-        Unresolved = @($report.structure.unresolved_bindings).Count
-        Contracts = [int]$report.resource_contract.declared_contracts
-        Satisfied = [int]$report.resource_contract.satisfied_count
-        Violated = [int]$report.resource_contract.violated_count
-        Unknown = [int]$report.resource_contract.unknown_count
-        Formation = if ($null -ne $report.PSObject.Properties['system_formation'] -and $null -ne $report.system_formation) { [string]$report.system_formation.status } else { $null }
-        Compare = Get-ComparisonStatus -ReportData $report
-        Metadata = Get-MetadataChangeCount -ReportData $report
-        InpCmp = Get-SystemInputComparisonChangeCount -SystemInputComparison $systemInputComparison
-        FormCmp = Get-SystemFormationComparisonChangeCount -SystemFormationComparison $systemFormationComparison
-        BindCmp = if ($null -ne $bindingResultComparison -and [bool]$bindingResultComparison.changed) { [int]@($bindingResultComparison.binding_changes).Count } else { 0 }
-        OrdCmp = if ($null -ne $bringupOrderComparison -and [bool]$bringupOrderComparison.changed) { [int]@($bringupOrderComparison.entry_changes).Count } else { 0 }
-        BrCmp = if ($null -ne $bringupComparison -and [bool]$bringupComparison.changed) { [int]@($bringupComparison.capability_changes).Count } else { 0 }
-        ResCmp = if ($null -ne $resourceComparison -and [bool]$resourceComparison.changed) { [int]@($resourceComparison.contract_changes).Count } else { 0 }
-        FactCmp = if ($null -ne $factResolutionComparison -and [bool]$factResolutionComparison.changed) { [int]@($factResolutionComparison.required_fact_resolution_changes).Count } else { 0 }
-    }
+    return Convert-ArtifactRootSystemCompilerCaseProjectionToOverviewRow -CaseProjection (
+        New-ArtifactRootSystemCompilerCaseProjection -LoadedReport $LoadedReport
+    )
 }
 
 function New-ArtifactJsonView {
@@ -8784,6 +9400,8 @@ function New-ArtifactJsonView {
     )
 
     $report = $LoadedReport.Data
+    $graphInfo = Load-GraphFromArtifactReport -ReportData $report
+    $reportResourceProjection = New-ReportResourceProjection -ReportData $report -GraphInfo $graphInfo
     $comparison = New-ReportComparisonOverviewResult -LoadedReport $LoadedReport
     $formationHeadline = New-ReportFormationHeadline -ReportData $report
     $compilerHeadline = New-CompilerHeadline -FormationHeadline $formationHeadline -ComparisonOverview $comparison
@@ -8799,8 +9417,8 @@ function New-ArtifactJsonView {
         bringup_order = $report.bringup_order
         system_formation = $report.system_formation
         bringup_evidence = $report.bringup_evidence
-        resource_contract = $report.resource_contract
-        fact_resolution = New-ResourceSummaryResult -ReportData $report -GraphInfo $graphInfo
+        resource_contract = $reportResourceProjection.resource_contract
+        fact_resolution = $reportResourceProjection.fact_resolution
         runtime_observe = $report.runtime_observe
         comparison = $comparison
         artifacts = $report.artifacts
@@ -8916,16 +9534,47 @@ if (-not [string]::IsNullOrWhiteSpace($WhyCapability) -and $selectedReports.Coun
 }
 
 if ($ListCases) {
+    $systemCompilerProjectionContext = New-ArtifactRootSystemCompilerProjectionContext -LoadedReports $selectedReports
+    $caseNames = @(
+        if ($null -ne $systemCompilerProjectionContext.summary) {
+            @($systemCompilerProjectionContext.summary.case_summaries) |
+                ForEach-Object { [string]$_.case } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }
+        } else {
+            foreach ($selectedReport in @($selectedReports)) {
+                $systemInputProjection = New-ReportSystemInputProjection -ReportData $selectedReport.Data
+                if ($null -ne $systemInputProjection -and -not [string]::IsNullOrWhiteSpace([string]$systemInputProjection.subject.case)) {
+                    [string]$systemInputProjection.subject.case
+                } else {
+                    [string]$selectedReport.Data.subject.case
+                }
+            }
+        }
+    )
+
     if ($AsJson) {
-        @($selectedReports | ForEach-Object { [string]$_.Data.subject.case }) | ConvertTo-Json -Depth 2
+        @($caseNames) | ConvertTo-Json -Depth 2
     } else {
         Write-Host "[ARTIFACT ROOT] $artifactRootPath"
-        $selectedReports | ForEach-Object { [string]$_.Data.subject.case }
+        @($caseNames)
     }
     exit 0
 }
 
-$summaryRows = @($selectedReports | ForEach-Object { New-CaseSummaryRow -LoadedReport $_ })
+$systemCompilerProjectionContext = New-ArtifactRootSystemCompilerProjectionContext -LoadedReports $selectedReports -IncludeComparison
+$summaryRows = @(
+    if ($null -ne $systemCompilerProjectionContext.summary) {
+        @($systemCompilerProjectionContext.summary.case_projections) |
+            ForEach-Object { Convert-ArtifactRootSystemCompilerCaseProjectionToOverviewRow -CaseProjection $_ } |
+            Where-Object { $null -ne $_ } |
+            Sort-Object Case
+    } else {
+        @($selectedReports) |
+            ForEach-Object { New-CaseSummaryRow -LoadedReport $_ } |
+            Where-Object { $null -ne $_ } |
+            Sort-Object Case
+    }
+)
 $selectsWholeArtifactRoot = [string]::IsNullOrWhiteSpace($Report) -and $Case.Count -eq 0
 
 if (-not [string]::IsNullOrWhiteSpace($GraphPath) -and $selectedReports.Count -ne 1) {
@@ -9020,14 +9669,14 @@ if ($selectedReports.Count -ne 1 -and -not $ResourceSummary -and -not $BringupEv
         )
     }
 
-    $systemCompilerSummary = New-ArtifactRootSystemCompilerSummaryResult -LoadedReports $selectedReports
+    $systemCompilerSummary = New-ArtifactRootSystemCompilerSummaryResult -LoadedReports $selectedReports -ProjectionContext $systemCompilerProjectionContext
     $systemInputSummary = New-ArtifactRootSystemInputSummaryResult -LoadedReports $selectedReports
     $bindingResultSummary = New-ArtifactRootBindingResultSummaryResult -LoadedReports $selectedReports
     $bringupOrderSummary = New-ArtifactRootBringupOrderSummaryResult -LoadedReports $selectedReports
     $systemFormationSummary = New-ArtifactRootSystemFormationSummaryResult -LoadedReports $selectedReports
     $formationHeadline = New-ArtifactRootFormationHeadline -SystemCompilerSummary $systemCompilerSummary -SystemFormationSummary $systemFormationSummary
     $factResolutionSummary = New-ArtifactRootFactResolutionSummaryResult -LoadedReports $selectedReports
-    $systemCompilerComparisonSummary = New-ArtifactRootSystemCompilerComparisonResult -LoadedReports $selectedReports
+    $systemCompilerComparisonSummary = New-ArtifactRootSystemCompilerComparisonResult -LoadedReports $selectedReports -ProjectionContext $systemCompilerProjectionContext
     $systemInputComparisonSummary = New-ArtifactRootSystemInputComparisonResult -LoadedReports $selectedReports
     $bindingResultComparisonSummary = New-ArtifactRootBindingResultComparisonResult -LoadedReports $selectedReports
     $bringupOrderComparisonSummary = New-ArtifactRootBringupOrderComparisonResult -LoadedReports $selectedReports
@@ -9840,7 +10489,8 @@ if ($ResourceSummary) {
         exit 0
     }
 
-    $resourceSummaryResult = New-ResourceSummaryResult -ReportData $reportData -GraphInfo $graphInfo
+    $reportResourceProjection = New-ReportResourceProjection -ReportData $reportData -GraphInfo $graphInfo
+    $resourceSummaryResult = $reportResourceProjection.fact_resolution
     $resourceContractComparison = Get-ResourceContractComparisonFromReport -ReportData $reportData
     $factResolutionComparison = Get-FactResolutionComparisonFromReport -ReportData $reportData
 
@@ -9912,7 +10562,7 @@ if ($ResourceSummary) {
         if (@($contractSummary.missing_facts).Count -gt 0) {
             Write-Host "missing_facts = $((@($contractSummary.missing_facts) -join ', '))"
         }
-        foreach ($factName in @($contractSummary.fact_sources.Keys)) {
+        foreach ($factName in @($contractSummary.fact_sources.Keys | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })) {
             Write-Host "fact_sources[$factName] = $((@($contractSummary.fact_sources[$factName]) -join ', '))"
         }
         if (-not [string]::IsNullOrWhiteSpace([string]$contractSummary.status_text)) {
@@ -10115,7 +10765,7 @@ if ($null -ne $reportCompilerHeadline) {
 $summaryRows | Format-List Case, Mode, Profile, Board, Facets, Nodes, Edges, Unresolved, Contracts, Satisfied, Violated, Unknown, Formation, Compare, Metadata, InpCmp, FormCmp, BindCmp, OrdCmp, BrCmp, ResCmp, FactCmp | Out-Host
 
 if ($null -ne $reportData.PSObject.Properties['system_input'] -and $null -ne $reportData.system_input) {
-    $systemInput = $reportData.system_input
+    $systemInput = New-ReportSystemInputProjection -ReportData $reportData
     Write-Host '[INPUT]'
     if ($null -ne $systemInput.PSObject.Properties['system_spec'] -and $null -ne $systemInput.system_spec) {
         Write-Host "case_kind       = $([string]$systemInput.system_spec.case_kind)"
@@ -10188,15 +10838,17 @@ if (@($reportData.structure.unresolved_bindings).Count -gt 0) {
 }
 Write-Host ''
 
+$bindingBringupProjection = New-ReportBindingBringupProjection -ReportData $reportData
+
 Write-Host '[BINDING RESULT]'
-Write-Host "required_bindings   = $([int]$reportData.binding_result.required_binding_count)"
-Write-Host "resolved_bindings   = $([int]$reportData.binding_result.resolved_binding_count)"
-Write-Host "unresolved_bindings = $([int]$reportData.binding_result.unresolved_binding_count)"
-if (@($reportData.binding_result.unresolved_capabilities).Count -gt 0) {
-    Write-Host "unresolved_caps     = $((@($reportData.binding_result.unresolved_capabilities) -join ', '))"
+Write-Host "required_bindings   = $([int]$bindingBringupProjection.binding.counts.required_binding_count)"
+Write-Host "resolved_bindings   = $([int]$bindingBringupProjection.binding.counts.resolved_binding_count)"
+Write-Host "unresolved_bindings = $([int]$bindingBringupProjection.binding.counts.unresolved_binding_count)"
+if (@($bindingBringupProjection.binding.unresolved_capabilities).Count -gt 0) {
+    Write-Host "unresolved_caps     = $((@($bindingBringupProjection.binding.unresolved_capabilities) -join ', '))"
 }
-if (@($reportData.binding_result.binding_entries).Count -gt 0) {
-    @($reportData.binding_result.binding_entries) |
+if (@($bindingBringupProjection.binding.entries).Count -gt 0) {
+    @($bindingBringupProjection.binding.entries) |
         ForEach-Object { Format-BindingResultDisplayRow -Entry $_ } |
         Format-Table -Wrap -AutoSize Capability, State, Providers, Consumers, Reason |
         Out-Host
@@ -10204,11 +10856,10 @@ if (@($reportData.binding_result.binding_entries).Count -gt 0) {
 Write-Host ''
 
 Write-Host '[BRINGUP ORDER]'
-Write-Host "ordered_nodes = $([int]$reportData.bringup_order.ordered_node_count)"
-Write-Host "blocked_nodes = $([int]$reportData.bringup_order.blocked_node_count)"
-if ($null -ne $reportData.bringup_order.PSObject.Properties['phase_counts'] -and
-    $null -ne $reportData.bringup_order.phase_counts) {
-    $phaseCountEntries = @(Get-MapEntries -Map $reportData.bringup_order.phase_counts)
+Write-Host "ordered_nodes = $([int]$bindingBringupProjection.bringup.counts.ordered_node_count)"
+Write-Host "blocked_nodes = $([int]$bindingBringupProjection.bringup.counts.blocked_node_count)"
+if ($null -ne $bindingBringupProjection.bringup.phase_counts) {
+    $phaseCountEntries = @(Get-MapEntries -Map $bindingBringupProjection.bringup.phase_counts)
     $phaseParts = @()
     foreach ($phaseEntry in @($phaseCountEntries)) {
         $phaseParts += "$([string]$phaseEntry.Name):$([int]$phaseEntry.Value)"
@@ -10217,28 +10868,28 @@ if ($null -ne $reportData.bringup_order.PSObject.Properties['phase_counts'] -and
         Write-Host "phase_counts  = $((@($phaseParts) -join ', '))"
     }
 }
-if (@($reportData.bringup_order.entries).Count -gt 0) {
-    @($reportData.bringup_order.entries) |
+if (@($bindingBringupProjection.bringup.entries).Count -gt 0) {
+    @($bindingBringupProjection.bringup.entries) |
         ForEach-Object { Format-BringupOrderDisplayRow -Entry $_ } |
         Format-Table -Wrap -AutoSize Order, Node, Kind, Phase, State, Needs, Missing, DependsOn, Provides |
         Out-Host
 }
 Write-Host ''
 
-if ($null -ne $reportData.PSObject.Properties['system_formation'] -and $null -ne $reportData.system_formation) {
-    $systemFormation = $reportData.system_formation
+if ($null -ne $reportData.PSObject.Properties['system_formation'] -and $null -ne $bindingBringupProjection.formation) {
+    $systemFormation = $bindingBringupProjection.formation
     Write-Host '[SYSTEM FORMATION]'
     if ($null -ne $reportFormationHeadline) {
         Write-Host "formation_headline      = $([string]$reportFormationHeadline.text)"
     }
     Write-Host "status                  = $([string]$systemFormation.status)"
-    if ($null -ne $systemFormation.PSObject.Properties['formation_basis'] -and $null -ne $systemFormation.formation_basis) {
+    if ($null -ne $systemFormation.formation_basis) {
         Write-Host "case_kind               = $([string]$systemFormation.formation_basis.case_kind)"
         Write-Host "declared_fact_count     = $([int]$systemFormation.formation_basis.declared_fact_count)"
         Write-Host "declared_contract_count = $([int]$systemFormation.formation_basis.declared_contract_count)"
         Write-Host "subject_fact_count      = $([int]$systemFormation.formation_basis.subject_fact_count)"
     }
-    if ($null -ne $systemFormation.PSObject.Properties['binding_summary'] -and $null -ne $systemFormation.binding_summary) {
+    if ($null -ne $systemFormation.binding_summary) {
         Write-Host "required_bindings       = $([int]$systemFormation.binding_summary.required_binding_count)"
         Write-Host "resolved_bindings       = $([int]$systemFormation.binding_summary.resolved_binding_count)"
         Write-Host "unresolved_bindings     = $([int]$systemFormation.binding_summary.unresolved_binding_count)"
@@ -10246,7 +10897,7 @@ if ($null -ne $reportData.PSObject.Properties['system_formation'] -and $null -ne
             Write-Host "unresolved_caps         = $((@($systemFormation.binding_summary.unresolved_capabilities) -join ', '))"
         }
     }
-    if ($null -ne $systemFormation.PSObject.Properties['bringup_summary'] -and $null -ne $systemFormation.bringup_summary) {
+    if ($null -ne $systemFormation.bringup_summary) {
         Write-Host "ordered_nodes           = $([int]$systemFormation.bringup_summary.ordered_node_count)"
         Write-Host "blocked_nodes           = $([int]$systemFormation.bringup_summary.blocked_node_count)"
         if (@($systemFormation.bringup_summary.blocked_nodes).Count -gt 0) {
@@ -10263,33 +10914,36 @@ if ($null -ne $reportData.PSObject.Properties['system_formation'] -and $null -ne
     Write-Host ''
 }
 
+$graphInfo = Load-GraphFromArtifactReport -ReportData $reportData
+$reportResourceProjection = New-ReportResourceProjection -ReportData $reportData -GraphInfo $graphInfo
+
 Write-Host '[RESOURCE CONTRACT]'
-if (@($reportData.resource_contract.declared_contract_entries).Count -gt 0) {
-    foreach ($entry in @($reportData.resource_contract.declared_contract_entries)) {
+if (@($reportResourceProjection.resource_contract.declared_contract_entries).Count -gt 0) {
+    foreach ($entry in @($reportResourceProjection.resource_contract.declared_contract_entries)) {
         $contractName = [string]$entry.contract
         $requiredFacts = @($entry.requires)
         Write-Host "declared = $contractName requires [$((@($requiredFacts) -join ', '))]"
     }
 }
-if (@($reportData.resource_contract.provided_facts).Count -gt 0) {
-    Write-Host "provided_facts = $((@($reportData.resource_contract.provided_facts) -join ', '))"
+if (@($reportResourceProjection.resource_contract.provided_facts).Count -gt 0) {
+    Write-Host "provided_facts = $((@($reportResourceProjection.resource_contract.provided_facts) -join ', '))"
 }
-if (@($reportData.resource_contract.satisfied_contracts).Count -gt 0) {
-    Write-Host "satisfied      = $((@($reportData.resource_contract.satisfied_contracts) -join '; '))"
+if (@($reportResourceProjection.resource_contract.satisfied_contracts).Count -gt 0) {
+    Write-Host "satisfied      = $((@($reportResourceProjection.resource_contract.satisfied_contracts) -join '; '))"
 }
-if (@($reportData.resource_contract.violations).Count -gt 0) {
-    Write-Host "violations     = $((@($reportData.resource_contract.violations) -join '; '))"
+if (@($reportResourceProjection.resource_contract.violations).Count -gt 0) {
+    Write-Host "violations     = $((@($reportResourceProjection.resource_contract.violations) -join '; '))"
 }
-if (@($reportData.resource_contract.unknown_contracts).Count -gt 0) {
-    Write-Host "unknown        = $((@($reportData.resource_contract.unknown_contracts) -join '; '))"
+if (@($reportResourceProjection.resource_contract.unknown_contracts).Count -gt 0) {
+    Write-Host "unknown        = $((@($reportResourceProjection.resource_contract.unknown_contracts) -join '; '))"
 }
-if (@($reportData.resource_contract.resource_hotspots).Count -gt 0) {
-    Write-Host "hotspots       = $((@($reportData.resource_contract.resource_hotspots) -join '; '))"
+if (@($reportResourceProjection.resource_contract.resource_hotspots).Count -gt 0) {
+    Write-Host "hotspots       = $((@($reportResourceProjection.resource_contract.resource_hotspots) -join '; '))"
 }
 Write-Host ''
 
-if ($null -ne $reportData.PSObject.Properties['fact_resolution'] -and $null -ne $reportData.fact_resolution) {
-    $factResolution = $reportData.fact_resolution
+if ($null -ne $reportResourceProjection.fact_resolution) {
+    $factResolution = $reportResourceProjection.fact_resolution
     Write-Host '[FACT RESOLUTION]'
     Write-Host "declared_contracts = $([int]$factResolution.declared_contracts)"
     Write-Host "audited_count      = $([int]$factResolution.audited_count)"

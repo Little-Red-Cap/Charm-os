@@ -79,6 +79,8 @@ Those tests must not be used as product UI evidence unless they also expose scen
 state / invalidation / dirty / cmd stats / exec stats / artifact hash / causal verdict
 ```
 
+`vivid_soa_table_tree_evidence_law_v0.md` records one narrow recorder-level exception: `soa_demo` may decode temporary DrawCmd text/fill probes when the test target is TableView/TreeView recorder behavior. That exception does not make DrawCmd payload layout a product UI contract.
+
 ## Relationship To Render Evidence
 
 `vivid_render_evidence_chain_v0.md` defines the broader state-to-artifact causal chain.

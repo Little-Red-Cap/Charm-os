@@ -41,6 +41,7 @@
 - [`minimal_kernel_runtime_evidence_matrix.md`](minimal_kernel_runtime_evidence_matrix.md)
 - [`minimal_kernel_runtime_mailbox_contract.md`](minimal_kernel_runtime_mailbox_contract.md)
 - [`minimal_kernel_runtime_smoke.ps1`](../../scripts/minimal_kernel_runtime_smoke.ps1)
+- [`run_qemu_arch_ingress_seam_ci.ps1`](../../Examples/kernel/armv7a/qemu/run_qemu_arch_ingress_seam_ci.ps1)
 - [`ci_minimal_kernel_runtime_session_witness_smoke.ps1`](../../scripts/ci_minimal_kernel_runtime_session_witness_smoke.ps1)
 - [`inspect_minimal_kernel_runtime_session_witness_smoke.ps1`](../../scripts/inspect_minimal_kernel_runtime_session_witness_smoke.ps1)
 - [`inspect_minimal_kernel_runtime_session_witness_smoke_compare_smoke.ps1`](../../scripts/inspect_minimal_kernel_runtime_session_witness_smoke_compare_smoke.ps1)
@@ -50,6 +51,7 @@
 - [`inspect_minimal_kernel_runtime_session_witness_inspect_compare_consumer.ps1`](../../scripts/inspect_minimal_kernel_runtime_session_witness_inspect_compare_consumer.ps1)
 - [`inspect_minimal_kernel_runtime_session_witness_inspect_compare_consumer_smoke.ps1`](../../scripts/inspect_minimal_kernel_runtime_session_witness_inspect_compare_consumer_smoke.ps1)
 - [`opening_judgment_corridor_v0.md`](opening_judgment_corridor_v0.md)
+- [`opening_judgment_corridor_witness_taxonomy_v0.md`](opening_judgment_corridor_witness_taxonomy_v0.md)
 - [`system_compiler_front_page_entry_runtime_session_opening_flow_plan_action_v0.md`](system_compiler_front_page_entry_runtime_session_opening_flow_plan_action_v0.md)
 - [`system_compiler_front_page_entry_opening_testimony_landing_v0.md`](system_compiler_front_page_entry_opening_testimony_landing_v0.md)
 - [`system_compiler_front_page_entry_opening_testimony_landing_compare_v0.md`](system_compiler_front_page_entry_opening_testimony_landing_compare_v0.md)
@@ -149,6 +151,7 @@
 - [`system_compiler_biography_index_compare_v0.md`](system_compiler_biography_index_compare_v0.md)
 - [`system_compiler_world_shelf_review_v0.md`](system_compiler_world_shelf_review_v0.md)
 - [`opening_judgment_corridor_v0.md`](opening_judgment_corridor_v0.md)
+- [`opening_judgment_corridor_witness_taxonomy_v0.md`](opening_judgment_corridor_witness_taxonomy_v0.md)
 - [`system_compiler_front_page_route_v0.md`](system_compiler_front_page_route_v0.md)
 - [`system_compiler_front_page_route_compare_v0.md`](system_compiler_front_page_route_compare_v0.md)
 - [`system_compiler_front_page_entry_capability_v0.md`](system_compiler_front_page_entry_capability_v0.md)
@@ -193,6 +196,7 @@
 - [System Compiler Front Page Entry Runtime Session opening testimony explain entry compare smoke](../../scripts/system_compiler_front_page_entry_runtime_session_opening_testimony_explain_entry_compare_smoke.ps1)
 - [System Compiler Front Page Entry Runtime Session opening testimony explain entry compare route smoke](../../scripts/system_compiler_front_page_entry_runtime_session_opening_testimony_explain_entry_compare_route_smoke.ps1)
 - [System Compiler Front Page Entry Runtime Session opening testimony ladder smoke](../../scripts/system_compiler_front_page_entry_runtime_session_opening_testimony_ladder_smoke.ps1)
+- [System Compiler Front Page Entry World Shelf Review opening corridor smoke](../../scripts/system_compiler_front_page_entry_world_shelf_review_opening_corridor_smoke.ps1)
 - [System Compiler Front Page Entry Opener open event witness smoke](../../scripts/system_compiler_front_page_entry_opener_open_event_witness_smoke.ps1)
 - [System Compiler Witness open event witness export smoke](../../scripts/system_compiler_witness_open_event_witness_export_smoke.ps1)
 - [System Compiler Witness open event witness world compare smoke](../../scripts/system_compiler_witness_open_event_witness_world_compare_smoke.ps1)
@@ -239,7 +243,7 @@
 
 - 装配与平台边界：`init_graph`、`armv7a_*`、`minimal_kernel_*`、`kernel_runtime_session_*`
 - POSIX 执行面：`posix_*`
-- System compiler / explain surface：`artifact_report_v0`、`resource_contract_v0`、`explain_surface_v0`、`bringup_evidence_pipeline_v0`、`opening_judgment_corridor_v0`
+- System compiler / explain surface：`artifact_report_v0`、`resource_contract_v0`、`explain_surface_v0`、`bringup_evidence_pipeline_v0`、`opening_judgment_corridor_v0`、`opening_judgment_corridor_witness_taxonomy_v0`
 - Witness / world / biography shelf：`canonical_world_v0`、`witness_bundle_v0`、`world_compare_v0`、`system_compiler_biography_v0`、`system_compiler_biography_index_v0`、`system_compiler_biography_index_compare_v0`、`system_compiler_world_shelf_review_v0`
 - SSU：`ssu_*`
 - 专题总览：`power_lowpower_overview.md`、`av_pipeline_overview.md`、`at_system.md`

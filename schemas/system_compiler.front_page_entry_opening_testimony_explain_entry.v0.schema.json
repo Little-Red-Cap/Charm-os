@@ -278,6 +278,7 @@
             "route_landing_compare_default",
             "route_explain_entry_compare_default",
             "route_handoff_compare_default",
+            "route_world_shelf_review_default",
             "route_compare_candidate_root",
             "route_compare_candidate_change",
             "blocked"

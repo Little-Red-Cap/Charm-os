@@ -700,23 +700,17 @@ export namespace ui::soa_gui_detail {
             const Rect header_rect{clip_rect.x, clip_rect.y, clip_rect.w, header_h};
             rgba header_bg = colors.bg;
             rgba header_font = colors.font;
-            bool header_inset = false;
             if (header_style == TableViewHeaderStyle::Accent) {
                 header_bg = colors.accent;
                 header_font = colors.on_accent;
             } else if (header_style == TableViewHeaderStyle::Muted) {
-                header_bg = colors.border;
-                header_inset = true;
+                header_bg = rgba{colors.border.r, colors.border.g, colors.border.b, 40};
             }
             out.fill_rect(header_rect, header_bg);
-            if (header_inset && header_rect.w > 2 && header_rect.h > 2) {
-                const Rect inset{header_rect.x + 1, header_rect.y + 1,
-                                 header_rect.w - 2, header_rect.h - 2};
-                out.fill_rect(inset, colors.bg);
-            }
             if (header_divider) {
                 out.fill_rect(Rect{header_rect.x, header_rect.y + header_rect.h - 1, header_rect.w, 1}, colors.border);
             }
+            out.push_clip(header_rect);
             int x = x_start;
             for (int col = col_start; col < col_end; ++col) {
                 int w = has_col_fn ? kernel.table_view_col_width_at(h, static_cast<std::uint8_t>(col)) : col_w;
@@ -737,6 +731,7 @@ export namespace ui::soa_gui_detail {
                                   TextAlignH::Left, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
                 x += w;
             }
+            out.pop_clip();
         }
 
         out.push_clip(body_rect);

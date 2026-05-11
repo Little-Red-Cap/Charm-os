@@ -142,10 +142,10 @@ letting upper layers rebuild a second runtime/session compare policy.
 It proves that the upper seam can receive an explain-entry decision and turn it
 into one deterministic open instruction without reordering or reinterpretation.
 
-## First non-runtime expansion target
+## First non-runtime reading sample
 
 `system_compiler.world_shelf_review/v0` is the first explicit non-runtime
-expansion target.
+reading-corridor sample.
 
 It is not yet a corridor-specific carrier, but it already exposes the two key
 ingredients the corridor needs:
@@ -153,17 +153,27 @@ ingredients the corridor needs:
 - machine-readable `front_page`
 - machine-readable `route_provenance`
 
-The next expansion is therefore not to create a separate review-only upper
-brain, but to let review-side reading reuse the same:
+That review seam now participates in the same corridor as a thin upper reading
+segment:
 
 ```text
-landing
-  -> route
+world_shelf_review
+  -> front_page_route
+  -> opening_testimony_explain_entry
+  -> handoff
+```
+
+This does not claim the full `consumer -> plan_action -> open_event -> witness
+-> landing` production chain for shelf review. It only proves that the review
+envelope can reuse the same:
+
+```text
+front_page_route
   -> explain_entry
   -> handoff
 ```
 
-lawful path.
+lawful reading path without a review-only upper brain.
 
 ## Relationship to FrontPageReadingLaw
 
@@ -189,7 +199,10 @@ FrontPageReadingLaw
 
 ## Future work
 
-Later work may add a dedicated corridor witness taxonomy for:
+The breakpoint language for this corridor lives in
+[`opening_judgment_corridor_witness_taxonomy_v0.md`](opening_judgment_corridor_witness_taxonomy_v0.md).
+
+That page may later refine:
 
 - collapse points
 - drift points

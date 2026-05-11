@@ -140,7 +140,6 @@ double FindDesiredChromaByTone(double hue, double chroma, double tone,
   return answer;
 }
 
-constexpr double kContentAccentToneDelta = 15.0;
 DynamicColor highestSurface(const DynamicScheme& s) {
   return s.is_dark ? MaterialDynamicColors::SurfaceBright()
                    : MaterialDynamicColors::SurfaceDim();

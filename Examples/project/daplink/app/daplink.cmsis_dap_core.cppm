@@ -5,9 +5,11 @@ module;
 
 export module daplink.cmsis_dap:core;
 
+import daplink.app_config;
+
 export namespace daplink::cmsis_dap {
     constexpr std::size_t kPacketSize = 64;
-    constexpr std::uint8_t kPacketCount = 4;
+    constexpr std::uint8_t kPacketCount = daplink::app_config::kConfig.dap.packet_count;
 
     struct InfoField {
         const char* data;

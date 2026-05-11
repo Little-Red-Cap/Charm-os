@@ -1,28 +1,32 @@
 # SDL3 WAV Demo
 
-This example supports a pull-simulator mode that does not require SDL audio.
+This example links through the shared `Charm-os` / `Charm-media` module graph.
+It supports both SDL3 audio playback and a pull-simulator mode that does not
+require an audio device.
 
 ## Build
 
-```bash
-cmake -S Examples/audio/sdl3_wav_demo -B Examples/audio/sdl3_wav_demo/build -G Ninja
-cmake --build Examples/audio/sdl3_wav_demo/build
+```powershell
+cmake -S Examples/audio/sdl3_wav_demo -B cmake-build-sdl3_wav_demo -G Ninja
+cmake --build cmake-build-sdl3_wav_demo
 ```
 
 ## Run
 
-```bash
+```powershell
 # Normal playback (SDL audio)
-Examples/audio/sdl3_wav_demo/build/sdl3-wav-demo sample.flac
+.\cmake-build-sdl3_wav_demo\sdl3-wav-demo.exe .\Examples\audio\sdl3_wav_demo\sample.flac
 ```
 
-```bash
-# Pull simulator (no SDL audio output)
-Examples/audio/sdl3_wav_demo/build/sdl3-wav-demo --pull-sim --pull-jitter-ms=5 --pull-jitter-seed=1 --pull-jitter-pattern=burst --tone=440 --seconds=10
+```powershell
+# Pull simulator (no SDL audio output).
+.\cmake-build-sdl3_wav_demo\sdl3-wav-demo.exe --pull-sim --pull-jitter-ms=5 --pull-jitter-seed=1 --pull-jitter-pattern=burst --tone=440 --seconds=10
 ```
 
 ## Notes
 
+- The demo does not maintain its own module source list; CMake routes through
+  the shared Charm targets instead.
 - `--pull-sim` forces tone mode and runs `AudioPullSimulator` to exercise
   pull timing, underrun, and water-level behavior without hardware.
 - `--pull-jitter-ms` injects random callback jitter (0..N ms) for stress testing.

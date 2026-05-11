@@ -393,6 +393,10 @@ public:
     }
 
 #if defined(VIVID_SOA_TRACE_INPUT)
+    std::uint32_t input_guard_state_write_violations() const noexcept {
+        return input_guard_state_write_violations_;
+    }
+
     void input_test_request_capture(WidgetHandle h) noexcept {
         input_set_capture(h, input_.last_x, input_.last_y, input_.button, true);
         input_apply_actions();
@@ -825,19 +829,8 @@ public:
     }
 
 private:
-    void mark_layout_dirty() noexcept {
-        layout_dirty_version_ += 1u;
-#if defined(VIVID_SOA_TRACE_INPUT)
-        layout_invalidated_count_ += 1u;
-#endif
-    }
-
-    void mark_paint_dirty() noexcept {
-        paint_dirty_version_ += 1u;
-#if defined(VIVID_SOA_TRACE_INPUT)
-        paint_invalidated_count_ += 1u;
-#endif
-    }
+    void mark_layout_dirty() noexcept;
+    void mark_paint_dirty() noexcept;
 
     static bool text_equal(const char* lhs, const char* rhs) noexcept {
         if (!lhs || !rhs) return lhs == rhs;
@@ -849,37 +842,8 @@ private:
         return *lhs == *rhs;
     }
 
-    void on_state_change(std::uint16_t idx, SoaStateMask bit) noexcept {
-        if (!layout_state_influence_) {
-            mark_paint_dirty();
-            return;
-        }
-        const std::uint8_t mask = layout_state_mask_for_kind(common_.kind[idx]);
-        if ((mask & static_cast<std::uint8_t>(bit)) != 0) {
-            mark_layout_dirty();
-            return;
-        }
-        mark_paint_dirty();
-    }
-
-    static constexpr std::uint8_t layout_state_mask_for_kind(WidgetKind kind) noexcept {
-        switch (kind) {
-        case WidgetKind::Container:
-        case WidgetKind::ScrollContainer:
-        case WidgetKind::Label:
-        case WidgetKind::Button:
-        case WidgetKind::Switch:
-        case WidgetKind::Slider:
-        case WidgetKind::Progress:
-        case WidgetKind::Checkbox:
-        case WidgetKind::Radio:
-        case WidgetKind::List:
-        case WidgetKind::ListItem:
-            return 0;
-        default:
-            return 0;
-        }
-    }
+    void on_state_change(std::uint16_t idx, SoaStateMask bit) noexcept;
+    static constexpr std::uint8_t layout_state_mask_for_kind(WidgetKind kind) noexcept;
 
     static StyleState input_make_state(const SoaKernel& kernel, WidgetHandle h) noexcept;
     static bool input_is_scrollable_kind(WidgetKind kind) noexcept;
@@ -931,11 +895,14 @@ private:
     }
 
     void input_guard_state_write(const char* what) noexcept {
-#ifndef NDEBUG
         if (input_phase_ && !input_commit_phase_) {
-            assert(false && "SoaKernel state write during input phase");
-        }
+#if defined(VIVID_SOA_TRACE_INPUT)
+            ++input_guard_state_write_violations_;
 #endif
+#ifndef NDEBUG
+            assert(false && "SoaKernel state write during input phase");
+#endif
+        }
         (void)what;
     }
 
@@ -982,6 +949,9 @@ private:
     InputEventQueue input_events_{};
     InputState input_{};
     static constexpr std::size_t kMaxFocusScopeStack = 4;
+#if defined(VIVID_SOA_TRACE_INPUT)
+    std::uint32_t input_guard_state_write_violations_{0};
+#endif
 
     struct FocusScopeFrame {
         WidgetHandle scope{};

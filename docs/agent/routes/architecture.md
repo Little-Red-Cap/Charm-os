@@ -8,13 +8,16 @@
 
 ## 最短阅读顺序
 
-1. [`../rules/charm-architecture.md`](../rules/charm-architecture.md)
-2. [`../rules/embedded-modern-cpp.md`](../rules/embedded-modern-cpp.md)
-3. [`../../architecture/signal_state_contract_v0.md`](../../architecture/signal_state_contract_v0.md)（涉及同域通知 / 状态 / post 时）
-4. [`../glossary.md`](../glossary.md)
-5. [`../skills/architect-review/SKILL.md`](../skills/architect-review/SKILL.md)
-6. [`../workflows/architect-review-workflow.md`](../workflows/architect-review-workflow.md)
-7. [`../templates/architect-review-output.md`](../templates/architect-review-output.md)
+1. [`../../README.md`](../../README.md)
+2. [`../../architecture_overview.md`](../../architecture_overview.md)
+3. [`../../architecture/README.md`](../../architecture/README.md)
+4. [`../rules/charm-architecture.md`](../rules/charm-architecture.md)
+5. [`../rules/embedded-modern-cpp.md`](../rules/embedded-modern-cpp.md)
+6. [`../../architecture/signal_state_contract_v0.md`](../../architecture/signal_state_contract_v0.md)（涉及同域通知 / 状态 / post 时）
+7. [`../glossary.md`](../glossary.md)
+8. [`../skills/architect-review/SKILL.md`](../skills/architect-review/SKILL.md)
+9. [`../workflows/architect-review-workflow.md`](../workflows/architect-review-workflow.md)
+10. [`../templates/architect-review-output.md`](../templates/architect-review-output.md)
 
 ## 先不要做什么
 

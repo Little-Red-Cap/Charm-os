@@ -144,6 +144,7 @@ def build_runtime_ledger(
     lower: dict[str, Any],
     semantic_ok: bool,
     machine_ok: bool,
+    arch_ingress_seam: bool,
     runtime_facts: dict[str, bool],
     failures: list[dict[str, Any]],
 ) -> dict[str, Any]:
@@ -183,6 +184,13 @@ def build_runtime_ledger(
         "standing" if machine_ok else "missing",
         lower.get("summary_path"),
         ["qemu", "lower-half"],
+    )
+    push(
+        "arch.ingress.seam",
+        "machine",
+        "standing" if arch_ingress_seam else "missing",
+        lower.get("summary_path"),
+        ["exception", "interrupt", "timer", "trap", "context", "runtime_loop"],
     )
 
     for key, focus in [
@@ -396,11 +404,13 @@ def main() -> int:
     ok_names = result_name_set(results, status="ok")
     regressed = regressed_cases(results)
 
-    trap_ingress = bool(ok_names & {"runtime_trap", "trap_ingress", "task_syscall"})
-    runtime_loop = bool(ok_names & {"runtime_live", "live_runtime"})
-    timer_ingress = runtime_loop
-    interrupt_ingress = runtime_loop or bool(ok_names & {"runtime_leaf_ports", "leaf_ports"})
-    context_ingress = bool(ok_names & {"runtime_thread", "thread_egress", "task_syscall", "handoff_live"})
+    arch_ingress_seam = "arch_ingress_seam" in ok_names
+    exception_ingress = arch_ingress_seam or bool(ok_names & {"runtime_trap", "trap_ingress", "task_syscall"})
+    trap_ingress = arch_ingress_seam or bool(ok_names & {"runtime_trap", "trap_ingress", "task_syscall"})
+    runtime_loop = arch_ingress_seam or bool(ok_names & {"runtime_live", "live_runtime"})
+    timer_ingress = arch_ingress_seam or runtime_loop
+    interrupt_ingress = arch_ingress_seam or runtime_loop or bool(ok_names & {"runtime_leaf_ports", "leaf_ports"})
+    context_ingress = arch_ingress_seam or bool(ok_names & {"runtime_thread", "thread_egress", "task_syscall", "handoff_live"})
     thread_fact = bool(ok_names & {"runtime_thread", "thread_egress"})
     task_syscall_fact = bool(ok_names & {"task_syscall"})
     handoff_seen = "handoff_live" in ok_names or any(normalize_token(item) == "handoff_live" for item in regressed)
@@ -477,6 +487,7 @@ def main() -> int:
         lower=lower,
         semantic_ok=semantic_ok,
         machine_ok=machine_ok,
+        arch_ingress_seam=arch_ingress_seam,
         runtime_facts=runtime_facts,
         failures=failures,
     )
@@ -503,7 +514,7 @@ def main() -> int:
             "qemu": bool(qemu),
             "status": "standing" if machine_ok else ("degraded" if qemu else "missing"),
             "source_summary": str(lower.get("summary_path")) if lower.get("summary_path") else None,
-            "exception_ingress": trap_ingress,
+            "exception_ingress": exception_ingress,
             "interrupt_ingress": interrupt_ingress,
             "timer_ingress": timer_ingress,
             "trap_ingress": trap_ingress,

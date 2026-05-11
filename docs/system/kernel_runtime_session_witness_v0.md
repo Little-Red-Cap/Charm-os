@@ -112,6 +112,10 @@ QEMU log parser 只是事实采集器之一
 - live runtime、task syscall、handoff landing 等 lower-half seam 在 QEMU 上仍然站住
 - lower-half 证据可以被收束到同一个 canonical world
 
+当前 `arch_ingress_seam` 是 machine witness 的 lower-half ingress anchor。
+session exporter 会优先用这个 standing case 支撑 `exception_ingress / interrupt_ingress / timer_ingress / trap_ingress / context_ingress / runtime_loop`。
+旧 summary 没有这条 case 时，exporter 仍保留 `runtime_trap / runtime_live / runtime_thread / task_syscall / handoff_live` 的兼容推断，但新证据链应优先让 `machine_witness.standing_cases` 显式包含 `arch_ingress_seam`。
+
 它不证明：
 
 - host stub 的完整语义覆盖
@@ -145,6 +149,7 @@ phase ledger
 
 runtime ledger
   证明运行会话事件：
+  arch ingress seam observed
   tick observed
   trap decoded
   syscall dispatched

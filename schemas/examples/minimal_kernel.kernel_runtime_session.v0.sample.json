@@ -33,6 +33,7 @@
     "context_ingress": true,
     "runtime_loop": true,
     "standing_cases": [
+      "arch_ingress_seam",
       "runtime_trap",
       "runtime_thread",
       "runtime_live",

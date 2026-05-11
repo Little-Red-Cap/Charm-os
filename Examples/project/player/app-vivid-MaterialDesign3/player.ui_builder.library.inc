@@ -139,48 +139,6 @@
         }
         builder.set_label_align(lib_subtitle, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
         builder.set_hit_testable(lib_subtitle, false);
-        const WidgetHandle lib_badge = builder.create_container();
-        anchor_rect(builder, lib_badge, {4, 110, 146, 24});
-        {
-            StylePatch patch = ::ui::scene::make_clean_surface_patch({
-                .apply_bg_color = true,
-                .apply_border_color = true,
-                .apply_corner_radius = true,
-                .bg_color = {kUiLibraryHeaderPlate.r, kUiLibraryHeaderPlate.g, kUiLibraryHeaderPlate.b, 176},
-                .border_color = {0, 0, 0, 0},
-                .corner_radius = 12,
-            });
-            builder.set_style_override(lib_badge, patch);
-            builder.set_hit_testable(lib_badge, false);
-        }
-        const WidgetHandle lib_badge_icon = builder.create_button_static("");
-        anchor_rect(builder, lib_badge_icon, {12, 115, 14, 14});
-        builder.set_button_icon(lib_badge_icon, icons.folder_active);
-        builder.set_button_icon_size(lib_badge_icon, 14);
-        {
-            StylePatch patch = ::ui::scene::make_clean_surface_patch({
-                .apply_bg_color = true,
-                .apply_border_color = true,
-                .apply_corner_radius = false,
-                .bg_color = {0, 0, 0, 0},
-                .border_color = {0, 0, 0, 0},
-            });
-            patch.has_font_color = true;
-            patch.font_color = {kUiOk.r, kUiOk.g, kUiOk.b, 228};
-            builder.set_style_override(lib_badge_icon, patch);
-            builder.set_hit_testable(lib_badge_icon, false);
-        }
-        const WidgetHandle lib_badge_label = builder.create_label_static("Your music hub");
-        anchor_rect(builder, lib_badge_label, {30, 114, 104, 16});
-        apply_player_text_style(builder, lib_badge_label, PlayerTextRole::MetaText, kUiLibraryChipText);
-        {
-            StylePatch patch{};
-            patch.has_font = true;
-            patch.font = &get_player_font_px(12, FontWeight::Medium);
-            builder.set_style_patch(lib_badge_label, patch);
-        }
-        builder.set_label_align(lib_badge_label, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
-        builder.set_hit_testable(lib_badge_label, false);
         const WidgetHandle lib_settings = create_top_icon_button(builder,
             lib_settings_rect,
             icons.settings, 20);
@@ -209,7 +167,6 @@
         apply_tab_base_style(builder, h.list_tab_artist, tab_radius);
         apply_tab_base_style(builder, h.list_shuffle, tab_radius);
         apply_tab_active_style(builder, h.list_tab_songs);
-        apply_shuffle_shadow_style(builder, h.list_shuffle);
         builder.set_button_icon(h.list_shuffle, icons.shuffle);
         builder.set_button_icon_size(h.list_shuffle, lib_layout.shuffle_icon_px);
 
@@ -301,32 +258,6 @@
             lib_layout.list_sort_w,
             library_shuffle_h
         };
-        const WidgetHandle action_row_marker = builder.create_container();
-        anchor_rect(builder, action_row_marker, {library_side_pad + lib_layout.shuffle_w + 18, library_shuffle_y + 17, 10, 10});
-        {
-            StylePatch patch = ::ui::scene::make_clean_surface_patch({
-                .apply_bg_color = true,
-                .apply_border_color = true,
-                .apply_corner_radius = true,
-                .bg_color = {kUiLibraryTabActive.r, kUiLibraryTabActive.g, kUiLibraryTabActive.b, 188},
-                .border_color = {0, 0, 0, 0},
-                .corner_radius = 5,
-            });
-            builder.set_style_override(action_row_marker, patch);
-            builder.set_hit_testable(action_row_marker, false);
-        }
-        const WidgetHandle action_row_hint = builder.create_label_static("Quick actions");
-        anchor_rect(builder, action_row_hint, {library_side_pad + lib_layout.shuffle_w + 34, library_shuffle_y + 13, 104, 18});
-        apply_player_text_style(builder, action_row_hint, PlayerTextRole::MetaText, kUiLibraryChipTextMuted);
-        {
-            StylePatch patch{};
-            patch.has_font = true;
-            patch.font = &get_player_font_px(13, FontWeight::Medium);
-            builder.set_style_patch(action_row_hint, patch);
-        }
-        builder.set_label_align(action_row_hint, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
-        builder.set_hit_testable(action_row_hint, false);
-
         const Rect list_card_rect{library_side_pad, library_list_card_y,
                                   screen_width - library_side_pad * 2, library_list_card_h};
         const Rect list_card_local_rect{0, 0, list_card_rect.w, list_card_rect.h};
@@ -390,15 +321,14 @@
             builder.set_style_override(list_header_plate, patch);
             builder.set_hit_testable(list_header_plate, false);
         }
-        const int list_context_tray_h = 58;
-        const int list_context_tray_gap = 10;
+        const int list_context_tray_h = 46;
+        const int list_context_tray_gap = 8;
         const int list_context_tray_side_gap = lib_layout.list_body_side_gap + 2;
         const int list_context_tray_y = list_header_layout.body_rect.y + 2;
         const int list_context_tray_w = list_card_rect.w - list_context_tray_side_gap * 2;
-        const int list_context_preview_frame = 56;
-        const int list_context_preview_art = 48;
-        const int list_context_preview_x = list_context_tray_side_gap + list_context_tray_w - list_context_preview_frame - 12;
-        const int list_context_preview_y = list_context_tray_y + (list_context_tray_h - list_context_preview_frame) / 2;
+        const int list_context_icon_size = 18;
+        const int list_context_icon_x = list_context_tray_side_gap + 14;
+        const int list_context_icon_y = list_context_tray_y + (list_context_tray_h - list_context_icon_size) / 2;
         const int list_body_plate_y = list_header_layout.body_rect.y - 4;
         Rect list_body_rect = list_header_layout.body_rect;
         list_body_rect.y += list_context_tray_h + list_context_tray_gap;
@@ -477,33 +407,12 @@
             builder.set_style_override(list_context_tray_divider, patch);
             builder.set_hit_testable(list_context_tray_divider, false);
         }
-        const WidgetHandle list_context_cover_frame = builder.create_container();
-        anchor_rect(builder, list_context_cover_frame,
-                    {list_context_preview_x, list_context_preview_y,
-                     list_context_preview_frame, list_context_preview_frame});
-        {
-            StylePatch patch = ::ui::scene::make_clean_surface_patch({
-                .apply_bg_color = true,
-                .apply_border_color = true,
-                .apply_corner_radius = true,
-                .bg_color = {14, 18, 30, 42},
-                .border_color = {kUiLibraryPathTextActive.r, kUiLibraryPathTextActive.g, kUiLibraryPathTextActive.b, 54},
-                .corner_radius = 20,
-            });
-            builder.set_style_override(list_context_cover_frame, patch);
-            builder.set_hit_testable(list_context_cover_frame, false);
-        }
-        h.list_context_cover = builder.create_image();
-        anchor_rect(builder, h.list_context_cover,
-                    {list_context_preview_x + 4, list_context_preview_y + 4,
-                     list_context_preview_art, list_context_preview_art});
-        ::ui::scene::configure_image_surface(builder, h.list_context_cover, 16);
         h.list_context_cover_placeholder = builder.create_button_static("");
         anchor_rect(builder, h.list_context_cover_placeholder,
-                    {list_context_preview_x + 16, list_context_preview_y + 16,
-                     24, 24});
+                    {list_context_icon_x, list_context_icon_y,
+                     list_context_icon_size, list_context_icon_size});
         builder.set_button_icon(h.list_context_cover_placeholder, icons.folder);
-        builder.set_button_icon_size(h.list_context_cover_placeholder, 20);
+        builder.set_button_icon_size(h.list_context_cover_placeholder, 16);
         {
             StylePatch patch = ::ui::scene::make_clean_surface_patch({
                 .apply_bg_color = true,
@@ -511,64 +420,15 @@
                 .apply_corner_radius = true,
                 .bg_color = {0, 0, 0, 0},
                 .border_color = {0, 0, 0, 0},
-                .corner_radius = 12,
+                .corner_radius = 10,
             });
             patch.has_font_color = true;
             patch.font_color = {kUiLibraryChipText.r, kUiLibraryChipText.g, kUiLibraryChipText.b, 172};
             builder.set_style_override(h.list_context_cover_placeholder, patch);
             builder.set_hit_testable(h.list_context_cover_placeholder, false);
         }
-        h.list_context_cover_scrim = builder.create_container();
-        anchor_rect(builder, h.list_context_cover_scrim,
-                    {list_context_preview_x + 3, list_context_preview_y + 3,
-                     list_context_preview_frame - 6, list_context_preview_frame - 6});
-        {
-            StylePatch patch = ::ui::scene::make_clean_surface_patch({
-                .apply_bg_color = true,
-                .apply_border_color = true,
-                .apply_corner_radius = true,
-                .bg_color = {8, 14, 30, 176},
-                .border_color = {0, 0, 0, 0},
-                .corner_radius = 18,
-            });
-            builder.set_style_override(h.list_context_cover_scrim, patch);
-            builder.set_hit_testable(h.list_context_cover_scrim, false);
-        }
-        const WidgetHandle list_context_badge = builder.create_container();
-        anchor_rect(builder, list_context_badge,
-                    {list_context_tray_side_gap + 14, list_context_preview_y + 15, 28, 24});
-        {
-            StylePatch patch = ::ui::scene::make_clean_surface_patch({
-                .apply_bg_color = true,
-                .apply_border_color = true,
-                .apply_corner_radius = true,
-                .bg_color = {kUiLibraryHeaderPlate.r, kUiLibraryHeaderPlate.g, kUiLibraryHeaderPlate.b, 188},
-                .border_color = {0, 0, 0, 0},
-                .corner_radius = 13,
-            });
-            builder.set_style_override(list_context_badge, patch);
-            builder.set_hit_testable(list_context_badge, false);
-        }
-        const WidgetHandle list_context_badge_icon = builder.create_button_static("");
-        anchor_rect(builder, list_context_badge_icon,
-                    {list_context_tray_side_gap + 21, list_context_preview_y + 20, 14, 14});
-        builder.set_button_icon(list_context_badge_icon, icons.folder_active);
-        builder.set_button_icon_size(list_context_badge_icon, 14);
-        {
-            StylePatch patch = ::ui::scene::make_clean_surface_patch({
-                .apply_bg_color = true,
-                .apply_border_color = true,
-                .apply_corner_radius = false,
-                .bg_color = {0, 0, 0, 0},
-                .border_color = {0, 0, 0, 0},
-            });
-            patch.has_font_color = true;
-            patch.font_color = {kUiLibraryPathTextActive.r, kUiLibraryPathTextActive.g, kUiLibraryPathTextActive.b, 220};
-            builder.set_style_override(list_context_badge_icon, patch);
-            builder.set_hit_testable(list_context_badge_icon, false);
-        }
-        const int list_context_text_x = list_context_tray_side_gap + 54;
-        const int list_context_text_w = list_context_preview_x - list_context_text_x - 16;
+        const int list_context_text_x = list_context_icon_x + list_context_icon_size + 12;
+        const int list_context_text_w = list_context_tray_side_gap + list_context_tray_w - list_context_text_x - 16;
         h.list_context_title = builder.create_label_static("");
         anchor_rect(builder, h.list_context_title,
                     {list_context_text_x, list_context_tray_y + 11,
@@ -602,9 +462,6 @@
         builder.link(library_layers.chrome, lib_top);
         builder.link(lib_top, h.library_hero_title);
         builder.link(lib_top, lib_subtitle);
-        builder.link(lib_top, lib_badge);
-        builder.link(lib_top, lib_badge_icon);
-        builder.link(lib_top, lib_badge_label);
         builder.link(lib_top, lib_settings);
         builder.link(library_layers.content, library_controls);
         builder.link(library_layers.content, tabs_plate);
@@ -612,85 +469,18 @@
         builder.link(library_layers.content, h.list_tab_indicator);
         builder.link(library_layers.content, action_row_plate);
         builder.link(library_layers.content, shuffle_root);
-        builder.link(library_layers.content, action_row_marker);
-        builder.link(library_layers.content, action_row_hint);
         builder.link(library_layers.content, list_card_root);
-        const WidgetHandle action_row_sort_dock = builder.create_container();
-        anchor_rect(builder, action_row_sort_dock,
-                    {sort_action_rect.x - 6, sort_action_rect.y - 2,
-                     sort_action_rect.w + 6, sort_action_rect.h + 4});
-        {
-            StylePatch patch = ::ui::scene::make_clean_surface_patch({
-                .apply_bg_color = true,
-                .apply_border_color = true,
-                .apply_corner_radius = true,
-                .bg_color = {kUiLibraryHeaderPlate.r, kUiLibraryHeaderPlate.g, kUiLibraryHeaderPlate.b, 128},
-                .border_color = {0, 0, 0, 0},
-                .corner_radius = 22,
-            });
-            builder.set_style_override(action_row_sort_dock, patch);
-            builder.set_hit_testable(action_row_sort_dock, false);
-        }
-        const WidgetHandle action_row_divider = builder.create_container();
-        anchor_rect(builder, action_row_divider,
-                    {sort_action_rect.x - 12, library_shuffle_y + 9, 1, library_shuffle_h - 18});
-        {
-            StylePatch patch = ::ui::scene::make_clean_surface_patch({
-                .apply_bg_color = true,
-                .apply_border_color = true,
-                .apply_corner_radius = true,
-                .bg_color = {kUiLibraryChipTextMuted.r, kUiLibraryChipTextMuted.g, kUiLibraryChipTextMuted.b, 92},
-                .border_color = {0, 0, 0, 0},
-                .corner_radius = 1,
-            });
-            builder.set_style_override(action_row_divider, patch);
-            builder.set_hit_testable(action_row_divider, false);
-        }
-        builder.link(library_layers.content, action_row_sort_dock);
-        builder.link(library_layers.content, action_row_divider);
         builder.link(library_layers.content, h.list_sort);
         builder.link(list_card_root, list_body_plate);
         builder.link(list_card_root, h.list_context_root);
         builder.link(h.list_context_root, list_context_tray);
         builder.link(h.list_context_root, list_context_tray_divider);
-        builder.link(h.list_context_root, list_context_cover_frame);
-        builder.link(h.list_context_root, h.list_context_cover);
         builder.link(h.list_context_root, h.list_context_cover_placeholder);
-        builder.link(h.list_context_root, h.list_context_cover_scrim);
-        builder.link(h.list_context_root, list_context_badge);
-        builder.link(h.list_context_root, list_context_badge_icon);
         builder.link(h.list_context_root, h.list_context_title);
         builder.link(h.list_context_root, h.list_context_subtitle);
         builder.link(list_card_root, list_header_plate);
-        const WidgetHandle list_title_marker = builder.create_container();
-        anchor_rect(builder, list_title_marker,
-                    {lib_layout.list_title_left_gap, list_header_layout.title_rect.y - 10, 12, 8});
-        {
-            StylePatch patch = ::ui::scene::make_clean_surface_patch({
-                .apply_bg_color = true,
-                .apply_border_color = true,
-                .apply_corner_radius = true,
-                .bg_color = {kUiOk.r, kUiOk.g, kUiOk.b, 214},
-                .border_color = {0, 0, 0, 0},
-                .corner_radius = 4,
-            });
-            builder.set_style_override(list_title_marker, patch);
-            builder.set_hit_testable(list_title_marker, false);
-        }
-        const WidgetHandle list_title_eyebrow = builder.create_label_static("Collection");
-        anchor_rect(builder, list_title_eyebrow,
-                    {lib_layout.list_title_left_gap + 18, list_header_layout.title_rect.y - 12, 88, 12});
-        apply_player_text_style(builder, list_title_eyebrow, PlayerTextRole::MetaText, kUiTimeSoft);
-        {
-            StylePatch patch{};
-            patch.has_font = true;
-            patch.font = &get_player_font_px(12, FontWeight::Medium);
-            builder.set_style_patch(list_title_eyebrow, patch);
-        }
-        builder.set_label_align(list_title_eyebrow, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
-        builder.set_hit_testable(list_title_eyebrow, false);
         Rect list_title_rect = list_header_layout.title_rect;
-        list_title_rect.y += 6;
+        list_title_rect.y += 2;
         anchor_rect(builder, h.list_title, list_title_rect);
         apply_player_text_style(builder, h.list_title, PlayerTextRole::CardTitle, kUiTitle);
         builder.set_label_align(h.list_title, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
@@ -815,8 +605,6 @@
         builder.link(list_card_root, h.list);
         builder.link(list_card_root, list_scroll_rail);
         builder.link(list_card_root, h.list_scroll);
-        builder.link(list_card_root, list_title_marker);
-        builder.link(list_card_root, list_title_eyebrow);
         builder.link(list_card_root, h.list_title);
         builder.link(list_card_root, h.list_path_bg);
         builder.link(list_card_root, h.list_path);

@@ -82,6 +82,71 @@ function Get-EntryBoolProperty {
     return [bool]$property.Value
 }
 
+function Get-EntryPropertyValue {
+    param(
+        $Entry,
+        [string]$Name,
+        $Default = $null
+    )
+
+    if ($null -eq $Entry) {
+        return $Default
+    }
+
+    $property = $Entry.PSObject.Properties[$Name]
+    if ($null -eq $property -or $null -eq $property.Value) {
+        return $Default
+    }
+
+    return $property.Value
+}
+
+function Get-TrapIngressWitnessRequiredExamples {
+    return @(
+        "runtime_minimal_host",
+        "runtime_trap_armv7a_host"
+    )
+}
+
+function New-TrapIngressWitnessView {
+    param(
+        $Witness
+    )
+
+    if ($null -eq $Witness) {
+        return $null
+    }
+
+    return [ordered]@{
+        ready = [bool]$Witness.ready
+        ok = [bool]$Witness.ok
+        sequence = [int64]$Witness.sequence
+        stamp = [int64]$Witness.stamp
+        stages = [ordered]@{
+            decode = [bool]$Witness.stages.decode
+            dispatch = [bool]$Witness.stages.dispatch
+            writeback = [bool]$Witness.stages.writeback
+        }
+        terminal = [ordered]@{
+            stage = [string]$Witness.terminal.stage
+            service = [string]$Witness.terminal.service
+            origin = [string]$Witness.terminal.origin
+            disposition = [string]$Witness.terminal.disposition
+            error = [string]$Witness.terminal.error
+        }
+        last_failure = [ordered]@{
+            present = [bool]$Witness.last_failure.present
+            prior_attempt = [bool]$Witness.last_failure.prior_attempt
+            sequence = [int64]$Witness.last_failure.sequence
+            stage = [string]$Witness.last_failure.stage
+            service = [string]$Witness.last_failure.service
+            origin = [string]$Witness.last_failure.origin
+            disposition = [string]$Witness.last_failure.disposition
+            error = [string]$Witness.last_failure.error
+        }
+    }
+}
+
 function Convert-ToSummaryResult {
     param(
         $Entry
@@ -92,6 +157,7 @@ function Convert-ToSummaryResult {
     $buildMs = Get-EntryInt64Property -Entry $Entry -Name "BuildMs"
     $runMs = Get-EntryInt64Property -Entry $Entry -Name "RunMs"
     $failurePhase = Get-EntryStringProperty -Entry $Entry -Name "FailurePhase"
+    $trapIngressWitness = New-TrapIngressWitnessView -Witness (Get-EntryPropertyValue -Entry $Entry -Name "TrapIngressWitness")
 
     return [pscustomobject]@{
         Example        = [string]$Entry.Example
@@ -103,6 +169,7 @@ function Convert-ToSummaryResult {
         RunMs          = $runMs
         FailurePhase   = $failurePhase
         HasPhaseTiming = ($null -ne $configureMs) -or ($null -ne $buildMs) -or ($null -ne $runMs)
+        TrapIngressWitness = $trapIngressWitness
         Detail         = [string]$Entry.Detail
     }
 }
@@ -130,6 +197,79 @@ function Load-SmokeSummary {
         Path    = $Path
         Data    = $data
         Results = $results
+    }
+}
+
+function Get-TrapIngressWitnessSetView {
+    param(
+        $SummaryData,
+        [object[]]$Results
+    )
+
+    $selectedExamples = @(
+        @($SummaryData.selected_examples) |
+            ForEach-Object { [string]$_ }
+    )
+
+    $selectedSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+    foreach ($example in $selectedExamples) {
+        if (-not [string]::IsNullOrWhiteSpace($example)) {
+            [void]$selectedSet.Add($example)
+        }
+    }
+
+    $expectedExamples = [System.Collections.Generic.List[string]]::new()
+    foreach ($example in (Get-TrapIngressWitnessRequiredExamples)) {
+        if ($selectedSet.Contains($example)) {
+            $expectedExamples.Add($example) | Out-Null
+        }
+    }
+
+    if ($expectedExamples.Count -eq 0) {
+        return $null
+    }
+
+    $resultMap = @{}
+    foreach ($result in @($Results)) {
+        $resultMap[[string]$result.Example] = $result
+    }
+
+    $entries = [System.Collections.Generic.List[object]]::new()
+    $missingExamples = [System.Collections.Generic.List[string]]::new()
+    $presentCount = 0
+    $okCount = 0
+
+    foreach ($example in @($expectedExamples)) {
+        if (-not $resultMap.ContainsKey($example)) {
+            $missingExamples.Add($example) | Out-Null
+            continue
+        }
+
+        $result = $resultMap[$example]
+        if ($null -eq $result.TrapIngressWitness) {
+            $missingExamples.Add($example) | Out-Null
+            continue
+        }
+
+        $witness = $result.TrapIngressWitness
+        $presentCount += 1
+        if ([bool]$witness.ready -and [bool]$witness.ok) {
+            $okCount += 1
+        }
+
+        $entries.Add([ordered]@{
+            example = [string]$result.Example
+            status = [string]$result.Status
+            trap_ingress_witness = $witness
+        }) | Out-Null
+    }
+
+    return [ordered]@{
+        expected_examples = @($expectedExamples)
+        present_count = $presentCount
+        ok_count = $okCount
+        missing_examples = @($missingExamples)
+        entries = @($entries)
     }
 }
 
@@ -354,6 +494,10 @@ function New-ResultView {
         $view.run_ms = $Result.RunMs
     }
 
+    if ($null -ne $Result.TrapIngressWitness) {
+        $view.trap_ingress_witness = $Result.TrapIngressWitness
+    }
+
     if (-not [string]::IsNullOrWhiteSpace([string]$Result.FailurePhase)) {
         $view.failure_phase = [string]$Result.FailurePhase
     }
@@ -380,6 +524,10 @@ function New-FailureView {
         }
         $view.build_ms = $Result.BuildMs
         $view.run_ms = $Result.RunMs
+    }
+
+    if ($null -ne $Result.TrapIngressWitness) {
+        $view.trap_ingress_witness = $Result.TrapIngressWitness
     }
 
     if (-not [string]::IsNullOrWhiteSpace([string]$Result.FailurePhase)) {
@@ -592,6 +740,7 @@ function New-JsonView {
         $StatusSummary,
         $ElapsedStats,
         $PhaseStats,
+        $TrapIngressWitnesses,
         [object[]]$SortedResults,
         [object[]]$Failures,
         $ComparisonData,
@@ -629,6 +778,10 @@ function New-JsonView {
             @($Failures) |
                 ForEach-Object { New-FailureView -Result $_ }
         )
+    }
+
+    if ($null -ne $TrapIngressWitnesses) {
+        $view.trap_ingress_witnesses = $TrapIngressWitnesses
     }
 
     $phaseElapsedView = [ordered]@{}
@@ -710,6 +863,7 @@ $failures = @($sortedResults | Where-Object { [string]$_.Status -ne "ok" })
 $statusSummary = Get-StatusSummary -Results $sortedResults
 $elapsedStats = Get-ElapsedStats -Results $sortedResults
 $phaseStats = Get-PhaseStats -Results $sortedResults
+$trapIngressWitnesses = Get-TrapIngressWitnessSetView -SummaryData $loaded.Data -Results $sortedResults
 
 $comparison = $null
 if (-not [string]::IsNullOrWhiteSpace($baselinePath)) {
@@ -724,6 +878,7 @@ if ($AsJson) {
         -StatusSummary $statusSummary `
         -ElapsedStats $elapsedStats `
         -PhaseStats $phaseStats `
+        -TrapIngressWitnesses $trapIngressWitnesses `
         -SortedResults $sortedResults `
         -Failures $failures `
         -ComparisonData $comparison `
@@ -740,6 +895,9 @@ Write-Output ("summary: {0}" -f $summaryPath)
 Write-Output ("profile: {0}" -f (Get-RunProfile -SummaryData $loaded.Data))
 Write-Output ("examples: selected={0} results={1} ok={2} fail={3} other={4}" -f $selectedExamples.Count, @($sortedResults).Count, $statusSummary.OkCount, $statusSummary.FailCount, $statusSummary.OtherCount)
 Write-Output ("elapsed_ms: total={0} avg={1} median={2} min={3} max={4}" -f $elapsedStats.TotalMs, $elapsedStats.AverageMs, $elapsedStats.MedianMs, $elapsedStats.MinMs, $elapsedStats.MaxMs)
+if ($null -ne $trapIngressWitnesses) {
+    Write-Output ("trap_ingress_witnesses: expected={0} present={1} ok={2} missing={3}" -f @($trapIngressWitnesses.expected_examples).Count, $trapIngressWitnesses.present_count, $trapIngressWitnesses.ok_count, @($trapIngressWitnesses.missing_examples).Count)
+}
 
 if ($null -ne $phaseStats.Configure -or $null -ne $phaseStats.Build -or $null -ne $phaseStats.Run) {
     $phaseTotals = [System.Collections.Generic.List[string]]::new()

@@ -262,6 +262,22 @@ Modules/
 
 这一阶段最重要的结果不是“线程已经跑起来”，而是“线程以后知道该从哪扇门进来”。
 
+### 5.2.1 Arch ingress seam closure v0
+
+当前 v0 先冻结证据入口，而不是提前冻结 C++ 接口名。 dedicated QEMU smoke 是：
+
+- `Examples/kernel/armv7a/qemu/run_qemu_arch_ingress_seam_ci.ps1`
+
+它复用现有 `debug` ARMv7-A QEMU 二进制，在同一次 lower-half run 里验证：
+
+- `exception/SVC -> timer/IRQ -> context -> runtime-trap -> runtime-loop`
+- `decode -> dispatch -> writeback`
+- timer / interrupt route 到 `scheduler-tick-ingress`
+- context capture 到 `runtime trap context`
+- `runtime-loop-ingress` 仍然是最终 lower-half runtime 入口
+
+这条 case 也被 `scripts/minimal_kernel_runtime_armv7a_qemu_smoke.ps1` 收成 `arch_ingress_seam`，并进入 `canonical_world.focus`。它只增强 ARMv7-A lower-half 可观测性，不引入完整 OS、用户态、POSIX 或新的 compare brain。
+
 ## 5.3 阶段 2：单核最小线程模型
 
 这里的目标不是完整 RTOS，而是 Cortex-A 上的第一个可运行线程内核。

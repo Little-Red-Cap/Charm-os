@@ -5,6 +5,8 @@ set(target_name ${PROJECT_NAME})
 set(CMAKE_CXX_STANDARD 26)
 option(CHARM_VIVID_SOA_TRACE_INPUT "Enable SoA trace-only hooks for regression" OFF)
 
+enable_testing()
+
 add_executable(${target_name}
     main.cpp
 )
@@ -34,5 +36,14 @@ target_sources(${target_name} PRIVATE
 )
 
 charm_example_link_sdl3(${target_name} "${CHARM_ROOT}")
+
+if (CHARM_VIVID_SOA_TRACE_INPUT)
+    add_test(NAME ${target_name}
+        COMMAND $<TARGET_FILE:${target_name}> --soa-ci --regress-ui)
+    set_tests_properties(${target_name} PROPERTIES
+        WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+        PASS_REGULAR_EXPRESSION "\\[soa-ci\\].*ok=1.*failed_cmds=0.*table_tree_ok=1.*ui_ok=1"
+        FAIL_REGULAR_EXPRESSION "\\[ERR\\]|result=fail|\\[soa-ci\\] ok=0")
+endif()
 
 

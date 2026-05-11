@@ -212,6 +212,33 @@ style token law
 focus boundary / transfer / scope
 ```
 
+### Composite Semantic-State-Transaction Verdict
+
+Composite verdicts explain how a semantic action can produce state/render evidence before a page transaction begins.
+
+Required evidence normally includes:
+
+```text
+semantic request ledger
+edge or click evidence
+state delta evidence
+invalidation evidence
+render artifact delta
+transaction admission
+commit/abort boundary
+snapshot lifecycle or page truth consequence
+```
+
+Examples:
+
+```text
+semantic action state transition
+semantic intent with render consequence
+semantic-to-transaction with state bridge
+```
+
+`semantic_action_state_transition_demo` is a v0 composite verdict. It uses evidence-referenced fields for `request_ok`, `event_ok`, `state_delta_ok`, `invalidation_ok`, `artifact_ok`, `admission_ok`, `commit_ok`, `snapshot_lifecycle_ok`, `page_truth_ok`, and `rejected_no_mutation`.
+
 ## Manifest Relationship
 
 `vivid_evidence_lab_manifest_v0.md` owns the demo-to-axis map.
@@ -223,7 +250,7 @@ Manifest rows claiming `AxisCausal` must satisfy this law by one of these routes
 2. The primary law document explains the evidence segments closed by a count-based verdict.
 ```
 
-The manifest should keep `intent_artifact_demo` as the vertical causal anchor until a broader cross-axis demo supersedes it.
+The manifest should keep `intent_artifact_demo` as the vertical causal anchor, `semantic_transition_demo` as the first semantic-to-transaction anchor, and `semantic_action_state_transition_demo` as the wider semantic-action-state-transaction anchor until a broader cross-axis demo supersedes them.
 
 ## Non-Goals
 

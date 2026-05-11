@@ -393,6 +393,10 @@ public:
     }
 
 #if defined(VIVID_SOA_TRACE_INPUT)
+    std::uint32_t input_guard_state_write_violations() const noexcept {
+        return input_guard_state_write_violations_;
+    }
+
     void input_test_request_capture(WidgetHandle h) noexcept {
         input_set_capture(h, input_.last_x, input_.last_y, input_.button, true);
         input_apply_actions();
@@ -891,11 +895,14 @@ private:
     }
 
     void input_guard_state_write(const char* what) noexcept {
-#ifndef NDEBUG
         if (input_phase_ && !input_commit_phase_) {
-            assert(false && "SoaKernel state write during input phase");
-        }
+#if defined(VIVID_SOA_TRACE_INPUT)
+            ++input_guard_state_write_violations_;
 #endif
+#ifndef NDEBUG
+            assert(false && "SoaKernel state write during input phase");
+#endif
+        }
         (void)what;
     }
 
@@ -942,6 +949,9 @@ private:
     InputEventQueue input_events_{};
     InputState input_{};
     static constexpr std::size_t kMaxFocusScopeStack = 4;
+#if defined(VIVID_SOA_TRACE_INPUT)
+    std::uint32_t input_guard_state_write_violations_{0};
+#endif
 
     struct FocusScopeFrame {
         WidgetHandle scope{};

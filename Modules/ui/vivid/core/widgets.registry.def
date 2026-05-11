@@ -290,7 +290,7 @@ VIVID_WIDGET_REGISTRY(PerfOverlay, charm.widgets.perf_overlay, PerfOverlay, Perf
 #define CHARM_VIVID_ENABLE_WIDGET_Stepper VIVID_WIDGET_DEFAULT
 #endif
 #if CHARM_VIVID_ENABLE_WIDGET_Stepper
-VIVID_WIDGET_REGISTRY(Stepper, charm.widgets.stepper, Stepper, Stepper, stepper, steppers_, None, 0, None, Readonly, 0, 0, 0, 0, 1, Stepper, StepperX, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+VIVID_WIDGET_REGISTRY(Stepper, charm.widgets.stepper, Stepper, Stepper, stepper, steppers_, None, 0, None, Interactive, 0, 0, 0, 0, 1, Stepper, StepperX, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
 #endif
 #ifndef CHARM_VIVID_ENABLE_WIDGET_Timeline
 #define CHARM_VIVID_ENABLE_WIDGET_Timeline VIVID_WIDGET_DEFAULT

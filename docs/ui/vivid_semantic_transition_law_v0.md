@@ -157,4 +157,4 @@ Rejected paths count as causal evidence only when they prove no mutation or no l
 - This law does not make `SemanticActionRequest` own page transitions.
 - This law does not promote demo support helpers into Vivid core.
 - This law does not require screenshot golden files.
-- This law does not define composite intent with both state/render and page transaction consequences.
+- This law does not define composite intent with both state/render and page transaction consequences; that boundary is governed by `vivid_semantic_action_state_transition_law_v0.md`.

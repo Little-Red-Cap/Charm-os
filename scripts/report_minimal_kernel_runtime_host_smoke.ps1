@@ -316,6 +316,88 @@ function Add-ComparisonRows {
     }
 }
 
+function Format-TrapIngressWitnessStateText {
+    param(
+        $Witness
+    )
+
+    if ($null -eq $Witness) {
+        return "missing"
+    }
+
+    $ready = if (Get-ObjectBoolValue -Object $Witness -Name "ready") { 1 } else { 0 }
+    $ok = if (Get-ObjectBoolValue -Object $Witness -Name "ok") { 1 } else { 0 }
+    return ("ready={0} ok={1}" -f $ready, $ok)
+}
+
+function Format-TrapIngressWitnessTerminalText {
+    param(
+        $Witness
+    )
+
+    $terminal = Get-ObjectPropertyValue -Object $Witness -Name "terminal" -Default $null
+    if ($null -eq $terminal) {
+        return "-"
+    }
+
+    return ("{0}/{1}/{2}/{3}/{4}" -f
+        (Get-ObjectStringValue -Object $terminal -Name "stage"),
+        (Get-ObjectStringValue -Object $terminal -Name "service"),
+        (Get-ObjectStringValue -Object $terminal -Name "origin"),
+        (Get-ObjectStringValue -Object $terminal -Name "disposition"),
+        (Get-ObjectStringValue -Object $terminal -Name "error"))
+}
+
+function Format-TrapIngressWitnessLastFailureText {
+    param(
+        $Witness
+    )
+
+    $lastFailure = Get-ObjectPropertyValue -Object $Witness -Name "last_failure" -Default $null
+    if ($null -eq $lastFailure) {
+        return "-"
+    }
+
+    if (-not (Get-ObjectBoolValue -Object $lastFailure -Name "present")) {
+        return "none"
+    }
+
+    $priorAttempt = if (Get-ObjectBoolValue -Object $lastFailure -Name "prior_attempt") { 1 } else { 0 }
+    return ("seq={0} prior={1} {2}/{3}/{4}/{5}/{6}" -f
+        (Get-ObjectIntValue -Object $lastFailure -Name "sequence"),
+        $priorAttempt,
+        (Get-ObjectStringValue -Object $lastFailure -Name "stage"),
+        (Get-ObjectStringValue -Object $lastFailure -Name "service"),
+        (Get-ObjectStringValue -Object $lastFailure -Name "origin"),
+        (Get-ObjectStringValue -Object $lastFailure -Name "disposition"),
+        (Get-ObjectStringValue -Object $lastFailure -Name "error"))
+}
+
+function Add-TrapIngressWitnessRows {
+    param(
+        [System.Text.StringBuilder]$Builder,
+        [object[]]$Entries
+    )
+
+    foreach ($entry in @($Entries)) {
+        $witness = Get-ObjectPropertyValue -Object $entry -Name "trap_ingress_witness" -Default $null
+        $sequence = if ($null -eq $witness) {
+            "-"
+        } else {
+            [string](Get-ObjectIntValue -Object $witness -Name "sequence")
+        }
+        $columns = @(
+            (Escape-MarkdownCell -Text (Get-ObjectStringValue -Object $entry -Name "example")),
+            (Escape-MarkdownCell -Text (Format-TrapIngressWitnessStateText -Witness $witness)),
+            (Escape-MarkdownCell -Text $sequence),
+            (Escape-MarkdownCell -Text (Format-TrapIngressWitnessTerminalText -Witness $witness)),
+            (Escape-MarkdownCell -Text (Format-TrapIngressWitnessLastFailureText -Witness $witness))
+        )
+
+        [void]$Builder.AppendLine(($columns -join " | "))
+    }
+}
+
 $inspectJsonPath = Get-OptionalPath -Path $InspectJson
 $summaryPath = ""
 if ([string]::IsNullOrWhiteSpace($inspectJsonPath)) {
@@ -338,6 +420,7 @@ $comparisonBaselinePath = if ($null -eq $comparison) { "" } else { Get-ObjectStr
 $status = Get-ObjectPropertyValue -Object $data -Name "status" -Default $null
 $elapsed = Get-ObjectPropertyValue -Object $data -Name "elapsed_ms" -Default $null
 $phaseElapsed = Get-ObjectPropertyValue -Object $data -Name "phase_elapsed_ms" -Default $null
+$trapIngressWitnesses = Get-ObjectPropertyValue -Object $data -Name "trap_ingress_witnesses" -Default $null
 $slowest = @(Get-ObjectArray -Object $data -Name "slowest")
 $failures = @(Get-ObjectArray -Object $data -Name "failures")
 $profileValue = Get-ObjectStringValue -Object $data -Name "profile" -Default "custom"
@@ -378,6 +461,29 @@ if (@($phaseLines).Count -eq 0) {
 } else {
     foreach ($line in $phaseLines) {
         [void]$builder.AppendLine($line)
+    }
+}
+
+[void]$builder.AppendLine("")
+[void]$builder.AppendLine("## Trap Ingress Witnesses")
+if ($null -eq $trapIngressWitnesses) {
+    [void]$builder.AppendLine("- No trap ingress witness data.")
+} else {
+    $expectedExamples = @(Get-ObjectArray -Object $trapIngressWitnesses -Name "expected_examples")
+    $missingExamples = @(Get-ObjectArray -Object $trapIngressWitnesses -Name "missing_examples")
+    $witnessEntries = @(Get-ObjectArray -Object $trapIngressWitnesses -Name "entries")
+    [void]$builder.AppendLine(('- Expected: `{0}` present=`{1}` ok=`{2}` missing=`{3}`' -f @($expectedExamples).Count, (Get-ObjectIntValue -Object $trapIngressWitnesses -Name "present_count"), (Get-ObjectIntValue -Object $trapIngressWitnesses -Name "ok_count"), @($missingExamples).Count))
+
+    if (@($missingExamples).Count -gt 0) {
+        $missingList = @($missingExamples | ForEach-Object { [string]$_ }) -join '`, `'
+        [void]$builder.AppendLine(('- Missing examples: `{0}`' -f $missingList))
+    }
+
+    if (@($witnessEntries).Count -eq 0) {
+        [void]$builder.AppendLine("- No witness entries.")
+    } else {
+        Add-TableHeader -Builder $builder -Columns @("Example", "Witness", "Sequence", "Terminal", "Last Failure")
+        Add-TrapIngressWitnessRows -Builder $builder -Entries $witnessEntries
     }
 }
 

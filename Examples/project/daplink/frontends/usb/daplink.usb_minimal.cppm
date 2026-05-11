@@ -375,6 +375,30 @@ export namespace daplink::usb_minimal {
         }
     }
 
+    inline void on_connect(UsbPcdHandle& hpcd) noexcept {
+        g_state.hpcd = &hpcd;
+    }
+
+    inline void on_disconnect(UsbPcdHandle&) noexcept {
+        g_state = {};
+        g_state.reset_pending = true;
+    }
+
+    inline void on_suspend(UsbPcdHandle&) noexcept {
+        g_state.hid.hid_in_busy = false;
+        g_state.cdc.cdc_in_busy = false;
+    }
+
+    inline void on_resume(UsbPcdHandle& hpcd) noexcept {
+        g_state.hpcd = &hpcd;
+        if constexpr (kEnableHid) {
+            hid_try_rearm(hpcd);
+        }
+        if constexpr (kEnableCdc) {
+            cdc_try_rearm(hpcd);
+        }
+    }
+
     inline void on_setup_stage(UsbPcdHandle& hpcd) noexcept {
         const auto s = parse_setup(hpcd);
         const auto req_type = static_cast<std::uint8_t>(s.bm_request_type & 0x60);
@@ -731,6 +755,34 @@ export namespace daplink::usb_minimal {
             return false;
         }
         return hid_in_send(*g_state.hpcd, len);
+    }
+
+    inline void clear_hid_data_state() noexcept {
+        if constexpr (!kEnableHid) {
+            return;
+        }
+        for (auto& packet : g_state.hid.hid_out) {
+            for (std::uint8_t& b : packet) {
+                b = 0;
+            }
+        }
+        for (std::uint16_t& len : g_state.hid.hid_out_len) {
+            len = 0;
+        }
+        g_state.hid.hid_out_full_mask = 0;
+        g_state.hid.hid_out_read_index = 0;
+        g_state.hid.hid_out_active_index = 0;
+        g_state.hid.hid_out_armed = false;
+        g_state.hid.hid_in_busy = false;
+        for (std::uint8_t& b : g_state.hid.hid_in) {
+            b = 0;
+        }
+        for (std::uint8_t& b : kHidScratch) {
+            b = 0;
+        }
+        if (g_state.hpcd != nullptr) {
+            hid_try_rearm(*g_state.hpcd);
+        }
     }
 
     inline void send_in_packet(const std::uint16_t len) noexcept {

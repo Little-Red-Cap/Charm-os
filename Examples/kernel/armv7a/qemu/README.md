@@ -256,6 +256,17 @@ For a shorter failure loop around the exported runtime-thread egress seam, use:
 .\run_qemu_runtime_thread_ci.ps1
 ```
 
+For a dedicated arch ingress seam closure smoke around exception, timer,
+context, runtime-trap, and runtime-loop ingress, use:
+
+```powershell
+.\run_qemu_arch_ingress_seam_ci.ps1
+```
+
+That smoke stays on the shared `debug` preset and only checks that the lower
+half still exposes one coherent ingress seam; it does not add new OS, user
+mode, or compare behavior.
+
 For a dedicated top-level witness re-export that lifts the real runtime bundle
 into the shared `system_compiler.witness_bundle/v0` surface, use:
 

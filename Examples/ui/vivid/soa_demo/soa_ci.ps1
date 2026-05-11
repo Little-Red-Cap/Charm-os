@@ -1,5 +1,5 @@
 param(
-    [string]$BuildDir = "Examples/ui/vivid/soa_demo/cmake-build-debug",
+    [string]$BuildDir = "cmake-build-soa-ci",
     [string]$Exe = "",
     [string]$OutDir = "artifacts/soa_ci",
     [ValidateSet("ci","dump","replay")] [string]$Mode = "ci",
@@ -14,19 +14,38 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-if (-not $Exe) {
-    $Exe = Join-Path $BuildDir "Debug/vivid-soa-demo.exe"
+if (-not [System.IO.Path]::IsPathRooted($BuildDir)) {
+    $BuildDir = Join-Path $PSScriptRoot $BuildDir
 }
 
-if (-not (Test-Path $Exe)) {
-    throw "Executable not found: $Exe"
+$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "../../../..")).Path
+if (-not [System.IO.Path]::IsPathRooted($OutDir)) {
+    $OutDir = Join-Path $RepoRoot $OutDir
 }
+
+if (-not $Exe) {
+    $Exe = Join-Path $BuildDir "vivid-soa-demo.exe"
+}
+
+$configureArgs = @(
+    "-S", $PSScriptRoot,
+    "-B", $BuildDir,
+    "-G", "Ninja",
+    "-DCHARM_VIVID_SOA_TRACE_INPUT=ON"
+)
+Write-Host "[soa-ci] configure: cmake $($configureArgs -join ' ')"
+& cmake @configureArgs 2>&1 | Out-Host
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 if (-not $NoBuild) {
-    $buildCmd = "cmake --build `"$BuildDir`" --target vivid-soa-demo -j 22"
-    Write-Host "[soa-ci] build: $buildCmd"
-    cmd /c $buildCmd | Out-Host
+    $buildArgs = @("--build", $BuildDir, "--target", "vivid-soa-demo", "-j", "22")
+    Write-Host "[soa-ci] build: cmake $($buildArgs -join ' ')"
+    & cmake @buildArgs 2>&1 | Out-Host
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}
+
+if ($Mode -ne "ci" -and -not (Test-Path $Exe)) {
+    throw "Executable not found: $Exe"
 }
 
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
@@ -43,10 +62,10 @@ if ($gitHash) {
 
 switch ($Mode) {
     "ci" {
-        if (-not $DumpPath) {
-            $DumpPath = Join-Path $OutDir "soa_ci.vcmd"
-        }
-        $args = @("--soa-ci", "--regress-ui", "--dump-cmd=$DumpPath")
+        $ctestArgs = @("--test-dir", $BuildDir, "--output-on-failure")
+        Write-Host "[soa-ci] ctest: ctest $($ctestArgs -join ' ')"
+        & ctest @ctestArgs 2>&1 | Tee-Object -FilePath $logPath
+        exit $LASTEXITCODE
     }
     "dump" {
         if (-not $DumpPath) {

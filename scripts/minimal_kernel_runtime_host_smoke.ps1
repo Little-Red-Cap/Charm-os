@@ -226,6 +226,48 @@ function Invoke-Checked {
     }
 }
 
+function Test-TrapIngressWitnessRequiredExample {
+    param(
+        [string]$Example
+    )
+
+    return $Example -eq "runtime_minimal_host" -or
+           $Example -eq "runtime_trap_armv7a_host"
+}
+
+function Get-TrapIngressWitnessObservation {
+    param(
+        [object[]]$Lines
+    )
+
+    foreach ($line in @($Lines)) {
+        $text = [string]$line
+        if ($text -notmatch '^\[trap-ingress\.witness\]\s+(?<json>\{.*\})\s*$') {
+            continue
+        }
+
+        try {
+            return [pscustomobject]@{
+                present = $true
+                witness = ($Matches.json | ConvertFrom-Json)
+                error = ""
+            }
+        } catch {
+            return [pscustomobject]@{
+                present = $false
+                witness = $null
+                error = ("trap ingress witness json parse failed: {0}" -f $_.Exception.Message)
+            }
+        }
+    }
+
+    return [pscustomobject]@{
+        present = $false
+        witness = $null
+        error = "trap ingress witness line not found"
+    }
+}
+
 $cmake = Resolve-ToolPath -Tool $CMakeExe
 $repoRoot = Resolve-RepoRoot
 $resolvedSummaryPath = Resolve-FullPath -Path $SummaryPath
@@ -247,6 +289,7 @@ try {
         $configureSkipped = $false
         $failurePhase = ""
         $currentPhase = "prepare"
+        $trapIngressWitness = $null
         $exampleStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
         try {
@@ -297,7 +340,8 @@ try {
             try {
                 $runOutput = & $exePath 2>&1
                 $exitCode = $LASTEXITCODE
-                $outputText = (($runOutput | Out-String).Trim() -replace "`r?`n", " | ")
+                $runLines = @($runOutput)
+                $outputText = (($runLines | Out-String).Trim() -replace "`r?`n", " | ")
 
                 if ([string]::IsNullOrWhiteSpace($outputText)) {
                     $outputText = "<no output>"
@@ -305,6 +349,24 @@ try {
 
                 if ($exitCode -ne 0) {
                     throw "program exited with code $exitCode"
+                }
+
+                $trapIngressWitness = $null
+                if (Test-TrapIngressWitnessRequiredExample -Example $example) {
+                    $trapIngressWitnessObservation =
+                        Get-TrapIngressWitnessObservation -Lines $runLines
+                    if (-not $trapIngressWitnessObservation.present) {
+                        throw $trapIngressWitnessObservation.error
+                    }
+
+                    $trapIngressWitness = $trapIngressWitnessObservation.witness
+                    if (-not [bool]$trapIngressWitness.ready -or
+                        -not [bool]$trapIngressWitness.ok) {
+                        throw ("trap ingress witness for {0} is not ready/ok: ready={1} ok={2}" -f
+                            $example,
+                            [bool]$trapIngressWitness.ready,
+                            [bool]$trapIngressWitness.ok)
+                    }
                 }
             } finally {
                 $runStopwatch.Stop()
@@ -343,6 +405,7 @@ try {
                 BuildMs = $buildMs
                 RunMs = $runMs
                 FailurePhase = $failurePhase
+                TrapIngressWitness = $trapIngressWitness
                 Detail  = $outputText
             })
 
@@ -386,7 +449,7 @@ if (-not [string]::IsNullOrWhiteSpace($resolvedSummaryPath)) {
         }
         results         = @($results)
     }
-    $summary | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $resolvedSummaryPath -Encoding utf8
+    $summary | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $resolvedSummaryPath -Encoding utf8
     Write-Host ("[SUMMARY] {0}" -f $resolvedSummaryPath)
 }
 

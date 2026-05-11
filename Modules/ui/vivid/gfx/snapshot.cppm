@@ -138,12 +138,24 @@ namespace charm::gfx::snapshot {
             }
             std::fputc(0, out);
         }
+
+        std::FILE* open_binary_write(const char* path) noexcept {
+#if defined(_MSC_VER)
+            std::FILE* out = nullptr;
+            if (fopen_s(&out, path, "wb") != 0) {
+                return nullptr;
+            }
+            return out;
+#else
+            return std::fopen(path, "wb");
+#endif
+        }
     }
 
     export bool write_ppm(const char* path, const FrameBufferView& view) noexcept {
         if (!path || path[0] == '\0') return false;
         if (!view.data || view.width == 0 || view.height == 0) return false;
-        std::FILE* out = std::fopen(path, "wb");
+        std::FILE* out = open_binary_write(path);
         if (!out) return false;
         char header[64]{};
         std::size_t pos = 0;
@@ -201,7 +213,7 @@ namespace charm::gfx::snapshot {
                    std::uint16_t delay_cs) noexcept {
         if (!path || path[0] == '\0') return false;
         if (w <= 0 || h <= 0 || frames.empty()) return false;
-        std::FILE* out = std::fopen(path, "wb");
+        std::FILE* out = open_binary_write(path);
         if (!out) return false;
 
         const auto palette = make_rgb332_palette();

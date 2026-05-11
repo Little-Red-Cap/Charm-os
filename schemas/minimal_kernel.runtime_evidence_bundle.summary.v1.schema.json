@@ -179,6 +179,189 @@
         }
       }
     },
+    "trapIngressWitnessTerminal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "stage",
+        "service",
+        "origin",
+        "disposition",
+        "error"
+      ],
+      "properties": {
+        "stage": {
+          "type": "string"
+        },
+        "service": {
+          "type": "string"
+        },
+        "origin": {
+          "type": "string"
+        },
+        "disposition": {
+          "type": "string"
+        },
+        "error": {
+          "type": "string"
+        }
+      }
+    },
+    "trapIngressWitnessLastFailure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "present",
+        "prior_attempt",
+        "sequence",
+        "stage",
+        "service",
+        "origin",
+        "disposition",
+        "error"
+      ],
+      "properties": {
+        "present": {
+          "type": "boolean"
+        },
+        "prior_attempt": {
+          "type": "boolean"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "stage": {
+          "type": "string"
+        },
+        "service": {
+          "type": "string"
+        },
+        "origin": {
+          "type": "string"
+        },
+        "disposition": {
+          "type": "string"
+        },
+        "error": {
+          "type": "string"
+        }
+      }
+    },
+    "trapIngressWitness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ready",
+        "ok",
+        "sequence",
+        "stamp",
+        "stages",
+        "terminal",
+        "last_failure"
+      ],
+      "properties": {
+        "ready": {
+          "type": "boolean"
+        },
+        "ok": {
+          "type": "boolean"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "stamp": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "stages": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "decode",
+            "dispatch",
+            "writeback"
+          ],
+          "properties": {
+            "decode": {
+              "type": "boolean"
+            },
+            "dispatch": {
+              "type": "boolean"
+            },
+            "writeback": {
+              "type": "boolean"
+            }
+          }
+        },
+        "terminal": {
+          "$ref": "#/$defs/trapIngressWitnessTerminal"
+        },
+        "last_failure": {
+          "$ref": "#/$defs/trapIngressWitnessLastFailure"
+        }
+      }
+    },
+    "trapIngressWitnessEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "example",
+        "status",
+        "trap_ingress_witness"
+      ],
+      "properties": {
+        "example": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "trap_ingress_witness": {
+          "$ref": "#/$defs/trapIngressWitness"
+        }
+      }
+    },
+    "trapIngressWitnessSet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "expected_examples",
+        "present_count",
+        "ok_count",
+        "missing_examples",
+        "entries"
+      ],
+      "properties": {
+        "expected_examples": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "present_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "ok_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "missing_examples": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/trapIngressWitnessEntry"
+          }
+        }
+      }
+    },
     "hostComparison": {
       "type": "object",
       "additionalProperties": false,
@@ -257,6 +440,22 @@
         },
         "configure": {
           "$ref": "#/$defs/hostConfigure"
+        },
+        "trap_ingress_witnesses": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "allOf": [
+            {
+              "if": {
+                "type": "object"
+              },
+              "then": {
+                "$ref": "#/$defs/trapIngressWitnessSet"
+              }
+            }
+          ]
         },
         "comparison": {
           "$ref": "#/$defs/hostComparison"

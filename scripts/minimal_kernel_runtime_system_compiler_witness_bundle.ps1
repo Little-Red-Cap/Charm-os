@@ -168,9 +168,7 @@ function Add-StringArrayScriptArgument {
     }
 
     $Arguments.Add($Name) | Out-Null
-    foreach ($value in $filteredValues) {
-        $Arguments.Add($value) | Out-Null
-    }
+    $Arguments.Add(($filteredValues -join ",")) | Out-Null
 }
 
 function Format-Number {

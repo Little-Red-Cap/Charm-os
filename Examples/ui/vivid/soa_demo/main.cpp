@@ -16,6 +16,7 @@ import charm.core.event;
 import charm.core.config;
 import charm.core.geometry;
 import charm.core.style;
+import charm.core.style_evidence;
 import charm.gfx.snapshot;
 import charm.core.theme_preset;
 import charm.core.widget_registry;
@@ -1168,7 +1169,7 @@ namespace {
     }
 
 #if defined(VIVID_SOA_TRACE_INPUT)
-    constexpr std::size_t kMaxStyleTableBytes = 10u * 1024u;
+    constexpr std::size_t kMaxStyleTableBytes = 11u * 1024u;
     std::FILE* g_regress_log = nullptr;
     bool g_payload_stats_dumped = false;
 
@@ -1347,6 +1348,9 @@ namespace {
     bool run_input_regression(SoaGui& gui, SoaKernel& kernel, SoaFactory& factory, WidgetHandle root) noexcept {
         int fails = 0;
         kernel.input_clear_events();
+#if defined(VIVID_SOA_TRACE_INPUT)
+        const std::uint32_t guard_before = kernel.input_guard_state_write_violations();
+#endif
 
         auto test_root = factory.create_container();
         auto sc = factory.create_scroll_container();
@@ -1403,6 +1407,22 @@ namespace {
         kernel.set_rect(a, {10, 10, 120, 32});
         kernel.set_rect(b, {10, 50, 120, 32});
 
+        kernel.input_clear_events();
+        gui.dispatch_event(Event::mouse(Event::Type::MouseMove, 320, 60, 0));
+        gui.dispatch_event(Event::mouse(Event::Type::MouseDown, 320, 60, 1));
+        expect_true(count_event(kernel, Event::Type::MouseDown, a) > 0,
+                    "regress: click MouseDown(A) missing", fails);
+        expect_true(static_cast<bool>(kernel.input_pressed()), "regress: click pressed missing", fails);
+        expect_true(!kernel.input_captured(), "regress: click captured unexpectedly", fails);
+        gui.dispatch_event(Event::mouse(Event::Type::MouseUp, 320, 60, 1));
+        expect_true(count_event(kernel, Event::Type::MouseUp, a) > 0,
+                    "regress: click MouseUp(A) missing", fails);
+        expect_true(!kernel.input_pressed(), "regress: click pressed not cleared", fails);
+        expect_true(!kernel.input_captured(), "regress: click captured not cleared", fails);
+        expect_true(!kernel.input_dragging(), "regress: click dragging unexpectedly", fails);
+        expect_true(count_event(kernel, Event::Type::Cancel, a) == 0,
+                    "regress: click emitted Cancel(A)", fails);
+
         gui.dispatch_event(Event::mouse(Event::Type::MouseMove, 320, 60, 0));
         gui.dispatch_event(Event::mouse(Event::Type::MouseDown, 320, 60, 1));
         kernel.input_test_request_capture(b);
@@ -1418,6 +1438,11 @@ namespace {
 
         kernel.destroy(a);
         kernel.destroy(test_root2);
+        expect_true(!kernel.input_pressed(), "regress: capture pressed not cleared", fails);
+        expect_true(!kernel.input_captured(), "regress: capture captured not cleared", fails);
+        expect_true(!kernel.input_hovered(), "regress: capture hovered not cleared", fails);
+        expect_true(!kernel.input_focused(), "regress: capture focused not cleared", fails);
+        expect_true(!kernel.input_dragging(), "regress: capture dragging not cleared", fails);
 
         auto test_root3 = factory.create_container();
         auto c = factory.create_checkbox("C");
@@ -1522,6 +1547,15 @@ namespace {
             kernel.destroy(menu_host);
             kernel.destroy(menu_root);
         }
+
+#if defined(VIVID_SOA_TRACE_INPUT)
+        const std::uint32_t guard_after = kernel.input_guard_state_write_violations();
+        expect_true(guard_after == guard_before, "regress: input state write guard tripped", fails);
+        if (g_regress_log) {
+            std::fprintf(g_regress_log, "[soa] input_guard_state_write_violations=%u\n",
+                         static_cast<unsigned>(guard_after - guard_before));
+        }
+#endif
 
         expect_true(!kernel.payload_overflowed(), "regress: payload pool overflowed", fails);
         if (g_regress_log) {
@@ -1763,39 +1797,39 @@ namespace {
 
     bool run_ui_regression(SoaGui& gui, SoaKernel& kernel, SoaFactory& factory, WidgetHandle root) noexcept {
         int fails = 0;
-    auto tab_root = factory.create_container();
-    auto nav_bar = factory.create_navigation_bar();
-    auto tab_bar = factory.create_tab_bar();
-    auto menu = factory.create_menu();
+        auto tab_root = factory.create_container();
+        auto nav_bar = factory.create_navigation_bar();
+        auto tab_bar = factory.create_tab_bar();
+        auto menu = factory.create_menu();
         auto menu_item_a = factory.create_menu_item("New");
         auto menu_item_b = factory.create_menu_item("Open");
         auto menu_item_c = factory.create_menu_item("Save");
         auto console_box = factory.create_console_box();
-    factory.link(root, tab_root);
-    factory.link(tab_root, nav_bar);
-    factory.link(tab_root, menu);
-    factory.link(root, console_box);
-    factory.link(root, tab_bar);
+        factory.link(root, tab_root);
+        factory.link(tab_root, nav_bar);
+        factory.link(tab_root, menu);
+        factory.link(root, console_box);
+        factory.link(root, tab_bar);
         factory.link(menu, menu_item_a);
         factory.link(menu, menu_item_b);
         factory.link(menu, menu_item_c);
 
-    kernel.set_rect(tab_root, {240, 420, 200, 160});
-    kernel.set_rect(nav_bar, {10, 10, 180, 28});
-    kernel.set_rect(menu, {10, 48, 180, 80});
+        kernel.set_rect(tab_root, {240, 60, 200, 160});
+        kernel.set_rect(nav_bar, {10, 10, 180, 28});
+        kernel.set_rect(menu, {10, 48, 180, 80});
         kernel.set_rect(menu_item_a, {0, 0, 180, 24});
-    kernel.set_rect(menu_item_b, {0, 28, 180, 24});
-    kernel.set_rect(menu_item_c, {0, 56, 180, 24});
-    kernel.set_rect(console_box, {10, 420, 180, 56});
-    kernel.set_rect(tab_bar, {240, 600, 200, 24});
-    factory.set_navigation_bar_label(nav_bar, 0, "Home");
-    factory.set_navigation_bar_label(nav_bar, 1, "Stats");
-    factory.set_navigation_bar_label(nav_bar, 2, "Setup");
-    factory.set_navigation_bar_selected(nav_bar, 0);
-    factory.set_tab_bar_label(tab_bar, 0, "Home");
-    factory.set_tab_bar_label(tab_bar, 1, "Stats");
-    factory.set_tab_bar_label(tab_bar, 2, "Setup");
-    factory.set_tab_bar_selected(tab_bar, 0);
+        kernel.set_rect(menu_item_b, {0, 28, 180, 24});
+        kernel.set_rect(menu_item_c, {0, 56, 180, 24});
+        kernel.set_rect(console_box, {10, 420, 180, 56});
+        kernel.set_rect(tab_bar, {240, 20, 200, 24});
+        factory.set_navigation_bar_label(nav_bar, 0, "Home");
+        factory.set_navigation_bar_label(nav_bar, 1, "Stats");
+        factory.set_navigation_bar_label(nav_bar, 2, "Setup");
+        factory.set_navigation_bar_selected(nav_bar, 0);
+        factory.set_tab_bar_label(tab_bar, 0, "Home");
+        factory.set_tab_bar_label(tab_bar, 1, "Stats");
+        factory.set_tab_bar_label(tab_bar, 2, "Setup");
+        factory.set_tab_bar_selected(tab_bar, 0);
         kernel.set_checked(menu_item_a, true);
         auto progress = factory.create_progress();
         auto progress_wheel = factory.create_progress_wheel();
@@ -1818,9 +1852,9 @@ namespace {
         kernel.set_rect(progress_simple, {10, 130, 180, 8});
         kernel.set_rect(progress_round, {10, 142, 180, 8});
         kernel.set_rect(progress_flowing, {10, 152, 180, 6});
-        kernel.set_rect(stepper, {20, 480, 200, 44});
-        kernel.set_rect(number_list, {20, 532, 90, 92});
-        kernel.set_rect(roller, {120, 532, 90, 92});
+        kernel.set_rect(stepper, {20, 340, 200, 44});
+        kernel.set_rect(number_list, {20, 388, 90, 92});
+        kernel.set_rect(roller, {120, 388, 90, 92});
         kernel.set_range(progress, 0, 100);
         kernel.set_value(progress, 10);
         kernel.set_range(progress_wheel, 0, 100);
@@ -2654,6 +2688,36 @@ namespace {
             std::fprintf(g_regress_log, "[soa] metrics_overflowed=%u\n",
                          stats.metrics_overflowed ? 1u : 0u);
         }
+
+        const std::uint8_t interactive_mask =
+            static_cast<std::uint8_t>(StyleStateFlag::Hovered)
+            | static_cast<std::uint8_t>(StyleStateFlag::Pressed)
+            | static_cast<std::uint8_t>(StyleStateFlag::Disabled);
+        const std::uint8_t press_only_mask =
+            static_cast<std::uint8_t>(StyleStateFlag::Pressed)
+            | static_cast<std::uint8_t>(StyleStateFlag::Disabled);
+
+        const StyleStateEvidence stepper_evidence = make_style_state_evidence(WidgetKind::Stepper);
+        expect_true(style_state_evidence_matches_interactive_law(stepper_evidence),
+                    "style: stepper interactive law failed", fails);
+        expect_true(stepper_evidence.mask == interactive_mask, "style: stepper mask mismatch", fails);
+        expect_true(stepper_evidence.state_count == 8, "style: stepper state count mismatch", fails);
+
+        const StyleStateEvidence number_list_evidence = make_style_state_evidence(WidgetKind::NumberList);
+        expect_true(number_list_evidence.mask == press_only_mask, "style: number list mask mismatch", fails);
+        expect_true(number_list_evidence.state_count == 4, "style: number list state count mismatch", fails);
+        expect_true(number_list_evidence.includes_pressed, "style: number list missing pressed state", fails);
+        expect_true(number_list_evidence.includes_disabled, "style: number list missing disabled state", fails);
+        expect_true(!number_list_evidence.includes_hovered, "style: number list unexpectedly hovered", fails);
+        expect_true(!number_list_evidence.includes_focused, "style: number list unexpectedly focused", fails);
+
+        const StyleStateEvidence roller_evidence = make_style_state_evidence(WidgetKind::Roller);
+        expect_true(roller_evidence.mask == press_only_mask, "style: roller mask mismatch", fails);
+        expect_true(roller_evidence.state_count == 4, "style: roller state count mismatch", fails);
+        expect_true(roller_evidence.includes_pressed, "style: roller missing pressed state", fails);
+        expect_true(roller_evidence.includes_disabled, "style: roller missing disabled state", fails);
+        expect_true(!roller_evidence.includes_hovered, "style: roller unexpectedly hovered", fails);
+        expect_true(!roller_evidence.includes_focused, "style: roller unexpectedly focused", fails);
 
         for (WidgetKind kind : enabled_widget_kinds) {
             const StyleKindStateInfo info = sheet.style_kind_state_info(kind);

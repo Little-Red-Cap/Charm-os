@@ -165,6 +165,7 @@ $canonicalWorld = [ordered]@{
     profile = "debug"
     focus = @(
         "runtime-trap",
+        "arch-ingress-seam",
         "runtime-leaf-ports",
         "runtime-thread",
         "runtime-live",
@@ -193,6 +194,32 @@ $caseSpecs = @(
         WorldState = "svc-frame-dispatch"
         WitnessClaim = "The lower-half trap seam still closes from live SVC frame capture through generic dispatch and roundtrip."
         WitnessQuestion = "Can this world still prove that SVC-origin trap ingress survives as a live lower-half seam?"
+    },
+    [pscustomobject]@{
+        Name = "arch_ingress_seam"
+        Label = "arch-ingress-seam"
+        Script = "run_qemu_arch_ingress_seam_ci.ps1"
+        StdoutLog = "qemu-arch-ingress-seam.log"
+        StderrLog = "qemu-arch-ingress-seam.err.log"
+        SkipBuild = $true
+        CleanBuild = $false
+        HighlightPatterns = @(
+            'ARMv7-A phase, stage=svc-smoke',
+            'ARMv7-A phase, stage=timer-irq-smoke',
+            'ARMv7-A kernel ingress, .* exception=yes, interrupt=yes, timer=yes, context-ready=yes',
+            'ARMv7-A scheduler tick ingress, .* source-match=yes, .* handoff=yes',
+            'ARMv7-A runtime trap context, .* context=yes',
+            'ARMv7-A runtime trap ingress, .* trap=yes',
+            'ARMv7-A runtime trap dispatch, .* dispatch=yes',
+            'ARMv7-A runtime trap roundtrip, .* roundtrip=yes',
+            'ARMv7-A runtime trap failure, .* failure=yes',
+            'ARMv7-A context switch smoke, .* round-trip=yes',
+            'ARMv7-A runtime loop ingress, .* loop=yes'
+        )
+        Seam = "arch-ingress-seam"
+        WorldState = "exception-timer-context-runtime-trap-loop"
+        WitnessClaim = "Exception/SVC, timer IRQ, context capture, runtime-trap dispatch/writeback, and runtime-loop ingress still close inside one QEMU lower-half run."
+        WitnessQuestion = "Can this world still prove that the ARMv7-A lower half exposes one coherent arch ingress seam before expanding into OS features?"
     },
     [pscustomobject]@{
         Name = "runtime_leaf_ports"

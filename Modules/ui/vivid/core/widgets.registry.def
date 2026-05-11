@@ -68,7 +68,7 @@ VIVID_WIDGET_REGISTRY(Led, charm.widgets.led, Led, Led, led, leds_, None, 0, Non
 #define CHARM_VIVID_ENABLE_WIDGET_Slider VIVID_WIDGET_DEFAULT
 #endif
 #if CHARM_VIVID_ENABLE_WIDGET_Slider
-VIVID_WIDGET_REGISTRY(Slider, charm.widgets.slider, Slider, Slider, slider, sliders_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 1, UpdateValueFromPos, 0, None, 0, Vertical, PreferVertical, 0)
+VIVID_WIDGET_REGISTRY(Slider, charm.widgets.slider, Slider, Slider, slider, sliders_, None, 0, None, PressOnly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 1, UpdateValueFromPos, 0, None, 0, Vertical, PreferVertical, 0)
 #endif
 #ifndef CHARM_VIVID_ENABLE_WIDGET_Switch
 #define CHARM_VIVID_ENABLE_WIDGET_Switch VIVID_WIDGET_DEFAULT
@@ -146,7 +146,7 @@ VIVID_WIDGET_REGISTRY(CrtScreen, charm.widgets.crt_screen, CrtScreen, CrtScreen,
 #define CHARM_VIVID_ENABLE_WIDGET_ScrollBar VIVID_WIDGET_DEFAULT
 #endif
 #if CHARM_VIVID_ENABLE_WIDGET_ScrollBar
-VIVID_WIDGET_REGISTRY(ScrollBar, charm.widgets.scrollbar, ScrollBar, ScrollBar, scroll_bar, scroll_bars_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 1, ScrollBarTrack, 1, BoundTarget, 0, Vertical, PreferVertical, 0)
+VIVID_WIDGET_REGISTRY(ScrollBar, charm.widgets.scrollbar, ScrollBar, ScrollBar, scroll_bar, scroll_bars_, None, 0, None, PressOnly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 1, ScrollBarTrack, 1, BoundTarget, 0, Vertical, PreferVertical, 0)
 #endif
 #ifndef CHARM_VIVID_ENABLE_WIDGET_SegmentedControl
 #define CHARM_VIVID_ENABLE_WIDGET_SegmentedControl VIVID_WIDGET_DEFAULT
@@ -212,7 +212,7 @@ VIVID_WIDGET_REGISTRY(Roller, charm.widgets.roller, Roller, Roller, roller, roll
 #define CHARM_VIVID_ENABLE_WIDGET_Spinner VIVID_WIDGET_DEFAULT
 #endif
 #if CHARM_VIVID_ENABLE_WIDGET_Spinner
-VIVID_WIDGET_REGISTRY(Spinner, charm.widgets.spinner, Spinner, Spinner, spinner, spinners_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+VIVID_WIDGET_REGISTRY(Spinner, charm.widgets.spinner, Spinner, Spinner, spinner, spinners_, None, 0, None, PressOnly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
 #endif
 #ifndef CHARM_VIVID_ENABLE_WIDGET_Bar
 #define CHARM_VIVID_ENABLE_WIDGET_Bar VIVID_WIDGET_DEFAULT
@@ -380,7 +380,7 @@ VIVID_WIDGET_REGISTRY(ProgressBarRound, charm.widgets.progress_bar_round, Progre
 #define CHARM_VIVID_ENABLE_WIDGET_SpinZoomWidget VIVID_WIDGET_DEFAULT
 #endif
 #if CHARM_VIVID_ENABLE_WIDGET_SpinZoomWidget
-VIVID_WIDGET_REGISTRY(SpinZoomWidget, charm.widgets.spin_zoom_widget, SpinZoomWidget, SpinZoomWidget, spin_zoom_widget, spin_zoom_, None, 0, None, Readonly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
+VIVID_WIDGET_REGISTRY(SpinZoomWidget, charm.widgets.spin_zoom_widget, SpinZoomWidget, SpinZoomWidget, spin_zoom_widget, spin_zoom_, None, 0, None, PressOnly, 0, 0, 0, 0, 0, None, None, None, false, 0, NearestAncestor, None, 0, None, 0, None, 0, Vertical, PreferVertical, 0)
 #endif
 #ifndef CHARM_VIVID_ENABLE_WIDGET_SpinningWheel
 #define CHARM_VIVID_ENABLE_WIDGET_SpinningWheel VIVID_WIDGET_DEFAULT

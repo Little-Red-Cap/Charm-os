@@ -126,6 +126,7 @@
 - 最小内核 trap/syscall 契约：`docs/system/minimal_kernel_trap_syscall_contract.md`
 - 最小内核 trap ingress adapter 契约：`docs/system/minimal_kernel_trap_ingress_contract.md`
 - ARMv7-A SVC 到 trap frame 映射证据：`docs/system/armv7a_runtime_trap_mapping_contract.md`
+- ARMv7-A QEMU arch ingress seam smoke：`Examples/kernel/armv7a/qemu/run_qemu_arch_ingress_seam_ci.ps1`
 - 最小内核运行会话 witness v0：`docs/system/kernel_runtime_session_witness_v0.md`
 - 网络协议栈双表面设计：`docs/io/net_stack_dual_surface_design.md`
 - POSIX 兼容总览：`docs/system/posix_support_overview.md`
@@ -149,6 +150,8 @@
 - System Compiler Biography Index Compare v0：`docs/system/system_compiler_biography_index_compare_v0.md`
 - System Compiler World Shelf Review v0：`docs/system/system_compiler_world_shelf_review_v0.md`
 - Opening Judgment Corridor v0：`docs/system/opening_judgment_corridor_v0.md`
+- Opening Judgment Corridor Witness Taxonomy v0：`docs/system/opening_judgment_corridor_witness_taxonomy_v0.md`
+- System Compiler Front Page Entry World Shelf Review opening corridor smoke：`scripts/system_compiler_front_page_entry_world_shelf_review_opening_corridor_smoke.ps1`
 - System Compiler Front Page Route v0：`docs/system/system_compiler_front_page_route_v0.md`
 - System Compiler Front Page Route Compare v0：`docs/system/system_compiler_front_page_route_compare_v0.md`
 - System Compiler Front Page Entry Capability v0：`docs/system/system_compiler_front_page_entry_capability_v0.md`
@@ -243,7 +246,7 @@ flowchart TD
 | 推进 ARMv7-A 平台 bring-up | `docs/system/armv7a_platform_contract.md` → `docs/boot/bootloader_overview.md` |
 | 推进最小内核运行时 glue / bridge | `docs/system/minimal_kernel_runtime_bridge_contract.md` → `docs/system/armv7a_minimal_kernel_staging_plan.md` |
 | 推进最小内核运行会话 witness / session 证据对象 | `docs/system/kernel_runtime_session_witness_v0.md` → `docs/system/minimal_kernel_runtime_evidence_bundle_contract.md` → `schemas/README.md` |
-| 看 runtime-session testimony / handoff 与 future shelf-review 共享的上层阅读通路法 | `docs/system/opening_judgment_corridor_v0.md` → `docs/system/system_compiler_front_page_entry_runtime_session_opening_flow_plan_action_v0.md` → `docs/system/system_compiler_front_page_route_v0.md` → `docs/system/system_compiler_front_page_entry_opening_testimony_explain_entry_handoff_v0.md` |
+| 看 runtime-session testimony / handoff 与 future shelf-review 共享的上层阅读通路法 | `docs/system/opening_judgment_corridor_v0.md` → `docs/system/opening_judgment_corridor_witness_taxonomy_v0.md` → `docs/system/system_compiler_front_page_entry_runtime_session_opening_flow_plan_action_v0.md` → `docs/system/system_compiler_front_page_route_v0.md` → `docs/system/system_compiler_front_page_entry_opening_testimony_explain_entry_handoff_v0.md` |
 | 回归最小内核运行会话 witness 聚合证据 | `scripts/ci_minimal_kernel_runtime_session_witness_smoke.ps1` → `.github/workflows/minimal-kernel-runtime-session-witness.yml` → `docs/system/kernel_runtime_session_witness_v0.md` |
 | 查看最小内核运行会话 witness 聚合状态 | `scripts/inspect_minimal_kernel_runtime_session_witness_smoke.ps1` → `docs/system/kernel_runtime_session_witness_v0.md` → `docs/system/minimal_kernel_runtime_evidence_bundle_contract.md` |
 | 比较两份最小内核运行会话 witness 聚合状态 | `scripts/inspect_minimal_kernel_runtime_session_witness_smoke.ps1 -BaselineSummary ...` → `scripts/inspect_minimal_kernel_runtime_session_witness_smoke_compare_smoke.ps1` → `docs/system/kernel_runtime_session_witness_v0.md` |
@@ -284,6 +287,7 @@ flowchart TD
 | 推进最小 trap / syscall 边界 | `docs/system/minimal_kernel_trap_syscall_contract.md` → `docs/system/armv7a_minimal_kernel_staging_plan.md` |
 | 推进 trap frame / ingress adapter 边界 | `docs/system/minimal_kernel_trap_ingress_contract.md` → `docs/system/minimal_kernel_trap_syscall_contract.md` |
 | 推进 ARMv7-A SVC / trap frame 映射验证 | `docs/system/armv7a_runtime_trap_mapping_contract.md` → `docs/system/minimal_kernel_trap_ingress_contract.md` |
+| 推进 ARMv7-A arch ingress seam 闭环 | `Examples/kernel/armv7a/qemu/run_qemu_arch_ingress_seam_ci.ps1` → `docs/system/armv7a_runtime_trap_mapping_contract.md` → `docs/system/armv7a_minimal_kernel_staging_plan.md` |
 | 设计驱动/外设模型 | `docs/architecture/driver_model.md` → `docs/architecture/device_model_overview.md` → `docs/io/io_layering_overview.md` |
 | 看音频播放链路设计 | `docs/audio/README.md` → `docs/system/charm_audio_architecture.md` |
 | 接入文件系统 | `docs/storage/block_device_contract.md` → `docs/storage/fs_vfs_mount_rules.md` |
@@ -402,6 +406,8 @@ docs/
 - `docs/system/system_compiler_biography_index_compare_v0.md`
 - `docs/system/system_compiler_world_shelf_review_v0.md`
 - `docs/system/opening_judgment_corridor_v0.md`
+- `docs/system/opening_judgment_corridor_witness_taxonomy_v0.md`
+- `scripts/system_compiler_front_page_entry_world_shelf_review_opening_corridor_smoke.ps1`
 - `docs/system/system_compiler_front_page_route_v0.md`
 - `docs/system/system_compiler_front_page_route_compare_v0.md`
 - `docs/system/system_compiler_front_page_entry_capability_v0.md`

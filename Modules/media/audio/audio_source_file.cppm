@@ -9,6 +9,23 @@ export module audio.source.file;
 
 import audio.result;
 import media.stream.source;
+
+namespace {
+#if defined(_MSC_VER)
+    std::FILE* open_binary_read(const char* path) noexcept {
+        std::FILE* file = nullptr;
+        if (fopen_s(&file, path, "rb") != 0) {
+            return nullptr;
+        }
+        return file;
+    }
+#else
+    std::FILE* open_binary_read(const char* path) noexcept {
+        return std::fopen(path, "rb");
+    }
+#endif
+}
+
 export namespace audio {
     class FileDataSource {
     public:
@@ -17,7 +34,7 @@ export namespace audio {
 
         bool open(const char* path) {
             close();
-            file_ = std::fopen(path, "rb");
+            file_ = open_binary_read(path);
             if (!file_) return false;
             return true;
         }

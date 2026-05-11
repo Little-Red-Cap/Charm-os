@@ -4,12 +4,12 @@
 
 ## 0. Roadmap（Next 3）
 
-1. 行为分支继续 Action 化（收敛输入语义）
+1. 行为分支继续 Action 化（收敛输入语义） - 已完成
    - 验收：`vivid-soa-demo --soa-ci --regress-ui` 为 `ok=1`
-2. 结构性 API 第二阶段
+2. 结构性 API 第二阶段 - 已完成
    - TableView 表头样式细化 + 横向滚动交互策略
    - 验收：`table_tree_ok=1` 且 `ui_ok=1`
-3. A2 下一批控件迁移（Stepper/NumberList/Roller 完成）
+3. A2 下一批控件迁移（Stepper/NumberList/Roller 完成） - 已完成
    - 验收：`--soa-ci --regress-ui` 通过，且 `failed_cmds=0`
 
 ## 1. 分层结构

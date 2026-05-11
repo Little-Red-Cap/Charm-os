@@ -6,7 +6,6 @@ module;
 export module daplink.dap_policy;
 
 import daplink.app_config;
-import daplink.board;
 import daplink.usb_minimal;
 import daplink.ring_buffer;
 import io.channel;
@@ -107,9 +106,14 @@ export namespace daplink::dap_policy {
             pump_write(usb_cdc, uart_rx);
         }
 
-        template <std::size_t Chunk, std::size_t BufSize, typename HidTransport, typename ResetFn>
+        template <std::size_t Chunk,
+                  std::size_t BufSize,
+                  typename HidTransport,
+                  typename ResetFn,
+                  typename ApplyLineFn>
         void tick(HidTransport& dap_transport,
                   ResetFn&& reset_handler,
+                  ApplyLineFn&& apply_line_fn,
                   io::Channel& usb_cdc,
                   io::Channel& uart,
                   daplink::ring_buffer::Buffer<BufSize>& uart_tx,
@@ -132,8 +136,7 @@ export namespace daplink::dap_policy {
                 const auto line = to_line(daplink::usb_minimal::cdc_line());
                 if (should_apply_line(last_line, line)) {
                     apply_line(last_line, line);
-                    daplink::board::cdc_uart_apply_line(
-                        last_line.baud, last_line.stop_bits, last_line.parity, last_line.data_bits);
+                    apply_line_fn(last_line);
                 }
                 pump_cdc<Chunk>(usb_cdc, uart, uart_tx, uart_rx);
             }

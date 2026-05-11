@@ -22,6 +22,7 @@ ROUTE_SCHEMA = "system_compiler.front_page_route/v0"
 ROUTE_KIND = "system_compiler.front_page_route"
 ROUTE_COMPARE_SCHEMA = "system_compiler.front_page_route_compare/v0"
 ROUTE_COMPARE_KIND = "system_compiler.front_page_route_compare"
+WORLD_SHELF_REVIEW_SCHEMA = "system_compiler.world_shelf_review/v0"
 OPENING_TESTIMONY_LANDING_SCHEMA = "system_compiler.front_page_entry_opening_testimony_landing/v0"
 OPENING_TESTIMONY_LANDING_COMPARE_SCHEMA = "system_compiler.front_page_entry_opening_testimony_landing_compare/v0"
 OPENING_TESTIMONY_EXPLAIN_ENTRY_COMPARE_SCHEMA = "system_compiler.front_page_entry_opening_testimony_explain_entry_compare/v0"
@@ -240,6 +241,15 @@ def choose_route_explain_surface(route_summary: dict[str, Any]) -> tuple[Ordered
             "route_handoff_compare_default",
             "Open the candidate opening testimony explain-entry handoff from this handoff-compare route.",
             supporting,
+        )
+
+    if root_schema == WORLD_SHELF_REVIEW_SCHEMA:
+        selected = find_route_entry(route_summary, "world_shelf_review", prefer_depth=1) or make_empty_surface()
+        return (
+            selected,
+            "route_world_shelf_review_default",
+            "Open the world shelf review root first, then keep candidate, compare, and baseline shelf surfaces as review context.",
+            [surface for surface in level1_surfaces if surface["surface_id"] != selected["surface_id"]],
         )
 
     return (

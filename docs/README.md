@@ -36,6 +36,7 @@
 | --- | --- |
 | 不知道 Charm 有没有这个能力 | [`capability_map.md`](capability_map.md) |
 | 在做系统装配或启动边界 | [`system/README.md`](system/README.md) |
+| 在做 ARMv7-A / QEMU / 最小内核 | [`system/README.md`](system/README.md) |
 | 在做板级 bring-up | [`board/README.md`](board/README.md) |
 | 在做 IO / 输出 / shell | [`io/README.md`](io/README.md) |
 | 在做架构判断或能力归属 | [`architecture/README.md`](architecture/README.md) |
@@ -49,8 +50,9 @@
 - [`system/artifact_report_v0.md`](system/artifact_report_v0.md)
 - [`system/explain_surface_v0.md`](system/explain_surface_v0.md)
 - [`system/resource_contract_v0.md`](system/resource_contract_v0.md)
+- [`system/opening_judgment_corridor_witness_taxonomy_v0.md`](system/opening_judgment_corridor_witness_taxonomy_v0.md)
 
-这些是当前仍然保留价值的系统编译器与 explain surface 入口；它们不等于前台阶段材料清单。
+这些是当前仍然保留价值的系统编译器与 explain surface 入口；它们不等于 front-page / opening-flow / biography / world / witness 阶段材料清单。
 
 ## 不要怎么读
 

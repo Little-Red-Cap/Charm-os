@@ -18,6 +18,7 @@ export namespace daplink::dap_transport {
     namespace detail {
         constexpr std::uint8_t kCmsisDapQueueCommands = 0x7E;
         constexpr std::uint8_t kCmsisDapExecuteCommands = 0x7F;
+        constexpr std::uint8_t kCmsisDapDisconnect = 0x03;
         constexpr std::uint8_t kCmsisDapTransferAbort = 0x07;
 
         inline bool take_transfer_abort_packet() noexcept {
@@ -44,6 +45,7 @@ export namespace daplink::dap_transport {
         daplink::dap_queue::Queue<> queue{};
         std::array<Packet, daplink::cmsis_dap::kPacketCount> queued_packets{};
         std::uint8_t queued_packet_count = 0;
+        bool reset_after_drain = false;
 
         HidTransport(daplink::cmsis_dap::State& s, daplink::cmsis_dap::DeviceInfo i) noexcept
             : state(s), info(i) {
@@ -53,15 +55,33 @@ export namespace daplink::dap_transport {
         void reset() noexcept {
             queue.reset();
             queued_packet_count = 0;
+            reset_after_drain = false;
             daplink::cmsis_dap::clear_transfer_abort(state);
             daplink::cmsis_dap::set_transfer_abort_probe(state, detail::take_transfer_abort_packet);
+        }
+
+        void reset_session() noexcept {
+            reset();
+            state.runtime.dap_port = 0;
+            Ops::setup_swd_pins_hi_z();
+            daplink::usb_minimal::clear_hid_data_state();
         }
 
         bool busy() const noexcept {
             return daplink::usb_minimal::out_ready() ||
                 daplink::usb_minimal::hid_in_busy() ||
                 queue.has_pending() ||
-                (queued_packet_count != 0);
+                (queued_packet_count != 0) ||
+                reset_after_drain;
+        }
+
+        bool response_in_flight() const noexcept {
+            return daplink::usb_minimal::hid_in_busy() ||
+                queue.has_pending();
+        }
+
+        bool response_pending() const noexcept {
+            return reset_after_drain || response_in_flight();
         }
 
         bool queue_atomic_packet(
@@ -101,13 +121,28 @@ export namespace daplink::dap_transport {
                     // CMSIS-DAP TransferAbort is an out-of-band signal and does not
                     // produce a response packet. Drop any locally buffered atomic
                     // packets so a later flush does not execute a canceled sequence.
-                    daplink::cmsis_dap::request_transfer_abort(state);
-                    queued_packet_count = 0;
                     (void)detail::take_transfer_abort_packet();
+                    reset();
+                    state.runtime.dap_port = 0;
+                    Ops::setup_swd_pins_hi_z();
+                    if (daplink::usb_minimal::hid_in_busy()) {
+                        reset_after_drain = true;
+                    } else {
+                        daplink::usb_minimal::clear_hid_data_state();
+                    }
                     ++processed;
-                    continue;
+                    break;
+                }
+                if (response_pending()) {
+                    break;
                 }
                 if (in[0] == detail::kCmsisDapQueueCommands) {
+                    if constexpr (daplink::cmsis_dap::kPacketCount <= 1U) {
+                        daplink::usb_minimal::consume_out();
+                        reset_after_drain = true;
+                        ++processed;
+                        continue;
+                    }
                     if (!queue_atomic_packet(in)) {
                         break;
                     }
@@ -127,11 +162,18 @@ export namespace daplink::dap_transport {
                     break;
                 }
                 daplink::usb_minimal::consume_out();
+                if (in[0] == detail::kCmsisDapDisconnect) {
+                    reset_after_drain = true;
+                }
                 ++processed;
             }
         }
 
         void poll_out() noexcept {
+            if (reset_after_drain && !response_in_flight()) {
+                reset_session();
+                return;
+            }
             if (!queue.has_pending()) {
                 return;
             }

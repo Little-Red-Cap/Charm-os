@@ -6,6 +6,22 @@ extern "C" void HAL_PCD_ResetCallback(daplink::port::UsbPcdHandle* hpcd) {
     daplink::usb_minimal::on_reset(*hpcd);
 }
 
+extern "C" void HAL_PCD_SuspendCallback(daplink::port::UsbPcdHandle* hpcd) {
+    daplink::usb_minimal::on_suspend(*hpcd);
+}
+
+extern "C" void HAL_PCD_ResumeCallback(daplink::port::UsbPcdHandle* hpcd) {
+    daplink::usb_minimal::on_resume(*hpcd);
+}
+
+extern "C" void HAL_PCD_ConnectCallback(daplink::port::UsbPcdHandle* hpcd) {
+    daplink::usb_minimal::on_connect(*hpcd);
+}
+
+extern "C" void HAL_PCD_DisconnectCallback(daplink::port::UsbPcdHandle* hpcd) {
+    daplink::usb_minimal::on_disconnect(*hpcd);
+}
+
 extern "C" void HAL_PCD_SetupStageCallback(daplink::port::UsbPcdHandle* hpcd) {
     daplink::usb_minimal::on_setup_stage(*hpcd);
 }

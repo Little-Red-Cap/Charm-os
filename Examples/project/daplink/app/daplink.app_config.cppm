@@ -43,7 +43,8 @@ export namespace daplink::app_config {
     constexpr std::uint8_t kSwdTurnaround = 1;
     constexpr std::uint8_t kSwdIdleCycles = 0;
     constexpr std::uint16_t kSwdRetryCount = 100;
-    constexpr std::uint8_t kDapBurstLimit = 4;
+    constexpr std::uint8_t kDapPacketCount = 1;
+    constexpr std::uint8_t kDapBurstLimit = 1;
 
     constexpr std::uint32_t kCdcInTimeoutMs = 250;
     constexpr std::uint8_t kCdcPolicy = 0;
@@ -64,6 +65,12 @@ export namespace daplink::app_config {
     constexpr std::uint8_t kDapBurstLimitValue = static_cast<std::uint8_t>(CHARM_DAP_BURST_LIMIT);
 #else
     constexpr std::uint8_t kDapBurstLimitValue = kDapBurstLimit;
+#endif
+
+#ifdef CHARM_DAP_PACKET_COUNT
+    constexpr std::uint8_t kDapPacketCountValue = static_cast<std::uint8_t>(CHARM_DAP_PACKET_COUNT);
+#else
+    constexpr std::uint8_t kDapPacketCountValue = kDapPacketCount;
 #endif
 
 #ifdef CHARM_DAP_CDC_IN_TIMEOUT_MS
@@ -112,6 +119,7 @@ export namespace daplink::app_config {
     };
 
     struct DapConfig {
+        std::uint8_t packet_count;
         std::uint8_t burst_limit;
     };
 
@@ -130,6 +138,7 @@ export namespace daplink::app_config {
 
     static_assert(kUsbProfileValue <= static_cast<std::uint8_t>(UsbProfile::composite));
     static_assert(kCdcUartIndex == 1 || kCdcUartIndex == 2);
+    static_assert(kDapPacketCountValue > 0);
     static_assert(kDapBurstLimitValue > 0);
     static_assert(kCdcPolicyValue <= 1);
 
@@ -158,7 +167,7 @@ export namespace daplink::app_config {
             kSwdIdleCycles,
             kSwdRetryCount,
         },
-        DapConfig{kDapBurstLimitValue},
+        DapConfig{kDapPacketCountValue, kDapBurstLimitValue},
         CdcConfig{kCdcUartIndex, kCdcInTimeoutMsValue, kCdcPolicyValue},
     };
 

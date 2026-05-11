@@ -15,6 +15,19 @@
 这意味着 Charm 的长期方向，不是再堆叠一个又一个子系统，
 而是把嵌入式系统从“手工装配的工程对象”，推进为“可编译、可举证、可审计、可托管”的系统对象。
 
+## 当前阅读方式
+
+本文是 system compiler 的专题主轴入口，不是历史阶段材料目录。
+
+默认阅读路径固定为：
+
+- 当前主轴：本文
+- 核心词汇：[`system_compiler_vocabulary_v0.md`](system_compiler_vocabulary_v0.md)
+- 当前结果物：[`../system/artifact_report_v0.md`](../system/artifact_report_v0.md)
+- 解释面 / 资源法律 / bring-up 证据：[`../system/explain_surface_v0.md`](../system/explain_surface_v0.md)、[`../system/resource_contract_v0.md`](../system/resource_contract_v0.md)、[`../system/bringup_evidence_pipeline_v0.md`](../system/bringup_evidence_pipeline_v0.md)
+
+front-page、opening-flow、witness、biography、world compare 等材料只作为深层追溯链，不进入默认首读路线。
+
 ## 0. 一句话宣言
 
 Charm 的长期目标，不是继续堆叠子系统，而是把嵌入式系统从“手工工程”推进为“可编译系统”。
@@ -153,6 +166,11 @@ Charm 已经有一批 system compiler 的前身，不是从白纸起步：
 
 当前关于最小 `artifact report` 对象边界与字段草案，
 见：`docs/system/artifact_report_v0.md`
+
+当前关于 system compiler 结果物里的重复事实税，
+先收在 `artifact report` 专题内部处理。
+`system_input`、`binding_result / bringup_order`、`resource_contract / fact_resolution`
+与 root 级 `system_compiler_summary` 都按受控投影收口，不把尚未稳定的 projector 讨论抬成默认入口。
 
 当前关于最小 system compiler 词汇表与概念映射，
 见：`docs/architecture/system_compiler_vocabulary_v0.md`

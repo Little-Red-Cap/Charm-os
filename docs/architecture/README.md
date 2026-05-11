@@ -94,6 +94,7 @@
 
 - [`capability_recovery_rules.md`](capability_recovery_rules.md)
 - [`capability_recovery_matrix.md`](capability_recovery_matrix.md)
+- [`real_board_landing_gap_audit_v0.md`](real_board_landing_gap_audit_v0.md)（真实板级落地如何暴露默认路径失配、能力发现性与 board landing 接缝问题）
 
 ### 我在排查 C++ 模块与标准库链接问题
 
@@ -113,9 +114,11 @@
   `signal_state_contract_v0.md`
 - 看 system compiler：
   `system_compiler_roadmap.md` → `system_compiler_vocabulary_v0.md`
+- 看真实板级落地审计与能力回收：
+  `real_board_landing_gap_audit_v0.md` → `capability_recovery_rules.md` → `capability_recovery_matrix.md`
 
 ## 使用提醒
 
 - 如果这里的说明和 `docs/system/*`、`docs/io/*` 或当前代码冲突，优先回到更上位入口复核。
 - 如果你只想抓“当前主结论”，优先先停在 `driver_model.md`，不要直接从历史对照段落建立认知。
-- 当分层规则、驱动模型、signal/state 契约或 system compiler 公开主线变化时，应同步更新本目录入口。
+- 当分层规则、驱动模型、signal/state 契约、能力回收主结论或 system compiler 公开主线变化时，应同步更新本目录入口。

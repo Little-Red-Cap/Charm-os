@@ -1,6 +1,7 @@
 param(
     [string]$CMakeExe = "cmake",
     [string]$Generator = "Ninja",
+    [string]$BuildDir = "cmake-build-vivid",
     [string]$OutputRoot = "out/net-lab-route-precise-delete-smoke",
     [int]$Jobs = 0,
     [switch]$Fresh
@@ -102,6 +103,28 @@ function Remove-PathIfExists {
     Remove-Item -LiteralPath $Path -Recurse -Force
 }
 
+function Get-CMakeHomeDirectory {
+    param(
+        [string]$BuildPath
+    )
+
+    $cachePath = Join-Path $BuildPath "CMakeCache.txt"
+    if (-not (Test-Path $cachePath)) {
+        return ""
+    }
+
+    $match = Select-String `
+        -LiteralPath $cachePath `
+        -Pattern "^CMAKE_HOME_DIRECTORY:INTERNAL=(.*)$" `
+        -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+    if ($null -eq $match) {
+        return ""
+    }
+
+    return $match.Matches[0].Groups[1].Value
+}
+
 function Invoke-LoggedExternalTool {
     param(
         [string]$Executable,
@@ -196,8 +219,12 @@ function Resolve-ExecutablePath {
 $repoRoot = Resolve-FullPath -Path (Join-Path $PSScriptRoot "..")
 $cmake = Resolve-ToolPath -Tool $CMakeExe
 $targetName = "net-lab-route-precise-delete-smoke"
-$exampleRoot = Join-Path $repoRoot "Examples\io\net\net_lab_route_precise_delete_smoke"
-$buildDir = Join-Path $repoRoot "cmake-build-verify-net-lab-route-precise-delete-smoke"
+$exampleRoot = Resolve-FullPath -Path (Join-Path $repoRoot "Examples\io\net\net_lab_route_precise_delete_smoke")
+$buildDir = if ([System.IO.Path]::IsPathRooted($BuildDir)) {
+    Resolve-FullPath -Path $BuildDir
+} else {
+    Resolve-FullPath -Path (Join-Path $repoRoot $BuildDir)
+}
 $outputRootPath = if ([System.IO.Path]::IsPathRooted($OutputRoot)) {
     Resolve-FullPath -Path $OutputRoot
 } else {
@@ -215,6 +242,15 @@ if (-not (Test-Path $exampleRoot)) {
 if ($Fresh) {
     Remove-PathIfExists -Path $buildDir -Root $repoRoot
     Remove-PathIfExists -Path $outputRootPath -Root $repoRoot
+} else {
+    $cmakeHomeDirectory = Get-CMakeHomeDirectory -BuildPath $buildDir
+    if (-not [string]::IsNullOrWhiteSpace($cmakeHomeDirectory)) {
+        $resolvedCMakeHomeDirectory = Resolve-FullPath -Path $cmakeHomeDirectory
+        if (-not $resolvedCMakeHomeDirectory.Equals($exampleRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+            Write-Host ("==> reset build dir configured for: {0}" -f $resolvedCMakeHomeDirectory)
+            Remove-PathIfExists -Path $buildDir -Root $repoRoot
+        }
+    }
 }
 Ensure-Directory -Path $outputRootPath
 

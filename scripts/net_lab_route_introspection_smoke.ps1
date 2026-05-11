@@ -2,7 +2,7 @@ param(
     [string]$CMakeExe = "cmake",
     [string]$Generator = "Ninja",
     [string]$BuildDir = "cmake-build-vivid",
-    [string]$OutputRoot = "out/net-lab-route-metric-smoke",
+    [string]$OutputRoot = "out/net-lab-route-introspection-smoke",
     [int]$Jobs = 0,
     [switch]$Fresh
 )
@@ -79,6 +79,11 @@ function Assert-PathInsideRoot {
 
     $resolvedPath = Resolve-FullPath -Path $Path
     $resolvedRoot = Resolve-FullPath -Path $Root
+
+    if ($resolvedPath.Equals($resolvedRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "refuse to touch repo root directly: $resolvedPath"
+    }
+
     $rootPrefix = $resolvedRoot.TrimEnd(
         [System.IO.Path]::DirectorySeparatorChar,
         [System.IO.Path]::AltDirectorySeparatorChar) +
@@ -181,7 +186,7 @@ function Invoke-LoggedProgram {
 
 function Resolve-ExecutablePath {
     param(
-        [string]$BuildDir,
+        [string]$BuildPath,
         [string]$TargetName
     )
 
@@ -194,9 +199,9 @@ function Resolve-ExecutablePath {
     foreach ($subdir in $subdirs) {
         foreach ($name in $names) {
             $candidate = if ([string]::IsNullOrWhiteSpace($subdir)) {
-                Join-Path $BuildDir $name
+                Join-Path $BuildPath $name
             } else {
-                Join-Path (Join-Path $BuildDir $subdir) $name
+                Join-Path (Join-Path $BuildPath $subdir) $name
             }
 
             if (Test-Path $candidate) {
@@ -206,7 +211,7 @@ function Resolve-ExecutablePath {
     }
 
     foreach ($name in $names) {
-        $match = Get-ChildItem -LiteralPath $BuildDir -Recurse -File -Filter $name -ErrorAction SilentlyContinue |
+        $match = Get-ChildItem -LiteralPath $BuildPath -Recurse -File -Filter $name -ErrorAction SilentlyContinue |
             Select-Object -First 1
         if ($null -ne $match) {
             return $match.FullName
@@ -218,9 +223,9 @@ function Resolve-ExecutablePath {
 
 $repoRoot = Resolve-FullPath -Path (Join-Path $PSScriptRoot "..")
 $cmake = Resolve-ToolPath -Tool $CMakeExe
-$targetName = "net-lab-route-metric-smoke"
-$exampleRoot = Resolve-FullPath -Path (Join-Path $repoRoot "Examples\io\net\net_lab_route_metric_smoke")
-$buildDir = if ([System.IO.Path]::IsPathRooted($BuildDir)) {
+$targetName = "net-lab-route-introspection-smoke"
+$exampleRoot = Resolve-FullPath -Path (Join-Path $repoRoot "Examples\io\net\net_lab_route_introspection_smoke")
+$buildDirPath = if ([System.IO.Path]::IsPathRooted($BuildDir)) {
     Resolve-FullPath -Path $BuildDir
 } else {
     Resolve-FullPath -Path (Join-Path $repoRoot $BuildDir)
@@ -240,15 +245,15 @@ if (-not (Test-Path $exampleRoot)) {
 }
 
 if ($Fresh) {
-    Remove-PathIfExists -Path $buildDir -Root $repoRoot
+    Remove-PathIfExists -Path $buildDirPath -Root $repoRoot
     Remove-PathIfExists -Path $outputRootPath -Root $repoRoot
 } else {
-    $cmakeHomeDirectory = Get-CMakeHomeDirectory -BuildPath $buildDir
+    $cmakeHomeDirectory = Get-CMakeHomeDirectory -BuildPath $buildDirPath
     if (-not [string]::IsNullOrWhiteSpace($cmakeHomeDirectory)) {
         $resolvedCMakeHomeDirectory = Resolve-FullPath -Path $cmakeHomeDirectory
         if (-not $resolvedCMakeHomeDirectory.Equals($exampleRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
             Write-Host ("==> reset build dir configured for: {0}" -f $resolvedCMakeHomeDirectory)
-            Remove-PathIfExists -Path $buildDir -Root $repoRoot
+            Remove-PathIfExists -Path $buildDirPath -Root $repoRoot
         }
     }
 }
@@ -258,7 +263,7 @@ $configureArgs = [System.Collections.Generic.List[string]]::new()
 $configureArgs.Add("-S") | Out-Null
 $configureArgs.Add($exampleRoot) | Out-Null
 $configureArgs.Add("-B") | Out-Null
-$configureArgs.Add($buildDir) | Out-Null
+$configureArgs.Add($buildDirPath) | Out-Null
 if (-not [string]::IsNullOrWhiteSpace($Generator)) {
     $configureArgs.Add("-G") | Out-Null
     $configureArgs.Add($Generator) | Out-Null
@@ -266,7 +271,7 @@ if (-not [string]::IsNullOrWhiteSpace($Generator)) {
 
 $buildArgs = [System.Collections.Generic.List[string]]::new()
 $buildArgs.Add("--build") | Out-Null
-$buildArgs.Add($buildDir) | Out-Null
+$buildArgs.Add($buildDirPath) | Out-Null
 $buildArgs.Add("--target") | Out-Null
 $buildArgs.Add($targetName) | Out-Null
 if ($Jobs -gt 0) {
@@ -280,34 +285,34 @@ try {
         -Executable $cmake `
         -ArgumentList $configureArgs.ToArray() `
         -LogPath $configureLogPath `
-        -FailureMessage "net lab route metric configure failed" `
+        -FailureMessage "net lab route introspection configure failed" `
         -Phase "configure"
 
     Invoke-LoggedExternalTool `
         -Executable $cmake `
         -ArgumentList $buildArgs.ToArray() `
         -LogPath $buildLogPath `
-        -FailureMessage "net lab route metric build failed" `
+        -FailureMessage "net lab route introspection build failed" `
         -Phase "build"
 
-    $exePath = Resolve-ExecutablePath -BuildDir $buildDir -TargetName $targetName
+    $exePath = Resolve-ExecutablePath -BuildPath $buildDirPath -TargetName $targetName
     $runOutput = Invoke-LoggedProgram `
         -Executable $exePath `
         -LogPath $runLogPath `
-        -FailureMessage "net lab route metric run failed"
+        -FailureMessage "net lab route introspection run failed"
 } finally {
     Pop-Location
 }
 
-$expectedLine = "net lab route metric smoke: ok"
+$expectedLine = "net lab route introspection smoke: ok"
 if (($runOutput -join "`n") -notmatch [regex]::Escape($expectedLine)) {
-    throw "net lab route metric smoke did not report success"
+    throw "net lab route introspection smoke did not report success"
 }
 
 $checkLines = @(
     ("summary: {0}" -f $checkTextPath),
-    "profile: net-lab-route-metric-smoke",
-    ("build_dir: {0}" -f $buildDir),
+    "profile: net-lab-route-introspection-smoke",
+    ("build_dir: {0}" -f $buildDirPath),
     ("executable: {0}" -f $exePath),
     ("expected_stdout: {0}" -f $expectedLine),
     "result: ok"

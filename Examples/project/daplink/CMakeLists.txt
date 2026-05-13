@@ -2,10 +2,14 @@ cmake_minimum_required(VERSION 4.0)
 
 include("${CMAKE_CURRENT_LIST_DIR}/cmake/daplink_target.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/cmake/daplink_port_config.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/cmake/daplink_stm32cube.cmake")
 
 set(DAPLINK_DEFAULT_PORT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/g431" CACHE PATH
     "Fallback DAPLink port directory used when DAPLINK_PORT_DIR is not provided")
 set(DAPLINK_PORT_DIR "" CACHE PATH "DAPLink port directory to build")
+set(DAPLINK_STM32CUBE_F1_ROOT "" CACHE PATH "STM32Cube firmware package root for STM32F1 ports")
+set(DAPLINK_STM32CUBE_G4_ROOT "" CACHE PATH "STM32Cube firmware package root for STM32G4 ports")
+set(DAPLINK_STM32CUBE_H5_ROOT "" CACHE PATH "STM32Cube firmware package root for STM32H5 ports")
 unset(DAPLINK_PORT CACHE)
 daplink_resolve_port_dir("${DAPLINK_PORT_DIR}" DAPLINK_PORT_DIR_ABS DAPLINK_PORT_MANIFEST)
 set(DAPLINK_PORT_DIR "${DAPLINK_PORT_DIR_ABS}" CACHE PATH "DAPLink port directory to build" FORCE)

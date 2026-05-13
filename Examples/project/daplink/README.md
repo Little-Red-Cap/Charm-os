@@ -11,13 +11,7 @@
 
 ## 当前定位
 
-这份目录适合继续整理为一个可独立开源的 `STM32 DAPLink` 项目，但不建议直接按“Charm 仓库子目录原样公开”处理。
-
-当前更合适的目标形态是：
-
-- 默认可独立构建、独立理解、独立维护
-- 保留一个可选的 `Charm` 集成入口
-- 首发对外口径聚焦在 `STM32 family implementation`
+这份目录已经可以按“独立优先、Charm 集成可选”的方式继续整理。
 
 ## 目录分层
 
@@ -36,13 +30,6 @@
 
 - 默认构建路径已经独立，不再要求 `add_subdirectory(Charm-os)`
 - 仍保留可选集成开关：`-DDAPLINK_ENABLE_CHARM_INTEGRATION=ON`
-- 当前最小基础能力已本地化到本目录，不应再把这里视为“必须依赖私有 Charm 仓库”的子模块
-
-这意味着：
-
-- 架构依赖：低
-- 代码依赖：低
-- 构建依赖：已经降到可选集成，而不是默认前提
 
 ## 构建入口
 
@@ -60,10 +47,22 @@
 - `g431-hid-debug`
 - `h503-hid-debug`
 
+### 第三方依赖
+
+当前三条 STM32 端口都依赖对应系列的 `STM32Cube` 固件包根目录。
+
+- `f103` 需要 `DAPLINK_STM32CUBE_F1_ROOT`
+- `g431` 需要 `DAPLINK_STM32CUBE_G4_ROOT`
+- `h503` 需要 `DAPLINK_STM32CUBE_H5_ROOT`
+
+这些变量可以通过 `-D...` 传入，也可以直接设置成同名环境变量。
+它们都应指向各自 Cube 包根目录，也就是包含 `Drivers/` 的那一级目录。
+
 ### 使用 preset 构建
 
 ```powershell
-cmake --preset g431-debug -S G:\Project\Codex\Charm-os-Project\Examples\project\daplink
+cmake --preset g431-debug -S G:\Project\Codex\Charm-os-Project\Examples\project\daplink `
+  -DDAPLINK_STM32CUBE_G4_ROOT=G:\third_party\STM32Cube_FW_G4
 cmake --build --preset g431-debug
 ```
 
@@ -74,6 +73,7 @@ cmake -S G:\Project\Codex\Charm-os-Project\Examples\project\daplink `
   -B G:\Project\Codex\Charm-os-Project\Examples\project\daplink\cmake-build-daplink-g431-debug `
   -G Ninja `
   -DCMAKE_BUILD_TYPE=Debug `
+  -DDAPLINK_STM32CUBE_G4_ROOT=G:\third_party\STM32Cube_FW_G4 `
   -DDAPLINK_PORT_DIR=G:\Project\Codex\Charm-os-Project\Examples\project\daplink\g431
 ```
 
@@ -81,7 +81,6 @@ cmake -S G:\Project\Codex\Charm-os-Project\Examples\project\daplink `
 
 - `DAPLINK_PORT_DIR` 必须指向一个包含 `daplink.port.cmake` 的具体端口目录
 - 根入口不再维护芯片注册表，也不猜测芯片
-- 端口元数据留在端口目录，不回写到根层硬编码列表
 - `DAPLINK_PORT_DIR` 优先级最高；若未提供，则会优先复用已有 build tree 的 stamp / cache，最后才回退到默认端口
 - `cmake-build-*` 这类 IDE 管理的构建目录仍然可用
 - 当前活动端口会写入 `daplink.port.stamp`，并同步到：
@@ -89,24 +88,6 @@ cmake -S G:\Project\Codex\Charm-os-Project\Examples\project\daplink `
   - `DAPLINK_ACTIVE_PORT_DIR`
   - `DAPLINK_ACTIVE_PORT_MANIFEST`
 - 端口 manifest 负责选择匹配的 ARM toolchain；IDE 不需要额外手填一份独立 toolchain 文件
-
-## 开源边界
-
-当前更适合对外公开的是“完整 STM32 方案”，而不是只放一个协议框架壳。
-
-建议首发公开范围：
-
-- 保留 `app/`
-- 保留 `frontends/usb/`
-- 保留 `port/`
-- 保留 `platform/stm32/`
-- 保留你愿意维护的具体 STM32 端口
-
-不建议首发就承诺：
-
-- 非 STM32 平台支持
-- 纯抽象 DAP framework
-- 与所有现有调试器 / IDE 的完全行为一致
 
 ## 相关文档
 

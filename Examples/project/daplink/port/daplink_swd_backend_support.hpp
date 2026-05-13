@@ -2,21 +2,22 @@
 #define DAPLINK_SWD_BACKEND_SUPPORT_HPP
 
 #include "daplink_port_api.hpp"
+#include "port/daplink_port_runtime_api.hpp"
 
 #include <cstdint>
 
 namespace daplink::swd_backend_support {
-    template <typename BoardCfg>
+    template <typename TargetPins, typename Indicators>
     struct BasicSwdBackend {
         static inline std::uint32_t swj_delay_cycles = 0;
         static inline bool swdio_output = false;
 
         static void pin_delay() noexcept {
             for (std::uint32_t i = 0; i < swj_delay_cycles; ++i) {
-                daplink::port::nop();
+                daplink::port_runtime::nop();
             }
-            daplink::port::nop();
-            daplink::port::nop();
+            daplink::port_runtime::nop();
+            daplink::port_runtime::nop();
         }
 
         static void set_swj_clock_hz(const std::uint32_t hz) noexcept {
@@ -24,7 +25,7 @@ namespace daplink::swd_backend_support {
                 swj_delay_cycles = 0;
                 return;
             }
-            const std::uint32_t core = daplink::port::system_core_clock_hz();
+            const std::uint32_t core = daplink::port_runtime::system_core_clock_hz();
             const std::uint32_t target = hz * 2U;
             if (target == 0U) {
                 swj_delay_cycles = 0;
@@ -34,36 +35,36 @@ namespace daplink::swd_backend_support {
         }
 
         static void setup_swd_pins_active() noexcept {
-            BoardCfg::setup_swd_pins_active();
+            TargetPins::setup_swd_pins_active();
             swdio_output = true;
         }
 
         static void setup_swd_pins_hi_z() noexcept {
-            BoardCfg::setup_swd_pins_hi_z();
+            TargetPins::setup_swd_pins_hi_z();
             swdio_output = false;
         }
 
         static void swclk_low() noexcept {
-            BoardCfg::set_swclk(false);
+            TargetPins::set_swclk(false);
         }
 
         static void swclk_high() noexcept {
-            BoardCfg::set_swclk(true);
+            TargetPins::set_swclk(true);
         }
 
         static void swdio_write(const std::uint8_t bit) noexcept {
-            BoardCfg::write_swdio(bit != 0U);
+            TargetPins::write_swdio(bit != 0U);
         }
 
         static std::uint8_t swdio_read() noexcept {
-            return BoardCfg::read_swdio() ? 1U : 0U;
+            return TargetPins::read_swdio() ? 1U : 0U;
         }
 
         static void swdio_set_output() noexcept {
             if (swdio_output) {
                 return;
             }
-            BoardCfg::set_swdio_output();
+            TargetPins::set_swdio_output();
             swdio_output = true;
         }
 
@@ -71,7 +72,7 @@ namespace daplink::swd_backend_support {
             if (!swdio_output) {
                 return;
             }
-            BoardCfg::set_swdio_input();
+            TargetPins::set_swdio_input();
             swdio_output = false;
         }
 
@@ -88,26 +89,26 @@ namespace daplink::swd_backend_support {
                 swdio_write((value >> 1) & 1U);
             }
             if ((select & (1U << 7)) != 0U) {
-                BoardCfg::write_reset(((value >> 7) & 1U) != 0U);
+                TargetPins::write_reset(((value >> 7) & 1U) != 0U);
             }
 
             std::uint8_t pin_state = 0;
-            pin_state |= BoardCfg::read_swclk() ? (1U << 0) : 0U;
-            pin_state |= BoardCfg::read_swdio() ? (1U << 1) : 0U;
-            pin_state |= BoardCfg::read_reset() ? (1U << 7) : 0U;
+            pin_state |= TargetPins::read_swclk() ? (1U << 0) : 0U;
+            pin_state |= TargetPins::read_swdio() ? (1U << 1) : 0U;
+            pin_state |= TargetPins::read_reset() ? (1U << 7) : 0U;
             return pin_state;
         }
 
         static std::uint8_t reset_target() noexcept {
-            return BoardCfg::reset_target();
+            return TargetPins::reset_target();
         }
 
         static void set_connected_led(const bool on) noexcept {
-            BoardCfg::set_connected_led(on);
+            Indicators::set_connected_led(on);
         }
 
         static void set_running_led(const bool on) noexcept {
-            BoardCfg::set_running_led(on);
+            Indicators::set_running_led(on);
         }
     };
 }

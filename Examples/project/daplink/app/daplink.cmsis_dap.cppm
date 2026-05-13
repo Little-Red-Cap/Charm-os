@@ -1,18 +1,25 @@
 module;
 
+#include "daplink_legacy_macro_compat.hpp"
 #include "daplink_port_api.hpp"
 
 #include <cstddef>
 #include <cstdint>
 #include <span>
-#ifndef CHARM_DAP_ENABLE_SWO
-#define CHARM_DAP_ENABLE_SWO 0
+#if defined(DAPLINK_ENABLE_SWO)
+#define DAPLINK_CMSIS_DAP_ENABLE_SWO DAPLINK_ENABLE_SWO
+#else
+#define DAPLINK_CMSIS_DAP_ENABLE_SWO 0
 #endif
-#ifndef CHARM_DAP_ENABLE_SWO_STREAM
-#define CHARM_DAP_ENABLE_SWO_STREAM 0
+#if defined(DAPLINK_ENABLE_SWO_STREAM)
+#define DAPLINK_CMSIS_DAP_ENABLE_SWO_STREAM DAPLINK_ENABLE_SWO_STREAM
+#else
+#define DAPLINK_CMSIS_DAP_ENABLE_SWO_STREAM 0
 #endif
-#ifndef CHARM_DAP_ENABLE_DAP_UART
-#define CHARM_DAP_ENABLE_DAP_UART 0
+#if defined(DAPLINK_ENABLE_DAP_UART)
+#define DAPLINK_CMSIS_DAP_ENABLE_DAP_UART DAPLINK_ENABLE_DAP_UART
+#else
+#define DAPLINK_CMSIS_DAP_ENABLE_DAP_UART 0
 #endif
 
 export module daplink.cmsis_dap;
@@ -22,6 +29,7 @@ export import :protocol;
 export import :state;
 import daplink.dap_strategy;
 import daplink.dap_ops;
+import daplink.port_runtime;
 import daplink.swd_engine;
 import daplink.dap_backend;
 
@@ -84,7 +92,7 @@ export namespace daplink::cmsis_dap {
 
             const auto delay_ms = delay_us / 1000U;
             if (delay_ms != 0U) {
-                daplink::port::delay_ms(delay_ms);
+                daplink::port_runtime::delay_ms(delay_ms);
                 delay_us -= delay_ms * 1000U;
             }
 
@@ -92,14 +100,14 @@ export namespace daplink::cmsis_dap {
                 return;
             }
 
-            auto cycles_per_us = daplink::port::system_core_clock_hz() / 1000000U;
+            auto cycles_per_us = daplink::port_runtime::system_core_clock_hz() / 1000000U;
             if (cycles_per_us == 0U) {
                 cycles_per_us = 1U;
             }
 
             auto wait_cycles = delay_us * cycles_per_us;
             while (wait_cycles-- != 0U) {
-                daplink::port::nop();
+                daplink::port_runtime::nop();
             }
         }
 
@@ -120,14 +128,14 @@ export namespace daplink::cmsis_dap {
             if (wait_us > 3000000U) {
                 wait_us = 3000000U;
             }
-            const auto deadline = daplink::port::tick_ms() + ((wait_us + 999U) / 1000U);
+            const auto deadline = daplink::port_runtime::tick_ms() + ((wait_us + 999U) / 1000U);
 
             while (true) {
                 pin_state = Ops::swj_pins(0U, 0U);
                 if (((pin_state ^ value) & match_mask) == 0U) {
                     break;
                 }
-                if (static_cast<std::int32_t>(daplink::port::tick_ms() - deadline) >= 0) {
+                if (static_cast<std::int32_t>(daplink::port_runtime::tick_ms() - deadline) >= 0) {
                     break;
                 }
                 busy_wait_us(1U);
@@ -207,7 +215,7 @@ export namespace daplink::cmsis_dap {
                             len = 1;
                             break;
                         case kDapInfoUartRxBufferSize:
-#if CHARM_DAP_ENABLE_DAP_UART
+#if DAPLINK_CMSIS_DAP_ENABLE_DAP_UART
                             write_le32(&out[2], kUartBufferSize);
                             len = 4;
 #else
@@ -215,7 +223,7 @@ export namespace daplink::cmsis_dap {
 #endif
                             break;
                         case kDapInfoUartTxBufferSize:
-#if CHARM_DAP_ENABLE_DAP_UART
+#if DAPLINK_CMSIS_DAP_ENABLE_DAP_UART
                             write_le32(&out[2], kUartBufferSize);
                             len = 4;
 #else
@@ -223,7 +231,7 @@ export namespace daplink::cmsis_dap {
 #endif
                             break;
                         case kDapInfoSwoBufferSize:
-#if CHARM_DAP_ENABLE_SWO
+#if DAPLINK_CMSIS_DAP_ENABLE_SWO
                             write_le32(&out[2], kSwoBufferSize);
                             len = 4;
 #else
@@ -374,7 +382,7 @@ export namespace daplink::cmsis_dap {
                     state.config.swd.data_phase = (in[1] & 0x4U) != 0U;
                     out[1] = kDapOk;
                     return {2, 2, true};
-#if CHARM_DAP_ENABLE_SWO
+#if DAPLINK_CMSIS_DAP_ENABLE_SWO
                 case kCmsisDapSwoTransport: {
                     if (in_size < 2 || out_size < 2) {
                         out[0] = kCmsisDapInvalid;
@@ -386,7 +394,7 @@ export namespace daplink::cmsis_dap {
                         if (transport == 0U || transport == 1U) {
                             state.runtime.swo_transport = transport;
                             ok = true;
-                        } else if (CHARM_DAP_ENABLE_SWO_STREAM && transport == 2U) {
+        } else if (DAPLINK_CMSIS_DAP_ENABLE_SWO_STREAM && transport == 2U) {
                             state.runtime.swo_transport = transport;
                             ok = true;
                         }
@@ -492,7 +500,7 @@ export namespace daplink::cmsis_dap {
                     return {3, 4, true};
                 }
 #endif
-#if CHARM_DAP_ENABLE_DAP_UART
+#if DAPLINK_CMSIS_DAP_ENABLE_DAP_UART
                 case kCmsisDapUartTransport:
                 case kCmsisDapUartConfigure:
                 case kCmsisDapUartTransfer:

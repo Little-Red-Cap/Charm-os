@@ -1,6 +1,8 @@
 module;
 
 #include "daplink_port_api.hpp"
+#include "port/daplink_port_usb_config.hpp"
+#include "port/daplink_usb_backend_api.hpp"
 
 #include <array>
 #include <cstddef>
@@ -9,12 +11,13 @@ module;
 export module daplink.usb_minimal;
 
 import daplink.usb_device_model;
+import daplink.port_runtime;
 
 namespace daplink::usb_minimal::detail {
     namespace model = daplink::usb_device_model;
-    using UsbPcdHandle = daplink::port::UsbPcdHandle;
-    using UsbEndpointType = daplink::port::UsbEndpointType;
-    using UsbLayout = daplink::port::UsbLayout;
+    using UsbPcdHandle = daplink::usb_backend::PcdHandle;
+    using UsbEndpointType = daplink::usb_backend::EndpointType;
+    using UsbLayout = daplink::usb_backend::Layout;
     constexpr bool kEnableHid = model::kEnableHid;
     constexpr bool kEnableCdc = model::kEnableCdc;
     constexpr bool kCdcHasCmdEp = model::kCdcHasCmdEp;
@@ -152,7 +155,7 @@ namespace daplink::usb_minimal::detail {
 
     inline setup_packet parse_setup(const UsbPcdHandle& hpcd) noexcept {
         std::uint8_t b[8] = {};
-        daplink::port::usb_copy_setup_packet(hpcd, b);
+        daplink::usb_backend::copy_setup_packet(hpcd, b);
         return {
             b[0],
             b[1],
@@ -163,8 +166,8 @@ namespace daplink::usb_minimal::detail {
     }
 
     inline void ep0_stall(UsbPcdHandle& hpcd) noexcept {
-        (void)daplink::port::usb_ep_set_stall(hpcd, kEp0Out);
-        (void)daplink::port::usb_ep_set_stall(hpcd, kEp0In);
+        (void)daplink::usb_backend::ep_set_stall(hpcd, kEp0Out);
+        (void)daplink::usb_backend::ep_set_stall(hpcd, kEp0In);
     }
 
     inline void ep0_send(UsbPcdHandle& hpcd,
@@ -177,7 +180,7 @@ namespace daplink::usb_minimal::detail {
             g_state.ep0_in_req_len = req_len;
             g_state.ep0_in_active = false;
             g_state.ep0_in_need_zlp = false;
-            (void)daplink::port::usb_ep_transmit(hpcd, kEp0In, g_state.ep0_in_zlp, 0);
+            (void)daplink::usb_backend::ep_transmit(hpcd, kEp0In, g_state.ep0_in_zlp, 0);
             return;
         }
 
@@ -188,19 +191,19 @@ namespace daplink::usb_minimal::detail {
         g_state.ep0_in_need_zlp = (g_state.ep0_in_remaining == 0) && (len < req_len) &&
                                   ((len % kEp0Mps) == 0);
         g_state.ep0_in_active = g_state.ep0_in_remaining > 0 || g_state.ep0_in_need_zlp;
-        (void)daplink::port::usb_ep_transmit(
+        (void)daplink::usb_backend::ep_transmit(
             hpcd, kEp0In, const_cast<std::uint8_t*>(data), send_len);
     }
 
     inline void ep0_status_in(UsbPcdHandle& hpcd) noexcept {
-        (void)daplink::port::usb_ep_transmit(hpcd, kEp0In, g_state.ep0_in_zlp, 0);
+        (void)daplink::usb_backend::ep_transmit(hpcd, kEp0In, g_state.ep0_in_zlp, 0);
     }
 
     inline void ep0_prepare_out(UsbPcdHandle& hpcd, std::uint16_t len, const ep0_out_kind kind) noexcept {
         g_state.pending_ep0_out = true;
         g_state.pending_ep0_kind = kind;
         g_state.pending_out_length = min_u16(len, kEp0Mps);
-        (void)daplink::port::usb_ep_receive(hpcd, kEp0Out, g_state.ep0_out, g_state.pending_out_length);
+        (void)daplink::usb_backend::ep_receive(hpcd, kEp0Out, g_state.ep0_out, g_state.pending_out_length);
     }
 
     inline void hid_arm_out(UsbPcdHandle& hpcd, const std::uint8_t index) noexcept {
@@ -210,7 +213,7 @@ namespace daplink::usb_minimal::detail {
         } else {
             g_state.hid.hid_out_active_index = index;
             g_state.hid.hid_out_armed = true;
-            (void)daplink::port::usb_ep_receive(hpcd, kHidEpOut, g_state.hid.hid_out[index], kHidEpMps);
+            (void)daplink::usb_backend::ep_receive(hpcd, kHidEpOut, g_state.hid.hid_out[index], kHidEpMps);
         }
     }
 
@@ -240,7 +243,7 @@ namespace daplink::usb_minimal::detail {
             }
             const std::uint16_t send_len = (len > kHidEpMps) ? kHidEpMps : len;
             g_state.hid.hid_in_busy = true;
-            (void)daplink::port::usb_ep_transmit(hpcd, kHidEpIn, g_state.hid.hid_in, send_len);
+            (void)daplink::usb_backend::ep_transmit(hpcd, kHidEpIn, g_state.hid.hid_in, send_len);
             return true;
         }
     }
@@ -252,7 +255,7 @@ namespace daplink::usb_minimal::detail {
         } else {
             g_state.cdc.cdc_out_active_index = index;
             g_state.cdc.cdc_out_armed = true;
-            (void)daplink::port::usb_ep_receive(hpcd, kCdcEpOut, g_state.cdc.cdc_out[index], kCdcEpMps);
+            (void)daplink::usb_backend::ep_receive(hpcd, kCdcEpOut, g_state.cdc.cdc_out[index], kCdcEpMps);
         }
     }
 
@@ -286,8 +289,8 @@ namespace daplink::usb_minimal::detail {
                 g_state.cdc.cdc_in[i] = data[i];
             }
             g_state.cdc.cdc_in_busy = true;
-            g_state.cdc.cdc_in_last_ms = daplink::port::tick_ms();
-            (void)daplink::port::usb_ep_transmit(hpcd, kCdcEpIn, g_state.cdc.cdc_in, send_len);
+        g_state.cdc.cdc_in_last_ms = daplink::port_runtime::tick_ms();
+            (void)daplink::usb_backend::ep_transmit(hpcd, kCdcEpIn, g_state.cdc.cdc_in, send_len);
             return true;
         }
     }
@@ -323,25 +326,25 @@ export namespace daplink::usb_minimal {
     inline bool attach(UsbPcdHandle& hpcd) noexcept {
         g_state.hpcd = &hpcd;
         const bool base_ok =
-            daplink::port::usb_pma_config_single_buffer(hpcd, kEp0Out, kPmaEp0Out) &&
-            daplink::port::usb_pma_config_single_buffer(hpcd, kEp0In, kPmaEp0In);
+            daplink::usb_backend::config_single_buffer(hpcd, kEp0Out, kPmaEp0Out) &&
+            daplink::usb_backend::config_single_buffer(hpcd, kEp0In, kPmaEp0In);
         bool hid_ok = true;
         if constexpr (kEnableHid) {
             hid_ok =
-                daplink::port::usb_pma_config_single_buffer(hpcd, kHidEpIn, kPmaHidIn) &&
-                daplink::port::usb_pma_config_single_buffer(hpcd, kHidEpOut, kPmaHidOut);
+                daplink::usb_backend::config_single_buffer(hpcd, kHidEpIn, kPmaHidIn) &&
+                daplink::usb_backend::config_single_buffer(hpcd, kHidEpOut, kPmaHidOut);
         }
         bool cdc_ok = true;
         if constexpr (kEnableCdc) {
             if constexpr (kCdcHasCmdEp) {
                 cdc_ok =
-                    daplink::port::usb_pma_config_single_buffer(hpcd, kCdcEpCmd, kPmaCdcCmd) &&
-                    daplink::port::usb_pma_config_single_buffer(hpcd, kCdcEpOut, kPmaCdcOut) &&
-                    daplink::port::usb_pma_config_single_buffer(hpcd, kCdcEpIn, kPmaCdcIn);
+                    daplink::usb_backend::config_single_buffer(hpcd, kCdcEpCmd, kPmaCdcCmd) &&
+                    daplink::usb_backend::config_single_buffer(hpcd, kCdcEpOut, kPmaCdcOut) &&
+                    daplink::usb_backend::config_single_buffer(hpcd, kCdcEpIn, kPmaCdcIn);
             } else {
                 cdc_ok =
-                    daplink::port::usb_pma_config_single_buffer(hpcd, kCdcEpOut, kPmaCdcOut) &&
-                    daplink::port::usb_pma_config_single_buffer(hpcd, kCdcEpIn, kPmaCdcIn);
+                    daplink::usb_backend::config_single_buffer(hpcd, kCdcEpOut, kPmaCdcOut) &&
+                    daplink::usb_backend::config_single_buffer(hpcd, kCdcEpIn, kPmaCdcIn);
             }
         }
         return base_ok && hid_ok && cdc_ok;
@@ -351,22 +354,22 @@ export namespace daplink::usb_minimal {
         g_state = {};
         g_state.hpcd = &hpcd;
         g_state.reset_pending = true;
-        (void)daplink::port::usb_set_address(hpcd, 0);
-        (void)daplink::port::usb_ep_open(hpcd, kEp0Out, kEp0Mps, UsbEndpointType::control);
-        (void)daplink::port::usb_ep_open(hpcd, kEp0In, kEp0Mps, UsbEndpointType::control);
+        (void)daplink::usb_backend::set_address(hpcd, 0);
+        (void)daplink::usb_backend::ep_open(hpcd, kEp0Out, kEp0Mps, UsbEndpointType::control);
+        (void)daplink::usb_backend::ep_open(hpcd, kEp0In, kEp0Mps, UsbEndpointType::control);
         if constexpr (kEnableHid) {
-            (void)daplink::port::usb_ep_open(hpcd, kHidEpIn, kHidEpMps, UsbEndpointType::interrupt);
-            (void)daplink::port::usb_ep_open(hpcd, kHidEpOut, kHidEpMps, UsbEndpointType::interrupt);
+            (void)daplink::usb_backend::ep_open(hpcd, kHidEpIn, kHidEpMps, UsbEndpointType::interrupt);
+            (void)daplink::usb_backend::ep_open(hpcd, kHidEpOut, kHidEpMps, UsbEndpointType::interrupt);
         }
         if constexpr (kEnableCdc) {
             if constexpr (kCdcHasCmdEp) {
-                (void)daplink::port::usb_ep_open(
+                (void)daplink::usb_backend::ep_open(
                     hpcd, kCdcEpCmd, kCdcEpCmdMps, UsbEndpointType::interrupt);
             }
-            (void)daplink::port::usb_ep_open(hpcd, kCdcEpIn, kCdcEpMps, UsbEndpointType::bulk);
-            (void)daplink::port::usb_ep_open(hpcd, kCdcEpOut, kCdcEpMps, UsbEndpointType::bulk);
+            (void)daplink::usb_backend::ep_open(hpcd, kCdcEpIn, kCdcEpMps, UsbEndpointType::bulk);
+            (void)daplink::usb_backend::ep_open(hpcd, kCdcEpOut, kCdcEpMps, UsbEndpointType::bulk);
         }
-        (void)daplink::port::usb_ep_receive(hpcd, kEp0Out, g_state.ep0_out, kEp0Mps);
+        (void)daplink::usb_backend::ep_receive(hpcd, kEp0Out, g_state.ep0_out, kEp0Mps);
         if constexpr (kEnableHid) {
             hid_arm_out(hpcd, 0);
         }
@@ -626,7 +629,7 @@ export namespace daplink::usb_minimal {
         if (epnum == (kHidEpOut & kEndpointNumberMask)) {
             if constexpr (kEnableHid) {
                 const std::uint8_t index = g_state.hid.hid_out_active_index;
-                g_state.hid.hid_out_len[index] = daplink::port::usb_ep_rx_count(hpcd, kHidEpOut);
+                g_state.hid.hid_out_len[index] = daplink::usb_backend::ep_rx_count(hpcd, kHidEpOut);
                 const bool was_empty = (g_state.hid.hid_out_full_mask == 0U);
                 g_state.hid.hid_out_full_mask = static_cast<std::uint8_t>(g_state.hid.hid_out_full_mask | (1U << index));
                 if (was_empty) {
@@ -639,7 +642,7 @@ export namespace daplink::usb_minimal {
         if (epnum == (kCdcEpOut & kEndpointNumberMask)) {
             if constexpr (kEnableCdc) {
                 const std::uint8_t index = g_state.cdc.cdc_out_active_index;
-                g_state.cdc.cdc_out_len[index] = daplink::port::usb_ep_rx_count(hpcd, kCdcEpOut);
+                g_state.cdc.cdc_out_len[index] = daplink::usb_backend::ep_rx_count(hpcd, kCdcEpOut);
                 const bool was_empty = (g_state.cdc.cdc_out_full_mask == 0U);
                 g_state.cdc.cdc_out_full_mask = static_cast<std::uint8_t>(g_state.cdc.cdc_out_full_mask | (1U << index));
                 if (was_empty) {
@@ -667,23 +670,23 @@ export namespace daplink::usb_minimal {
                     } else if (g_state.ep0_in_remaining == 0) {
                         g_state.ep0_in_active = false;
                     }
-                    (void)daplink::port::usb_ep_transmit(
+                    (void)daplink::usb_backend::ep_transmit(
                         hpcd, kEp0In, const_cast<std::uint8_t*>(send_ptr), send_len);
                     return;
                 }
                 if (g_state.ep0_in_need_zlp) {
                     g_state.ep0_in_need_zlp = false;
                     g_state.ep0_in_active = false;
-                    (void)daplink::port::usb_ep_transmit(hpcd, kEp0In, g_state.ep0_in_zlp, 0);
+                    (void)daplink::usb_backend::ep_transmit(hpcd, kEp0In, g_state.ep0_in_zlp, 0);
                     return;
                 }
                 g_state.ep0_in_active = false;
             }
             if (g_state.address_pending) {
                 g_state.address_pending = false;
-                (void)daplink::port::usb_set_address(hpcd, g_state.pending_address);
+                (void)daplink::usb_backend::set_address(hpcd, g_state.pending_address);
             }
-            (void)daplink::port::usb_ep_receive(hpcd, kEp0Out, g_state.ep0_out, kEp0Mps);
+            (void)daplink::usb_backend::ep_receive(hpcd, kEp0Out, g_state.ep0_out, kEp0Mps);
         }
         if (epnum == (kHidEpIn & kEndpointNumberMask)) {
             if constexpr (kEnableHid) {
@@ -856,7 +859,7 @@ export namespace daplink::usb_minimal {
         if (!g_state.cdc.cdc_in_busy) {
             return;
         }
-        const std::uint32_t now = daplink::port::tick_ms();
+        const std::uint32_t now = daplink::port_runtime::tick_ms();
         if ((now - g_state.cdc.cdc_in_last_ms) > kCdcInTimeoutMs) {
             g_state.cdc.cdc_in_busy = false;
         }

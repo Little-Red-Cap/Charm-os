@@ -1,13 +1,13 @@
 #ifndef DAPLINK_BACKEND_HPP
 #define DAPLINK_BACKEND_HPP
 
-#include "port/stm32/daplink_backend_stm32_support.hpp"
+#include "platform/stm32/daplink_platform_stm32_backend_support.hpp"
 
 namespace daplink::backend_target {
     struct Traits
-        : daplink::backend_support::stm32::UsbPcdBackend<
+        : daplink::platform::stm32::backend_support::UsbPcdBackend<
               hpcd_USB_FS,
-              daplink::backend_support::stm32::CubeMxUart12Backend<>> {};
+              daplink::platform::stm32::backend_support::CubeMxUart12Backend<>> {};
 
     using Support = daplink::backend_support::BasicBackendOps<Traits>;
 }

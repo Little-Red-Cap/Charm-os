@@ -8,9 +8,9 @@
 
 namespace daplink::board_support {
     template <typename Traits>
-    struct BasicBoardOps {
-        static_assert(daplink::port_contract::BoardTraits<Traits>,
-                      "daplink board traits do not satisfy the required contract.");
+    struct BasicTargetPins {
+        static_assert(daplink::port_contract::BoardTargetPinTraits<Traits>,
+                      "daplink target-pin traits do not satisfy the required contract.");
 
         static void init_board_gpio() noexcept {
             Traits::init_board_gpio();
@@ -50,24 +50,39 @@ namespace daplink::board_support {
                       Traits::kResetActiveSpeed);
         }
 
+        static bool sample_reset_level() noexcept {
+            init_gpio(Traits::kResetPort,
+                      Traits::kResetPin,
+                      daplink::port::kGpioModeInput,
+                      Traits::kResetActivePull,
+                      daplink::port::kGpioSpeedLow);
+            return read_reset();
+        }
+
         static auto reset_level_on_activate() noexcept -> bool {
             if constexpr (Traits::kPreserveResetStateOnReconnect) {
-                return read_reset();
+                return sample_reset_level();
             } else {
                 return Traits::kResetIdleState == daplink::port::PinState::high;
             }
         }
 
+        static void drive_reset_active_level(const bool reset_high) noexcept {
+            // Prime the output latch before enabling the open-drain driver so reconnect
+            // does not glitch nRESET low because of a stale ODR value from a prior session.
+            write_reset(reset_high);
+            configure_reset_pin_active();
+        }
+
         static void apply_active_pin_levels(const bool reset_high) noexcept {
             set_swclk(Traits::kSwclkIdleState == daplink::port::PinState::high);
             write_swdio(Traits::kSwdioIdleState == daplink::port::PinState::high);
-            write_reset(reset_high);
+            drive_reset_active_level(reset_high);
         }
 
         static void setup_swd_pins_active() noexcept {
             const auto reset_high = reset_level_on_activate();
             configure_swd_pins_active();
-            configure_reset_pin_active();
             // Preserve the host-controlled nRESET level so connect-under-reset is not broken
             // by a later SWD reconnect.
             apply_active_pin_levels(reset_high);
@@ -154,6 +169,12 @@ namespace daplink::board_support {
                 return 0U;
             }
         }
+    };
+
+    template <typename Traits>
+    struct BasicIndicators {
+        static_assert(daplink::port_contract::BoardIndicatorTraits<Traits>,
+                      "daplink indicator traits do not satisfy the required contract.");
 
         static void configure_indicator_pins() noexcept {
             if constexpr (Traits::kHasConnectLed) {
@@ -194,18 +215,108 @@ namespace daplink::board_support {
             }
         }
 
+    private:
+        static void init_gpio(daplink::port::GpioPort* port,
+                              const std::uint32_t pin,
+                              const std::uint32_t mode,
+                              const std::uint32_t pull,
+                              const std::uint32_t speed) noexcept {
+            daplink::port::gpio_init(port, pin, daplink::port::GpioConfig{mode, pull, speed});
+        }
+    };
+
+    template <typename Traits>
+    struct BasicUsbConnectSwitch {
+        static_assert(daplink::port_contract::BoardUsbConnectTraits<Traits>,
+                      "daplink USB-connect traits do not satisfy the required contract.");
+
         static void usb_connect_on() noexcept {
             if constexpr (Traits::kHasUsbConnectSwitch) {
-                init_gpio(Traits::kUsbConnectPort,
-                          Traits::kUsbConnectPin,
-                          Traits::kUsbConnectMode,
-                          Traits::kUsbConnectPull,
-                          Traits::kUsbConnectSpeed);
+                daplink::port::gpio_init(
+                    Traits::kUsbConnectPort,
+                    Traits::kUsbConnectPin,
+                    daplink::port::GpioConfig{
+                        Traits::kUsbConnectMode,
+                        Traits::kUsbConnectPull,
+                        Traits::kUsbConnectSpeed});
                 daplink::port::gpio_write(
                     Traits::kUsbConnectPort,
                     Traits::kUsbConnectPin,
                     Traits::kUsbConnectOnState);
             }
+        }
+    };
+
+    template <typename TargetPins,
+              typename Indicators = BasicIndicators<DefaultTraits>,
+              typename UsbConnect = BasicUsbConnectSwitch<DefaultTraits>>
+    struct BasicBoardOps {
+        static void init_board_gpio() noexcept {
+            TargetPins::init_board_gpio();
+        }
+
+        static void setup_swd_pins_active() noexcept {
+            TargetPins::setup_swd_pins_active();
+        }
+
+        static void setup_swd_pins_hi_z() noexcept {
+            TargetPins::setup_swd_pins_hi_z();
+        }
+
+        static void set_swdio_output() noexcept {
+            TargetPins::set_swdio_output();
+        }
+
+        static void set_swdio_input() noexcept {
+            TargetPins::set_swdio_input();
+        }
+
+        static void set_swclk(const bool high) noexcept {
+            TargetPins::set_swclk(high);
+        }
+
+        static bool read_swclk() noexcept {
+            return TargetPins::read_swclk();
+        }
+
+        static void write_swdio(const bool high) noexcept {
+            TargetPins::write_swdio(high);
+        }
+
+        static bool read_swdio() noexcept {
+            return TargetPins::read_swdio();
+        }
+
+        static void write_reset(const bool high) noexcept {
+            TargetPins::write_reset(high);
+        }
+
+        static bool read_reset() noexcept {
+            return TargetPins::read_reset();
+        }
+
+        static void pulse_reset_line(const std::uint32_t pulse_ms = TargetPins::kResetPulseMs) noexcept {
+            TargetPins::pulse_reset_line(pulse_ms);
+        }
+
+        static std::uint8_t reset_target() noexcept {
+            return TargetPins::reset_target();
+        }
+
+        static void configure_indicator_pins() noexcept {
+            Indicators::configure_indicator_pins();
+        }
+
+        static void set_connected_led(const bool on) noexcept {
+            Indicators::set_connected_led(on);
+        }
+
+        static void set_running_led(const bool on) noexcept {
+            Indicators::set_running_led(on);
+        }
+
+        static void usb_connect_on() noexcept {
+            UsbConnect::usb_connect_on();
         }
     };
 }

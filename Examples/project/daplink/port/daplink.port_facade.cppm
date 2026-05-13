@@ -6,6 +6,7 @@ module;
 export module daplink.port_facade;
 
 import daplink.app_config;
+import daplink.base.types;
 import daplink.cmsis_dap;
 import daplink.dap_init;
 import daplink.dap_ops;
@@ -14,29 +15,28 @@ import daplink.dap_transport;
 import daplink.board;
 import daplink.port_runtime;
 import daplink.usb_minimal;
-import io.channel;
-import util.core;
+import daplink.io.channel;
 
 namespace daplink::port_facade::detail {
     constexpr std::size_t kUartTxBurstLimit = 8;
     static_assert(daplink::usb_minimal::hid_packet_size == daplink::cmsis_dap::kPacketSize);
 
-    inline io::result uart_read(void*, io::MutByteView buf) noexcept {
+    inline daplink::io::result uart_read(void*, daplink::io::MutByteView buf) noexcept {
         std::size_t count = 0;
         while (count < buf.size() && daplink::board::cdc_uart_rx_ready()) {
-            buf[count] = static_cast<util::u8>(daplink::board::cdc_uart_read());
+            buf[count] = static_cast<daplink::base::u8>(daplink::board::cdc_uart_read());
             ++count;
         }
         if (count == 0) {
-            return io::fail(io::errc::would_block);
+            return daplink::io::fail(daplink::io::errc::would_block);
         }
-        return io::ok(count);
+        return daplink::io::ok(count);
     }
 
-    inline io::result uart_write(void*, io::ByteView buf) noexcept {
+    inline daplink::io::result uart_write(void*, daplink::io::ByteView buf) noexcept {
         const std::size_t limit = (buf.size() < kUartTxBurstLimit) ? buf.size() : kUartTxBurstLimit;
         if (limit == 0) {
-            return io::fail(io::errc::would_block);
+            return daplink::io::fail(daplink::io::errc::would_block);
         }
         std::size_t count = 0;
         while (count < limit && daplink::board::cdc_uart_tx_ready()) {
@@ -47,34 +47,34 @@ namespace daplink::port_facade::detail {
             }
         }
         if (count == 0) {
-            return io::fail(io::errc::would_block);
+            return daplink::io::fail(daplink::io::errc::would_block);
         }
-        return io::ok(count);
+        return daplink::io::ok(count);
     }
 
-    inline io::result usb_cdc_read(void*, io::MutByteView buf) noexcept {
+    inline daplink::io::result usb_cdc_read(void*, daplink::io::MutByteView buf) noexcept {
         if (!daplink::usb_minimal::cdc_out_ready()) {
-            return io::fail(io::errc::would_block);
+            return daplink::io::fail(daplink::io::errc::would_block);
         }
         const auto payload = daplink::usb_minimal::cdc_out_packet();
         if (buf.size() < payload.size()) {
-            return io::fail(io::errc::would_block);
+            return daplink::io::fail(daplink::io::errc::would_block);
         }
         const std::size_t len = payload.size();
         for (std::size_t i = 0; i < len; ++i) {
-            buf[i] = static_cast<util::u8>(payload[i]);
+            buf[i] = static_cast<daplink::base::u8>(payload[i]);
         }
         daplink::usb_minimal::cdc_consume_out();
-        return io::ok(len);
+        return daplink::io::ok(len);
     }
 
-    inline io::result usb_cdc_write(void*, io::ByteView buf) noexcept {
+    inline daplink::io::result usb_cdc_write(void*, daplink::io::ByteView buf) noexcept {
         if (!daplink::usb_minimal::cdc_send_in(
                 reinterpret_cast<const std::uint8_t*>(buf.data()),
                 static_cast<std::uint16_t>(buf.size()))) {
-            return io::fail(io::errc::would_block);
+            return daplink::io::fail(daplink::io::errc::would_block);
         }
-        return io::ok(buf.size());
+        return daplink::io::ok(buf.size());
     }
 }
 
@@ -92,17 +92,17 @@ export namespace daplink::port_facade {
         daplink::board::configure_debug_pins_hi_z();
     }
 
-    inline auto usb_cdc_channel() noexcept -> io::Channel {
-        return io::Channel{
+    inline auto usb_cdc_channel() noexcept -> daplink::io::Channel {
+        return daplink::io::Channel{
             nullptr,
-            io::ChannelOps{detail::usb_cdc_read, detail::usb_cdc_write, nullptr}
+            daplink::io::ChannelOps{detail::usb_cdc_read, detail::usb_cdc_write, nullptr}
         };
     }
 
-    inline auto cdc_uart_channel() noexcept -> io::Channel {
-        return io::Channel{
+    inline auto cdc_uart_channel() noexcept -> daplink::io::Channel {
+        return daplink::io::Channel{
             nullptr,
-            io::ChannelOps{detail::uart_read, detail::uart_write, nullptr}
+            daplink::io::ChannelOps{detail::uart_read, detail::uart_write, nullptr}
         };
     }
 

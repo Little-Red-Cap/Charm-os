@@ -608,7 +608,7 @@ report / system 侧的现实载体包括：
 
 当前对应载体包括：
 
-- `docs/system/opening_judgment_corridor_v0.md`
+- `docs/archive/system-compiler-front-page-v0/README.md`（历史 `OpeningJudgmentCorridor` 阶段材料）
 - runtime-session bridge 到 `open_event_witness` 的 testimony 入口
 - `opening_testimony_landing -> front_page_route -> opening_testimony_explain_entry -> handoff`
   这条上行阅读通路
@@ -658,7 +658,7 @@ law or its reading alias.
 | `BringupOrder` | `artifact report.bringup_order`、`bringup_order_summary`、`comparison.bringup_order_summary`、[`../../schemas/bringup_order_summary.v0.schema.json`](../../schemas/bringup_order_summary.v0.schema.json)、materialized graph 节点顺序 | 已有正式结果物载体；其中 bringup-side summary object 现在也会显式带出 `kind = bringup_order_summary/v0` 与 `mode = summary | comparison`，把 bringup 顺序热点与 bringup drift 汇总对象正式锚定为独立协议 | 仅仅等于 DOT 展示顺序 |
 | `SystemFormation` | `artifact report.system_formation`、`comparison.system_formation`、`system_formation_summary`、`comparison.system_formation_summary`、[`../../schemas/system_formation_summary.v0.schema.json`](../../schemas/system_formation_summary.v0.schema.json)、默认总览 `Formation / FormCmp` | 已有正式结果物载体；其中 formation-side summary object 现在也会显式带出 `kind = system_formation_summary/v0` 与 `mode = summary | comparison`，把 formation 结果与 formation drift 汇总对象正式锚定为独立协议 | 单纯等于 `binding_result` 或 `bringup_order` |
 | `Artifact Report` | schema + export script + CI 输出 | 已有真实最小生成链 | explain surface 本身 |
-| `OpeningJudgmentCorridor` | `docs/system/opening_judgment_corridor_v0.md` + runtime-session bridge/witness/landing/route/explain-entry/handoff contracts + `world_shelf_review.front_page / route_provenance` + `scripts/system_compiler_front_page_entry_world_shelf_review_opening_corridor_smoke.ps1` | 文档级主语已成立，用来冻结“下层导出判决、上层只解释判决”的共同法律 | runtime-session 特例、第二套 compare brain、单纯等于 FrontPageReadingLaw |
+| `OpeningJudgmentCorridor` | `docs/archive/system-compiler-front-page-v0/README.md`（历史阶段材料） + runtime-session bridge/witness/landing/route/explain-entry/handoff contracts + `world_shelf_review.front_page / route_provenance` + `scripts/system_compiler_front_page_entry_world_shelf_review_opening_corridor_smoke.ps1` | 文档级主语已成立，用来冻结“下层导出判决、上层只解释判决”的共同法律；当前默认入口不再是 `docs/system/opening_judgment_corridor_v0.md` 旧路径 | runtime-session 特例、第二套 compare brain、单纯等于 FrontPageReadingLaw |
 | `OpeningJudgmentCorridorWitnessTaxonomy` | `docs/system/opening_judgment_corridor_witness_taxonomy_v0.md` | corridor breakpoint language for input/source, selection/testimony, route, explain/handoff | full failure code table, second compare brain |
 
 ## 6. 一个最小 worked example

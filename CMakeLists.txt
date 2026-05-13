@@ -16,6 +16,8 @@ option(CHARM_ENABLE_FREETYPE "Enable FreeType font loader" OFF)
 option(CHARM_AUDIO_USE_VFS "Use VFS-backed audio file source" OFF)
 option(CHARM_ENABLE_FATFS "Enable FatFs-backed mount" OFF)
 option(CHARM_BUILD_PLAYER "Build player example" OFF)
+option(CHARM_BUILD_FULL_RUNTIME "Build the full Charm runtime graph" ON)
+option(CHARM_BUILD_AUDIO_COMPONENT "Build the standalone Charm audio component" OFF)
 option(CHARM_ENABLE_DEPENDENCY_WHITELIST "Enforce dependency whitelist at configure time" OFF)
 option(CHARM_ENABLE_BANNED_API_CHECK "Ban printf-family APIs in project code" OFF)
 option(CHARM_BANNED_API_CHECK_EXAMPLES "Also check Examples/ for banned APIs" OFF)
@@ -210,109 +212,21 @@ function(charm_attach_module_sources target)
 endfunction()
 
 function(charm_add_runtime_facet target alias_name)
+    if (NOT TARGET Charm-runtime)
+        message(FATAL_ERROR "${target} requires CHARM_BUILD_FULL_RUNTIME=ON")
+    endif()
     add_library(${target} INTERFACE)
     target_link_libraries(${target} INTERFACE Charm-runtime)
     add_library(${alias_name} ALIAS ${target})
 endfunction()
 
-charm_collect_core_sources(CHARM_CORE_MODULES CHARM_CORE_BASE_DIRS)
-charm_collect_io_sources(CHARM_IO_MODULES CHARM_IO_BASE_DIRS)
-charm_collect_platform_sources(CHARM_PLATFORM_MODULES CHARM_PLATFORM_BASE_DIRS)
-charm_collect_platform_support_sources(
-    CHARM_PLATFORM_SUPPORT_SOURCES
-    CHARM_PLATFORM_INCLUDE_DIRS)
-charm_collect_system_sources(CHARM_SYSTEM_MODULES CHARM_SYSTEM_BASE_DIRS)
-
-set(CHARM_RUNTIME_MODULES
-    ${CHARM_CORE_MODULES}
-    ${CHARM_IO_MODULES}
-    ${CHARM_PLATFORM_MODULES}
-    ${CHARM_SYSTEM_MODULES}
-)
-set(CHARM_RUNTIME_BASE_DIRS
-    ${CHARM_CORE_BASE_DIRS}
-    ${CHARM_IO_BASE_DIRS}
-    ${CHARM_PLATFORM_BASE_DIRS}
-    ${CHARM_SYSTEM_BASE_DIRS}
-)
-list(REMOVE_DUPLICATES CHARM_RUNTIME_MODULES)
-list(REMOVE_DUPLICATES CHARM_RUNTIME_BASE_DIRS)
-
-charm_add_component_target(Charm-runtime)
-target_sources(Charm-runtime PRIVATE ${CHARM_PLATFORM_SUPPORT_SOURCES})
-target_include_directories(Charm-runtime PRIVATE ${CHARM_PLATFORM_INCLUDE_DIRS})
-charm_attach_module_sources(Charm-runtime
-    BASE_DIRS ${CHARM_RUNTIME_BASE_DIRS}
-    FILES ${CHARM_RUNTIME_MODULES})
-add_library(Charm::runtime ALIAS Charm-runtime)
-
-charm_add_runtime_facet(Charm-core Charm::core)
-charm_add_runtime_facet(Charm-io Charm::io)
-charm_add_runtime_facet(Charm-platform Charm::platform)
-charm_add_runtime_facet(Charm-system Charm::system)
-
-if (CHARM_ENABLE_FREETYPE)
-    include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/FreeType.cmake")
-    charm_link_freetype(Charm-runtime)
-endif()
-
-set(CHARM_MATERIAL_COLOR_UTILS_DIR
-    "${CMAKE_CURRENT_SOURCE_DIR}/Modules/thirdparty/material_color_utils")
-if (CHARM_TARGET_HAS_HOSTED_CXX AND EXISTS "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp")
-    target_include_directories(Charm-runtime PRIVATE "${CHARM_MATERIAL_COLOR_UTILS_DIR}")
-    set(MATERIAL_COLOR_UTILS_SOURCES
-        "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/utils/utils.cc"
-        "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/cam/cam.cc"
-        "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/cam/hct.cc"
-        "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/cam/hct_solver.cc"
-        "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/cam/viewing_conditions.cc"
-        "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/contrast/contrast.cc"
-        "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/dislike/dislike.cc"
-        "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/dynamiccolor/dynamic_color.cc"
-        "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/dynamiccolor/dynamic_scheme.cc"
-        "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/dynamiccolor/material_dynamic_colors.cc"
-        "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/palettes/tones.cc"
-        "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/quantize/celebi.cc"
-        "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/quantize/wsmeans.cc"
-        "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/quantize/wu.cc"
-        "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/quantize/lab.cc"
-        "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/score/score.cc"
-        "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/scheme/scheme_expressive.cc"
-        "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/scheme/scheme_fruit_salad.cc"
-        "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/scheme/scheme_tonal_spot.cc"
-        "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/scheme/scheme_vibrant.cc")
-    target_sources(Charm-runtime PRIVATE ${MATERIAL_COLOR_UTILS_SOURCES})
-elseif (EXISTS "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp")
-    message(STATUS "Charm-runtime: skipping material_color_utils for non-hosted C++ target")
-endif()
-
-if (CHARM_ENABLE_FATFS)
-    include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/FatFs.cmake")
-    charm_link_fatfs(Charm-runtime)
-endif()
-
-if (CHARM_TARGET_HAS_WINSOCK)
-    target_link_libraries(Charm-runtime PUBLIC ws2_32)
-endif()
-
-if (CHARM_ENABLE_UI_INK OR CHARM_ENABLE_UI_VIVID)
-    charm_add_component_target(Charm-ui)
-    target_link_libraries(Charm-ui PUBLIC Charm-runtime)
-    charm_collect_ui_sources(Charm-ui CHARM_UI_MODULES CHARM_UI_BASE_DIRS)
-    charm_attach_module_sources(Charm-ui
-        BASE_DIRS ${CHARM_UI_BASE_DIRS}
-        FILES ${CHARM_UI_MODULES})
-    add_library(Charm::ui ALIAS Charm-ui)
-endif()
-
-if (CHARM_ENABLE_MEDIA)
-    charm_add_component_target(Charm-media)
-    target_link_libraries(Charm-media PUBLIC Charm-runtime)
-    charm_collect_media_sources(CHARM_MEDIA_MODULES CHARM_MEDIA_BASE_DIRS)
-    charm_attach_module_sources(Charm-media
-        BASE_DIRS ${CHARM_MEDIA_BASE_DIRS}
-        FILES ${CHARM_MEDIA_MODULES})
-    add_library(Charm::media ALIAS Charm-media)
+if (CHARM_BUILD_AUDIO_COMPONENT)
+    charm_add_component_target(Charm-audio)
+    charm_collect_audio_component_sources(CHARM_AUDIO_MODULES CHARM_AUDIO_BASE_DIRS)
+    charm_attach_module_sources(Charm-audio
+        BASE_DIRS ${CHARM_AUDIO_BASE_DIRS}
+        FILES ${CHARM_AUDIO_MODULES})
+    add_library(Charm::audio ALIAS Charm-audio)
     if (CHARM_TARGET_STRICT_ALIGNMENT)
         set_source_files_properties(
             "${CMAKE_CURRENT_SOURCE_DIR}/Modules/media/audio/audio_decoder_mp3.cppm"
@@ -323,12 +237,131 @@ if (CHARM_ENABLE_MEDIA)
     set(CHARM_DR_LIBS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Modules/thirdparty/dr_libs")
     if (EXISTS "${CHARM_DR_LIBS_DIR}/dr_mp3.h" AND EXISTS "${CHARM_DR_LIBS_DIR}/dr_flac.h")
         include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/DRLibs.cmake")
-        charm_link_dr_libs(Charm-media)
+        charm_link_dr_libs(Charm-audio)
     endif()
 
     if (CHARM_ENABLE_SDL3)
         include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/SDL3.cmake")
-        charm_link_sdl3(Charm-media)
+        charm_link_sdl3(Charm-audio)
+    endif()
+endif()
+
+if (CHARM_BUILD_FULL_RUNTIME)
+    charm_collect_core_sources(CHARM_CORE_MODULES CHARM_CORE_BASE_DIRS)
+    charm_collect_io_sources(CHARM_IO_MODULES CHARM_IO_BASE_DIRS)
+    charm_collect_platform_sources(CHARM_PLATFORM_MODULES CHARM_PLATFORM_BASE_DIRS)
+    charm_collect_platform_support_sources(
+        CHARM_PLATFORM_SUPPORT_SOURCES
+        CHARM_PLATFORM_INCLUDE_DIRS)
+    charm_collect_system_sources(CHARM_SYSTEM_MODULES CHARM_SYSTEM_BASE_DIRS)
+
+    set(CHARM_RUNTIME_MODULES
+        ${CHARM_CORE_MODULES}
+        ${CHARM_IO_MODULES}
+        ${CHARM_PLATFORM_MODULES}
+        ${CHARM_SYSTEM_MODULES}
+    )
+    set(CHARM_RUNTIME_BASE_DIRS
+        ${CHARM_CORE_BASE_DIRS}
+        ${CHARM_IO_BASE_DIRS}
+        ${CHARM_PLATFORM_BASE_DIRS}
+        ${CHARM_SYSTEM_BASE_DIRS}
+    )
+    list(REMOVE_DUPLICATES CHARM_RUNTIME_MODULES)
+    list(REMOVE_DUPLICATES CHARM_RUNTIME_BASE_DIRS)
+
+    charm_add_component_target(Charm-runtime)
+    target_sources(Charm-runtime PRIVATE ${CHARM_PLATFORM_SUPPORT_SOURCES})
+    target_include_directories(Charm-runtime PRIVATE ${CHARM_PLATFORM_INCLUDE_DIRS})
+    charm_attach_module_sources(Charm-runtime
+        BASE_DIRS ${CHARM_RUNTIME_BASE_DIRS}
+        FILES ${CHARM_RUNTIME_MODULES})
+    add_library(Charm::runtime ALIAS Charm-runtime)
+
+    charm_add_runtime_facet(Charm-core Charm::core)
+    charm_add_runtime_facet(Charm-io Charm::io)
+    charm_add_runtime_facet(Charm-platform Charm::platform)
+    charm_add_runtime_facet(Charm-system Charm::system)
+
+    if (CHARM_ENABLE_FREETYPE)
+        include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/FreeType.cmake")
+        charm_link_freetype(Charm-runtime)
+    endif()
+
+    set(CHARM_MATERIAL_COLOR_UTILS_DIR
+        "${CMAKE_CURRENT_SOURCE_DIR}/Modules/thirdparty/material_color_utils")
+    if (CHARM_TARGET_HAS_HOSTED_CXX AND EXISTS "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp")
+        target_include_directories(Charm-runtime PRIVATE "${CHARM_MATERIAL_COLOR_UTILS_DIR}")
+        set(MATERIAL_COLOR_UTILS_SOURCES
+            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/utils/utils.cc"
+            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/cam/cam.cc"
+            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/cam/hct.cc"
+            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/cam/hct_solver.cc"
+            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/cam/viewing_conditions.cc"
+            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/contrast/contrast.cc"
+            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/dislike/dislike.cc"
+            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/dynamiccolor/dynamic_color.cc"
+            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/dynamiccolor/dynamic_scheme.cc"
+            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/dynamiccolor/material_dynamic_colors.cc"
+            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/palettes/tones.cc"
+            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/quantize/celebi.cc"
+            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/quantize/wsmeans.cc"
+            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/quantize/wu.cc"
+            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/quantize/lab.cc"
+            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/score/score.cc"
+            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/scheme/scheme_expressive.cc"
+            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/scheme/scheme_fruit_salad.cc"
+            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/scheme/scheme_tonal_spot.cc"
+            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/scheme/scheme_vibrant.cc")
+        target_sources(Charm-runtime PRIVATE ${MATERIAL_COLOR_UTILS_SOURCES})
+    elseif (EXISTS "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp")
+        message(STATUS "Charm-runtime: skipping material_color_utils for non-hosted C++ target")
+    endif()
+
+    if (CHARM_ENABLE_FATFS)
+        include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/FatFs.cmake")
+        charm_link_fatfs(Charm-runtime)
+    endif()
+
+    if (CHARM_TARGET_HAS_WINSOCK)
+        target_link_libraries(Charm-runtime PUBLIC ws2_32)
+    endif()
+
+    if (CHARM_ENABLE_UI_INK OR CHARM_ENABLE_UI_VIVID)
+        charm_add_component_target(Charm-ui)
+        target_link_libraries(Charm-ui PUBLIC Charm-runtime)
+        charm_collect_ui_sources(Charm-ui CHARM_UI_MODULES CHARM_UI_BASE_DIRS)
+        charm_attach_module_sources(Charm-ui
+            BASE_DIRS ${CHARM_UI_BASE_DIRS}
+            FILES ${CHARM_UI_MODULES})
+        add_library(Charm::ui ALIAS Charm-ui)
+    endif()
+
+    if (CHARM_ENABLE_MEDIA)
+        charm_add_component_target(Charm-media)
+        target_link_libraries(Charm-media PUBLIC Charm-runtime)
+        charm_collect_media_sources(CHARM_MEDIA_MODULES CHARM_MEDIA_BASE_DIRS)
+        charm_attach_module_sources(Charm-media
+            BASE_DIRS ${CHARM_MEDIA_BASE_DIRS}
+            FILES ${CHARM_MEDIA_MODULES})
+        add_library(Charm::media ALIAS Charm-media)
+        if (CHARM_TARGET_STRICT_ALIGNMENT)
+            set_source_files_properties(
+                "${CMAKE_CURRENT_SOURCE_DIR}/Modules/media/audio/audio_decoder_mp3.cppm"
+                PROPERTIES COMPILE_OPTIONS "-mno-unaligned-access"
+            )
+        endif()
+
+        set(CHARM_DR_LIBS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Modules/thirdparty/dr_libs")
+        if (EXISTS "${CHARM_DR_LIBS_DIR}/dr_mp3.h" AND EXISTS "${CHARM_DR_LIBS_DIR}/dr_flac.h")
+            include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/DRLibs.cmake")
+            charm_link_dr_libs(Charm-media)
+        endif()
+
+        if (CHARM_ENABLE_SDL3)
+            include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/SDL3.cmake")
+            charm_link_sdl3(Charm-media)
+        endif()
     endif()
 endif()
 
@@ -337,7 +370,11 @@ add_library(Charm::os ALIAS ${target_name})
 if (TARGET arch_lint AND CHARM_ENABLE_ARCH_LINT_GUARD)
     add_dependencies(${target_name} arch_lint)
 endif()
-target_link_libraries(${target_name} INTERFACE Charm-runtime)
+if (TARGET Charm-runtime)
+    target_link_libraries(${target_name} INTERFACE Charm-runtime)
+elseif (CHARM_BUILD_FULL_RUNTIME)
+    message(FATAL_ERROR "Charm-runtime target was not created")
+endif()
 if (CHARM_ACTIVE_TARGET_CONFIG)
     target_link_libraries(${target_name} INTERFACE ${CHARM_ACTIVE_TARGET_CONFIG})
 endif()

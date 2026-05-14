@@ -39,11 +39,7 @@
       "type": "string"
     },
     "result": {
-      "type": "string",
-      "enum": [
-        "ok",
-        "fail"
-      ]
+      "$ref": "#/$defs/okFailResult"
     },
     "opening_flow_consumer_plan_action_compare": {
       "$ref": "#/$defs/titleBlock"
@@ -61,13 +57,7 @@
       "$ref": "#/$defs/artifactContext"
     },
     "action_verdict": {
-      "type": "string",
-      "enum": [
-        "standing",
-        "improved",
-        "drifted",
-        "collapsed"
-      ]
+      "$ref": "#/$defs/compareVerdict"
     },
     "action_status": {
       "$ref": "#/$defs/actionStatus"
@@ -98,6 +88,22 @@
     }
   },
   "$defs": {
+    "okFailResult": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "fail"
+      ]
+    },
+    "compareVerdict": {
+      "type": "string",
+      "enum": [
+        "standing",
+        "improved",
+        "drifted",
+        "collapsed"
+      ]
+    },
     "stringArray": {
       "type": "array",
       "items": {

@@ -664,6 +664,30 @@ law or its reading alias.
 
 `ScriptSurface` 是治理对象，不是鼓励继续新增脚本家族的接口名。
 
+### 4.16 `SchemaSurface`
+
+它回答的是：
+
+> **仓库暴露了哪些 schema 公开边界、这些边界属于 artifact contract / projection / compare / shared definition candidate 哪一层，以及哪些 schema 面已经成为复制风险。**
+
+当前对应载体包括：
+
+- `docs/system/schema_surface_reduction_governance_v0.md`
+- `docs/system/schema_surface_reduction_inventory_v0.md`
+- `schemas/` 下的 artifact / projection / compare schema 家族
+
+`SchemaSurface` 是治理对象，不是新的 schema kind，也不是鼓励继续新增 schema 家族的接口名。
+
+### 4.17 `SharedDefinitionCandidate`
+
+它回答的是：
+
+> **哪些跨 schema 重复出现的结构词汇，应先登记为共享定义候选，而不是继续被复制进每个 artifact schema。**
+
+当前候选包括 `schema / kind`、`result / status / verdict`、`summary_path`、`artifact_ref`、`surface_id`、`evidence_refs` 等结构。
+
+`SharedDefinitionCandidate` 在 v0 只是治理词条。它不等于已经落地的 `$defs`，也不改变现有 artifact JSON shape。
+
 ## 5. 最小概念映射表
 
 | 目标词汇 | 当前主要载体 | 当前状态 | 当前不要误写成 |
@@ -689,6 +713,8 @@ law or its reading alias.
 | `OpeningJudgmentCorridorWitnessTaxonomy` | `docs/system/opening_judgment_corridor_witness_taxonomy_v0.md` | corridor breakpoint language for input/source, selection/testimony, route, explain/handoff | full failure code table, second compare brain |
 | `EvidenceHarness` | `docs/system/script_surface_reduction_governance_v0.md` + smoke / CI / report / check 入口 | 治理词条已成立，用来把脚本压回调用、采集、校验、打包层 | 新产品实现层、第二套 system compiler |
 | `ScriptSurface` | `docs/system/script_surface_reduction_governance_v0.md` + exporter / validator / inspect / compare / workspace 家族 | 治理对象已命名，用来盘点和收敛脚本入口 | 鼓励继续新增脚本家族的接口名 |
+| `SchemaSurface` | `docs/system/schema_surface_reduction_governance_v0.md` + `schemas/` artifact / projection / compare 家族 | 治理对象已命名，用来盘点和收敛 schema 公开边界 | 新 schema kind、继续新增完整 schema 家族的理由 |
+| `SharedDefinitionCandidate` | `docs/system/schema_surface_reduction_inventory_v0.md` + repeated schema fields such as `kind/status/result/summary_path/surface_id/artifact_ref` | 共享定义候选已命名，后续可作为 `$defs` 或 schema library pilot 的输入 | 已经落地的 `$defs`、改变 artifact JSON shape 的迁移 |
 
 ## 6. 一个最小 worked example
 

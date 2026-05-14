@@ -24,6 +24,7 @@
 | 资源法律与 bring-up 证据 | [`resource_contract_v0.md`](resource_contract_v0.md)、[`bringup_evidence_pipeline_v0.md`](bringup_evidence_pipeline_v0.md) |
 | opening judgment / testimony 上层阅读通路 | [`opening_judgment_corridor_witness_taxonomy_v0.md`](opening_judgment_corridor_witness_taxonomy_v0.md) |
 | 脚本面收敛 / evidence harness 治理 | [`script_surface_reduction_governance_v0.md`](script_surface_reduction_governance_v0.md)、[`script_surface_reduction_inventory_v0.md`](script_surface_reduction_inventory_v0.md) |
+| schema 面收敛 / shared definition 候选治理 | [`schema_surface_reduction_governance_v0.md`](schema_surface_reduction_governance_v0.md)、[`schema_surface_reduction_inventory_v0.md`](schema_surface_reduction_inventory_v0.md) |
 
 ## 阅读规则
 
@@ -99,6 +100,11 @@
 - [`system_compiler_front_page_entry_runtime_session_opening_flow_plan_action_bridge_blocked_smoke.ps1`](../../scripts/system_compiler_front_page_entry_runtime_session_opening_flow_plan_action_bridge_blocked_smoke.ps1)
 - [`system_compiler_front_page_entry_runtime_session_open_event_witness_smoke.ps1`](../../scripts/system_compiler_front_page_entry_runtime_session_open_event_witness_smoke.ps1)
 - [`system_compiler_front_page_entry_opener_open_event_witness_smoke.ps1`](../../scripts/system_compiler_front_page_entry_opener_open_event_witness_smoke.ps1)
+
+当前 system compiler / front-page schema 面治理入口：
+
+- [`schema_surface_reduction_governance_v0.md`](schema_surface_reduction_governance_v0.md)
+- [`schema_surface_reduction_inventory_v0.md`](schema_surface_reduction_inventory_v0.md)
 
 ## SSU 补充入口
 

@@ -1,8 +1,7 @@
 # DAPLink Port 分层契约
 
 这份契约描述 `Examples/project/daplink` 当前认可的分层边界。
-
-目标不是为了把 STM32 抽象成“没有差异”，而是把差异固定在应该出现的位置，
+目标不是把 STM32 抽象成“没有差异”，而是把差异固定在应该出现的位置，
 避免随着移植次数增加，把芯片细节重新污染回公共层。
 
 ## 1. 分层职责
@@ -15,16 +14,29 @@
 
 ### `frontends/`
 
-- 负责“主机如何看到这台 DAPLink 设备”。
+- 负责“主机如何看到这只 DAPLink 设备”。
 - 当前实现是 USB CDC / HID。
-- 未来如果要接入无线链路、WebUSB、BLE、Wi-Fi 等，也应该优先扩展这里，而不是回写到 `app/`。
+- 未来如果要接入无线链路、WebUSB、BLE、Wi-Fi 等，也应优先扩展这里，而不是回写到 `app/`。
 
 ### `port/`
 
 - 负责统一契约、通用 glue，以及跨多个端口可复用的帮助层。
 - `daplink::port::*` 是公共层唯一应该依赖的底层 API 入口。
+- 对于时间、时钟、启动失败这类“运行时能力”，优先通过 `daplink::port_runtime::*` 暴露，而不是继续把所有能力堆进 `daplink::port::*`。
+- 对于 USB 端点布局这类“前端配置”，优先通过 `daplink::port::usb_config::*` 暴露，而不是把它混进所有底层原语契约。
 - `daplink::board_support::*` / `daplink::backend_support::*` 负责把板级与后端能力拆成可组合积木。
-- 当某个能力已经被两个及以上 STM32 端口复用时，优先抽到 `port/stm32/`。
+- `port/` 自身不再默认站在某个具体厂商平台上。
+
+### `platform/<vendor>/`
+
+- 负责某一类平台共享的底层实现与帮助层。
+- 当前 `platform/stm32/` 承担 STM32 家族公共 glue，包括：
+  - HAL / CubeMX 句柄到 `daplink::port::*` 的桥接
+  - STM32 家族共用的 USB PMA 布局 traits
+  - STM32 家族共用的 board/backend helper
+  - 特定系列 workaround
+- 每个平台目录都应优先满足同一份 `platform contract`，而不是直接依赖某个现成平台的命名方式。
+- 当某个能力已经被两个及以上 STM32 端口复用时，优先抽到 `platform/stm32/`。
 
 ### `f103/`、`g431/`、`h503/`
 
@@ -44,7 +56,7 @@
 ### 板级 traits
 
 - `Core/Inc/daplink_board.hpp` 只声明 `daplink::board_target::Traits`。
-- traits 优先由 `board_support` 的能力积木组合得到，例如：
+- traits 优先由 `board_support` 与 `platform/<vendor>` 的能力积木组合得到，例如：
   - 通用 SWD / RESET pin map
   - USB connect switch 能力
   - LED 能力
@@ -53,25 +65,26 @@
 ### 后端 traits
 
 - `Core/Inc/daplink_backend.hpp` 只声明 `daplink::backend_target::Traits`。
-- traits 优先由 `backend_support` 的能力积木组合得到，例如：
+- traits 优先由 `backend_support` 与 `platform/<vendor>` 的能力积木组合得到，例如：
   - UART1 / UART2 初始化与句柄
   - USB PCD 句柄类型
   - DMA-before-UART2 这类初始化顺序能力
 
 ### 端口 API
 
-- `Core/Inc/daplink_port_api.hpp` 负责把具体 HAL / SDK 暴露成统一的 `daplink::port::*`。
-- 如果未来移植到非 STM32 平台，也应优先实现同名契约，而不是把新平台判断写入公共逻辑。
+- `Core/Inc/daplink_port_api.hpp` 负责选择具体 platform bundle，并把底层能力接到 `daplink::port::*` 契约。
+- `daplink::port::*` 是公共层看到的平台桥面；`platform/<vendor>/*` 则是平台私有实现面。
+- 如果未来移植到非 STM32 平台，应优先新增对应的 `platform/<vendor>/`，而不是把新平台判断写入公共逻辑。
 
 ## 3. 新端口接入规则
 
 新增一个端口时，默认按下面顺序处理：
 
-1. 先实现 `daplink_port_api.hpp`，把底层能力接到 `daplink::port::*` 契约。
+1. 先实现或选择合适的 platform bundle，把底层能力接到 `daplink::port::*` 契约。
 2. 再实现 `daplink_board.hpp`，只描述板级 pin、LED、reset、USB connect 等事实。
 3. 再实现 `daplink_backend.hpp`，只描述 UART/USB 句柄与初始化顺序。
-4. 如果发现已有两个以上端口在重复同一段 glue，回抽到 `port/` 或 `port/stm32/`。
-5. 除非是协议策略本身变化，否则不要为移植新芯片去修改 `app/`。
+4. 如果发现已有两个以上端口在重复同一段 glue，回抽到 `port/` 或 `platform/<vendor>/`。
+5. 除非是协议策略本身变化，否则不要为了移植新芯片去修改 `app/`。
 
 ## 4. 允许存在的差异
 
@@ -85,7 +98,7 @@
 - 不同 UART FIFO / ORE / 数据寄存器细节
 - 不同芯片族的特殊 workaround
 
-关键要求只有一个：差异应该收敛在端口后端或公共 helper，不应蔓延回协议与应用层。
+关键要求只有一个：差异应该收敛在端口后端或平台公共 helper，不应蔓延回协议与应用层。
 
 ## 5. 面向后续扩展
 
@@ -95,5 +108,6 @@
 
 - `app/` 继续保持芯片无关
 - `frontends/` 承接主机接入方式变化
-- `port/` 承接平台契约和可复用 glue
+- `port/` 承接公共契约与平台无关 glue
+- `platform/<vendor>/` 承接某个平台家族的共性实现
 - 具体端口目录只保留该平台不可避免的事实

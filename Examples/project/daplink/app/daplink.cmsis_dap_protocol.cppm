@@ -1,14 +1,22 @@
 module;
 
+#include "daplink_legacy_macro_compat.hpp"
+
 #include <cstdint>
-#ifndef CHARM_DAP_ENABLE_SWO
-#define CHARM_DAP_ENABLE_SWO 0
+#if defined(DAPLINK_ENABLE_SWO)
+#define DAPLINK_PROTOCOL_ENABLE_SWO DAPLINK_ENABLE_SWO
+#else
+#define DAPLINK_PROTOCOL_ENABLE_SWO 0
 #endif
-#ifndef CHARM_DAP_ENABLE_SWO_STREAM
-#define CHARM_DAP_ENABLE_SWO_STREAM 0
+#if defined(DAPLINK_ENABLE_SWO_STREAM)
+#define DAPLINK_PROTOCOL_ENABLE_SWO_STREAM DAPLINK_ENABLE_SWO_STREAM
+#else
+#define DAPLINK_PROTOCOL_ENABLE_SWO_STREAM 0
 #endif
-#ifndef CHARM_DAP_ENABLE_DAP_UART
-#define CHARM_DAP_ENABLE_DAP_UART 0
+#if defined(DAPLINK_ENABLE_DAP_UART)
+#define DAPLINK_PROTOCOL_ENABLE_DAP_UART DAPLINK_ENABLE_DAP_UART
+#else
+#define DAPLINK_PROTOCOL_ENABLE_DAP_UART 0
 #endif
 
 export module daplink.cmsis_dap:protocol;
@@ -76,9 +84,9 @@ namespace daplink::cmsis_dap::detail {
     constexpr std::uint8_t kCapabilities =
         kCapSwd |
         ((daplink::app_config::kConfig.dap.packet_count > 1U) ? kCapAtomic : 0U) |
-        (CHARM_DAP_ENABLE_SWO ? kCapSwoUart : 0U) |
-        (CHARM_DAP_ENABLE_SWO_STREAM ? kCapSwoStreaming : 0U) |
-        (CHARM_DAP_ENABLE_DAP_UART ? kCapDapUart : 0U);
+        (DAPLINK_PROTOCOL_ENABLE_SWO ? kCapSwoUart : 0U) |
+        (DAPLINK_PROTOCOL_ENABLE_SWO_STREAM ? kCapSwoStreaming : 0U) |
+        (DAPLINK_PROTOCOL_ENABLE_DAP_UART ? kCapDapUart : 0U);
 
     constexpr std::uint8_t kDapOk = 0x00;
     constexpr std::uint8_t kDapError = 0xFF;

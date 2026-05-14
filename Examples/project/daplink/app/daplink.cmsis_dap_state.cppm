@@ -1,8 +1,12 @@
 module;
 
+#include "daplink_legacy_macro_compat.hpp"
+
 #include <cstdint>
-#ifndef CHARM_DAP_ENABLE_SWO
-#define CHARM_DAP_ENABLE_SWO 0
+#if defined(DAPLINK_ENABLE_SWO)
+#define DAPLINK_STATE_ENABLE_SWO DAPLINK_ENABLE_SWO
+#else
+#define DAPLINK_STATE_ENABLE_SWO 0
 #endif
 
 export module daplink.cmsis_dap:state;
@@ -25,7 +29,7 @@ export namespace daplink::cmsis_dap {
         std::uint8_t error_streak = 0;
         std::uint8_t transfer_abort = 0;
         TransferAbortProbe transfer_abort_probe = nullptr;
-#if CHARM_DAP_ENABLE_SWO
+#if DAPLINK_STATE_ENABLE_SWO
         std::uint32_t swo_baudrate = 0;
         std::uint8_t swo_mode = 0;
         std::uint8_t swo_transport = 1;

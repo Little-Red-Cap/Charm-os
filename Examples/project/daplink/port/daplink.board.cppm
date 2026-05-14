@@ -4,6 +4,7 @@ module;
 #include "daplink_board.hpp"
 #include "port/daplink_cdc_uart_support.hpp"
 #include "port/daplink_swd_backend_support.hpp"
+#include "port/daplink_usb_backend_api.hpp"
 
 #include <cstdint>
 #include <expected>
@@ -15,6 +16,8 @@ import daplink.app_config;
 namespace {
     constexpr std::uint8_t kCdcUartIndex = daplink::app_config::kConfig.cdc.uart_index;
     using board_cfg = daplink::board_target::Support;
+    using target_pins_cfg = daplink::board_target::TargetPins;
+    using indicators_cfg = daplink::board_target::Indicators;
     using cdc_uart_cfg = daplink::cdc_uart_support::BasicCdcUart<daplink::backend::Support, kCdcUartIndex>;
 }
 
@@ -25,7 +28,7 @@ export namespace daplink::board {
         usb_start_failed = 2,
     };
 
-    using SwdBackend = daplink::swd_backend_support::BasicSwdBackend<board_cfg>;
+    using SwdBackend = daplink::swd_backend_support::BasicSwdBackend<target_pins_cfg, indicators_cfg>;
 
 
     inline void configure_debug_pins_hi_z() noexcept {
@@ -48,7 +51,7 @@ export namespace daplink::board {
         if (!daplink::usb_minimal::attach(usb)) {
             return std::unexpected(init_error::usb_pma_config_failed);
         }
-        if (!daplink::port::usb_start(usb)) {
+        if (!daplink::usb_backend::start(usb)) {
             return std::unexpected(init_error::usb_start_failed);
         }
         usb_connect_on();

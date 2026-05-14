@@ -23,6 +23,7 @@
 | system compiler 结果物与解释面 | [`artifact_report_v0.md`](artifact_report_v0.md)、[`explain_surface_v0.md`](explain_surface_v0.md) |
 | 资源法律与 bring-up 证据 | [`resource_contract_v0.md`](resource_contract_v0.md)、[`bringup_evidence_pipeline_v0.md`](bringup_evidence_pipeline_v0.md) |
 | opening judgment / testimony 上层阅读通路 | [`opening_judgment_corridor_witness_taxonomy_v0.md`](opening_judgment_corridor_witness_taxonomy_v0.md) |
+| 脚本面收敛 / evidence harness 治理 | [`script_surface_reduction_governance_v0.md`](script_surface_reduction_governance_v0.md) |
 
 ## 阅读规则
 

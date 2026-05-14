@@ -637,6 +637,33 @@ Its breakpoint language is documented separately as
 That page only names corridor breakpoints. It does not replace the corridor
 law or its reading alias.
 
+### 4.14 `EvidenceHarness`
+
+它回答的是：
+
+> **脚本如何证明、采集、校验和打包证据，而不接管系统语义。**
+
+当前对应载体包括：
+
+- `docs/system/script_surface_reduction_governance_v0.md`
+- `scripts/` 下的 smoke / CI / report / check 入口
+- ARMv7-A QEMU lower-half smoke 与 minimal-kernel runtime evidence bundle
+
+`EvidenceHarness` 不等于新的产品实现层。系统语义仍应由源码、schema、contract 或 shared library 持有。
+
+### 4.15 `ScriptSurface`
+
+它回答的是：
+
+> **仓库暴露了哪些脚本入口、这些入口属于 entrypoint / harness / adapter / library 哪一层，以及哪些脚本面已经成为收敛风险。**
+
+当前对应载体包括：
+
+- `docs/system/script_surface_reduction_governance_v0.md`
+- `scripts/` 下的 exporter / validator / inspect / compare / workspace 家族
+
+`ScriptSurface` 是治理对象，不是鼓励继续新增脚本家族的接口名。
+
 ## 5. 最小概念映射表
 
 | 目标词汇 | 当前主要载体 | 当前状态 | 当前不要误写成 |
@@ -660,6 +687,8 @@ law or its reading alias.
 | `Artifact Report` | schema + export script + CI 输出 | 已有真实最小生成链 | explain surface 本身 |
 | `OpeningJudgmentCorridor` | `docs/archive/system-compiler-front-page-v0/README.md`（历史阶段材料） + runtime-session bridge/witness/landing/route/explain-entry/handoff contracts + `world_shelf_review.front_page / route_provenance` + `scripts/system_compiler_front_page_entry_world_shelf_review_opening_corridor_smoke.ps1` | 文档级主语已成立，用来冻结“下层导出判决、上层只解释判决”的共同法律；当前默认入口不再是 `docs/system/opening_judgment_corridor_v0.md` 旧路径 | runtime-session 特例、第二套 compare brain、单纯等于 FrontPageReadingLaw |
 | `OpeningJudgmentCorridorWitnessTaxonomy` | `docs/system/opening_judgment_corridor_witness_taxonomy_v0.md` | corridor breakpoint language for input/source, selection/testimony, route, explain/handoff | full failure code table, second compare brain |
+| `EvidenceHarness` | `docs/system/script_surface_reduction_governance_v0.md` + smoke / CI / report / check 入口 | 治理词条已成立，用来把脚本压回调用、采集、校验、打包层 | 新产品实现层、第二套 system compiler |
+| `ScriptSurface` | `docs/system/script_surface_reduction_governance_v0.md` + exporter / validator / inspect / compare / workspace 家族 | 治理对象已命名，用来盘点和收敛脚本入口 | 鼓励继续新增脚本家族的接口名 |
 
 ## 6. 一个最小 worked example
 

@@ -1881,7 +1881,7 @@ function New-ResolvedCaseSubject {
     }
 }
 
-function New-SystemInputSummary {
+function New-SystemInputProjectionContext {
     param(
         $CaseEntry,
         $ResolvedCaseSubject
@@ -1894,11 +1894,23 @@ function New-SystemInputSummary {
     }
     $declaredFacts = @(Get-CaseDeclaredFacts -CaseEntry $CaseEntry)
     $declaredContracts = @(Get-CaseDeclaredContracts -CaseEntry $CaseEntry)
-    $subjectFacts = @(Get-SubjectFacts -ProfileValue $ResolvedCaseSubject.Profile -BoardValue $ResolvedCaseSubject.Board -ActiveFacets $ResolvedCaseSubject.ActiveFacets)
+    $resolvedSubject = if ($null -ne $ResolvedCaseSubject) {
+        $ResolvedCaseSubject
+    } else {
+        [pscustomobject]@{
+            Profile = $null
+            Board = $null
+            ActiveFacets = @()
+            ProfileResolution = [pscustomobject]@{ source = 'missing' }
+            BoardResolution = [pscustomobject]@{ source = 'missing' }
+            ActiveFacetResolution = [pscustomobject]@{ source = 'missing' }
+        }
+    }
+    $subjectFacts = @(Get-SubjectFacts -ProfileValue $resolvedSubject.Profile -BoardValue $resolvedSubject.Board -ActiveFacets $resolvedSubject.ActiveFacets)
 
     return [ordered]@{
         system_spec = [ordered]@{
-            case_name = [string]$CaseEntry.name
+            case_name = if ($null -eq $CaseEntry) { $null } else { [string]$CaseEntry.name }
             case_kind = Get-CaseKind -CaseEntry $CaseEntry
             source = Get-OptionalCaseEntryString -CaseEntry $CaseEntry -PropertyName 'source'
             build_dir = Get-OptionalCaseEntryString -CaseEntry $CaseEntry -PropertyName 'build_dir'
@@ -1916,20 +1928,34 @@ function New-SystemInputSummary {
         }
         resolved_input = [ordered]@{
             profile = [ordered]@{
-                value = $ResolvedCaseSubject.Profile
-                source = [string]$ResolvedCaseSubject.ProfileResolution.source
+                value = $resolvedSubject.Profile
+                source = [string]$resolvedSubject.ProfileResolution.source
             }
             board = [ordered]@{
-                value = $ResolvedCaseSubject.Board
-                source = [string]$ResolvedCaseSubject.BoardResolution.source
+                value = $resolvedSubject.Board
+                source = [string]$resolvedSubject.BoardResolution.source
             }
             active_facets = [ordered]@{
-                values = @($ResolvedCaseSubject.ActiveFacets)
-                source = [string]$ResolvedCaseSubject.ActiveFacetResolution.source
+                values = @($resolvedSubject.ActiveFacets)
+                source = [string]$resolvedSubject.ActiveFacetResolution.source
             }
             subject_facts = @($subjectFacts)
         }
     }
+}
+
+function New-SystemInputSummary {
+    param(
+        $CaseEntry,
+        $ResolvedCaseSubject,
+        $ProjectionContext = $null
+    )
+
+    if ($null -eq $ProjectionContext) {
+        $ProjectionContext = New-SystemInputProjectionContext -CaseEntry $CaseEntry -ResolvedCaseSubject $ResolvedCaseSubject
+    }
+
+    return $ProjectionContext
 }
 
 function New-EmptySystemInputComparisonSide {
@@ -1971,47 +1997,17 @@ function New-EmptySystemInputComparisonSide {
 
 function New-SystemInputComparisonSide {
     param(
-        $SystemInputSummary
+        $SystemInputSummary = $null,
+        $ProjectionContext = $null
     )
 
-    if ($null -eq $SystemInputSummary) {
+    $projection = if ($null -ne $ProjectionContext) { $ProjectionContext } else { $SystemInputSummary }
+
+    if ($null -eq $projection) {
         return New-EmptySystemInputComparisonSide
     }
 
-    return [ordered]@{
-        system_spec = [ordered]@{
-            case_name = $SystemInputSummary.system_spec.case_name
-            case_kind = $SystemInputSummary.system_spec.case_kind
-            source = $SystemInputSummary.system_spec.source
-            build_dir = $SystemInputSummary.system_spec.build_dir
-            build_target = $SystemInputSummary.system_spec.build_target
-            export_target = $SystemInputSummary.system_spec.export_target
-        }
-        declared_input = [ordered]@{
-            subject = [ordered]@{
-                profile = $SystemInputSummary.declared_input.subject.profile
-                board = $SystemInputSummary.declared_input.subject.board
-                active_facets = @($SystemInputSummary.declared_input.subject.active_facets)
-            }
-            declared_facts = @($SystemInputSummary.declared_input.declared_facts)
-            declared_contract_entries = @($SystemInputSummary.declared_input.declared_contract_entries)
-        }
-        resolved_input = [ordered]@{
-            profile = [ordered]@{
-                value = $SystemInputSummary.resolved_input.profile.value
-                source = [string]$SystemInputSummary.resolved_input.profile.source
-            }
-            board = [ordered]@{
-                value = $SystemInputSummary.resolved_input.board.value
-                source = [string]$SystemInputSummary.resolved_input.board.source
-            }
-            active_facets = [ordered]@{
-                values = @($SystemInputSummary.resolved_input.active_facets.values)
-                source = [string]$SystemInputSummary.resolved_input.active_facets.source
-            }
-            subject_facts = @($SystemInputSummary.resolved_input.subject_facts)
-        }
-    }
+    return $projection
 }
 
 function New-SystemInputContractStateMap {
@@ -2055,8 +2051,8 @@ function New-SystemInputComparison {
         $RightSummary
     )
 
-    $leftSide = New-SystemInputComparisonSide -SystemInputSummary $LeftSummary
-    $rightSide = New-SystemInputComparisonSide -SystemInputSummary $RightSummary
+    $leftSide = New-SystemInputComparisonSide -ProjectionContext $LeftSummary
+    $rightSide = New-SystemInputComparisonSide -ProjectionContext $RightSummary
     $leftContractStateMap = New-SystemInputContractStateMap -DeclaredContractEntries @($leftSide.declared_input.declared_contract_entries)
     $rightContractStateMap = New-SystemInputContractStateMap -DeclaredContractEntries @($rightSide.declared_input.declared_contract_entries)
 
@@ -2207,11 +2203,24 @@ function New-SystemInputComparison {
 function Get-SystemFormationBlockers {
     param(
         $BindingResultSummary,
-        $BringupOrderSummary
+        $BringupOrderSummary,
+        $ProjectionContext = $null
     )
 
-    $bindingResultValue = if ($null -eq $BindingResultSummary) { New-EmptyBindingResultSummary } else { $BindingResultSummary }
-    $bringupOrderValue = if ($null -eq $BringupOrderSummary) { New-EmptyBringupOrderSummary } else { $BringupOrderSummary }
+    $bindingResultValue = if ($null -ne $ProjectionContext -and $null -ne $ProjectionContext.binding) {
+        $ProjectionContext.binding.source
+    } elseif ($null -eq $BindingResultSummary) {
+        New-EmptyBindingResultSummary
+    } else {
+        $BindingResultSummary
+    }
+    $bringupOrderValue = if ($null -ne $ProjectionContext -and $null -ne $ProjectionContext.bringup) {
+        $ProjectionContext.bringup.source
+    } elseif ($null -eq $BringupOrderSummary) {
+        New-EmptyBringupOrderSummary
+    } else {
+        $BringupOrderSummary
+    }
 
     $blockers = @()
     foreach ($bindingEntry in @($bindingResultValue.binding_entries)) {
@@ -2273,18 +2282,105 @@ function Get-SystemFormationBlockers {
     )
 }
 
-function New-SystemFormationSummary {
+function New-BindingBringupProjectionContext {
     param(
-        $SystemInputSummary,
         $BindingResultSummary,
         $BringupOrderSummary
     )
 
     $bindingResultValue = if ($null -eq $BindingResultSummary) { New-EmptyBindingResultSummary } else { $BindingResultSummary }
     $bringupOrderValue = if ($null -eq $BringupOrderSummary) { New-EmptyBringupOrderSummary } else { $BringupOrderSummary }
-    $systemInputValue = if ($null -eq $SystemInputSummary) { New-EmptySystemInputComparisonSide } else { $SystemInputSummary }
+    $blockedNodes = @(
+        @($bringupOrderValue.entries) |
+            Where-Object { [string]$_.state -eq 'blocked' } |
+            ForEach-Object { [string]$_.node } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            Sort-Object -Unique
+    )
 
-    $blockers = @(Get-SystemFormationBlockers -BindingResultSummary $bindingResultValue -BringupOrderSummary $bringupOrderValue)
+    return [ordered]@{
+        binding = [ordered]@{
+            source = $bindingResultValue
+            counts = [ordered]@{
+                required_binding_count = [int]$bindingResultValue.required_binding_count
+                resolved_binding_count = [int]$bindingResultValue.resolved_binding_count
+                unresolved_binding_count = [int]$bindingResultValue.unresolved_binding_count
+            }
+            resolved_capabilities = @($bindingResultValue.resolved_capabilities)
+            unresolved_capabilities = @($bindingResultValue.unresolved_capabilities)
+        }
+        bringup = [ordered]@{
+            source = $bringupOrderValue
+            counts = [ordered]@{
+                ordered_node_count = [int]$bringupOrderValue.ordered_node_count
+                blocked_node_count = [int]$bringupOrderValue.blocked_node_count
+            }
+            phase_counts = Copy-OrderedCountMap -CountMapLike $bringupOrderValue.phase_counts
+            blocked_nodes = @($blockedNodes)
+        }
+    }
+}
+
+function New-SystemFormationBindingProjection {
+    param(
+        $ProjectionContext
+    )
+
+    $contextValue = if ($null -eq $ProjectionContext) {
+        New-BindingBringupProjectionContext -BindingResultSummary $null -BringupOrderSummary $null
+    } else {
+        $ProjectionContext
+    }
+
+    return [ordered]@{
+        required_binding_count = [int]$contextValue.binding.counts.required_binding_count
+        resolved_binding_count = [int]$contextValue.binding.counts.resolved_binding_count
+        unresolved_binding_count = [int]$contextValue.binding.counts.unresolved_binding_count
+        unresolved_capabilities = @($contextValue.binding.unresolved_capabilities)
+    }
+}
+
+function New-SystemFormationBringupProjection {
+    param(
+        $ProjectionContext
+    )
+
+    $contextValue = if ($null -eq $ProjectionContext) {
+        New-BindingBringupProjectionContext -BindingResultSummary $null -BringupOrderSummary $null
+    } else {
+        $ProjectionContext
+    }
+
+    return [ordered]@{
+        ordered_node_count = [int]$contextValue.bringup.counts.ordered_node_count
+        blocked_node_count = [int]$contextValue.bringup.counts.blocked_node_count
+        blocked_nodes = @($contextValue.bringup.blocked_nodes)
+    }
+}
+
+function New-SystemFormationSummary {
+    param(
+        $SystemInputSummary,
+        $BindingResultSummary,
+        $BringupOrderSummary,
+        $ProjectionContext = $null,
+        $BindingBringupProjectionContext = $null
+    )
+
+    $systemInputValue = if ($null -ne $ProjectionContext) {
+        $ProjectionContext
+    } elseif ($null -ne $SystemInputSummary) {
+        $SystemInputSummary
+    } else {
+        New-EmptySystemInputComparisonSide
+    }
+    $bindingBringupContext = if ($null -ne $BindingBringupProjectionContext) {
+        $BindingBringupProjectionContext
+    } else {
+        New-BindingBringupProjectionContext -BindingResultSummary $BindingResultSummary -BringupOrderSummary $BringupOrderSummary
+    }
+
+    $blockers = @(Get-SystemFormationBlockers -ProjectionContext $bindingBringupContext)
     $status = if (@($blockers).Count -gt 0) { 'blocked' } else { 'formed' }
 
     return [ordered]@{
@@ -2295,17 +2391,8 @@ function New-SystemFormationSummary {
             declared_contract_count = [int]@($systemInputValue.declared_input.declared_contract_entries).Count
             subject_fact_count = [int]@($systemInputValue.resolved_input.subject_facts).Count
         }
-        binding_summary = [ordered]@{
-            required_binding_count = [int]$bindingResultValue.required_binding_count
-            resolved_binding_count = [int]$bindingResultValue.resolved_binding_count
-            unresolved_binding_count = [int]$bindingResultValue.unresolved_binding_count
-            unresolved_capabilities = @($bindingResultValue.unresolved_capabilities)
-        }
-        bringup_summary = [ordered]@{
-            ordered_node_count = [int]$bringupOrderValue.ordered_node_count
-            blocked_node_count = [int]$bringupOrderValue.blocked_node_count
-            blocked_nodes = @(Get-BlockedBringupNodes -BringupOrderSummary $bringupOrderValue)
-        }
+        binding_summary = New-SystemFormationBindingProjection -ProjectionContext $bindingBringupContext
+        bringup_summary = New-SystemFormationBringupProjection -ProjectionContext $bindingBringupContext
         blocker_count = [int]@($blockers).Count
         blockers = @($blockers)
     }
@@ -2651,114 +2738,226 @@ function New-CaseBringupOrderSummary {
     return Get-BringupOrderSummary -Graph $graph
 }
 
+function New-ResourceProjectionContext {
+    param(
+        $Bundle,
+        $CaseEntry,
+        $ArtifactContext,
+        $ResolvedCaseSubject = $null,
+        $SystemInputProjectionContext = $null,
+        $SystemInputSummary = $null,
+        $CaseGraph = $null,
+        $RuntimeObserveInfo = $null,
+        $FactEvidenceInfo = $null,
+        [string[]]$GraphProvidedFacts = @(),
+        [string[]]$GraphRequiredFacts = @(),
+        [string[]]$CaseRequiredFacts = @(),
+        [string[]]$RequiredFacts = @(),
+        [string[]]$RuntimeCapabilities = @(),
+        [string[]]$CaseAuditProvidedFacts = @(),
+        [string[]]$AvailableFacts = @(),
+        [object[]]$DeclaredContracts = @()
+    )
+
+    if ($null -eq $CaseEntry) {
+        return [ordered]@{
+            subject = [ordered]@{
+                case = $null
+                profile = $null
+                board = $null
+                active_facets = @()
+            }
+            resolved_subject = $null
+            system_input = New-EmptySystemInputComparisonSide
+            resource_contract = New-EmptyResourceContractSummary
+            fact_resolution = New-EmptyFactResolutionSummary
+            inputs = [ordered]@{
+                case_graph = $null
+                runtime_observe_info = $null
+                fact_evidence_info = $null
+                graph = $null
+                graph_provided_facts = @()
+                graph_required_facts = @()
+                case_required_facts = @()
+                required_facts = @()
+                runtime_capabilities = @()
+                case_audit_provided_facts = @()
+                available_facts = @()
+                declared_contract_entries = @()
+            }
+        }
+    }
+
+    $resolvedSubject = if ($null -ne $ResolvedCaseSubject) {
+        $ResolvedCaseSubject
+    } else {
+        New-ResolvedCaseSubject -CaseEntry $CaseEntry -ArtifactContext $ArtifactContext
+    }
+    $caseGraph = if ($null -ne $CaseGraph) {
+        $CaseGraph
+    } else {
+        Load-CaseGraph -Bundle $Bundle -CaseEntry $CaseEntry
+    }
+    $runtimeObserveInfoValue = if ($null -ne $RuntimeObserveInfo) {
+        $RuntimeObserveInfo
+    } else {
+        Load-CaseRuntimeObserve -Bundle $Bundle -CaseEntry $CaseEntry
+    }
+    $factEvidenceInfoValue = if ($null -ne $FactEvidenceInfo) {
+        $FactEvidenceInfo
+    } else {
+        Get-CaseFactEvidenceInfo -Bundle $Bundle -CaseEntry $CaseEntry
+    }
+    $graph = if ($null -ne $caseGraph) { $caseGraph.Data } else { $null }
+    $graphProvidedFactsValue = if (@($GraphProvidedFacts).Count -gt 0) {
+        @($GraphProvidedFacts)
+    } elseif ($null -ne $graph) {
+        @(Get-ProvidedFacts -Graph $graph)
+    } else {
+        @()
+    }
+    $graphRequiredFactsValue = if (@($GraphRequiredFacts).Count -gt 0) {
+        @($GraphRequiredFacts)
+    } elseif ($null -ne $graph) {
+        @(Get-RequiredFacts -Graph $graph)
+    } else {
+        @()
+    }
+    $caseRequiredFactsValue = if (@($CaseRequiredFacts).Count -gt 0) {
+        @($CaseRequiredFacts)
+    } else {
+        @(Get-CaseRequiredFacts -CaseEntry $CaseEntry)
+    }
+    $requiredFactsValue = if (@($RequiredFacts).Count -gt 0) {
+        @($RequiredFacts)
+    } else {
+        @(
+            @($graphRequiredFactsValue) +
+            @($caseRequiredFactsValue) |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                ForEach-Object { [string]$_ } |
+                Sort-Object -Unique
+        )
+    }
+    $runtimeCapabilitiesValue = if (@($RuntimeCapabilities).Count -gt 0) {
+        @($RuntimeCapabilities)
+    } else {
+        @(Get-RuntimeCapabilityNames -RuntimeObserveInfo $runtimeObserveInfoValue)
+    }
+    $caseAuditProvidedFactsValue = if (@($CaseAuditProvidedFacts).Count -gt 0) {
+        @($CaseAuditProvidedFacts)
+    } else {
+        @(Get-CaseAuditProvidedFacts -CaseEntry $CaseEntry)
+    }
+    $availableFactsValue = if (@($AvailableFacts).Count -gt 0) {
+        @($AvailableFacts)
+    } else {
+        @(
+            @($graphProvidedFactsValue) +
+            @($runtimeCapabilitiesValue) +
+            @(Get-CaseDeclaredFacts -CaseEntry $CaseEntry) +
+            @($caseAuditProvidedFactsValue) +
+            @(Get-SubjectFacts -ProfileValue $resolvedSubject.Profile -BoardValue $resolvedSubject.Board -ActiveFacets $resolvedSubject.ActiveFacets) |
+                Sort-Object -Unique
+        )
+    }
+    $declaredContractsValue = if (@($DeclaredContracts).Count -gt 0) {
+        @($DeclaredContracts)
+    } else {
+        @(Get-CaseDeclaredContracts -CaseEntry $CaseEntry)
+    }
+    $systemInputProjectionContextValue = if ($null -ne $SystemInputProjectionContext) {
+        $SystemInputProjectionContext
+    } else {
+        New-SystemInputProjectionContext -CaseEntry $CaseEntry -ResolvedCaseSubject $resolvedSubject
+    }
+    $systemInputSummaryValue = if ($null -ne $SystemInputSummary) {
+        $SystemInputSummary
+    } else {
+        New-SystemInputSummary -CaseEntry $CaseEntry -ResolvedCaseSubject $resolvedSubject -ProjectionContext $systemInputProjectionContextValue
+    }
+    $resourceContractSummary = Get-ResourceContractSummary `
+        -DeclaredContracts $declaredContractsValue `
+        -AvailableFacts $availableFactsValue `
+        -AuditProvidedFacts $caseAuditProvidedFactsValue `
+        -RequiredFacts $requiredFactsValue
+    $factResolutionSummary = New-FactResolutionSummary `
+        -SystemInputSummary $systemInputSummaryValue `
+        -RequiredFacts $requiredFactsValue `
+        -GraphProvidedFacts $graphProvidedFactsValue `
+        -ResourceContractSummary $resourceContractSummary `
+        -FactEvidenceInfo $factEvidenceInfoValue
+
+    return [ordered]@{
+        subject = [ordered]@{
+            case = [string]$CaseEntry.name
+            profile = $resolvedSubject.Profile
+            board = $resolvedSubject.Board
+            active_facets = @($resolvedSubject.ActiveFacets)
+        }
+        resolved_subject = $resolvedSubject
+        system_input = $systemInputSummaryValue
+        resource_contract = $resourceContractSummary
+        fact_resolution = $factResolutionSummary
+        inputs = [ordered]@{
+            case_graph = $caseGraph
+            runtime_observe_info = $runtimeObserveInfoValue
+            fact_evidence_info = $factEvidenceInfoValue
+            graph = $graph
+            graph_provided_facts = @($graphProvidedFactsValue)
+            graph_required_facts = @($graphRequiredFactsValue)
+            case_required_facts = @($caseRequiredFactsValue)
+            required_facts = @($requiredFactsValue)
+            runtime_capabilities = @($runtimeCapabilitiesValue)
+            case_audit_provided_facts = @($caseAuditProvidedFactsValue)
+            available_facts = @($availableFactsValue)
+            declared_contract_entries = @($resourceContractSummary.declared_contract_entries)
+        }
+    }
+}
+
 function New-CaseResourceContractSummary {
     param(
         $Bundle,
         $CaseEntry,
-        $ArtifactContext
+        $ArtifactContext,
+        $ProjectionContext = $null
     )
 
     if ($null -eq $CaseEntry) {
         return New-EmptyResourceContractSummary
     }
 
-    $resolvedSubject = New-ResolvedCaseSubject -CaseEntry $CaseEntry -ArtifactContext $ArtifactContext
-    $caseGraph = Load-CaseGraph -Bundle $Bundle -CaseEntry $CaseEntry
-    $runtimeObserveInfo = Load-CaseRuntimeObserve -Bundle $Bundle -CaseEntry $CaseEntry
-    $graph = if ($null -ne $caseGraph) { $caseGraph.Data } else { $null }
-    $graphProvidedFacts = if ($null -ne $graph) {
-        @(Get-ProvidedFacts -Graph $graph)
-    } else {
-        @()
+    if ($null -eq $ProjectionContext) {
+        $ProjectionContext = New-ResourceProjectionContext `
+            -Bundle $Bundle `
+            -CaseEntry $CaseEntry `
+            -ArtifactContext $ArtifactContext
     }
-    $graphRequiredFacts = if ($null -ne $graph) {
-        @(Get-RequiredFacts -Graph $graph)
-    } else {
-        @()
-    }
-    $caseRequiredFacts = @(Get-CaseRequiredFacts -CaseEntry $CaseEntry)
-    $requiredFacts = @(
-        @($graphRequiredFacts) +
-        @($caseRequiredFacts) |
-            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
-            ForEach-Object { [string]$_ } |
-            Sort-Object -Unique
-    )
-    $runtimeCapabilities = @(Get-RuntimeCapabilityNames -RuntimeObserveInfo $runtimeObserveInfo)
-    $caseAuditProvidedFacts = @(Get-CaseAuditProvidedFacts -CaseEntry $CaseEntry)
-    $availableFacts = @(
-        @($graphProvidedFacts) +
-        @($runtimeCapabilities) +
-        @(Get-CaseDeclaredFacts -CaseEntry $CaseEntry) +
-        @($caseAuditProvidedFacts) +
-        @(Get-SubjectFacts -ProfileValue $resolvedSubject.Profile -BoardValue $resolvedSubject.Board -ActiveFacets $resolvedSubject.ActiveFacets) |
-            Sort-Object -Unique
-    )
 
-    return Get-ResourceContractSummary `
-        -DeclaredContracts @(Get-CaseDeclaredContracts -CaseEntry $CaseEntry) `
-        -AvailableFacts $availableFacts `
-        -AuditProvidedFacts $caseAuditProvidedFacts `
-        -RequiredFacts $requiredFacts
+    return $ProjectionContext.resource_contract
 }
 
 function New-CaseFactResolutionSummary {
     param(
         $Bundle,
         $CaseEntry,
-        $ArtifactContext
+        $ArtifactContext,
+        $ProjectionContext = $null
     )
 
     if ($null -eq $CaseEntry) {
         return New-EmptyFactResolutionSummary
     }
 
-    $resolvedSubject = New-ResolvedCaseSubject -CaseEntry $CaseEntry -ArtifactContext $ArtifactContext
-    $systemInputSummary = New-SystemInputSummary -CaseEntry $CaseEntry -ResolvedCaseSubject $resolvedSubject
-    $factEvidenceInfo = Get-CaseFactEvidenceInfo -Bundle $Bundle -CaseEntry $CaseEntry
-    $caseGraph = Load-CaseGraph -Bundle $Bundle -CaseEntry $CaseEntry
-    $runtimeObserveInfo = Load-CaseRuntimeObserve -Bundle $Bundle -CaseEntry $CaseEntry
-    $graph = if ($null -ne $caseGraph) { $caseGraph.Data } else { $null }
-    $graphProvidedFacts = if ($null -ne $graph) {
-        @(Get-ProvidedFacts -Graph $graph)
-    } else {
-        @()
+    if ($null -eq $ProjectionContext) {
+        $ProjectionContext = New-ResourceProjectionContext `
+            -Bundle $Bundle `
+            -CaseEntry $CaseEntry `
+            -ArtifactContext $ArtifactContext
     }
-    $graphRequiredFacts = if ($null -ne $graph) {
-        @(Get-RequiredFacts -Graph $graph)
-    } else {
-        @()
-    }
-    $caseRequiredFacts = @(Get-CaseRequiredFacts -CaseEntry $CaseEntry)
-    $requiredFacts = @(
-        @($graphRequiredFacts) +
-        @($caseRequiredFacts) |
-            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
-            ForEach-Object { [string]$_ } |
-            Sort-Object -Unique
-    )
-    $runtimeCapabilities = @(Get-RuntimeCapabilityNames -RuntimeObserveInfo $runtimeObserveInfo)
-    $caseAuditProvidedFacts = @(Get-CaseAuditProvidedFacts -CaseEntry $CaseEntry)
-    $availableFacts = @(
-        @($graphProvidedFacts) +
-        @($runtimeCapabilities) +
-        @(Get-CaseDeclaredFacts -CaseEntry $CaseEntry) +
-        @($caseAuditProvidedFacts) +
-        @(Get-SubjectFacts -ProfileValue $resolvedSubject.Profile -BoardValue $resolvedSubject.Board -ActiveFacets $resolvedSubject.ActiveFacets) |
-            Sort-Object -Unique
-    )
-    $resourceContractSummary = Get-ResourceContractSummary `
-        -DeclaredContracts @(Get-CaseDeclaredContracts -CaseEntry $CaseEntry) `
-        -AvailableFacts $availableFacts `
-        -AuditProvidedFacts $caseAuditProvidedFacts `
-        -RequiredFacts $requiredFacts
 
-    return New-FactResolutionSummary `
-        -SystemInputSummary $systemInputSummary `
-        -RequiredFacts $requiredFacts `
-        -GraphProvidedFacts $graphProvidedFacts `
-        -ResourceContractSummary $resourceContractSummary `
-        -FactEvidenceInfo $factEvidenceInfo
+    return $ProjectionContext.fact_resolution
 }
 
 function New-BringupEvidenceStateMap {
@@ -2836,19 +3035,23 @@ function New-BindingResultStateMap {
 
 function New-BindingResultComparisonSide {
     param(
-        $BindingResultSummary
+        $BindingResultSummary,
+        $ProjectionContext = $null
     )
 
-    if ($null -eq $BindingResultSummary) {
-        $BindingResultSummary = New-EmptyBindingResultSummary
+    $bindingProjection = if ($null -ne $ProjectionContext -and $null -ne $ProjectionContext.binding) {
+        $ProjectionContext.binding
+    } else {
+        $bindingSummaryValue = if ($null -eq $BindingResultSummary) { New-EmptyBindingResultSummary } else { $BindingResultSummary }
+        (New-BindingBringupProjectionContext -BindingResultSummary $bindingSummaryValue -BringupOrderSummary $null).binding
     }
 
     return [ordered]@{
-        required_binding_count = [int]$BindingResultSummary.required_binding_count
-        resolved_binding_count = [int]$BindingResultSummary.resolved_binding_count
-        unresolved_binding_count = [int]$BindingResultSummary.unresolved_binding_count
-        resolved_capabilities = @($BindingResultSummary.resolved_capabilities)
-        unresolved_capabilities = @($BindingResultSummary.unresolved_capabilities)
+        required_binding_count = [int]$bindingProjection.counts.required_binding_count
+        resolved_binding_count = [int]$bindingProjection.counts.resolved_binding_count
+        unresolved_binding_count = [int]$bindingProjection.counts.unresolved_binding_count
+        resolved_capabilities = @($bindingProjection.resolved_capabilities)
+        unresolved_capabilities = @($bindingProjection.unresolved_capabilities)
     }
 }
 
@@ -2860,8 +3063,10 @@ function New-BindingResultComparison {
 
     $leftSummaryValue = if ($null -eq $LeftSummary) { New-EmptyBindingResultSummary } else { $LeftSummary }
     $rightSummaryValue = if ($null -eq $RightSummary) { New-EmptyBindingResultSummary } else { $RightSummary }
-    $leftSide = New-BindingResultComparisonSide -BindingResultSummary $leftSummaryValue
-    $rightSide = New-BindingResultComparisonSide -BindingResultSummary $rightSummaryValue
+    $leftProjectionContext = New-BindingBringupProjectionContext -BindingResultSummary $leftSummaryValue -BringupOrderSummary $null
+    $rightProjectionContext = New-BindingBringupProjectionContext -BindingResultSummary $rightSummaryValue -BringupOrderSummary $null
+    $leftSide = New-BindingResultComparisonSide -BindingResultSummary $leftSummaryValue -ProjectionContext $leftProjectionContext
+    $rightSide = New-BindingResultComparisonSide -BindingResultSummary $rightSummaryValue -ProjectionContext $rightProjectionContext
     $leftStateMap = New-BindingResultStateMap -BindingResultSummary $leftSummaryValue
     $rightStateMap = New-BindingResultStateMap -BindingResultSummary $rightSummaryValue
 
@@ -3031,18 +3236,22 @@ function New-BringupOrderStateMap {
 
 function New-BringupOrderComparisonSide {
     param(
-        $BringupOrderSummary
+        $BringupOrderSummary,
+        $ProjectionContext = $null
     )
 
-    if ($null -eq $BringupOrderSummary) {
-        $BringupOrderSummary = New-EmptyBringupOrderSummary
+    $bringupProjection = if ($null -ne $ProjectionContext -and $null -ne $ProjectionContext.bringup) {
+        $ProjectionContext.bringup
+    } else {
+        $bringupSummaryValue = if ($null -eq $BringupOrderSummary) { New-EmptyBringupOrderSummary } else { $BringupOrderSummary }
+        (New-BindingBringupProjectionContext -BindingResultSummary $null -BringupOrderSummary $bringupSummaryValue).bringup
     }
 
     return [ordered]@{
-        ordered_node_count = [int]$BringupOrderSummary.ordered_node_count
-        blocked_node_count = [int]$BringupOrderSummary.blocked_node_count
-        phase_counts = Copy-OrderedCountMap -CountMapLike $BringupOrderSummary.phase_counts
-        blocked_nodes = @(Get-BlockedBringupNodes -BringupOrderSummary $BringupOrderSummary)
+        ordered_node_count = [int]$bringupProjection.counts.ordered_node_count
+        blocked_node_count = [int]$bringupProjection.counts.blocked_node_count
+        phase_counts = Copy-OrderedCountMap -CountMapLike $bringupProjection.phase_counts
+        blocked_nodes = @($bringupProjection.blocked_nodes)
     }
 }
 
@@ -3054,8 +3263,10 @@ function New-BringupOrderComparison {
 
     $leftSummaryValue = if ($null -eq $LeftSummary) { New-EmptyBringupOrderSummary } else { $LeftSummary }
     $rightSummaryValue = if ($null -eq $RightSummary) { New-EmptyBringupOrderSummary } else { $RightSummary }
-    $leftSide = New-BringupOrderComparisonSide -BringupOrderSummary $leftSummaryValue
-    $rightSide = New-BringupOrderComparisonSide -BringupOrderSummary $rightSummaryValue
+    $leftProjectionContext = New-BindingBringupProjectionContext -BindingResultSummary $null -BringupOrderSummary $leftSummaryValue
+    $rightProjectionContext = New-BindingBringupProjectionContext -BindingResultSummary $null -BringupOrderSummary $rightSummaryValue
+    $leftSide = New-BringupOrderComparisonSide -BringupOrderSummary $leftSummaryValue -ProjectionContext $leftProjectionContext
+    $rightSide = New-BringupOrderComparisonSide -BringupOrderSummary $rightSummaryValue -ProjectionContext $rightProjectionContext
     $leftStateMap = New-BringupOrderStateMap -BringupOrderSummary $leftSummaryValue
     $rightStateMap = New-BringupOrderStateMap -BringupOrderSummary $rightSummaryValue
 
@@ -3436,34 +3647,53 @@ function New-ResourceContractStateMap {
 
 function New-ResourceContractComparisonSide {
     param(
-        $ResourceContractSummary
+        $ResourceContractSummary,
+        $ProjectionContext = $null
     )
 
-    if ($null -eq $ResourceContractSummary) {
-        $ResourceContractSummary = New-EmptyResourceContractSummary
+    $resourceSummaryValue = if ($null -ne $ProjectionContext -and $null -ne $ProjectionContext.resource_contract) {
+        $ProjectionContext.resource_contract
+    } elseif ($null -eq $ResourceContractSummary) {
+        New-EmptyResourceContractSummary
+    } else {
+        $ResourceContractSummary
     }
 
     return [ordered]@{
-        declared_contracts = [int]$ResourceContractSummary.declared_contracts
-        audited_count = [int]$ResourceContractSummary.audited_count
-        satisfied_count = [int]$ResourceContractSummary.satisfied_count
-        violated_count = [int]$ResourceContractSummary.violated_count
-        unknown_count = [int]$ResourceContractSummary.unknown_count
-        provided_facts = @($ResourceContractSummary.provided_facts)
-        resource_hotspots = @($ResourceContractSummary.resource_hotspots)
+        declared_contracts = [int]$resourceSummaryValue.declared_contracts
+        audited_count = [int]$resourceSummaryValue.audited_count
+        satisfied_count = [int]$resourceSummaryValue.satisfied_count
+        violated_count = [int]$resourceSummaryValue.violated_count
+        unknown_count = [int]$resourceSummaryValue.unknown_count
+        provided_facts = @($resourceSummaryValue.provided_facts)
+        resource_hotspots = @($resourceSummaryValue.resource_hotspots)
     }
 }
 
 function New-ResourceContractComparison {
     param(
         $LeftSummary,
-        $RightSummary
+        $RightSummary,
+        $LeftProjectionContext = $null,
+        $RightProjectionContext = $null
     )
 
-    $leftSummaryValue = if ($null -eq $LeftSummary) { New-EmptyResourceContractSummary } else { $LeftSummary }
-    $rightSummaryValue = if ($null -eq $RightSummary) { New-EmptyResourceContractSummary } else { $RightSummary }
-    $leftSide = New-ResourceContractComparisonSide -ResourceContractSummary $leftSummaryValue
-    $rightSide = New-ResourceContractComparisonSide -ResourceContractSummary $rightSummaryValue
+    $leftSummaryValue = if ($null -ne $LeftProjectionContext -and $null -ne $LeftProjectionContext.resource_contract) {
+        $LeftProjectionContext.resource_contract
+    } elseif ($null -eq $LeftSummary) {
+        New-EmptyResourceContractSummary
+    } else {
+        $LeftSummary
+    }
+    $rightSummaryValue = if ($null -ne $RightProjectionContext -and $null -ne $RightProjectionContext.resource_contract) {
+        $RightProjectionContext.resource_contract
+    } elseif ($null -eq $RightSummary) {
+        New-EmptyResourceContractSummary
+    } else {
+        $RightSummary
+    }
+    $leftSide = New-ResourceContractComparisonSide -ResourceContractSummary $leftSummaryValue -ProjectionContext $LeftProjectionContext
+    $rightSide = New-ResourceContractComparisonSide -ResourceContractSummary $rightSummaryValue -ProjectionContext $RightProjectionContext
     $leftStateMap = New-ResourceContractStateMap -ResourceContractSummary $leftSummaryValue
     $rightStateMap = New-ResourceContractStateMap -ResourceContractSummary $rightSummaryValue
 
@@ -3572,10 +3802,13 @@ function New-ResourceContractComparison {
 
 function New-FactResolutionComparisonSide {
     param(
-        $FactResolutionSummary
+        $FactResolutionSummary,
+        $ProjectionContext = $null
     )
 
-    $summaryValue = if ($null -eq $FactResolutionSummary) {
+    $summaryValue = if ($null -ne $ProjectionContext -and $null -ne $ProjectionContext.fact_resolution) {
+        $ProjectionContext.fact_resolution
+    } elseif ($null -eq $FactResolutionSummary) {
         New-EmptyFactResolutionSummary
     } else {
         $FactResolutionSummary
@@ -3646,11 +3879,27 @@ function New-FactResolutionContractStateMap {
 function New-FactResolutionComparison {
     param(
         $LeftSummary,
-        $RightSummary
+        $RightSummary,
+        $LeftProjectionContext = $null,
+        $RightProjectionContext = $null
     )
 
-    $leftSide = New-FactResolutionComparisonSide -FactResolutionSummary $LeftSummary
-    $rightSide = New-FactResolutionComparisonSide -FactResolutionSummary $RightSummary
+    $leftSummaryValue = if ($null -ne $LeftProjectionContext -and $null -ne $LeftProjectionContext.fact_resolution) {
+        $LeftProjectionContext.fact_resolution
+    } elseif ($null -eq $LeftSummary) {
+        New-EmptyFactResolutionSummary
+    } else {
+        $LeftSummary
+    }
+    $rightSummaryValue = if ($null -ne $RightProjectionContext -and $null -ne $RightProjectionContext.fact_resolution) {
+        $RightProjectionContext.fact_resolution
+    } elseif ($null -eq $RightSummary) {
+        New-EmptyFactResolutionSummary
+    } else {
+        $RightSummary
+    }
+    $leftSide = New-FactResolutionComparisonSide -FactResolutionSummary $leftSummaryValue -ProjectionContext $LeftProjectionContext
+    $rightSide = New-FactResolutionComparisonSide -FactResolutionSummary $rightSummaryValue -ProjectionContext $RightProjectionContext
     $leftStateMap = New-FactResolutionContractStateMap -FactResolutionSummary $leftSide
     $rightStateMap = New-FactResolutionContractStateMap -FactResolutionSummary $rightSide
 
@@ -4377,49 +4626,87 @@ function New-ArtifactReport {
     $resolvedProfile = $resolvedSubject.Profile
     $resolvedBoard = $resolvedSubject.Board
     $resolvedFacets = @($resolvedSubject.ActiveFacets)
-    $systemInputSummary = New-SystemInputSummary -CaseEntry $CaseEntry -ResolvedCaseSubject $resolvedSubject
+    $systemInputProjectionContext = New-SystemInputProjectionContext -CaseEntry $CaseEntry -ResolvedCaseSubject $resolvedSubject
+    $systemInputSummary = New-SystemInputSummary -CaseEntry $CaseEntry -ResolvedCaseSubject $resolvedSubject -ProjectionContext $systemInputProjectionContext
     $declaredContracts = @(Get-CaseDeclaredContracts -CaseEntry $CaseEntry)
     $caseAuditProvidedFacts = @(Get-CaseAuditProvidedFacts -CaseEntry $CaseEntry)
     $resourceAvailableFacts = @(
-        @($providedFacts) +
+        @($graphProvidedFacts) +
         @($runtimeCapabilities) +
         @(Get-CaseDeclaredFacts -CaseEntry $CaseEntry) +
         @($caseAuditProvidedFacts) +
         @(Get-SubjectFacts -ProfileValue $resolvedProfile -BoardValue $resolvedBoard -ActiveFacets $resolvedFacets)
     ) | Sort-Object -Unique
-    $resourceContractSummary = Get-ResourceContractSummary `
-        -DeclaredContracts $declaredContracts `
-        -AvailableFacts $resourceAvailableFacts `
-        -AuditProvidedFacts $caseAuditProvidedFacts `
-        -RequiredFacts $requiredFacts
-    $factResolutionSummary = New-FactResolutionSummary `
+    $resourceProjectionContext = New-ResourceProjectionContext `
+        -Bundle $Bundle `
+        -CaseEntry $CaseEntry `
+        -ArtifactContext $ArtifactContext `
+        -ResolvedCaseSubject $resolvedSubject `
+        -SystemInputProjectionContext $systemInputProjectionContext `
         -SystemInputSummary $systemInputSummary `
-        -RequiredFacts $requiredFacts `
+        -CaseGraph $CaseGraph `
+        -RuntimeObserveInfo $runtimeObserveInfo `
+        -FactEvidenceInfo $factEvidenceInfo `
         -GraphProvidedFacts $graphProvidedFacts `
-        -ResourceContractSummary $resourceContractSummary `
-        -FactEvidenceInfo $factEvidenceInfo
+        -GraphRequiredFacts $graphRequiredFacts `
+        -CaseRequiredFacts $caseRequiredFacts `
+        -RequiredFacts $requiredFacts `
+        -RuntimeCapabilities $runtimeCapabilities `
+        -CaseAuditProvidedFacts $caseAuditProvidedFacts `
+        -AvailableFacts $resourceAvailableFacts `
+        -DeclaredContracts $declaredContracts
+    $resourceContractSummary = $resourceProjectionContext.resource_contract
+    $factResolutionSummary = $resourceProjectionContext.fact_resolution
     $materializedOrder = if ($null -ne $graph) { @(Get-MaterializedOrder -Graph $graph) } else { @() }
     $bindingResultSummary = Get-BindingResultSummary -Graph $graph
     $bringupOrderSummary = Get-BringupOrderSummary -Graph $graph
-    $systemFormationSummary = New-SystemFormationSummary -SystemInputSummary $systemInputSummary -BindingResultSummary $bindingResultSummary -BringupOrderSummary $bringupOrderSummary
+    $bindingBringupProjectionContext = New-BindingBringupProjectionContext -BindingResultSummary $bindingResultSummary -BringupOrderSummary $bringupOrderSummary
+    $systemFormationSummary = New-SystemFormationSummary `
+        -SystemInputSummary $systemInputSummary `
+        -BindingResultSummary $bindingResultSummary `
+        -BringupOrderSummary $bringupOrderSummary `
+        -ProjectionContext $systemInputProjectionContext `
+        -BindingBringupProjectionContext $bindingBringupProjectionContext
     $connectionSummary = Get-GraphConnectionSummary -Graph $graph
     if ($null -ne $comparison) {
         $baselineCaseEntry = Get-CaseEntryByName -Bundle $ArtifactContext.LeftBundle -CaseName ([string]$CaseEntry.name)
         $baselineResolvedSubject = New-ResolvedCaseSubject -CaseEntry $baselineCaseEntry -ArtifactContext $ArtifactContext
-        $baselineSystemInputSummary = New-SystemInputSummary -CaseEntry $baselineCaseEntry -ResolvedCaseSubject $baselineResolvedSubject
+        $baselineSystemInputProjectionContext = New-SystemInputProjectionContext -CaseEntry $baselineCaseEntry -ResolvedCaseSubject $baselineResolvedSubject
+        $baselineSystemInputSummary = New-SystemInputSummary -CaseEntry $baselineCaseEntry -ResolvedCaseSubject $baselineResolvedSubject -ProjectionContext $baselineSystemInputProjectionContext
         $baselineBindingResultSummary = New-CaseBindingResultSummary -Bundle $ArtifactContext.LeftBundle -CaseEntry $baselineCaseEntry
         $baselineBringupOrderSummary = New-CaseBringupOrderSummary -Bundle $ArtifactContext.LeftBundle -CaseEntry $baselineCaseEntry
         $baselineBringupEvidenceSummary = New-CaseBringupEvidenceSummary -Bundle $ArtifactContext.LeftBundle -CaseEntry $baselineCaseEntry
-        $baselineResourceContractSummary = New-CaseResourceContractSummary -Bundle $ArtifactContext.LeftBundle -CaseEntry $baselineCaseEntry -ArtifactContext $ArtifactContext
-        $baselineFactResolutionSummary = New-CaseFactResolutionSummary -Bundle $ArtifactContext.LeftBundle -CaseEntry $baselineCaseEntry -ArtifactContext $ArtifactContext
-        $baselineSystemFormationSummary = New-SystemFormationSummary -SystemInputSummary $baselineSystemInputSummary -BindingResultSummary $baselineBindingResultSummary -BringupOrderSummary $baselineBringupOrderSummary
+        $baselineResourceProjectionContext = New-ResourceProjectionContext `
+            -Bundle $ArtifactContext.LeftBundle `
+            -CaseEntry $baselineCaseEntry `
+            -ArtifactContext $ArtifactContext `
+            -ResolvedCaseSubject $baselineResolvedSubject `
+            -SystemInputProjectionContext $baselineSystemInputProjectionContext `
+            -SystemInputSummary $baselineSystemInputSummary
+        $baselineResourceContractSummary = $baselineResourceProjectionContext.resource_contract
+        $baselineFactResolutionSummary = $baselineResourceProjectionContext.fact_resolution
+        $baselineBindingBringupProjectionContext = New-BindingBringupProjectionContext -BindingResultSummary $baselineBindingResultSummary -BringupOrderSummary $baselineBringupOrderSummary
+        $baselineSystemFormationSummary = New-SystemFormationSummary `
+            -SystemInputSummary $baselineSystemInputSummary `
+            -BindingResultSummary $baselineBindingResultSummary `
+            -BringupOrderSummary $baselineBringupOrderSummary `
+            -ProjectionContext $baselineSystemInputProjectionContext `
+            -BindingBringupProjectionContext $baselineBindingBringupProjectionContext
         $comparison.system_input = New-SystemInputComparison -LeftSummary $baselineSystemInputSummary -RightSummary $systemInputSummary
         $comparison.system_formation = New-SystemFormationComparison -LeftSummary $baselineSystemFormationSummary -RightSummary $systemFormationSummary
         $comparison.binding_result = New-BindingResultComparison -LeftSummary $baselineBindingResultSummary -RightSummary $bindingResultSummary
         $comparison.bringup_order = New-BringupOrderComparison -LeftSummary $baselineBringupOrderSummary -RightSummary $bringupOrderSummary
         $comparison.bringup_evidence = New-BringupEvidenceComparison -LeftSummary $baselineBringupEvidenceSummary -RightSummary $bringupEvidenceSummary
-        $comparison.resource_contract = New-ResourceContractComparison -LeftSummary $baselineResourceContractSummary -RightSummary $resourceContractSummary
-        $comparison.fact_resolution = New-FactResolutionComparison -LeftSummary $baselineFactResolutionSummary -RightSummary $factResolutionSummary
+        $comparison.resource_contract = New-ResourceContractComparison `
+            -LeftSummary $baselineResourceContractSummary `
+            -RightSummary $resourceContractSummary `
+            -LeftProjectionContext $baselineResourceProjectionContext `
+            -RightProjectionContext $resourceProjectionContext
+        $comparison.fact_resolution = New-FactResolutionComparison `
+            -LeftSummary $baselineFactResolutionSummary `
+            -RightSummary $factResolutionSummary `
+            -LeftProjectionContext $baselineResourceProjectionContext `
+            -RightProjectionContext $resourceProjectionContext
     }
     $dotArtifactPath = if ($null -ne $CaseEntry.PSObject.Properties['dot'] -and
         -not [string]::IsNullOrWhiteSpace([string]$CaseEntry.dot)) {

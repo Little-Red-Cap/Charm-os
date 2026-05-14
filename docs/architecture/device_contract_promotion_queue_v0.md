@@ -36,9 +36,9 @@
 | 优先级 | 契约 | 当前等级 | 目标 | 第一张票 |
 | --- | --- | --- | --- | --- |
 | P0 | I2C | `experimental` | candidate evidence | 写一个真实芯片 driver 或 probe evidence |
-| P1 | SPI | `proposed` | experimental narrow chain | 设计 `SpiDevice` transaction mock |
-| P1 | GPIO | `proposed` | experimental narrow chain | 设计 `GpioInput / GpioOutput / GpioEdgeSource` mock |
-| P2 | Block | `proposed` | experimental narrow chain | 设计 block fault script 与 media state language |
+| P1 | SPI | `proposed` | experimental narrow chain | 设计 `SpiDevice` transaction mock，先按 [`../system/spi_device_transaction_mock_readiness_checklist_v0.md`](../system/spi_device_transaction_mock_readiness_checklist_v0.md) 收拢 producer / facts / evidence |
+| P1 | GPIO | `proposed` | experimental narrow chain | 设计 `GpioInput / GpioOutput / GpioEdgeSource` mock，先按 [`../system/gpio_device_input_output_edge_readiness_checklist_v0.md`](../system/gpio_device_input_output_edge_readiness_checklist_v0.md) 收拢 producer / facts / evidence |
+| P2 | Block | `proposed` | experimental narrow chain | 设计 block fault script，先按 [`../system/block_device_fault_script_readiness_checklist_v0.md`](../system/block_device_fault_script_readiness_checklist_v0.md) 收拢 producer / facts / evidence |
 | P2 | Stream IO | `proposed` | experimental narrow chain | 设计 non-blocking stream fault script |
 | P3 | Timebase | `proposed` | facts-first narrow chain | 设计 read-only timebase facts 草案 |
 
@@ -63,6 +63,9 @@ I2C 已经是第一条 `experimental` 样板链。
 ### 第一张票
 
 优先补一个真实芯片 driver 或 probe evidence。
+真实或准真实 I2C board/probe evidence 接入前，先按
+[`../system/i2c_board_probe_evidence_readiness_checklist_v0.md`](../system/i2c_board_probe_evidence_readiness_checklist_v0.md)
+检查 producer、facts、sidecar、baseline 与验收入口。
 
 推荐候选：
 

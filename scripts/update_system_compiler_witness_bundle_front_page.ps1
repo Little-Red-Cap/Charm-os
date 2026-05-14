@@ -261,9 +261,6 @@ function Resolve-KernelRuntimeSessionSurface {
         -ExpectedSchema "minimal_kernel.runtime_evidence_bundle.summary/v1"
 
     $sessionView = Get-ObjectPropertyValue -Object $runtimeSummary -Name "session"
-    if ($null -eq $sessionView) {
-        $sessionView = Get-ObjectPropertyValue -Object $runtimeSummary -Name "session_summary"
-    }
 
     if ($null -eq $sessionView) {
         return $null

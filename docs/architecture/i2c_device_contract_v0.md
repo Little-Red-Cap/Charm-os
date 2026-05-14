@@ -370,6 +370,8 @@ artifact report 仍能把核心结论收束为
 `i2c.probe.board_real: missing -> satisfied`。
 当前也已有一条 chain smoke 可以一键复验这组 evidence：
 `materialized_graph_i2c_board_evidence_chain_smoke.ps1`。
+对应的 board evidence fixture catalog 见
+[`../system/board_evidence_fixture_catalog_v0.md`](../system/board_evidence_fixture_catalog_v0.md)。
 
 `io.device_i2c_facts` 当前定义了最小 fact vocabulary：
 
@@ -502,6 +504,10 @@ Charm:
    其 `i2c.probe.board_real` 缺口闭合路径也已有 compare smoke 钉住；
    `board.bringup` 风格 provider 的 Host fixture 输入形态也已由
    `board-i2c-whoami-bringup-evidence-smoke` 接入；
+   当前 fixture catalog 与分步调试入口见
+   [`../system/board_evidence_fixture_catalog_v0.md`](../system/board_evidence_fixture_catalog_v0.md)；
+   真实或准真实 I2C board/probe evidence 接入前 checklist 见
+   [`../system/i2c_board_probe_evidence_readiness_checklist_v0.md`](../system/i2c_board_probe_evidence_readiness_checklist_v0.md)；
    下一步更适合继续推进真实 probe evidence 或真实 board bringup evidence，不做执法。
 3. 评估是否需要 `I2cDevice` ownership type
    用于未来 bus sharing / lock / transaction 边界。

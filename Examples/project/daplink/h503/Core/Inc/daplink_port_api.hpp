@@ -1,11 +1,11 @@
 #ifndef DAPLINK_PORT_API_HPP
 #define DAPLINK_PORT_API_HPP
 
-#include "port/stm32/daplink_port_stm32_api_bundle.hpp"
+#include "platform/stm32/daplink_platform_stm32_api_bundle.hpp"
 
 namespace daplink::port {
-    using UsbLayout = daplink::port::stm32::UsbPmaLayoutTraits<
-        daplink::port::stm32::UsbPmaLayout{
+    using UsbLayout = daplink::platform::stm32::UsbPmaLayoutTraits<
+        daplink::platform::stm32::UsbPmaLayout{
             0x14U,
             0x54U,
             0x94U,

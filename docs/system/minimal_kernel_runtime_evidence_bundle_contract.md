@@ -43,6 +43,7 @@ host dual bundle 主要证明：
 
 qemu bundle 主要证明：
 
+- `arch-ingress-seam`
 - `runtime-trap`
 - `runtime-live`
 - `task-syscall`
@@ -101,9 +102,14 @@ runtime ledger 引用和 session verdict 收成一个对象。它不替代 host 
 而是先作为 runtime evidence bundle 的正式 `session` 侧车 artifact，
 再由 system compiler witness bundle 提升为 `kernel_runtime_session` witness entry。
 
+其中 `arch_ingress_seam` 是 session machine witness 当前的首选 lower-half ingress anchor：
+它把 exception / interrupt / timer / trap / context / runtime-loop 入口作为同一条 QEMU seam 投影进 session。
+旧 QEMU summary 没有这条 case 时，session exporter 仍可用既有 runtime/trap/thread/task/handoff case 做兼容推断，但新的总证据包应让 `machine_witness.standing_cases` 显式包含 `arch_ingress_seam`，并在 `runtime_ledger.json` 中出现 `arch.ingress.seam` 事件。
+
 对应契约入口：
 
 - `docs/system/kernel_runtime_session_witness_v0.md`
+- `docs/system/minimal_kernel_runtime_ledger_fact_contract_v0.md`
 - `schemas/minimal_kernel.kernel_runtime_session.v0.schema.json`
 
 ## 机器可读契约
@@ -125,6 +131,8 @@ python ./scripts/validate_minimal_kernel_runtime_evidence.py `
 - 用 schema 校验根 `summary.json` 的结构
 - 检查 summary 中引用到的 host / qemu / session / witness / report / check / case log 工件是否都存在
 - 复核 `session`、`kernel_runtime_session.summary.json` 与 `runtime_ledger.json` 的基础一致性
+
+`runtime_ledger.json` 的事实语言、phase 顺序、status/domain vocabulary 与 `ledger.event_count == runtime_ledger.events.length` 关系由 `docs/system/minimal_kernel_runtime_ledger_fact_contract_v0.md` 约束。该 ledger 只记录 exporter 已消费的 summary facts，不回读 raw host/QEMU/session logs。
 
 如果只想验证 session 对象的第一版出口，可以先跑旁路 smoke：
 
@@ -214,6 +222,8 @@ out/minimal-kernel-runtime-session-witness-smoke/
 - `host/daily/report.md` 带 `Comparison` 段
 - `qemu/report.md` 显示 lower-half bundle 当前 smoke 集合全部站住
 - `session/kernel_runtime_session.summary.json` 显示 `session_status: standing`
+- `session/kernel_runtime_session.summary.json` 的 `machine_witness.standing_cases` 包含 `arch_ingress_seam`
+- `session/runtime_ledger.json` 包含 `arch.ingress.seam`
 - `witness/report.md` 显示 canonical world 与 witness entry 汇总
 - 根 `report.md` 同时汇总上半层、下半层与 witness 证据
 

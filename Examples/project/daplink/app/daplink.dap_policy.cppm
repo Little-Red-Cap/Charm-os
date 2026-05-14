@@ -6,11 +6,10 @@ module;
 export module daplink.dap_policy;
 
 import daplink.app_config;
-import daplink.board;
+import daplink.base.types;
 import daplink.usb_minimal;
 import daplink.ring_buffer;
-import io.channel;
-import util.core;
+import daplink.io.channel;
 
 export namespace daplink::dap_policy {
     enum class CdcPolicy : std::uint8_t {
@@ -60,19 +59,19 @@ export namespace daplink::dap_policy {
         }
 
         template <std::size_t Chunk, std::size_t BufSize>
-        void pump_cdc(io::Channel& usb_cdc,
-                      io::Channel& uart,
+        void pump_cdc(daplink::io::Channel& usb_cdc,
+                      daplink::io::Channel& uart,
                       daplink::ring_buffer::Buffer<BufSize>& uart_tx,
                       daplink::ring_buffer::Buffer<BufSize>& uart_rx) const noexcept {
-            const auto pump_read = [](io::Channel& ch,
+            const auto pump_read = [](daplink::io::Channel& ch,
                                       daplink::ring_buffer::Buffer<BufSize>& rb) noexcept {
                 const std::uint16_t free = rb.free();
                 if (free == 0) {
                     return;
                 }
-                std::array<util::u8, Chunk> temp{};
+                std::array<daplink::base::u8, Chunk> temp{};
                 const std::size_t want = (free < temp.size()) ? free : temp.size();
-                auto r = ch.read(io::MutByteView{temp.data(), want});
+                auto r = ch.read(daplink::io::MutByteView{temp.data(), want});
                 if (!r) {
                     return;
                 }
@@ -82,20 +81,20 @@ export namespace daplink::dap_policy {
                 }
             };
 
-            const auto pump_write = [](io::Channel& ch,
+            const auto pump_write = [](daplink::io::Channel& ch,
                                        daplink::ring_buffer::Buffer<BufSize>& rb) noexcept {
                 const std::uint16_t available = rb.count();
                 if (available == 0) {
                     return;
                 }
-                std::array<util::u8, Chunk> temp{};
+                std::array<daplink::base::u8, Chunk> temp{};
                 const std::uint16_t want =
                     static_cast<std::uint16_t>((available < temp.size()) ? available : temp.size());
                 const auto len = rb.peek(reinterpret_cast<std::uint8_t*>(temp.data()), want);
                 if (len == 0) {
                     return;
                 }
-                auto r = ch.write(io::ByteView{temp.data(), len});
+                auto r = ch.write(daplink::io::ByteView{temp.data(), len});
                 if (r) {
                     rb.drop(static_cast<std::uint16_t>(r.value()));
                 }
@@ -107,11 +106,16 @@ export namespace daplink::dap_policy {
             pump_write(usb_cdc, uart_rx);
         }
 
-        template <std::size_t Chunk, std::size_t BufSize, typename HidTransport, typename ResetFn>
+        template <std::size_t Chunk,
+                  std::size_t BufSize,
+                  typename HidTransport,
+                  typename ResetFn,
+                  typename ApplyLineFn>
         void tick(HidTransport& dap_transport,
                   ResetFn&& reset_handler,
-                  io::Channel& usb_cdc,
-                  io::Channel& uart,
+                  ApplyLineFn&& apply_line_fn,
+                  daplink::io::Channel& usb_cdc,
+                  daplink::io::Channel& uart,
                   daplink::ring_buffer::Buffer<BufSize>& uart_tx,
                   daplink::ring_buffer::Buffer<BufSize>& uart_rx,
                   CdcLine& last_line,
@@ -132,8 +136,7 @@ export namespace daplink::dap_policy {
                 const auto line = to_line(daplink::usb_minimal::cdc_line());
                 if (should_apply_line(last_line, line)) {
                     apply_line(last_line, line);
-                    daplink::board::cdc_uart_apply_line(
-                        last_line.baud, last_line.stop_bits, last_line.parity, last_line.data_bits);
+                    apply_line_fn(last_line);
                 }
                 pump_cdc<Chunk>(usb_cdc, uart, uart_tx, uart_rx);
             }

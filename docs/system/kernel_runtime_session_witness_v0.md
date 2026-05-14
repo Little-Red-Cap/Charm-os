@@ -112,6 +112,10 @@ QEMU log parser 只是事实采集器之一
 - live runtime、task syscall、handoff landing 等 lower-half seam 在 QEMU 上仍然站住
 - lower-half 证据可以被收束到同一个 canonical world
 
+当前 `arch_ingress_seam` 是 machine witness 的 lower-half ingress anchor。
+session exporter 会优先用这个 standing case 支撑 `exception_ingress / interrupt_ingress / timer_ingress / trap_ingress / context_ingress / runtime_loop`。
+旧 summary 没有这条 case 时，exporter 仍保留 `runtime_trap / runtime_live / runtime_thread / task_syscall / handoff_live` 的兼容推断，但新证据链应优先让 `machine_witness.standing_cases` 显式包含 `arch_ingress_seam`。
+
 它不证明：
 
 - host stub 的完整语义覆盖
@@ -145,6 +149,7 @@ phase ledger
 
 runtime ledger
   证明运行会话事件：
+  arch ingress seam observed
   tick observed
   trap decoded
   syscall dispatched
@@ -165,10 +170,11 @@ session summary 是体检报告
 ```
 
 当前第一刀保留 `runtime_ledger.json` 与 `kernel_runtime_session.summary.json` 的最小出口，不要求重构现有 QEMU log parser。
+`runtime_ledger.json` 的事实语言由 `docs/system/minimal_kernel_runtime_ledger_fact_contract_v0.md` 约束：它只记录 session exporter 已消费的 summary facts，不解析 raw host/QEMU/session logs，也不替代 session summary 的 verdict。
 
 现在 session summary 已经不只是旁路 artifact。
 
-- runtime evidence bundle 的 `summary.json` 通过 `session` 暴露这份 session 对象；旧字段 `session_summary` 仅作为兼容入口保留
+- runtime evidence bundle 的 `summary.json` 通过 `session` 暴露这份 session 对象
 - system compiler witness bundle 会把它消费为 `kernel_runtime_session` witness entry
 - witness bundle 的 `front_page.supporting_surfaces` 也会把它作为 `kernel_runtime_session` 入口直接暴露给 reader / IDE / proof workflow
 
@@ -233,6 +239,10 @@ session/
 对应 schema：
 
 - `schemas/minimal_kernel.kernel_runtime_session.v0.schema.json`
+
+对应 runtime ledger fact contract：
+
+- `docs/system/minimal_kernel_runtime_ledger_fact_contract_v0.md`
 
 对应最小 sample：
 

@@ -45,22 +45,6 @@
     "qemu": {
       "$ref": "#/$defs/qemuBundle"
     },
-    "session_summary": {
-      "type": [
-        "object",
-        "null"
-      ],
-      "allOf": [
-        {
-          "if": {
-            "type": "object"
-          },
-          "then": {
-            "$ref": "#/$defs/sessionSummaryView"
-          }
-        }
-      ]
-    },
     "witness_bundle": {
       "type": [
         "object",
@@ -898,51 +882,6 @@
                 "$ref": "#/$defs/qemuSummaryView"
               }
             }
-          ]
-        }
-      }
-    },
-    "sessionSummaryView": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "summary_path",
-        "runtime_ledger_path",
-        "check_text_path",
-        "result",
-        "session_id",
-        "world",
-        "session_status"
-      ],
-      "properties": {
-        "summary_path": {
-          "type": "string"
-        },
-        "runtime_ledger_path": {
-          "type": "string"
-        },
-        "check_text_path": {
-          "type": "string"
-        },
-        "result": {
-          "type": "string",
-          "enum": [
-            "ok",
-            "fail"
-          ]
-        },
-        "session_id": {
-          "type": "string"
-        },
-        "world": {
-          "type": "string"
-        },
-        "session_status": {
-          "type": "string",
-          "enum": [
-            "standing",
-            "failed",
-            "drifted"
           ]
         }
       }

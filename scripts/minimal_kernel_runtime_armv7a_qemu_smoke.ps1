@@ -6,6 +6,7 @@ param(
     [int]$TailLines = 40,
     [string]$SummaryPath = "",
     [string]$CaseOutputRoot = "",
+    [switch]$FreshConfigure,
     [switch]$StopOnFailure
 )
 
@@ -374,7 +375,11 @@ try {
         $currentPhase = "configure"
         $configureStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         try {
-            & $cmake --preset $configurePreset
+            if ($FreshConfigure) {
+                & $cmake --fresh --preset $configurePreset
+            } else {
+                & $cmake --preset $configurePreset
+            }
             if ($LASTEXITCODE -ne 0) {
                 throw "cmake configure failed for preset: $configurePreset"
             }

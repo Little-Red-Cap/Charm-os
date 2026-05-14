@@ -1,5 +1,7 @@
 module;
 
+#include "daplink_legacy_macro_compat.hpp"
+
 #include <cstddef>
 #include <cstdint>
 
@@ -12,13 +14,13 @@ export namespace daplink::app_config {
         composite = 2,
     };
 
-    inline constexpr char kUsbManufacturer[] = "Charm";
-    inline constexpr char kUsbProduct[] = "Charm CMSIS-DAP";
+    inline constexpr char kUsbManufacturer[] = "DAPLink";
+    inline constexpr char kUsbProduct[] = "DAPLink CMSIS-DAP";
     inline constexpr char kUsbSerial[] = "0001";
     inline constexpr char kUsbHidInterface[] = "CMSIS-DAP v1";
-    inline constexpr char kUsbCdcFunction[] = "Charm CDC Bridge";
-    inline constexpr char kUsbCdcControlInterface[] = "Charm CDC Control";
-    inline constexpr char kUsbCdcDataInterface[] = "Charm CDC Data";
+    inline constexpr char kUsbCdcFunction[] = "DAPLink CDC Bridge";
+    inline constexpr char kUsbCdcControlInterface[] = "DAPLink CDC Control";
+    inline constexpr char kUsbCdcDataInterface[] = "DAPLink CDC Data";
     inline constexpr char kCmsisDapProtocolVersion[] = "1.3.0";
     inline constexpr char kProductFwVersion[] = "0.1.0";
 
@@ -43,38 +45,45 @@ export namespace daplink::app_config {
     constexpr std::uint8_t kSwdTurnaround = 1;
     constexpr std::uint8_t kSwdIdleCycles = 0;
     constexpr std::uint16_t kSwdRetryCount = 100;
-    constexpr std::uint8_t kDapBurstLimit = 4;
+    constexpr std::uint8_t kDapPacketCount = 1;
+    constexpr std::uint8_t kDapBurstLimit = 1;
 
     constexpr std::uint32_t kCdcInTimeoutMs = 250;
     constexpr std::uint8_t kCdcPolicy = 0;
 
-#ifdef CHARM_DAP_USB_PROFILE
-    constexpr std::uint8_t kUsbProfileValue = static_cast<std::uint8_t>(CHARM_DAP_USB_PROFILE);
+#if defined(DAPLINK_USB_PROFILE_VALUE)
+    constexpr std::uint8_t kUsbProfileValue = static_cast<std::uint8_t>(DAPLINK_USB_PROFILE_VALUE);
 #else
     constexpr std::uint8_t kUsbProfileValue = static_cast<std::uint8_t>(UsbProfile::composite);
 #endif
 
-#ifdef CHARM_DAP_CDC_UART
-    constexpr std::uint8_t kCdcUartIndex = static_cast<std::uint8_t>(CHARM_DAP_CDC_UART);
+#if defined(DAPLINK_CDC_UART_INDEX)
+    constexpr std::uint8_t kCdcUartIndex = static_cast<std::uint8_t>(DAPLINK_CDC_UART_INDEX);
 #else
     constexpr std::uint8_t kCdcUartIndex = 2;
 #endif
 
-#ifdef CHARM_DAP_BURST_LIMIT
-    constexpr std::uint8_t kDapBurstLimitValue = static_cast<std::uint8_t>(CHARM_DAP_BURST_LIMIT);
+#if defined(DAPLINK_DAP_BURST_LIMIT)
+    constexpr std::uint8_t kDapBurstLimitValue = static_cast<std::uint8_t>(DAPLINK_DAP_BURST_LIMIT);
 #else
     constexpr std::uint8_t kDapBurstLimitValue = kDapBurstLimit;
 #endif
 
-#ifdef CHARM_DAP_CDC_IN_TIMEOUT_MS
+#if defined(DAPLINK_DAP_PACKET_COUNT)
+    constexpr std::uint8_t kDapPacketCountValue = static_cast<std::uint8_t>(DAPLINK_DAP_PACKET_COUNT);
+#else
+    constexpr std::uint8_t kDapPacketCountValue = kDapPacketCount;
+#endif
+
+#if defined(DAPLINK_CDC_IN_TIMEOUT_MS)
     constexpr std::uint32_t kCdcInTimeoutMsValue =
-        static_cast<std::uint32_t>(CHARM_DAP_CDC_IN_TIMEOUT_MS);
+        static_cast<std::uint32_t>(DAPLINK_CDC_IN_TIMEOUT_MS);
 #else
     constexpr std::uint32_t kCdcInTimeoutMsValue = kCdcInTimeoutMs;
 #endif
 
-#ifdef CHARM_DAP_CDC_POLICY
-    constexpr std::uint8_t kCdcPolicyValue = static_cast<std::uint8_t>(CHARM_DAP_CDC_POLICY);
+#if defined(DAPLINK_CDC_POLICY)
+    constexpr std::uint8_t kCdcPolicyValue = static_cast<std::uint8_t>(DAPLINK_CDC_POLICY);
 #else
     constexpr std::uint8_t kCdcPolicyValue = kCdcPolicy;
 #endif
@@ -112,6 +121,7 @@ export namespace daplink::app_config {
     };
 
     struct DapConfig {
+        std::uint8_t packet_count;
         std::uint8_t burst_limit;
     };
 
@@ -130,6 +140,7 @@ export namespace daplink::app_config {
 
     static_assert(kUsbProfileValue <= static_cast<std::uint8_t>(UsbProfile::composite));
     static_assert(kCdcUartIndex == 1 || kCdcUartIndex == 2);
+    static_assert(kDapPacketCountValue > 0);
     static_assert(kDapBurstLimitValue > 0);
     static_assert(kCdcPolicyValue <= 1);
 
@@ -158,7 +169,7 @@ export namespace daplink::app_config {
             kSwdIdleCycles,
             kSwdRetryCount,
         },
-        DapConfig{kDapBurstLimitValue},
+        DapConfig{kDapPacketCountValue, kDapBurstLimitValue},
         CdcConfig{kCdcUartIndex, kCdcInTimeoutMsValue, kCdcPolicyValue},
     };
 

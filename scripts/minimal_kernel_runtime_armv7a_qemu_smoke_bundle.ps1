@@ -204,6 +204,9 @@ Add-ScriptArgument -Arguments $smokeArgs -Name "-CaseOutputRoot" -Value $caseArt
 if ($StopOnFailure) {
     $smokeArgs.Add("-StopOnFailure") | Out-Null
 }
+if ($Clean) {
+    $smokeArgs.Add("-FreshConfigure") | Out-Null
+}
 
 $reportArgs = [System.Collections.Generic.List[string]]::new()
 Add-ScriptArgument -Arguments $reportArgs -Name "-Summary" -Value $summaryPathResolved

@@ -8,9 +8,9 @@
 
 ## 最短阅读顺序
 
-1. [`../../documentation_maintenance.md`](../../documentation_maintenance.md)
+1. [`../../overview.md`](../../overview.md)
 2. [`../../README.md`](../../README.md)
-3. [`../../overview.md`](../../overview.md)
+3. [`../../documentation_maintenance.md`](../../documentation_maintenance.md)
 4. 目标目录下的 `README.md`
 5. [`../skills/charm-docs-minimal/SKILL.md`](../skills/charm-docs-minimal/SKILL.md)
 6. [`utf8.md`](utf8.md)（涉及编码问题时）

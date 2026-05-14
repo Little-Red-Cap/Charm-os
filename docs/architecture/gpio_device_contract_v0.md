@@ -245,9 +245,10 @@ UI/domain 可以负责：
 最值当的下一步是：
 
 1. 保持本文件为 `proposed` card。
-2. 先设计 `GpioInput / GpioOutput / GpioEdgeSource` 的职责卡，不急着写代码。
-3. 选择一个小型 evidence 目标，例如 LED output、button input、edge counter。
-4. 再决定 mock 是否先支持 level script，还是先支持 edge script。
-5. 与 [`device_contract_admission_matrix_v0.md`](device_contract_admission_matrix_v0.md) 同步准入状态。
+2. 先按 [`../system/gpio_device_input_output_edge_readiness_checklist_v0.md`](../system/gpio_device_input_output_edge_readiness_checklist_v0.md) 收拢 producer / source / subject / facts / evidence 语义，但不急着写代码。
+3. 再设计 `GpioInput / GpioOutput / GpioEdgeSource` 的职责卡，不急着写代码。
+4. 选择一个小型 evidence 目标，例如 LED output、button input、edge counter。
+5. 再决定 mock 是否先支持 level script，还是先支持 edge script。
+6. 与 [`device_contract_admission_matrix_v0.md`](device_contract_admission_matrix_v0.md) 同步准入状态。
 
 在这些完成前，GPIO 仍保持 `proposed`。

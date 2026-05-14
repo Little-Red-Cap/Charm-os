@@ -9,6 +9,21 @@ Charm 将系统功能组织为 **Capability（能力）**，并通过能力图�
 
 **README → `docs/overview.md` → `docs/README.md` → 本文 → `docs/architecture_overview.md`**
 
+如果你现在还不知道应该先用哪个能力，先停在下面这张首用决策表。完整能力索引在后面。
+
+## 首用决策表
+
+| 你现在要做什么 | 先用什么 | 默认路径 | 先看哪里 | 什么时候才例外 |
+|---|---|---|---|---|
+| 先把输出/日志接上 | `out.core` / `out.format` / `out.logger` | `io.console0 -> out.channel -> out.api/out.logger` | [`Examples/io/out/README.md`](../Examples/io/out/README.md) | 只有在 `io.console0` 尚未就绪时，才临时用板级 EarlyConsole |
+| 先做命令行/REPL | `io.shell` | `shell/REPL service` | [`Examples/shell/README.md`](../Examples/shell/README.md) | 不要把局部命令直接抬成长期协议 |
+| 先装配系统 | `system.init` | `AppHost / CoreSystemChain / init.graph` | [`docs/system/init_graph_contract.md`](system/init_graph_contract.md) | 不要手写初始化顺序 |
+| 先把板级 console / clock 接到 Charm | `platform.*` + `BoardCaps / ConsoleCaps / ClockDesc` | `board landing` 到 `io.console0` / `clock` | [`docs/system/system_coordination_contract_v0.md`](system/system_coordination_contract_v0.md) | 只有 pre-graph / fault / 极早期证据才走 EarlyConsole |
+| 先让 board service 进入系统协调层 | `ServiceSnapshotContract` / `PowerProfile` | `snapshot/status -> sys services` | [`docs/system/system_coordination_contract_v0.md`](system/system_coordination_contract_v0.md) | 不要把 raw write 或重 runtime 直接塞进系统层 |
+| 先接块设备 / 文件系统 | `storage.block` / `fs.vfs` | `block.device -> registry -> fs.vfs` | [`docs/storage/block_device_contract.md`](storage/block_device_contract.md) / [`docs/storage/fs_vfs_mount_rules.md`](storage/fs_vfs_mount_rules.md) | 不要跳过 block 直接谈挂载 |
+| 先做 USB 设备 | `usb.device` | `device_driver -> class` | [`docs/usb/usb_arch_plan.md`](usb/usb_arch_plan.md) | 不要先把 host/runtime 全拉进来 |
+| 先做设备发现 / 注册 | `device.registry` / `io.registry` | `registry + init.graph` | [`docs/architecture/device_model_overview.md`](architecture/device_model_overview.md) / [`docs/io/io_registry_contract.md`](io/io_registry_contract.md) | 不要绕过 registry 直连全局能力 |
+
 ---
 
 ## 本文负责什么
@@ -47,12 +62,22 @@ Charm 使用三层结构组织系统能力：
 
 ## 使用方式
 
-当你准备新增功能、接入子系统或开始复用框架能力时，建议按以下顺序使用本文：
+当你准备新增功能、接入子系统或开始复用框架能力时：
 
 1. 先查 Capability 是否已存在
-2. 再看对应 Modules / Docs / Example
-3. 若已有能力满足需求，优先复用
-4. 若没有，再考虑新增 Capability 或扩展现有能力
+2. 先看上面的首用决策表，确认默认路径
+3. 再看对应 Modules / Docs / Example
+4. 若已有能力满足需求，优先复用
+5. 若没有，再考虑新增 Capability 或扩展现有能力
+
+## 首用决策表
+
+| 现在想做什么 | 先看什么 | 默认路径 | 什么时候允许例外 |
+|---|---|---|---|
+| 找“有没有现成能力” | 本文的 Capability Index | `docs/capability_map.md` -> 对应 group -> 对应 docs/example | 只有当现有能力确实不满足时，才考虑新增能力 |
+| 判断“能力应该归哪里” | group 说明 + 对应条目 | 先按当前 group 的现行契约理解 | 只有在讨论分层、归属或默认装配时，才转向 architecture 路由 |
+| 复用“默认能力入口” | capability 条目里的 Docs / Example | 先走本文给出的现成文档与示例 | 只有当接口缺失或语义不清时，才去追更底层实现 |
+| 追“当前主入口是什么” | [`docs/README.md`](README.md) + [`docs/architecture_overview.md`](architecture_overview.md) | 先用总入口，再回到本文 | 只有明确是在做专题设计时，才直接跳专题文档 |
 
 ---
 
@@ -73,7 +98,7 @@ Charm 使用三层结构组织系统能力：
 
 ---
 
-## Capability Index
+## 完整能力索引
 
 ### 分组说明
 

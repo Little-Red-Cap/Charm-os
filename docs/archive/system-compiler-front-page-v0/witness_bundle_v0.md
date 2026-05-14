@@ -118,7 +118,7 @@
 对于 root `witness bundle` 来说，`front_page.supporting_surfaces` 允许被更上层 workflow 继续补强。
 
 - 基础导出至少应能路由到 `runtime_evidence`
-- 如果 runtime evidence summary 已经带有 `session` 或历史兼容的 `session_summary`，基础导出也应把它路由成 `kernel_runtime_session`
+- 如果 runtime evidence summary 已经带有 `session`，基础导出也应把它路由成 `kernel_runtime_session`
 - 当同轮交付已经生成 `biography`、`world_compare`、`world_shelf_review` 时，wrapper 可以把这些上层 surface 一并挂回 root `front_page`
 
 它不替代 `artifact_context`。
@@ -213,6 +213,7 @@
 `witness bundle` 不直接解析 host/QEMU 的散日志，
 而是通过 runtime evidence summary 找到 session summary，
 再把它作为 `kernel_runtime_session` witness entry 暴露给 world compare。
+如果需要解释 session facts 的发生顺序，witness bundle 只能沿 `kernel_runtime_session.summary.json.ledger.runtime_ledger` 指向的 `runtime_ledger.json` 消费 facts；该 ledger 的事实语言由 `docs/system/minimal_kernel_runtime_ledger_fact_contract_v0.md` 约束，不能被用来重新判定 raw runtime/session/world evidence。
 
 `witness bundle` 也可以把它作为独立 `kernel_runtime_session` entry 消费：
 

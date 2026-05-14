@@ -3,7 +3,27 @@
 本文不是最终冻结的 JSON Schema，也不是新的导出脚本实现说明。  
 它用于定义 Charm 在 `system compiler v0` 阶段的最小统一报告对象：`artifact report`。
 
-当前 schema 草案与最小机器可验样例见：
+## 当前阅读方式
+
+本文是 `artifact report` 的专题入口，不是 front-page / opening-flow / witness / biography / world compare 历史链目录。
+
+默认阅读路径固定为：
+
+- system compiler 主轴：[`../architecture/system_compiler_roadmap.md`](../architecture/system_compiler_roadmap.md)
+- 核心词汇：[`../architecture/system_compiler_vocabulary_v0.md`](../architecture/system_compiler_vocabulary_v0.md)
+- 本文的对象边界：从 [`1. 为什么需要单独定义 artifact report`](#1-为什么需要单独定义-artifact-report) 开始读
+- 相关当前对象：[`explain_surface_v0.md`](explain_surface_v0.md)、[`resource_contract_v0.md`](resource_contract_v0.md)、[`bringup_evidence_pipeline_v0.md`](bringup_evidence_pipeline_v0.md)
+
+下面的 schema、样例、脚本和 smoke 清单属于深层验证入口，用于维护与回归，不作为默认首读路线。
+
+当前这条链已经识别出一批重复事实税：
+
+- 同一组系统事实同时出现在 schema、summary schema、导出脚本与 inspect / explain 面
+- 后续第一轮统一目标不是“减少多少代码”，而是以受控投影收拢这些重复事实
+
+这类重复先作为本文内部的维护边界处理，不另设默认阅读入口。
+
+当前 schema 草案与最小机器可验样例见（深层验证入口，非默认首读）：
 
 - `schemas/system_compiler.artifact_report.v0.schema.json`
 - `schemas/system_compiler.artifact_report_index.v0.schema.json`
@@ -108,6 +128,8 @@ candidate 来自 `board-i2c-whoami-bringup-evidence-smoke`。
 `materialized_graph_i2c_board_evidence_chain_smoke.ps1`
 则是一键复验入口，会串行跑 no-hardware WHOAMI evidence、
 Host fixture board evidence、producer-side compare 与稳定 sample validation。
+当前 board evidence fixture 的执行台账见
+[`board_evidence_fixture_catalog_v0.md`](board_evidence_fixture_catalog_v0.md)。
 
 当前这条链已经不再要求每个 case 都必须先落成静态 graph。
 `export_bundle/v1` 现在可以同时承载三类 case：
@@ -294,6 +316,8 @@ python ./scripts/validate_materialized_graph_artifacts.py --bundle-root ./out/bo
 `stm32_stub / board.bringup Host fixture` 的证据 producer 漂移。
 如果只想复验整条 I2C board evidence v0 链路，
 可以直接运行 `scripts/materialized_graph_i2c_board_evidence_chain_smoke.ps1`。
+该链路的 fixture catalog 与分步调试入口见
+[`board_evidence_fixture_catalog_v0.md`](board_evidence_fixture_catalog_v0.md)。
 
 当前也已经有一份 board/package facts 的 sidecar 样例：
 
@@ -1469,6 +1493,7 @@ artifact report 现在也把“事实从哪里来、合同为什么成立或不�
 但 `metadata_changes` 不应被吞掉。
 而 `comparison.system_input` 则用于承载“系统如何成立”的输入投影相对 baseline 发生了什么漂移，
 把 `system_spec / declared_input / resolved_input` 正式收进 compare 结果物。
+`system_input`、`binding_result / bringup_order`、`resource_contract / fact_resolution` 与 root 级 `system_compiler_summary` 都按内部 canonical projection 收口，不扩外部 schema。
 
 `comparison.system_input` 当前建议至少包含：
 

@@ -1,16 +1,8 @@
 #ifndef DAPLINK_PORT_STM32_H5_MAIN_WORKAROUND_HPP
 #define DAPLINK_PORT_STM32_H5_MAIN_WORKAROUND_HPP
 
-#ifndef CHARM_STM32H5_SUPPRESS_MATH_HEADER
-#define CHARM_STM32H5_SUPPRESS_MATH_HEADER 1
-#define DAPLINK_STM32H5_SUPPRESS_MATH_HEADER_LOCAL 1
-#endif
-
-#include "main.h"
-
-#ifdef DAPLINK_STM32H5_SUPPRESS_MATH_HEADER_LOCAL
-#undef DAPLINK_STM32H5_SUPPRESS_MATH_HEADER_LOCAL
-#undef CHARM_STM32H5_SUPPRESS_MATH_HEADER
-#endif
+// Legacy compatibility wrapper. New ports should include
+// platform/stm32/daplink_platform_stm32_h5_main_workaround.hpp directly.
+#include "platform/stm32/daplink_platform_stm32_h5_main_workaround.hpp"
 
 #endif

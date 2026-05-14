@@ -74,7 +74,11 @@ $elfPath = "out\\build\\debug-handoff-live\\charm-armv7a-qemu"
 if (-not $SkipBuild) {
     Push-Location $PSScriptRoot
     try {
-        & $cmake --preset $configurePreset
+        if ($CleanBuild) {
+            & $cmake --fresh --preset $configurePreset
+        } else {
+            & $cmake --preset $configurePreset
+        }
         if ($LASTEXITCODE -ne 0) {
             throw "cmake configure failed for preset: $configurePreset"
         }

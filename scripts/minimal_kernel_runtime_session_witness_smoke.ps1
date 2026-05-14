@@ -339,7 +339,7 @@ if ($null -ne $summaryObject.checks.session) {
     [void]$reportBuilder.AppendLine(('- Status: `{0}` failures=`{1}` ledger_events=`{2}`' -f [string]$summaryObject.checks.session.session_status, [int]$summaryObject.checks.session.failure_count, [int]$summaryObject.checks.session.ledger_event_count))
     [void]$reportBuilder.AppendLine(('- Runtime facts: `tick={0} trap={1} thread={2} task_syscall={3} handoff_continuity={4}`' -f [bool]$summaryObject.checks.session.runtime.tick, [bool]$summaryObject.checks.session.runtime.trap, [bool]$summaryObject.checks.session.runtime.thread, [bool]$summaryObject.checks.session.runtime.task_syscall, [bool]$summaryObject.checks.session.runtime.handoff_continuity))
 }
-[void]$reportBuilder.AppendLine(('- Session summary: `{0}`' -f $sessionSummary))
+[void]$reportBuilder.AppendLine(('- Session: `{0}`' -f $sessionSummary))
 [void]$reportBuilder.AppendLine(('- Runtime ledger: `{0}`' -f $sessionRuntimeLedger))
 [void]$reportBuilder.AppendLine("")
 [void]$reportBuilder.AppendLine("## Session Drift Projection")
@@ -420,7 +420,7 @@ Write-Host ("output_root={0}" -f $resolvedOutputRoot)
 Write-Host ("summary={0}" -f $summaryPathResolved)
 Write-Host ("report={0}" -f $reportMarkdownPathResolved)
 Write-Host ("check={0}" -f $checkTextPathResolved)
-Write-Host ("session_summary={0}" -f $sessionSummary)
+Write-Host ("session={0}" -f $sessionSummary)
 Write-Host ("world_compare_session_drift={0}" -f $worldCompareSummary)
 Write-Host ("witness_failure_export_compare={0}" -f $witnessCompareSummary)
 if ($violations.Count -gt 0) {

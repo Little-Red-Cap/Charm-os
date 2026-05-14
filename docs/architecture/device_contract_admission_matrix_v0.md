@@ -24,8 +24,8 @@
 | --- | --- | --- | --- | --- |
 | I2C bus/device | `experimental` | mock backend、HAL adapter、准 driver、facts sidecar、no-hardware smoke、Host fixture board/probe evidence 输入形态 | 真实硬件 evidence、真实芯片 driver、正式 probe / bringup evidence pipeline | 保持样板卡，补真实 driver 或真实板级 probe evidence |
 | SPI bus/device | `proposed` | driver model、窄腰文档、[`spi_device_contract_v0.md`](spi_device_contract_v0.md) 已记录责任边界 | 未冻结 driver-facing API、无 mock、无 driver evidence | 先保持 proposed card，不写代码 |
-| GPIO input/output/edge | `proposed` | HAL 层已有 GPIO 入口，[`gpio_device_contract_v0.md`](gpio_device_contract_v0.md) 已拆分三种语义面 | 未冻结 driver-facing API、无 mock、无 driver evidence | 先保持 proposed card，不写代码 |
-| Block device | `proposed` | block registry、stable slot、runtime slot export、[`block_device_contract_v0.md`](block_device_contract_v0.md) 已记录 sector/live/flush/error 边界 | 未冻结 driver-facing API、无 contract mock、无 facts sidecar | 保持 proposed card，不写代码 |
+| GPIO input/output/edge | `proposed` | HAL 层已有 GPIO 入口，[`gpio_device_contract_v0.md`](gpio_device_contract_v0.md) 已拆分三种语义面 | 未冻结 driver-facing API、无 mock、无 driver evidence | 先按 [`../system/gpio_device_input_output_edge_readiness_checklist_v0.md`](../system/gpio_device_input_output_edge_readiness_checklist_v0.md) 收拢 producer / facts / evidence，不写代码 |
+| Block device | `proposed` | block registry、stable slot、runtime slot export、[`block_device_contract_v0.md`](block_device_contract_v0.md) 已记录 sector/live/flush/error 边界 | 未冻结 driver-facing API、无 contract mock、无 facts sidecar | 先按 [`../system/block_device_fault_script_readiness_checklist_v0.md`](../system/block_device_fault_script_readiness_checklist_v0.md) 收拢 producer / facts / evidence，不写代码 |
 | Stream IO | `proposed` | `io::Channel` 非阻塞纪律、registry/reactor/slot 经验、[`stream_io_device_contract_v0.md`](stream_io_device_contract_v0.md) 已记录等待与错误边界 | 未冻结为 device public contract、无 facts sidecar、无 contract mock | 保持 proposed card，不写代码 |
 | Timebase | `proposed` | `charm.system.clock`、host/manual time source、[`timebase_device_contract_v0.md`](timebase_device_contract_v0.md) 已记录 monotonic/resolution/context 边界 | 未冻结 driver-facing API、无 facts sidecar、无 timeout evidence | 保持 proposed card，不写代码 |
 

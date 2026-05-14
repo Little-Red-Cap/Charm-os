@@ -35,11 +35,7 @@
       "type": "string"
     },
     "result": {
-      "type": "string",
-      "enum": [
-        "ok",
-        "fail"
-      ]
+      "$ref": "#/$defs/okFailResult"
     },
     "opening_flow_open_event_witness": {
       "$ref": "#/$defs/titleBlock"
@@ -77,6 +73,38 @@
     }
   },
   "$defs": {
+    "okFailResult": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "fail"
+      ]
+    },
+    "openEventStatus": {
+      "type": "string",
+      "enum": [
+        "accepted",
+        "accepted_with_drift",
+        "blocked"
+      ]
+    },
+    "compareVerdictOrNotAttached": {
+      "type": "string",
+      "enum": [
+        "standing",
+        "improved",
+        "drifted",
+        "collapsed",
+        "not_attached"
+      ]
+    },
+    "judgmentGrade": {
+      "type": "string",
+      "enum": [
+        "described",
+        "compared"
+      ]
+    },
     "nullableString": {
       "type": [
         "string",
@@ -223,19 +251,10 @@
           "type": "string"
         },
         "open_event_status": {
-          "type": "string",
-          "enum": [
-            "accepted",
-            "accepted_with_drift",
-            "blocked"
-          ]
+          "$ref": "#/$defs/openEventStatus"
         },
         "open_event_result": {
-          "type": "string",
-          "enum": [
-            "ok",
-            "fail"
-          ]
+          "$ref": "#/$defs/okFailResult"
         },
         "reason_kind": {
           "type": "string"
@@ -282,29 +301,16 @@
           "type": "string"
         },
         "witness_status": {
-          "type": "string",
-          "enum": [
-            "ok",
-            "fail"
-          ]
+          "$ref": "#/$defs/okFailResult"
         },
         "accepted": {
           "type": "boolean"
         },
         "source_judgment_status": {
-          "type": "string",
-          "enum": [
-            "accepted",
-            "accepted_with_drift",
-            "blocked"
-          ]
+          "$ref": "#/$defs/openEventStatus"
         },
         "source_judgment_grade": {
-          "type": "string",
-          "enum": [
-            "described",
-            "compared"
-          ]
+          "$ref": "#/$defs/judgmentGrade"
         },
         "source_judgment_basis": {
           "$ref": "#/$defs/stringArray"
@@ -330,14 +336,7 @@
           "type": "boolean"
         },
         "compare_verdict": {
-          "type": "string",
-          "enum": [
-            "standing",
-            "improved",
-            "drifted",
-            "collapsed",
-            "not_attached"
-          ]
+          "$ref": "#/$defs/compareVerdictOrNotAttached"
         },
         "compare_changed_field_count": {
           "type": "integer",
@@ -421,11 +420,7 @@
           "type": "boolean"
         },
         "status": {
-          "type": "string",
-          "enum": [
-            "ok",
-            "fail"
-          ]
+          "$ref": "#/$defs/okFailResult"
         },
         "witness_focus": {
           "$ref": "#/$defs/stringArray"

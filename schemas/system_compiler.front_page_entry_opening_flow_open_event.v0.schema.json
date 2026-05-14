@@ -40,11 +40,7 @@
       "type": "string"
     },
     "result": {
-      "type": "string",
-      "enum": [
-        "ok",
-        "fail"
-      ]
+      "$ref": "#/$defs/okFailResult"
     },
     "opening_flow_open_event": {
       "$ref": "#/$defs/titleBlock"
@@ -101,6 +97,45 @@
     }
   },
   "$defs": {
+    "okFailResult": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "fail"
+      ]
+    },
+    "openEventStatus": {
+      "type": "string",
+      "enum": [
+        "accepted",
+        "accepted_with_drift",
+        "blocked"
+      ]
+    },
+    "compareVerdictOrNotAttached": {
+      "type": "string",
+      "enum": [
+        "standing",
+        "improved",
+        "drifted",
+        "collapsed",
+        "not_attached"
+      ]
+    },
+    "workspaceFacadeStatus": {
+      "type": "string",
+      "enum": [
+        "projected",
+        "blocked"
+      ]
+    },
+    "judgmentGrade": {
+      "type": "string",
+      "enum": [
+        "described",
+        "compared"
+      ]
+    },
     "stringArray": {
       "type": "array",
       "items": {
@@ -292,12 +327,7 @@
           "type": "string"
         },
         "status": {
-          "type": "string",
-          "enum": [
-            "accepted",
-            "accepted_with_drift",
-            "blocked"
-          ]
+          "$ref": "#/$defs/openEventStatus"
         },
         "reason": {
           "$ref": "#/$defs/openingReason"
@@ -654,14 +684,7 @@
           "type": "string"
         },
         "action_verdict": {
-          "type": "string",
-          "enum": [
-            "standing",
-            "improved",
-            "drifted",
-            "collapsed",
-            "not_attached"
-          ]
+          "$ref": "#/$defs/compareVerdictOrNotAttached"
         },
         "changed_field_count": {
           "type": "integer",
@@ -720,11 +743,7 @@
       ],
       "properties": {
         "status": {
-          "type": "string",
-          "enum": [
-            "projected",
-            "blocked"
-          ]
+          "$ref": "#/$defs/workspaceFacadeStatus"
         },
         "facade_kind": {
           "type": "string"
@@ -833,19 +852,10 @@
           "const": "opening_judgment_carrier"
         },
         "status": {
-          "type": "string",
-          "enum": [
-            "accepted",
-            "accepted_with_drift",
-            "blocked"
-          ]
+          "$ref": "#/$defs/openEventStatus"
         },
         "grade": {
-          "type": "string",
-          "enum": [
-            "described",
-            "compared"
-          ]
+          "$ref": "#/$defs/judgmentGrade"
         },
         "basis": {
           "$ref": "#/$defs/stringArray"

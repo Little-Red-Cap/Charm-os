@@ -109,6 +109,7 @@ runtime ledger 引用和 session verdict 收成一个对象。它不替代 host 
 对应契约入口：
 
 - `docs/system/kernel_runtime_session_witness_v0.md`
+- `docs/system/minimal_kernel_runtime_ledger_fact_contract_v0.md`
 - `schemas/minimal_kernel.kernel_runtime_session.v0.schema.json`
 
 ## 机器可读契约
@@ -130,6 +131,8 @@ python ./scripts/validate_minimal_kernel_runtime_evidence.py `
 - 用 schema 校验根 `summary.json` 的结构
 - 检查 summary 中引用到的 host / qemu / session / witness / report / check / case log 工件是否都存在
 - 复核 `session`、`kernel_runtime_session.summary.json` 与 `runtime_ledger.json` 的基础一致性
+
+`runtime_ledger.json` 的事实语言、phase 顺序、status/domain vocabulary 与 `ledger.event_count == runtime_ledger.events.length` 关系由 `docs/system/minimal_kernel_runtime_ledger_fact_contract_v0.md` 约束。该 ledger 只记录 exporter 已消费的 summary facts，不回读 raw host/QEMU/session logs。
 
 如果只想验证 session 对象的第一版出口，可以先跑旁路 smoke：
 

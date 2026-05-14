@@ -170,6 +170,7 @@ session summary 是体检报告
 ```
 
 当前第一刀保留 `runtime_ledger.json` 与 `kernel_runtime_session.summary.json` 的最小出口，不要求重构现有 QEMU log parser。
+`runtime_ledger.json` 的事实语言由 `docs/system/minimal_kernel_runtime_ledger_fact_contract_v0.md` 约束：它只记录 session exporter 已消费的 summary facts，不解析 raw host/QEMU/session logs，也不替代 session summary 的 verdict。
 
 现在 session summary 已经不只是旁路 artifact。
 
@@ -238,6 +239,10 @@ session/
 对应 schema：
 
 - `schemas/minimal_kernel.kernel_runtime_session.v0.schema.json`
+
+对应 runtime ledger fact contract：
+
+- `docs/system/minimal_kernel_runtime_ledger_fact_contract_v0.md`
 
 对应最小 sample：
 

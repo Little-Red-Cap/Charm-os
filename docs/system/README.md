@@ -16,7 +16,7 @@
 | 真实板级 system coordination / service snapshot | [`system_coordination_contract_v0.md`](system_coordination_contract_v0.md)、[`../architecture/real_board_landing_gap_audit_v0.md`](../architecture/real_board_landing_gap_audit_v0.md) |
 | ARMv7-A / RK3506 平台边界 | [`armv7a_platform_contract.md`](armv7a_platform_contract.md)、[`../board/rk3506/README.md`](../board/rk3506/README.md) |
 | ARMv7-A / QEMU seam smoke | [`run_qemu_arch_ingress_seam_ci.ps1`](../../Examples/kernel/armv7a/qemu/run_qemu_arch_ingress_seam_ci.ps1) |
-| minimal-kernel runtime 总证据链 | [`minimal_kernel_runtime_evidence_bundle_contract.md`](minimal_kernel_runtime_evidence_bundle_contract.md) |
+| minimal-kernel runtime 总证据链 | [`minimal_kernel_runtime_evidence_bundle_contract.md`](minimal_kernel_runtime_evidence_bundle_contract.md)、[`minimal_kernel_runtime_ledger_fact_contract_v0.md`](minimal_kernel_runtime_ledger_fact_contract_v0.md) |
 | minimal-kernel host smoke / 冷启动与热复用 | [`minimal_kernel_host_smoke_bundle_contract.md`](minimal_kernel_host_smoke_bundle_contract.md) |
 | syscall / trap 链 | [`minimal_kernel_task_syscall_table_contract.md`](minimal_kernel_task_syscall_table_contract.md)、[`minimal_kernel_trap_syscall_contract.md`](minimal_kernel_trap_syscall_contract.md)、[`armv7a_runtime_trap_mapping_contract.md`](armv7a_runtime_trap_mapping_contract.md) |
 | POSIX / Linux 用户态兼容 | [`posix_support_overview.md`](posix_support_overview.md) |
@@ -37,6 +37,7 @@
 
 - [`minimal_kernel_runtime_bridge_contract.md`](minimal_kernel_runtime_bridge_contract.md)
 - [`kernel_runtime_session_witness_v0.md`](kernel_runtime_session_witness_v0.md)
+- [`minimal_kernel_runtime_ledger_fact_contract_v0.md`](minimal_kernel_runtime_ledger_fact_contract_v0.md)
 - [`minimal_kernel_runtime_evidence_matrix.md`](minimal_kernel_runtime_evidence_matrix.md)
 - [`minimal_kernel_runtime_mailbox_contract.md`](minimal_kernel_runtime_mailbox_contract.md)
 - [`minimal_kernel_trap_ingress_contract.md`](minimal_kernel_trap_ingress_contract.md)

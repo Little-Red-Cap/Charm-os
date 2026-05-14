@@ -15,6 +15,7 @@
 |---|---|
 | 找现有能力、默认路径、示例 | [`capability_map.md`](capability_map.md) |
 | 看系统装配、启动、minimal-kernel、POSIX | [`system/README.md`](system/README.md) |
+| 看 minimal-kernel runtime ledger fact contract | [`system/minimal_kernel_runtime_ledger_fact_contract_v0.md`](system/minimal_kernel_runtime_ledger_fact_contract_v0.md) |
 | 看架构边界、驱动模型、能力归属 | [`architecture/README.md`](architecture/README.md) |
 | 看 IO / Channel / Reactor / Registry | [`io/README.md`](io/README.md) |
 | 看存储与 block device | [`storage/README.md`](storage/README.md) |

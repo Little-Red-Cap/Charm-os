@@ -213,6 +213,7 @@
 `witness bundle` 不直接解析 host/QEMU 的散日志，
 而是通过 runtime evidence summary 找到 session summary，
 再把它作为 `kernel_runtime_session` witness entry 暴露给 world compare。
+如果需要解释 session facts 的发生顺序，witness bundle 只能沿 `kernel_runtime_session.summary.json.ledger.runtime_ledger` 指向的 `runtime_ledger.json` 消费 facts；该 ledger 的事实语言由 `docs/system/minimal_kernel_runtime_ledger_fact_contract_v0.md` 约束，不能被用来重新判定 raw runtime/session/world evidence。
 
 `witness bundle` 也可以把它作为独立 `kernel_runtime_session` entry 消费：
 

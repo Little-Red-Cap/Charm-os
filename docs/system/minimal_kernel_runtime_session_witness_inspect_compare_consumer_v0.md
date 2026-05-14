@@ -91,6 +91,9 @@ The current summary records:
   - stable artifact refs for current summary, session summary, runtime ledger,
     world compare, and witness compare surfaces
 
+The runtime ledger artifact follows `docs/system/minimal_kernel_runtime_ledger_fact_contract_v0.md`.
+The consumer may expose it as a supporting artifact or explain-hop context, but it must not reinterpret raw host/QEMU/session logs or replace the session verdict.
+
 Each focus entry keeps:
 
 - focus id / kind / severity / priority

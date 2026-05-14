@@ -139,6 +139,10 @@ PowerShell 不应继续增长为：
 
 ## 当前盘点基线
 
+详细族群清单与第一批 pilot 候选见：
+
+- `docs/system/script_surface_reduction_inventory_v0.md`
+
 盘点口径：
 
 - 当前 Git 已跟踪的 `scripts/` 下 `.ps1` 与 `.py` 文件。

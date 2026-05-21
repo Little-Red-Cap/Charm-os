@@ -83,6 +83,146 @@ namespace {
                     player::product_config::host_default_vhd_path);
     }
 
+    struct PreviewOptions {
+        std::string screenshot_path{};
+        std::string screenshot_gif_path{};
+        bool screenshot_verbose{false};
+        int screenshot_wait_frames{0};
+        bool screenshot_exit{false};
+        player::PlayerPage start_page{player::PlayerPage::Home};
+        bool start_page_set{false};
+        std::optional<player::LibraryTab> library_tab_override{};
+        std::string library_context_override{};
+        bool library_open_first_group{false};
+        int library_select_index{-1};
+        bool library_open_info{false};
+        int library_open_info_index{-1};
+        bool library_open_action_menu{false};
+        int library_open_action_menu_index{-1};
+        int track_index_override{0};
+        bool ui_ci{false};
+        std::string font_ttf_path{};
+        std::string font_fallback_ttf_path{};
+        bool disable_system_font_fallback{false};
+        int font_small_px{0};
+        int font_normal_px{0};
+        int font_large_px{0};
+        int home_scroll_y{-1};
+    };
+
+    int parse_int(std::string_view value) {
+        return std::atoi(std::string(value).c_str());
+    }
+
+    int parse_non_negative_int(std::string_view value) {
+        return std::max(0, parse_int(value));
+    }
+
+    bool parse_player_page(std::string_view value, player::PlayerPage& out) noexcept {
+        if (value == "probe") {
+            out = player::PlayerPage::Probe;
+            return true;
+        }
+        if (value == "home") {
+            out = player::PlayerPage::Home;
+            return true;
+        }
+        if (value == "now") {
+            out = player::PlayerPage::NowPlaying;
+            return true;
+        }
+        if (value == "library") {
+            out = player::PlayerPage::Library;
+            return true;
+        }
+        return false;
+    }
+
+    bool parse_library_tab(std::string_view value, player::LibraryTab& out) noexcept {
+        if (value == "songs") {
+            out = player::LibraryTab::Songs;
+            return true;
+        }
+        if (value == "albums") {
+            out = player::LibraryTab::Albums;
+            return true;
+        }
+        if (value == "artists") {
+            out = player::LibraryTab::Artists;
+            return true;
+        }
+        return false;
+    }
+
+    PreviewOptions parse_preview_options(int argc, char** argv) {
+        PreviewOptions out{};
+        for (int i = 1; i < argc; ++i) {
+            const std::string_view arg = argv[i] ? argv[i] : "";
+            if (arg.rfind("--screenshot=", 0) == 0) {
+                out.screenshot_path.assign(arg.substr(13));
+            } else if (arg.rfind("--screenshot-gif=", 0) == 0) {
+                out.screenshot_gif_path.assign(arg.substr(17));
+            } else if (arg.rfind("--screenshot-page=", 0) == 0) {
+                if (parse_player_page(arg.substr(18), out.start_page)) {
+                    out.start_page_set = true;
+                }
+            } else if (arg.rfind("--page=", 0) == 0) {
+                if (parse_player_page(arg.substr(7), out.start_page)) {
+                    out.start_page_set = true;
+                }
+            } else if (arg.rfind("--library-tab=", 0) == 0) {
+                player::LibraryTab tab{};
+                if (parse_library_tab(arg.substr(14), tab)) {
+                    out.library_tab_override = tab;
+                }
+            } else if (arg.rfind("--library-context=", 0) == 0) {
+                out.library_context_override.assign(arg.substr(18));
+            } else if (arg == "--library-open-first-group") {
+                out.library_open_first_group = true;
+            } else if (arg.rfind("--library-select-index=", 0) == 0) {
+                out.library_select_index = parse_int(arg.substr(23));
+            } else if (arg == "--library-open-info") {
+                out.library_open_info = true;
+            } else if (arg.rfind("--library-open-info-index=", 0) == 0) {
+                out.library_open_info = true;
+                out.library_open_info_index = parse_int(arg.substr(26));
+            } else if (arg == "--library-open-action-menu") {
+                out.library_open_action_menu = true;
+            } else if (arg.rfind("--library-open-action-menu-index=", 0) == 0) {
+                out.library_open_action_menu = true;
+                out.library_open_action_menu_index = parse_int(arg.substr(33));
+            } else if (arg.rfind("--track-index=", 0) == 0) {
+                out.track_index_override = parse_non_negative_int(arg.substr(14));
+            } else if (arg == "--screenshot-verbose") {
+                out.screenshot_verbose = true;
+            } else if (arg == "--screenshot-exit") {
+                out.screenshot_exit = true;
+            } else if (arg.rfind("--screenshot-frame=", 0) == 0) {
+                out.screenshot_wait_frames = parse_non_negative_int(arg.substr(19));
+            } else if (arg == "--ui-ci") {
+                out.ui_ci = true;
+            } else if (arg.rfind("--font-ttf=", 0) == 0) {
+                out.font_ttf_path.assign(arg.substr(11));
+            } else if (arg.rfind("--font-fallback-ttf=", 0) == 0) {
+                out.font_fallback_ttf_path.assign(arg.substr(20));
+            } else if (arg == "--font-disable-system-fallback") {
+                out.disable_system_font_fallback = true;
+            } else if (arg.rfind("--font-small=", 0) == 0) {
+                out.font_small_px = parse_non_negative_int(arg.substr(13));
+            } else if (arg.rfind("--font-normal=", 0) == 0) {
+                out.font_normal_px = parse_non_negative_int(arg.substr(14));
+            } else if (arg.rfind("--font-large=", 0) == 0) {
+                out.font_large_px = parse_non_negative_int(arg.substr(13));
+            } else if (arg.rfind("--home-scroll=", 0) == 0) {
+                out.home_scroll_y = parse_non_negative_int(arg.substr(14));
+            }
+        }
+        if (!out.start_page_set && (!out.screenshot_path.empty() || !out.screenshot_gif_path.empty())) {
+            out.start_page = player::PlayerPage::NowPlaying;
+        }
+        return out;
+    }
+
     using PlayerUiContext = player::PlayerController;
     using UiHandles = player::UiHandles;
 
@@ -1130,121 +1270,7 @@ namespace {
 }
 
 int main(int argc, char** argv) {
-    std::string screenshot_path{};
-    std::string screenshot_gif_path{};
-    bool screenshot_verbose = false;
-    int screenshot_wait_frames = 0;
-    bool screenshot_exit = false;
-    player::PlayerPage start_page = player::PlayerPage::Home;
-    bool start_page_set = false;
-    std::optional<player::LibraryTab> library_tab_override{};
-    std::string library_context_override{};
-    bool library_open_first_group = false;
-    int library_select_index = -1;
-    bool library_open_info = false;
-    int library_open_info_index = -1;
-    bool library_open_action_menu = false;
-    int library_open_action_menu_index = -1;
-    int track_index_override = 0;
-    bool ui_ci = false;
-    std::string font_ttf_path{};
-    std::string font_fallback_ttf_path{};
-    bool disable_system_font_fallback = false;
-    int font_small_px = 0;
-    int font_normal_px = 0;
-    int font_large_px = 0;
-    int home_scroll_y = -1;
-    for (int i = 1; i < argc; ++i) {
-        const std::string_view arg = argv[i] ? argv[i] : "";
-        if (arg.rfind("--screenshot=", 0) == 0) {
-            screenshot_path.assign(arg.substr(13));
-        } else if (arg.rfind("--screenshot-gif=", 0) == 0) {
-            screenshot_gif_path.assign(arg.substr(17));
-        } else if (arg.rfind("--screenshot-page=", 0) == 0) {
-            const std::string_view page = arg.substr(18);
-            if (page == "probe") {
-                start_page = player::PlayerPage::Probe;
-                start_page_set = true;
-            } else if (page == "home") {
-                start_page = player::PlayerPage::Home;
-                start_page_set = true;
-            } else if (page == "now") {
-                start_page = player::PlayerPage::NowPlaying;
-                start_page_set = true;
-            } else if (page == "library") {
-                start_page = player::PlayerPage::Library;
-                start_page_set = true;
-            }
-        } else if (arg.rfind("--page=", 0) == 0) {
-            const std::string_view page = arg.substr(7);
-            if (page == "probe") {
-                start_page = player::PlayerPage::Probe;
-                start_page_set = true;
-            } else if (page == "home") {
-                start_page = player::PlayerPage::Home;
-                start_page_set = true;
-            } else if (page == "now") {
-                start_page = player::PlayerPage::NowPlaying;
-                start_page_set = true;
-            } else if (page == "library") {
-                start_page = player::PlayerPage::Library;
-                start_page_set = true;
-            }
-        } else if (arg.rfind("--library-tab=", 0) == 0) {
-            const std::string_view tab = arg.substr(14);
-            if (tab == "songs") {
-                library_tab_override = player::LibraryTab::Songs;
-            } else if (tab == "albums") {
-                library_tab_override = player::LibraryTab::Albums;
-            } else if (tab == "artists") {
-                library_tab_override = player::LibraryTab::Artists;
-            }
-        } else if (arg.rfind("--library-context=", 0) == 0) {
-            library_context_override.assign(arg.substr(18));
-        } else if (arg == "--library-open-first-group") {
-            library_open_first_group = true;
-        } else if (arg.rfind("--library-select-index=", 0) == 0) {
-            library_select_index = std::atoi(std::string(arg.substr(23)).c_str());
-        } else if (arg == "--library-open-info") {
-            library_open_info = true;
-        } else if (arg.rfind("--library-open-info-index=", 0) == 0) {
-            library_open_info = true;
-            library_open_info_index = std::atoi(std::string(arg.substr(26)).c_str());
-        } else if (arg == "--library-open-action-menu") {
-            library_open_action_menu = true;
-        } else if (arg.rfind("--library-open-action-menu-index=", 0) == 0) {
-            library_open_action_menu = true;
-            library_open_action_menu_index = std::atoi(std::string(arg.substr(33)).c_str());
-        } else if (arg.rfind("--track-index=", 0) == 0) {
-            track_index_override = std::max(0, std::atoi(std::string(arg.substr(14)).c_str()));
-        } else if (arg == "--screenshot-verbose") {
-            screenshot_verbose = true;
-        } else if (arg == "--screenshot-exit") {
-            screenshot_exit = true;
-        } else if (arg.rfind("--screenshot-frame=", 0) == 0) {
-            const std::string_view value = arg.substr(19);
-            screenshot_wait_frames = std::max(0, std::atoi(std::string(value).c_str()));
-        } else if (arg == "--ui-ci") {
-            ui_ci = true;
-        } else if (arg.rfind("--font-ttf=", 0) == 0) {
-            font_ttf_path.assign(arg.substr(11));
-        } else if (arg.rfind("--font-fallback-ttf=", 0) == 0) {
-            font_fallback_ttf_path.assign(arg.substr(20));
-        } else if (arg == "--font-disable-system-fallback") {
-            disable_system_font_fallback = true;
-        } else if (arg.rfind("--font-small=", 0) == 0) {
-            font_small_px = std::max(0, std::atoi(std::string(arg.substr(13)).c_str()));
-        } else if (arg.rfind("--font-normal=", 0) == 0) {
-            font_normal_px = std::max(0, std::atoi(std::string(arg.substr(14)).c_str()));
-        } else if (arg.rfind("--font-large=", 0) == 0) {
-            font_large_px = std::max(0, std::atoi(std::string(arg.substr(13)).c_str()));
-        } else if (arg.rfind("--home-scroll=", 0) == 0) {
-            home_scroll_y = std::max(0, std::atoi(std::string(arg.substr(14)).c_str()));
-        }
-    }
-    if (!start_page_set && (!screenshot_path.empty() || !screenshot_gif_path.empty())) {
-        start_page = player::PlayerPage::NowPlaying;
-    }
+    PreviewOptions options = parse_preview_options(argc, argv);
     print_host_feature_summary();
 
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO)) {
@@ -1277,71 +1303,71 @@ int main(int argc, char** argv) {
     g_player_cfg.output_mode = audio::OutputMode::fixed_rate;
     g_player_cfg.fixed_rate = 48000;
     charm::system::ClockCaps::TimeSource::bind(g_clock);
-    player::ui::set_player_system_font_fallback_enabled(!disable_system_font_fallback);
+    player::ui::set_player_system_font_fallback_enabled(!options.disable_system_font_fallback);
     player::AppConfig app_cfg{g_player_cfg};
     if constexpr (player::host_features::host_file_fonts) {
-        if (!font_ttf_path.empty()) {
-            app_cfg.ttf_path.assign(font_ttf_path);
+        if (!options.font_ttf_path.empty()) {
+            app_cfg.ttf_path.assign(options.font_ttf_path);
         } else {
             app_cfg.ttf_path.assign(player::product_config::default_font_path);
         }
-        if (!font_fallback_ttf_path.empty()) {
-            app_cfg.ttf_fallback_path.assign(font_fallback_ttf_path);
+        if (!options.font_fallback_ttf_path.empty()) {
+            app_cfg.ttf_fallback_path.assign(options.font_fallback_ttf_path);
         }
     }
-    if (font_small_px > 0) {
-        app_cfg.ttf_small_px = font_small_px;
+    if (options.font_small_px > 0) {
+        app_cfg.ttf_small_px = options.font_small_px;
     }
-    if (font_normal_px > 0) {
-        app_cfg.ttf_normal_px = font_normal_px;
+    if (options.font_normal_px > 0) {
+        app_cfg.ttf_normal_px = options.font_normal_px;
     }
-    if (font_large_px > 0) {
-        app_cfg.ttf_large_px = font_large_px;
+    if (options.font_large_px > 0) {
+        app_cfg.ttf_large_px = options.font_large_px;
     }
     g_app.emplace(std::move(app_cfg), g_clock);
 
     player::init_storage(player::default_storage_config());
     g_app->bind_player(g_ctx);
     g_ctx.bind_scene(g_platform.scene_ref());
-    g_ctx.set_start_page(start_page);
+    g_ctx.set_start_page(options.start_page);
     (void)g_app->scan_storage();
     g_ctx.apply_storage_view(g_app->storage_view(), false);
     g_platform.build_scene([&](::ui::scene::SceneBuilder& builder) {
         g_app->bind_ui(builder, g_ctx);
     });
-    g_ctx.set_page(start_page);
+    g_ctx.set_page(options.start_page);
 
-    const bool has_track = g_app->bootstrap_player(g_ctx, track_index_override, false);
-    if (library_tab_override.has_value()) {
-        g_ctx.set_library_tab(*library_tab_override);
+    const bool has_track = g_app->bootstrap_player(g_ctx, options.track_index_override, false);
+    if (options.library_tab_override.has_value()) {
+        g_ctx.set_library_tab(*options.library_tab_override);
     }
-    if (!library_context_override.empty()) {
-        (void)g_ctx.set_library_context_for_preview(library_context_override);
-    } else if (library_open_first_group) {
+    if (!options.library_context_override.empty()) {
+        (void)g_ctx.set_library_context_for_preview(options.library_context_override);
+    } else if (options.library_open_first_group) {
         (void)g_ctx.open_first_library_group_for_preview();
     }
-    if (library_select_index >= 0) {
-        (void)g_ctx.set_library_selected_index_for_preview(library_select_index);
+    if (options.library_select_index >= 0) {
+        (void)g_ctx.set_library_selected_index_for_preview(options.library_select_index);
     }
-        if (library_open_info) {
-            const bool opened = g_ctx.open_library_info_popup_for_preview(library_open_info_index);
-            if (screenshot_verbose) {
-                const char* info_title = g_platform.scene_ref().text(g_ctx.handles.list_info_title);
-                const char* info_subtitle = g_platform.scene_ref().text(g_ctx.handles.list_info_subtitle);
-                const char* info_meta = g_platform.scene_ref().text(g_ctx.handles.list_info_meta);
-                const char* info_path_title =
-                    g_platform.scene_ref().text(g_ctx.handles.list_info_path_title);
-                const char* info_path = g_platform.scene_ref().text(g_ctx.handles.list_info_path);
-                const char* info_path_detail =
-                    g_platform.scene_ref().text(g_ctx.handles.list_info_path_detail);
-                const char* info_hint = g_platform.scene_ref().text(g_ctx.handles.list_info_hint);
-                const Rect scrim_rect = g_platform.scene_ref().world_rect(g_ctx.handles.list_info_scrim);
-                const Rect card_rect = g_platform.scene_ref().world_rect(g_ctx.handles.list_info_card);
-                std::fprintf(stderr,
-                             "[preview] library_open_info flag=1 opened=%d selected=%d request=%d title=%s subtitle=%s meta=%s path_title=%s path=%s detail=%s hint=%s scrim=%d,%d,%d,%d card=%d,%d,%d,%d\n",
+    if (options.library_open_info) {
+        const bool opened = g_ctx.open_library_info_popup_for_preview(options.library_open_info_index);
+        if (options.screenshot_verbose) {
+            const char* info_title = g_platform.scene_ref().text(g_ctx.handles.list_info_title);
+            const char* info_subtitle = g_platform.scene_ref().text(g_ctx.handles.list_info_subtitle);
+            const char* info_meta = g_platform.scene_ref().text(g_ctx.handles.list_info_meta);
+            const char* info_path_title =
+                g_platform.scene_ref().text(g_ctx.handles.list_info_path_title);
+            const char* info_path = g_platform.scene_ref().text(g_ctx.handles.list_info_path);
+            const char* info_path_detail =
+                g_platform.scene_ref().text(g_ctx.handles.list_info_path_detail);
+            const char* info_hint = g_platform.scene_ref().text(g_ctx.handles.list_info_hint);
+            const Rect scrim_rect = g_platform.scene_ref().world_rect(g_ctx.handles.list_info_scrim);
+            const Rect card_rect = g_platform.scene_ref().world_rect(g_ctx.handles.list_info_card);
+            std::fprintf(stderr,
+                         "[preview] library_open_info flag=1 opened=%d selected=%d request=%d title=%s subtitle=%s meta=%s path_title=%s path=%s detail=%s hint=%s scrim=%d,%d,%d,%d card=%d,%d,%d,%d\n",
                          opened ? 1 : 0,
                          g_ctx.last_list_selected,
-                         library_open_info_index,
+                         options.library_open_info_index,
                          info_title ? info_title : "",
                          info_subtitle ? info_subtitle : "",
                          info_meta ? info_meta : "",
@@ -1352,16 +1378,16 @@ int main(int argc, char** argv) {
                          scrim_rect.x, scrim_rect.y, scrim_rect.w, scrim_rect.h,
                          card_rect.x, card_rect.y, card_rect.w, card_rect.h);
         }
-    } else if (screenshot_verbose) {
+    } else if (options.screenshot_verbose) {
         std::fprintf(stderr,
                      "[preview] library_open_info flag=0 selected=%d request=%d\n",
                      g_ctx.last_list_selected,
-                     library_open_info_index);
+                     options.library_open_info_index);
     }
-    if (library_open_action_menu) {
+    if (options.library_open_action_menu) {
         const bool opened =
-            g_ctx.open_library_action_menu_for_preview(library_open_action_menu_index);
-        if (screenshot_verbose) {
+            g_ctx.open_library_action_menu_for_preview(options.library_open_action_menu_index);
+        if (options.screenshot_verbose) {
             const char* menu_title = g_platform.scene_ref().text(g_ctx.handles.list_action_title);
             const Rect card_rect = g_platform.scene_ref().world_rect(g_ctx.handles.list_action_card);
             const char* item0 = g_platform.scene_ref().text(g_ctx.handles.list_action_items[0]);
@@ -1371,24 +1397,24 @@ int main(int argc, char** argv) {
                          "[preview] library_open_action_menu flag=1 opened=%d selected=%d request=%d title=%s items=[%s|%s|%s] card=%d,%d,%d,%d\n",
                          opened ? 1 : 0,
                          g_ctx.last_list_selected,
-                         library_open_action_menu_index,
+                         options.library_open_action_menu_index,
                          menu_title ? menu_title : "",
                          item0 ? item0 : "",
                          item1 ? item1 : "",
                          item2 ? item2 : "",
                          card_rect.x, card_rect.y, card_rect.w, card_rect.h);
         }
-    } else if (screenshot_verbose) {
+    } else if (options.screenshot_verbose) {
         std::fprintf(stderr,
                      "[preview] library_open_action_menu flag=0 selected=%d request=%d\n",
                      g_ctx.last_list_selected,
-                     library_open_action_menu_index);
+                     options.library_open_action_menu_index);
     }
     if (has_track && !fs_seek_selftest(g_ctx.track_path())) {
         g_ctx.set_status("Fs seek selftest failed");
     }
 
-    if (ui_ci) {
+    if (options.ui_ci) {
         const UiCiResult result = run_ui_ci(*g_app, g_ctx, g_platform);
         g_app->shutdown(g_ctx);
         SDL_DestroyTexture(texture);
@@ -1411,13 +1437,13 @@ int main(int argc, char** argv) {
         .running = &running,
         .win_w = &win_w,
         .win_h = &win_h,
-        .screenshot_path = std::move(screenshot_path),
-        .screenshot_gif_path = std::move(screenshot_gif_path),
-        .screenshot_page = start_page,
-        .home_scroll_y = home_scroll_y,
-        .screenshot_verbose = screenshot_verbose,
-        .screenshot_wait_frames = screenshot_wait_frames,
-        .screenshot_exit = screenshot_exit
+        .screenshot_path = std::move(options.screenshot_path),
+        .screenshot_gif_path = std::move(options.screenshot_gif_path),
+        .screenshot_page = options.start_page,
+        .home_scroll_y = options.home_scroll_y,
+        .screenshot_verbose = options.screenshot_verbose,
+        .screenshot_wait_frames = options.screenshot_wait_frames,
+        .screenshot_exit = options.screenshot_exit
     };
     charm::system::RunLoop<4> loop{};
     loop.bind_clock(g_clock);

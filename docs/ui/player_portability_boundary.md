@@ -26,6 +26,7 @@ The Player portability boundary should follow the same broad shape as the DAPLin
 ## Host-Only Dependencies
 
 - SDL3 windowing, event pump, renderer, and screenshot flow live in `Examples/project/player/win`.
+- Windows command-line preview flags are parsed into a host-local `PreviewOptions` structure; page controllers should not learn about argv shape.
 - Host feature defaults are composed by `PLAYER_HOST_PROFILE`; explicit `CHARM_PLAYER_HOST_*` cache values remain valid overrides for local experiments.
 - Windows preview resource defaults are composed by `product_player_host_resources.cmake`; common code reads them through `player.product_config`.
 - Win32/GDI fallback font caching is gated by `CHARM_PLAYER_HOST_UI && CHARM_PLAYER_PC_FONT_CACHE && _WIN32`.

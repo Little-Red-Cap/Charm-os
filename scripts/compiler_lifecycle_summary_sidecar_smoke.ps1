@@ -44,6 +44,42 @@ function Assert-Equal {
     }
 }
 
+function Read-Json {
+    param(
+        [string]$Path
+    )
+
+    return Get-Content -LiteralPath $Path -Raw -Encoding utf8 | ConvertFrom-Json
+}
+
+function Write-Json {
+    param(
+        $Data,
+        [string]$Path
+    )
+
+    $Data | ConvertTo-Json -Depth 64 | Set-Content -LiteralPath $Path -Encoding utf8
+}
+
+function Assert-CommandFails {
+    param(
+        [scriptblock]$Command,
+        [string]$Label
+    )
+
+    $failed = $false
+    try {
+        & $Command
+    } catch {
+        $failed = $true
+        Write-Host ("[EXPECTED-FAIL] {0}: {1}" -f $Label, $_.Exception.Message)
+    }
+
+    if (-not $failed) {
+        throw ("{0}: expected command to fail" -f $Label)
+    }
+}
+
 $repoRoot = Resolve-FullPath -Path (Join-Path $PSScriptRoot "..")
 $outputRootPath = Resolve-FullPath -Path $OutputRoot
 
@@ -70,6 +106,10 @@ $reportPath = Join-Path $outputRootPath "compiler_lifecycle.report.md"
 $checkPath = Join-Path $outputRootPath "compiler_lifecycle.check.txt"
 $gatePath = Join-Path $outputRootPath "compiler_lifecycle.gate.txt"
 $jsonToolPath = Join-Path $outputRootPath "compiler_lifecycle.summary.normalized.json"
+$forgedFrozenPath = Join-Path $outputRootPath "compiler_lifecycle.forged_frozen.summary.json"
+$forgedFrozenGatePath = Join-Path $outputRootPath "compiler_lifecycle.forged_frozen.gate.txt"
+$loweredDirectPath = Join-Path $outputRootPath "compiler_lifecycle.lowered_direct.summary.json"
+$loweredDirectGatePath = Join-Path $outputRootPath "compiler_lifecycle.lowered_direct.gate.txt"
 
 & $PythonExe $exportScript `
     --artifact-report-index $artifactReportIndex `
@@ -127,8 +167,27 @@ Assert-Equal -Actual ([string]$summary.states.archived.coverage_strength) -Expec
 Assert-Equal -Actual ([string]$summary.states.observed.status) -Expected "present" -Label "observed.status"
 Assert-Equal -Actual ([string]$session.verdict.session_status) -Expected "standing" -Label "source session verdict"
 
+$forgedFrozenSummary = Read-Json -Path $summaryPath
+$forgedFrozenSummary.states.frozen.status = "present"
+$forgedFrozenSummary.states.frozen.coverage_strength = "strong"
+$forgedFrozenSummary.states.frozen.projection_kind = "direct"
+$forgedFrozenSummary.states.frozen.sidecar_gap = "not_required"
+Write-Json -Data $forgedFrozenSummary -Path $forgedFrozenPath
+Assert-CommandFails -Label "forged frozen coverage" -Command {
+    & $checkScript -Summary $forgedFrozenPath -OutputPath $forgedFrozenGatePath
+}
+
+$loweredDirectSummary = Read-Json -Path $summaryPath
+$loweredDirectSummary.states.lowered.projection_kind = "direct"
+Write-Json -Data $loweredDirectSummary -Path $loweredDirectPath
+Assert-CommandFails -Label "lowered direct truth" -Command {
+    & $checkScript -Summary $loweredDirectPath -OutputPath $loweredDirectGatePath
+}
+
 Write-Host "[COMPILER-LIFECYCLE-SUMMARY-SIDECAR-SMOKE] result=ok"
 Write-Host ("summary={0}" -f $summaryPath)
 Write-Host ("report={0}" -f $reportPath)
 Write-Host ("check={0}" -f $checkPath)
 Write-Host ("gate={0}" -f $gatePath)
+Write-Host ("forged_frozen_gate={0}" -f $forgedFrozenGatePath)
+Write-Host ("lowered_direct_gate={0}" -f $loweredDirectGatePath)

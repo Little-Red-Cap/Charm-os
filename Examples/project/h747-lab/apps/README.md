@@ -19,12 +19,17 @@ Each app directory must provide an `app.cmake` manifest with:
   `power status`, `pmic probe`, `memory status`, `sdram1 probe`,
   `sdram2 probe`, `sdram1 verify`, `sdram2 verify`, `sdram1 bus`,
   `sdram2 bus`, `sdram1 spot`, `sdram2 spot`, `sdram1 alias`,
-  `sdram2 alias`, `sdram1 waitbus`, `sdram2 waitbus`, `sdram1 timing`,
+  `sdram2 alias`, `sdram1 addr`, `sdram2 addr`, `sdram1 lane`,
+  `sdram2 lane`, `sdram1 repeat`, `sdram2 repeat`, `sdram1 locate`,
+  `sdram2 locate`, `sdram1 waitbus`, `sdram2 waitbus`, `sdram1 timing`,
   `sdram2 timing`, `qspi probe`, `qspi read`, and `reboot`. `spot` checks
   single-address write/read behavior; `bus` checks simple data-pattern evidence;
   `alias` captures neighboring words around sampled offsets; `waitbus` repeats
   the bus diag after command-busy waits; `timing` sweeps CAS/read-pipe and mode
-  register presets. Its console path is adapted through `TextSink` and
+  register presets. `addr` writes unique sentinels across address bits, `lane`
+  checks byte/halfword/word lane behavior, `repeat` distinguishes stable bad
+  reads from random drift, and `locate` searches where a single-word write
+  actually lands. Its console path is adapted through `TextSink` and
   `LineSource`. `memory mpu normal` is an explicit diagnostic escape hatch that
   marks both SDRAM banks as normal non-cacheable memory before rerunning probes;
   it is not a default boot policy.

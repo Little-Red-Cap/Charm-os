@@ -12,6 +12,10 @@ message(STATUS "${CMAKE_PROJECT_NAME} PLAYER_SCENARIO: ${PLAYER_SCENARIO}")
 option(CHARM_PLAYER_DEBUG_UI "Enable player debug UI" ON)
 option(CHARM_PLAYER_SOA_TRACE "Enable SoA trace-only hooks for player" OFF)
 option(CHARM_PLAYER_COVER_DEBUG "Enable cover debug log" OFF)
+option(CHARM_PLAYER_HOST_STORAGE "Enable host VHD storage defaults" ON)
+option(CHARM_PLAYER_HOST_COVER_DECODE "Enable host-side embedded/file cover decoding" ON)
+option(CHARM_PLAYER_HOST_FILE_FONTS "Enable host-side FreeType/VFS file fonts" ON)
+option(CHARM_PLAYER_PLAYBACK_LOG "Enable host playback diagnostics" ON)
 
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/product_player_host_scenarios.cmake")
 
@@ -31,11 +35,32 @@ foreach(_target IN ITEMS ${PLAYER_TARGET_VIVID} ${PLAYER_TARGET_INK} ${PLAYER_TA
     target_compile_definitions(${_target} PRIVATE
         OUT_ENABLE_FLOAT
         CHARM_AUDIO_USE_VFS=1
+        CHARM_PLAYER_HOST_UI=1
         CHARM_PLAYER_PC_FONT_CACHE=1
         CHARM_PLAYER_PRODUCT="${PLAYER_PRODUCT}"
         CHARM_PLAYER_PLATFORM="${PLAYER_PLATFORM}"
         CHARM_PLAYER_BOARD="${PLAYER_BOARD}"
     )
+    if (CHARM_PLAYER_HOST_STORAGE)
+        target_compile_definitions(${_target} PRIVATE CHARM_PLAYER_HOST_STORAGE=1)
+    else()
+        target_compile_definitions(${_target} PRIVATE CHARM_PLAYER_HOST_STORAGE=0)
+    endif()
+    if (CHARM_PLAYER_HOST_COVER_DECODE)
+        target_compile_definitions(${_target} PRIVATE CHARM_PLAYER_HOST_COVER_DECODE=1)
+    else()
+        target_compile_definitions(${_target} PRIVATE CHARM_PLAYER_HOST_COVER_DECODE=0)
+    endif()
+    if (CHARM_PLAYER_HOST_FILE_FONTS)
+        target_compile_definitions(${_target} PRIVATE CHARM_PLAYER_HOST_FILE_FONTS=1)
+    else()
+        target_compile_definitions(${_target} PRIVATE CHARM_PLAYER_HOST_FILE_FONTS=0)
+    endif()
+    if (CHARM_PLAYER_PLAYBACK_LOG)
+        target_compile_definitions(${_target} PRIVATE CHARM_PLAYER_PLAYBACK_LOG=1)
+    else()
+        target_compile_definitions(${_target} PRIVATE CHARM_PLAYER_PLAYBACK_LOG=0)
+    endif()
     if (CHARM_PLAYER_DEBUG_UI)
         target_compile_definitions(${_target} PRIVATE CHARM_PLAYER_DEBUG_UI=1)
     else()

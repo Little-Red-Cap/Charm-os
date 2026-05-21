@@ -4,7 +4,6 @@ module;
 #include <cctype>
 #include <cstdint>
 #include <cstdio>
-#include <ctime>
 #include <cmath>
 #include <string>
 #include <string_view>
@@ -33,6 +32,7 @@ import player.playback;
 import player.fs_utils;
 import player.stats_history;
 import player.storage;
+import player.time_utils;
 import player.track_probe;
 import player.ui;
 import player.cover;
@@ -1156,6 +1156,14 @@ export namespace player {
             }
         }
 
+        void show_default_current_cover() noexcept {
+            release_cover_image(cover_image);
+            set_image_slot_range(
+                current_track_cover_slots(),
+                default_cover_image_id(DefaultCoverVariant::HomeHeroPill),
+                false);
+        }
+
         void reset_cover_image() noexcept {
             cover_ready = false;
             cover_path.clear();
@@ -1170,9 +1178,8 @@ export namespace player {
         void update_cover_image() {
             if (!access.valid()) return;
             if (!cover_ready || (cover_embedded_path.empty() && cover_folder_path.empty())) {
-                release_cover_image(cover_image);
+                show_default_current_cover();
                 apply_cover_theme_from_current_image();
-                clear_image_slot_range(current_track_cover_slots(), false);
                 restore_now_playing_group_visibility();
                 restore_bottom_bar_content_visibility();
                 sync_now_playing_transition_overlay();
@@ -1244,7 +1251,7 @@ export namespace player {
             }
 
             if (loaded) return;
-            clear_image_slot_range(current_track_cover_slots(), false);
+            show_default_current_cover();
             apply_cover_theme_from_current_image();
             restore_now_playing_group_visibility();
             restore_bottom_bar_content_visibility();

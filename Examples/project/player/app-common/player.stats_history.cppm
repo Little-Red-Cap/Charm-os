@@ -34,37 +34,51 @@ export namespace player {
     namespace detail {
         constexpr std::size_t kHistoryIoBytes = 2048;
 
-#if defined(_WIN32)
-        inline int scan_history_line(const char* line,
-                                     int* week_key,
-                                     int* total_plays,
-                                     int* s0,
-                                     int* s1,
-                                     int* s2,
-                                     int* s3,
-                                     int* s4,
-                                     int* s5,
-                                     int* s6) noexcept {
-            return ::sscanf_s(line,
-                              "week %d plays %d seconds %d %d %d %d %d %d %d",
-                              week_key, total_plays, s0, s1, s2, s3, s4, s5, s6);
+        inline bool match_token(const char*& p, const char* token) noexcept {
+            while (*p == ' ' || *p == '\t') ++p;
+            const char* t = token;
+            while (*t != 0) {
+                if (*p != *t) return false;
+                ++p;
+                ++t;
+            }
+            return true;
         }
-#else
-        inline int scan_history_line(const char* line,
-                                     int* week_key,
-                                     int* total_plays,
-                                     int* s0,
-                                     int* s1,
-                                     int* s2,
-                                     int* s3,
-                                     int* s4,
-                                     int* s5,
-                                     int* s6) noexcept {
-            return std::sscanf(line,
-                               "week %d plays %d seconds %d %d %d %d %d %d %d",
-                               week_key, total_plays, s0, s1, s2, s3, s4, s5, s6);
+
+        inline bool scan_int(const char*& p, int& out) noexcept {
+            while (*p == ' ' || *p == '\t') ++p;
+            bool neg = false;
+            if (*p == '-') {
+                neg = true;
+                ++p;
+            }
+            if (*p < '0' || *p > '9') return false;
+            int value = 0;
+            while (*p >= '0' && *p <= '9') {
+                value = value * 10 + (*p - '0');
+                ++p;
+            }
+            out = neg ? -value : value;
+            return true;
         }
-#endif
+
+        inline bool scan_history_line(const char* line,
+                                      ListeningStatsWeekRecord& rec) noexcept {
+            if (!line) return false;
+            const char* p = line;
+            return match_token(p, "week")
+                && scan_int(p, rec.week_key)
+                && match_token(p, "plays")
+                && scan_int(p, rec.total_plays)
+                && match_token(p, "seconds")
+                && scan_int(p, rec.seconds[0])
+                && scan_int(p, rec.seconds[1])
+                && scan_int(p, rec.seconds[2])
+                && scan_int(p, rec.seconds[3])
+                && scan_int(p, rec.seconds[4])
+                && scan_int(p, rec.seconds[5])
+                && scan_int(p, rec.seconds[6]);
+        }
 
         inline fs::OpenFlags combine_open_flags(fs::OpenFlags a, fs::OpenFlags b) noexcept {
             const auto av = static_cast<util::u32>(a);
@@ -166,17 +180,7 @@ export namespace player {
                 line_buf[copy_len] = 0;
 
                 ListeningStatsWeekRecord rec{};
-                const int matched = detail::scan_history_line(line_buf.data(),
-                                                              &rec.week_key,
-                                                              &rec.total_plays,
-                                                              &rec.seconds[0],
-                                                              &rec.seconds[1],
-                                                              &rec.seconds[2],
-                                                              &rec.seconds[3],
-                                                              &rec.seconds[4],
-                                                              &rec.seconds[5],
-                                                              &rec.seconds[6]);
-                if (matched == 9 && rec.week_key > 0) {
+                if (detail::scan_history_line(line_buf.data(), rec) && rec.week_key > 0) {
                     upsert_listening_stats_week(history, rec);
                 }
             }

@@ -14,6 +14,7 @@ import audio.player;
 import audio.result;
 import charm.system.clock;
 import player.fixed_string;
+import player.host_features;
 
 namespace {
     void dump_path_escaped(const char* path) {
@@ -42,6 +43,8 @@ export namespace player {
         case audio::Errc::nomem: return "nomem";
         case audio::Errc::busy: return "busy";
         case audio::Errc::exist: return "exist";
+        case audio::Errc::notdir: return "notdir";
+        case audio::Errc::isdir: return "isdir";
         case audio::Errc::inval: return "invalid_arg";
         case audio::Errc::rofs: return "rofs";
         case audio::Errc::nametoolong: return "nametoolong";
@@ -284,29 +287,29 @@ export namespace player {
             }
             if (!track_ready_) {
                 out_status.assign("Track not ready");
-#if defined(_WIN32)
-                std::printf("[player] track not ready: ");
-                dump_path_escaped(track_path_);
-                std::printf("\n");
-#endif
+                if constexpr (host_features::playback_log) {
+                    std::printf("[player] track not ready: ");
+                    dump_path_escaped(track_path_);
+                    std::printf("\n");
+                }
                 return false;
             }
             (void)player_->stop();
-#if defined(_WIN32)
-            std::printf("[player] play: ");
-            dump_path_escaped(track_path_);
-            std::printf("\n");
-#endif
+            if constexpr (host_features::playback_log) {
+                std::printf("[player] play: ");
+                dump_path_escaped(track_path_);
+                std::printf("\n");
+            }
             auto res = player_->play(track_path_);
             if (!res) {
                 char buf[64]{};
                 std::snprintf(buf, sizeof(buf), "Play failed (%s)", audio_err_text(res.error()));
                 out_status.assign(buf);
-#if defined(_WIN32)
-                std::printf("[player] play failed (%s): ", audio_err_text(res.error()));
-                dump_path_escaped(track_path_);
-                std::printf("\n");
-#endif
+                if constexpr (host_features::playback_log) {
+                    std::printf("[player] play failed (%s): ", audio_err_text(res.error()));
+                    dump_path_escaped(track_path_);
+                    std::printf("\n");
+                }
                 return false;
             }
             playing_ = true;

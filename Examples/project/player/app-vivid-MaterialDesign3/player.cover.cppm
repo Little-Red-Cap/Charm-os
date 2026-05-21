@@ -10,17 +10,28 @@ module;
 #include <string_view>
 #include <vector>
 
+#if defined(CHARM_PLAYER_HOST_UI) && CHARM_PLAYER_HOST_UI && \
+    defined(CHARM_PLAYER_HOST_COVER_DECODE) && CHARM_PLAYER_HOST_COVER_DECODE
+#define CHARM_PLAYER_USE_HOST_COVER_DECODE 1
+#else
+#define CHARM_PLAYER_USE_HOST_COVER_DECODE 0
+#endif
+
+#if CHARM_PLAYER_USE_HOST_COVER_DECODE
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_NO_STDIO
 #include <stb_image.h>
 #include <dr_flac.h>
+#endif
 
 export module player.cover;
 
 import charm.gfx.image;
+#if CHARM_PLAYER_USE_HOST_COVER_DECODE
 import fs_core;
 import fs_vfs;
 import util.core;
+#endif
 
 export namespace player {
     struct CoverImage {
@@ -43,6 +54,9 @@ export namespace player {
     ui::gfx::ImageId default_cover_image_id() noexcept;
     ui::gfx::ImageId default_cover_image_id(DefaultCoverVariant variant) noexcept;
     ui::gfx::ImageId default_cover_image_id(std::size_t variant) noexcept;
+    using CoverProviderFn = bool (*)(std::string_view path, CoverImage& out) noexcept;
+    void set_cover_provider(CoverProviderFn provider) noexcept;
+    CoverProviderFn cover_provider() noexcept;
 
     namespace detail {
         constexpr std::size_t kPlaceholderCoverVariantCount = 6;
@@ -516,6 +530,7 @@ export namespace player {
             return res.ok() ? res.id : ui::gfx::invalid_image_id();
         }
 
+#if CHARM_PLAYER_USE_HOST_COVER_DECODE
         bool is_flac_path(std::string_view path) noexcept {
             const auto dot = path.find_last_of('.');
             if (dot == std::string_view::npos || dot + 1 >= path.size()) return false;
@@ -1221,17 +1236,11 @@ export namespace player {
 #endif
             return false;
         }
+#endif
     } // namespace detail
 
-    void release_cover_image(CoverImage& img) {
-        if (ui::gfx::image_id_valid(img.image_id)) {
-            ui::gfx::unregister_image(img.image_id);
-        }
-        img = {};
-    }
-
-    bool load_cover_image(std::string_view path, CoverImage& out) {
-        release_cover_image(out);
+#if CHARM_PLAYER_USE_HOST_COVER_DECODE
+    bool load_host_cover_image(std::string_view path, CoverImage& out) noexcept {
         if (path.empty()) return false;
         if (detail::is_flac_path(path)) {
             return detail::load_flac_cover(path, out);
@@ -1267,14 +1276,14 @@ export namespace player {
             const auto before = f.node.offset;
             const auto st_read = fs::read(f, std::span<util::u8>(
                 reinterpret_cast<util::u8*>(buffer.data() + offset), chunk));
-        if (!st_read) {
-            (void)fs::vfs_close(f);
+            if (!st_read) {
+                (void)fs::vfs_close(f);
 #if defined(CHARM_PLAYER_COVER_DEBUG)
-            std::printf("[cover] read failed: %.*s\n",
-                        static_cast<int>(path.size()), path.data());
+                std::printf("[cover] read failed: %.*s\n",
+                            static_cast<int>(path.size()), path.data());
 #endif
-            return false;
-        }
+                return false;
+            }
             const auto after = f.node.offset;
             if (after <= before) break;
             const std::size_t read = static_cast<std::size_t>(after - before);
@@ -1302,6 +1311,46 @@ export namespace player {
                     out.image_id.slot, out.image_id.generation);
 #endif
         return true;
+    }
+#endif
+
+    namespace detail {
+        bool default_cover_provider(std::string_view path, CoverImage& out) noexcept {
+#if !CHARM_PLAYER_USE_HOST_COVER_DECODE
+            (void)path;
+            (void)out;
+            return false;
+#else
+            return load_host_cover_image(path, out);
+#endif
+        }
+
+        CoverProviderFn& active_cover_provider() noexcept {
+            static CoverProviderFn provider = &default_cover_provider;
+            return provider;
+        }
+    }
+
+    void release_cover_image(CoverImage& img) {
+        if (ui::gfx::image_id_valid(img.image_id)) {
+            ui::gfx::unregister_image(img.image_id);
+        }
+        img = {};
+    }
+
+    void set_cover_provider(CoverProviderFn provider) noexcept {
+        detail::active_cover_provider() = provider ? provider : &detail::default_cover_provider;
+    }
+
+    CoverProviderFn cover_provider() noexcept {
+        return detail::active_cover_provider();
+    }
+
+    bool load_cover_image(std::string_view path, CoverImage& out) {
+        release_cover_image(out);
+        if (path.empty()) return false;
+        const auto provider = detail::active_cover_provider();
+        return provider ? provider(path, out) : false;
     }
 
     ui::gfx::ImageId default_cover_image_id() noexcept {

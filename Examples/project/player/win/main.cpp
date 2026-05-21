@@ -3,9 +3,11 @@ import audio.result;
 import player.app;
 import player.controller;
 import player.fs_utils;
+import player.host_features;
 import player.platform;
 import player.storage;
 import player.playback;
+import player.product_config;
 import player.ui_builder;
 import player.ui;
 import charm.core.config;
@@ -63,6 +65,15 @@ namespace {
     static audio::PlayerConfig g_player_cfg{};
     static charm::system::Clock g_clock{nullptr, {.now_us = &now_us}};
     static std::optional<player::App> g_app{};
+
+    void print_host_feature_summary() noexcept {
+        std::printf("[player.features] host_ui=%d host_storage=%d host_cover_decode=%d host_file_fonts=%d playback_log=%d\n",
+                    player::host_features::host_ui ? 1 : 0,
+                    player::host_features::host_storage ? 1 : 0,
+                    player::host_features::host_cover_decode ? 1 : 0,
+                    player::host_features::host_file_fonts ? 1 : 0,
+                    player::host_features::playback_log ? 1 : 0);
+    }
 
     using PlayerUiContext = player::PlayerController;
     using UiHandles = player::UiHandles;
@@ -1226,6 +1237,7 @@ int main(int argc, char** argv) {
     if (!start_page_set && (!screenshot_path.empty() || !screenshot_gif_path.empty())) {
         start_page = player::PlayerPage::NowPlaying;
     }
+    print_host_feature_summary();
 
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO)) {
         return 1;
@@ -1262,7 +1274,7 @@ int main(int argc, char** argv) {
     if (!font_ttf_path.empty()) {
         app_cfg.ttf_path = font_ttf_path;
     } else {
-        app_cfg.ttf_path = "/font/gflex_variable.ttf";
+        app_cfg.ttf_path = player::product_config::default_font_path;
     }
     if (!font_fallback_ttf_path.empty()) {
         app_cfg.ttf_fallback_path = font_fallback_ttf_path;

@@ -9,6 +9,7 @@ import player.mcu_policy;
 import audio.player;
 import audio.result;
 import charm.system.clock;
+import player.product_config;
 import player.storage;
 import player.ui;
 import player.ui_builder;
@@ -24,9 +25,9 @@ export namespace player {
         audio::PlayerConfig player_config{};
         std::string ttf_path{};
         std::string ttf_fallback_path{};
-        int ttf_small_px{14};
-        int ttf_normal_px{18};
-        int ttf_large_px{76};
+        int ttf_small_px{product_config::default_font_small_px};
+        int ttf_normal_px{product_config::default_font_normal_px};
+        int ttf_large_px{product_config::default_font_large_px};
     };
 
     class App {

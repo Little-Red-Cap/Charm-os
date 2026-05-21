@@ -5,7 +5,7 @@ module;
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <vector>
+#include <span>
 
 export module player.cover_theme;
 
@@ -15,6 +15,11 @@ import player.cover;
 import player.ui;
 
 export namespace player::cover_theme {
+    inline constexpr int kCoverThemeSampleMaxSide = 128;
+    inline constexpr std::size_t kCoverThemeSampleCapacity =
+        static_cast<std::size_t>(kCoverThemeSampleMaxSide)
+        * static_cast<std::size_t>(kCoverThemeSampleMaxSide);
+
     enum class CoverThemeMode : std::uint8_t {
         primary_container,
         surface_container_high,
@@ -24,7 +29,7 @@ export namespace player::cover_theme {
     struct CoverThemeConfig {
         CoverThemeMode mode{CoverThemeMode::primary_container};
         bool is_dark{true};
-        int downscale_max{128};
+        int downscale_max{kCoverThemeSampleMaxSide};
         alg::PaletteStyle palette_style{alg::PaletteStyle::tonal_spot};
         rgba fallback{player::ui::kUiBackdropBase};
     };
@@ -185,10 +190,13 @@ export namespace player::cover_theme {
         return (a << 24) | (r << 16) | (g << 8) | b;
     }
 
-    inline std::vector<std::uint32_t> resize_argb_bilinear(const CoverImage& img, int out_w, int out_h) {
-        if (out_w <= 0 || out_h <= 0 || img.width <= 0 || img.height <= 0) return {};
-        std::vector<std::uint32_t> out;
-        out.reserve(static_cast<std::size_t>(out_w * out_h));
+    inline std::size_t resize_argb_bilinear(const CoverImage& img,
+                                            int out_w,
+                                            int out_h,
+                                            std::span<std::uint32_t> out) noexcept {
+        if (out_w <= 0 || out_h <= 0 || img.width <= 0 || img.height <= 0) return 0;
+        const auto count = static_cast<std::size_t>(out_w) * static_cast<std::size_t>(out_h);
+        if (count > out.size()) return 0;
         const int in_w = img.width;
         const int in_h = img.height;
         const float scale_x = static_cast<float>(in_w) / static_cast<float>(out_w);
@@ -239,10 +247,12 @@ export namespace player::cover_theme {
                 const std::uint32_t ri = static_cast<std::uint32_t>(std::clamp(r, 0.0f, 255.0f));
                 const std::uint32_t gi = static_cast<std::uint32_t>(std::clamp(g, 0.0f, 255.0f));
                 const std::uint32_t bi = static_cast<std::uint32_t>(std::clamp(b, 0.0f, 255.0f));
-                out.push_back((ai << 24) | (ri << 16) | (gi << 8) | bi);
+                out[static_cast<std::size_t>(y) * static_cast<std::size_t>(out_w)
+                    + static_cast<std::size_t>(x)] =
+                    (ai << 24) | (ri << 16) | (gi << 8) | bi;
             }
         }
-        return out;
+        return count;
     }
 
     inline rgba with_alpha(const rgba& color, std::uint8_t alpha) noexcept {
@@ -900,11 +910,17 @@ export namespace player::cover_theme {
         const int w = img.width;
         const int h = img.height;
         const int max_side = std::max(w, h);
-        const int target = std::max(1, cfg.downscale_max);
+        const int target = std::clamp(cfg.downscale_max, 1, kCoverThemeSampleMaxSide);
         const int scaled_w = (max_side > target) ? std::max(1, (w * target) / max_side) : w;
         const int scaled_h = (max_side > target) ? std::max(1, (h * target) / max_side) : h;
 
-        std::vector<std::uint32_t> samples = resize_argb_bilinear(img, scaled_w, scaled_h);
+        std::array<std::uint32_t, kCoverThemeSampleCapacity> sample_storage{};
+        const std::size_t sample_count = resize_argb_bilinear(
+            img,
+            scaled_w,
+            scaled_h,
+            std::span<std::uint32_t>(sample_storage.data(), sample_storage.size()));
+        const std::span<const std::uint32_t> samples{sample_storage.data(), sample_count};
         std::uint64_t sum_r = 0;
         std::uint64_t sum_g = 0;
         std::uint64_t sum_b = 0;

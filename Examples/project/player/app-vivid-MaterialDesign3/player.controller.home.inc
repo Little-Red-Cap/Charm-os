@@ -1,30 +1,3 @@
-        struct WeekStamp {
-            int key{0};
-            int day_index{0};
-        };
-
-        static void local_time_from_epoch(std::time_t epoch, std::tm& out) noexcept {
-#if defined(_WIN32)
-            localtime_s(&out, &epoch);
-#else
-            localtime_r(&epoch, &out);
-#endif
-        }
-
-        static WeekStamp current_week_stamp() noexcept {
-            const std::time_t now_epoch = std::time(nullptr);
-            std::tm local{};
-            local_time_from_epoch(now_epoch, local);
-            const int monday_index = (local.tm_wday + 6) % 7;
-            const std::time_t monday_epoch = now_epoch - static_cast<std::time_t>(monday_index) * 24 * 60 * 60;
-            std::tm monday{};
-            local_time_from_epoch(monday_epoch, monday);
-            const int key = (monday.tm_year + 1900) * 10000
-                + (monday.tm_mon + 1) * 100
-                + monday.tm_mday;
-            return WeekStamp{key, monday_index};
-        }
-
         static void format_listening_duration_long(int total_sec, char* out, std::size_t out_size) noexcept {
             if (!out || out_size == 0) return;
             if (total_sec <= 0) {
@@ -558,7 +531,7 @@
                                        role.fg);
             }
 
-            const WeekStamp stamp = current_week_stamp();
+            const auto stamp = player::time_utils::current_week_stamp();
             for (std::size_t i = 0; i < handles.home_stats_bars.size(); ++i) {
                 const WidgetHandle bar = handles.home_stats_bars[i];
                 if (!bar) continue;
@@ -836,7 +809,7 @@
         }
 
         void ensure_weekly_listening_week() noexcept {
-            const WeekStamp stamp = current_week_stamp();
+            const auto stamp = player::time_utils::current_week_stamp();
             if (weekly_listening_stats.week_key != stamp.key) {
                 if (weekly_listening_week_loaded() && weekly_listening_stats_needs_persist()) {
                     persist_current_weekly_listening_stats();
@@ -851,7 +824,7 @@
         void load_weekly_listening_stats_history() {
             if (!fs_ready) return;
             weekly_listening_history = player::load_listening_stats_history();
-            const WeekStamp stamp = current_week_stamp();
+            const auto stamp = player::time_utils::current_week_stamp();
             load_weekly_listening_stats_from_history(stamp.key);
             refresh_home_dashboard_if_active(true);
         }
@@ -926,7 +899,7 @@
                     const std::uint64_t delta_ms = now_ms - weekly_listening_stats.last_tick_ms;
                     const int add_sec = static_cast<int>(delta_ms / 1000);
                     if (add_sec > 0) {
-                        const WeekStamp stamp = current_week_stamp();
+                        const auto stamp = player::time_utils::current_week_stamp();
                         if (weekly_listening_stats.week_key != stamp.key) {
                             load_weekly_listening_stats_from_history(stamp.key);
                             set_weekly_listening_session_active(true, now_ms);

@@ -12,12 +12,10 @@ import fs_core;
 import fs_errno;
 import fs_stream;
 import player.fs_utils;
+import player.host_features;
 
 export namespace player {
     using MountFn = fs::Status (*)(const char* path);
-#ifndef CHARM_PLAYER_FS_LOG
-#define CHARM_PLAYER_FS_LOG 0
-#endif
 
 #ifndef CHARM_PLAYER_MAX_TRACKS
 #define CHARM_PLAYER_MAX_TRACKS 256
@@ -59,10 +57,10 @@ export namespace player {
         }
 
         out.mount_status.assign("Mounted");
-#if CHARM_PLAYER_FS_LOG && defined(_WIN32) && defined(CHARM_PLAYER_FS_DUMP) && CHARM_PLAYER_FS_DUMP
-        std::printf("[fs] mount ok, dump tree:\n");
-        (void)fs_utils::dump_fs_tree("/", 0, 4);
-#endif
+        if constexpr (host_features::host_fs_dump) {
+            std::printf("[fs] mount ok, dump tree:\n");
+            (void)fs_utils::dump_fs_tree("/", 0, 4);
+        }
         fs::Status list_st{fs::Errc::ok};
         if (!fs_utils::collect_tracks_from_dir("/music", out.tracks, nullptr, list_st)) {
             if (!list_st && list_st.err == fs::Errc::nomem) {
@@ -109,21 +107,21 @@ export namespace player {
         }
 
         out.has_tracks = out.tracks.size() > 0;
-#if CHARM_PLAYER_FS_LOG && defined(_WIN32) && defined(CHARM_PLAYER_FS_DUMP) && CHARM_PLAYER_FS_DUMP
-        std::printf("[fs] tracks=%zu\n", out.tracks.size());
-        for (std::size_t i = 0; i < out.tracks.size(); ++i) {
-            const auto view = out.tracks[i].view();
-            std::printf("[fs] track: ");
-            for (unsigned char ch : view) {
-                if (std::isprint(ch)) {
-                    std::printf("%c", static_cast<char>(ch));
-                } else {
-                    std::printf("\\x%02X", static_cast<unsigned int>(ch));
+        if constexpr (host_features::host_fs_dump) {
+            std::printf("[fs] tracks=%zu\n", out.tracks.size());
+            for (std::size_t i = 0; i < out.tracks.size(); ++i) {
+                const auto view = out.tracks[i].view();
+                std::printf("[fs] track: ");
+                for (unsigned char ch : view) {
+                    if (std::isprint(ch)) {
+                        std::printf("%c", static_cast<char>(ch));
+                    } else {
+                        std::printf("\\x%02X", static_cast<unsigned int>(ch));
+                    }
                 }
+                std::printf("\n");
             }
-            std::printf("\n");
         }
-#endif
         return out;
     }
 }

@@ -8,6 +8,13 @@ module;
 #include <string_view>
 #include <cstdio>
 
+#if defined(CHARM_PLAYER_HOST_UI) && CHARM_PLAYER_HOST_UI && \
+    defined(CHARM_PLAYER_HOST_FILE_FONTS) && CHARM_PLAYER_HOST_FILE_FONTS
+#define CHARM_PLAYER_USE_HOST_FILE_FONTS 1
+#else
+#define CHARM_PLAYER_USE_HOST_FILE_FONTS 0
+#endif
+
 export module player.ui;
 
 import charm.core.style;
@@ -21,8 +28,10 @@ import charm.font.font_noto_ascii_16;
 import charm.font.font_noto_ascii_12;
 import charm.font.font_noto_sc_16;
 import charm.ui.scene.pill_surface;
+#if CHARM_PLAYER_USE_HOST_FILE_FONTS
 import charm.ui.vivid.font_package;
 import charm.font.provider_freetype;
+#endif
 import player.font_cache;
 import charm.widgets.button;
 import charm.widgets.chart;
@@ -371,6 +380,7 @@ export namespace player::ui {
         // TODO(player/ui): Make exact font cache size product-configurable after host-side typography tuning stabilizes.
         inline constexpr std::size_t kPlayerExactFontCacheSlots = 24;
 
+#if CHARM_PLAYER_USE_HOST_FILE_FONTS
         struct FontPackageState {
             charm::font::VfsFontPackage package{};
             bool bound{false};
@@ -417,11 +427,6 @@ export namespace player::ui {
             return state;
         }
 
-        bool& system_font_fallback_enabled_state() noexcept {
-            static bool enabled = true;
-            return enabled;
-        }
-
         void reset_exact_font_cache(FreetypeLoaderState& state) noexcept {
             const auto api = state.loader.vfs_api();
             for (auto& slot : state.exact_fonts) {
@@ -443,6 +448,18 @@ export namespace player::ui {
             if (px >= 48) return get_font_weighted(FontId::Large, weight);
             if (px <= 14) return get_font_weighted(FontId::Small, weight);
             return get_font_weighted(FontId::Normal, weight);
+        }
+#else
+        const Font& fallback_font_for_px(int px, FontWeight weight) noexcept {
+            if (px >= 48) return get_font_weighted(FontId::Large, weight);
+            if (px <= 14) return get_font_weighted(FontId::Small, weight);
+            return get_font_weighted(FontId::Normal, weight);
+        }
+#endif
+
+        bool& system_font_fallback_enabled_state() noexcept {
+            static bool enabled = true;
+            return enabled;
         }
     }
 
@@ -757,16 +774,23 @@ export namespace player::ui {
     }
 
     bool font_package_bound() noexcept {
+#if CHARM_PLAYER_USE_HOST_FILE_FONTS
         return detail::font_package_state().bound;
+#else
+        return false;
+#endif
     }
 
     void reset_player_font_package_cache() noexcept {
+#if CHARM_PLAYER_USE_HOST_FILE_FONTS
         auto& state = detail::font_package_state();
         state.package.reset_cache();
         state.bound = false;
         detail::reset_exact_font_cache(detail::freetype_state());
+#endif
     }
 
+#if CHARM_PLAYER_USE_HOST_FILE_FONTS
     namespace detail {
         std::string make_exact_font_path(std::string_view base_path,
                                          int px,
@@ -959,6 +983,23 @@ export namespace player::ui {
         const auto path = detail::make_exact_font_path(state.ttf_path, px, weight, variation_tokens);
         return detail::load_player_exact_font(path, px, weight);
     }
+#else
+    void bind_player_freetype_font(std::string_view,
+                                   std::string_view,
+                                   int,
+                                   int,
+                                   int) noexcept {}
+
+    const Font& get_player_font_px(int px, FontWeight weight) noexcept {
+        return detail::fallback_font_for_px(px, weight);
+    }
+
+    const Font& get_player_font_px_variant(int px,
+                                           FontWeight weight,
+                                           std::string_view) noexcept {
+        return get_player_font_px(px, weight);
+    }
+#endif
 
     inline void apply_player_theme() {
         set_default_font(FontId::Small, &font_noto_ascii_12);

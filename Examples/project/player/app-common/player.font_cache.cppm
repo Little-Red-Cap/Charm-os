@@ -9,7 +9,15 @@ module;
 #include <string_view>
 #include <vector>
 
-#if defined(_WIN32)
+#if defined(CHARM_PLAYER_HOST_UI) && CHARM_PLAYER_HOST_UI && \
+    defined(CHARM_PLAYER_PC_FONT_CACHE) && CHARM_PLAYER_PC_FONT_CACHE && \
+    defined(_WIN32)
+#define CHARM_PLAYER_USE_WIN32_FONT_CACHE 1
+#else
+#define CHARM_PLAYER_USE_WIN32_FONT_CACHE 0
+#endif
+
+#if CHARM_PLAYER_USE_WIN32_FONT_CACHE
 #include <windows.h>
 #endif
 
@@ -20,7 +28,7 @@ import charm.font.typography;
 
 export namespace player::font_cache {
 namespace detail {
-#if defined(CHARM_PLAYER_PC_FONT_CACHE) && defined(_WIN32)
+#if CHARM_PLAYER_USE_WIN32_FONT_CACHE
     struct Cache {
         HDC hdc{nullptr};
         HFONT font_handle{nullptr};
@@ -184,7 +192,7 @@ namespace detail {
 } // namespace detail
 
 inline bool init() noexcept {
-#if defined(CHARM_PLAYER_PC_FONT_CACHE) && defined(_WIN32)
+#if CHARM_PLAYER_USE_WIN32_FONT_CACHE
     auto& c = detail::cache();
     if (c.ready) return true;
     c.glyph_requests = 0;
@@ -205,7 +213,7 @@ inline bool init() noexcept {
 }
 
 inline const Font* fallback_font() noexcept {
-#if defined(CHARM_PLAYER_PC_FONT_CACHE) && defined(_WIN32)
+#if CHARM_PLAYER_USE_WIN32_FONT_CACHE
     auto& c = detail::cache();
     return c.ready ? &c.font : nullptr;
 #else
@@ -214,7 +222,7 @@ inline const Font* fallback_font() noexcept {
 }
 
 inline void ensure_text(const char* text) noexcept {
-#if defined(CHARM_PLAYER_PC_FONT_CACHE) && defined(_WIN32)
+#if CHARM_PLAYER_USE_WIN32_FONT_CACHE
     auto& c = detail::cache();
     if (!c.ready) return;
     if (!text) return;
@@ -225,7 +233,7 @@ inline void ensure_text(const char* text) noexcept {
 }
 
 inline void ensure_text(std::string_view text) noexcept {
-#if defined(CHARM_PLAYER_PC_FONT_CACHE) && defined(_WIN32)
+#if CHARM_PLAYER_USE_WIN32_FONT_CACHE
     auto& c = detail::cache();
     if (!c.ready || text.empty()) return;
     (void)detail::ensure_text_impl(c, text);
@@ -235,7 +243,7 @@ inline void ensure_text(std::string_view text) noexcept {
 }
 
 inline bool ready() noexcept {
-#if defined(CHARM_PLAYER_PC_FONT_CACHE) && defined(_WIN32)
+#if CHARM_PLAYER_USE_WIN32_FONT_CACHE
     return detail::cache().ready;
 #else
     return false;
@@ -249,7 +257,7 @@ struct Stats {
 };
 
 inline Stats stats() noexcept {
-#if defined(CHARM_PLAYER_PC_FONT_CACHE) && defined(_WIN32)
+#if CHARM_PLAYER_USE_WIN32_FONT_CACHE
     const auto& c = detail::cache();
     return Stats{c.glyph_requests, c.glyph_cached, c.glyph_missing};
 #else
@@ -258,7 +266,7 @@ inline Stats stats() noexcept {
 }
 
 inline void reset_stats() noexcept {
-#if defined(CHARM_PLAYER_PC_FONT_CACHE) && defined(_WIN32)
+#if CHARM_PLAYER_USE_WIN32_FONT_CACHE
     auto& c = detail::cache();
     c.glyph_requests = 0;
     c.glyph_cached = 0;

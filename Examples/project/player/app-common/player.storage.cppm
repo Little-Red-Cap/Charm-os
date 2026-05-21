@@ -16,7 +16,9 @@ import fs_fatfs;
 import fs_stream;
 import fs_vfs;
 import player.fs_utils;
+import player.host_features;
 import player.media_scan;
+import player.product_config;
 
 export namespace player {
     using TrackLabel = FixedString<192>;
@@ -69,11 +71,10 @@ export namespace player {
         }
 
         StorageConfig default_storage_config() {
-#if defined(_WIN32)
-            return StorageConfig{&fs_utils::mount_fatfs_from_vhd, "G:/Project/dev.vhd"};
-#else
+            if constexpr (host_features::host_storage) {
+                return StorageConfig{&fs_utils::mount_fatfs_from_vhd, product_config::host_default_vhd_path};
+            }
             return StorageConfig{&mount_fatfs_from_sd, nullptr};
-#endif
         }
     }
 

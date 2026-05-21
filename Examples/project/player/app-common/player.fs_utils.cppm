@@ -10,6 +10,7 @@ export module player.fs_utils;
 
 import service.fixed_vector;
 import player.fixed_string;
+import player.host_features;
 import audio.source.fs;
 import fs_core;
 import fs_errno;
@@ -23,13 +24,9 @@ import fs_vfs;
 import util.core;
 
 export namespace player::fs_utils {
-#ifndef CHARM_PLAYER_FS_LOG
-#define CHARM_PLAYER_FS_LOG 0
-#endif
-
     namespace detail {
         constexpr std::size_t kMaxScanDirs = 64;
-        constexpr bool kFsLogEnabled = CHARM_PLAYER_FS_LOG != 0;
+        constexpr bool kFsLogEnabled = player::host_features::fs_log;
 #if defined(CHARM_PLAYER_COVER_DEBUG)
         constexpr bool kCoverLogEnabled = true;
 #else
@@ -167,7 +164,6 @@ export namespace player::fs_utils {
             }
             if (entry.type != fs::NodeType::file) return fs::Status{fs::Errc::ok};
             if (!has_audio_ext(entry.name)) {
-#if defined(_WIN32)
                 if (detail::kFsLogEnabled) {
                     bool has_non_ascii = false;
                     for (unsigned char ch : entry.name) {
@@ -182,7 +178,6 @@ export namespace player::fs_utils {
                         std::printf("\n");
                     }
                 }
-#endif
                 return fs::Status{fs::Errc::ok};
             }
 

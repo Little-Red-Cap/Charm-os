@@ -56,6 +56,7 @@ cmake -S host -B cmake-build-host-debug
 cmake --build cmake-build-host-debug
 .\cmake-build-host-debug\h747_lab_host_display_raster_demo.exe
 .\cmake-build-host-debug\h747_lab_host_player.exe
+ctest --test-dir cmake-build-host-debug -C Debug --output-on-failure
 ```
 
 The host executables write `.ppm` visual evidence next to the executable, so

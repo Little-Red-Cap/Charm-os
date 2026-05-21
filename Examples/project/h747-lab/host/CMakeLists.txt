@@ -6,6 +6,8 @@ endif()
 
 project(h747_lab_host LANGUAGES CXX)
 
+enable_testing()
+
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -30,3 +32,9 @@ target_include_directories(h747_lab_host_player PRIVATE
 
 target_compile_options(h747_lab_host_player PRIVATE
     $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall -Wextra -Wpedantic>)
+
+add_test(NAME h747_lab_host_player_ci
+    COMMAND $<TARGET_FILE:h747_lab_host_player> --ci)
+set_tests_properties(h747_lab_host_player_ci PROPERTIES
+    PASS_REGULAR_EXPRESSION "\\[player-host-ci\\] ok=1"
+    FAIL_REGULAR_EXPRESSION "\\[player-host-ci\\] ok=0")

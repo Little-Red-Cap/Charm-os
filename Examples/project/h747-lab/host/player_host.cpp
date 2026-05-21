@@ -134,6 +134,18 @@ static_assert(charm::cap::RasterDisplayWorld<MockPlayerWorld>);
 
 namespace {
 
+constexpr std::uint32_t kExpectedCiHash = 0x650DDD82U;
+constexpr std::uint32_t kExpectedCiPresents = 4U;
+
+[[nodiscard]] bool has_arg(const int argc, char** argv, const char* expected) noexcept {
+    for (int i = 1; i < argc; ++i) {
+        if ((argv[i] != nullptr) && (std::strcmp(argv[i], expected) == 0)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 std::uint32_t fnv1a32(const std::span<const std::byte> bytes) noexcept {
     std::uint32_t hash = 2166136261U;
     for (const auto byte : bytes) {
@@ -170,6 +182,7 @@ std::filesystem::path output_path(const char* argv0) {
 } // namespace
 
 int main(const int argc, char** argv) {
+    const bool ci = has_arg(argc, argv, "--ci");
     host::world::MockPlayerWorld world{};
     h747::apps::player::PlayerRuntime runtime{};
     h747::apps::player::init(world, runtime);
@@ -179,14 +192,25 @@ int main(const int argc, char** argv) {
     }
 
     const auto hash = fnv1a32(world.pixels());
+    const std::uint32_t presents = world.display().present_count();
     std::printf("player_host: hash=0x%08X presents=%u\n",
                 static_cast<unsigned>(hash),
-                static_cast<unsigned>(world.display().present_count()));
+                static_cast<unsigned>(presents));
     const auto ppm = output_path((argc > 0) ? argv[0] : nullptr);
     if (!write_ppm(ppm, world)) {
         std::fprintf(stderr, "failed to write player_host.ppm\n");
         return 1;
     }
     std::printf("player_host: ppm=%s\n", ppm.string().c_str());
+    if (ci) {
+        const bool ok = (hash == kExpectedCiHash) && (presents == kExpectedCiPresents);
+        std::printf("[player-host-ci] ok=%u hash=0x%08X expected_hash=0x%08X presents=%u expected_presents=%u\n",
+                    ok ? 1U : 0U,
+                    static_cast<unsigned>(hash),
+                    static_cast<unsigned>(kExpectedCiHash),
+                    static_cast<unsigned>(presents),
+                    static_cast<unsigned>(kExpectedCiPresents));
+        return ok ? 0 : 3;
+    }
     return hash == 0U ? 2 : 0;
 }

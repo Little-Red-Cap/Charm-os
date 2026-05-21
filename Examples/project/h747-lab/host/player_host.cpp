@@ -155,6 +155,62 @@ std::uint32_t fnv1a32(const std::span<const std::byte> bytes) noexcept {
     return hash;
 }
 
+bool run_model_ci() noexcept {
+    using h747::apps::player::PlayerBoardSnapshot;
+    using h747::apps::player::PlayerRuntime;
+
+    PlayerRuntime runtime{};
+    runtime.reset();
+    if (!runtime.view().playing || runtime.view().storage_ready || runtime.view().cover_ready) {
+        return false;
+    }
+
+    runtime.observe_board(PlayerBoardSnapshot{
+        .display_ready = true,
+        .framebuffer_ready = true,
+        .sdram_ready = true,
+        .sdram_smoke_ok = true,
+        .qspi_power_good = false,
+        .qspi_jedec_ok = false,
+        .qspi_read_ok = false,
+    });
+    if (!runtime.view().playing || runtime.view().storage_ready || runtime.view().cover_ready) {
+        return false;
+    }
+    if (runtime.view().subtitle != "Display ready, storage probing") {
+        return false;
+    }
+
+    runtime.observe_board(PlayerBoardSnapshot{
+        .display_ready = true,
+        .framebuffer_ready = true,
+        .sdram_ready = true,
+        .sdram_smoke_ok = true,
+        .qspi_power_good = true,
+        .qspi_jedec_ok = true,
+        .qspi_read_ok = false,
+    });
+    if (!runtime.view().playing || !runtime.view().storage_ready || !runtime.view().cover_ready) {
+        return false;
+    }
+    if (runtime.view().subtitle != "Display + storage ready") {
+        return false;
+    }
+
+    runtime.observe_board(PlayerBoardSnapshot{
+        .display_ready = true,
+        .framebuffer_ready = false,
+        .sdram_ready = false,
+        .sdram_smoke_ok = false,
+        .qspi_power_good = true,
+        .qspi_jedec_ok = false,
+        .qspi_read_ok = true,
+    });
+    return !runtime.view().playing && runtime.view().storage_ready &&
+           runtime.view().cover_ready &&
+           runtime.view().subtitle == "Display init, framebuffer pending";
+}
+
 bool write_ppm(const std::filesystem::path& path, host::world::MockPlayerWorld& world) {
     auto* file = std::fopen(path.string().c_str(), "wb");
     if (file == nullptr) {
@@ -203,9 +259,13 @@ int main(const int argc, char** argv) {
     }
     std::printf("player_host: ppm=%s\n", ppm.string().c_str());
     if (ci) {
-        const bool ok = (hash == kExpectedCiHash) && (presents == kExpectedCiPresents);
-        std::printf("[player-host-ci] ok=%u hash=0x%08X expected_hash=0x%08X presents=%u expected_presents=%u\n",
+        const bool model_ok = run_model_ci();
+        const bool visual_ok = (hash == kExpectedCiHash) && (presents == kExpectedCiPresents);
+        const bool ok = model_ok && visual_ok;
+        std::printf("[player-host-ci] ok=%u model_ok=%u visual_ok=%u hash=0x%08X expected_hash=0x%08X presents=%u expected_presents=%u\n",
                     ok ? 1U : 0U,
+                    model_ok ? 1U : 0U,
+                    visual_ok ? 1U : 0U,
                     static_cast<unsigned>(hash),
                     static_cast<unsigned>(kExpectedCiHash),
                     static_cast<unsigned>(presents),

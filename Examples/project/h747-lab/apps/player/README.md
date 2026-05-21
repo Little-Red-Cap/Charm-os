@@ -13,7 +13,8 @@ boundary, not feature parity.
   probes, maps service snapshots into `PlayerBoardSnapshot`, and prints
   display evidence.
 - `host/player_host.cpp` runs the same domain code against a mock world and
-  writes `player_host.ppm` under `cmake-build-*`.
+  writes `player_host.ppm` under `cmake-build-*`. Its `--ci` mode also asserts
+  `PlayerBoardSnapshot -> PlayerViewModel` state mapping.
 
 The domain path does not depend on the old Windows Player project, file fonts,
 cover decoding, dynamic allocation, exceptions, RTTI, or STM32 HAL handles.

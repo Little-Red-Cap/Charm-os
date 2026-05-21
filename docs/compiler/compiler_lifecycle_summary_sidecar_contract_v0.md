@@ -4,7 +4,7 @@
 
 它定义 `compiler_lifecycle.summary.json` 应承担的职责边界：只读投影现有 artifact/report/witness/ledger/compare surfaces，把九个 lifecycle states 的 projection status 与 coverage status 机器可读化。
 
-当前最小实现入口为 `scripts/export_compiler_lifecycle_summary.py`，只读 gate 为 `scripts/check_compiler_lifecycle_summary.ps1`，定向 smoke 为 `scripts/compiler_lifecycle_summary_sidecar_smoke.ps1`。这个 gate 只检查 sidecar 自身形状与 v0 honesty constraints，不是 JSON schema validator。本文仍不定义 JSON schema、validator、C++ 类型、World IR、canonical identity、observation import pass 或 LLVM/MLIR 接入。
+当前最小实现入口为 `scripts/export_compiler_lifecycle_summary.py`，只读 gate 为 `scripts/check_compiler_lifecycle_summary.ps1`，只读 report consumer 为 `scripts/report_compiler_lifecycle_summary.ps1`，定向 smoke 为 `scripts/compiler_lifecycle_summary_sidecar_smoke.ps1`。这个 gate 只检查 sidecar 自身形状与 v0 honesty constraints，不是 JSON schema validator；report consumer 只渲染 summary，不创建新 truth。本文仍不定义 JSON schema、validator、C++ 类型、World IR、canonical identity、observation import pass 或 LLVM/MLIR 接入。
 
 ## 1. 定位
 
@@ -130,6 +130,12 @@ exported surfaces
 - 检查 `frozen` 仍为 `missing / interpretive / recommended`。
 - 检查 present 的 `lowered` / `archived` 不被升级成 direct truth。
 - 不读取 raw logs，不重跑 exporter，不替代 schema validator，不修改任何 source surface 或 verdict。
+
+当前 report consumer 应保持只读：
+
+- 只读取 `compiler_lifecycle.summary.json`。
+- 只输出 lifecycle states、honesty markers、source surfaces 与 summary violations 的人类可读报告。
+- 不执行 gate，不解析 raw logs，不重跑 exporter，不修复 missing states，不创建 source facts。
 
 该实现不新增 schema，不接入大 CI，也不替代 artifact report、runtime ledger、witness bundle 或 world compare。
 

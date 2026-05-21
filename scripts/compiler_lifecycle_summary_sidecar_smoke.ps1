@@ -90,12 +90,13 @@ Ensure-Directory -Path $outputRootPath
 
 $exportScript = Join-Path $PSScriptRoot "export_compiler_lifecycle_summary.py"
 $checkScript = Join-Path $PSScriptRoot "check_compiler_lifecycle_summary.ps1"
+$reportScript = Join-Path $PSScriptRoot "report_compiler_lifecycle_summary.ps1"
 $artifactReportIndex = Join-Path $repoRoot "schemas/examples/system_compiler.artifact_report_index.v0.sample.json"
 $kernelRuntimeSession = Join-Path $repoRoot "schemas/examples/minimal_kernel.kernel_runtime_session.v0.sample.json"
 $witnessBundle = Join-Path $repoRoot "schemas/examples/system_compiler.witness_bundle.v0.sample.json"
 $worldCompare = Join-Path $repoRoot "schemas/examples/system_compiler.world_compare.v0.sample.json"
 
-foreach ($requiredPath in @($exportScript, $checkScript, $artifactReportIndex, $kernelRuntimeSession, $witnessBundle, $worldCompare)) {
+foreach ($requiredPath in @($exportScript, $checkScript, $reportScript, $artifactReportIndex, $kernelRuntimeSession, $witnessBundle, $worldCompare)) {
     if (-not (Test-Path $requiredPath)) {
         throw "required input not found: $requiredPath"
     }
@@ -105,6 +106,7 @@ $summaryPath = Join-Path $outputRootPath "compiler_lifecycle.summary.json"
 $reportPath = Join-Path $outputRootPath "compiler_lifecycle.report.md"
 $checkPath = Join-Path $outputRootPath "compiler_lifecycle.check.txt"
 $gatePath = Join-Path $outputRootPath "compiler_lifecycle.gate.txt"
+$summaryReportPath = Join-Path $outputRootPath "compiler_lifecycle.summary_report.md"
 $jsonToolPath = Join-Path $outputRootPath "compiler_lifecycle.summary.normalized.json"
 $forgedFrozenPath = Join-Path $outputRootPath "compiler_lifecycle.forged_frozen.summary.json"
 $forgedFrozenGatePath = Join-Path $outputRootPath "compiler_lifecycle.forged_frozen.gate.txt"
@@ -136,6 +138,10 @@ if ($LASTEXITCODE -ne 0) {
     -RequireArchivedCoverageStrength "weak_to_medium" `
     -RequireObservedStatus "present"
 
+& $reportScript `
+    -Summary $summaryPath `
+    -OutputPath $summaryReportPath
+
 $summary = Get-Content -LiteralPath $summaryPath -Raw -Encoding utf8 | ConvertFrom-Json
 $session = Get-Content -LiteralPath $kernelRuntimeSession -Raw -Encoding utf8 | ConvertFrom-Json
 
@@ -166,6 +172,9 @@ Assert-Equal -Actual ([string]$summary.states.lowered.projection_kind) -Expected
 Assert-Equal -Actual ([string]$summary.states.archived.coverage_strength) -Expected "weak_to_medium" -Label "archived.coverage_strength"
 Assert-Equal -Actual ([string]$summary.states.observed.status) -Expected "present" -Label "observed.status"
 Assert-Equal -Actual ([string]$session.verdict.session_status) -Expected "standing" -Label "source session verdict"
+if (-not (Select-String -LiteralPath $summaryReportPath -Pattern "Frozen: ``missing / interpretive / recommended``" -Quiet)) {
+    throw "summary report missing frozen honesty marker"
+}
 
 $forgedFrozenSummary = Read-Json -Path $summaryPath
 $forgedFrozenSummary.states.frozen.status = "present"
@@ -189,5 +198,6 @@ Write-Host ("summary={0}" -f $summaryPath)
 Write-Host ("report={0}" -f $reportPath)
 Write-Host ("check={0}" -f $checkPath)
 Write-Host ("gate={0}" -f $gatePath)
+Write-Host ("summary_report={0}" -f $summaryReportPath)
 Write-Host ("forged_frozen_gate={0}" -f $forgedFrozenGatePath)
 Write-Host ("lowered_direct_gate={0}" -f $loweredDirectGatePath)

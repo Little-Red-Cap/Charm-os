@@ -1,9 +1,12 @@
 #include "player.h"
 
 #include "console.h"
+#include "console_service.hpp"
 #include "h747_world.hpp"
 #include "memory_service.hpp"
 #include "player_domain.hpp"
+
+#include <string_view>
 
 namespace {
 
@@ -19,6 +22,11 @@ h747::apps::player::PlayerRuntime& active_runtime() noexcept {
 
 h747::memory::StorageProbe& active_storage_probe() noexcept {
     static h747::memory::StorageProbe instance{};
+    return instance;
+}
+
+h747::console::ConsoleLineSource& active_line_source() noexcept {
+    static h747::console::ConsoleLineSource instance{};
     return instance;
 }
 
@@ -52,6 +60,54 @@ void probe_resources_periodic() noexcept {
     }
     last_probe_ms = now;
     probe_resources_once();
+}
+
+[[nodiscard]] bool command_from_line(const std::string_view line,
+                                     h747::apps::player::PlayerCommand& out) noexcept {
+    using h747::apps::player::PlayerCommandKind;
+    if ((line == "play") || (line == "pause") || (line == "toggle")) {
+        out = h747::apps::player::PlayerCommand{.kind = PlayerCommandKind::toggle_play};
+        return true;
+    }
+    if ((line == "next") || (line == "n")) {
+        out = h747::apps::player::PlayerCommand{.kind = PlayerCommandKind::next_track};
+        return true;
+    }
+    if ((line == "prev") || (line == "previous") || (line == "p")) {
+        out = h747::apps::player::PlayerCommand{.kind = PlayerCommandKind::previous_track};
+        return true;
+    }
+    if ((line == "seek+") || (line == "+")) {
+        out = h747::apps::player::PlayerCommand{
+            .kind = PlayerCommandKind::seek_relative,
+            .delta_percent = 10,
+        };
+        return true;
+    }
+    if ((line == "seek-") || (line == "-")) {
+        out = h747::apps::player::PlayerCommand{
+            .kind = PlayerCommandKind::seek_relative,
+            .delta_percent = -10,
+        };
+        return true;
+    }
+    return false;
+}
+
+void poll_console_commands() noexcept {
+    auto line = active_line_source().poll_line();
+    if (!line) {
+        return;
+    }
+
+    h747::apps::player::PlayerCommand command{};
+    if (!command_from_line(*line, command)) {
+        h747::console::write_line("player: commands: toggle next prev seek+ seek-");
+        return;
+    }
+
+    active_runtime().dispatch(command);
+    h747::console::write_line("player: command_ok");
 }
 
 void print_hex32(const char* label, const std::uint32_t value) {
@@ -119,6 +175,7 @@ void init() {
 void loop_once() noexcept {
     probe_resources_periodic();
     active_runtime().observe_board(capture_board_snapshot());
+    poll_console_commands();
     loop_once(active_world(), active_runtime());
     static std::uint32_t last_present = 0U;
     const auto present = active_world().display().state().raw.present_count;

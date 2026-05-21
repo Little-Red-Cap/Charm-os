@@ -3,6 +3,7 @@
 本文是 `Charm Compiler Constitution v0` 的下游执法细则。
 
 它只定义 pass authority、semantic freeze、identity preservation、world fork、lossy lowering 与 paired artifact 的法律边界，不定义 `World IR` 数据结构、schema、pass runner、LLVM/MLIR dialect 或 codegen pipeline。
+World lifecycle 与 observation import boundary 的状态语言见：[`compiler_world_lifecycle_v0.md`](compiler_world_lifecycle_v0.md)。
 
 ## 1. 定位
 

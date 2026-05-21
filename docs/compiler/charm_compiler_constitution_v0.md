@@ -5,6 +5,7 @@
 它不是新的 DSL，不是 `World IR` schema，也不是 LLVM/MLIR 接入计划。它用于定义 Charm 作为 system compiler 时必须遵守的世界法理：世界如何存在、事实如何进入世界、哪些 pass 有权修改世界、何时冻结语义、lowering 如何保留语义身份，以及 witness 如何回指世界真相。
 
 Pass authority、identity preservation、semantic freeze boundary、world fork 与 lossy lowering 的细化规则见：[`compiler_pass_authority_and_freeze_boundary_v0.md`](compiler_pass_authority_and_freeze_boundary_v0.md)。
+World lifecycle、observation import boundary 与 archived/compared 状态语言见：[`compiler_world_lifecycle_v0.md`](compiler_world_lifecycle_v0.md)。
 
 ## 1. 定位
 

@@ -1272,12 +1272,12 @@ int main(int argc, char** argv) {
     player::ui::set_player_system_font_fallback_enabled(!disable_system_font_fallback);
     player::AppConfig app_cfg{g_player_cfg};
     if (!font_ttf_path.empty()) {
-        app_cfg.ttf_path = font_ttf_path;
+        app_cfg.ttf_path.assign(font_ttf_path);
     } else {
-        app_cfg.ttf_path = player::product_config::default_font_path;
+        app_cfg.ttf_path.assign(player::product_config::default_font_path);
     }
     if (!font_fallback_ttf_path.empty()) {
-        app_cfg.ttf_fallback_path = font_fallback_ttf_path;
+        app_cfg.ttf_fallback_path.assign(font_fallback_ttf_path);
     }
     if (font_small_px > 0) {
         app_cfg.ttf_small_px = font_small_px;

@@ -11,12 +11,22 @@ This note tracks the current portability boundary for the Player UI work. The go
 - `CHARM_PLAYER_PLAYBACK_LOG=1` enables host playback diagnostics.
 - `app-vivid-MaterialDesign3` is still a rich host-side UI variant. It is not yet MCU-strict because it still uses dynamic containers and host asset loading.
 
+## Layering Direction
+
+The Player portability boundary should follow the same broad shape as the DAPLink-style split:
+
+- Product/profile records decide which features, providers, and board resources are composed.
+- Common source modules provide stable capabilities without knowing the host preview shell.
+- Host shells own preview-only windowing, diagnostics, screenshots, and file-backed convenience paths.
+- Page controllers should depend on semantic providers, not on Windows, SDL, or file decoder details.
+
 ## Host-Only Dependencies
 
 - SDL3 windowing, event pump, renderer, and screenshot flow live in `Examples/project/player/win`.
 - Win32/GDI fallback font caching is gated by `CHARM_PLAYER_HOST_UI && CHARM_PLAYER_PC_FONT_CACHE && _WIN32`.
 - Host VHD storage defaults are gated by `CHARM_PLAYER_HOST_STORAGE`.
 - Product resource defaults live in `player.product_config`; host entry points should select or override them instead of hardcoding resource paths.
+- `AppConfig` stores resource paths in fixed-capacity slots so the app-level config boundary does not require dynamic strings.
 - Embedded and file-backed cover decoding is gated by `CHARM_PLAYER_HOST_COVER_DECODE`; portable targets can keep using generated/default covers or later provide pre-decoded resource images.
 - The Windows host shell prints `[player.features]` at startup so a preview build and a portability-probe build can be distinguished from logs. A probe with `host_cover_decode=0` is expected to skip real cover decoding.
 - `player.cover` exposes a small `CoverProviderFn` slot. The default provider is the host decoder when `CHARM_PLAYER_HOST_COVER_DECODE=1`; portable targets can install a pre-decoded/resource-backed provider without changing page controllers.

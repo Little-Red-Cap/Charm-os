@@ -1,14 +1,11 @@
 module;
 
-#include <string>
-#include <vector>
-
 export module player.app;
 
-import player.mcu_policy;
 import audio.player;
 import audio.result;
 import charm.system.clock;
+import player.fixed_string;
 import player.product_config;
 import player.storage;
 import player.ui;
@@ -17,14 +14,11 @@ import charm.ui.scene;
 import input.raw_event;
 import ui.input_adapter;
 
-inline constexpr bool kPlayerAppMcuGuard =
-    (player::mcu_policy::guard("player.app uses std::string/std::vector; port before MCU build."), true);
-
 export namespace player {
     struct AppConfig {
         audio::PlayerConfig player_config{};
-        std::string ttf_path{};
-        std::string ttf_fallback_path{};
+        FixedString<260> ttf_path{};
+        FixedString<260> ttf_fallback_path{};
         int ttf_small_px{product_config::default_font_small_px};
         int ttf_normal_px{product_config::default_font_normal_px};
         int ttf_large_px{product_config::default_font_large_px};
@@ -33,7 +27,7 @@ export namespace player {
     class App {
     public:
         App(AppConfig config, charm::system::Clock& clock)
-            : config_(std::move(config)),
+            : config_(config),
               player_(config_.player_config, clock) {}
 
         audio::Result<void> play(const char* path) { return player_.play(path); }
@@ -103,24 +97,24 @@ export namespace player {
         void bind_ui(::ui::scene::SceneBuilder& builder, Controller& controller) {
             if (!config_.ttf_path.empty()) {
                 if constexpr (requires {
-                                  controller.set_font_config(config_.ttf_path,
-                                                             config_.ttf_fallback_path,
+                                  controller.set_font_config(config_.ttf_path.view(),
+                                                             config_.ttf_fallback_path.view(),
                                                              config_.ttf_small_px,
                                                              config_.ttf_normal_px,
                                                              config_.ttf_large_px);
                               }) {
-                    controller.set_font_config(config_.ttf_path,
-                                               config_.ttf_fallback_path,
+                    controller.set_font_config(config_.ttf_path.view(),
+                                               config_.ttf_fallback_path.view(),
                                                config_.ttf_small_px,
                                                config_.ttf_normal_px,
                                                config_.ttf_large_px);
                 } else if constexpr (requires {
-                                         controller.set_font_config(config_.ttf_path,
+                                         controller.set_font_config(config_.ttf_path.view(),
                                                                     config_.ttf_small_px,
                                                                     config_.ttf_normal_px,
                                                                     config_.ttf_large_px);
                                      }) {
-                    controller.set_font_config(config_.ttf_path,
+                    controller.set_font_config(config_.ttf_path.view(),
                                                config_.ttf_small_px,
                                                config_.ttf_normal_px,
                                                config_.ttf_large_px);

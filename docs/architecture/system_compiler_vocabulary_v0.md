@@ -4,6 +4,8 @@
 它用于收敛 Charm 在 `system compiler v0` 阶段最核心的一组词汇，
 并把这些词和仓库当前已经存在的代码/文档载体做一轮正式映射。
 
+上位法理见：[`../compiler/charm_compiler_constitution_v0.md`](../compiler/charm_compiler_constitution_v0.md)。本文只收敛当前允许使用的 system compiler 词汇，不替代 compile-time world、pass authority、semantic freeze、lowering 或 witness 的宪法边界。
+
 它要回答的核心问题不是“未来最终配置文件长什么样”，而是：
 
 > **当我们讨论 system compiler 时，仓库里哪些词已经可以当正式语言使用，它们当前分别落在什么地方。**

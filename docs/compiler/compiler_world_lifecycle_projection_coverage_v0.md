@@ -170,6 +170,8 @@ Observation 不得直接修改 frozen world。若 observation 未来要影响语
 
 因此 future sidecar 是 `optional`，不是本刀要求。
 
+未来 archive manifest 的法律责任由 [`compiler_archive_manifest_contract_v0.md`](compiler_archive_manifest_contract_v0.md) 承接。Coverage matrix 只负责暴露弱覆盖，不负责生成 archive manifest。
+
 ### 4.9 `compared`
 
 `compared` 当前有明确落点。

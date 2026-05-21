@@ -145,6 +145,7 @@ firmware
 > **firmware is lowered residue; witness and metadata carry the semantic world needed to understand it.**
 
 如果某个运行产物不能回指 semantic world，它只能证明“某个 binary 存在”，不能完整证明“这个系统世界成立”。
+未来 archive manifest 的只读归档证明责任见：[`compiler_archive_manifest_contract_v0.md`](compiler_archive_manifest_contract_v0.md)。
 
 ## 8. 典型越权
 

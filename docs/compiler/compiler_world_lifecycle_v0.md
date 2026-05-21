@@ -153,6 +153,7 @@ declared
 - symbolic/debug/provenance map
 
 `archived` 的目标是让系统事实可复盘，而不是只证明某次构建产出了文件。
+未来 archive manifest 的只读归档证明责任见：[`compiler_archive_manifest_contract_v0.md`](compiler_archive_manifest_contract_v0.md)。
 
 ## 11. `compared`
 

@@ -12,6 +12,7 @@
 
 上位法理见：[`../compiler/charm_compiler_constitution_v0.md`](../compiler/charm_compiler_constitution_v0.md)。本文中的 `declared / materialized / published / observed` 可以被视为 Charm compile-time world state transition language 的现有胚胎，但本文仍只定义 bringup evidence pipeline v0 的状态语言，不改变现有 evidence/artifact 判决模型。
 更完整的 compiler lifecycle 状态语言见：[`../compiler/compiler_world_lifecycle_v0.md`](../compiler/compiler_world_lifecycle_v0.md)，但该文档不改变本 bringup evidence pipeline 的原有语义。
+现有 bringup evidence 到 compiler lifecycle states 的只读映射见：[`../compiler/compiler_world_lifecycle_projection_v0.md`](../compiler/compiler_world_lifecycle_projection_v0.md)。
 
 ## 1. 为什么 bringup 需要从手艺活变成证据流水线
 

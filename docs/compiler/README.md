@@ -9,6 +9,7 @@
 - [`charm_compiler_constitution_v0.md`](charm_compiler_constitution_v0.md)
 - [`compiler_pass_authority_and_freeze_boundary_v0.md`](compiler_pass_authority_and_freeze_boundary_v0.md)
 - [`compiler_world_lifecycle_v0.md`](compiler_world_lifecycle_v0.md)
+- [`compiler_world_lifecycle_projection_v0.md`](compiler_world_lifecycle_projection_v0.md)
 
 ## 阅读关系
 
@@ -18,8 +19,9 @@
 2. [`charm_compiler_constitution_v0.md`](charm_compiler_constitution_v0.md)
 3. [`compiler_pass_authority_and_freeze_boundary_v0.md`](compiler_pass_authority_and_freeze_boundary_v0.md)
 4. [`compiler_world_lifecycle_v0.md`](compiler_world_lifecycle_v0.md)
-5. [`../architecture/system_compiler_roadmap.md`](../architecture/system_compiler_roadmap.md)
-6. [`../architecture/system_compiler_vocabulary_v0.md`](../architecture/system_compiler_vocabulary_v0.md)
+5. [`compiler_world_lifecycle_projection_v0.md`](compiler_world_lifecycle_projection_v0.md)
+6. [`../architecture/system_compiler_roadmap.md`](../architecture/system_compiler_roadmap.md)
+7. [`../architecture/system_compiler_vocabulary_v0.md`](../architecture/system_compiler_vocabulary_v0.md)
 
 再按需要进入：
 

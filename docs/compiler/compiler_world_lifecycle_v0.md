@@ -3,6 +3,7 @@
 本文是 `Charm Compiler Constitution v0` 与 `Compiler Pass Authority & Semantic Freeze Boundary v0` 的下游 lifecycle law。
 
 它定义 compile-time world 从 source facts 进入、被证明、被冻结、被 lowering、被 witness、被观察、被归档、被比较的状态语言。本文不定义 canonical identity，不实现 observation import，不新增 schema、validator、smoke、IR 类型或 LLVM/MLIR 接入。
+现有 artifact/report/witness/ledger/compare 到 lifecycle states 的只读映射见：[`compiler_world_lifecycle_projection_v0.md`](compiler_world_lifecycle_projection_v0.md)。
 
 ## 1. 定位
 

@@ -32,6 +32,18 @@ struct PlayerBoardSnapshot {
     }
 };
 
+enum class PlayerCommandKind : std::uint8_t {
+    toggle_play,
+    seek_relative,
+    next_track,
+    previous_track,
+};
+
+struct PlayerCommand {
+    PlayerCommandKind kind{PlayerCommandKind::toggle_play};
+    std::int8_t delta_percent{};
+};
+
 [[nodiscard]] constexpr PlayerViewModel default_player_view() noexcept {
     return PlayerViewModel{};
 }
@@ -60,6 +72,26 @@ public:
         apply_board_snapshot();
     }
 
+    void dispatch(const PlayerCommand command) noexcept {
+        switch (command.kind) {
+        case PlayerCommandKind::toggle_play:
+            user_play_override_ = !view_.playing;
+            has_user_play_override_ = true;
+            view_.playing = user_play_override_;
+            break;
+        case PlayerCommandKind::seek_relative:
+            view_.progress_percent = clamp_progress(static_cast<std::int16_t>(view_.progress_percent) +
+                                                     command.delta_percent);
+            break;
+        case PlayerCommandKind::next_track:
+            view_.progress_percent = 0U;
+            break;
+        case PlayerCommandKind::previous_track:
+            view_.progress_percent = 0U;
+            break;
+        }
+    }
+
     [[nodiscard]] bool advance(const std::uint32_t now_ms) noexcept {
         if ((now_ms - last_tick_ms_) < 1000U) {
             return false;
@@ -70,8 +102,18 @@ public:
     }
 
 private:
+    [[nodiscard]] static constexpr std::uint8_t clamp_progress(const std::int16_t value) noexcept {
+        if (value <= 0) {
+            return 0U;
+        }
+        if (value >= 100) {
+            return 100U;
+        }
+        return static_cast<std::uint8_t>(value);
+    }
+
     void apply_board_snapshot() noexcept {
-        view_.playing = board_.raster_ready();
+        view_.playing = has_user_play_override_ ? user_play_override_ : board_.raster_ready();
         view_.storage_ready = board_.resource_storage_ready();
         view_.cover_ready = board_.resource_storage_ready();
 
@@ -89,6 +131,8 @@ private:
     PlayerViewModel view_{default_player_view()};
     PlayerBoardSnapshot board_{};
     bool has_board_snapshot_{false};
+    bool has_user_play_override_{false};
+    bool user_play_override_{false};
     std::uint32_t last_tick_ms_{0U};
 };
 

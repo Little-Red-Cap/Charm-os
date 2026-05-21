@@ -6,7 +6,8 @@ boundary, not feature parity.
 
 ## Boundary
 
-- `player_model.hpp` owns the MCU-friendly view model and runtime tick state.
+- `player_model.hpp` owns the MCU-friendly view model, command model, and
+  runtime tick state.
 - `player_domain.hpp` and `player_domain.inl` render from `PlayerViewModel`
   into a `RasterDisplayWorld`.
 - `player.cpp` adapts the H747 board world, performs low-frequency resource

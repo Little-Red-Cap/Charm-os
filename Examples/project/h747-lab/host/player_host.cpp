@@ -156,6 +156,8 @@ std::uint32_t fnv1a32(const std::span<const std::byte> bytes) noexcept {
 }
 
 bool run_model_ci() noexcept {
+    using h747::apps::player::PlayerCommand;
+    using h747::apps::player::PlayerCommandKind;
     using h747::apps::player::PlayerBoardSnapshot;
     using h747::apps::player::PlayerRuntime;
 
@@ -206,9 +208,29 @@ bool run_model_ci() noexcept {
         .qspi_jedec_ok = false,
         .qspi_read_ok = true,
     });
-    return !runtime.view().playing && runtime.view().storage_ready &&
-           runtime.view().cover_ready &&
-           runtime.view().subtitle == "Display init, framebuffer pending";
+    if (runtime.view().playing || !runtime.view().storage_ready ||
+        !runtime.view().cover_ready ||
+        runtime.view().subtitle != "Display init, framebuffer pending") {
+        return false;
+    }
+
+    runtime.dispatch(PlayerCommand{.kind = PlayerCommandKind::toggle_play});
+    if (!runtime.view().playing) {
+        return false;
+    }
+
+    runtime.dispatch(PlayerCommand{.kind = PlayerCommandKind::seek_relative, .delta_percent = 80});
+    if (runtime.view().progress_percent != 100U) {
+        return false;
+    }
+
+    runtime.dispatch(PlayerCommand{.kind = PlayerCommandKind::seek_relative, .delta_percent = -120});
+    if (runtime.view().progress_percent != 0U) {
+        return false;
+    }
+
+    runtime.dispatch(PlayerCommand{.kind = PlayerCommandKind::next_track});
+    return runtime.view().progress_percent == 0U;
 }
 
 bool write_ppm(const std::filesystem::path& path, host::world::MockPlayerWorld& world) {

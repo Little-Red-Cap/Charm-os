@@ -1,0 +1,175 @@
+include_guard(GLOBAL)
+
+function(h747_lab_collect_services out_sources out_include_dirs)
+    set(_sources)
+    set(_include_dirs)
+    foreach(_service IN LISTS ARGN)
+        if(NOT DEFINED H747_LAB_SERVICE_${_service}_SOURCES)
+            message(FATAL_ERROR "Unknown h747-lab service '${_service}'")
+        endif()
+        list(APPEND _sources ${H747_LAB_SERVICE_${_service}_SOURCES})
+        list(APPEND _include_dirs ${H747_LAB_SERVICE_${_service}_INCLUDE_DIRS})
+    endforeach()
+    list(REMOVE_DUPLICATES _sources)
+    list(REMOVE_DUPLICATES _include_dirs)
+    set(${out_sources} ${_sources} PARENT_SCOPE)
+    set(${out_include_dirs} ${_include_dirs} PARENT_SCOPE)
+endfunction()
+
+function(h747_lab_add_profile profile_name)
+    set(_profile_manifest "${H747_LAB_ROOT}/profiles/${profile_name}/profile.cmake")
+    if(NOT EXISTS "${_profile_manifest}")
+        message(FATAL_ERROR "Missing h747-lab profile manifest: ${_profile_manifest}")
+    endif()
+
+    unset(H747_LAB_PROFILE_TARGET)
+    unset(H747_LAB_PROFILE_BOARD)
+    unset(H747_LAB_PROFILE_RUNTIME)
+    unset(H747_LAB_PROFILE_APP)
+    unset(H747_LAB_PROFILE_SERVICES)
+    include("${_profile_manifest}")
+
+    if(NOT H747_LAB_PROFILE_TARGET)
+        message(FATAL_ERROR "${_profile_manifest}: H747_LAB_PROFILE_TARGET is required")
+    endif()
+    if(NOT H747_LAB_PROFILE_BOARD STREQUAL "h747_diy")
+        message(FATAL_ERROR
+            "${_profile_manifest}: unsupported H747_LAB_PROFILE_BOARD='${H747_LAB_PROFILE_BOARD}'")
+    endif()
+    if(NOT H747_LAB_PROFILE_RUNTIME STREQUAL "foundation")
+        message(FATAL_ERROR
+            "${_profile_manifest}: unsupported H747_LAB_PROFILE_RUNTIME='${H747_LAB_PROFILE_RUNTIME}'")
+    endif()
+    if(NOT H747_LAB_PROFILE_APP)
+        message(FATAL_ERROR "${_profile_manifest}: H747_LAB_PROFILE_APP is required")
+    endif()
+    if(NOT H747_LAB_PROFILE_SERVICES)
+        message(FATAL_ERROR "${_profile_manifest}: H747_LAB_PROFILE_SERVICES is required")
+    endif()
+
+    set(_app_manifest "${H747_LAB_ROOT}/apps/${H747_LAB_PROFILE_APP}/app.cmake")
+    if(NOT EXISTS "${_app_manifest}")
+        message(FATAL_ERROR "Missing h747-lab app manifest: ${_app_manifest}")
+    endif()
+
+    unset(H747_LAB_APP_NAME)
+    unset(H747_LAB_APP_SOURCES)
+    unset(H747_LAB_APP_INCLUDE_DIRS)
+    include("${_app_manifest}")
+
+    if(NOT H747_LAB_APP_NAME STREQUAL H747_LAB_PROFILE_APP)
+        message(FATAL_ERROR
+            "${_app_manifest}: H747_LAB_APP_NAME='${H747_LAB_APP_NAME}' "
+            "does not match profile app '${H747_LAB_PROFILE_APP}'")
+    endif()
+    if(NOT H747_LAB_APP_SOURCES)
+        message(FATAL_ERROR "${_app_manifest}: H747_LAB_APP_SOURCES is required")
+    endif()
+
+    h747_lab_add_firmware(
+        TARGET "${H747_LAB_PROFILE_TARGET}"
+        PROFILE "${profile_name}"
+        APP "${H747_LAB_PROFILE_APP}"
+        APP_SOURCES ${H747_LAB_APP_SOURCES}
+        APP_INCLUDE_DIRS ${H747_LAB_APP_INCLUDE_DIRS}
+        SERVICES ${H747_LAB_PROFILE_SERVICES})
+endfunction()
+
+function(h747_lab_add_firmware)
+    set(options)
+    set(oneValueArgs TARGET PROFILE APP)
+    set(multiValueArgs APP_SOURCES APP_INCLUDE_DIRS SERVICES)
+    cmake_parse_arguments(H747_LAB_FW "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+
+    if(NOT H747_LAB_FW_TARGET)
+        message(FATAL_ERROR "h747_lab_add_firmware(...): TARGET is required")
+    endif()
+    if(NOT H747_LAB_FW_PROFILE)
+        message(FATAL_ERROR "h747_lab_add_firmware(...): PROFILE is required")
+    endif()
+    if(NOT H747_LAB_FW_APP)
+        message(FATAL_ERROR "h747_lab_add_firmware(...): APP is required")
+    endif()
+    if(NOT H747_LAB_FW_APP_SOURCES)
+        message(FATAL_ERROR "h747_lab_add_firmware(...): APP_SOURCES is required")
+    endif()
+    if(NOT H747_LAB_FW_SERVICES)
+        message(FATAL_ERROR "h747_lab_add_firmware(...): SERVICES is required")
+    endif()
+
+    set(_profile_source "${H747_LAB_ROOT}/profiles/${H747_LAB_FW_PROFILE}/profile.cpp")
+    if(NOT EXISTS "${_profile_source}")
+        message(FATAL_ERROR "Missing h747-lab profile source: ${_profile_source}")
+    endif()
+
+    h747_lab_collect_services(_service_sources _service_include_dirs ${H747_LAB_FW_SERVICES})
+
+    add_executable(${H747_LAB_FW_TARGET}
+        ${H747_LAB_PLATFORM_SOURCES}
+        ${H747_LAB_BOARD_SOURCES}
+        ${H747_LAB_RUNTIME_SOURCES}
+        ${_service_sources}
+        ${H747_LAB_FW_APP_SOURCES}
+        "${_profile_source}"
+    )
+
+    target_sources(${H747_LAB_FW_TARGET}
+        PUBLIC
+            FILE_SET modules TYPE CXX_MODULES
+            BASE_DIRS
+                "${CHARM_ROOT}/Modules"
+            FILES
+                ${H747_LAB_MODULE_SOURCES}
+    )
+
+    target_include_directories(${H747_LAB_FW_TARGET} PRIVATE
+        ${H747_LAB_COMMON_INCLUDE_DIRS}
+        ${_service_include_dirs}
+        ${H747_LAB_FW_APP_INCLUDE_DIRS}
+        "${CHARM_ROOT}/Modules/io/out"
+    )
+
+    target_compile_definitions(${H747_LAB_FW_TARGET} PRIVATE
+        ${H747_LAB_COMMON_DEFINITIONS}
+        "H747_LAB_PROFILE_NAME=\"${H747_LAB_FW_PROFILE}\""
+    )
+
+    if(H747_LAB_FW_PROFILE STREQUAL "display_demo")
+        if(H747_LAB_DISPLAY_PANEL_PROFILE STREQUAL "github4lane_2lane")
+            target_compile_definitions(${H747_LAB_FW_TARGET} PRIVATE
+                STM32H747_DISPLAY_MIN_PANEL_PROFILE_GITHUB4LANE_2LANE=1)
+        else()
+            target_compile_definitions(${H747_LAB_FW_TARGET} PRIVATE
+                STM32H747_DISPLAY_MIN_PANEL_PROFILE_DTS_2LANE=1)
+        endif()
+    endif()
+
+    target_compile_options(${H747_LAB_FW_TARGET} PRIVATE
+        $<$<COMPILE_LANGUAGE:CXX>:-Wno-volatile>
+    )
+
+    target_link_options(${H747_LAB_FW_TARGET} PRIVATE
+        ${H747_LAB_TARGET_FLAGS}
+        "-T${STM32_LINKER_SCRIPT}"
+        --specs=nano.specs
+        "-Wl,-Map=${CMAKE_CURRENT_BINARY_DIR}/${H747_LAB_FW_TARGET}.map"
+        -Wl,--gc-sections
+        -Wl,--start-group
+        -lc
+        -lm
+        -lstdc++
+        -lsupc++
+        -Wl,--end-group
+        -Wl,--print-memory-usage
+    )
+
+    if(CMAKE_OBJCOPY)
+        add_custom_command(TARGET ${H747_LAB_FW_TARGET} POST_BUILD
+            BYPRODUCTS "${CMAKE_CURRENT_BINARY_DIR}/${H747_LAB_FW_TARGET}.bin"
+            COMMAND ${CMAKE_OBJCOPY}
+                -O binary
+                $<TARGET_FILE:${H747_LAB_FW_TARGET}>
+                "${CMAKE_CURRENT_BINARY_DIR}/${H747_LAB_FW_TARGET}.bin"
+            VERBATIM)
+    endif()
+endfunction()

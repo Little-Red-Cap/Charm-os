@@ -74,6 +74,13 @@ namespace {
                     player::host_features::host_cover_decode ? 1 : 0,
                     player::host_features::host_file_fonts ? 1 : 0,
                     player::host_features::playback_log ? 1 : 0);
+        std::printf("[player.resources] font_mode=%s font=%s font_px=%d/%d/%d host_vhd=%s\n",
+                    player::host_features::host_file_fonts ? "file" : "builtin",
+                    player::product_config::default_font_path,
+                    player::product_config::default_font_small_px,
+                    player::product_config::default_font_normal_px,
+                    player::product_config::default_font_large_px,
+                    player::product_config::host_default_vhd_path);
     }
 
     using PlayerUiContext = player::PlayerController;
@@ -1272,13 +1279,15 @@ int main(int argc, char** argv) {
     charm::system::ClockCaps::TimeSource::bind(g_clock);
     player::ui::set_player_system_font_fallback_enabled(!disable_system_font_fallback);
     player::AppConfig app_cfg{g_player_cfg};
-    if (!font_ttf_path.empty()) {
-        app_cfg.ttf_path.assign(font_ttf_path);
-    } else {
-        app_cfg.ttf_path.assign(player::product_config::default_font_path);
-    }
-    if (!font_fallback_ttf_path.empty()) {
-        app_cfg.ttf_fallback_path.assign(font_fallback_ttf_path);
+    if constexpr (player::host_features::host_file_fonts) {
+        if (!font_ttf_path.empty()) {
+            app_cfg.ttf_path.assign(font_ttf_path);
+        } else {
+            app_cfg.ttf_path.assign(player::product_config::default_font_path);
+        }
+        if (!font_fallback_ttf_path.empty()) {
+            app_cfg.ttf_fallback_path.assign(font_fallback_ttf_path);
+        }
     }
     if (font_small_px > 0) {
         app_cfg.ttf_small_px = font_small_px;

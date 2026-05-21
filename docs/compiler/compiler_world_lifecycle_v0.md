@@ -112,6 +112,7 @@ declared
 - compare-ready summary
 
 `lowered` 必须遵守 lossy lowering law：任一 lowered artifact 都不等于完整 world truth。它必须尽可能保留回指 world facts 的 semantic identity 或 provenance。
+Lowering surfaces 的只读投影责任见：[`compiler_lowering_surface_contract_v0.md`](compiler_lowering_surface_contract_v0.md)。
 
 ## 8. `witnessed`
 

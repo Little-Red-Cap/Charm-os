@@ -11,6 +11,7 @@
 - [`compiler_world_lifecycle_v0.md`](compiler_world_lifecycle_v0.md)
 - [`compiler_world_lifecycle_projection_v0.md`](compiler_world_lifecycle_projection_v0.md)
 - [`compiler_world_lifecycle_projection_coverage_v0.md`](compiler_world_lifecycle_projection_coverage_v0.md)
+- [`compiler_lowering_surface_contract_v0.md`](compiler_lowering_surface_contract_v0.md)
 - [`compiler_freeze_receipt_contract_v0.md`](compiler_freeze_receipt_contract_v0.md)
 - [`compiler_archive_manifest_contract_v0.md`](compiler_archive_manifest_contract_v0.md)
 
@@ -24,10 +25,11 @@
 4. [`compiler_world_lifecycle_v0.md`](compiler_world_lifecycle_v0.md)
 5. [`compiler_world_lifecycle_projection_v0.md`](compiler_world_lifecycle_projection_v0.md)
 6. [`compiler_world_lifecycle_projection_coverage_v0.md`](compiler_world_lifecycle_projection_coverage_v0.md)
-7. [`compiler_freeze_receipt_contract_v0.md`](compiler_freeze_receipt_contract_v0.md)
-8. [`compiler_archive_manifest_contract_v0.md`](compiler_archive_manifest_contract_v0.md)
-9. [`../architecture/system_compiler_roadmap.md`](../architecture/system_compiler_roadmap.md)
-10. [`../architecture/system_compiler_vocabulary_v0.md`](../architecture/system_compiler_vocabulary_v0.md)
+7. [`compiler_lowering_surface_contract_v0.md`](compiler_lowering_surface_contract_v0.md)
+8. [`compiler_freeze_receipt_contract_v0.md`](compiler_freeze_receipt_contract_v0.md)
+9. [`compiler_archive_manifest_contract_v0.md`](compiler_archive_manifest_contract_v0.md)
+10. [`../architecture/system_compiler_roadmap.md`](../architecture/system_compiler_roadmap.md)
+11. [`../architecture/system_compiler_vocabulary_v0.md`](../architecture/system_compiler_vocabulary_v0.md)
 
 再按需要进入：
 

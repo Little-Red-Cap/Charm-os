@@ -124,6 +124,7 @@ compile-time world 必然比任一 target artifact 更 rich。`firmware.bin`、d
 - compare surface 不等于完整 world truth，只比较已导出的合法 surfaces
 
 Lowering 的职责不是把所有 world truth 塞进一个 artifact，而是显式承认丢失了哪些语义层，并保留可追踪回 world 的身份与 provenance。
+Lowering surfaces 的只读投影责任见：[`compiler_lowering_surface_contract_v0.md`](compiler_lowering_surface_contract_v0.md)。
 
 ## 7. Paired Artifact Rule
 

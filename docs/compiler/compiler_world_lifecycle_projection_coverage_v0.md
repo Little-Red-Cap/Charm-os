@@ -138,6 +138,8 @@ Sidecar 可以在未来提升 compiler lifecycle 审计体验，但 v0 不要求
 
 但 lowered artifact 只是结果面，不是完整 world truth。尤其 firmware、report、docs、metadata 都必须遵守 lossy lowering law，不能被误读为 world 本体。
 
+未来 lowering surface 的法律责任由 [`compiler_lowering_surface_contract_v0.md`](compiler_lowering_surface_contract_v0.md) 承接。Coverage matrix 只负责说明 `lowered` 当前是中等解释性覆盖，不负责生成 direct lowering marker。
+
 ### 4.6 `witnessed`
 
 `witnessed` 当前覆盖较强。

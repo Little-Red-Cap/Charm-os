@@ -6,6 +6,7 @@
 
 本文不创建新 truth，不定义 schema、summary 文件、validator、exporter、smoke、C++ 类型、canonical identity、observation import pass 或 LLVM/MLIR 接入。
 `frozen` 缺口的未来 receipt 法律责任见：[`compiler_freeze_receipt_contract_v0.md`](compiler_freeze_receipt_contract_v0.md)。
+First sidecar landing 顺序见：[`compiler_sidecar_landing_order_v0.md`](compiler_sidecar_landing_order_v0.md)；未来 lifecycle summary sidecar 的职责边界见：[`compiler_lifecycle_summary_sidecar_contract_v0.md`](compiler_lifecycle_summary_sidecar_contract_v0.md)。
 
 ## 1. 定位
 
@@ -193,6 +194,7 @@ compiler_archive_manifest.json
 ```
 
 这些名字只是未来方向，不是本刀接口。
+其中 `compiler_lifecycle.summary.json` 是推荐 first sidecar；它只允许把本 coverage matrix 机器可读化，不允许补造 `frozen`、`lowered` 或 `archived` 的真实覆盖。
 
 任何 sidecar 都必须遵守：
 

@@ -34,11 +34,7 @@
       "type": "string"
     },
     "result": {
-      "type": "string",
-      "enum": [
-        "ok",
-        "fail"
-      ]
+      "$ref": "#/$defs/okFailResult"
     },
     "opening_flow_consumer_plan": {
       "$ref": "#/$defs/titleBlock"
@@ -69,6 +65,36 @@
     }
   },
   "$defs": {
+    "okFailResult": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "fail"
+      ]
+    },
+    "readyBlockedStatus": {
+      "type": "string",
+      "enum": [
+        "ready",
+        "blocked"
+      ]
+    },
+    "actionKind": {
+      "type": "string",
+      "enum": [
+        "default",
+        "compare-neighbor",
+        "next"
+      ]
+    },
+    "displayGroup": {
+      "type": "string",
+      "enum": [
+        "primary",
+        "compare",
+        "fallback"
+      ]
+    },
     "stringArray": {
       "type": "array",
       "items": {
@@ -202,18 +228,10 @@
       ],
       "properties": {
         "result": {
-          "type": "string",
-          "enum": [
-            "ok",
-            "fail"
-          ]
+          "$ref": "#/$defs/okFailResult"
         },
         "open_plan_status": {
-          "type": "string",
-          "enum": [
-            "ready",
-            "blocked"
-          ]
+          "$ref": "#/$defs/readyBlockedStatus"
         },
         "selected_entry_count": {
           "type": "integer",
@@ -245,18 +263,10 @@
       ],
       "properties": {
         "result": {
-          "type": "string",
-          "enum": [
-            "ok",
-            "fail"
-          ]
+          "$ref": "#/$defs/okFailResult"
         },
         "execution_plan_status": {
-          "type": "string",
-          "enum": [
-            "ready",
-            "blocked"
-          ]
+          "$ref": "#/$defs/readyBlockedStatus"
         },
         "planned_action_count": {
           "type": "integer",
@@ -291,11 +301,7 @@
       ],
       "properties": {
         "status": {
-          "type": "string",
-          "enum": [
-            "ready",
-            "blocked"
-          ]
+          "$ref": "#/$defs/readyBlockedStatus"
         },
         "default_action": {
           "$ref": "#/$defs/actionOrEmpty"
@@ -377,23 +383,13 @@
           "minimum": 0
         },
         "action_kind": {
-          "type": "string",
-          "enum": [
-            "default",
-            "compare-neighbor",
-            "next"
-          ]
+          "$ref": "#/$defs/actionKind"
         },
         "entry_name": {
           "type": "string"
         },
         "display_group": {
-          "type": "string",
-          "enum": [
-            "primary",
-            "compare",
-            "fallback"
-          ]
+          "$ref": "#/$defs/displayGroup"
         },
         "selected_tab_id": {
           "type": "string"

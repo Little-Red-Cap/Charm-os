@@ -65,6 +65,10 @@ namespace {
     static audio::PlayerConfig g_player_cfg{};
     static charm::system::Clock g_clock{nullptr, {.now_us = &now_us}};
     static std::optional<player::App> g_app{};
+    using PlayerUiContext = player::PlayerController;
+    using UiHandles = player::UiHandles;
+
+    static PlayerUiContext g_ctx{};
 
     void print_host_feature_summary() noexcept {
         std::printf("[player.features] profile=%s host_ui=%d host_storage=%d host_cover_decode=%d host_file_fonts=%d playback_log=%d\n",
@@ -223,10 +227,113 @@ namespace {
         return out;
     }
 
-    using PlayerUiContext = player::PlayerController;
-    using UiHandles = player::UiHandles;
+    player::AppConfig make_app_config(const PreviewOptions& options) {
+        g_player_cfg.output_mode = audio::OutputMode::fixed_rate;
+        g_player_cfg.fixed_rate = 48000;
 
-    static PlayerUiContext g_ctx{};
+        player::AppConfig app_cfg{g_player_cfg};
+        if constexpr (player::host_features::host_file_fonts) {
+            if (!options.font_ttf_path.empty()) {
+                app_cfg.ttf_path.assign(options.font_ttf_path);
+            } else {
+                app_cfg.ttf_path.assign(player::product_config::default_font_path);
+            }
+            if (!options.font_fallback_ttf_path.empty()) {
+                app_cfg.ttf_fallback_path.assign(options.font_fallback_ttf_path);
+            }
+        }
+        if (options.font_small_px > 0) {
+            app_cfg.ttf_small_px = options.font_small_px;
+        }
+        if (options.font_normal_px > 0) {
+            app_cfg.ttf_normal_px = options.font_normal_px;
+        }
+        if (options.font_large_px > 0) {
+            app_cfg.ttf_large_px = options.font_large_px;
+        }
+        return app_cfg;
+    }
+
+    void log_library_info_preview(const PreviewOptions& options, bool opened) {
+        const char* info_title = g_platform.scene_ref().text(g_ctx.handles.list_info_title);
+        const char* info_subtitle = g_platform.scene_ref().text(g_ctx.handles.list_info_subtitle);
+        const char* info_meta = g_platform.scene_ref().text(g_ctx.handles.list_info_meta);
+        const char* info_path_title = g_platform.scene_ref().text(g_ctx.handles.list_info_path_title);
+        const char* info_path = g_platform.scene_ref().text(g_ctx.handles.list_info_path);
+        const char* info_path_detail = g_platform.scene_ref().text(g_ctx.handles.list_info_path_detail);
+        const char* info_hint = g_platform.scene_ref().text(g_ctx.handles.list_info_hint);
+        const Rect scrim_rect = g_platform.scene_ref().world_rect(g_ctx.handles.list_info_scrim);
+        const Rect card_rect = g_platform.scene_ref().world_rect(g_ctx.handles.list_info_card);
+        std::fprintf(stderr,
+                     "[preview] library_open_info flag=1 opened=%d selected=%d request=%d title=%s subtitle=%s meta=%s path_title=%s path=%s detail=%s hint=%s scrim=%d,%d,%d,%d card=%d,%d,%d,%d\n",
+                     opened ? 1 : 0,
+                     g_ctx.last_list_selected,
+                     options.library_open_info_index,
+                     info_title ? info_title : "",
+                     info_subtitle ? info_subtitle : "",
+                     info_meta ? info_meta : "",
+                     info_path_title ? info_path_title : "",
+                     info_path ? info_path : "",
+                     info_path_detail ? info_path_detail : "",
+                     info_hint ? info_hint : "",
+                     scrim_rect.x, scrim_rect.y, scrim_rect.w, scrim_rect.h,
+                     card_rect.x, card_rect.y, card_rect.w, card_rect.h);
+    }
+
+    void log_library_action_menu_preview(const PreviewOptions& options, bool opened) {
+        const char* menu_title = g_platform.scene_ref().text(g_ctx.handles.list_action_title);
+        const Rect card_rect = g_platform.scene_ref().world_rect(g_ctx.handles.list_action_card);
+        const char* item0 = g_platform.scene_ref().text(g_ctx.handles.list_action_items[0]);
+        const char* item1 = g_platform.scene_ref().text(g_ctx.handles.list_action_items[1]);
+        const char* item2 = g_platform.scene_ref().text(g_ctx.handles.list_action_items[2]);
+        std::fprintf(stderr,
+                     "[preview] library_open_action_menu flag=1 opened=%d selected=%d request=%d title=%s items=[%s|%s|%s] card=%d,%d,%d,%d\n",
+                     opened ? 1 : 0,
+                     g_ctx.last_list_selected,
+                     options.library_open_action_menu_index,
+                     menu_title ? menu_title : "",
+                     item0 ? item0 : "",
+                     item1 ? item1 : "",
+                     item2 ? item2 : "",
+                     card_rect.x, card_rect.y, card_rect.w, card_rect.h);
+    }
+
+    void apply_library_preview_options(const PreviewOptions& options) {
+        if (options.library_tab_override.has_value()) {
+            g_ctx.set_library_tab(*options.library_tab_override);
+        }
+        if (!options.library_context_override.empty()) {
+            (void)g_ctx.set_library_context_for_preview(options.library_context_override);
+        } else if (options.library_open_first_group) {
+            (void)g_ctx.open_first_library_group_for_preview();
+        }
+        if (options.library_select_index >= 0) {
+            (void)g_ctx.set_library_selected_index_for_preview(options.library_select_index);
+        }
+        if (options.library_open_info) {
+            const bool opened = g_ctx.open_library_info_popup_for_preview(options.library_open_info_index);
+            if (options.screenshot_verbose) {
+                log_library_info_preview(options, opened);
+            }
+        } else if (options.screenshot_verbose) {
+            std::fprintf(stderr,
+                         "[preview] library_open_info flag=0 selected=%d request=%d\n",
+                         g_ctx.last_list_selected,
+                         options.library_open_info_index);
+        }
+        if (options.library_open_action_menu) {
+            const bool opened =
+                g_ctx.open_library_action_menu_for_preview(options.library_open_action_menu_index);
+            if (options.screenshot_verbose) {
+                log_library_action_menu_preview(options, opened);
+            }
+        } else if (options.screenshot_verbose) {
+            std::fprintf(stderr,
+                         "[preview] library_open_action_menu flag=0 selected=%d request=%d\n",
+                         g_ctx.last_list_selected,
+                         options.library_open_action_menu_index);
+        }
+    }
 #include "main.overlay_fx.inc"
 
 #include "main.font_probe.inc"
@@ -1300,30 +1407,9 @@ int main(int argc, char** argv) {
     }
     SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_NEAREST);
 
-    g_player_cfg.output_mode = audio::OutputMode::fixed_rate;
-    g_player_cfg.fixed_rate = 48000;
     charm::system::ClockCaps::TimeSource::bind(g_clock);
     player::ui::set_player_system_font_fallback_enabled(!options.disable_system_font_fallback);
-    player::AppConfig app_cfg{g_player_cfg};
-    if constexpr (player::host_features::host_file_fonts) {
-        if (!options.font_ttf_path.empty()) {
-            app_cfg.ttf_path.assign(options.font_ttf_path);
-        } else {
-            app_cfg.ttf_path.assign(player::product_config::default_font_path);
-        }
-        if (!options.font_fallback_ttf_path.empty()) {
-            app_cfg.ttf_fallback_path.assign(options.font_fallback_ttf_path);
-        }
-    }
-    if (options.font_small_px > 0) {
-        app_cfg.ttf_small_px = options.font_small_px;
-    }
-    if (options.font_normal_px > 0) {
-        app_cfg.ttf_normal_px = options.font_normal_px;
-    }
-    if (options.font_large_px > 0) {
-        app_cfg.ttf_large_px = options.font_large_px;
-    }
+    player::AppConfig app_cfg = make_app_config(options);
     g_app.emplace(std::move(app_cfg), g_clock);
 
     player::init_storage(player::default_storage_config());
@@ -1338,78 +1424,7 @@ int main(int argc, char** argv) {
     g_ctx.set_page(options.start_page);
 
     const bool has_track = g_app->bootstrap_player(g_ctx, options.track_index_override, false);
-    if (options.library_tab_override.has_value()) {
-        g_ctx.set_library_tab(*options.library_tab_override);
-    }
-    if (!options.library_context_override.empty()) {
-        (void)g_ctx.set_library_context_for_preview(options.library_context_override);
-    } else if (options.library_open_first_group) {
-        (void)g_ctx.open_first_library_group_for_preview();
-    }
-    if (options.library_select_index >= 0) {
-        (void)g_ctx.set_library_selected_index_for_preview(options.library_select_index);
-    }
-    if (options.library_open_info) {
-        const bool opened = g_ctx.open_library_info_popup_for_preview(options.library_open_info_index);
-        if (options.screenshot_verbose) {
-            const char* info_title = g_platform.scene_ref().text(g_ctx.handles.list_info_title);
-            const char* info_subtitle = g_platform.scene_ref().text(g_ctx.handles.list_info_subtitle);
-            const char* info_meta = g_platform.scene_ref().text(g_ctx.handles.list_info_meta);
-            const char* info_path_title =
-                g_platform.scene_ref().text(g_ctx.handles.list_info_path_title);
-            const char* info_path = g_platform.scene_ref().text(g_ctx.handles.list_info_path);
-            const char* info_path_detail =
-                g_platform.scene_ref().text(g_ctx.handles.list_info_path_detail);
-            const char* info_hint = g_platform.scene_ref().text(g_ctx.handles.list_info_hint);
-            const Rect scrim_rect = g_platform.scene_ref().world_rect(g_ctx.handles.list_info_scrim);
-            const Rect card_rect = g_platform.scene_ref().world_rect(g_ctx.handles.list_info_card);
-            std::fprintf(stderr,
-                         "[preview] library_open_info flag=1 opened=%d selected=%d request=%d title=%s subtitle=%s meta=%s path_title=%s path=%s detail=%s hint=%s scrim=%d,%d,%d,%d card=%d,%d,%d,%d\n",
-                         opened ? 1 : 0,
-                         g_ctx.last_list_selected,
-                         options.library_open_info_index,
-                         info_title ? info_title : "",
-                         info_subtitle ? info_subtitle : "",
-                         info_meta ? info_meta : "",
-                         info_path_title ? info_path_title : "",
-                         info_path ? info_path : "",
-                         info_path_detail ? info_path_detail : "",
-                         info_hint ? info_hint : "",
-                         scrim_rect.x, scrim_rect.y, scrim_rect.w, scrim_rect.h,
-                         card_rect.x, card_rect.y, card_rect.w, card_rect.h);
-        }
-    } else if (options.screenshot_verbose) {
-        std::fprintf(stderr,
-                     "[preview] library_open_info flag=0 selected=%d request=%d\n",
-                     g_ctx.last_list_selected,
-                     options.library_open_info_index);
-    }
-    if (options.library_open_action_menu) {
-        const bool opened =
-            g_ctx.open_library_action_menu_for_preview(options.library_open_action_menu_index);
-        if (options.screenshot_verbose) {
-            const char* menu_title = g_platform.scene_ref().text(g_ctx.handles.list_action_title);
-            const Rect card_rect = g_platform.scene_ref().world_rect(g_ctx.handles.list_action_card);
-            const char* item0 = g_platform.scene_ref().text(g_ctx.handles.list_action_items[0]);
-            const char* item1 = g_platform.scene_ref().text(g_ctx.handles.list_action_items[1]);
-            const char* item2 = g_platform.scene_ref().text(g_ctx.handles.list_action_items[2]);
-            std::fprintf(stderr,
-                         "[preview] library_open_action_menu flag=1 opened=%d selected=%d request=%d title=%s items=[%s|%s|%s] card=%d,%d,%d,%d\n",
-                         opened ? 1 : 0,
-                         g_ctx.last_list_selected,
-                         options.library_open_action_menu_index,
-                         menu_title ? menu_title : "",
-                         item0 ? item0 : "",
-                         item1 ? item1 : "",
-                         item2 ? item2 : "",
-                         card_rect.x, card_rect.y, card_rect.w, card_rect.h);
-        }
-    } else if (options.screenshot_verbose) {
-        std::fprintf(stderr,
-                     "[preview] library_open_action_menu flag=0 selected=%d request=%d\n",
-                     g_ctx.last_list_selected,
-                     options.library_open_action_menu_index);
-    }
+    apply_library_preview_options(options);
     if (has_track && !fs_seek_selftest(g_ctx.track_path())) {
         g_ctx.set_status("Fs seek selftest failed");
     }

@@ -3,6 +3,13 @@ module;
 export module player.host_features;
 
 export namespace player::host_features {
+    inline constexpr const char* profile =
+#if defined(CHARM_PLAYER_HOST_PROFILE)
+        CHARM_PLAYER_HOST_PROFILE;
+#else
+        "unknown";
+#endif
+
     inline constexpr bool host_ui =
 #if defined(CHARM_PLAYER_HOST_UI) && CHARM_PLAYER_HOST_UI
         true;

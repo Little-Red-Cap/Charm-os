@@ -5,6 +5,8 @@ This note tracks the current portability boundary for the Player UI work. The go
 ## Current Boundary
 
 - `Examples/project/player/win` is the Windows SDL3 host shell.
+- `PLAYER_SCENARIO` selects the Windows UI target (`ink`, `vivid`, or `vivid_md3`).
+- `PLAYER_HOST_PROFILE` selects a Windows host feature record. `preview_full` is the default full preview; `portability_probe` disables host cover decoding and file fonts while keeping the UI runnable.
 - `CHARM_PLAYER_HOST_UI=1` marks host-preview code paths.
 - `CHARM_PLAYER_HOST_STORAGE=1` marks host storage defaults such as the Windows VHD path.
 - `CHARM_PLAYER_PC_FONT_CACHE=1` is only valid for the host shell and must not be treated as a portable font path.
@@ -23,6 +25,7 @@ The Player portability boundary should follow the same broad shape as the DAPLin
 ## Host-Only Dependencies
 
 - SDL3 windowing, event pump, renderer, and screenshot flow live in `Examples/project/player/win`.
+- Host feature defaults are composed by `PLAYER_HOST_PROFILE`; explicit `CHARM_PLAYER_HOST_*` cache values remain valid overrides for local experiments.
 - Win32/GDI fallback font caching is gated by `CHARM_PLAYER_HOST_UI && CHARM_PLAYER_PC_FONT_CACHE && _WIN32`.
 - Host VHD storage defaults are gated by `CHARM_PLAYER_HOST_STORAGE`.
 - Product resource defaults live in `player.product_config`; host entry points should select or override them instead of hardcoding resource paths.

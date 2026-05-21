@@ -67,7 +67,8 @@ namespace {
     static std::optional<player::App> g_app{};
 
     void print_host_feature_summary() noexcept {
-        std::printf("[player.features] host_ui=%d host_storage=%d host_cover_decode=%d host_file_fonts=%d playback_log=%d\n",
+        std::printf("[player.features] profile=%s host_ui=%d host_storage=%d host_cover_decode=%d host_file_fonts=%d playback_log=%d\n",
+                    player::host_features::profile,
                     player::host_features::host_ui ? 1 : 0,
                     player::host_features::host_storage ? 1 : 0,
                     player::host_features::host_cover_decode ? 1 : 0,

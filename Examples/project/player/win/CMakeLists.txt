@@ -3,19 +3,17 @@ project(charm-player-win)
 set(CMAKE_CXX_STANDARD 26)
 
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/product_player_identity.cmake")
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/product_player_host_profiles.cmake")
 
 message(STATUS "${CMAKE_PROJECT_NAME} PLAYER_PRODUCT: ${PLAYER_PRODUCT}")
 message(STATUS "${CMAKE_PROJECT_NAME} PLAYER_PLATFORM: ${PLAYER_PLATFORM}")
 message(STATUS "${CMAKE_PROJECT_NAME} PLAYER_BOARD: ${PLAYER_BOARD}")
 message(STATUS "${CMAKE_PROJECT_NAME} PLAYER_SCENARIO: ${PLAYER_SCENARIO}")
+message(STATUS "${CMAKE_PROJECT_NAME} PLAYER_HOST_PROFILE: ${PLAYER_HOST_PROFILE}")
 
 option(CHARM_PLAYER_DEBUG_UI "Enable player debug UI" ON)
 option(CHARM_PLAYER_SOA_TRACE "Enable SoA trace-only hooks for player" OFF)
 option(CHARM_PLAYER_COVER_DEBUG "Enable cover debug log" OFF)
-option(CHARM_PLAYER_HOST_STORAGE "Enable host VHD storage defaults" ON)
-option(CHARM_PLAYER_HOST_COVER_DECODE "Enable host-side embedded/file cover decoding" ON)
-option(CHARM_PLAYER_HOST_FILE_FONTS "Enable host-side FreeType/VFS file fonts" ON)
-option(CHARM_PLAYER_PLAYBACK_LOG "Enable host playback diagnostics" ON)
 
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/product_player_host_scenarios.cmake")
 
@@ -40,6 +38,7 @@ foreach(_target IN ITEMS ${PLAYER_TARGET_VIVID} ${PLAYER_TARGET_INK} ${PLAYER_TA
         CHARM_PLAYER_PRODUCT="${PLAYER_PRODUCT}"
         CHARM_PLAYER_PLATFORM="${PLAYER_PLATFORM}"
         CHARM_PLAYER_BOARD="${PLAYER_BOARD}"
+        CHARM_PLAYER_HOST_PROFILE="${PLAYER_HOST_PROFILE}"
     )
     if (CHARM_PLAYER_HOST_STORAGE)
         target_compile_definitions(${_target} PRIVATE CHARM_PLAYER_HOST_STORAGE=1)

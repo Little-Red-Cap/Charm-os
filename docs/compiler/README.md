@@ -7,6 +7,7 @@
 ## 当前入口
 
 - [`charm_compiler_constitution_v0.md`](charm_compiler_constitution_v0.md)
+- [`compiler_pass_authority_and_freeze_boundary_v0.md`](compiler_pass_authority_and_freeze_boundary_v0.md)
 
 ## 阅读关系
 
@@ -14,8 +15,9 @@
 
 1. [`../architecture/charm_methodology_charter.md`](../architecture/charm_methodology_charter.md)
 2. [`charm_compiler_constitution_v0.md`](charm_compiler_constitution_v0.md)
-3. [`../architecture/system_compiler_roadmap.md`](../architecture/system_compiler_roadmap.md)
-4. [`../architecture/system_compiler_vocabulary_v0.md`](../architecture/system_compiler_vocabulary_v0.md)
+3. [`compiler_pass_authority_and_freeze_boundary_v0.md`](compiler_pass_authority_and_freeze_boundary_v0.md)
+4. [`../architecture/system_compiler_roadmap.md`](../architecture/system_compiler_roadmap.md)
+5. [`../architecture/system_compiler_vocabulary_v0.md`](../architecture/system_compiler_vocabulary_v0.md)
 
 再按需要进入：
 

@@ -22,6 +22,7 @@
 默认阅读路径固定为：
 
 - 上位法理：[`../compiler/charm_compiler_constitution_v0.md`](../compiler/charm_compiler_constitution_v0.md)
+- 执法边界：[`../compiler/compiler_pass_authority_and_freeze_boundary_v0.md`](../compiler/compiler_pass_authority_and_freeze_boundary_v0.md)
 - 当前主轴：本文
 - 核心词汇：[`system_compiler_vocabulary_v0.md`](system_compiler_vocabulary_v0.md)
 - 当前结果物：[`../system/artifact_report_v0.md`](../system/artifact_report_v0.md)
@@ -30,6 +31,8 @@
 front-page、opening-flow、witness、biography、world compare 等材料只作为深层追溯链，不进入默认首读路线。
 
 `Charm Compiler Constitution v0` 是 system compiler 主线的上位法理：它定义 compile-time world、fact、pass authority、semantic freeze、lowering 与 witness 的边界。本文、词汇表和 artifact report 都不能替代它；它也不替代这些文档的具体路线、词汇映射或结果物契约。
+
+`Compiler Pass Authority & Semantic Freeze Boundary v0` 是 constitution 的下游执法细则，用来约束 pass 权限、identity preservation、world fork、lossy lowering 与 paired artifact。它不定义 `World IR` 形状，也不替代本路线图。
 
 ## 0. 一句话宣言
 

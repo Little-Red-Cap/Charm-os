@@ -9,7 +9,8 @@ boundary, not feature parity.
 - `player_model.hpp` owns the MCU-friendly view model and runtime tick state.
 - `player_domain.hpp` and `player_domain.inl` render from `PlayerViewModel`
   into a `RasterDisplayWorld`.
-- `player.cpp` adapts the H747 board world and prints display evidence.
+- `player.cpp` adapts the H747 board world, maps service snapshots into
+  `PlayerBoardSnapshot`, and prints display evidence.
 - `host/player_host.cpp` runs the same domain code against a mock world and
   writes `player_host.ppm` under `cmake-build-*`.
 

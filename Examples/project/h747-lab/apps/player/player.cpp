@@ -2,6 +2,7 @@
 
 #include "console.h"
 #include "h747_world.hpp"
+#include "memory_service.hpp"
 #include "player_domain.hpp"
 
 namespace {
@@ -14,6 +15,25 @@ h747::world::DiyBoardWorld& active_world() noexcept {
 h747::apps::player::PlayerRuntime& active_runtime() noexcept {
     static h747::apps::player::PlayerRuntime instance{};
     return instance;
+}
+
+h747::memory::StorageProbe& active_storage_probe() noexcept {
+    static h747::memory::StorageProbe instance{};
+    return instance;
+}
+
+h747::apps::player::PlayerBoardSnapshot capture_board_snapshot() noexcept {
+    const auto display = active_world().display().state().raw;
+    const auto storage = active_storage_probe().snapshot().raw;
+    return h747::apps::player::PlayerBoardSnapshot{
+        .display_ready = display.init_ok != 0U,
+        .framebuffer_ready = display.framebuffer_ready != 0U,
+        .sdram_ready = display.sdram_ready != 0U,
+        .sdram_smoke_ok = display.sdram_smoke_ok != 0U,
+        .qspi_power_good = storage.qspi_power_good != 0U,
+        .qspi_jedec_ok = storage.qspi_jedec_ok != 0U,
+        .qspi_read_ok = storage.qspi_read_ok != 0U,
+    };
 }
 
 void print_hex32(const char* label, const std::uint32_t value) {
@@ -71,12 +91,14 @@ namespace h747::apps::player {
 
 void init() {
     active_world().init();
+    active_runtime().observe_board(capture_board_snapshot());
     print_raster_state("player");
     init(active_world(), active_runtime());
     print_raster_state("player");
 }
 
 void loop_once() noexcept {
+    active_runtime().observe_board(capture_board_snapshot());
     loop_once(active_world(), active_runtime());
     static std::uint32_t last_present = 0U;
     const auto present = active_world().display().state().raw.present_count;

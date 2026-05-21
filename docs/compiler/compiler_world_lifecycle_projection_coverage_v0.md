@@ -5,6 +5,7 @@
 它回答的是：九个 lifecycle states 当前分别由哪些真实 artifact、report、witness、ledger、compare surfaces 承接；哪些是直接投影，哪些只是解释性投影；哪些状态还需要未来 sidecar 补上镜头。
 
 本文不创建新 truth，不定义 schema、summary 文件、validator、exporter、smoke、C++ 类型、canonical identity、observation import pass 或 LLVM/MLIR 接入。
+`frozen` 缺口的未来 receipt 法律责任见：[`compiler_freeze_receipt_contract_v0.md`](compiler_freeze_receipt_contract_v0.md)。
 
 ## 1. 定位
 
@@ -126,6 +127,8 @@ Sidecar 可以在未来提升 compiler lifecycle 审计体验，但 v0 不要求
 因此 v0 明确标记为 `missing`。这不是失败，而是 coverage matrix 要暴露的审计事实。
 
 未来 sidecar 可以补齐 frozen projection，但本刀不定义 sidecar 文件、字段或 schema。
+
+未来 freeze receipt 的法律责任由 [`compiler_freeze_receipt_contract_v0.md`](compiler_freeze_receipt_contract_v0.md) 承接。Coverage matrix 只负责暴露缺口，不负责签发 receipt。
 
 ### 4.5 `lowered`
 

@@ -4,6 +4,7 @@
 
 它只定义 pass authority、semantic freeze、identity preservation、world fork、lossy lowering 与 paired artifact 的法律边界，不定义 `World IR` 数据结构、schema、pass runner、LLVM/MLIR dialect 或 codegen pipeline。
 World lifecycle 与 observation import boundary 的状态语言见：[`compiler_world_lifecycle_v0.md`](compiler_world_lifecycle_v0.md)。
+未来 freeze receipt 的只读证明责任见：[`compiler_freeze_receipt_contract_v0.md`](compiler_freeze_receipt_contract_v0.md)。
 
 ## 1. 定位
 

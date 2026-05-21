@@ -53,12 +53,13 @@ if ($Clean -and (Test-Path $outputRootPath)) {
 Ensure-Directory -Path $outputRootPath
 
 $exportScript = Join-Path $PSScriptRoot "export_compiler_lifecycle_summary.py"
+$checkScript = Join-Path $PSScriptRoot "check_compiler_lifecycle_summary.ps1"
 $artifactReportIndex = Join-Path $repoRoot "schemas/examples/system_compiler.artifact_report_index.v0.sample.json"
 $kernelRuntimeSession = Join-Path $repoRoot "schemas/examples/minimal_kernel.kernel_runtime_session.v0.sample.json"
 $witnessBundle = Join-Path $repoRoot "schemas/examples/system_compiler.witness_bundle.v0.sample.json"
 $worldCompare = Join-Path $repoRoot "schemas/examples/system_compiler.world_compare.v0.sample.json"
 
-foreach ($requiredPath in @($exportScript, $artifactReportIndex, $kernelRuntimeSession, $witnessBundle, $worldCompare)) {
+foreach ($requiredPath in @($exportScript, $checkScript, $artifactReportIndex, $kernelRuntimeSession, $witnessBundle, $worldCompare)) {
     if (-not (Test-Path $requiredPath)) {
         throw "required input not found: $requiredPath"
     }
@@ -67,6 +68,7 @@ foreach ($requiredPath in @($exportScript, $artifactReportIndex, $kernelRuntimeS
 $summaryPath = Join-Path $outputRootPath "compiler_lifecycle.summary.json"
 $reportPath = Join-Path $outputRootPath "compiler_lifecycle.report.md"
 $checkPath = Join-Path $outputRootPath "compiler_lifecycle.check.txt"
+$gatePath = Join-Path $outputRootPath "compiler_lifecycle.gate.txt"
 $jsonToolPath = Join-Path $outputRootPath "compiler_lifecycle.summary.normalized.json"
 
 & $PythonExe $exportScript `
@@ -86,6 +88,13 @@ if ($LASTEXITCODE -ne 0) {
 if ($LASTEXITCODE -ne 0) {
     throw ("python -m json.tool failed with exit code {0}" -f $LASTEXITCODE)
 }
+
+& $checkScript `
+    -Summary $summaryPath `
+    -OutputPath $gatePath `
+    -RequireLoweredProjectionKind "interpretive" `
+    -RequireArchivedCoverageStrength "weak_to_medium" `
+    -RequireObservedStatus "present"
 
 $summary = Get-Content -LiteralPath $summaryPath -Raw -Encoding utf8 | ConvertFrom-Json
 $session = Get-Content -LiteralPath $kernelRuntimeSession -Raw -Encoding utf8 | ConvertFrom-Json
@@ -122,3 +131,4 @@ Write-Host "[COMPILER-LIFECYCLE-SUMMARY-SIDECAR-SMOKE] result=ok"
 Write-Host ("summary={0}" -f $summaryPath)
 Write-Host ("report={0}" -f $reportPath)
 Write-Host ("check={0}" -f $checkPath)
+Write-Host ("gate={0}" -f $gatePath)

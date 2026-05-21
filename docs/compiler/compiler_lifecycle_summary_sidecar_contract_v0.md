@@ -4,7 +4,7 @@
 
 它定义 `compiler_lifecycle.summary.json` 应承担的职责边界：只读投影现有 artifact/report/witness/ledger/compare surfaces，把九个 lifecycle states 的 projection status 与 coverage status 机器可读化。
 
-当前最小实现入口为 `scripts/export_compiler_lifecycle_summary.py`，定向 smoke 为 `scripts/compiler_lifecycle_summary_sidecar_smoke.ps1`。本文仍不定义 JSON schema、validator、C++ 类型、World IR、canonical identity、observation import pass 或 LLVM/MLIR 接入。
+当前最小实现入口为 `scripts/export_compiler_lifecycle_summary.py`，只读 gate 为 `scripts/check_compiler_lifecycle_summary.ps1`，定向 smoke 为 `scripts/compiler_lifecycle_summary_sidecar_smoke.ps1`。这个 gate 只检查 sidecar 自身形状与 v0 honesty constraints，不是 JSON schema validator。本文仍不定义 JSON schema、validator、C++ 类型、World IR、canonical identity、observation import pass 或 LLVM/MLIR 接入。
 
 ## 1. 定位
 
@@ -122,6 +122,14 @@ exported surfaces
 - `archived` remains weak-to-medium when no archive manifest exists
 - no raw logs are parsed
 - existing verdicts are not modified
+
+当前 gate 应保持更窄：
+
+- 检查 summary schema/kind/result/state count。
+- 检查九个 lifecycle states 与每个 state 的最小字段存在。
+- 检查 `frozen` 仍为 `missing / interpretive / recommended`。
+- 检查 present 的 `lowered` / `archived` 不被升级成 direct truth。
+- 不读取 raw logs，不重跑 exporter，不替代 schema validator，不修改任何 source surface 或 verdict。
 
 该实现不新增 schema，不接入大 CI，也不替代 artifact report、runtime ledger、witness bundle 或 world compare。
 

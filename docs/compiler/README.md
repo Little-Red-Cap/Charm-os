@@ -10,6 +10,7 @@
 - [`compiler_pass_authority_and_freeze_boundary_v0.md`](compiler_pass_authority_and_freeze_boundary_v0.md)
 - [`compiler_world_lifecycle_v0.md`](compiler_world_lifecycle_v0.md)
 - [`compiler_world_lifecycle_projection_v0.md`](compiler_world_lifecycle_projection_v0.md)
+- [`compiler_world_lifecycle_projection_coverage_v0.md`](compiler_world_lifecycle_projection_coverage_v0.md)
 
 ## 阅读关系
 
@@ -20,8 +21,9 @@
 3. [`compiler_pass_authority_and_freeze_boundary_v0.md`](compiler_pass_authority_and_freeze_boundary_v0.md)
 4. [`compiler_world_lifecycle_v0.md`](compiler_world_lifecycle_v0.md)
 5. [`compiler_world_lifecycle_projection_v0.md`](compiler_world_lifecycle_projection_v0.md)
-6. [`../architecture/system_compiler_roadmap.md`](../architecture/system_compiler_roadmap.md)
-7. [`../architecture/system_compiler_vocabulary_v0.md`](../architecture/system_compiler_vocabulary_v0.md)
+6. [`compiler_world_lifecycle_projection_coverage_v0.md`](compiler_world_lifecycle_projection_coverage_v0.md)
+7. [`../architecture/system_compiler_roadmap.md`](../architecture/system_compiler_roadmap.md)
+8. [`../architecture/system_compiler_vocabulary_v0.md`](../architecture/system_compiler_vocabulary_v0.md)
 
 再按需要进入：
 

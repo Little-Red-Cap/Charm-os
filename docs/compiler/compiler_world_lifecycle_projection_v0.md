@@ -3,6 +3,7 @@
 本文是 `Compiler World Lifecycle v0` 的只读投影合同。
 
 它回答的是：现有 artifact、report、witness、ledger、compare 产物如何用 lifecycle 语言自我描述。它不创建新 truth，不定义新的 machine schema，不新增 exporter、validator、smoke、IR 类型、canonical identity 或 observation import pass。
+投影覆盖强弱、直接/解释性投影与未来 sidecar 缺口由 [`compiler_world_lifecycle_projection_coverage_v0.md`](compiler_world_lifecycle_projection_coverage_v0.md) 审计。
 
 ## 1. 定位
 

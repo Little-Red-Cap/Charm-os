@@ -33,11 +33,7 @@
       "type": "string"
     },
     "result": {
-      "type": "string",
-      "enum": [
-        "ok",
-        "fail"
-      ]
+      "$ref": "#/$defs/okFailResult"
     },
     "opening_flow_consumer_selector": {
       "$ref": "#/$defs/titleBlock"
@@ -70,6 +66,20 @@
       "items": {
         "type": "string"
       }
+    },
+    "okFailResult": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "fail"
+      ]
+    },
+    "readyBlockedStatus": {
+      "type": "string",
+      "enum": [
+        "ready",
+        "blocked"
+      ]
     },
     "titleBlock": {
       "type": "object",
@@ -191,11 +201,7 @@
       ],
       "properties": {
         "result": {
-          "type": "string",
-          "enum": [
-            "ok",
-            "fail"
-          ]
+          "$ref": "#/$defs/okFailResult"
         },
         "total_opening_count": {
           "type": "integer",
@@ -230,18 +236,10 @@
       ],
       "properties": {
         "result": {
-          "type": "string",
-          "enum": [
-            "ok",
-            "fail"
-          ]
+          "$ref": "#/$defs/okFailResult"
         },
         "open_plan_status": {
-          "type": "string",
-          "enum": [
-            "ready",
-            "blocked"
-          ]
+          "$ref": "#/$defs/readyBlockedStatus"
         },
         "selected_entry_count": {
           "type": "integer",
@@ -272,11 +270,7 @@
       ],
       "properties": {
         "status": {
-          "type": "string",
-          "enum": [
-            "ready",
-            "blocked"
-          ]
+          "$ref": "#/$defs/readyBlockedStatus"
         },
         "default_entry": {
           "$ref": "#/$defs/entryOrEmpty"

@@ -37,11 +37,7 @@
       "type": "string"
     },
     "result": {
-      "type": "string",
-      "enum": [
-        "ok",
-        "fail"
-      ]
+      "$ref": "#/$defs/okFailResult"
     },
     "opening_flow_consumer_selector_compare": {
       "$ref": "#/$defs/titleBlock"
@@ -59,13 +55,7 @@
       "$ref": "#/$defs/artifactContext"
     },
     "selector_verdict": {
-      "type": "string",
-      "enum": [
-        "standing",
-        "improved",
-        "drifted",
-        "collapsed"
-      ]
+      "$ref": "#/$defs/compareVerdict"
     },
     "selector_status": {
       "$ref": "#/$defs/selectorStatus"
@@ -98,6 +88,22 @@
       "items": {
         "type": "string"
       }
+    },
+    "okFailResult": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "fail"
+      ]
+    },
+    "compareVerdict": {
+      "type": "string",
+      "enum": [
+        "standing",
+        "improved",
+        "drifted",
+        "collapsed"
+      ]
     },
     "titleBlock": {
       "type": "object",

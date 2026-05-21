@@ -4,7 +4,7 @@
 
 它回答的是：在 Charm compiler law 已经建立 constitution、authority/freeze、lifecycle、projection、coverage、lowering surface、freeze receipt 与 archive manifest 之后，哪些 sidecar 可以先落地，哪些 sidecar 必须继续推迟。
 
-本文不新增 schema、summary 文件、validator、exporter、smoke、C++ 类型、World IR、canonical identity、observation import pass 或 LLVM/MLIR 接入。
+本文不定义 schema、validator、C++ 类型、World IR、canonical identity、observation import pass 或 LLVM/MLIR 接入。当前 first sidecar 的最小实现由 `scripts/export_compiler_lifecycle_summary.py` 与 `scripts/compiler_lifecycle_summary_sidecar_smoke.ps1` 承接。
 
 ## 1. 定位
 
@@ -105,15 +105,14 @@ v0 固定 sidecar 落地顺序：
 
 它只定义 first sidecar 的落地顺序。
 
-`compiler_lifecycle.summary.json` 未来必须遵守 lifecycle projection 与 coverage matrix 的只读边界。它不能因为自己是第一个 sidecar，就获得 world ownership。
+`compiler_lifecycle.summary.json` 必须遵守 lifecycle projection 与 coverage matrix 的只读边界。它不能因为自己是第一个 sidecar，就获得 world ownership。
 
 ## 7. 非目标
 
 本 v0 不做：
 
 - 不新增 JSON schema。
-- 不新增 `compiler_lifecycle.summary.json` 文件。
-- 不新增 validator、exporter、smoke 或脚本。
+- 不新增 validator。
 - 不新增 C++ 类型或 IR。
 - 不定义 canonical identity。
 - 不实现 observation import pass。

@@ -2,9 +2,9 @@
 
 本文是 `Compiler Sidecar Landing Order v0` 的下游 contract。
 
-它定义未来 `compiler_lifecycle.summary.json` 应承担的职责边界：只读投影现有 artifact/report/witness/ledger/compare surfaces，把九个 lifecycle states 的 projection status 与 coverage status 机器可读化。
+它定义 `compiler_lifecycle.summary.json` 应承担的职责边界：只读投影现有 artifact/report/witness/ledger/compare surfaces，把九个 lifecycle states 的 projection status 与 coverage status 机器可读化。
 
-本文不实现 `compiler_lifecycle.summary.json`，不定义 JSON schema、字段、validator、exporter、smoke、C++ 类型、World IR、canonical identity、observation import pass 或 LLVM/MLIR 接入。
+当前最小实现入口为 `scripts/export_compiler_lifecycle_summary.py`，定向 smoke 为 `scripts/compiler_lifecycle_summary_sidecar_smoke.ps1`。本文仍不定义 JSON schema、validator、C++ 类型、World IR、canonical identity、observation import pass 或 LLVM/MLIR 接入。
 
 ## 1. 定位
 
@@ -29,7 +29,7 @@
 
 ## 2. Sidecar Responsibility
 
-未来 `compiler_lifecycle.summary.json` 至少应承担这些责任：
+`compiler_lifecycle.summary.json` 至少应承担这些责任：
 
 - 列出九个 lifecycle states 的 projection status。
 - 说明每个 state 的 coverage strength。
@@ -99,22 +99,22 @@ Consumers must not:
 - use lifecycle summary to create source facts
 - use lifecycle summary to override artifact report, runtime ledger, witness bundle, world compare, freeze receipt or archive manifest
 
-## 7. Future Implementation Direction
+## 7. Current Implementation Direction
 
-Future implementation may introduce:
+当前最小实现会生成：
 
 ```text
 compiler_lifecycle.summary.json
 ```
 
-Future exporter should be minimal and read-only:
+当前 exporter 保持最小只读：
 
 ```text
 exported surfaces
   -> lifecycle projection summary
 ```
 
-Future smoke should assert:
+当前 smoke 应断言：
 
 - all nine lifecycle states are present in the summary
 - `frozen` remains missing when no freeze receipt exists
@@ -123,15 +123,14 @@ Future smoke should assert:
 - no raw logs are parsed
 - existing verdicts are not modified
 
-This v0 does not implement the exporter or smoke.
+该实现不新增 schema，不接入大 CI，也不替代 artifact report、runtime ledger、witness bundle 或 world compare。
 
 ## 8. 非目标
 
 本 v0 不做：
 
 - 不新增 JSON schema。
-- 不新增 `compiler_lifecycle.summary.json` 文件。
-- 不新增 validator、exporter、smoke 或脚本。
+- 不新增 validator。
 - 不新增 C++ 类型或 IR。
 - 不定义 canonical identity。
 - 不实现 observation import pass。

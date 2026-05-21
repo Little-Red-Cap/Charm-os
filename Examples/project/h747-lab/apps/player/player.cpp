@@ -36,6 +36,24 @@ h747::apps::player::PlayerBoardSnapshot capture_board_snapshot() noexcept {
     };
 }
 
+void probe_resources_once() noexcept {
+    auto& storage = active_storage_probe();
+    const auto snapshot = storage.snapshot().raw;
+    if ((snapshot.qspi_power_good != 0U) && (snapshot.qspi_jedec_ok == 0U) && (snapshot.qspi_read_ok == 0U)) {
+        (void)storage.probe_qspi();
+    }
+}
+
+void probe_resources_periodic() noexcept {
+    static std::uint32_t last_probe_ms = 0U;
+    const std::uint32_t now = active_world().clock().tick_ms().value;
+    if ((now - last_probe_ms) < 5000U) {
+        return;
+    }
+    last_probe_ms = now;
+    probe_resources_once();
+}
+
 void print_hex32(const char* label, const std::uint32_t value) {
     h747::console::write(label);
     h747::console::write_hex32(value);
@@ -91,6 +109,7 @@ namespace h747::apps::player {
 
 void init() {
     active_world().init();
+    probe_resources_once();
     active_runtime().observe_board(capture_board_snapshot());
     print_raster_state("player");
     init(active_world(), active_runtime());
@@ -98,6 +117,7 @@ void init() {
 }
 
 void loop_once() noexcept {
+    probe_resources_periodic();
     active_runtime().observe_board(capture_board_snapshot());
     loop_once(active_world(), active_runtime());
     static std::uint32_t last_present = 0U;

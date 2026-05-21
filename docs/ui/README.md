@@ -123,6 +123,8 @@ Fast manifest smoke:
 - [`eink_refresh_policy.md`](eink_refresh_policy.md)
 - [`player_ui.md`](player_ui.md)
 - [`player_vivid_patterns.md`](player_vivid_patterns.md)
+- [`player_portability_boundary.md`](player_portability_boundary.md)
+- [`player_vivid_portability_map.md`](player_vivid_portability_map.md)
 
 ## 当前建议阅读顺序
 

@@ -23,6 +23,8 @@ The Player portability boundary should follow the same broad shape as the DAPLin
 - Host shells own preview-only windowing, diagnostics, screenshots, and file-backed convenience paths.
 - Page controllers should depend on semantic providers, not on Windows, SDL, or file decoder details.
 
+For the current ownership map, host shell split, Vivid extraction candidates, and portable UI probe contract, see `player_vivid_portability_map.md`.
+
 ## Host-Only Dependencies
 
 - SDL3 windowing, event pump, renderer, and screenshot flow live in `Examples/project/player/win`.

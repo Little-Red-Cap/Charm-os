@@ -167,24 +167,26 @@
         g_player_cfg.fixed_rate = 48000;
 
         player::AppConfig app_cfg{g_player_cfg};
+        auto& font = app_cfg.font_resources;
         if constexpr (player::host_features::host_file_fonts) {
+            font.file_backed = true;
             if (!options.font_ttf_path.empty()) {
-                app_cfg.ttf_path.assign(options.font_ttf_path);
+                font.primary_path.assign(options.font_ttf_path);
             } else {
-                app_cfg.ttf_path.assign(player::product_config::default_font_path);
+                font.primary_path.assign(player::product_config::default_font_path);
             }
             if (!options.font_fallback_ttf_path.empty()) {
-                app_cfg.ttf_fallback_path.assign(options.font_fallback_ttf_path);
+                font.fallback_path.assign(options.font_fallback_ttf_path);
             }
         }
         if (options.font_small_px > 0) {
-            app_cfg.ttf_small_px = options.font_small_px;
+            font.small_px = options.font_small_px;
         }
         if (options.font_normal_px > 0) {
-            app_cfg.ttf_normal_px = options.font_normal_px;
+            font.normal_px = options.font_normal_px;
         }
         if (options.font_large_px > 0) {
-            app_cfg.ttf_large_px = options.font_large_px;
+            font.large_px = options.font_large_px;
         }
         return app_cfg;
     }

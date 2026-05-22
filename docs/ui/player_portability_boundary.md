@@ -35,6 +35,7 @@ For the current ownership map, host shell split, Vivid extraction candidates, an
 - Host VHD storage defaults are gated by `CHARM_PLAYER_HOST_STORAGE`.
 - Product resource defaults live in `player.product_config`; host entry points should select or override them instead of hardcoding resource paths.
 - `AppConfig` stores resource paths in fixed-capacity slots so the app-level config boundary does not require dynamic strings.
+- `AppConfig` groups font resource data as `FontResourceConfig`; file-backed fonts must opt in through that record instead of leaking host TTF fields into page code.
 - Embedded and file-backed cover decoding is gated by `CHARM_PLAYER_HOST_COVER_DECODE`; portable targets can keep using generated/default covers or later provide pre-decoded resource images.
 - The Windows host shell prints `[player.features]` at startup so a preview build and a portability-probe build can be distinguished from logs. A probe with `host_cover_decode=0` is expected to skip real cover decoding.
 - `player.cover` exposes a small `CoverProviderFn` slot. The default provider is the host decoder when `CHARM_PLAYER_HOST_COVER_DECODE=1`; portable targets can install a pre-decoded/resource-backed provider without changing page controllers.

@@ -15,13 +15,22 @@ import input.raw_event;
 import ui.input_adapter;
 
 export namespace player {
+    struct FontResourceConfig {
+        FixedString<260> primary_path{};
+        FixedString<260> fallback_path{};
+        int small_px{product_config::default_font_small_px};
+        int normal_px{product_config::default_font_normal_px};
+        int large_px{product_config::default_font_large_px};
+        bool file_backed{false};
+
+        bool has_file_resource() const noexcept {
+            return file_backed && !primary_path.empty();
+        }
+    };
+
     struct AppConfig {
         audio::PlayerConfig player_config{};
-        FixedString<260> ttf_path{};
-        FixedString<260> ttf_fallback_path{};
-        int ttf_small_px{product_config::default_font_small_px};
-        int ttf_normal_px{product_config::default_font_normal_px};
-        int ttf_large_px{product_config::default_font_large_px};
+        FontResourceConfig font_resources{};
     };
 
     class App {
@@ -95,29 +104,30 @@ export namespace player {
 
         template <typename Controller>
         void bind_ui(::ui::scene::SceneBuilder& builder, Controller& controller) {
-            if (!config_.ttf_path.empty()) {
+            const auto& font = config_.font_resources;
+            if (font.has_file_resource()) {
                 if constexpr (requires {
-                                  controller.set_font_config(config_.ttf_path.view(),
-                                                             config_.ttf_fallback_path.view(),
-                                                             config_.ttf_small_px,
-                                                             config_.ttf_normal_px,
-                                                             config_.ttf_large_px);
+                                  controller.set_font_config(font.primary_path.view(),
+                                                             font.fallback_path.view(),
+                                                             font.small_px,
+                                                             font.normal_px,
+                                                             font.large_px);
                               }) {
-                    controller.set_font_config(config_.ttf_path.view(),
-                                               config_.ttf_fallback_path.view(),
-                                               config_.ttf_small_px,
-                                               config_.ttf_normal_px,
-                                               config_.ttf_large_px);
+                    controller.set_font_config(font.primary_path.view(),
+                                               font.fallback_path.view(),
+                                               font.small_px,
+                                               font.normal_px,
+                                               font.large_px);
                 } else if constexpr (requires {
-                                         controller.set_font_config(config_.ttf_path.view(),
-                                                                    config_.ttf_small_px,
-                                                                    config_.ttf_normal_px,
-                                                                    config_.ttf_large_px);
+                                         controller.set_font_config(font.primary_path.view(),
+                                                                    font.small_px,
+                                                                    font.normal_px,
+                                                                    font.large_px);
                                      }) {
-                    controller.set_font_config(config_.ttf_path.view(),
-                                               config_.ttf_small_px,
-                                               config_.ttf_normal_px,
-                                               config_.ttf_large_px);
+                    controller.set_font_config(font.primary_path.view(),
+                                               font.small_px,
+                                               font.normal_px,
+                                               font.large_px);
                 }
             }
             apply_player_theme();

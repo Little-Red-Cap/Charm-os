@@ -75,7 +75,7 @@ Recommended next slice:
 Current state:
 
 - `player.product_config` owns default font path and size constants.
-- `AppConfig` carries resource paths through fixed-capacity slots.
+- `AppConfig` carries a `FontResourceConfig` record with fixed-capacity paths, font sizes, and an explicit `file_backed` bit.
 - Host file fonts are enabled only through `CHARM_PLAYER_HOST_FILE_FONTS`.
 - Win32/GDI fallback glyph caching is guarded by `CHARM_PLAYER_HOST_UI && CHARM_PLAYER_PC_FONT_CACHE && _WIN32`.
 - `portability_probe --font-disable-system-fallback` is the current proof that built-in fonts can keep the UI readable.
@@ -168,6 +168,7 @@ Replaceable preview or adapter implementation state:
 Already moving in the portable direction:
 
 - `FixedString` app config and path helpers.
+- `FontResourceConfig` keeps file-backed font resource data behind the app config boundary instead of scattering TTF fields through host bootstrap.
 - Explicit host feature gates in `player.host_features`.
 - CMake host profiles that make preview/probe differences visible.
 - `CoverProviderFn` and generated/default cover fallback.

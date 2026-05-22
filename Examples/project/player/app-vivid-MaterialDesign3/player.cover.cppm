@@ -51,10 +51,32 @@ export namespace player {
         HomeBottomCut,
     };
 
+    enum class CoverResourceKind : std::uint8_t {
+        Unknown = 0,
+        EmbeddedTrack,
+        FolderFile,
+    };
+
+    struct CoverResourceRequest {
+        std::string_view path{};
+        CoverResourceKind kind{CoverResourceKind::Unknown};
+        DefaultCoverVariant fallback_variant{DefaultCoverVariant::HomeHeroPill};
+    };
+
+    struct CoverResourceView {
+        std::string_view key{};
+        std::span<const std::uint32_t> argb{};
+        int width{0};
+        int height{0};
+    };
+
     ui::gfx::ImageId default_cover_image_id() noexcept;
     ui::gfx::ImageId default_cover_image_id(DefaultCoverVariant variant) noexcept;
     ui::gfx::ImageId default_cover_image_id(std::size_t variant) noexcept;
+    using CoverResourceProviderFn = bool (*)(const CoverResourceRequest& request, CoverResourceView& out) noexcept;
     using CoverProviderFn = bool (*)(std::string_view path, CoverImage& out) noexcept;
+    void set_cover_resource_provider(CoverResourceProviderFn provider) noexcept;
+    CoverResourceProviderFn cover_resource_provider() noexcept;
     void set_cover_provider(CoverProviderFn provider) noexcept;
     CoverProviderFn cover_provider() noexcept;
 
@@ -528,6 +550,40 @@ export namespace player {
                 0);
             const auto res = ui::gfx::register_image_dedup(view);
             return res.ok() ? res.id : ui::gfx::invalid_image_id();
+        }
+
+        bool register_cover_resource_view(const CoverResourceRequest& request,
+                                          const CoverResourceView& resource,
+                                          CoverImage& out) {
+            if (resource.width <= 0 || resource.height <= 0) return false;
+            const auto pixel_count =
+                static_cast<std::size_t>(resource.width) * static_cast<std::size_t>(resource.height);
+            if (pixel_count == 0 || resource.argb.size() < pixel_count) return false;
+
+            out.argb.assign(resource.argb.begin(), resource.argb.begin() + static_cast<std::ptrdiff_t>(pixel_count));
+            out.width = resource.width;
+            out.height = resource.height;
+            const auto key = resource.key.empty() ? request.path : resource.key;
+            out.path.assign(key.begin(), key.end());
+
+            const bool fully_opaque = is_fully_opaque(out);
+            const auto sample_inset = cover_sample_inset_px(out.width, out.height);
+            const auto view = make_image_view(
+                PixelFormat::ARGB8888,
+                out.width,
+                out.height,
+                out.width * 4,
+                reinterpret_cast<const std::byte*>(out.argb.data()),
+                false,
+                fully_opaque,
+                sample_inset);
+            const auto res = ui::gfx::register_image(view);
+            out.image_id = res.ok() ? res.id : ui::gfx::invalid_image_id();
+            if (!ui::gfx::image_id_valid(out.image_id)) {
+                out = {};
+                return false;
+            }
+            return true;
         }
 
 #if CHARM_PLAYER_USE_HOST_COVER_DECODE
@@ -1315,6 +1371,11 @@ export namespace player {
 #endif
 
     namespace detail {
+        CoverResourceProviderFn& active_cover_resource_provider() noexcept {
+            static CoverResourceProviderFn provider = nullptr;
+            return provider;
+        }
+
         bool default_cover_provider(std::string_view path, CoverImage& out) noexcept {
 #if !CHARM_PLAYER_USE_HOST_COVER_DECODE
             (void)path;
@@ -1338,6 +1399,14 @@ export namespace player {
         img = {};
     }
 
+    void set_cover_resource_provider(CoverResourceProviderFn provider) noexcept {
+        detail::active_cover_resource_provider() = provider;
+    }
+
+    CoverResourceProviderFn cover_resource_provider() noexcept {
+        return detail::active_cover_resource_provider();
+    }
+
     void set_cover_provider(CoverProviderFn provider) noexcept {
         detail::active_cover_provider() = provider ? provider : &detail::default_cover_provider;
     }
@@ -1346,11 +1415,25 @@ export namespace player {
         return detail::active_cover_provider();
     }
 
-    bool load_cover_image(std::string_view path, CoverImage& out) {
+    bool load_cover_image(const CoverResourceRequest& request, CoverImage& out) {
         release_cover_image(out);
-        if (path.empty()) return false;
+        if (request.path.empty()) return false;
+        if (const auto resource_provider = detail::active_cover_resource_provider()) {
+            CoverResourceView resource{};
+            if (resource_provider(request, resource)
+                && detail::register_cover_resource_view(request, resource, out)) {
+                return true;
+            }
+            release_cover_image(out);
+        }
         const auto provider = detail::active_cover_provider();
-        return provider ? provider(path, out) : false;
+        return provider ? provider(request.path, out) : false;
+    }
+
+    bool load_cover_image(std::string_view path, CoverImage& out) {
+        CoverResourceRequest request{};
+        request.path = path;
+        return load_cover_image(request, out);
     }
 
     ui::gfx::ImageId default_cover_image_id() noexcept {

@@ -1212,7 +1212,13 @@ export namespace player {
                     if (folder_candidate) cover_failed_folder_path.clear();
                     return true;
                 }
-                if (load_cover_image(candidate, cover_image)) {
+                CoverResourceRequest request{};
+                request.path = candidate;
+                request.kind = embedded_candidate
+                    ? CoverResourceKind::EmbeddedTrack
+                    : (folder_candidate ? CoverResourceKind::FolderFile : CoverResourceKind::Unknown);
+                request.fallback_variant = DefaultCoverVariant::HomeHeroPill;
+                if (load_cover_image(request, cover_image)) {
                     set_image_slot_range(current_track_cover_slots(), cover_image.image_id, false);
                     cover_path.assign(candidate);
                     restore_now_playing_group_visibility();

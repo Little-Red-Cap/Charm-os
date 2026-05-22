@@ -38,7 +38,7 @@ For the current ownership map, host shell split, Vivid extraction candidates, an
 - `AppConfig` groups font resource data as `FontResourceConfig`; file-backed fonts must opt in through that record instead of leaking host TTF fields into page code.
 - Embedded and file-backed cover decoding is gated by `CHARM_PLAYER_HOST_COVER_DECODE`; portable targets can keep using generated/default covers or later provide pre-decoded resource images.
 - The Windows host shell prints `[player.features]` at startup so a preview build and a portability-probe build can be distinguished from logs. A probe with `host_cover_decode=0` is expected to skip real cover decoding.
-- `player.cover` exposes a small `CoverProviderFn` slot. The default provider is the host decoder when `CHARM_PLAYER_HOST_COVER_DECODE=1`; portable targets can install a pre-decoded/resource-backed provider without changing page controllers.
+- `player.cover` exposes `CoverResourceProviderFn` before the legacy `CoverProviderFn` host decoder. Portable targets can return pre-decoded/resource-backed views without changing page controllers; host decode remains gated by `CHARM_PLAYER_HOST_COVER_DECODE`.
 - When no cover can be decoded, Now Playing and the mini bar use generated default cover art instead of leaving image slots empty.
 - Cover-theme sampling is capped at a fixed 128x128 working set before palette extraction, so Player-side theme sampling has an explicit memory budget.
 - FreeType/VFS file font binding is gated by `CHARM_PLAYER_HOST_FILE_FONTS`; portable targets fall back to built-in fonts until a board resource-font contract exists.

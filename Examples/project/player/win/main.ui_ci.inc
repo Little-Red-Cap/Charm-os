@@ -15,6 +15,55 @@
         }
     }
 
+    constexpr std::uint32_t ui_ci_cover_pixel(std::uint8_t a,
+                                              std::uint8_t r,
+                                              std::uint8_t g,
+                                              std::uint8_t b) noexcept {
+        return (static_cast<std::uint32_t>(b) << 24)
+            | (static_cast<std::uint32_t>(g) << 16)
+            | (static_cast<std::uint32_t>(r) << 8)
+            | static_cast<std::uint32_t>(a);
+    }
+
+    bool ui_ci_static_cover_provider(const player::CoverResourceRequest& request,
+                                     player::CoverResourceView& out) noexcept {
+        static constexpr std::array<std::uint32_t, 4> kPixels{
+            ui_ci_cover_pixel(255, 240, 120, 80),
+            ui_ci_cover_pixel(255, 60, 110, 210),
+            ui_ci_cover_pixel(255, 96, 180, 130),
+            ui_ci_cover_pixel(255, 250, 220, 120),
+        };
+        if (request.kind != player::CoverResourceKind::EmbeddedTrack) return false;
+        if (request.path != std::string_view{"/ui-ci/static-cover"}) return false;
+        out.key = "/ui-ci/static-cover-resource";
+        out.argb = std::span<const std::uint32_t>(kPixels.data(), kPixels.size());
+        out.width = 2;
+        out.height = 2;
+        return true;
+    }
+
+    bool run_cover_resource_provider_ci() noexcept {
+        const auto previous = player::cover_resource_provider();
+        player::set_cover_resource_provider(&ui_ci_static_cover_provider);
+
+        player::CoverImage image{};
+        player::CoverResourceRequest request{};
+        request.path = "/ui-ci/static-cover";
+        request.kind = player::CoverResourceKind::EmbeddedTrack;
+        request.fallback_variant = player::DefaultCoverVariant::HomeHeroPill;
+        const bool loaded = player::load_cover_image(request, image);
+        const bool ok = loaded
+            && ::ui::gfx::image_id_valid(image.image_id)
+            && image.width == 2
+            && image.height == 2
+            && image.argb.size() == 4
+            && image.path == "/ui-ci/static-cover-resource";
+
+        player::release_cover_image(image);
+        player::set_cover_resource_provider(previous);
+        return ok;
+    }
+
     void ui_ci_click(player::App& app, PlayerUiContext& ctx, ::ui::scene::Scene& scene, int x, int y) {
         input::RawInputEvent down{};
         down.type = input::RawInputEventType::Pointer;
@@ -72,6 +121,14 @@
         };
 
         pump_frame();
+
+        if (run_cover_resource_provider_ci()) {
+            ui_ci_emit("cover_resource_provider_static_view", true, nullptr);
+        } else {
+            ui_ci_emit("cover_resource_provider_static_view", false, "static_view");
+            res.ok = false;
+            res.failed++;
+        }
 
         {
             const auto cmd_stats = scene.last_cmd_stats();

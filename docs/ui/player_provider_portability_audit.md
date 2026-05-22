@@ -35,6 +35,7 @@ It is intentionally narrower than a full embedded port plan. The goal is to make
 Current state:
 
 - `player.cover` already has a small provider seam through `CoverProviderFn`.
+- `player.cover` now checks an optional `CoverResourceProviderFn` before host decode, so board/resource builds can return a pre-decoded `CoverResourceView`.
 - The Windows preview can install the host decoder when `CHARM_PLAYER_HOST_COVER_DECODE=1`.
 - `portability_probe` disables host decode, so generated/default cover art must keep Now Playing and the mini bar complete.
 - The UI path should not assume that embedded album art can always be decoded at runtime.
@@ -42,12 +43,13 @@ Current state:
 Dynamic allocation and portability notes:
 
 - Host-side decode and embedded-image extraction still need temporary image buffers.
+- Resource-backed covers still copy into `CoverImage::argb` in v0; fixed-capacity ownership is a later portable-profile concern.
 - Cover-theme sampling uses a fixed 128x128 working set before palette extraction, which is good because the memory budget is visible.
 - Some theme and transition state remains in the MD3 controller; this is product semantic state, not a host dependency by itself.
 
 Recommended next slice:
 
-- Add a portable cover resource provider that can return pre-decoded or resource-backed image views.
+- Add real board/resource implementations for the new pre-decoded cover provider seam.
 - Keep host decode as one provider implementation, not the default mental model.
 - Continue using generated/default cover art as the fallback contract.
 
@@ -169,6 +171,7 @@ Already moving in the portable direction:
 
 - `FixedString` app config and path helpers.
 - `FontResourceConfig` keeps file-backed font resource data behind the app config boundary instead of scattering TTF fields through host bootstrap.
+- `CoverResourceProviderFn` gives portable builds a pre-decoded cover path before host decode.
 - Explicit host feature gates in `player.host_features`.
 - CMake host profiles that make preview/probe differences visible.
 - `CoverProviderFn` and generated/default cover fallback.

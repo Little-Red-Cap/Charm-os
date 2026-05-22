@@ -10,6 +10,7 @@ import player.playback;
 import player.product_config;
 import player.ui_builder;
 import player.ui;
+import player.cover;
 import charm.core.config;
 import charm.core.event;
 import charm.ui.scene;
@@ -49,6 +50,7 @@ import platform.win.time_source;
 #include <charconv>
 #include <cstdio>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>

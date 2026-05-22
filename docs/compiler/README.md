@@ -17,6 +17,15 @@
 - [`compiler_freeze_receipt_contract_v0.md`](compiler_freeze_receipt_contract_v0.md)
 - [`compiler_archive_manifest_contract_v0.md`](compiler_archive_manifest_contract_v0.md)
 
+## 当前实现入口
+
+- `scripts/export_compiler_lifecycle_summary.py`
+- `scripts/check_compiler_lifecycle_summary.ps1`
+- `scripts/report_compiler_lifecycle_summary.ps1`
+- `scripts/compiler_lifecycle_summary_sidecar.ps1`
+- `scripts/compiler_lifecycle_summary_sidecar_smoke.ps1`
+- `scripts/minimal_kernel_runtime_evidence_bundle.ps1 -ExportCompilerLifecycleSummary`
+
 ## 阅读关系
 
 建议先读：

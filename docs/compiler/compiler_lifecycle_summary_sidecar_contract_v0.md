@@ -143,6 +143,12 @@ exported surfaces
 - 只接受显式传入的 exported surfaces，不扫描 artifact root 来猜测 hidden truth。
 - 不接入默认 runtime evidence bundle、大 CI 或 compare 判决模型。
 
+当前 runtime evidence bundle hook 应保持可选：
+
+- 只有显式传入 `-ExportCompilerLifecycleSummary` 时才调用 sidecar wrapper。
+- 只转交 bundle 已导出的 session summary、runtime ledger 与可用 witness bundle summary。
+- 不猜测 artifact report 或 world compare，不读取 raw logs，不改变 runtime evidence / witness / compare verdict。
+
 该实现不新增 schema，不接入大 CI，也不替代 artifact report、runtime ledger、witness bundle 或 world compare。
 
 ## 8. 非目标

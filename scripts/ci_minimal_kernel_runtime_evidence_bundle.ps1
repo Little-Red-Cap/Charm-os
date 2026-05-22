@@ -19,6 +19,8 @@ param(
     [int]$QemuTailLines = 40,
     [switch]$Clean,
     [switch]$SkipWitnessBundle,
+    [switch]$ExportCompilerLifecycleSummary,
+    [string]$CompilerLifecycleOutputRoot = "",
     [string[]]$HostExamples
 )
 
@@ -77,6 +79,12 @@ if ($Clean) {
 }
 if ($SkipWitnessBundle) {
     $invokeArgs.SkipWitnessBundle = $true
+}
+if ($ExportCompilerLifecycleSummary) {
+    $invokeArgs.ExportCompilerLifecycleSummary = $true
+}
+if (-not [string]::IsNullOrWhiteSpace($CompilerLifecycleOutputRoot)) {
+    $invokeArgs.CompilerLifecycleOutputRoot = $CompilerLifecycleOutputRoot
 }
 if ($PSBoundParameters.ContainsKey("HostExamples")) {
     $invokeArgs.HostExamples = $HostExamples

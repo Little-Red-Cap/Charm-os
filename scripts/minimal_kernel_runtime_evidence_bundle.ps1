@@ -26,6 +26,8 @@ param(
     [switch]$Clean,
     [switch]$SkipSession,
     [switch]$SkipWitnessBundle,
+    [switch]$ExportCompilerLifecycleSummary,
+    [string]$CompilerLifecycleOutputRoot = "",
     [string[]]$HostExamples
 )
 
@@ -747,6 +749,7 @@ $resolvedHostOutputRoot = if ([string]::IsNullOrWhiteSpace($HostOutputRoot)) { J
 $resolvedQemuOutputRoot = if ([string]::IsNullOrWhiteSpace($QemuOutputRoot)) { Join-Path $outputRootPath "qemu" } else { Resolve-FullPath -Path $QemuOutputRoot }
 $resolvedSessionOutputRoot = if ([string]::IsNullOrWhiteSpace($SessionOutputRoot)) { Join-Path $outputRootPath "session" } else { Resolve-FullPath -Path $SessionOutputRoot }
 $resolvedWitnessBundleOutputRoot = if ([string]::IsNullOrWhiteSpace($WitnessBundleOutputRoot)) { Join-Path $outputRootPath "witness" } else { Resolve-FullPath -Path $WitnessBundleOutputRoot }
+$resolvedCompilerLifecycleOutputRoot = if ([string]::IsNullOrWhiteSpace($CompilerLifecycleOutputRoot)) { Join-Path $outputRootPath "compiler_lifecycle" } else { Resolve-FullPath -Path $CompilerLifecycleOutputRoot }
 
 if ($Clean) {
     Remove-PathIfExists -Path $outputRootPath
@@ -776,13 +779,20 @@ $witnessBundleSummaryPathResolved = Get-OutputPath -ExplicitPath $WitnessBundleS
 $witnessBundleReportMarkdownPathResolved = Get-OutputPath -ExplicitPath $WitnessBundleReportMarkdownPath -OutputRootPath $resolvedWitnessBundleOutputRoot -DefaultFileName "report.md"
 $witnessBundleCheckTextPathResolved = Get-OutputPath -ExplicitPath $WitnessBundleCheckTextPath -OutputRootPath $resolvedWitnessBundleOutputRoot -DefaultFileName "check.txt"
 $witnessBundleLogPathResolved = Get-OutputPath -ExplicitPath "" -OutputRootPath $outputRootPath -DefaultFileName "witness.bundle.log"
+$compilerLifecycleSummaryPathResolved = Get-OutputPath -ExplicitPath "" -OutputRootPath $resolvedCompilerLifecycleOutputRoot -DefaultFileName "compiler_lifecycle.summary.json"
+$compilerLifecycleReportMarkdownPathResolved = Get-OutputPath -ExplicitPath "" -OutputRootPath $resolvedCompilerLifecycleOutputRoot -DefaultFileName "compiler_lifecycle.report.md"
+$compilerLifecycleCheckTextPathResolved = Get-OutputPath -ExplicitPath "" -OutputRootPath $resolvedCompilerLifecycleOutputRoot -DefaultFileName "compiler_lifecycle.check.txt"
+$compilerLifecycleGateTextPathResolved = Get-OutputPath -ExplicitPath "" -OutputRootPath $resolvedCompilerLifecycleOutputRoot -DefaultFileName "compiler_lifecycle.gate.txt"
+$compilerLifecycleSummaryReportPathResolved = Get-OutputPath -ExplicitPath "" -OutputRootPath $resolvedCompilerLifecycleOutputRoot -DefaultFileName "compiler_lifecycle.summary_report.md"
+$compilerLifecycleLogPathResolved = Get-OutputPath -ExplicitPath "" -OutputRootPath $outputRootPath -DefaultFileName "compiler_lifecycle.bundle.log"
 
 $powerShellExe = Resolve-ToolPath -Candidates @("powershell.exe", "pwsh.exe", "powershell", "pwsh")
-$pythonExeResolved = if ($SkipSession) { "" } else { Resolve-ToolPath -Candidates @($PythonExe, "python.exe", "python", "py.exe", "py") }
+$pythonExeResolved = if ($SkipSession -and -not $ExportCompilerLifecycleSummary) { "" } else { Resolve-ToolPath -Candidates @($PythonExe, "python.exe", "python", "py.exe", "py") }
 $hostBundleScript = Join-Path $PSScriptRoot "minimal_kernel_runtime_host_smoke_dual_bundle.ps1"
 $qemuBundleScript = Join-Path $PSScriptRoot "minimal_kernel_runtime_armv7a_qemu_smoke_bundle.ps1"
 $sessionExportScript = Join-Path $PSScriptRoot "export_minimal_kernel_runtime_session.py"
 $witnessBundleScript = Join-Path $PSScriptRoot "export_system_compiler_witness_bundle.ps1"
+$compilerLifecycleSidecarScript = Join-Path $PSScriptRoot "compiler_lifecycle_summary_sidecar.ps1"
 $requiredScripts = [System.Collections.Generic.List[string]]::new()
 $requiredScripts.Add($hostBundleScript) | Out-Null
 $requiredScripts.Add($qemuBundleScript) | Out-Null
@@ -791,6 +801,9 @@ if (-not $SkipSession) {
 }
 if (-not $SkipWitnessBundle) {
     $requiredScripts.Add($witnessBundleScript) | Out-Null
+}
+if ($ExportCompilerLifecycleSummary) {
+    $requiredScripts.Add($compilerLifecycleSidecarScript) | Out-Null
 }
 foreach ($scriptPath in $requiredScripts) {
     if (-not (Test-Path $scriptPath)) {
@@ -1034,6 +1047,73 @@ if (-not $SkipWitnessBundle) {
     $summaryObject | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $summaryPathResolved -Encoding utf8
 }
 
+$compilerLifecycleSidecarView = $null
+if ($ExportCompilerLifecycleSummary) {
+    $compilerLifecycleArgs = [System.Collections.Generic.List[string]]::new()
+    Add-ScriptArgument -Arguments $compilerLifecycleArgs -Name "-OutputRoot" -Value $resolvedCompilerLifecycleOutputRoot
+    Add-ScriptArgument -Arguments $compilerLifecycleArgs -Name "-SummaryPath" -Value $compilerLifecycleSummaryPathResolved
+    Add-ScriptArgument -Arguments $compilerLifecycleArgs -Name "-ReportMarkdownPath" -Value $compilerLifecycleReportMarkdownPathResolved
+    Add-ScriptArgument -Arguments $compilerLifecycleArgs -Name "-CheckTextPath" -Value $compilerLifecycleCheckTextPathResolved
+    Add-ScriptArgument -Arguments $compilerLifecycleArgs -Name "-GateTextPath" -Value $compilerLifecycleGateTextPathResolved
+    Add-ScriptArgument -Arguments $compilerLifecycleArgs -Name "-SummaryReportPath" -Value $compilerLifecycleSummaryReportPathResolved
+    Add-ScriptArgument -Arguments $compilerLifecycleArgs -Name "-PythonExe" -Value $pythonExeResolved
+    if (-not $SkipSession -and (Test-Path $sessionSummaryPathResolved)) {
+        Add-ScriptArgument -Arguments $compilerLifecycleArgs -Name "-KernelRuntimeSession" -Value $sessionSummaryPathResolved
+    }
+    if (-not $SkipSession -and (Test-Path $sessionRuntimeLedgerPathResolved)) {
+        Add-ScriptArgument -Arguments $compilerLifecycleArgs -Name "-RuntimeLedger" -Value $sessionRuntimeLedgerPathResolved
+    }
+    if (-not $SkipWitnessBundle -and (Test-Path $witnessBundleSummaryPathResolved)) {
+        Add-ScriptArgument -Arguments $compilerLifecycleArgs -Name "-WitnessBundle" -Value $witnessBundleSummaryPathResolved
+    }
+    if ($Clean) {
+        $compilerLifecycleArgs.Add("-Clean") | Out-Null
+    }
+
+    Push-Location $repoRoot
+    try {
+        $compilerLifecycleExitCode = Invoke-PowerShellFile `
+            -PowerShellExe $powerShellExe `
+            -ScriptPath $compilerLifecycleSidecarScript `
+            -ArgumentList $compilerLifecycleArgs.ToArray() `
+            -LogPath $compilerLifecycleLogPathResolved `
+            -FailureMessage "compiler lifecycle summary sidecar export failed" `
+            -AllowFailure
+    } finally {
+        Pop-Location
+    }
+
+    $compilerLifecycleSummaryData = Load-JsonFile -Path $compilerLifecycleSummaryPathResolved
+    if ($null -eq $compilerLifecycleSummaryData) {
+        $violations.Add("missing compiler lifecycle summary json") | Out-Null
+    }
+    if ($compilerLifecycleExitCode -ne 0) {
+        $violations.Add(("compiler lifecycle sidecar exit code {0}" -f $compilerLifecycleExitCode)) | Out-Null
+    }
+
+    $compilerLifecycleSidecarView = [ordered]@{
+        enabled = $true
+        output_root = $resolvedCompilerLifecycleOutputRoot
+        bundle_log_path = $compilerLifecycleLogPathResolved
+        bundle_exit_code = $compilerLifecycleExitCode
+        result = if ($null -eq $compilerLifecycleSummaryData) { "missing" } else { [string]$compilerLifecycleSummaryData.result }
+        summary_path = $compilerLifecycleSummaryPathResolved
+        report_markdown_path = $compilerLifecycleReportMarkdownPathResolved
+        check_text_path = $compilerLifecycleCheckTextPathResolved
+        gate_text_path = $compilerLifecycleGateTextPathResolved
+        summary_report_path = $compilerLifecycleSummaryReportPathResolved
+        state_count = if ($null -eq $compilerLifecycleSummaryData) { 0 } else { [int]$compilerLifecycleSummaryData.state_count }
+        frozen_status = if ($null -eq $compilerLifecycleSummaryData) { "" } else { [string]$compilerLifecycleSummaryData.states.frozen.status }
+        lowered_projection_kind = if ($null -eq $compilerLifecycleSummaryData) { "" } else { [string]$compilerLifecycleSummaryData.states.lowered.projection_kind }
+        archived_coverage_strength = if ($null -eq $compilerLifecycleSummaryData) { "" } else { [string]$compilerLifecycleSummaryData.states.archived.coverage_strength }
+    }
+
+    $summaryObject.compiler_lifecycle_sidecar = $compilerLifecycleSidecarView
+    $summaryObject.result = if ($violations.Count -eq 0) { "ok" } else { "fail" }
+    $summaryObject.violations = @($violations)
+    $summaryObject | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $summaryPathResolved -Encoding utf8
+}
+
 $reportBuilder = [System.Text.StringBuilder]::new()
 [void]$reportBuilder.AppendLine("# Minimal Kernel Runtime Evidence Bundle Report")
 [void]$reportBuilder.AppendLine("")
@@ -1043,6 +1123,9 @@ $reportBuilder = [System.Text.StringBuilder]::new()
 [void]$reportBuilder.AppendLine(('- Output root: `{0}`' -f $outputRootPath))
 if ($null -ne $summaryObject.witness_bundle) {
     [void]$reportBuilder.AppendLine(('- Witness bundle: `{0}`' -f [string]$summaryObject.witness_bundle.summary_path))
+}
+if ($null -ne $summaryObject.compiler_lifecycle_sidecar) {
+    [void]$reportBuilder.AppendLine(('- Compiler lifecycle sidecar: `{0}`' -f [string]$summaryObject.compiler_lifecycle_sidecar.summary_path))
 }
 
 [void]$reportBuilder.AppendLine("")
@@ -1218,6 +1301,17 @@ if ($null -ne $summaryObject.session) {
     [void]$reportBuilder.AppendLine(('- Session report: `{0}`' -f [string]$summaryObject.session.report_markdown_path))
 }
 
+if ($null -ne $summaryObject.compiler_lifecycle_sidecar) {
+    [void]$reportBuilder.AppendLine("")
+    [void]$reportBuilder.AppendLine("## Compiler Lifecycle Sidecar")
+    [void]$reportBuilder.AppendLine(('- Sidecar log: `{0}`' -f [string]$summaryObject.compiler_lifecycle_sidecar.bundle_log_path))
+    [void]$reportBuilder.AppendLine(('- Sidecar result: `{0}` (exit={1})' -f [string]$summaryObject.compiler_lifecycle_sidecar.result, [int]$summaryObject.compiler_lifecycle_sidecar.bundle_exit_code))
+    [void]$reportBuilder.AppendLine(('- Summary: `{0}`' -f [string]$summaryObject.compiler_lifecycle_sidecar.summary_path))
+    [void]$reportBuilder.AppendLine(('- Gate: `{0}`' -f [string]$summaryObject.compiler_lifecycle_sidecar.gate_text_path))
+    [void]$reportBuilder.AppendLine(('- Report: `{0}`' -f [string]$summaryObject.compiler_lifecycle_sidecar.summary_report_path))
+    [void]$reportBuilder.AppendLine(('- Honesty markers: `frozen={0} lowered={1} archived={2}`' -f [string]$summaryObject.compiler_lifecycle_sidecar.frozen_status, [string]$summaryObject.compiler_lifecycle_sidecar.lowered_projection_kind, [string]$summaryObject.compiler_lifecycle_sidecar.archived_coverage_strength))
+}
+
 if ($violations.Count -gt 0) {
     [void]$reportBuilder.AppendLine("")
     [void]$reportBuilder.AppendLine("## Violations")
@@ -1261,6 +1355,12 @@ if ($null -ne $summaryObject.session) {
     [void]$checkBuilder.AppendLine(("session_status: {0}" -f [string]$summaryObject.session.session_status))
     [void]$checkBuilder.AppendLine(("session_failures: {0}" -f [int]$summaryObject.session.failure_count))
 }
+if ($null -ne $summaryObject.compiler_lifecycle_sidecar) {
+    [void]$checkBuilder.AppendLine(("compiler_lifecycle_sidecar_exit_code: {0}" -f [int]$summaryObject.compiler_lifecycle_sidecar.bundle_exit_code))
+    [void]$checkBuilder.AppendLine(("compiler_lifecycle_sidecar_result: {0}" -f [string]$summaryObject.compiler_lifecycle_sidecar.result))
+    [void]$checkBuilder.AppendLine(("compiler_lifecycle_states: {0}" -f [int]$summaryObject.compiler_lifecycle_sidecar.state_count))
+    [void]$checkBuilder.AppendLine(("compiler_lifecycle_frozen_status: {0}" -f [string]$summaryObject.compiler_lifecycle_sidecar.frozen_status))
+}
 if ($null -ne $hostView.warm -and $null -ne $hostView.warm.comparison) {
     [void]$checkBuilder.AppendLine(("host_warm_compare: regressions={0} improvements={1}" -f $hostView.warm.comparison.regressions, $hostView.warm.comparison.improvements))
 }
@@ -1290,6 +1390,10 @@ if (-not $SkipSession) {
 if (-not $SkipWitnessBundle) {
     Write-Host ("witness_output_root={0}" -f $resolvedWitnessBundleOutputRoot)
     Write-Host ("witness_summary={0}" -f $witnessBundleSummaryPathResolved)
+}
+if ($ExportCompilerLifecycleSummary) {
+    Write-Host ("compiler_lifecycle_output_root={0}" -f $resolvedCompilerLifecycleOutputRoot)
+    Write-Host ("compiler_lifecycle_summary={0}" -f $compilerLifecycleSummaryPathResolved)
 }
 
 if ($violations.Count -gt 0) {

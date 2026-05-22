@@ -6,6 +6,8 @@
 
 本文不定义 schema、validator、C++ 类型、World IR、canonical identity、observation import pass 或 LLVM/MLIR 接入。当前 first sidecar 的最小实现由 `scripts/export_compiler_lifecycle_summary.py` 与 `scripts/compiler_lifecycle_summary_sidecar_smoke.ps1` 承接。
 
+当前 `compiler_lifecycle.summary.json` 已进入 optional artifact-root landing：`scripts/minimal_kernel_runtime_evidence_bundle.ps1` 可通过显式 `-ExportCompilerLifecycleSummary` 调用 sidecar wrapper。该入口默认关闭，不改变 runtime evidence bundle 判决模型，也不提前落地 freeze receipt、lowering surface manifest 或 archive manifest。
+
 ## 1. 定位
 
 `Compiler Sidecar Landing Order` 是 first sidecar landing 的顺序法。

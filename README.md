@@ -1,12 +1,8 @@
-## POSIX Sample Notes
-
-- `fd_probe`: probes fd kinds/errno paths for stdin/stdout/stderr and a file fd; runs in the QEMU posix smoke set.
-
 <div align="center">
 
 # Charm
 
-**C++26 Modules · Zero-alloc · constexpr config · Type-level FSM**
+**C++26 Modules · Capability Graph · Non-blocking IO · Evidence-first Bring-up**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=flat-square)](LICENSE)
 [![C++26](https://img.shields.io/badge/C%2B%2B-26-blue.svg?style=flat-square)](https://en.cppreference.com/w/cpp)
@@ -14,42 +10,120 @@
 [![Clang Build Status](https://github.com/Little-Red-Cap/Charm-os/actions/workflows/build-clang.yml/badge.svg)](https://github.com/Little-Red-Cap/Charm-os/actions)
 [![ARM Build Status](https://github.com/Little-Red-Cap/Charm-os/actions/workflows/build-arm-none-eabi.yml/badge.svg)](https://github.com/Little-Red-Cap/Charm-os/actions)
 
-> 面向 MCU / PC 的统一能力图系统：IO / 系统 / 媒体 / UI **可装配、可裁剪、可验证**。
-
-了解项目 推荐阅读顺序：
-[本文章](README.md) →
-[文档索引](docs/README.md) →
-[入门指南](docs/overview.md) →
-[架构能力](docs/capability_map.md) →
-[架构总览](docs/architecture_overview.md) 
-
-参与项目 or 开发者 推荐阅读顺序：
-[Agent 启动页](AGENTS.md) →
-[架构能力](docs/capability_map.md) →
-[架构总览](docs/architecture_overview.md) →
-[协作文档](docs/agent/README.md)
-
 </div>
 
----
+Charm 不是单一 demo、单一板级工程，也不是只围绕某一个子系统展开的仓库。
 
-## 从零进入这个仓库
+它更像一个**多战线母仓**：
 
-如果你是第一次接触 Charm，建议不要直接在 `docs/` 里漫游，而是先按下面这条最短路径建立整体认知：
+- 一边在探索“嵌入式系统如何被更清楚地解释、举证和组织”
+- 一边用真实项目压力逼共享能力收敛
+- 一边把能力压到板级 / SoC / runtime 证据链上做落地验证
 
-1. [`docs/overview.md`](docs/overview.md)：10 分钟入门，先知道项目在解决什么问题
-2. [`docs/architecture_overview.md`](docs/architecture_overview.md)：看全局分层、依赖红线和公开入口
-3. [`docs/README.md`](docs/README.md)：按任务和专题继续往下钻
-4. [`docs/board/README.md`](docs/board/README.md) / [`targets/rk3506/README.md`](targets/rk3506/README.md)：如果你当前在做板级 bring-up
-5. [`docs/system/posix_support_overview.md`](docs/system/posix_support_overview.md)：如果你当前关心 Linux 用户态兼容
+如果你三个月后再回来看，最先该恢复的不是某个模块细节，而是：
 
-## 当前最重要的几个入口
+1. 现在活着哪些战线
+2. 它们各自为什么存在
+3. 谁在驱动谁
+4. 你这次该从哪里继续
 
-- `Modules/`：主代码目录，按 `core / system / io / media / ui / platform` 分层
-- `targets/`：板级叶子 target 与启动相关实现，当前 RK3506 路径最活跃
-- `docs/`：现行入口、契约、专题设计与推进材料
-- `schemas/`：Artifact / Explain Surface 等结构化输出相关材料
-- `CMakePresets.json`：当前权威构建入口，优先通过 preset 配置和构建
+## 从这里开始
+
+- 仓库治理与战线状态：
+  - [`docs/repo_governance.md`](docs/repo_governance.md)
+- 当前战线浅索引：
+  - [`docs/current_tracks_index.md`](docs/current_tracks_index.md)
+- 文档总路由：
+  - [`docs/README.md`](docs/README.md)
+
+## 如果你想理解什么
+
+### 我想先理解 Charm 的共同语义面
+
+按这个顺序读：
+
+1. [`docs/overview.md`](docs/overview.md)
+2. [`docs/architecture_overview.md`](docs/architecture_overview.md)
+3. [`docs/capability_map.md`](docs/capability_map.md)
+4. [`docs/system/init_graph_contract.md`](docs/system/init_graph_contract.md)
+
+你会看到的关键词是：
+
+- `Capability`
+- `init.graph`
+- `Channel / Reactor / Registry`
+- 共享能力底座 `substrate`
+
+### 我想看当前的方法论探索
+
+按这个顺序读：
+
+1. [`docs/architecture/system_compiler_roadmap.md`](docs/architecture/system_compiler_roadmap.md)
+2. [`docs/architecture/system_compiler_vocabulary_v0.md`](docs/architecture/system_compiler_vocabulary_v0.md)
+3. [`docs/system/artifact_report_v0.md`](docs/system/artifact_report_v0.md)
+4. [`docs/system/explain_surface_v0.md`](docs/system/explain_surface_v0.md)
+
+这条线当前的标签是：
+
+- `track_kind`: `theory`
+- `track_status`: `exploring`
+
+它是当前最重要的方法论尝试，但不是被神化的终局。
+
+### 我想看真实项目如何逼仓库收敛
+
+按这个顺序读：
+
+1. [`Examples/project/player/README.md`](Examples/project/player/README.md)
+2. [`Examples/project/player/ARCHITECTURE_CONVERGENCE.md`](Examples/project/player/ARCHITECTURE_CONVERGENCE.md)
+3. [`docs/ui/README.md`](docs/ui/README.md)
+
+这条线当前的标签是：
+
+- `track_kind`: `pressure`
+- `track_status`: `active`
+
+`Player` 不是噪音示例，而是当前最强真实压力线之一。
+
+### 我想看板级 / SoC / runtime 证据落地
+
+按这个顺序读：
+
+1. [`docs/system/minimal_kernel_runtime_evidence_bundle_contract.md`](docs/system/minimal_kernel_runtime_evidence_bundle_contract.md)
+2. [`docs/system/minimal_kernel_host_smoke_bundle_contract.md`](docs/system/minimal_kernel_host_smoke_bundle_contract.md)
+3. [`targets/rk3506/README.md`](targets/rk3506/README.md)
+4. [`docs/board/rk3506/README.md`](docs/board/rk3506/README.md)
+
+这条线当前的标签是：
+
+- `track_kind`: `landing`
+- `track_status`: `active`
+
+`minimal-kernel evidence` 不是单独宇宙，而是连接方法论与落地线的验证轨。
+
+### 我想进入维护态子系统
+
+按这个顺序读：
+
+1. [`docs/system/posix_support_overview.md`](docs/system/posix_support_overview.md)
+2. [`docs/system/posix_maintenance_mode_collaboration.md`](docs/system/posix_maintenance_mode_collaboration.md)
+
+这条线当前的标签是：
+
+- `track_kind`: `maintenance`
+- `track_status`: `maintained`
+
+`POSIX v0` 已收口，不再是默认扩张前线。
+
+## 当前仓库怎么理解最安全
+
+- `system compiler`：当前最重要的方法论尝试
+- `Player + Vivid`：真实需求压力线
+- `RK3506 + minimal-kernel landing`：板级 / SoC / runtime 落地线
+- `POSIX v0`：维护线
+- `Modules/core/init/io/system/platform`：共享底座 `substrate`
+
+这几条线可以互相施压，但不能互相偷换定义。
 
 ## 构建入口
 
@@ -60,297 +134,23 @@
 - RK3506 最小镜像：`cmake --preset rk3506-baremetal-image-uart0-minimal-debug`
 - RK3506 最小镜像构建：`cmake --build --preset rk3506-baremetal-image-uart0-minimal-debug`
 
-如果你需要继续维护文档本身，请先看 [`docs/documentation_maintenance.md`](docs/documentation_maintenance.md)。
+更细的脚本 / workflow / 示例入口，请回到：
 
-## 宣言
-Charm 的目标，不是成为一个嵌入式框架，而是通过一套编译期可验证、运行期开销极低的系统协作模型，为嵌入式领域提供一种可被生态吸纳的软件结构标准。
+- [`docs/current_tracks_index.md`](docs/current_tracks_index.md)
 
-[//]: # (Charm 的目标不是聚合可复用库，而是为嵌入式软件提供稳定的系统级协作语义。)
+## 协作入口
 
-[//]: # (Charm 不是为了减少移植工作量而存在，而是为了终结“每次换平台就重写系统秩序”的宿命。)
+- 仓库第一跳约定：
+  - [`AGENTS.md`](AGENTS.md)
+- Agent 第二跳任务卡片：
+  - [`docs/agent/routes/README.md`](docs/agent/routes/README.md)
+- 文档维护：
+  - [`docs/documentation_maintenance.md`](docs/documentation_maintenance.md)
 
-## 为何诞生
-在一个天然碎片化、平台变化剧烈、依赖质量不齐的领域里，怎样才能让软件不因为环境变化而不断失去自我？
+## 不要怎么读
 
-**Charm** 是一个面向 **嵌入式** 的软件系统框架。 它尝试解决嵌入式开发中的一个常见问题：
-
-> 每个项目都在重复实现 IO、调度、日志、文件系统、UI 等基础设施。
-
-Charm 的做法是：
-
-**把这些能力统一为可复用的 Capability，并通过能力图进行装配。**
-
-核心思想：
-
-```
-
-Capability Graph
-
-* Non-blocking IO
-* Deterministic Assembly
-
-```
-
----
-
-## Capability Overview
-
-Charm 提供一组可组合的系统能力。
-
-|     Domain     |              Key Capabilities               |
-|:--------------:|:-------------------------------------------:|
-|     System     | InitGraph · EDA Scheduler · Sync primitives |
-|       IO       |        Channel · Reactor · Registry         |
-| Debug / Output |          Out formatting · Logging           |
-|    Storage     |                     VFS                     |
-|      USB       |            USB Device framework             |
-|       UI       |   Ink (lightweight UI) · Vivid (rich UI)    |
-|     Media      |               Audio pipeline                |
-|    Platform    |                 HAL drivers                 |
-
-* 完整能力列表 → **[Capability Map](docs/capability_map.md)**
-
-
-
-
-## ✨ 核心特性
-
-<table>
-<tr>
-<td width="50%">
-
-### 🚀 零成本抽象
-- 编译期格式化解析
-- 未启用的日志完全消失
-- 域过滤编译期决定
-- 可选功能按需编译
-
-</td>
-<td width="50%">
-
-### 🛡️ 类型安全
-- 编译期类型检查
-- 参数数量验证
-- 无隐式转换陷阱
-- 格式字符串验证
-
-</td>
-</tr>
-<tr>
-<td width="50%">
-
-### 🔒 嵌入式友好
-- 无异常（`std::expected`）
-- 无堆分配
-- 无虚函数
-- C++ Modules
-
-</td>
-<td width="50%">
-
-### 🎨 功能丰富
-- 事件驱动内核
-- IPC 工具
-- UI 系统
-- USB / FileSystem
-
-</td>
-</tr>
-</table>
-
----
-
-
-开发友好：可在PC上运行
-全部采用C++ Module组织代码
-事件驱动型内核
-提供IPC工具
-组件丰富
-
-## 设计关键词
-- **能力图装配**：所有底层能力通过 `init.graph` 注册与启动
-- **非阻塞 IO**：`Channel + Reactor + Registry` 三件套统一入口
-- **兼容入口 + 子系统入口**：保留 `charm.foundation / charm.runtime` 兼容面；新代码优先使用 `charm.system / charm.io / charm.media / charm.ui.*`
-- **零动态内存**：默认固定容量与零分配策略
-- **可观测**：统一 trace/诊断入口
-
-
----
-
-## 设计关键词
-
-Charm 的系统设计围绕以下几个原则：
-
-### 能力图装配
-
-所有系统能力通过 `init.graph` 注册并统一启动。
-
-系统初始化过程由能力依赖图驱动。
-
----
-
-
-### 非阻塞 IO
-
-统一 IO 模型：
-
-```
-
-Channel
-↓
-Reactor
-↓
-Registry
-
-```
-
-所有 IO 组件通过 Reactor 事件分发。
-
----
-
-### 兼容入口模块
-
-历史上仓库曾使用三层入口来表达依赖方向；当前保留的兼容入口只有：
-
-```
-
-charm.foundation
-↓
-charm.runtime
-
-```
-
-其中：
-
-- `charm.foundation`：兼容 facade，对应 `charm.core`
-- `charm.runtime`：兼容 facade，对应 `charm.system + charm.io + charm.net`
-- Domain 层不再提供单独的 `charm.domain` 入口；请直接使用 `charm.media`、`charm.ui.ink`、`charm.ui.vivid`
-
-`Modules/*` 新代码禁止继续依赖这些兼容入口，应优先使用更窄的子系统入口。
-
----
-
-### 零动态内存
-
-默认策略：
-
-- 固定容量
-- 无动态分配
-- 可选 constexpr 配置
-
----
-
-### 可观测
-
-系统统一提供：
-
-- trace
-- 统计
-- 诊断接口
-
----
-
-## 快速上手
-
-Charm 可以在 PC 与 MCU 上运行。
-
-<details>
-<summary><b>运行环境</b></summary>
-
-* [CMake 4.1.2]() （CMake版本会影响构建行为，过低版本对C++ Module支持不好）
-* [Ninja]()
-* [PC 编译器 Clang/MinGW]() （未测试MSVC）
-* [MCU 编译器 arm-none-ebi 15.2](https://developer.arm.com/downloads/-/arm-gnu-toolchain-downloads) （若只运行PC端可不用）
-* 代码依赖：无第三方依赖，已集成到源码
-
-</details>
-
-## 推荐验证链
-
-Charm 提供一个最小验证链，用于验证 block.device → VFS → out 的完整能力路径：
-
-```
-Win file image → block.file → block.registry
-→ FatFsMount → VFS → out
-```
-
-运行 demo：
-
-```
-fs-block-vfs-demo <disk.img>
-```
-
-镜像中需包含一个 FAT 分区与 `hello.txt` 文件。
-
-另一个最小验证链用于验证输入泵链路（RawInput → input.pump/EDA → out）：
-
-```
-hal_input / RawInputSource → input.pump / EDA → out
-```
-
-运行 demo：
-
-```
-input-pump-win-demo
-```
-
-
-
-最小示例：MCU接入UART/PC接入Stdio
-
-### PC (Windows)
-
-<details>
-<summary><b>示例</b></summary>
-
-```cpp
-// TODO
-````
-
-* 构建命令
-```shell
-// TODO
-````
-
-
-
-</details>
-
-
-### MCU (STM32)
-
-<details>
-<summary><b>示例</b></summary>
-
-```cpp
-// TODO
-```
-
-</details>
-
----
-
-
-## 第三方
-本项目中使用了一些开源项目，感谢以下项目：
-
-| 名字       | 路径                         | 许可       | 链接                                         |
-|:---------|----------------------------|----------|--------------------------------------------|
-| etl      |                            |          |                                            |
-| freetype |                            | FreeType | https://freetype.org/                      |
-| lua      |                            | MIT      | https://www.lua.org/                       |
-| lwip     |                            | BSD      | https://savannah.nongnu.org/projects/lwip/ |
-| dr_libs  | Modules/thirdparty/dr_libs |          |                                            |
-| fatfs    | Modules/thirdparty/fatfs   |          |                                            |
-
----
-
-<div align="center">
-
-问题反馈：[GitHub Issues](https://github.com/Little-Red-Cap/Charm-os/issues)
-<br>
-**⭐ 如果这个项目对你有帮助，请给个 Star！**
-
-[回到顶部](#charm)
-
-</div>
+- 不要先把 `docs/` 当成“按文件名漫游”的资料堆。
+- 不要把任意一条活跃战线误读成仓库唯一主角。
+- 不要把 `Player` 当普通示例区。
+- 不要把 `system compiler` 当已经冻结的最终理论。
+- 不要把维护态材料重新当成默认前线入口。

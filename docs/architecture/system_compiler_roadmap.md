@@ -1,5 +1,20 @@
 # Charm System Compiler Roadmap
 
+## 战线关系声明
+
+- `track_kind`: `theory`
+- `track_status`: `exploring`
+- 这条线的角色：
+  - 它是 Charm 当前最重要的方法论尝试，用来解释系统如何成立、如何被举证、如何被暴露给人和工具。
+- 它当前驱动的共享收敛面：
+  - `init.graph / init.materialize / init.observe`
+  - `artifact report / explain surface`
+  - `resource contract / bringup evidence`
+- 它不能反向重定义的仓库公共规则：
+  - 不能脱离真实压力线或落地线，单独改写整个仓库叙事。
+  - 不能把当前词汇表、结果物或 v0 载体神化成最终唯一理论。
+  - 不能把共享底座私有化成只为 system compiler 服务的专属结构。
+
 本页不是功能愿望单，也不是某个子系统的详细设计。  
 它用于定义 Charm 中长期架构主轴、近中期路线，以及当前明确不应过早深入的传奇路线。
 

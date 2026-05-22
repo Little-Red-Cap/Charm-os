@@ -1,5 +1,20 @@
 # RK3506 Target
 
+## 战线关系声明
+
+- `track_kind`: `landing`
+- `track_status`: `active`
+- 这条线的角色：
+  - 它是 Charm 当前的板级 / SoC 落地线之一，用来验证共享语义面能否穿过更复杂的平台现实。
+- 它当前驱动的共享收敛面：
+  - ARMv7-A 平台边界
+  - 早期 bring-up / exception / timer / interrupt / handoff 的公开契约
+  - 板级 leaf target 与平台事实组织方式
+- 它不能反向重定义的仓库公共规则：
+  - 不能把 RK3506 叶子 target 误读成整个仓库唯一主线。
+  - 不能要求所有共享能力都按某一个 SoC bring-up 路径组织。
+  - 不能把板级细节直接上推为通用系统契约。
+
 这个目录现在表达的是一个单镜像的 RK3506 bare-metal 板级叶子。
 
 它的职责不是把整个 Bootloader 链一次性铺满，而是先把以后真上板一定要存在的几个边界立住：

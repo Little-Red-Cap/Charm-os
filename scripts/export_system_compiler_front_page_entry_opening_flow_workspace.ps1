@@ -8,74 +8,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-
-function Resolve-FullPath {
-    param(
-        [string]$Path
-    )
-
-    if ([string]::IsNullOrWhiteSpace($Path)) {
-        return ""
-    }
-
-    if ([System.IO.Path]::IsPathRooted($Path)) {
-        return [System.IO.Path]::GetFullPath($Path)
-    }
-
-    return [System.IO.Path]::GetFullPath((Join-Path (Get-Location) $Path))
-}
-
-function Ensure-Directory {
-    param(
-        [string]$Path
-    )
-
-    if ([string]::IsNullOrWhiteSpace($Path)) {
-        return
-    }
-
-    if (-not (Test-Path $Path)) {
-        New-Item -ItemType Directory -Path $Path -Force | Out-Null
-    }
-}
-
-function Resolve-ToolPath {
-    param(
-        [string[]]$Candidates
-    )
-
-    foreach ($candidate in $Candidates) {
-        $command = Get-Command $candidate -ErrorAction SilentlyContinue
-        if ($null -ne $command) {
-            return $command.Source
-        }
-    }
-
-    throw "tool not found: $($Candidates -join ', ')"
-}
-
-function Invoke-ExternalTool {
-    param(
-        [string]$Executable,
-        [string[]]$ArgumentList,
-        [string]$FailureMessage
-    )
-
-    Write-Host ("==> {0}" -f [System.IO.Path]::GetFileName($Executable))
-
-    $previousErrorActionPreference = $ErrorActionPreference
-    try {
-        $ErrorActionPreference = "Continue"
-        & $Executable @ArgumentList
-        $exitCode = $LASTEXITCODE
-    } finally {
-        $ErrorActionPreference = $previousErrorActionPreference
-    }
-
-    if ($exitCode -ne 0) {
-        throw ("{0} (exit code {1})" -f $FailureMessage, $exitCode)
-    }
-}
+. (Join-Path $PSScriptRoot "front_page_entry_opening_flow_harness.ps1")
 
 $repoRoot = Resolve-FullPath -Path (Join-Path $PSScriptRoot "..")
 $frontPageWorkspaceRootPath = Resolve-FullPath -Path $FrontPageWorkspaceRoot
@@ -93,50 +26,22 @@ $summaryPath = Join-Path $outputRootPath "front-page.entry-opening-flow.summary.
 $reportMarkdownPath = Join-Path $outputRootPath "front-page.entry-opening-flow.report.md"
 $checkTextPath = Join-Path $outputRootPath "front-page.entry-opening-flow.check.txt"
 
-if (-not (Test-Path $frontPageWorkspaceRootPath)) {
-    $fixtureBootstrapScript = Join-Path $PSScriptRoot "system_compiler_front_page_smoke_fixture_bootstrap.ps1"
-    if (-not (Test-Path $fixtureBootstrapScript)) {
-        throw "front-page workspace root not found and fixture bootstrap is missing: $frontPageWorkspaceRootPath"
-    }
-
-    Invoke-ExternalTool `
-        -Executable "powershell.exe" `
-        -ArgumentList @(
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-            $fixtureBootstrapScript,
-            "-OutputRoot",
-            $frontPageWorkspaceRootPath
-        ) `
-        -FailureMessage "front page smoke fixture bootstrap failed"
-}
-
 Ensure-Directory -Path $outputRootPath
 
-$resolvedPythonExe = if ([string]::IsNullOrWhiteSpace($PythonExe)) {
-    Resolve-ToolPath -Candidates @("python.exe", "python")
-} else {
-    Resolve-FullPath -Path $PythonExe
-}
-$powerShellExe = Resolve-ToolPath -Candidates @("powershell.exe", "pwsh.exe", "powershell", "pwsh")
+$resolvedPythonExe = Resolve-PythonExe -PythonExe $PythonExe
+$powerShellExe = Resolve-PowerShellExe
+Ensure-FrontPageSmokeFixtureWorkspace `
+    -ScriptsRoot $PSScriptRoot `
+    -FrontPageWorkspaceRootPath $frontPageWorkspaceRootPath `
+    -PowerShellExe $powerShellExe
+
 $routeSmokeScript = Join-Path $PSScriptRoot "system_compiler_front_page_route_smoke.ps1"
 $smokeScript = Join-Path $PSScriptRoot "system_compiler_front_page_entry_opening_flow_smoke.ps1"
-foreach ($requiredPath in @($routeSmokeScript, $smokeScript)) {
-    if (-not (Test-Path $requiredPath)) {
-        throw "missing path: $requiredPath"
-    }
-}
+Assert-RequiredPaths -Paths @($routeSmokeScript, $smokeScript)
 
 Push-Location $repoRoot
 try {
     $routeArgumentList = [System.Collections.Generic.List[string]]::new()
-    $routeArgumentList.Add("-NoProfile") | Out-Null
-    $routeArgumentList.Add("-ExecutionPolicy") | Out-Null
-    $routeArgumentList.Add("Bypass") | Out-Null
-    $routeArgumentList.Add("-File") | Out-Null
-    $routeArgumentList.Add($routeSmokeScript) | Out-Null
     $routeArgumentList.Add("-InputRoot") | Out-Null
     $routeArgumentList.Add($frontPageWorkspaceRootPath) | Out-Null
     $routeArgumentList.Add("-OutputRoot") | Out-Null
@@ -147,17 +52,13 @@ try {
         $routeArgumentList.Add("-Clean") | Out-Null
     }
 
-    Invoke-ExternalTool `
-        -Executable $powerShellExe `
+    Invoke-PowerShellScript `
+        -PowerShellExe $powerShellExe `
+        -ScriptPath $routeSmokeScript `
         -ArgumentList $routeArgumentList.ToArray() `
         -FailureMessage "front page route workspace export failed"
 
     $argumentList = [System.Collections.Generic.List[string]]::new()
-    $argumentList.Add("-NoProfile") | Out-Null
-    $argumentList.Add("-ExecutionPolicy") | Out-Null
-    $argumentList.Add("Bypass") | Out-Null
-    $argumentList.Add("-File") | Out-Null
-    $argumentList.Add($smokeScript) | Out-Null
     $argumentList.Add("-RouteRoot") | Out-Null
     $argumentList.Add($routeRootPath) | Out-Null
     $argumentList.Add("-CapabilityRoot") | Out-Null
@@ -176,8 +77,9 @@ try {
         $argumentList.Add("-Clean") | Out-Null
     }
 
-    Invoke-ExternalTool `
-        -Executable $powerShellExe `
+    Invoke-PowerShellScript `
+        -PowerShellExe $powerShellExe `
+        -ScriptPath $smokeScript `
         -ArgumentList $argumentList.ToArray() `
         -FailureMessage "front page entry opening flow workspace export failed"
 } finally {

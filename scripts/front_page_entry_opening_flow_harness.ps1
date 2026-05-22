@@ -224,6 +224,29 @@ function Assert-SingleSelector {
     }
 }
 
+function Ensure-FrontPageSmokeFixtureWorkspace {
+    param(
+        [string]$ScriptsRoot,
+        [string]$FrontPageWorkspaceRootPath,
+        [string]$PowerShellExe
+    )
+
+    if (Test-Path -LiteralPath $FrontPageWorkspaceRootPath) {
+        return
+    }
+
+    $fixtureBootstrapScript = Join-Path $ScriptsRoot "system_compiler_front_page_smoke_fixture_bootstrap.ps1"
+    Assert-RequiredPaths -Paths @($fixtureBootstrapScript)
+    Invoke-PowerShellScript `
+        -PowerShellExe $PowerShellExe `
+        -ScriptPath $fixtureBootstrapScript `
+        -ArgumentList @(
+            "-OutputRoot",
+            $FrontPageWorkspaceRootPath
+        ) `
+        -FailureMessage "front page smoke fixture bootstrap failed"
+}
+
 function Ensure-OpeningFlowConsumerPlanActionWorkspaceSmoke {
     param(
         [string]$ScriptsRoot,
@@ -304,6 +327,19 @@ function Resolve-OpeningFlowOpenEventSummaryPath {
     }
 
     return (Join-Path $WorkspaceRoot "front-page.entry-opening-flow.open-event.summary.json")
+}
+
+function Resolve-OpeningFlowSummaryPath {
+    param(
+        [string]$WorkspaceRoot
+    )
+
+    $workspaceSummaryPath = Join-Path $WorkspaceRoot "opening_flow\front-page.entry-opening-flow.summary.json"
+    if (Test-Path -LiteralPath $workspaceSummaryPath) {
+        return $workspaceSummaryPath
+    }
+
+    return (Join-Path $WorkspaceRoot "front-page.entry-opening-flow.summary.json")
 }
 
 function Resolve-OpeningFlowConsumerPlanActionSummaryPath {

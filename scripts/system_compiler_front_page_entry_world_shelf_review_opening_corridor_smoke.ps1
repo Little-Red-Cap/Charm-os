@@ -74,7 +74,7 @@ function Invoke-ExternalTool {
 function Load-JsonObject {
     param([string]$Path)
 
-    return (Get-Content -LiteralPath $Path -Raw -Encoding utf8 | ConvertFrom-Json)
+    return ([System.IO.File]::ReadAllText((Resolve-FullPath -Path $Path), [System.Text.Encoding]::UTF8) | ConvertFrom-Json)
 }
 
 function Write-JsonFile {
@@ -261,23 +261,30 @@ function Export-RouteFixture {
 function Ensure-WorldShelfReviewRouteSummary {
     param(
         [string]$FrontPageRouteRootPath,
+        [string]$OutputRootPath,
         [string]$PythonExePath
     )
 
     $routeOutputRoot = Join-Path $FrontPageRouteRootPath "witness-ci-shelf"
     $routeSummaryPath = Join-Path $routeOutputRoot "front-page.route.summary.json"
     if (Test-Path -LiteralPath $routeSummaryPath) {
-        return (Resolve-FullPath -Path $routeSummaryPath)
+        $existingRouteSummary = Load-JsonObject -Path $routeSummaryPath
+        $existingRootSurface = if ($null -ne $existingRouteSummary.root_surface) { $existingRouteSummary.root_surface } else { @{} }
+        if ([string]$existingRootSurface.summary_schema -eq "system_compiler.world_shelf_review/v0") {
+            return (Resolve-FullPath -Path $routeSummaryPath)
+        }
     }
 
-    $fixtureRootPath = Join-Path $FrontPageRouteRootPath "_synthetic-world-shelf-review-root"
+    $fixtureRootPath = Join-Path $OutputRootPath "_synthetic-world-shelf-review-root"
+    $routeOutputRoot = Join-Path $OutputRootPath "_synthetic-world-shelf-review-route"
+    $routeSummaryPath = Join-Path $routeOutputRoot "front-page.route.summary.json"
     $summaryPath = New-WorldShelfReviewRootFixture -OutputRootPath $fixtureRootPath
     Export-RouteFixture `
         -SummaryPath $summaryPath `
         -OutputRootPath $routeOutputRoot `
         -RouteSummaryPath $routeSummaryPath `
         -PythonExePath $PythonExePath `
-        -FailureMessage "world shelf review route export failed for synthetic fixture"
+        -FailureMessage "world shelf review route export failed for synthetic fixture" | Out-Null
     return (Resolve-FullPath -Path $routeSummaryPath)
 }
 
@@ -369,10 +376,10 @@ $resolvedPythonExe = if ([string]::IsNullOrWhiteSpace($PythonExe)) {
 
 $routeCompareScript = Join-Path $PSScriptRoot "compare_system_compiler_front_page_route.py"
 $routeCompareValidateScript = Join-Path $PSScriptRoot "validate_system_compiler_front_page_route_compare.py"
-$explainEntryExportScript = Join-Path $PSScriptRoot "export_system_compiler_front_page_entry_world_shelf_review_explain_entry.py"
-$explainEntryValidateScript = Join-Path $PSScriptRoot "validate_system_compiler_front_page_entry_world_shelf_review_explain_entry.py"
-$handoffExportScript = Join-Path $PSScriptRoot "export_system_compiler_front_page_entry_world_shelf_review_explain_entry_handoff.py"
-$handoffValidateScript = Join-Path $PSScriptRoot "validate_system_compiler_front_page_entry_world_shelf_review_explain_entry_handoff.py"
+$explainEntryExportScript = Join-Path $PSScriptRoot "export_system_compiler_front_page_entry_opening_testimony_explain_entry.py"
+$explainEntryValidateScript = Join-Path $PSScriptRoot "validate_system_compiler_front_page_entry_opening_testimony_explain_entry.py"
+$handoffExportScript = Join-Path $PSScriptRoot "export_system_compiler_front_page_entry_opening_testimony_explain_entry_handoff.py"
+$handoffValidateScript = Join-Path $PSScriptRoot "validate_system_compiler_front_page_entry_opening_testimony_explain_entry_handoff.py"
 foreach ($requiredPath in @($routeCompareScript, $routeCompareValidateScript, $explainEntryExportScript, $explainEntryValidateScript, $handoffExportScript, $handoffValidateScript)) {
     if (-not (Test-Path -LiteralPath $requiredPath)) {
         throw "missing path: $requiredPath"
@@ -381,7 +388,7 @@ foreach ($requiredPath in @($routeCompareScript, $routeCompareValidateScript, $e
 
 Push-Location $repoRoot
 try {
-    $cleanRoutePath = Ensure-WorldShelfReviewRouteSummary -FrontPageRouteRootPath $frontPageRouteRootPath -PythonExePath $resolvedPythonExe
+    $cleanRoutePath = Ensure-WorldShelfReviewRouteSummary -FrontPageRouteRootPath $frontPageRouteRootPath -OutputRootPath $outputRootPath -PythonExePath $resolvedPythonExe
     $cleanRouteSummary = Load-JsonObject -Path $cleanRoutePath
     Assert-Condition `
         -Condition ([string]$cleanRouteSummary.root_surface.summary_schema -eq "system_compiler.world_shelf_review/v0") `
@@ -523,8 +530,8 @@ try {
             ExpectedSelectedSurface = ""
             ExpectedSelectedSummarySchema = ""
             ExpectedExplainViolations = @(
-                "selected world shelf review surface is missing",
-                "selected world shelf review surface summary_path is missing"
+                "selected explain surface is missing",
+                "selected explain surface summary_path is missing"
             )
             ExpectedHandoffStatus = "blocked"
             ExpectedHandoffResult = "fail"
@@ -596,8 +603,8 @@ try {
             ExpectedSelectedSummarySchema = ""
             ExpectedExplainViolations = @(
                 "source route compare verdict is collapsed",
-                "selected world shelf review surface is missing",
-                "selected world shelf review surface summary_path is missing"
+                "selected explain surface is missing",
+                "selected explain surface summary_path is missing"
             )
             ExpectedHandoffStatus = "blocked"
             ExpectedHandoffResult = "fail"
@@ -625,7 +632,7 @@ try {
             ) `
             -FailureMessage ("world shelf review explain-entry export failed for case '{0}'" -f $case.Name)
 
-        $explainEntrySummaryPath = Join-Path $caseOutputRoot "front-page.entry-world-shelf-review.explain-entry.summary.json"
+        $explainEntrySummaryPath = Join-Path $caseOutputRoot "front-page.entry-opening-testimony.explain-entry.summary.json"
         Invoke-ExternalTool `
             -Executable $resolvedPythonExe `
             -ArgumentList @($explainEntryValidateScript, "--summary", $explainEntrySummaryPath) `
@@ -648,11 +655,11 @@ try {
             -Condition ([string]$explainEntrySummary.selected_surface.summary_schema -eq [string]$case.ExpectedSelectedSummarySchema) `
             -Message ("case '{0}' expected selected schema '{1}' but got '{2}'" -f $case.Name, $case.ExpectedSelectedSummarySchema, $explainEntrySummary.selected_surface.summary_schema)
         Assert-Condition `
-            -Condition ([string]$explainEntrySummary.explain_entry_decision.selected_tab_id -eq "grouped_review") `
-            -Message ("case '{0}' expected selected tab grouped_review" -f $case.Name)
+            -Condition ([string]$explainEntrySummary.explain_entry_decision.selected_tab_id -eq "opening_testimony_explain") `
+            -Message ("case '{0}' expected selected tab opening_testimony_explain" -f $case.Name)
         Assert-Condition `
-            -Condition ([string]$explainEntrySummary.explain_entry_decision.selected_role -eq "world_shelf_review_explain_entry") `
-            -Message ("case '{0}' expected selected role world_shelf_review_explain_entry" -f $case.Name)
+            -Condition ([string]$explainEntrySummary.explain_entry_decision.selected_role -eq "opening_testimony_explain_entry") `
+            -Message ("case '{0}' expected selected role opening_testimony_explain_entry" -f $case.Name)
         if ([string]::IsNullOrWhiteSpace([string]$case.ExpectedRouteVerdict)) {
             Assert-Condition `
                 -Condition ([string]$explainEntrySummary.source_route_ref.route_verdict -eq "") `
@@ -692,7 +699,7 @@ try {
             ) `
             -FailureMessage ("world shelf review handoff export failed for case '{0}'" -f $case.Name)
 
-        $handoffSummaryPath = Join-Path $handoffOutputRoot "front-page.entry-world-shelf-review.explain-entry.handoff.summary.json"
+        $handoffSummaryPath = Join-Path $handoffOutputRoot "front-page.entry-opening-testimony.explain-entry.handoff.summary.json"
         Invoke-ExternalTool `
             -Executable $resolvedPythonExe `
             -ArgumentList @($handoffValidateScript, "--summary", $handoffSummaryPath) `
@@ -715,11 +722,11 @@ try {
             -Condition ([string]$handoffSummary.handoff_action.expected_consumer_operation -eq "open-selected-summary") `
             -Message ("case '{0}' expected operation open-selected-summary" -f $case.Name)
         Assert-Condition `
-            -Condition ([string]$handoffSummary.handoff_decision.selected_tab_id -eq "grouped_review") `
-            -Message ("case '{0}' expected handoff selected tab grouped_review" -f $case.Name)
+            -Condition ([string]$handoffSummary.handoff_decision.selected_tab_id -eq "opening_testimony_explain") `
+            -Message ("case '{0}' expected handoff selected tab opening_testimony_explain" -f $case.Name)
         Assert-Condition `
-            -Condition ([string]$handoffSummary.handoff_decision.selected_role -eq "world_shelf_review_explain_handoff") `
-            -Message ("case '{0}' expected handoff selected role world_shelf_review_explain_handoff" -f $case.Name)
+            -Condition ([string]$handoffSummary.handoff_decision.selected_role -eq "opening_testimony_explain_handoff") `
+            -Message ("case '{0}' expected handoff selected role opening_testimony_explain_handoff" -f $case.Name)
         foreach ($expectedViolation in @($case.ExpectedHandoffViolations)) {
             Assert-Condition `
                 -Condition (@($handoffSummary.violations) -contains [string]$expectedViolation) `

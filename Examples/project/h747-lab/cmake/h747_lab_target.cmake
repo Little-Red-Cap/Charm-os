@@ -16,6 +16,41 @@ function(h747_lab_collect_services out_sources out_include_dirs)
     set(${out_include_dirs} ${_include_dirs} PARENT_SCOPE)
 endfunction()
 
+function(h747_lab_select_linker_script out_script target_name app_name)
+    if(app_name STREQUAL "posix_lab")
+        set(${out_script} "${STM32_LINKER_SCRIPT}" PARENT_SCOPE)
+        return()
+    endif()
+
+    set(_generated_dir "${CMAKE_CURRENT_BINARY_DIR}/generated/linker")
+    set(_generated_script "${_generated_dir}/${target_name}.ld")
+    file(MAKE_DIRECTORY "${_generated_dir}")
+    file(READ "${STM32_LINKER_SCRIPT}" _script_text)
+    string(REPLACE "\r\n" "\n" _script_text "${_script_text}")
+
+    set(_elf_load_block
+"  .elf_load 0x24070000 (NOLOAD) :
+  {
+    . = ALIGN(32);
+    __elf_load_start__ = .;
+    . = . + 0x2000;
+    __elf_load_end__ = .;
+  } >RAM_D1
+")
+    string(FIND "${_script_text}" "${_elf_load_block}" _elf_load_pos)
+    if(_elf_load_pos GREATER_EQUAL 0)
+        string(REPLACE "${_elf_load_block}" "" _script_text "${_script_text}")
+    endif()
+    if(_script_text MATCHES "__elf_load_start__|__elf_load_end__|\\.elf_load")
+        message(FATAL_ERROR
+            "${target_name}: non-POSIX H747 Lab target would still reserve the ELF load region. "
+            "Update h747_lab_select_linker_script() for the current linker script shape.")
+    endif()
+
+    file(WRITE "${_generated_script}" "${_script_text}")
+    set(${out_script} "${_generated_script}" PARENT_SCOPE)
+endfunction()
+
 function(h747_lab_add_profile profile_name)
     set(_profile_manifest "${H747_LAB_ROOT}/profiles/${profile_name}/profile.cmake")
     if(NOT EXISTS "${_profile_manifest}")
@@ -103,6 +138,57 @@ function(h747_lab_add_firmware)
     endif()
 
     h747_lab_collect_services(_service_sources _service_include_dirs ${H747_LAB_FW_SERVICES})
+    h747_lab_select_linker_script(
+        _target_linker_script
+        "${H747_LAB_FW_TARGET}"
+        "${H747_LAB_FW_APP}")
+
+    set(_generated_app_sources)
+    if(H747_LAB_FW_APP STREQUAL "posix_lab")
+        set(_elf_samples_dir "${CHARM_ROOT}/Examples/posix/elf_samples")
+        set(_generated_dir "${CMAKE_CURRENT_BINARY_DIR}/generated/posix_lab_elf_samples")
+        set(_generated_out_dir "${_generated_dir}/out")
+        file(MAKE_DIRECTORY "${_generated_dir}")
+        set(_elf_samples
+            hello
+            argv_dump
+            env_dump
+            stderr_demo
+            exit_code
+            cat_file
+            write_file
+            append_file
+            fd_probe
+            stat_probe)
+        set(_generated_incs)
+        foreach(_sample IN LISTS _elf_samples)
+            list(APPEND _generated_incs "${_generated_dir}/${_sample}.elf.inc")
+        endforeach()
+        add_custom_command(
+            OUTPUT ${_generated_incs}
+            COMMAND powershell -ExecutionPolicy Bypass -File
+                "${_elf_samples_dir}/build_elf_samples.ps1"
+                -OutDir "${_generated_out_dir}"
+                -IncDir "${_generated_dir}"
+                -ElfBase 0x24070000
+            DEPENDS
+                "${_elf_samples_dir}/build_elf_samples.ps1"
+                "${_elf_samples_dir}/elf_samples.ld"
+                "${_elf_samples_dir}/elf_hostcall.h"
+                "${_elf_samples_dir}/hello.c"
+                "${_elf_samples_dir}/argv_dump.c"
+                "${_elf_samples_dir}/env_dump.c"
+                "${_elf_samples_dir}/stderr_demo.c"
+                "${_elf_samples_dir}/exit_code.c"
+                "${_elf_samples_dir}/cat_file.c"
+                "${_elf_samples_dir}/write_file.c"
+                "${_elf_samples_dir}/append_file.c"
+                "${_elf_samples_dir}/fd_probe.c"
+                "${_elf_samples_dir}/stat_probe.c"
+            VERBATIM)
+        add_custom_target(${H747_LAB_FW_TARGET}_elf_samples DEPENDS ${_generated_incs})
+        list(APPEND _generated_app_sources ${_generated_incs})
+    endif()
 
     add_executable(${H747_LAB_FW_TARGET}
         ${H747_LAB_PLATFORM_SOURCES}
@@ -110,8 +196,13 @@ function(h747_lab_add_firmware)
         ${H747_LAB_RUNTIME_SOURCES}
         ${_service_sources}
         ${H747_LAB_FW_APP_SOURCES}
+        ${_generated_app_sources}
         "${_profile_source}"
     )
+
+    if(TARGET ${H747_LAB_FW_TARGET}_elf_samples)
+        add_dependencies(${H747_LAB_FW_TARGET} ${H747_LAB_FW_TARGET}_elf_samples)
+    endif()
 
     target_sources(${H747_LAB_FW_TARGET}
         PUBLIC
@@ -150,7 +241,7 @@ function(h747_lab_add_firmware)
 
     target_link_options(${H747_LAB_FW_TARGET} PRIVATE
         ${H747_LAB_TARGET_FLAGS}
-        "-T${STM32_LINKER_SCRIPT}"
+        "-T${_target_linker_script}"
         --specs=nano.specs
         "-Wl,-Map=${CMAKE_CURRENT_BINARY_DIR}/${H747_LAB_FW_TARGET}.map"
         -Wl,--gc-sections

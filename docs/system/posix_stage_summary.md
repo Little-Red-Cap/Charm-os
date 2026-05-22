@@ -1,12 +1,14 @@
 # POSIX / ELF Stage Summary
 
 ## Current Baseline
+- Stage 1 validation is now explicitly frozen as `QEMU + real static C ELF + automated smoke`; see `docs/system/posix_elf_stage1_baseline.md`
 - POSIX v0 can now be considered closed
 - the POSIX subsystem now enters maintenance mode rather than open-ended expansion
 - future POSIX work is expected to be demand-driven: real blocker -> minimal contract -> minimal smoke -> doc sync
 - stage exit criteria are now captured separately in `docs/system/posix_v0_closure_checklist.md`, so both `keep pushing` and `when to stop` are judged against the same checklist
 - QEMU mainline smoke is green: `posix smoke + busybox phase2 smoke`
 - dedicated newlib stdio smoke is green too: `posix-qemu-newlib-stdio.elf` passes `run_qemu_ci.ps1` with `-RequireBusyboxPhase2 $false`
+- the Stage 1 QEMU entry now has an explicit wrapper: `Examples/kernel/posix/qemu/run_qemu_stage1_ci.ps1`, with `mainline` vs `stdio` modes
 - ELF execution is on the regular path: `spawn -> load_image -> start_image`
 - ELF explicit exit ABI v0 is live: `_exit(code)` works through `ExecContext` + `setjmp/longjmp`
 - programs smoke is split into `posix.test_harness`, `exec`, `fdpath`, and `shell` modules

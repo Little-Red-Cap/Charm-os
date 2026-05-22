@@ -5,6 +5,7 @@
 如果你想先看现行执行面与边界，再看示例，建议先读：
 
 - [`../../docs/system/posix_support_overview.md`](../../docs/system/posix_support_overview.md)
+- [`../../docs/system/posix_elf_stage1_baseline.md`](../../docs/system/posix_elf_stage1_baseline.md)
 - [`../../docs/system/posix_subsystem_principles.md`](../../docs/system/posix_subsystem_principles.md)
 - [`../../docs/system/posix_three_layer_contract.md`](../../docs/system/posix_three_layer_contract.md)
 
@@ -32,6 +33,8 @@
 
 ## 建议怎么读
 
+- 看第一阶段官方验证基线：
+  先读 `../../docs/system/posix_elf_stage1_baseline.md`
 - 看真实 ELF 样本：
   先读 `elf_samples/README.md`
 - 看 QEMU 回归入口：

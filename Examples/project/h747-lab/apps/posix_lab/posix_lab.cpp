@@ -1,4 +1,5 @@
 #include "posix_lab.h"
+#include "elf_load_region.h"
 
 #include <array>
 #include <cstddef>
@@ -177,6 +178,56 @@ fs::MountOps RamFsMount<BlockSize, MaxFiles, MaxBlocks>::ops_{
     &RamFsMount::list_impl
 };
 
+template <util::usize MaxProcs,
+          util::usize MaxExecs,
+          util::usize MaxFds,
+          util::usize MaxFiles,
+          util::usize MaxPathLen,
+          util::usize MaxArgc,
+          util::usize MaxEnvp,
+          util::usize MaxArgBytes,
+          util::usize MaxElfImage,
+          util::usize MaxElfLoad>
+class H747ProcService final
+    : public posix::ProcService<MaxProcs,
+                                MaxExecs,
+                                MaxFds,
+                                MaxFiles,
+                                MaxPathLen,
+                                MaxArgc,
+                                MaxEnvp,
+                                MaxArgBytes,
+                                MaxElfImage,
+                                MaxElfLoad> {
+public:
+    using Base = posix::ProcService<MaxProcs,
+                                    MaxExecs,
+                                    MaxFds,
+                                    MaxFiles,
+                                    MaxPathLen,
+                                    MaxArgc,
+                                    MaxEnvp,
+                                    MaxArgBytes,
+                                    MaxElfImage,
+                                    MaxElfLoad>;
+
+    void* elf_load_base_ptr() noexcept {
+        return elf_load_region_base();
+    }
+
+    util::usize elf_load_capacity() const noexcept {
+        return elf_load_region_capacity();
+    }
+
+    util::Result<void> apply_elf_hostcalls() noexcept {
+        auto result = Base::apply_elf_hostcalls();
+        if (result) {
+            prepare_elf_load_region();
+        }
+        return result;
+    }
+};
+
 struct SampleSpec {
     std::string_view name;
     const util::u8* data;
@@ -210,7 +261,7 @@ struct RuntimeState {
     posix::FdTable<kMaxFds> fd_table{};
     posix::FileService<kMaxFiles> file_service{};
     posix::PipeService<kMaxPipes, kPipeCapacity> pipe_service{};
-    posix::ProcService<kMaxProcs, kMaxExecs, kMaxFds, kMaxFiles, kMaxPath, 16, 16, 320, kMaxElfImage, kMaxElfLoad> proc_service{};
+    H747ProcService<kMaxProcs, kMaxExecs, kMaxFds, kMaxFiles, kMaxPath, 16, 16, 320, kMaxElfImage, kMaxElfLoad> proc_service{};
     posix::Api<kMaxFds, kMaxPipes, kPipeCapacity, kMaxProcs, kMaxExecs, kMaxFiles, kMaxPath, 16, 16, 320, kMaxElfImage, kMaxElfLoad> api{
         fd_table, file_service, pipe_service, proc_service
     };

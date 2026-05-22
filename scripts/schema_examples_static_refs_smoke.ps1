@@ -46,6 +46,7 @@ drive_pattern = re.compile(r"^[A-Za-z]:/")
 
 missing = []
 invalid_json = []
+style_violations = []
 checked = 0
 static_refs = 0
 
@@ -57,8 +58,9 @@ def repo_label(path: Path) -> str:
         return path.as_posix()
 
 
-def normalize_static_ref(value):
-    text = value.strip().replace("\\", "/")
+def normalize_static_ref(value, location):
+    raw = value.strip()
+    text = raw.replace("\\", "/")
     if not text:
         return None
     if url_pattern.match(text) or text.startswith("/") or drive_pattern.match(text):
@@ -67,6 +69,9 @@ def normalize_static_ref(value):
         return None
     if not text.startswith(static_prefixes):
         return None
+
+    if "\\" in raw:
+        style_violations.append((location, raw, text))
 
     # JSON samples may carry Markdown-style fragments for human navigation.
     return text.split("#", 1)[0].split("?", 1)[0]
@@ -81,7 +86,7 @@ def walk(value, location: str):
         for index, child in enumerate(value):
             walk(child, f"{location}[{index}]")
     elif isinstance(value, str):
-        candidate = normalize_static_ref(value)
+        candidate = normalize_static_ref(value, location)
         if candidate is None:
             return
         static_refs += 1
@@ -106,13 +111,21 @@ if missing:
     for location, candidate in missing:
         print(f"[SCHEMA-EXAMPLES-STATIC-REFS-SMOKE][MISSING] {location}: {candidate}")
 
+if style_violations:
+    for location, raw, normalized in style_violations:
+        print(
+            "[SCHEMA-EXAMPLES-STATIC-REFS-SMOKE][STYLE] "
+            f"{location}: {raw} -> {normalized}"
+        )
+
 print(
     "[SCHEMA-EXAMPLES-STATIC-REFS-SMOKE] "
     f"checked={checked} static_refs={static_refs} "
-    f"invalid_json={len(invalid_json)} missing={len(missing)}"
+    f"invalid_json={len(invalid_json)} missing={len(missing)} "
+    f"style_violations={len(style_violations)}"
 )
 
-if invalid_json or missing:
+if invalid_json or missing or style_violations:
     raise SystemExit(1)
 '@
 

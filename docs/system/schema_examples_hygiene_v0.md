@@ -11,6 +11,7 @@
 - 只检查 `schemas/examples/*.json`。
 - 只认仓库内的静态前缀：`docs/`、`schemas/`、`Examples/`、`scripts/`、`.github/`。
 - 明确放过 `out/`、绝对路径、URL 和其它运行时生成引用。
+- 静态仓库引用应优先使用 forward slash，不鼓励 `docs\foo.md` 这类反斜杠写法。
 - 入口层使用 [`../../scripts/schema_examples_hygiene_smoke.ps1`](../../scripts/schema_examples_hygiene_smoke.ps1)。
 
 ## 非目标

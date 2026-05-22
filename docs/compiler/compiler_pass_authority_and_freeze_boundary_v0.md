@@ -31,6 +31,7 @@ v0 先承认七类 pass authority：
 | `Compare` | exported baseline/candidate artifacts or witnesses | compare reports and drift/collapse summaries | re-execute builder/deriver/verifier logic |
 
 `Witness`、`Inspector`、`Compare` 默认是 read-only semantic consumers。它们可以解释、投影、引用和比较已经导出的 facts，但不能反向修改 world truth。
+第一块可落地切片见：[`compiler_world_ir_first_landing_slice_v0.md`](compiler_world_ir_first_landing_slice_v0.md)。
 
 这些 authority 与 freeze 规则如何收束成第一条窄 executable pipeline，见：[`compiler_world_ir_pipeline_contract_v0.md`](compiler_world_ir_pipeline_contract_v0.md)。
 

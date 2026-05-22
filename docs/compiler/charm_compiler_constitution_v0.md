@@ -39,6 +39,7 @@ debug/provenance metadata
 它由 source facts 构建，经 lawful passes 派生、验证、冻结、lowering，并最终形成 target artifacts 与 witnesses。
 
 v0 中的 `World` 是法律主语，不是数据结构名。本文不定义 `WorldIR`、`TopologyIR`、`Node`、C++ class 或 schema shape。
+第一块可落地切片见：[`compiler_world_ir_first_landing_slice_v0.md`](compiler_world_ir_first_landing_slice_v0.md)。
 
 一个安全的理解是：
 

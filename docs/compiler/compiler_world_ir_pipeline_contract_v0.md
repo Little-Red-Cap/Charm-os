@@ -84,7 +84,7 @@ v0 只要求这条管道足够小，能承载一个可审计切片：
 - lowering surface 可见
 - witness 可回指
 
-最合适的第一切片，通常应和当前最小证据链同量级，而不是一上来就覆盖整个系统编译宇宙。
+第一块可落地切片的更细边界见：[`compiler_world_ir_first_landing_slice_v0.md`](compiler_world_ir_first_landing_slice_v0.md)。
 
 ## 4. Landing Rule
 

@@ -4,7 +4,7 @@
 
 它定义 `compiler_lifecycle.summary.json` 应承担的职责边界：只读投影现有 artifact/report/witness/ledger/compare surfaces，把九个 lifecycle states 的 projection status 与 coverage status 机器可读化。
 
-当前最小实现入口为 `scripts/export_compiler_lifecycle_summary.py`，只读 gate 为 `scripts/check_compiler_lifecycle_summary.ps1`，只读 report consumer 为 `scripts/report_compiler_lifecycle_summary.ps1`，按需 sidecar wrapper 为 `scripts/compiler_lifecycle_summary_sidecar.ps1`，定向 smoke 为 `scripts/compiler_lifecycle_summary_sidecar_smoke.ps1`。这个 gate 只检查 sidecar 自身形状与 v0 honesty constraints，不是 JSON schema validator；report consumer 只渲染 summary，不创建新 truth；wrapper 只串接 export/gate/report，不接入大 CI。本文仍不定义 JSON schema、validator、C++ 类型、World IR、canonical identity、observation import pass 或 LLVM/MLIR 接入。
+当前最小实现入口为 `scripts/export_compiler_lifecycle_summary.py`，只读 gate 为 `scripts/check_compiler_lifecycle_summary.ps1`，只读 report consumer 为 `scripts/report_compiler_lifecycle_summary.ps1`，按需 sidecar wrapper 为 `scripts/compiler_lifecycle_summary_sidecar.ps1`，定向 smoke 为 `scripts/compiler_lifecycle_summary_sidecar_smoke.ps1`，runtime evidence bundle hook smoke 为 `scripts/compiler_lifecycle_summary_runtime_evidence_bundle_hook_smoke.ps1`。这个 gate 只检查 sidecar 自身形状与 v0 honesty constraints，不是 JSON schema validator；report consumer 只渲染 summary，不创建新 truth；wrapper 只串接 export/gate/report，不接入大 CI。本文仍不定义 JSON schema、validator、C++ 类型、World IR、canonical identity、observation import pass 或 LLVM/MLIR 接入。
 
 ## 1. 定位
 

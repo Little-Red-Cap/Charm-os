@@ -827,3 +827,9 @@
         std::printf("[ui-ci] done ok=%d failed=%d\n", res.ok ? 1 : 0, res.failed);
         return res;
     }
+
+    int run_ui_ci_preview(SdlHostRuntime& runtime) noexcept {
+        const UiCiResult result = run_ui_ci(*g_app, g_ctx, g_platform);
+        shutdown_player_preview(runtime);
+        return result.ok ? 0 : 2;
+    }

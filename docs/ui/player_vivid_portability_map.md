@@ -25,12 +25,14 @@ These are references, not contracts. Charm should borrow the pressure points, no
 The Windows `main.cpp` is kept as a thin assembly entry. Host-only helpers are grouped by responsibility:
 
 - `main.host_preview.inc`: preview argv parsing, host feature logging, app config resource binding, and preview-only Library setup hooks.
+- `main.host_runtime.inc`: SDL resource lifecycle, app bootstrap, common preview shutdown, and the host loop state shape.
 - `main.font_probe.inc`: host screenshot/font diagnostics.
 - `main.screenshot.inc`: host screenshot capture and export.
 - `main.ui_ci.inc`: host UI-CI runner and regression probes.
 - `main.host_loop.inc`: SDL event dispatch, run-loop steps, and render presentation.
 
 The includes stay in the same anonymous namespace so this cleanup does not create a new public API or change link boundaries.
+`main.cpp` should remain a readable assembly entry: parse preview options, initialize host runtime, bootstrap Player, run UI-CI or interactive loop, then shut down.
 
 ## Vivid Extraction Candidates
 
@@ -47,6 +49,8 @@ The includes stay in the same anonymous namespace so this cleanup does not creat
 - Font pipeline: file-backed FreeType font loading is host/resource-profile behavior; portable builds rely on built-in fonts until a board font resource contract exists.
 - Time and diagnostics: week/date stamping is behind `player.time_utils`, but playback logs, screenshots, and UI-CI are host shell responsibilities.
 - Storage: host VHD defaults are profile-driven; portable storage should arrive as a board/provider capability rather than a page-level assumption.
+- Current audit notes: `app-common` still has dynamic/file-backed utilities in font cache, fs utils, media scan, playback, stats, and storage; MD3 controller/home/now-playing keep rich dynamic state and transition counters; Library popup files are user-owned dirty work and should not be edited by this cleanup batch.
+- Host-only gates are explicit today: cover decode remains behind `CHARM_PLAYER_HOST_COVER_DECODE`, file fonts behind `CHARM_PLAYER_HOST_FILE_FONTS` / `CHARM_PLAYER_PC_FONT_CACHE`, and screenshots/UI-CI stay under the Windows host shell.
 
 ## Portable UI Probe Contract
 

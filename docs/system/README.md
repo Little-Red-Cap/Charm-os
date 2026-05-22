@@ -105,6 +105,7 @@
 
 - [`schema_surface_reduction_governance_v0.md`](schema_surface_reduction_governance_v0.md)
 - [`schema_surface_reduction_inventory_v0.md`](schema_surface_reduction_inventory_v0.md)
+- [`schema_examples_hygiene_smoke.ps1`](../../scripts/schema_examples_hygiene_smoke.ps1)
 
 ## SSU 补充入口
 

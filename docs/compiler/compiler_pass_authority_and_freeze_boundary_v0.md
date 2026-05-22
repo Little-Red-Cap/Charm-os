@@ -32,6 +32,8 @@ v0 先承认七类 pass authority：
 
 `Witness`、`Inspector`、`Compare` 默认是 read-only semantic consumers。它们可以解释、投影、引用和比较已经导出的 facts，但不能反向修改 world truth。
 
+这些 authority 与 freeze 规则如何收束成第一条窄 executable pipeline，见：[`compiler_world_ir_pipeline_contract_v0.md`](compiler_world_ir_pipeline_contract_v0.md)。
+
 ## 3. Identity Preservation Law
 
 Passes may derive, annotate, materialize, lower, or observe facts.

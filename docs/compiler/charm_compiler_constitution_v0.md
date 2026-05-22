@@ -67,6 +67,8 @@ v0 先承认五类 fact：
 
 这些分类不是新 schema，也不是完整 failure taxonomy。它们先定义事实在 world 中的身份来源，避免把所有内容都压成“日志”“配置”或“模板展开结果”。
 
+第一条把这些法律收束成可执行管道的桥接合同见：[`compiler_world_ir_pipeline_contract_v0.md`](compiler_world_ir_pipeline_contract_v0.md)。
+
 ## 4. Pass Authority Model
 
 不是所有 pass 都有权修改 world。
@@ -186,6 +188,8 @@ single semantic world
 - `bringup_evidence_pipeline_v0.md`：`declared / materialized / published / observed / failed / blocked` 的当前 evidence state language。
 
 其中 `declared / materialized / published / observed` 已经可以视为 World State Transition Language 的现有胚胎，但本刀不改变它们在 bringup evidence pipeline v0 中的原有语义。
+
+从这些 law 走向第一条窄 executable pipeline 的桥接合同见：[`compiler_world_ir_pipeline_contract_v0.md`](compiler_world_ir_pipeline_contract_v0.md)。
 
 ## 10. 非目标
 

@@ -36,11 +36,7 @@
       "type": "string"
     },
     "result": {
-      "type": "string",
-      "enum": [
-        "ok",
-        "fail"
-      ]
+      "$ref": "#/$defs/okFailResult"
     },
     "opening_flow_consumer": {
       "$ref": "#/$defs/titleBlock"
@@ -92,6 +88,27 @@
         "type": "integer",
         "minimum": 0
       }
+    },
+    "okFailResult": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "fail"
+      ]
+    },
+    "readyBlockedStatus": {
+      "type": "string",
+      "enum": [
+        "ready",
+        "blocked"
+      ]
+    },
+    "availableUnavailableStatus": {
+      "type": "string",
+      "enum": [
+        "available",
+        "unavailable"
+      ]
     },
     "titleBlock": {
       "type": "object",
@@ -214,11 +231,7 @@
       ],
       "properties": {
         "result": {
-          "type": "string",
-          "enum": [
-            "ok",
-            "fail"
-          ]
+          "$ref": "#/$defs/okFailResult"
         },
         "expected_opener_count": {
           "type": "integer",
@@ -262,11 +275,7 @@
       ],
       "properties": {
         "result": {
-          "type": "string",
-          "enum": [
-            "ok",
-            "fail"
-          ]
+          "$ref": "#/$defs/okFailResult"
         },
         "total_opening_count": {
           "type": "integer",
@@ -450,11 +459,7 @@
           "type": "string"
         },
         "handoff_status": {
-          "type": "string",
-          "enum": [
-            "ready",
-            "blocked"
-          ]
+          "$ref": "#/$defs/readyBlockedStatus"
         },
         "renderable": {
           "type": "boolean"
@@ -463,11 +468,7 @@
           "type": "integer"
         },
         "open_action_status": {
-          "type": "string",
-          "enum": [
-            "ready",
-            "blocked"
-          ]
+          "$ref": "#/$defs/readyBlockedStatus"
         },
         "selected_tab_id": {
           "type": "string"
@@ -500,11 +501,7 @@
           "$ref": "#/$defs/stringArray"
         },
         "projection_status": {
-          "type": "string",
-          "enum": [
-            "available",
-            "unavailable"
-          ]
+          "$ref": "#/$defs/availableUnavailableStatus"
         },
         "projection_kind": {
           "type": "string"

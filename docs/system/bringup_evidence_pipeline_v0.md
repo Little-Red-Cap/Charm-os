@@ -10,6 +10,8 @@
 在 Charm 的中长期主线里，`bringup 可举证` 不是孤立能力，  
 它是 `system compiler` 主干上最容易先形成社会可见价值的一条线。
 
+上位法理见：[`../compiler/charm_compiler_constitution_v0.md`](../compiler/charm_compiler_constitution_v0.md)。本文中的 `declared / materialized / published / observed` 可以被视为 Charm compile-time world state transition language 的现有胚胎，但本文仍只定义 bringup evidence pipeline v0 的状态语言，不改变现有 evidence/artifact 判决模型。
+
 ## 1. 为什么 bringup 需要从手艺活变成证据流水线
 
 传统 MCU bringup 往往依赖：

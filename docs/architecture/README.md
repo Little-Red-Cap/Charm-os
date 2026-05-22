@@ -74,8 +74,9 @@
 建议顺序：
 
 1. [`charm_methodology_charter.md`](charm_methodology_charter.md)
-2. [`system_compiler_roadmap.md`](system_compiler_roadmap.md)
-3. [`system_compiler_vocabulary_v0.md`](system_compiler_vocabulary_v0.md)
+2. [`../compiler/charm_compiler_constitution_v0.md`](../compiler/charm_compiler_constitution_v0.md)
+3. [`system_compiler_roadmap.md`](system_compiler_roadmap.md)
+4. [`system_compiler_vocabulary_v0.md`](system_compiler_vocabulary_v0.md)
 
 如果你继续往运行面和工件面走，再回到：
 
@@ -113,7 +114,7 @@
 - 看 signal/state：
   `signal_state_contract_v0.md`
 - 看 system compiler：
-  `system_compiler_roadmap.md` → `system_compiler_vocabulary_v0.md`
+  `../compiler/charm_compiler_constitution_v0.md` → `system_compiler_roadmap.md` → `system_compiler_vocabulary_v0.md`
 - 看真实板级落地审计与能力回收：
   `real_board_landing_gap_audit_v0.md` → `capability_recovery_rules.md` → `capability_recovery_matrix.md`
 

@@ -14,8 +14,11 @@
 | 目的 | 先看 |
 |---|---|
 | 找现有能力、默认路径、示例 | [`capability_map.md`](capability_map.md) |
+| 看 Charm compile-time world / compiler constitution | [`compiler/README.md`](compiler/README.md) |
 | 看系统装配、启动、minimal-kernel、POSIX | [`system/README.md`](system/README.md) |
 | 看 minimal-kernel runtime ledger fact contract | [`system/minimal_kernel_runtime_ledger_fact_contract_v0.md`](system/minimal_kernel_runtime_ledger_fact_contract_v0.md) |
+| 看脚本面收敛与 evidence harness 治理 | [`system/script_surface_reduction_governance_v0.md`](system/script_surface_reduction_governance_v0.md) |
+| 看 schema 面收敛与 shared definition 候选 | [`system/schema_surface_reduction_governance_v0.md`](system/schema_surface_reduction_governance_v0.md) |
 | 看架构边界、驱动模型、能力归属 | [`architecture/README.md`](architecture/README.md) |
 | 看 IO / Channel / Reactor / Registry | [`io/README.md`](io/README.md) |
 | 看存储与 block device | [`storage/README.md`](storage/README.md) |
@@ -41,6 +44,8 @@ system compiler 的 front-page、opening-flow、witness、biography、world comp
 
 当前只保留这些上位入口：
 
+- [`compiler/charm_compiler_constitution_v0.md`](compiler/charm_compiler_constitution_v0.md)
+- [`compiler/compiler_pass_authority_and_freeze_boundary_v0.md`](compiler/compiler_pass_authority_and_freeze_boundary_v0.md)
 - [`architecture/system_compiler_roadmap.md`](architecture/system_compiler_roadmap.md)
 - [`architecture/system_compiler_vocabulary_v0.md`](architecture/system_compiler_vocabulary_v0.md)
 - [`system/artifact_report_v0.md`](system/artifact_report_v0.md)
@@ -48,6 +53,7 @@ system compiler 的 front-page、opening-flow、witness、biography、world comp
 - [`system/resource_contract_v0.md`](system/resource_contract_v0.md)
 - [`system/bringup_evidence_pipeline_v0.md`](system/bringup_evidence_pipeline_v0.md)
 - [`system/opening_judgment_corridor_witness_taxonomy_v0.md`](system/opening_judgment_corridor_witness_taxonomy_v0.md)
+- [`system/schema_surface_reduction_governance_v0.md`](system/schema_surface_reduction_governance_v0.md)
 
 不要从阶段材料反推当前默认入口；先回到本页和对应目录 `README.md`。
 

@@ -41,11 +41,7 @@
       "type": "string"
     },
     "result": {
-      "type": "string",
-      "enum": [
-        "ok",
-        "fail"
-      ]
+      "$ref": "#/$defs/okFailResult"
     },
     "opening_flow_open_event_witness_compare": {
       "$ref": "#/$defs/titleBlock"
@@ -63,13 +59,7 @@
       "$ref": "#/$defs/artifactContext"
     },
     "witness_verdict": {
-      "type": "string",
-      "enum": [
-        "standing",
-        "improved",
-        "drifted",
-        "collapsed"
-      ]
+      "$ref": "#/$defs/compareVerdict"
     },
     "witness_status": {
       "$ref": "#/$defs/witnessStatus"
@@ -106,6 +96,22 @@
     }
   },
   "$defs": {
+    "okFailResult": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "fail"
+      ]
+    },
+    "compareVerdict": {
+      "type": "string",
+      "enum": [
+        "standing",
+        "improved",
+        "drifted",
+        "collapsed"
+      ]
+    },
     "stringArray": {
       "type": "array",
       "items": {

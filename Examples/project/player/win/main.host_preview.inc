@@ -43,7 +43,14 @@
     };
 
     int parse_int(std::string_view value) {
-        return std::atoi(std::string(value).c_str());
+        int out = 0;
+        const char* first = value.data();
+        const char* last = value.data() + value.size();
+        const auto result = std::from_chars(first, last, out);
+        if (result.ec != std::errc{} || result.ptr != last) {
+            return 0;
+        }
+        return out;
     }
 
     int parse_non_negative_int(std::string_view value) {

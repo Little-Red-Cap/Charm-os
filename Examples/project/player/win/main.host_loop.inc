@@ -104,43 +104,49 @@
         return std::nullopt;
     }
 
+    input::RawInputEvent make_pointer_event(bool pressed,
+                                            float x,
+                                            float y,
+                                            input::PointerAction action) noexcept {
+        input::RawInputEvent raw{};
+        raw.type = input::RawInputEventType::Pointer;
+        raw.ms = SDL_GetTicks();
+        raw.pointer = input::PointerRaw{pressed,
+                                        static_cast<std::int16_t>(x),
+                                        static_cast<std::int16_t>(y),
+                                        0};
+        raw.pointer_action = action;
+        return raw;
+    }
+
+    input::RawInputEvent make_button_event(input::Button button, bool pressed) noexcept {
+        input::RawInputEvent raw{};
+        raw.type = input::RawInputEventType::Button;
+        raw.ms = SDL_GetTicks();
+        raw.button = button;
+        raw.pressed = pressed;
+        return raw;
+    }
+
     bool dispatch_sdl_event(::ui::scene::Scene& scene, player::App& app, PlayerUiContext& ctx, const SDL_Event& evt) {
         switch (evt.type) {
         case SDL_EVENT_MOUSE_MOTION: {
-            input::RawInputEvent raw{};
-            raw.type = input::RawInputEventType::Pointer;
-            raw.ms = SDL_GetTicks();
-            raw.pointer = input::PointerRaw{false,
-                                            static_cast<std::int16_t>(evt.motion.x),
-                                            static_cast<std::int16_t>(evt.motion.y),
-                                            0};
-            raw.pointer_action = input::PointerAction::Move;
+            input::RawInputEvent raw =
+                make_pointer_event(false, evt.motion.x, evt.motion.y, input::PointerAction::Move);
             app.dispatch_raw_input(scene, ctx, raw);
             return true;
         }
         case SDL_EVENT_MOUSE_BUTTON_DOWN: {
             if (evt.button.button != SDL_BUTTON_LEFT) return true;
-            input::RawInputEvent raw{};
-            raw.type = input::RawInputEventType::Pointer;
-            raw.ms = SDL_GetTicks();
-            raw.pointer = input::PointerRaw{true,
-                                            static_cast<std::int16_t>(evt.button.x),
-                                            static_cast<std::int16_t>(evt.button.y),
-                                            0};
-            raw.pointer_action = input::PointerAction::Down;
+            input::RawInputEvent raw =
+                make_pointer_event(true, evt.button.x, evt.button.y, input::PointerAction::Down);
             app.dispatch_raw_input(scene, ctx, raw);
             return true;
         }
         case SDL_EVENT_MOUSE_BUTTON_UP: {
             if (evt.button.button != SDL_BUTTON_LEFT) return true;
-            input::RawInputEvent raw{};
-            raw.type = input::RawInputEventType::Pointer;
-            raw.ms = SDL_GetTicks();
-            raw.pointer = input::PointerRaw{false,
-                                            static_cast<std::int16_t>(evt.button.x),
-                                            static_cast<std::int16_t>(evt.button.y),
-                                            0};
-            raw.pointer_action = input::PointerAction::Up;
+            input::RawInputEvent raw =
+                make_pointer_event(false, evt.button.x, evt.button.y, input::PointerAction::Up);
             app.dispatch_raw_input(scene, ctx, raw);
             return true;
         }
@@ -160,21 +166,13 @@
                 ctx.handle_key_action(*k);
             }
             if (auto b = map_nav_button(evt.key.key)) {
-                input::RawInputEvent raw{};
-                raw.type = input::RawInputEventType::Button;
-                raw.ms = SDL_GetTicks();
-                raw.button = *b;
-                raw.pressed = true;
+                input::RawInputEvent raw = make_button_event(*b, true);
                 app.dispatch_raw_input(scene, ctx, raw);
             }
             return true;
         case SDL_EVENT_KEY_UP:
             if (auto b = map_nav_button(evt.key.key)) {
-                input::RawInputEvent raw{};
-                raw.type = input::RawInputEventType::Button;
-                raw.ms = SDL_GetTicks();
-                raw.button = *b;
-                raw.pressed = false;
+                input::RawInputEvent raw = make_button_event(*b, false);
                 app.dispatch_raw_input(scene, ctx, raw);
             }
             return true;

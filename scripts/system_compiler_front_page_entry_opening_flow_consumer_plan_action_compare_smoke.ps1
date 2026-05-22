@@ -6,133 +6,22 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-
-function Resolve-FullPath {
-    param(
-        [string]$Path
-    )
-
-    if ([string]::IsNullOrWhiteSpace($Path)) {
-        return ""
-    }
-
-    if ([System.IO.Path]::IsPathRooted($Path)) {
-        return [System.IO.Path]::GetFullPath($Path)
-    }
-
-    return [System.IO.Path]::GetFullPath((Join-Path (Get-Location) $Path))
-}
-
-function Ensure-Directory {
-    param(
-        [string]$Path
-    )
-
-    if ([string]::IsNullOrWhiteSpace($Path)) {
-        return
-    }
-
-    if (-not (Test-Path -LiteralPath $Path)) {
-        New-Item -ItemType Directory -Path $Path -Force | Out-Null
-    }
-}
-
-function Remove-PathIfExists {
-    param(
-        [string]$Path
-    )
-
-    if ([string]::IsNullOrWhiteSpace($Path)) {
-        return
-    }
-
-    if (Test-Path -LiteralPath $Path) {
-        Remove-Item -LiteralPath $Path -Recurse -Force
-    }
-}
-
-function Resolve-ToolPath {
-    param(
-        [string[]]$Candidates
-    )
-
-    foreach ($candidate in $Candidates) {
-        $command = Get-Command $candidate -ErrorAction SilentlyContinue
-        if ($null -ne $command) {
-            return $command.Source
-        }
-    }
-
-    throw "tool not found: $($Candidates -join ', ')"
-}
-
-function Invoke-ExternalTool {
-    param(
-        [string]$Executable,
-        [string[]]$ArgumentList,
-        [string]$FailureMessage
-    )
-
-    Write-Host ("==> {0}" -f [System.IO.Path]::GetFileName($Executable))
-
-    $previousErrorActionPreference = $ErrorActionPreference
-    try {
-        $ErrorActionPreference = "Continue"
-        & $Executable @ArgumentList
-        $exitCode = $LASTEXITCODE
-    } finally {
-        $ErrorActionPreference = $previousErrorActionPreference
-    }
-
-    if ($exitCode -ne 0) {
-        throw ("{0} (exit code {1})" -f $FailureMessage, $exitCode)
-    }
-}
-
-function Load-JsonObject {
-    param(
-        [string]$Path
-    )
-
-    return (Get-Content -LiteralPath $Path -Raw -Encoding utf8 | ConvertFrom-Json)
-}
-
-function Assert-Condition {
-    param(
-        [bool]$Condition,
-        [string]$Message
-    )
-
-    if (-not $Condition) {
-        throw $Message
-    }
-}
+. (Join-Path $PSScriptRoot "front_page_entry_opening_flow_harness.ps1")
 
 $repoRoot = Resolve-FullPath -Path (Join-Path $PSScriptRoot "..")
 $actionWorkspaceRootPath = Resolve-FullPath -Path $ActionWorkspaceRoot
 $outputRootPath = Resolve-FullPath -Path $OutputRoot
 
-if ($Clean) {
-    Remove-PathIfExists -Path $outputRootPath
-}
-Ensure-Directory -Path $outputRootPath
+Initialize-SmokeOutputRoot -OutputRootPath $outputRootPath -Clean ([bool]$Clean)
 
-$resolvedPythonExe = if ([string]::IsNullOrWhiteSpace($PythonExe)) {
-    Resolve-ToolPath -Candidates @("python.exe", "python")
-} else {
-    Resolve-FullPath -Path $PythonExe
-}
-$powerShellExe = Resolve-ToolPath -Candidates @("powershell.exe", "pwsh.exe", "powershell", "pwsh")
+$resolvedPythonExe = Resolve-PythonExe -PythonExe $PythonExe
+$powerShellExe = Resolve-PowerShellExe
 
 $actionWorkspaceSmokeScript = Join-Path $PSScriptRoot "system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace_smoke.ps1"
 $actionWorkspaceExportScript = Join-Path $PSScriptRoot "export_system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace.ps1"
 $compareScript = Join-Path $PSScriptRoot "compare_system_compiler_front_page_entry_opening_flow_consumer_plan_action.py"
 $validateScript = Join-Path $PSScriptRoot "validate_system_compiler_front_page_entry_opening_flow_consumer_plan_action_compare.py"
-foreach ($requiredPath in @($actionWorkspaceSmokeScript, $actionWorkspaceExportScript, $compareScript, $validateScript)) {
-    if (-not (Test-Path -LiteralPath $requiredPath)) {
-        throw "missing path: $requiredPath"
-    }
-}
+Assert-RequiredPaths -Paths @($actionWorkspaceSmokeScript, $actionWorkspaceExportScript, $compareScript, $validateScript)
 
 Push-Location $repoRoot
 try {
@@ -141,14 +30,10 @@ try {
     if ((-not $Clean) -and (Test-Path -LiteralPath $baselineActionPath)) {
         Write-Host "[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-ACTION-COMPARE-SMOKE] bootstrap=reuse-existing"
     } else {
-        Invoke-ExternalTool `
-            -Executable $powerShellExe `
+        Invoke-PowerShellScript `
+            -PowerShellExe $powerShellExe `
+            -ScriptPath $actionWorkspaceSmokeScript `
             -ArgumentList @(
-                "-NoProfile",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-File",
-                $actionWorkspaceSmokeScript,
                 "-OutputRoot",
                 $actionWorkspaceRootPath,
                 "-PythonExe",
@@ -159,14 +44,10 @@ try {
     }
 
     $candidateActionRoot = Join-Path $outputRootPath "_candidate_compare_action"
-    Invoke-ExternalTool `
-        -Executable $powerShellExe `
+    Invoke-PowerShellScript `
+        -PowerShellExe $powerShellExe `
+        -ScriptPath $actionWorkspaceExportScript `
         -ArgumentList @(
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-            $actionWorkspaceExportScript,
             "-PlanWorkspaceRoot",
             $baselinePlanWorkspaceRoot,
             "-OutputRoot",

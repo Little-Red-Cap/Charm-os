@@ -5,119 +5,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-
-function Resolve-FullPath {
-    param(
-        [string]$Path
-    )
-
-    if ([string]::IsNullOrWhiteSpace($Path)) {
-        return ""
-    }
-
-    if ([System.IO.Path]::IsPathRooted($Path)) {
-        return [System.IO.Path]::GetFullPath($Path)
-    }
-
-    return [System.IO.Path]::GetFullPath((Join-Path (Get-Location) $Path))
-}
-
-function Ensure-Directory {
-    param(
-        [string]$Path
-    )
-
-    if ([string]::IsNullOrWhiteSpace($Path)) {
-        return
-    }
-
-    if (-not (Test-Path -LiteralPath $Path)) {
-        New-Item -ItemType Directory -Path $Path -Force | Out-Null
-    }
-}
-
-function Remove-PathIfExists {
-    param(
-        [string]$Path
-    )
-
-    if ([string]::IsNullOrWhiteSpace($Path)) {
-        return
-    }
-
-    if (Test-Path -LiteralPath $Path) {
-        Remove-Item -LiteralPath $Path -Recurse -Force
-    }
-}
-
-function Resolve-ToolPath {
-    param(
-        [string[]]$Candidates
-    )
-
-    foreach ($candidate in $Candidates) {
-        $command = Get-Command $candidate -ErrorAction SilentlyContinue
-        if ($null -ne $command) {
-            return $command.Source
-        }
-    }
-
-    throw "tool not found: $($Candidates -join ', ')"
-}
-
-function Invoke-ExternalTool {
-    param(
-        [string]$Executable,
-        [string[]]$ArgumentList,
-        [string]$FailureMessage
-    )
-
-    Write-Host ("==> {0}" -f [System.IO.Path]::GetFileName($Executable))
-
-    $previousErrorActionPreference = $ErrorActionPreference
-    try {
-        $ErrorActionPreference = "Continue"
-        & $Executable @ArgumentList
-        $exitCode = $LASTEXITCODE
-    } finally {
-        $ErrorActionPreference = $previousErrorActionPreference
-    }
-
-    if ($exitCode -ne 0) {
-        throw ("{0} (exit code {1})" -f $FailureMessage, $exitCode)
-    }
-}
-
-function Load-JsonObject {
-    param(
-        [string]$Path
-    )
-
-    return (Get-Content -LiteralPath $Path -Raw -Encoding utf8 | ConvertFrom-Json)
-}
-
-function Write-TextFile {
-    param(
-        [string]$Path,
-        [string]$Content
-    )
-
-    $parent = Split-Path -Parent $Path
-    if (-not [string]::IsNullOrWhiteSpace($parent)) {
-        Ensure-Directory -Path $parent
-    }
-    Set-Content -LiteralPath $Path -Encoding utf8 -Value $Content
-}
-
-function Write-JsonFile {
-    param(
-        [string]$Path,
-        $Value
-    )
-
-    $json = $Value | ConvertTo-Json -Depth 100
-    Write-TextFile -Path $Path -Content ($json + [Environment]::NewLine)
-}
+. (Join-Path $PSScriptRoot "front_page_entry_opening_flow_harness.ps1")
 
 function New-FrontPageSurface {
     param(
@@ -586,38 +474,16 @@ function New-FixturePlanWorkspace {
     return $planSummaryPath
 }
 
-function Assert-Condition {
-    param(
-        [bool]$Condition,
-        [string]$Message
-    )
-
-    if (-not $Condition) {
-        throw $Message
-    }
-}
-
 $repoRoot = Resolve-FullPath -Path (Join-Path $PSScriptRoot "..")
 $outputRootPath = Resolve-FullPath -Path $OutputRoot
 
-if ($Clean) {
-    Remove-PathIfExists -Path $outputRootPath
-}
-Ensure-Directory -Path $outputRootPath
+Initialize-SmokeOutputRoot -OutputRootPath $outputRootPath -Clean ([bool]$Clean)
 
-$resolvedPythonExe = if ([string]::IsNullOrWhiteSpace($PythonExe)) {
-    Resolve-ToolPath -Candidates @("python.exe", "python")
-} else {
-    Resolve-FullPath -Path $PythonExe
-}
-$powerShellExe = Resolve-ToolPath -Candidates @("powershell.exe", "pwsh.exe", "powershell", "pwsh")
+$resolvedPythonExe = Resolve-PythonExe -PythonExe $PythonExe
+$powerShellExe = Resolve-PowerShellExe
 
 $workspaceScript = Join-Path $PSScriptRoot "export_system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace.ps1"
-foreach ($requiredPath in @($workspaceScript)) {
-    if (-not (Test-Path -LiteralPath $requiredPath)) {
-        throw "missing path: $requiredPath"
-    }
-}
+Assert-RequiredPaths -Paths @($workspaceScript)
 
 Push-Location $repoRoot
 try {
@@ -625,14 +491,10 @@ try {
     $coldPlanWorkspaceRoot = Join-Path $coldRoot "plan-ws"
     $frontPageWorkspaceRootPath = Resolve-FullPath -Path "cmake-build-codex-system-compiler-front-page-smoke"
     if (Test-Path -LiteralPath $frontPageWorkspaceRootPath) {
-        Invoke-ExternalTool `
-            -Executable $powerShellExe `
+        Invoke-PowerShellScript `
+            -PowerShellExe $powerShellExe `
+            -ScriptPath $workspaceScript `
             -ArgumentList @(
-                "-NoProfile",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-File",
-                $workspaceScript,
                 "-FrontPageWorkspaceRoot",
                 $frontPageWorkspaceRootPath,
                 "-OutputRoot",
@@ -645,14 +507,10 @@ try {
     } else {
         New-FixturePlanWorkspace -PlanWorkspaceRoot $coldPlanWorkspaceRoot | Out-Null
         Write-Host "[FRONT-PAGE-ENTRY-OPENING-FLOW-CONSUMER-PLAN-ACTION-WORKSPACE-SMOKE] plan_bootstrap=fixture"
-        Invoke-ExternalTool `
-            -Executable $powerShellExe `
+        Invoke-PowerShellScript `
+            -PowerShellExe $powerShellExe `
+            -ScriptPath $workspaceScript `
             -ArgumentList @(
-                "-NoProfile",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-File",
-                $workspaceScript,
                 "-PlanWorkspaceRoot",
                 $coldPlanWorkspaceRoot,
                 "-OutputRoot",
@@ -673,14 +531,10 @@ try {
         -Message ("cold default expected default selector but got '{0}'" -f $coldSummary.selection_request.effective_selector)
 
     $hotRoot = Join-Path $outputRootPath "hot-compare-neighbor"
-    Invoke-ExternalTool `
-        -Executable $powerShellExe `
+    Invoke-PowerShellScript `
+        -PowerShellExe $powerShellExe `
+        -ScriptPath $workspaceScript `
         -ArgumentList @(
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-            $workspaceScript,
             "-PlanWorkspaceRoot",
             $coldPlanWorkspaceRoot,
             "-OutputRoot",

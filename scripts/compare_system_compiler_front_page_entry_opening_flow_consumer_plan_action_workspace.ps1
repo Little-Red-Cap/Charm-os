@@ -18,144 +18,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-
-function Resolve-FullPath {
-    param(
-        [string]$Path
-    )
-
-    if ([string]::IsNullOrWhiteSpace($Path)) {
-        return ""
-    }
-
-    if ([System.IO.Path]::IsPathRooted($Path)) {
-        return [System.IO.Path]::GetFullPath($Path)
-    }
-
-    return [System.IO.Path]::GetFullPath((Join-Path (Get-Location) $Path))
-}
-
-function Ensure-Directory {
-    param(
-        [string]$Path
-    )
-
-    if ([string]::IsNullOrWhiteSpace($Path)) {
-        return
-    }
-
-    if (-not (Test-Path -LiteralPath $Path)) {
-        New-Item -ItemType Directory -Path $Path -Force | Out-Null
-    }
-}
-
-function Assert-CleanPath {
-    param(
-        [string]$Path,
-        [string]$RootPath
-    )
-
-    if ([string]::IsNullOrWhiteSpace($Path)) {
-        return
-    }
-
-    $resolvedPath = Resolve-FullPath -Path $Path
-    $resolvedRoot = Resolve-FullPath -Path $RootPath
-    $comparison = [System.StringComparison]::OrdinalIgnoreCase
-    $rootPrefix = $resolvedRoot.TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
-    if ($resolvedPath.Equals($resolvedRoot, $comparison)) {
-        throw "refusing to clean repo root: $resolvedPath"
-    }
-    if (-not $resolvedPath.StartsWith($rootPrefix, $comparison)) {
-        throw "refusing to clean outside repo root: $resolvedPath"
-    }
-}
-
-function Remove-PathIfExists {
-    param(
-        [string]$Path
-    )
-
-    if ([string]::IsNullOrWhiteSpace($Path)) {
-        return
-    }
-
-    $resolvedPath = Resolve-FullPath -Path $Path
-    if (Test-Path -LiteralPath $resolvedPath) {
-        Remove-Item -LiteralPath $resolvedPath -Recurse -Force
-    }
-}
-
-function Resolve-ToolPath {
-    param(
-        [string[]]$Candidates
-    )
-
-    foreach ($candidate in $Candidates) {
-        $command = Get-Command $candidate -ErrorAction SilentlyContinue
-        if ($null -ne $command) {
-            return $command.Source
-        }
-    }
-
-    throw "tool not found: $($Candidates -join ', ')"
-}
-
-function Invoke-ExternalTool {
-    param(
-        [string]$Executable,
-        [string[]]$ArgumentList,
-        [string]$FailureMessage
-    )
-
-    Write-Host ("==> {0}" -f [System.IO.Path]::GetFileName($Executable))
-
-    $previousErrorActionPreference = $ErrorActionPreference
-    try {
-        $ErrorActionPreference = "Continue"
-        & $Executable @ArgumentList
-        $exitCode = $LASTEXITCODE
-    } finally {
-        $ErrorActionPreference = $previousErrorActionPreference
-    }
-
-    if ($exitCode -ne 0) {
-        throw ("{0} (exit code {1})" -f $FailureMessage, $exitCode)
-    }
-}
-
-function Assert-SingleSelector {
-    param(
-        [string]$Label,
-        [string]$ActionId,
-        [string]$ActionKind,
-        [string]$EntryName
-    )
-
-    $selectorCount = 0
-    foreach ($value in @($ActionId, $ActionKind, $EntryName)) {
-        if (-not [string]::IsNullOrWhiteSpace($value)) {
-            $selectorCount += 1
-        }
-    }
-
-    if ($selectorCount -gt 1) {
-        throw ("{0}: use only one of ActionId, ActionKind, or EntryName" -f $Label)
-    }
-}
-
-function Resolve-ActionSummaryPath {
-    param(
-        [string]$ActionWorkspaceRoot
-    )
-
-    $workspaceSummaryPath = Join-Path $ActionWorkspaceRoot "action\front-page.entry-opening-flow.consumer.plan-action.summary.json"
-    if (Test-Path -LiteralPath $workspaceSummaryPath) {
-        return $workspaceSummaryPath
-    }
-
-    return (Join-Path $ActionWorkspaceRoot "front-page.entry-opening-flow.consumer.plan-action.summary.json")
-}
+. (Join-Path $PSScriptRoot "front_page_entry_opening_flow_harness.ps1")
 
 function Invoke-ActionWorkspaceExport {
     param(
@@ -169,11 +32,6 @@ function Invoke-ActionWorkspaceExport {
     )
 
     $arguments = @(
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        $actionWorkspaceExportScript,
         "-OutputRoot",
         $ActionWorkspaceRoot,
         "-PythonExe",
@@ -199,8 +57,9 @@ function Invoke-ActionWorkspaceExport {
         $arguments += @("-EntryName", $EntryName)
     }
 
-    Invoke-ExternalTool `
-        -Executable $powerShellExe `
+    Invoke-PowerShellScript `
+        -PowerShellExe $powerShellExe `
+        -ScriptPath $actionWorkspaceExportScript `
         -ArgumentList $arguments `
         -FailureMessage ("{0} opening-flow consumer plan action workspace export failed" -f $Role)
 }
@@ -241,25 +100,17 @@ if ($Clean) {
 }
 Ensure-Directory -Path $outputRootPath
 
-$resolvedPythonExe = if ([string]::IsNullOrWhiteSpace($PythonExe)) {
-    Resolve-ToolPath -Candidates @("python.exe", "python")
-} else {
-    Resolve-FullPath -Path $PythonExe
-}
-$powerShellExe = Resolve-ToolPath -Candidates @("powershell.exe", "pwsh.exe", "powershell", "pwsh")
+$resolvedPythonExe = Resolve-PythonExe -PythonExe $PythonExe
+$powerShellExe = Resolve-PowerShellExe
 $actionWorkspaceExportScript = Join-Path $PSScriptRoot "export_system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace.ps1"
 $compareScript = Join-Path $PSScriptRoot "compare_system_compiler_front_page_entry_opening_flow_consumer_plan_action.py"
 $validateScript = Join-Path $PSScriptRoot "validate_system_compiler_front_page_entry_opening_flow_consumer_plan_action_compare.py"
-foreach ($requiredPath in @($actionWorkspaceExportScript, $compareScript, $validateScript)) {
-    if (-not (Test-Path -LiteralPath $requiredPath)) {
-        throw "missing path: $requiredPath"
-    }
-}
+Assert-RequiredPaths -Paths @($actionWorkspaceExportScript, $compareScript, $validateScript)
 
 Push-Location $repoRoot
 try {
-    $baselineActionSummaryPath = Resolve-ActionSummaryPath -ActionWorkspaceRoot $baselineActionWorkspaceRootPath
-    $candidateActionSummaryPath = Resolve-ActionSummaryPath -ActionWorkspaceRoot $candidateActionWorkspaceRootPath
+    $baselineActionSummaryPath = Resolve-OpeningFlowConsumerPlanActionSummaryPath -ActionWorkspaceRoot $baselineActionWorkspaceRootPath
+    $candidateActionSummaryPath = Resolve-OpeningFlowConsumerPlanActionSummaryPath -ActionWorkspaceRoot $candidateActionWorkspaceRootPath
     $baselineActionAvailable = (-not $Clean) -and (Test-Path -LiteralPath $baselineActionSummaryPath)
     $candidateActionAvailable = (-not $Clean) -and (Test-Path -LiteralPath $candidateActionSummaryPath)
 
@@ -277,7 +128,7 @@ try {
             -ActionId $BaselineActionId `
             -ActionKind $BaselineActionKind `
             -EntryName $BaselineEntryName
-        $baselineActionSummaryPath = Resolve-ActionSummaryPath -ActionWorkspaceRoot $baselineActionWorkspaceRootPath
+        $baselineActionSummaryPath = Resolve-OpeningFlowConsumerPlanActionSummaryPath -ActionWorkspaceRoot $baselineActionWorkspaceRootPath
     }
 
     if ($candidateActionAvailable) {
@@ -294,7 +145,7 @@ try {
             -ActionId $CandidateActionId `
             -ActionKind $CandidateActionKind `
             -EntryName $CandidateEntryName
-        $candidateActionSummaryPath = Resolve-ActionSummaryPath -ActionWorkspaceRoot $candidateActionWorkspaceRootPath
+        $candidateActionSummaryPath = Resolve-OpeningFlowConsumerPlanActionSummaryPath -ActionWorkspaceRoot $candidateActionWorkspaceRootPath
     }
 
     foreach ($summaryPath in @($baselineActionSummaryPath, $candidateActionSummaryPath)) {

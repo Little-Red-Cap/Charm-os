@@ -204,6 +204,26 @@ function Assert-Condition {
     }
 }
 
+function Assert-SingleSelector {
+    param(
+        [string]$Label,
+        [string]$ActionId,
+        [string]$ActionKind,
+        [string]$EntryName
+    )
+
+    $selectorCount = 0
+    foreach ($value in @($ActionId, $ActionKind, $EntryName)) {
+        if (-not [string]::IsNullOrWhiteSpace($value)) {
+            $selectorCount += 1
+        }
+    }
+
+    if ($selectorCount -gt 1) {
+        throw ("{0}: use only one of ActionId, ActionKind, or EntryName" -f $Label)
+    }
+}
+
 function Ensure-OpeningFlowConsumerPlanActionWorkspaceSmoke {
     param(
         [string]$ScriptsRoot,
@@ -284,6 +304,19 @@ function Resolve-OpeningFlowOpenEventSummaryPath {
     }
 
     return (Join-Path $WorkspaceRoot "front-page.entry-opening-flow.open-event.summary.json")
+}
+
+function Resolve-OpeningFlowConsumerPlanActionSummaryPath {
+    param(
+        [string]$ActionWorkspaceRoot
+    )
+
+    $workspaceSummaryPath = Join-Path $ActionWorkspaceRoot "action\front-page.entry-opening-flow.consumer.plan-action.summary.json"
+    if (Test-Path -LiteralPath $workspaceSummaryPath) {
+        return $workspaceSummaryPath
+    }
+
+    return (Join-Path $ActionWorkspaceRoot "front-page.entry-opening-flow.consumer.plan-action.summary.json")
 }
 
 function Resolve-OpeningFlowOpenEventWitnessSummaryPath {

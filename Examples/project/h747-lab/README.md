@@ -66,6 +66,8 @@ generated files stay under `cmake-build-*` instead of the source tree.
 
 The current DIY H747 memory baseline is recorded in
 `docs/h747_lab_memory_evidence.md`.
+The current raster display baseline is recorded in
+`docs/h747_lab_raster_evidence.md`.
 
 - PMIC communication uses the `i2c1_gpio_swapped` software I2C transport.
 - SDRAM1 is verified as `is42s32800g_32m`, 32 MiB at `0xC0000000`.
@@ -73,6 +75,8 @@ The current DIY H747 memory baseline is recorded in
 - Both SDRAM banks pass `locate`, `addr`, `lane`, `repeat`, `probe`, and
   segmented `verify`.
 - QSPI reports JEDEC `EF/40/19` after DCDC1 is explicitly set to 3.3 V.
+- `display_raster_demo` proves a double-buffered ARGB8888 SDRAM1 framebuffer
+  path to LTDC/DSI with stable full-screen color switching.
 
 ## Layout
 

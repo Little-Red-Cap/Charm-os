@@ -39,7 +39,9 @@ Each app directory must provide an `app.cmake` manifest with:
   HX8394D DSI path and shows a fixed red screen through `SolidFillDisplay`.
 - `display_raster_demo`: first capability-world raster demo. The domain code
   targets `RasterDisplayWorld` and can run against both host/mock and H747
-  SDRAM framebuffer backends.
+  SDRAM framebuffer backends. The current H747 baseline uses two SDRAM1
+  framebuffers and full-screen ARGB8888 present; single-buffer full-frame redraw
+  is intentionally avoided because it can race LTDC layer fetch.
 - `player`: first Player-on-H747 shell. It reuses the `RasterDisplayWorld`
   boundary, renders from a small `PlayerViewModel`, and draws a deterministic
   player scene without depending on the old Windows Player project.

@@ -38,6 +38,36 @@ inline void put_pixel(const charm::cap::FrameBuffer& frame,
     *row = argb;
 }
 
+inline const char* frame_name(const std::uint32_t tick) noexcept {
+    switch (tick % 5U) {
+        case 0U:
+            return "red";
+        case 1U:
+            return "green";
+        case 2U:
+            return "blue";
+        case 3U:
+            return "white";
+        default:
+            return "black";
+    }
+}
+
+inline std::uint32_t frame_color(const std::uint32_t tick) noexcept {
+    switch (tick % 5U) {
+        case 0U:
+            return 0xFFFF0000U;
+        case 1U:
+            return 0xFF00FF00U;
+        case 2U:
+            return 0xFF0000FFU;
+        case 3U:
+            return 0xFFFFFFFFU;
+        default:
+            return 0xFF000000U;
+    }
+}
+
 inline void draw_test_frame(const charm::cap::FrameBuffer& frame,
                             const std::uint32_t tick) noexcept {
     const auto mode = frame.mode();
@@ -47,36 +77,10 @@ inline void draw_test_frame(const charm::cap::FrameBuffer& frame,
         return;
     }
 
+    const std::uint32_t color = frame_color(tick);
     for (std::uint16_t y = 0U; y < height; ++y) {
         for (std::uint16_t x = 0U; x < width; ++x) {
-            const std::uint8_t r = static_cast<std::uint8_t>((x * 255U) / (width - 1U));
-            const std::uint8_t g = static_cast<std::uint8_t>((y * 255U) / (height - 1U));
-            const std::uint8_t b = static_cast<std::uint8_t>((tick * 17U) & 0xFFU);
-            put_pixel(frame, x, y, pack_argb(r, g, b));
-        }
-    }
-
-    const std::uint16_t bar_h = (height > 16U) ? static_cast<std::uint16_t>(height / 16U) : 1U;
-    for (std::uint16_t y = 0U; y < bar_h; ++y) {
-        for (std::uint16_t x = 0U; x < width; ++x) {
-            const std::uint8_t segment = static_cast<std::uint8_t>((x * 6U) / width);
-            const std::uint32_t color = (segment == 0U) ? 0xFFFF0000U :
-                                        (segment == 1U) ? 0xFF00FF00U :
-                                        (segment == 2U) ? 0xFF0000FFU :
-                                        (segment == 3U) ? 0xFFFFFFFFU :
-                                        (segment == 4U) ? 0xFF000000U :
-                                                          0xFFFFFF00U;
             put_pixel(frame, x, y, color);
-        }
-    }
-
-    const std::uint16_t box = (width < height) ? static_cast<std::uint16_t>(width / 8U)
-                                               : static_cast<std::uint16_t>(height / 8U);
-    const std::uint16_t x0 = static_cast<std::uint16_t>((tick * 37U) % (width - box));
-    const std::uint16_t y0 = static_cast<std::uint16_t>((tick * 23U) % (height - box));
-    for (std::uint16_t y = y0; y < static_cast<std::uint16_t>(y0 + box); ++y) {
-        for (std::uint16_t x = x0; x < static_cast<std::uint16_t>(x0 + box); ++x) {
-            put_pixel(frame, x, y, 0xFFFF40C0U);
         }
     }
 }
@@ -98,6 +102,8 @@ void init(World& world) noexcept {
     const auto status = world.display().present(world.framebuffer().view(), {});
     (void)log.write("display_raster_demo: first_present=");
     (void)log.write(status.name());
+    (void)log.write(" color=");
+    (void)log.write(detail::frame_name(0U));
     (void)log.write("\n");
     (void)log.flush();
 }
@@ -105,21 +111,24 @@ void init(World& world) noexcept {
 template <charm::cap::RasterDisplayWorld World>
 void loop_once(World& world) noexcept {
     static std::uint32_t last_tick = 0U;
-    static std::uint32_t frame = 0U;
 
     const std::uint32_t now = world.clock().tick_ms().value;
     if ((now - last_tick) < 1000U) {
         return;
     }
     last_tick = now;
+
+    static std::uint32_t frame = 0U;
     ++frame;
 
     detail::draw_test_frame(world.framebuffer(), frame);
     const auto status = world.display().present(world.framebuffer().view(), {});
     auto& log = world.log();
-    (void)log.write("display_raster_demo: frame=");
-    // Keep the domain app formatting-free for now; the changing visual frame is the evidence.
-    (void)log.write(status ? "present_ok\n" : "present_failed\n");
+    (void)log.write("display_raster_demo: double_buffer=");
+    (void)log.write(status ? "present_ok" : "present_failed");
+    (void)log.write(" color=");
+    (void)log.write(detail::frame_name(frame));
+    (void)log.write("\n");
     (void)log.flush();
 }
 

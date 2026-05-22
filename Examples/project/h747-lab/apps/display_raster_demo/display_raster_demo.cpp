@@ -33,6 +33,8 @@ void print_raster_state(const char* prefix) {
     h747::console::write(" fmt=argb8888");
     print_hex32(" fb=", state.framebuffer_base);
     print_hex32(" bytes=", state.framebuffer_bytes);
+    print_hex32(" front=", state.front_buffer_base);
+    print_hex32(" back=", state.back_buffer_base);
     h747::console::write(" init=");
     h747::console::write_dec(state.init_ok);
     h747::console::write(" sdram=");

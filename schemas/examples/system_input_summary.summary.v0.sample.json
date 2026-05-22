@@ -17,9 +17,9 @@
         "block"
       ],
       "case_kind": "materialized_graph",
-      "source": "Examples/init/demo_case",
-      "build_target": "init-demo-case",
-      "export_target": "export_demo_case",
+      "source": "Examples/init/bringup_minimal_observe_demo",
+      "build_target": "init-bringup-minimal-observe-demo",
+      "export_target": "export_bringup_minimal_materialized_graph",
       "declared_profile": null,
       "declared_board": "win_stub",
       "declared_active_facets": [
@@ -59,7 +59,7 @@
   ],
   "source_matrix": [
     {
-      "source": "Examples/init/demo_case",
+      "source": "Examples/init/bringup_minimal_observe_demo",
       "case_count": 1,
       "cases": [
         {
@@ -76,7 +76,7 @@
   ],
   "build_target_matrix": [
     {
-      "build_target": "init-demo-case",
+      "build_target": "init-bringup-minimal-observe-demo",
       "case_count": 1,
       "cases": [
         {
@@ -93,7 +93,7 @@
   ],
   "export_target_matrix": [
     {
-      "export_target": "export_demo_case",
+      "export_target": "export_bringup_minimal_materialized_graph",
       "case_count": 1,
       "cases": [
         {

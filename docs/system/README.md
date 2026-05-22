@@ -20,7 +20,7 @@
 | minimal-kernel host smoke / 冷启动与热复用 | [`minimal_kernel_host_smoke_bundle_contract.md`](minimal_kernel_host_smoke_bundle_contract.md) |
 | syscall / trap 链 | [`minimal_kernel_task_syscall_table_contract.md`](minimal_kernel_task_syscall_table_contract.md)、[`minimal_kernel_trap_syscall_contract.md`](minimal_kernel_trap_syscall_contract.md)、[`armv7a_runtime_trap_mapping_contract.md`](armv7a_runtime_trap_mapping_contract.md) |
 | POSIX / Linux 用户态兼容 | [`posix_support_overview.md`](posix_support_overview.md) |
-| system compiler 结果物与解释面 | [`artifact_report_v0.md`](artifact_report_v0.md)、[`explain_surface_v0.md`](explain_surface_v0.md) |
+| system compiler 结果物与解释面 | [`artifact_report_v0.md`](artifact_report_v0.md)、[`explain_surface_v0.md`](explain_surface_v0.md)、[`front_page_route_provenance_compatibility_contract_v0.md`](front_page_route_provenance_compatibility_contract_v0.md) |
 | 资源法律与 bring-up 证据 | [`resource_contract_v0.md`](resource_contract_v0.md)、[`bringup_evidence_pipeline_v0.md`](bringup_evidence_pipeline_v0.md) |
 | opening judgment / testimony 上层阅读通路 | [`opening_judgment_corridor_witness_taxonomy_v0.md`](opening_judgment_corridor_witness_taxonomy_v0.md) |
 | 脚本面收敛 / evidence harness 治理 | [`script_surface_reduction_governance_v0.md`](script_surface_reduction_governance_v0.md)、[`script_surface_reduction_inventory_v0.md`](script_surface_reduction_inventory_v0.md) |

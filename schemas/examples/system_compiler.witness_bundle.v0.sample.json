@@ -108,8 +108,8 @@
   },
   "front_page": {
     "summary_path": "schemas/examples/system_compiler.witness_bundle.v0.sample.json",
-    "report_markdown_path": "docs/system/witness_bundle_v0.md",
-    "check_text_path": "docs/system/witness_bundle_v0.md",
+    "report_markdown_path": "docs/archive/system-compiler-front-page-v0/witness_bundle_v0.md",
+    "check_text_path": "docs/archive/system-compiler-front-page-v0/witness_bundle_v0.md",
     "supporting_surfaces": [
       {
         "id": "runtime_evidence",
@@ -140,8 +140,8 @@
     ],
     "runtime_evidence_summary": "schemas/examples/minimal_kernel.runtime_evidence_bundle.summary.v1.sample.json",
     "output_root": "schemas/examples",
-    "report_markdown_path": "docs/system/witness_bundle_v0.md",
-    "check_text_path": "docs/system/witness_bundle_v0.md"
+    "report_markdown_path": "docs/archive/system-compiler-front-page-v0/witness_bundle_v0.md",
+    "check_text_path": "docs/archive/system-compiler-front-page-v0/witness_bundle_v0.md"
   },
   "contract_status": {
     "declared_count": 2,

@@ -169,6 +169,18 @@ provenance:
 This is intentionally not a normal front-page root. It is a provenance source
 for finding case-level artifact reports.
 
+## Route provenance compatibility
+
+Current route consumers normalize legacy route-root provenance fields into the
+canonical `source_front_page_*` view before validation.
+
+The compatibility rule is documented in:
+
+- [`../../system/front_page_route_provenance_compatibility_contract_v0.md`](../../system/front_page_route_provenance_compatibility_contract_v0.md)
+
+This keeps older `front_page_route_root` producers readable without adding a
+second route schema or reopening producer internals.
+
 ## Manual example
 
 ```powershell

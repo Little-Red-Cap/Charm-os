@@ -25,6 +25,7 @@
 | opening judgment / testimony 上层阅读通路 | [`opening_judgment_corridor_witness_taxonomy_v0.md`](opening_judgment_corridor_witness_taxonomy_v0.md) |
 | 脚本面收敛 / evidence harness 治理 | [`script_surface_reduction_governance_v0.md`](script_surface_reduction_governance_v0.md)、[`script_surface_reduction_inventory_v0.md`](script_surface_reduction_inventory_v0.md) |
 | schema 面收敛 / shared definition 候选治理 | [`schema_surface_reduction_governance_v0.md`](schema_surface_reduction_governance_v0.md)、[`schema_surface_reduction_inventory_v0.md`](schema_surface_reduction_inventory_v0.md) |
+| `schemas/examples` sample hygiene / static refs smoke | [`schema_examples_hygiene_v0.md`](schema_examples_hygiene_v0.md)、[`../../scripts/schema_examples_hygiene_smoke.ps1`](../../scripts/schema_examples_hygiene_smoke.ps1) |
 
 ## 阅读规则
 
@@ -105,7 +106,7 @@
 
 - [`schema_surface_reduction_governance_v0.md`](schema_surface_reduction_governance_v0.md)
 - [`schema_surface_reduction_inventory_v0.md`](schema_surface_reduction_inventory_v0.md)
-- [`schema_examples_hygiene_smoke.ps1`](../../scripts/schema_examples_hygiene_smoke.ps1)
+- [`schema_examples_hygiene_v0.md`](schema_examples_hygiene_v0.md)
 
 ## SSU 补充入口
 

@@ -202,9 +202,27 @@ function Assert-Condition {
     }
 }
 
+function Get-StableShortToken {
+    param(
+        [string]$Value
+    )
+
+    $sha1 = [System.Security.Cryptography.SHA1]::Create()
+    try {
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes($Value)
+        $hash = $sha1.ComputeHash($bytes)
+        return ([System.BitConverter]::ToString($hash).Replace("-", "").Substring(0, 12).ToLowerInvariant())
+    } finally {
+        $sha1.Dispose()
+    }
+}
+
 $repoRoot = Resolve-FullPath -Path (Join-Path $PSScriptRoot "..")
 $inputRootPath = Resolve-FullPath -Path $InputRoot
 $outputRootPath = Resolve-FullPath -Path $OutputRoot
+$routeProvenanceRunToken = Get-StableShortToken -Value ("{0}|{1}" -f $outputRootPath, [System.Diagnostics.Process]::GetCurrentProcess().Id)
+$routeProvenanceReviewRoot = Join-Path (Join-Path $repoRoot "out\front-page-route-rp") $routeProvenanceRunToken
+$routeProvenanceReviewSummary = Join-Path $routeProvenanceReviewRoot "review.summary.json"
 
 if (-not (Test-Path $inputRootPath)) {
     $fixtureBootstrapScript = Join-Path $PSScriptRoot "system_compiler_front_page_smoke_fixture_bootstrap.ps1"
@@ -229,6 +247,7 @@ if (-not (Test-Path $inputRootPath)) {
 
 if ($Clean) {
     Remove-PathIfExists -Path $outputRootPath
+    Remove-PathIfExists -Path $routeProvenanceReviewRoot
 }
 Ensure-Directory -Path $outputRootPath
 
@@ -247,8 +266,6 @@ foreach ($requiredPath in @($exportScript, $validateScript, $reviewShelfScript))
     }
 }
 
-$routeProvenanceReviewRoot = Join-Path $outputRootPath "_route_provenance_review"
-$routeProvenanceReviewSummary = Join-Path $routeProvenanceReviewRoot "world-shelf.review.summary.json"
 $routeProvenanceCandidateBiography = Join-Path $inputRootPath "witness-ci-shelf\biography.summary.json"
 $routeProvenanceCompareBiography = Join-Path $inputRootPath "witness-ci-shelf\self-compare\biography.summary.json"
 foreach ($requiredPath in @($routeProvenanceCandidateBiography, $routeProvenanceCompareBiography)) {
@@ -268,12 +285,12 @@ try {
         -BiographySummary @($routeProvenanceCandidateBiography, $routeProvenanceCompareBiography) `
         -BaselineBiographySummary @($routeProvenanceCandidateBiography) `
         -OutputRoot $routeProvenanceReviewRoot `
-        -CandidateShelfOutputRoot (Join-Path $routeProvenanceReviewRoot "world-shelf") `
-        -BaselineShelfOutputRoot (Join-Path $routeProvenanceReviewRoot "world-shelf-baseline") `
-        -CompareOutputRoot (Join-Path $routeProvenanceReviewRoot "world-shelf-compare") `
+        -CandidateShelfOutputRoot (Join-Path $routeProvenanceReviewRoot "ws") `
+        -BaselineShelfOutputRoot (Join-Path $routeProvenanceReviewRoot "wsb") `
+        -CompareOutputRoot (Join-Path $routeProvenanceReviewRoot "wsc") `
         -ReviewSummaryPath $routeProvenanceReviewSummary `
-        -ReviewReportMarkdownPath (Join-Path $routeProvenanceReviewRoot "world-shelf.review.md") `
-        -ReviewCheckTextPath (Join-Path $routeProvenanceReviewRoot "world-shelf.check.txt") `
+        -ReviewReportMarkdownPath (Join-Path $routeProvenanceReviewRoot "review.md") `
+        -ReviewCheckTextPath (Join-Path $routeProvenanceReviewRoot "check.txt") `
         -PythonExe $resolvedPythonExe `
         -CandidateProfile "front-page-route-smoke-candidate" `
         -BaselineProfile "front-page-route-smoke-baseline" `

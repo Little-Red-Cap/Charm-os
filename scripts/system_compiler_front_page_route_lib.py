@@ -182,6 +182,18 @@ def build_route_provenance_entry(
     provenance_value: Any,
 ) -> OrderedDict[str, Any]:
     provenance = get_mapping(provenance_value)
+    source_front_page_summary_path = (
+        provenance.get("source_front_page_summary_path")
+        or provenance.get("source_root_summary_path")
+    )
+    source_front_page_report_markdown_path = (
+        provenance.get("source_front_page_report_markdown_path")
+        or provenance.get("source_report_markdown_path")
+    )
+    source_front_page_check_text_path = (
+        provenance.get("source_front_page_check_text_path")
+        or provenance.get("source_check_text_path")
+    )
     available_supporting_surface_ids: list[str] = []
     for surface_id_value in provenance.get("available_supporting_surface_ids", []):
         surface_id = choose_text(surface_id_value)
@@ -205,15 +217,15 @@ def build_route_provenance_entry(
             ("source_summary_path", normalize_optional_path(provenance.get("source_summary_path"))),
             (
                 "source_front_page_summary_path",
-                normalize_optional_path(provenance.get("source_front_page_summary_path")),
+                normalize_optional_path(source_front_page_summary_path),
             ),
             (
                 "source_front_page_report_markdown_path",
-                normalize_optional_path(provenance.get("source_front_page_report_markdown_path")),
+                normalize_optional_path(source_front_page_report_markdown_path),
             ),
             (
                 "source_front_page_check_text_path",
-                normalize_optional_path(provenance.get("source_front_page_check_text_path")),
+                normalize_optional_path(source_front_page_check_text_path),
             ),
             ("available_supporting_surface_ids", available_supporting_surface_ids),
         ]

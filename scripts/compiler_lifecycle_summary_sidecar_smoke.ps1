@@ -91,12 +91,13 @@ Ensure-Directory -Path $outputRootPath
 $exportScript = Join-Path $PSScriptRoot "export_compiler_lifecycle_summary.py"
 $checkScript = Join-Path $PSScriptRoot "check_compiler_lifecycle_summary.ps1"
 $reportScript = Join-Path $PSScriptRoot "report_compiler_lifecycle_summary.ps1"
+$sidecarScript = Join-Path $PSScriptRoot "compiler_lifecycle_summary_sidecar.ps1"
 $artifactReportIndex = Join-Path $repoRoot "schemas/examples/system_compiler.artifact_report_index.v0.sample.json"
 $kernelRuntimeSession = Join-Path $repoRoot "schemas/examples/minimal_kernel.kernel_runtime_session.v0.sample.json"
 $witnessBundle = Join-Path $repoRoot "schemas/examples/system_compiler.witness_bundle.v0.sample.json"
 $worldCompare = Join-Path $repoRoot "schemas/examples/system_compiler.world_compare.v0.sample.json"
 
-foreach ($requiredPath in @($exportScript, $checkScript, $reportScript, $artifactReportIndex, $kernelRuntimeSession, $witnessBundle, $worldCompare)) {
+foreach ($requiredPath in @($exportScript, $checkScript, $reportScript, $sidecarScript, $artifactReportIndex, $kernelRuntimeSession, $witnessBundle, $worldCompare)) {
     if (-not (Test-Path $requiredPath)) {
         throw "required input not found: $requiredPath"
     }
@@ -112,6 +113,8 @@ $forgedFrozenPath = Join-Path $outputRootPath "compiler_lifecycle.forged_frozen.
 $forgedFrozenGatePath = Join-Path $outputRootPath "compiler_lifecycle.forged_frozen.gate.txt"
 $loweredDirectPath = Join-Path $outputRootPath "compiler_lifecycle.lowered_direct.summary.json"
 $loweredDirectGatePath = Join-Path $outputRootPath "compiler_lifecycle.lowered_direct.gate.txt"
+$wrapperRootPath = Join-Path $outputRootPath "wrapper"
+$wrapperSummaryPath = Join-Path $wrapperRootPath "compiler_lifecycle.summary.json"
 
 & $PythonExe $exportScript `
     --artifact-report-index $artifactReportIndex `
@@ -193,6 +196,20 @@ Assert-CommandFails -Label "lowered direct truth" -Command {
     & $checkScript -Summary $loweredDirectPath -OutputPath $loweredDirectGatePath
 }
 
+& $sidecarScript `
+    -OutputRoot $wrapperRootPath `
+    -ArtifactReportIndex $artifactReportIndex `
+    -KernelRuntimeSession $kernelRuntimeSession `
+    -WitnessBundle $witnessBundle `
+    -WorldCompare $worldCompare `
+    -PythonExe $PythonExe `
+    -Clean
+
+$wrapperSummary = Get-Content -LiteralPath $wrapperSummaryPath -Raw -Encoding utf8 | ConvertFrom-Json
+Assert-Equal -Actual ([string]$wrapperSummary.result) -Expected "ok" -Label "wrapper.result"
+Assert-Equal -Actual ([int]$wrapperSummary.state_count) -Expected 9 -Label "wrapper.state_count"
+Assert-Equal -Actual ([string]$wrapperSummary.states.frozen.status) -Expected "missing" -Label "wrapper.frozen.status"
+
 Write-Host "[COMPILER-LIFECYCLE-SUMMARY-SIDECAR-SMOKE] result=ok"
 Write-Host ("summary={0}" -f $summaryPath)
 Write-Host ("report={0}" -f $reportPath)
@@ -201,3 +218,4 @@ Write-Host ("gate={0}" -f $gatePath)
 Write-Host ("summary_report={0}" -f $summaryReportPath)
 Write-Host ("forged_frozen_gate={0}" -f $forgedFrozenGatePath)
 Write-Host ("lowered_direct_gate={0}" -f $loweredDirectGatePath)
+Write-Host ("wrapper_summary={0}" -f $wrapperSummaryPath)

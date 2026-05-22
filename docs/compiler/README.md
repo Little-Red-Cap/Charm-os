@@ -24,6 +24,7 @@
 - `scripts/report_compiler_lifecycle_summary.ps1`
 - `scripts/compiler_lifecycle_summary_sidecar.ps1`
 - `scripts/compiler_lifecycle_summary_sidecar_smoke.ps1`
+- `scripts/compiler_lifecycle_summary_runtime_evidence_bundle_hook_smoke.ps1`
 - `scripts/minimal_kernel_runtime_evidence_bundle.ps1 -ExportCompilerLifecycleSummary`
 
 ## 阅读关系

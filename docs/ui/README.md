@@ -125,6 +125,7 @@ Fast manifest smoke:
 - [`player_vivid_patterns.md`](player_vivid_patterns.md)
 - [`player_portability_boundary.md`](player_portability_boundary.md)
 - [`player_vivid_portability_map.md`](player_vivid_portability_map.md)
+- [`player_provider_portability_audit.md`](player_provider_portability_audit.md)
 
 ## 当前建议阅读顺序
 

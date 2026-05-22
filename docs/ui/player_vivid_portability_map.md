@@ -44,13 +44,14 @@ The includes stay in the same anonymous namespace so this cleanup does not creat
 
 ## Portability Audit
 
-- Dynamic containers: the Material Design 3 controller and some Library helpers still use `std::string` / `std::vector` for preview-rich state and text composition.
-- Cover pipeline: host cover decode is gated, but embedded-image extraction and theme sampling still allocate temporary buffers when enabled.
-- Font pipeline: file-backed FreeType font loading is host/resource-profile behavior; portable builds rely on built-in fonts until a board font resource contract exists.
-- Time and diagnostics: week/date stamping is behind `player.time_utils`, but playback logs, screenshots, and UI-CI are host shell responsibilities.
-- Storage: host VHD defaults are profile-driven; portable storage should arrive as a board/provider capability rather than a page-level assumption.
-- Current audit notes: `app-common` still has dynamic/file-backed utilities in font cache, fs utils, media scan, playback, stats, and storage; MD3 controller/home/now-playing keep rich dynamic state and transition counters; Library popup files are user-owned dirty work and should not be edited by this cleanup batch.
-- Host-only gates are explicit today: cover decode remains behind `CHARM_PLAYER_HOST_COVER_DECODE`, file fonts behind `CHARM_PLAYER_HOST_FILE_FONTS` / `CHARM_PLAYER_PC_FONT_CACHE`, and screenshots/UI-CI stay under the Windows host shell.
+Detailed provider and dynamic-memory notes now live in `player_provider_portability_audit.md`.
+
+Current short form:
+
+- Cover, font, storage, diagnostics, and UI-CI already have visible host gates or host-shell ownership.
+- Theme and time have useful seams, but their final provider shape should wait for a concrete portable Player target.
+- Dynamic containers fall into two buckets: product semantic state in the MD3 controller/storage/theme flow, and replaceable host implementation state in font cache, cover decode, screenshots, and UI-CI.
+- The next cleanup order should be font provider, cover resource provider, time/diagnostics provider, UI-CI grouping, then controller dynamic state slimming.
 
 ## Portable UI Probe Contract
 

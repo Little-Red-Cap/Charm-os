@@ -332,6 +332,32 @@ function Resolve-OpeningFlowConsumerPlanSummaryPath {
     return (Join-Path $PlanWorkspaceRoot "front-page.entry-opening-flow.consumer.plan.summary.json")
 }
 
+function Resolve-OpeningFlowConsumerSummaryPath {
+    param(
+        [string]$ConsumerWorkspaceRoot
+    )
+
+    $workspaceSummaryPath = Join-Path $ConsumerWorkspaceRoot "consumer\front-page.entry-opening-flow.consumer.summary.json"
+    if (Test-Path -LiteralPath $workspaceSummaryPath) {
+        return $workspaceSummaryPath
+    }
+
+    return (Join-Path $ConsumerWorkspaceRoot "front-page.entry-opening-flow.consumer.summary.json")
+}
+
+function Resolve-OpeningFlowConsumerSelectorSummaryPath {
+    param(
+        [string]$SelectorWorkspaceRoot
+    )
+
+    $workspaceSummaryPath = Join-Path $SelectorWorkspaceRoot "selector\front-page.entry-opening-flow.consumer.selector.summary.json"
+    if (Test-Path -LiteralPath $workspaceSummaryPath) {
+        return $workspaceSummaryPath
+    }
+
+    return (Join-Path $SelectorWorkspaceRoot "front-page.entry-opening-flow.consumer.selector.summary.json")
+}
+
 function Resolve-OpeningFlowOpenEventWitnessSummaryPath {
     param(
         [string]$WorkspaceRoot

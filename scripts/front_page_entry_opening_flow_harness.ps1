@@ -319,6 +319,19 @@ function Resolve-OpeningFlowConsumerPlanActionSummaryPath {
     return (Join-Path $ActionWorkspaceRoot "front-page.entry-opening-flow.consumer.plan-action.summary.json")
 }
 
+function Resolve-OpeningFlowConsumerPlanSummaryPath {
+    param(
+        [string]$PlanWorkspaceRoot
+    )
+
+    $workspaceSummaryPath = Join-Path $PlanWorkspaceRoot "plan\front-page.entry-opening-flow.consumer.plan.summary.json"
+    if (Test-Path -LiteralPath $workspaceSummaryPath) {
+        return $workspaceSummaryPath
+    }
+
+    return (Join-Path $PlanWorkspaceRoot "front-page.entry-opening-flow.consumer.plan.summary.json")
+}
+
 function Resolve-OpeningFlowOpenEventWitnessSummaryPath {
     param(
         [string]$WorkspaceRoot

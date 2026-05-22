@@ -32,7 +32,9 @@ Each app directory must provide an `app.cmake` manifest with:
   actually lands. Its console path is adapted through `TextSink` and
   `LineSource`. `memory mpu normal` is an explicit diagnostic escape hatch that
   marks both SDRAM banks as normal non-cacheable memory before rerunning probes;
-  it is not a default boot policy.
+  it is not a default boot policy. The current board evidence shows SDRAM1 and
+  SDRAM2 both pass `locate`, `addr`, `lane`, `repeat`, `probe`, and `verify`
+  under `is42s32800g_32m`, for 32 MiB per bank.
 - `display_demo`: minimal display baseline. It initializes the verified
   HX8394D DSI path and shows a fixed red screen through `SolidFillDisplay`.
 - `display_raster_demo`: first capability-world raster demo. The domain code

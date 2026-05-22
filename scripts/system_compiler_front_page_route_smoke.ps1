@@ -207,7 +207,24 @@ $inputRootPath = Resolve-FullPath -Path $InputRoot
 $outputRootPath = Resolve-FullPath -Path $OutputRoot
 
 if (-not (Test-Path $inputRootPath)) {
-    throw "input root not found: $inputRootPath"
+    $fixtureBootstrapScript = Join-Path $PSScriptRoot "system_compiler_front_page_smoke_fixture_bootstrap.ps1"
+    if (-not (Test-Path $fixtureBootstrapScript)) {
+        throw "input root not found and fixture bootstrap is missing: $inputRootPath"
+    }
+
+    Write-Host ("[FRONT-PAGE-ROUTE-SMOKE] bootstrap=front-page-fixture input_root={0}" -f $inputRootPath)
+    Invoke-ExternalTool `
+        -Executable "powershell.exe" `
+        -ArgumentList @(
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            $fixtureBootstrapScript,
+            "-OutputRoot",
+            $inputRootPath
+        ) `
+        -FailureMessage "front page smoke fixture bootstrap failed"
 }
 
 if ($Clean) {

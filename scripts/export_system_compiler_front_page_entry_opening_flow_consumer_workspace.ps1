@@ -130,7 +130,23 @@ $consumerRootPath = if ([string]::IsNullOrWhiteSpace($ConsumerRoot)) {
 }
 
 if (-not (Test-Path $frontPageWorkspaceRootPath)) {
-    throw "front-page workspace root not found: $frontPageWorkspaceRootPath"
+    $fixtureBootstrapScript = Join-Path $PSScriptRoot "system_compiler_front_page_smoke_fixture_bootstrap.ps1"
+    if (-not (Test-Path $fixtureBootstrapScript)) {
+        throw "front-page workspace root not found and fixture bootstrap is missing: $frontPageWorkspaceRootPath"
+    }
+
+    Invoke-ExternalTool `
+        -Executable "powershell.exe" `
+        -ArgumentList @(
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            $fixtureBootstrapScript,
+            "-OutputRoot",
+            $frontPageWorkspaceRootPath
+        ) `
+        -FailureMessage "front page smoke fixture bootstrap failed"
 }
 
 if ($Clean) {

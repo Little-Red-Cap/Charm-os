@@ -363,6 +363,7 @@ if (-not (Test-Path $sampleSummaryPath)) {
 if ($Clean) {
     Remove-PathIfExists -Path $outputRootPath
 }
+Ensure-Directory -Path $outputRootPath
 
 $resolvedPythonExe = if ([string]::IsNullOrWhiteSpace($PythonExe)) {
     Resolve-ToolPath -Candidates @("python.exe", "python")
@@ -397,10 +398,27 @@ foreach ($requiredPath in @(
 
 Push-Location $repoRoot
 try {
+    $sampleFixtureRoot = Join-Path $outputRootPath "_sample_fixture"
+    $sampleFixtureSummaryPath = Join-Path $sampleFixtureRoot "witness-bundle.summary.json"
+    $sampleFixtureReportPath = Join-Path $sampleFixtureRoot "witness-bundle.report.md"
+    $sampleFixtureCheckPath = Join-Path $sampleFixtureRoot "witness-bundle.check.txt"
+    Ensure-Directory -Path $sampleFixtureRoot
+    Write-TextFile -Path $sampleFixtureReportPath -Content "# Runtime Session Opening Flow Sample Witness Bundle`n"
+    Write-TextFile -Path $sampleFixtureCheckPath -Content "result: ok`n"
+
+    $sampleFixture = Load-JsonObject -Path $sampleSummaryPath
+    $sampleFixture.front_page.summary_path = $sampleFixtureSummaryPath
+    $sampleFixture.front_page.report_markdown_path = $sampleFixtureReportPath
+    $sampleFixture.front_page.check_text_path = $sampleFixtureCheckPath
+    $sampleFixture.artifact_context.output_root = $sampleFixtureRoot
+    $sampleFixture.artifact_context.report_markdown_path = $sampleFixtureReportPath
+    $sampleFixture.artifact_context.check_text_path = $sampleFixtureCheckPath
+    Write-JsonFile -Path $sampleFixtureSummaryPath -Value $sampleFixture
+
     $routeOutputRoot = Join-Path $outputRootPath "route"
     Invoke-ExternalTool `
         -Executable $resolvedPythonExe `
-        -ArgumentList @($routeExportScript, "--summary", $sampleSummaryPath, "--output-root", $routeOutputRoot) `
+        -ArgumentList @($routeExportScript, "--summary", $sampleFixtureSummaryPath, "--output-root", $routeOutputRoot) `
         -FailureMessage "front page route sample export failed"
 
     $routeSummaryPath = Join-Path $routeOutputRoot "front-page.route.summary.json"

@@ -64,6 +64,18 @@
 - 抽公共路径解析、进程调用、JSON 加载、validator 调用、基础断言。
 - 保持 PowerShell 作为人工/CI 入口。
 
+## Fixture Runway Stabilization
+
+在正式抽取 shared harness helper 之前，front-page / opening-flow smoke 需要先稳定一条可复用输入跑道。
+
+本批 `Front-Page Opening-Flow Smoke Fixture Stabilization v0` 只允许作为 harness 地基修复：
+
+- 当默认 front-page workspace 缺失时，生成或定位通用 fixture workspace。
+- fixture 只复用既有 exporter、validator、review 和 route 入口。
+- sample 中缺失的 report/check/doc ref 只能落到 fixture-local 文件或真实存在的 contract 文档。
+- 不新增 artifact kind、schema、compare verdict、opening policy 或 selected-surface 语义。
+- 不把 fixture bootstrap 发展成新的语义脚本家族。
+
 禁止的改动：
 
 - 不改 schema。

@@ -85,6 +85,31 @@
 - 不改 selection policy。
 - 不改 opening judgment / route / explain / handoff 判决。
 
+## Opening-Flow Open-Event Harness Pilot
+
+本批 `Opening-Flow Open-Event Harness Pilot` 是第一刀脚本面收敛试点。
+它只把 open-event / open-event-witness 相关 smoke 与 workspace compare wrapper 中重复的 PowerShell 编排收进 `front_page_entry_opening_flow_harness.ps1`：
+
+- 工具解析：`Resolve-PythonExe`、`Resolve-PowerShellExe`。
+- 路径与输出根：`Assert-RequiredPaths`、`Initialize-SmokeOutputRoot`、`Assert-CleanPath`。
+- 子脚本调用：`Invoke-PowerShellScript`。
+- plan-action workspace / compare bootstrap：`Ensure-OpeningFlowConsumerPlanActionWorkspaceSmoke`、`Ensure-OpeningFlowConsumerPlanActionCompareSmoke`。
+- summary path resolver：open-event 与 open-event-witness workspace summary 定位。
+
+本 pilot 的边界：
+
+- 不新增 artifact kind。
+- 不新增 schema、validator、compare verdict 或 opening policy。
+- 不改变 open-event / open-event-witness JSON 字段形状。
+- 不把 compare / selection / opening judgment 语义迁入 PowerShell helper。
+- 不触碰 `Examples/`。
+- 不纳入当前隔离的未跟踪 `world_shelf_review` 文件。
+
+伴随修复：
+
+- `consumer_plan_action_compare_smoke` 的 fixture 断言对齐当前 compare summary：`changed_field_count=30`，并承认 projection summary / question drift。
+- `open_event_witness_workspace_compare_smoke` 可复用真实 open-event smoke summary；fixture 缺失时不再把 `_fixture-open-events` 作为唯一输入来源。
+
 ## 为什么不先拆最大脚本
 
 `scripts/inspect_system_compiler_artifact_report.ps1` 是当前最大结构性风险，但它覆盖大量 artifact report query、display、aggregation 和 comparison view。

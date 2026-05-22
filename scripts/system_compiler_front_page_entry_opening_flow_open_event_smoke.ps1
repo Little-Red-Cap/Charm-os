@@ -14,73 +14,33 @@ $actionWorkspaceRootPath = Resolve-FullPath -Path $ActionWorkspaceRoot
 $actionCompareRootPath = Resolve-FullPath -Path $ActionCompareRoot
 $outputRootPath = Resolve-FullPath -Path $OutputRoot
 
-if ($Clean) {
-    Remove-PathIfExists -Path $outputRootPath
-}
-Ensure-Directory -Path $outputRootPath
+Initialize-SmokeOutputRoot -OutputRootPath $outputRootPath -Clean ([bool]$Clean)
 
-$resolvedPythonExe = if ([string]::IsNullOrWhiteSpace($PythonExe)) {
-    Resolve-ToolPath -Candidates @("python.exe", "python")
-} else {
-    Resolve-FullPath -Path $PythonExe
-}
-$powerShellExe = Resolve-ToolPath -Candidates @("powershell.exe", "pwsh.exe", "powershell", "pwsh")
+$resolvedPythonExe = Resolve-PythonExe -PythonExe $PythonExe
+$powerShellExe = Resolve-PowerShellExe
 
-$actionWorkspaceSmokeScript = Join-Path $PSScriptRoot "system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace_smoke.ps1"
-$actionCompareSmokeScript = Join-Path $PSScriptRoot "system_compiler_front_page_entry_opening_flow_consumer_plan_action_compare_smoke.ps1"
 $exportScript = Join-Path $PSScriptRoot "export_system_compiler_front_page_entry_opening_flow_open_event.py"
 $validateScript = Join-Path $PSScriptRoot "validate_system_compiler_front_page_entry_opening_flow_open_event.py"
-foreach ($requiredPath in @($actionWorkspaceSmokeScript, $actionCompareSmokeScript, $exportScript, $validateScript)) {
-    if (-not (Test-Path -LiteralPath $requiredPath)) {
-        throw "missing path: $requiredPath"
-    }
-}
+Assert-RequiredPaths -Paths @($exportScript, $validateScript)
 
 Push-Location $repoRoot
 try {
-    $defaultActionPath = Join-Path $actionWorkspaceRootPath "cold-default\action\front-page.entry-opening-flow.consumer.plan-action.summary.json"
-    if ((-not $Clean) -and (Test-Path -LiteralPath $defaultActionPath)) {
-        Write-Host "[FRONT-PAGE-ENTRY-OPENING-FLOW-OPEN-EVENT-SMOKE] action_bootstrap=reuse-existing"
-    } else {
-        Invoke-ExternalTool `
-            -Executable $powerShellExe `
-            -ArgumentList @(
-                "-NoProfile",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-File",
-                $actionWorkspaceSmokeScript,
-                "-OutputRoot",
-                $actionWorkspaceRootPath,
-                "-PythonExe",
-                $resolvedPythonExe,
-                "-Clean"
-            ) `
-            -FailureMessage "front page entry opening-flow consumer plan action workspace smoke bootstrap failed"
-    }
+    $defaultActionPath = Ensure-OpeningFlowConsumerPlanActionWorkspaceSmoke `
+        -ScriptsRoot $PSScriptRoot `
+        -ActionWorkspaceRootPath $actionWorkspaceRootPath `
+        -PythonExe $resolvedPythonExe `
+        -PowerShellExe $powerShellExe `
+        -Clean ([bool]$Clean) `
+        -LogPrefix "[FRONT-PAGE-ENTRY-OPENING-FLOW-OPEN-EVENT-SMOKE]"
 
-    $compareSummaryPath = Join-Path $actionCompareRootPath "default-to-compare-neighbor\front-page.entry-opening-flow.consumer.plan-action.compare.summary.json"
-    if ((-not $Clean) -and (Test-Path -LiteralPath $compareSummaryPath)) {
-        Write-Host "[FRONT-PAGE-ENTRY-OPENING-FLOW-OPEN-EVENT-SMOKE] compare_bootstrap=reuse-existing"
-    } else {
-        Invoke-ExternalTool `
-            -Executable $powerShellExe `
-            -ArgumentList @(
-                "-NoProfile",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-File",
-                $actionCompareSmokeScript,
-                "-ActionWorkspaceRoot",
-                $actionWorkspaceRootPath,
-                "-OutputRoot",
-                $actionCompareRootPath,
-                "-PythonExe",
-                $resolvedPythonExe,
-                "-Clean"
-            ) `
-            -FailureMessage "front page entry opening-flow consumer plan action compare smoke bootstrap failed"
-    }
+    $compareSummaryPath = Ensure-OpeningFlowConsumerPlanActionCompareSmoke `
+        -ScriptsRoot $PSScriptRoot `
+        -ActionWorkspaceRootPath $actionWorkspaceRootPath `
+        -ActionCompareRootPath $actionCompareRootPath `
+        -PythonExe $resolvedPythonExe `
+        -PowerShellExe $powerShellExe `
+        -Clean ([bool]$Clean) `
+        -LogPrefix "[FRONT-PAGE-ENTRY-OPENING-FLOW-OPEN-EVENT-SMOKE]"
 
     $cases = @(
         [ordered]@{

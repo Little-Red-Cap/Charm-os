@@ -16,137 +16,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-
-function Resolve-FullPath {
-    param(
-        [string]$Path
-    )
-
-    if ([string]::IsNullOrWhiteSpace($Path)) {
-        return ""
-    }
-
-    if ([System.IO.Path]::IsPathRooted($Path)) {
-        return [System.IO.Path]::GetFullPath($Path)
-    }
-
-    return [System.IO.Path]::GetFullPath((Join-Path (Get-Location) $Path))
-}
-
-function Ensure-Directory {
-    param(
-        [string]$Path
-    )
-
-    if ([string]::IsNullOrWhiteSpace($Path)) {
-        return
-    }
-
-    if (-not (Test-Path -LiteralPath $Path)) {
-        New-Item -ItemType Directory -Path $Path -Force | Out-Null
-    }
-}
-
-function Assert-CleanPath {
-    param(
-        [string]$Path,
-        [string]$RootPath
-    )
-
-    if ([string]::IsNullOrWhiteSpace($Path)) {
-        return
-    }
-
-    $resolvedPath = Resolve-FullPath -Path $Path
-    $resolvedRoot = Resolve-FullPath -Path $RootPath
-    $comparison = [System.StringComparison]::OrdinalIgnoreCase
-    $rootPrefix = $resolvedRoot.TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
-    if ($resolvedPath.Equals($resolvedRoot, $comparison)) {
-        throw "refusing to clean repo root: $resolvedPath"
-    }
-    if (-not $resolvedPath.StartsWith($rootPrefix, $comparison)) {
-        throw "refusing to clean outside repo root: $resolvedPath"
-    }
-}
-
-function Remove-PathIfExists {
-    param(
-        [string]$Path
-    )
-
-    if ([string]::IsNullOrWhiteSpace($Path)) {
-        return
-    }
-
-    $resolvedPath = Resolve-FullPath -Path $Path
-    if (Test-Path -LiteralPath $resolvedPath) {
-        Remove-Item -LiteralPath $resolvedPath -Recurse -Force
-    }
-}
-
-function Resolve-ToolPath {
-    param(
-        [string[]]$Candidates
-    )
-
-    foreach ($candidate in $Candidates) {
-        $command = Get-Command $candidate -ErrorAction SilentlyContinue
-        if ($null -ne $command) {
-            return $command.Source
-        }
-    }
-
-    throw "tool not found: $($Candidates -join ', ')"
-}
-
-function Invoke-ExternalTool {
-    param(
-        [string]$Executable,
-        [string[]]$ArgumentList,
-        [string]$FailureMessage
-    )
-
-    Write-Host ("==> {0}" -f [System.IO.Path]::GetFileName($Executable))
-
-    $previousErrorActionPreference = $ErrorActionPreference
-    try {
-        $ErrorActionPreference = "Continue"
-        & $Executable @ArgumentList
-        $exitCode = $LASTEXITCODE
-    } finally {
-        $ErrorActionPreference = $previousErrorActionPreference
-    }
-
-    if ($exitCode -ne 0) {
-        throw ("{0} (exit code {1})" -f $FailureMessage, $exitCode)
-    }
-}
-
-function Resolve-OpenEventWitnessSummaryPath {
-    param(
-        [string]$WorkspaceRoot
-    )
-
-    $workspaceSummaryPath = Join-Path $WorkspaceRoot "open-event-witness\front-page.entry-opening-flow.open-event.witness.summary.json"
-    if (Test-Path -LiteralPath $workspaceSummaryPath) {
-        return $workspaceSummaryPath
-    }
-
-    return (Join-Path $WorkspaceRoot "front-page.entry-opening-flow.open-event.witness.summary.json")
-}
-
-function Resolve-OpenEventSummaryPath {
-    param(
-        [string]$WorkspaceRoot
-    )
-
-    $workspaceSummaryPath = Join-Path $WorkspaceRoot "open-event\front-page.entry-opening-flow.open-event.summary.json"
-    if (Test-Path -LiteralPath $workspaceSummaryPath) {
-        return $workspaceSummaryPath
-    }
-
-    return (Join-Path $WorkspaceRoot "front-page.entry-opening-flow.open-event.summary.json")
-}
+. (Join-Path $PSScriptRoot "front_page_entry_opening_flow_harness.ps1")
 
 function Invoke-OpenEventWitnessExport {
     param(
@@ -186,7 +56,7 @@ function Resolve-WitnessInput {
     }
 
     if (-not [string]::IsNullOrWhiteSpace($WitnessWorkspaceRoot)) {
-        $resolved = Resolve-FullPath -Path (Resolve-OpenEventWitnessSummaryPath -WorkspaceRoot $WitnessWorkspaceRoot)
+        $resolved = Resolve-FullPath -Path (Resolve-OpeningFlowOpenEventWitnessSummaryPath -WorkspaceRoot $WitnessWorkspaceRoot)
         if (-not (Test-Path -LiteralPath $resolved)) {
             throw ("{0} open-event witness workspace summary not found: {1}" -f $Role, $resolved)
         }
@@ -195,7 +65,7 @@ function Resolve-WitnessInput {
 
     $resolvedOpenEventSummaryPath = Resolve-FullPath -Path $OpenEventSummaryPath
     if ([string]::IsNullOrWhiteSpace($resolvedOpenEventSummaryPath) -and -not [string]::IsNullOrWhiteSpace($OpenEventWorkspaceRoot)) {
-        $resolvedOpenEventSummaryPath = Resolve-FullPath -Path (Resolve-OpenEventSummaryPath -WorkspaceRoot $OpenEventWorkspaceRoot)
+        $resolvedOpenEventSummaryPath = Resolve-FullPath -Path (Resolve-OpeningFlowOpenEventSummaryPath -WorkspaceRoot $OpenEventWorkspaceRoot)
     }
     if ([string]::IsNullOrWhiteSpace($resolvedOpenEventSummaryPath)) {
         throw ("{0}: provide an open-event witness summary/workspace or an open-event summary/workspace" -f $Role)
@@ -249,20 +119,12 @@ if ($Clean) {
 }
 Ensure-Directory -Path $outputRootPath
 
-$resolvedPythonExe = if ([string]::IsNullOrWhiteSpace($PythonExe)) {
-    Resolve-ToolPath -Candidates @("python.exe", "python")
-} else {
-    Resolve-FullPath -Path $PythonExe
-}
+$resolvedPythonExe = Resolve-PythonExe -PythonExe $PythonExe
 
 $exportWitnessScript = Join-Path $PSScriptRoot "export_system_compiler_front_page_entry_opening_flow_open_event_witness.py"
 $compareScript = Join-Path $PSScriptRoot "compare_system_compiler_front_page_entry_opening_flow_open_event_witness.py"
 $validateScript = Join-Path $PSScriptRoot "validate_system_compiler_front_page_entry_opening_flow_open_event_witness_compare.py"
-foreach ($requiredPath in @($exportWitnessScript, $compareScript, $validateScript)) {
-    if (-not (Test-Path -LiteralPath $requiredPath)) {
-        throw "missing path: $requiredPath"
-    }
-}
+Assert-RequiredPaths -Paths @($exportWitnessScript, $compareScript, $validateScript)
 
 Push-Location $repoRoot
 try {

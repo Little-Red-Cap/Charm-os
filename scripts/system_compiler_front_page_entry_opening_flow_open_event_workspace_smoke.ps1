@@ -12,48 +12,23 @@ $repoRoot = Resolve-FullPath -Path (Join-Path $PSScriptRoot "..")
 $actionWorkspaceRootPath = Resolve-FullPath -Path $ActionWorkspaceRoot
 $outputRootPath = Resolve-FullPath -Path $OutputRoot
 
-if ($Clean) {
-    Remove-PathIfExists -Path $outputRootPath
-}
-Ensure-Directory -Path $outputRootPath
+Initialize-SmokeOutputRoot -OutputRootPath $outputRootPath -Clean ([bool]$Clean)
 
-$resolvedPythonExe = if ([string]::IsNullOrWhiteSpace($PythonExe)) {
-    Resolve-ToolPath -Candidates @("python.exe", "python")
-} else {
-    Resolve-FullPath -Path $PythonExe
-}
-$powerShellExe = Resolve-ToolPath -Candidates @("powershell.exe", "pwsh.exe", "powershell", "pwsh")
+$resolvedPythonExe = Resolve-PythonExe -PythonExe $PythonExe
+$powerShellExe = Resolve-PowerShellExe
 
-$actionWorkspaceSmokeScript = Join-Path $PSScriptRoot "system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace_smoke.ps1"
 $workspaceScript = Join-Path $PSScriptRoot "export_system_compiler_front_page_entry_opening_flow_open_event_workspace.ps1"
-foreach ($requiredPath in @($actionWorkspaceSmokeScript, $workspaceScript)) {
-    if (-not (Test-Path -LiteralPath $requiredPath)) {
-        throw "missing path: $requiredPath"
-    }
-}
+Assert-RequiredPaths -Paths @($workspaceScript)
 
 Push-Location $repoRoot
 try {
-    $defaultActionPath = Join-Path $actionWorkspaceRootPath "cold-default\action\front-page.entry-opening-flow.consumer.plan-action.summary.json"
-    if ((-not $Clean) -and (Test-Path -LiteralPath $defaultActionPath)) {
-        Write-Host "[FRONT-PAGE-ENTRY-OPENING-FLOW-OPEN-EVENT-WORKSPACE-SMOKE] action_bootstrap=reuse-existing"
-    } else {
-        Invoke-ExternalTool `
-            -Executable $powerShellExe `
-            -ArgumentList @(
-                "-NoProfile",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-File",
-                $actionWorkspaceSmokeScript,
-                "-OutputRoot",
-                $actionWorkspaceRootPath,
-                "-PythonExe",
-                $resolvedPythonExe,
-                "-Clean"
-            ) `
-            -FailureMessage "front page entry opening-flow consumer plan action workspace smoke bootstrap failed"
-    }
+    $defaultActionPath = Ensure-OpeningFlowConsumerPlanActionWorkspaceSmoke `
+        -ScriptsRoot $PSScriptRoot `
+        -ActionWorkspaceRootPath $actionWorkspaceRootPath `
+        -PythonExe $resolvedPythonExe `
+        -PowerShellExe $powerShellExe `
+        -Clean ([bool]$Clean) `
+        -LogPrefix "[FRONT-PAGE-ENTRY-OPENING-FLOW-OPEN-EVENT-WORKSPACE-SMOKE]"
 
     $cases = @(
         [ordered]@{
@@ -80,22 +55,16 @@ try {
 
     foreach ($case in $cases) {
         $caseOutputRoot = Join-Path $outputRootPath $case.Name
-        $arguments = @(
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-            $workspaceScript,
-            "-OutputRoot",
-            $caseOutputRoot,
-            "-PythonExe",
-            $resolvedPythonExe,
-            "-Clean"
-        ) + @($case.Arguments)
-
-        Invoke-ExternalTool `
-            -Executable $powerShellExe `
-            -ArgumentList $arguments `
+        Invoke-PowerShellScript `
+            -PowerShellExe $powerShellExe `
+            -ScriptPath $workspaceScript `
+            -ArgumentList (@(
+                "-OutputRoot",
+                $caseOutputRoot,
+                "-PythonExe",
+                $resolvedPythonExe,
+                "-Clean"
+            ) + @($case.Arguments)) `
             -FailureMessage ("front page entry opening-flow open-event workspace export failed for case '{0}'" -f $case.Name)
 
         $summaryPath = Join-Path $caseOutputRoot "open-event\front-page.entry-opening-flow.open-event.summary.json"

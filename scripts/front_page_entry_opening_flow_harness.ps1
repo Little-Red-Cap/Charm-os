@@ -42,6 +42,28 @@ function Remove-PathIfExists {
     }
 }
 
+function Assert-CleanPath {
+    param(
+        [string]$Path,
+        [string]$RootPath
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return
+    }
+
+    $resolvedPath = Resolve-FullPath -Path $Path
+    $resolvedRoot = Resolve-FullPath -Path $RootPath
+    $comparison = [System.StringComparison]::OrdinalIgnoreCase
+    $rootPrefix = $resolvedRoot.TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
+    if ($resolvedPath.Equals($resolvedRoot, $comparison)) {
+        throw "refusing to clean repo root: $resolvedPath"
+    }
+    if (-not $resolvedPath.StartsWith($rootPrefix, $comparison)) {
+        throw "refusing to clean outside repo root: $resolvedPath"
+    }
+}
+
 function Resolve-ToolPath {
     param(
         [string[]]$Candidates
@@ -57,6 +79,46 @@ function Resolve-ToolPath {
     throw "tool not found: $($Candidates -join ', ')"
 }
 
+function Resolve-PythonExe {
+    param(
+        [string]$PythonExe
+    )
+
+    if ([string]::IsNullOrWhiteSpace($PythonExe)) {
+        return (Resolve-ToolPath -Candidates @("python.exe", "python"))
+    }
+
+    return (Resolve-FullPath -Path $PythonExe)
+}
+
+function Resolve-PowerShellExe {
+    return (Resolve-ToolPath -Candidates @("powershell.exe", "pwsh.exe", "powershell", "pwsh"))
+}
+
+function Assert-RequiredPaths {
+    param(
+        [string[]]$Paths
+    )
+
+    foreach ($requiredPath in $Paths) {
+        if (-not (Test-Path -LiteralPath $requiredPath)) {
+            throw "missing path: $requiredPath"
+        }
+    }
+}
+
+function Initialize-SmokeOutputRoot {
+    param(
+        [string]$OutputRootPath,
+        [bool]$Clean
+    )
+
+    if ($Clean) {
+        Remove-PathIfExists -Path $OutputRootPath
+    }
+    Ensure-Directory -Path $OutputRootPath
+}
+
 function Invoke-ExternalTool {
     param(
         [string]$Executable,
@@ -69,7 +131,7 @@ function Invoke-ExternalTool {
     $previousErrorActionPreference = $ErrorActionPreference
     try {
         $ErrorActionPreference = "Continue"
-        & $Executable @ArgumentList
+        & $Executable @ArgumentList | ForEach-Object { Write-Host $_ }
         $exitCode = $LASTEXITCODE
     } finally {
         $ErrorActionPreference = $previousErrorActionPreference
@@ -78,6 +140,26 @@ function Invoke-ExternalTool {
     if ($exitCode -ne 0) {
         throw ("{0} (exit code {1})" -f $FailureMessage, $exitCode)
     }
+}
+
+function Invoke-PowerShellScript {
+    param(
+        [string]$PowerShellExe,
+        [string]$ScriptPath,
+        [string[]]$ArgumentList,
+        [string]$FailureMessage
+    )
+
+    Invoke-ExternalTool `
+        -Executable $PowerShellExe `
+        -ArgumentList (@(
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            $ScriptPath
+        ) + $ArgumentList) `
+        -FailureMessage $FailureMessage
 }
 
 function Load-JsonObject {
@@ -120,4 +202,99 @@ function Assert-Condition {
     if (-not $Condition) {
         throw $Message
     }
+}
+
+function Ensure-OpeningFlowConsumerPlanActionWorkspaceSmoke {
+    param(
+        [string]$ScriptsRoot,
+        [string]$ActionWorkspaceRootPath,
+        [string]$PythonExe,
+        [string]$PowerShellExe,
+        [bool]$Clean,
+        [string]$LogPrefix
+    )
+
+    $defaultActionPath = Join-Path $ActionWorkspaceRootPath "cold-default\action\front-page.entry-opening-flow.consumer.plan-action.summary.json"
+    if ((-not $Clean) -and (Test-Path -LiteralPath $defaultActionPath)) {
+        Write-Host ("{0} action_bootstrap=reuse-existing" -f $LogPrefix)
+        return $defaultActionPath
+    }
+
+    $actionWorkspaceSmokeScript = Join-Path $ScriptsRoot "system_compiler_front_page_entry_opening_flow_consumer_plan_action_workspace_smoke.ps1"
+    Assert-RequiredPaths -Paths @($actionWorkspaceSmokeScript)
+    Invoke-PowerShellScript `
+        -PowerShellExe $PowerShellExe `
+        -ScriptPath $actionWorkspaceSmokeScript `
+        -ArgumentList @(
+            "-OutputRoot",
+            $ActionWorkspaceRootPath,
+            "-PythonExe",
+            $PythonExe,
+            "-Clean"
+        ) `
+        -FailureMessage "front page entry opening-flow consumer plan action workspace smoke bootstrap failed"
+
+    return $defaultActionPath
+}
+
+function Ensure-OpeningFlowConsumerPlanActionCompareSmoke {
+    param(
+        [string]$ScriptsRoot,
+        [string]$ActionWorkspaceRootPath,
+        [string]$ActionCompareRootPath,
+        [string]$PythonExe,
+        [string]$PowerShellExe,
+        [bool]$Clean,
+        [string]$LogPrefix
+    )
+
+    $compareSummaryPath = Join-Path $ActionCompareRootPath "default-to-compare-neighbor\front-page.entry-opening-flow.consumer.plan-action.compare.summary.json"
+    if ((-not $Clean) -and (Test-Path -LiteralPath $compareSummaryPath)) {
+        Write-Host ("{0} compare_bootstrap=reuse-existing" -f $LogPrefix)
+        return $compareSummaryPath
+    }
+
+    $actionCompareSmokeScript = Join-Path $ScriptsRoot "system_compiler_front_page_entry_opening_flow_consumer_plan_action_compare_smoke.ps1"
+    Assert-RequiredPaths -Paths @($actionCompareSmokeScript)
+    Invoke-PowerShellScript `
+        -PowerShellExe $PowerShellExe `
+        -ScriptPath $actionCompareSmokeScript `
+        -ArgumentList @(
+            "-ActionWorkspaceRoot",
+            $ActionWorkspaceRootPath,
+            "-OutputRoot",
+            $ActionCompareRootPath,
+            "-PythonExe",
+            $PythonExe,
+            "-Clean"
+        ) `
+        -FailureMessage "front page entry opening-flow consumer plan action compare smoke bootstrap failed"
+
+    return $compareSummaryPath
+}
+
+function Resolve-OpeningFlowOpenEventSummaryPath {
+    param(
+        [string]$WorkspaceRoot
+    )
+
+    $workspaceSummaryPath = Join-Path $WorkspaceRoot "open-event\front-page.entry-opening-flow.open-event.summary.json"
+    if (Test-Path -LiteralPath $workspaceSummaryPath) {
+        return $workspaceSummaryPath
+    }
+
+    return (Join-Path $WorkspaceRoot "front-page.entry-opening-flow.open-event.summary.json")
+}
+
+function Resolve-OpeningFlowOpenEventWitnessSummaryPath {
+    param(
+        [string]$WorkspaceRoot
+    )
+
+    $workspaceSummaryPath = Join-Path $WorkspaceRoot "open-event-witness\front-page.entry-opening-flow.open-event.witness.summary.json"
+    if (Test-Path -LiteralPath $workspaceSummaryPath) {
+        return $workspaceSummaryPath
+    }
+
+    return (Join-Path $WorkspaceRoot "front-page.entry-opening-flow.open-event.witness.summary.json")
 }

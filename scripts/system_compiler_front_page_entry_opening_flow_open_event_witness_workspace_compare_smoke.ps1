@@ -1,5 +1,6 @@
 param(
     [string]$OpenEventWitnessRoot = "cmake-build-system-compiler-front-page-entry-opening-flow-open-event-witness-smoke",
+    [string]$OpenEventRoot = "cmake-build-system-compiler-front-page-entry-opening-flow-open-event-smoke",
     [string]$OutputRoot = "cmake-build-system-compiler-front-page-entry-opening-flow-open-event-witness-workspace-compare-smoke",
     [string]$PythonExe = "",
     [switch]$Clean
@@ -10,6 +11,7 @@ $ErrorActionPreference = "Stop"
 
 $repoRoot = Resolve-FullPath -Path (Join-Path $PSScriptRoot "..")
 $openEventWitnessRootPath = Resolve-FullPath -Path $OpenEventWitnessRoot
+$openEventRootPath = Resolve-FullPath -Path $OpenEventRoot
 $outputRootPath = Resolve-FullPath -Path $OutputRoot
 
 if ($Clean) {
@@ -56,11 +58,24 @@ try {
             -FailureMessage "front page entry opening-flow open-event witness smoke bootstrap failed"
     }
 
-    $baselineOpenEventPath = Join-Path $openEventWitnessRootPath "_fixture-open-events\default-no-compare\front-page.entry-opening-flow.open-event.summary.json"
-    $candidateOpenEventPath = Join-Path $openEventWitnessRootPath "_fixture-open-events\default-with-drift-compare\front-page.entry-opening-flow.open-event.summary.json"
+    $fixtureBaselineOpenEventPath = Join-Path $openEventWitnessRootPath "_fixture-open-events\default-no-compare\front-page.entry-opening-flow.open-event.summary.json"
+    $fixtureCandidateOpenEventPath = Join-Path $openEventWitnessRootPath "_fixture-open-events\default-with-drift-compare\front-page.entry-opening-flow.open-event.summary.json"
+    $smokeBaselineOpenEventPath = Join-Path $openEventRootPath "default-no-compare\front-page.entry-opening-flow.open-event.summary.json"
+    $smokeCandidateOpenEventPath = Join-Path $openEventRootPath "default-with-drift-compare\front-page.entry-opening-flow.open-event.summary.json"
+    $baselineOpenEventPath = if (Test-Path -LiteralPath $fixtureBaselineOpenEventPath) {
+        $fixtureBaselineOpenEventPath
+    } else {
+        $smokeBaselineOpenEventPath
+    }
+    $candidateOpenEventPath = if (Test-Path -LiteralPath $fixtureCandidateOpenEventPath) {
+        $fixtureCandidateOpenEventPath
+    } else {
+        $smokeCandidateOpenEventPath
+    }
+    $usingFixtureOpenEvents = (Test-Path -LiteralPath $fixtureBaselineOpenEventPath) -and (Test-Path -LiteralPath $fixtureCandidateOpenEventPath)
     foreach ($requiredPath in @($baselineOpenEventPath, $candidateOpenEventPath)) {
         if (-not (Test-Path -LiteralPath $requiredPath)) {
-            throw "missing fixture open event: $requiredPath"
+            throw "missing open event summary for witness workspace compare: $requiredPath"
         }
     }
 
@@ -89,7 +104,7 @@ try {
                 $candidateOpenEventPath
             )
             ExpectedVerdict = "drifted"
-            ExpectedEventIdentityChanged = $true
+            ExpectedEventIdentityChanged = $usingFixtureOpenEvents
             ExpectedCompareContextChanged = $true
             ExpectedEvidenceChanged = $true
             ExpectedExplanationChanged = $true

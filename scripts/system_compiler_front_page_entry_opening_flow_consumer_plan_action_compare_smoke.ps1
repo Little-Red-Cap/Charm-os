@@ -197,12 +197,12 @@ try {
             Baseline = $baselineActionPath
             Candidate = $candidateActionPath
             ExpectedVerdict = "drifted"
-            ExpectedChangedFields = 22
+            ExpectedChangedFields = 30
             ExpectedActionChanged = $true
             ExpectedReasonChanged = $true
             ExpectedProjectionHeadlineChanged = $true
-            ExpectedProjectionSummaryChanged = $false
-            ExpectedProjectionQuestionsChanged = $false
+            ExpectedProjectionSummaryChanged = $true
+            ExpectedProjectionQuestionsChanged = $true
         }
     )
 

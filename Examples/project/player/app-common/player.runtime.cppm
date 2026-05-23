@@ -11,6 +11,7 @@ import charm.gfx.color;
 import charm.system.clock;
 import charm.ui.scene;
 import player.app;
+import player.app_config;
 import player.display;
 import player.input;
 import player.platform;

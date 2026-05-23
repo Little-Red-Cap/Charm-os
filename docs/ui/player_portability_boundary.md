@@ -30,11 +30,13 @@ For the current ownership map, host shell split, Vivid extraction candidates, an
 
 - SDL3 windowing, event pump, renderer, and screenshot flow live in `Examples/project/player/win`.
 - `player.runtime` owns the shared product lifecycle for Vivid Player targets: app construction, storage bootstrap, controller binding, input dispatch, ticking, frame rendering, and shutdown. Windows/SDL calls into this shell instead of open-coding product lifecycle steps.
+- `player.board_port` is the current board assembly skeleton: it groups externally owned framebuffer metadata, display callbacks, touch sample source, and built-in/package font defaults into app-common records before a board shell constructs `PlayerPlatform` / `PlayerRuntime`.
 - The Windows host shell still owns preview arguments, SDL initialization, screenshot capture, UI-CI entry points, and visual preview hooks such as the spectrum overlay.
 - Player display output now goes through a small display HAL contract: app-common renders into `PlayerDisplaySurface`, and host/board code presents that surface through a `PlayerDisplaySink`.
 - SDL is only the current Windows preview display adapter. A Win32, Linux fbdev/DRM, or STM32 SDRAM/LTDC adapter can present the same `pixels / width / height / stride / pixel_format` surface without changing Player UI code.
 - `PlayerPlatform` binds an externally supplied surface; the Windows preview owns one default buffer in the host shell, while board code can pass an SDRAM framebuffer surface.
 - `make_board_display_sink()` is the board adapter seam for SDRAM/LTDC-style present. Board code owns callback state and may map clean-cache, dirty flush, and present/flip to HAL, DMA2D, LTDC, or a no-op.
+- `make_player_board_port_bindings()` turns a board framebuffer and callbacks into a `PlayerDisplaySurface`, `PlayerDisplaySink`, and `AppConfig` without knowing SDL, Win32, Linux, or MD3 page internals.
 - `MemoryDisplaySink` is the portable/CI seam for SDRAM-style output. `player.runtime_probe` renders the real Player runtime into an external buffer and verifies present metadata.
 - `--runtime-memory-smoke` is the Windows host adapter entry for that probe: it runs before SDL initialization, builds the real `PlayerRuntime`, renders MD3 Player into an external memory surface, and exits without opening a host window.
 - SDL event decoding is isolated in a host input adapter include. The adapter now emits `PlayerInputEvent`; the Player app is the only place that bridges product input to Vivid raw input, wheel events, or controller commands.
@@ -52,7 +54,7 @@ For the current ownership map, host shell split, Vivid extraction candidates, an
 - `player.cover` exposes `CoverResourceProviderFn` before the legacy `CoverProviderFn` host decoder. Portable targets can return pre-decoded/resource-backed views without changing page controllers; host decode remains gated by `CHARM_PLAYER_HOST_COVER_DECODE`.
 - When no cover can be decoded, Now Playing and the mini bar use generated default cover art instead of leaving image slots empty.
 - Cover-theme sampling is capped at a fixed 128x128 working set before palette extraction, so Player-side theme sampling has an explicit memory budget.
-- FreeType/VFS file font binding is gated by `CHARM_PLAYER_HOST_FILE_FONTS`; portable targets keep `FontResourceKind::Builtin` until a board resource-font package exists.
+- FreeType/VFS file font binding is gated by `CHARM_PLAYER_HOST_FILE_FONTS`; portable targets use `FontResourceKind::Builtin` or provide a board package view through `PlayerBoardFontPackageView`.
 - Playback and filesystem diagnostics are gated by explicit Player feature macros, not `_WIN32`.
 - FreeType file-backed font loading is a host/product resource path until Vivid has a board resource contract.
 - Calendar/week stamping is routed through `player.time_utils` so page controllers do not carry platform time branches.
@@ -78,6 +80,7 @@ The display boundary is intentionally small:
 - Surface contract: buffer pointer, dimensions, stride, pixel format, and ownership are explicit.
 - Board SDRAM contract: board code supplies the framebuffer address and stride, then maps `present` to cache clean, dirty flush, DMA2D copy, LTDC front-buffer flip, or a no-op for single-buffer scanout.
 - Board sink contract: `PlayerBoardDisplayCallbacks` are optional and ordered as clean-cache, flush-dirty, then present/flip. The sink clips dirty regions and records the final surface/dirty evidence for CI.
+- Board assembly contract: `PlayerBoardPortConfig` carries framebuffer, display callbacks, touch source, font package view, and audio player defaults. The board shell still owns actual HAL handles and storage lifetime.
 - Host preview contract: SDL creates a texture matching the Player surface format and only copies/presents the final surface.
 
 The matching input boundary is also small:
@@ -101,7 +104,7 @@ This means Win32, Linux, SDL, and STM32 are peers at the adapter layer. None of 
 
 ## Next Cleanup Order
 
-1. Define the concrete board font package representation behind `FontResourceKind::Package`.
-2. Split time/diagnostics providers only where a concrete board target needs them.
-3. Group UI-CI evidence by subsystem once `main.ui_ci.inc` becomes hard to review.
+1. Define the concrete board font package binary/layout behind `PlayerBoardFontPackageView`.
+2. Add a non-Windows board shell target that constructs `PlayerPlatform` / `PlayerRuntime` from `PlayerBoardPortConfig`.
+3. Split time/diagnostics providers only where a concrete board target needs them.
 4. Replace controller-owned dynamic track/list caches with fixed-capacity storage where they enter MCU-strict paths.

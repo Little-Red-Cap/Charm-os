@@ -86,6 +86,85 @@
         }
     }
 
+    struct UiCiTouchSampleScript {
+        std::array<player::PlayerTouchSample, 4> samples{};
+        std::size_t count{0};
+        std::size_t index{0};
+    };
+
+    std::optional<player::PlayerTouchSample> ui_ci_read_touch_sample(void* ctx) noexcept {
+        auto* script = static_cast<UiCiTouchSampleScript*>(ctx);
+        if (!script || script->index >= script->count) {
+            return std::nullopt;
+        }
+        return script->samples[script->index++];
+    }
+
+    bool run_board_port_bindings_ci() noexcept {
+        static constexpr std::array<std::byte, 16> kFontPackage{
+            std::byte{0x43}, std::byte{0x48}, std::byte{0x52}, std::byte{0x4d},
+            std::byte{0x46}, std::byte{0x4f}, std::byte{0x4e}, std::byte{0x54},
+            std::byte{0x00}, std::byte{0x01}, std::byte{0x02}, std::byte{0x03},
+            std::byte{0x04}, std::byte{0x05}, std::byte{0x06}, std::byte{0x07},
+        };
+        static std::array<std::byte, player::PlayerOwnedDisplayBuffer::buffer_bytes> board_buffer{};
+
+        UiCiTouchSampleScript touch_script{
+            .samples = {
+                player::PlayerTouchSample{true, 10.0f, 20.0f, 0, 100},
+                player::PlayerTouchSample{false, 10.0f, 20.0f, 0, 101},
+                player::PlayerTouchSample{},
+                player::PlayerTouchSample{},
+            },
+            .count = 2,
+            .index = 0,
+        };
+        player::PlayerBoardPortConfig config{
+            .framebuffer = player::PlayerBoardFramebuffer{
+                .pixels = board_buffer.data(),
+                .width = screen_width,
+                .height = screen_height,
+                .stride_bytes = player::PlayerOwnedDisplayBuffer::stride_bytes,
+                .pixel_format = player::PlayerOwnedDisplayBuffer::pixel_format,
+            },
+            .display_callbacks = {},
+            .touch_source = player::PlayerTouchSampleSource{&touch_script, &ui_ci_read_touch_sample},
+            .font_package = player::PlayerBoardFontPackageView{
+                .data = kFontPackage.data(),
+                .size_bytes = kFontPackage.size(),
+                .key = "ui-ci-board-font-package",
+                .small_px = 13,
+                .normal_px = 17,
+                .large_px = 72,
+            },
+            .player_config = g_player_cfg,
+        };
+
+        player::PlayerBoardDisplaySinkState sink_state{};
+        const auto bindings = player::make_player_board_port_bindings(config, sink_state);
+        player::PlayerTouchAdapterState touch_state{};
+        const auto touch_batch = player::read_player_board_touch_events(config, touch_state);
+        const auto& font = bindings.app_config.font_resources;
+
+        return bindings.valid()
+            && bindings.surface.pixels == board_buffer.data()
+            && bindings.surface.width == screen_width
+            && bindings.surface.height == screen_height
+            && bindings.surface.stride_bytes == player::PlayerOwnedDisplayBuffer::stride_bytes
+            && bindings.surface.pixel_format == player::PlayerOwnedDisplayBuffer::pixel_format
+            && font.kind == player::FontResourceKind::Package
+            && font.has_package_resource()
+            && font.package_data == kFontPackage.data()
+            && font.package_size_bytes == kFontPackage.size()
+            && font.package_key.view() == std::string_view{"ui-ci-board-font-package"}
+            && font.small_px == 13
+            && font.normal_px == 17
+            && font.large_px == 72
+            && touch_batch.count == 2
+            && touch_batch.events[0].pointer_action == player::PlayerPointerAction::Down
+            && touch_batch.events[1].pointer_action == player::PlayerPointerAction::Up;
+    }
+
     void ui_ci_pointer(PlayerRuntime& runtime,
                        std::uint32_t ms,
                        player::PlayerPointerAction action,
@@ -240,20 +319,6 @@
         return result;
     }
 
-    struct UiCiTouchSampleScript {
-        std::array<player::PlayerTouchSample, 4> samples{};
-        std::size_t count{0};
-        std::size_t index{0};
-    };
-
-    std::optional<player::PlayerTouchSample> ui_ci_read_touch_sample(void* ctx) noexcept {
-        auto* script = static_cast<UiCiTouchSampleScript*>(ctx);
-        if (!script || script->index >= script->count) {
-            return std::nullopt;
-        }
-        return script->samples[script->index++];
-    }
-
     bool ui_ci_dispatch_touch_script(PlayerRuntime& runtime, UiCiTouchSampleScript& script) {
         player::PlayerTouchAdapterState state{};
         player::PlayerTouchSampleSource source{&script, &ui_ci_read_touch_sample};
@@ -320,6 +385,13 @@
             ui_ci_emit("board_display_sink_player_ui_external_surface", true, nullptr);
         } else {
             ui_ci_emit("board_display_sink_player_ui_external_surface", false, "board_display_sink");
+            res.ok = false;
+            res.failed++;
+        }
+        if (run_board_port_bindings_ci()) {
+            ui_ci_emit("board_port_bindings_framebuffer_touch_font", true, nullptr);
+        } else {
+            ui_ci_emit("board_port_bindings_framebuffer_touch_font", false, "board_port_bindings");
             res.ok = false;
             res.failed++;
         }

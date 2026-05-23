@@ -1,6 +1,8 @@
 import audio.player;
 import audio.result;
 import player.app;
+import player.app_config;
+import player.board_port;
 import player.controller;
 import player.display;
 import player.fs_utils;

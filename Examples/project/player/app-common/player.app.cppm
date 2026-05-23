@@ -7,9 +7,8 @@ export module player.app;
 import audio.player;
 import audio.result;
 import charm.system.clock;
-import player.fixed_string;
+import player.app_config;
 import player.input;
-import player.product_config;
 import player.storage;
 import player.ui;
 import player.ui_builder;
@@ -19,38 +18,6 @@ import input.raw_event;
 import ui.input_adapter;
 
 export namespace player {
-    enum class FontResourceKind : std::uint8_t {
-        Builtin,
-        FilePath,
-        Package,
-    };
-
-    struct FontResourceConfig {
-        FixedString<260> primary_path{};
-        FixedString<260> fallback_path{};
-        int small_px{product_config::default_font_small_px};
-        int normal_px{product_config::default_font_normal_px};
-        int large_px{product_config::default_font_large_px};
-        FontResourceKind kind{FontResourceKind::Builtin};
-
-        bool has_file_resource() const noexcept {
-            return kind == FontResourceKind::FilePath && !primary_path.empty();
-        }
-
-        bool is_builtin() const noexcept {
-            return kind == FontResourceKind::Builtin;
-        }
-
-        bool is_package() const noexcept {
-            return kind == FontResourceKind::Package;
-        }
-    };
-
-    struct AppConfig {
-        audio::PlayerConfig player_config{};
-        FontResourceConfig font_resources{};
-    };
-
     class App {
     public:
         App(AppConfig config, charm::system::Clock& clock)

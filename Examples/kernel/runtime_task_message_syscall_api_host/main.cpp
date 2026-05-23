@@ -2,9 +2,11 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <string_view>
 
 import kernel.evt;
 import kernel.task_message_syscall_api;
+import semantic.core;
 
 namespace demo {
     using Tick = std::uint64_t;
@@ -321,6 +323,15 @@ namespace demo {
                result.value == value;
     }
 
+    [[nodiscard]] constexpr FakeStepResult
+    make_issue_only_step(const Request& request) noexcept
+    {
+        return FakeStepResult{
+            .issued = true,
+            .issued_request = request,
+        };
+    }
+
     [[nodiscard]] bool probe_default_unbound_async_syscalls() noexcept
     {
         TaskSyscalls syscalls{};
@@ -385,6 +396,17 @@ namespace demo {
 
         std::array<Completion, 8> completions{};
         const auto step1 = syscalls.step(make_reply_event());
+        const auto step1_lower_runtime =
+            kernel::task_message_runtime_api_witness(
+                syscalls.runtime(),
+                step1,
+                kernel::task_message_runtime_service_witness(
+                    syscalls.runtime().services(), step1));
+        const auto step1_witness =
+            kernel::task_message_syscall_api_witness(
+                syscalls,
+                step1,
+                step1_lower_runtime);
         const auto step2 = syscalls.step(make_reply_event());
         const auto step3 = syscalls.step(make_reply_event());
         const auto step4 = syscalls.step(make_reply_event());
@@ -392,6 +414,12 @@ namespace demo {
         const auto step6 = syscalls.step(make_reply_event());
         const auto step7 = syscalls.step(make_reply_event());
         const auto step8 = syscalls.step(make_reply_event());
+        const auto issue_only = make_issue_only_step(step7.issued_request);
+        const auto issue_witness =
+            kernel::task_message_syscall_api_witness(syscalls, issue_only);
+        const auto issue_handoff =
+            kernel::task_message_syscall_api_witness_handoff_target(
+                issue_witness);
         if (!syscalls.receive_completion(completions[0]) ||
             !syscalls.receive_completion(completions[1]) ||
             !syscalls.receive_completion(completions[2]) ||
@@ -414,6 +442,17 @@ namespace demo {
                step1.completion.owner == kDefaultOwner &&
                step1.completion.token == kBaseToken &&
                step1.completion.request_sequence == kBaseSequence &&
+               kernel::task_message_syscall_api_witness_ready(step1_witness) &&
+               step1_witness.verdict() == semantic::Verdict::standing &&
+               step1_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
+               step1_witness.has_lower_provenance &&
+               step1_witness.kind ==
+                   kernel::TaskMessageSyscallApiWitnessKind::reply &&
+               step1_witness.owner == kDefaultOwner &&
+               step1_witness.token == kBaseToken &&
+               step1_witness.request_sequence == kBaseSequence &&
+               step1_witness.reply_value == 1u &&
                trap_result_matches(step1.completion.trap,
                                    kernel::TrapDisposition::handled,
                                    kernel::TrapError::none,
@@ -442,6 +481,13 @@ namespace demo {
                step7.issued_request.request.arg0 == 9u &&
                step7.issued_request.request.arg1 == 4u &&
                step7.issued_request.request.arg2 == 5u &&
+               issue_witness.verdict() == semantic::Verdict::standing &&
+               issue_witness.kind ==
+                   kernel::TaskMessageSyscallApiWitnessKind::issue &&
+               std::string_view{issue_handoff.entry_name()} ==
+                   "task-message-syscall-api-witness" &&
+               std::string_view{issue_handoff.selected_summary_path()} ==
+                   "task-message-syscall-api-witness.summary" &&
                step8.progressed && step8.completion_ready &&
                step8.completion_pushed && !step8.issued &&
                completions[0].token == kBaseToken &&
@@ -523,6 +569,17 @@ namespace demo {
                 30u);
         const bool timeout_kick = syscalls.kick();
         const auto timed = syscalls.step(make_timeout_event());
+        const auto timed_lower_runtime =
+            kernel::task_message_runtime_api_witness(
+                syscalls.runtime(),
+                timed,
+                kernel::task_message_runtime_service_witness(
+                    syscalls.runtime().services(), timed));
+        const auto timed_witness =
+            kernel::task_message_syscall_api_witness(
+                syscalls,
+                timed,
+                timed_lower_runtime);
         Completion timeout_completion{};
         const bool timeout_received =
             syscalls.receive_completion(timeout_completion);
@@ -548,6 +605,17 @@ namespace demo {
         const bool rebound_debug = syscalls.sys_debug_write(0x55u, 19u);
         const bool rebound_kick = syscalls.kick();
         const auto rebound = syscalls.step(make_reply_event());
+        const auto rebound_lower_runtime =
+            kernel::task_message_runtime_api_witness(
+                syscalls.runtime(),
+                rebound,
+                kernel::task_message_runtime_service_witness(
+                    syscalls.runtime().services(), rebound));
+        const auto rebound_witness =
+            kernel::task_message_syscall_api_witness(
+                syscalls,
+                rebound,
+                rebound_lower_runtime);
         Completion rebound_completion{};
         const bool rebound_received =
             syscalls.receive_completion(rebound_completion);
@@ -563,6 +631,11 @@ namespace demo {
                timeout_completion.owner == kTimeoutOwner &&
                timeout_completion.token == kTimeoutToken &&
                timeout_completion.request_sequence == kTimeoutSequence &&
+               timed_witness.verdict() == semantic::Verdict::standing &&
+               timed_witness.kind ==
+                   kernel::TaskMessageSyscallApiWitnessKind::timeout &&
+               timed_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
                trap_result_matches(timeout_completion.trap,
                                    kernel::TrapDisposition::rejected,
                                    kernel::TrapError::none) &&
@@ -570,6 +643,11 @@ namespace demo {
                rebound_queue && rebound_debug && rebound_kick &&
                rebound.progressed && rebound.completion_ready &&
                rebound.completion_pushed && rebound.issued &&
+               rebound_witness.verdict() == semantic::Verdict::standing &&
+               rebound_witness.kind ==
+                   kernel::TaskMessageSyscallApiWitnessKind::reply &&
+               rebound_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
                rebound_received &&
                rebound_completion.owner == kDefaultOwner &&
                rebound_completion.token == 0xE1u &&

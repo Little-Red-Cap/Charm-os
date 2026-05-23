@@ -38,6 +38,10 @@ public:
         return State{input_state()};
     }
 
+    [[nodiscard]] State snapshot() const noexcept {
+        return State{input_snapshot()};
+    }
+
     [[nodiscard]] charm::cap::InputFrame sample() const noexcept {
         const auto s = input_state();
         return charm::cap::InputFrame{

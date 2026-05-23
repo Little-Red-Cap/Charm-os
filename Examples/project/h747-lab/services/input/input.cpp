@@ -119,6 +119,8 @@ void snapshot_touch_pins() {
     configure_touch_gpio();
     g_state.touch.int_level = pin_level(GPIOD, GPIO_PIN_11);
     g_state.touch.reset_pin_level = pin_level(GPIOJ, GPIO_PIN_7);
+    g_state.touch.i2c_error_code = HAL_I2C_GetError(&hi2c4);
+    g_state.touch.i2c_state = HAL_I2C_GetState(&hi2c4);
 }
 
 void snapshot_buttons() {
@@ -321,6 +323,10 @@ void input_poll(void) {
     }
 }
 
+input_state_t input_snapshot(void) {
+    return g_state;
+}
+
 input_state_t input_state(void) {
     input_poll();
     return g_state;
@@ -337,15 +343,27 @@ uint8_t input_touch_probe(void) {
     g_state.touch.down = 0U;
     g_state.touch.contacts = 0U;
     g_state.touch.addr7 = 0U;
+    g_state.touch.probe_addr0 = kTouchAddrPrimary;
+    g_state.touch.probe_addr1 = kTouchAddrAlt;
+    g_state.touch.probe_status0 = UINT32_MAX;
+    g_state.touch.probe_status1 = UINT32_MAX;
     std::memset(g_state.touch.version, 0, sizeof(g_state.touch.version));
 
     touch_reset_pulse();
 
     std::uint8_t version[6]{};
     constexpr std::uint8_t probe_addrs[2] = {kTouchAddrPrimary, kTouchAddrAlt};
-    for (const auto addr7 : probe_addrs) {
+    for (std::uint32_t index = 0; index < 2U; ++index) {
+        const auto addr7 = probe_addrs[index];
         const auto status = touch_read_reg(addr7, kTouchRegVersion, version, sizeof(version));
         g_state.touch.last_hal_status = static_cast<std::uint32_t>(status);
+        if (index == 0U) {
+            g_state.touch.probe_status0 = static_cast<std::uint32_t>(status);
+        } else {
+            g_state.touch.probe_status1 = static_cast<std::uint32_t>(status);
+        }
+        g_state.touch.i2c_error_code = HAL_I2C_GetError(&hi2c4);
+        g_state.touch.i2c_state = HAL_I2C_GetState(&hi2c4);
         if (status != HAL_OK) {
             continue;
         }

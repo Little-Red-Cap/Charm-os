@@ -54,6 +54,14 @@
             ]
         },
         {
+            "name": "build-h747-lab-input-probe-debug",
+            "displayName": "Build H747 Lab Input Probe Debug",
+            "configurePreset": "h747-lab-debug",
+            "targets": [
+                "h747_lab_input_probe"
+            ]
+        },
+        {
             "name": "build-h747-lab-player-debug",
             "displayName": "Build H747 Lab Player Debug",
             "configurePreset": "h747-lab-debug",

@@ -28,12 +28,19 @@ typedef struct input_touch_snapshot {
     uint8_t last_id;
     uint8_t last_status;
     uint8_t version[6];
+    uint8_t probe_addr0;
+    uint8_t probe_addr1;
+    uint8_t reserved0[2];
     uint16_t max_x;
     uint16_t max_y;
     uint16_t x;
     uint16_t y;
     uint16_t pressure;
     uint32_t last_hal_status;
+    uint32_t probe_status0;
+    uint32_t probe_status1;
+    uint32_t i2c_error_code;
+    uint32_t i2c_state;
 } input_touch_snapshot_t;
 
 typedef struct input_state {
@@ -48,6 +55,7 @@ typedef struct input_state {
 
 void input_init(void);
 void input_poll(void);
+input_state_t input_snapshot(void);
 input_state_t input_state(void);
 uint8_t input_touch_probe(void);
 uint8_t input_pop_encoder1_ab(uint8_t* ab);

@@ -85,6 +85,27 @@ export namespace player {
         PlayerDisplaySurface last_surface{};
     };
 
+    struct PlayerBoardDisplayCallbacks {
+        using CallbackFn = bool (*)(void* ctx,
+                                    const PlayerDisplaySurface& surface,
+                                    PlayerDirtyRegion dirty) noexcept;
+
+        void* ctx{nullptr};
+        CallbackFn clean_cache{nullptr};
+        CallbackFn flush_dirty{nullptr};
+        CallbackFn present{nullptr};
+    };
+
+    struct PlayerBoardDisplaySinkState {
+        PlayerBoardDisplayCallbacks callbacks{};
+        int present_count{0};
+        PlayerDirtyRegion last_dirty{};
+        PlayerDisplaySurface last_surface{};
+        bool last_clean_cache_ok{true};
+        bool last_flush_dirty_ok{true};
+        bool last_present_ok{true};
+    };
+
     inline constexpr PlayerDisplayPixelFormat default_player_display_pixel_format =
         []() constexpr noexcept {
             if constexpr (screen_pixel_format == PixelFormat::RGB565) {
@@ -170,5 +191,43 @@ export namespace player {
 
     inline PlayerDisplaySink make_memory_display_sink(MemoryDisplaySinkState& state) noexcept {
         return PlayerDisplaySink{&state, &memory_display_present};
+    }
+
+    inline bool board_display_present(void* ctx,
+                                      const PlayerDisplaySurface& surface,
+                                      PlayerDirtyRegion dirty) noexcept {
+        auto* state = static_cast<PlayerBoardDisplaySinkState*>(ctx);
+        if (!state || !surface.valid()) {
+            return false;
+        }
+
+        const PlayerDirtyRegion clipped = clip_player_dirty_region(dirty, surface);
+        state->present_count += 1;
+        state->last_dirty = clipped;
+        state->last_surface = surface;
+        state->last_clean_cache_ok = true;
+        state->last_flush_dirty_ok = true;
+        state->last_present_ok = true;
+
+        const auto& callbacks = state->callbacks;
+        if (!clipped.empty() && callbacks.clean_cache) {
+            state->last_clean_cache_ok = callbacks.clean_cache(callbacks.ctx, surface, clipped);
+        }
+        if (!clipped.empty() && callbacks.flush_dirty) {
+            state->last_flush_dirty_ok = callbacks.flush_dirty(callbacks.ctx, surface, clipped);
+        }
+        if (callbacks.present) {
+            state->last_present_ok = callbacks.present(callbacks.ctx, surface, clipped);
+        }
+        return state->last_clean_cache_ok
+            && state->last_flush_dirty_ok
+            && state->last_present_ok;
+    }
+
+    inline PlayerDisplaySink make_board_display_sink(PlayerBoardDisplaySinkState& state,
+                                                     PlayerBoardDisplayCallbacks callbacks = {}) noexcept {
+        state = {};
+        state.callbacks = callbacks;
+        return PlayerDisplaySink{&state, &board_display_present};
     }
 }

@@ -34,6 +34,7 @@ For the current ownership map, host shell split, Vivid extraction candidates, an
 - Player display output now goes through a small display HAL contract: app-common renders into `PlayerDisplaySurface`, and host/board code presents that surface through a `PlayerDisplaySink`.
 - SDL is only the current Windows preview display adapter. A Win32, Linux fbdev/DRM, or STM32 SDRAM/LTDC adapter can present the same `pixels / width / height / stride / pixel_format` surface without changing Player UI code.
 - `PlayerPlatform` binds an externally supplied surface; the Windows preview owns one default buffer in the host shell, while board code can pass an SDRAM framebuffer surface.
+- `make_board_display_sink()` is the board adapter seam for SDRAM/LTDC-style present. Board code owns callback state and may map clean-cache, dirty flush, and present/flip to HAL, DMA2D, LTDC, or a no-op.
 - `MemoryDisplaySink` is the portable/CI seam for SDRAM-style output. `player.runtime_probe` renders the real Player runtime into an external buffer and verifies present metadata.
 - `--runtime-memory-smoke` is the Windows host adapter entry for that probe: it runs before SDL initialization, builds the real `PlayerRuntime`, renders MD3 Player into an external memory surface, and exits without opening a host window.
 - SDL event decoding is isolated in a host input adapter include. The adapter now emits `PlayerInputEvent`; the Player app is the only place that bridges product input to Vivid raw input, wheel events, or controller commands.
@@ -75,6 +76,7 @@ The display boundary is intentionally small:
 - Frame lifecycle: `render_player_frame()` owns clear, transition destination capture, scene render, and optional present so SDL preview, UI-CI, and board sinks do not duplicate render choreography.
 - Surface contract: buffer pointer, dimensions, stride, pixel format, and ownership are explicit.
 - Board SDRAM contract: board code supplies the framebuffer address and stride, then maps `present` to cache clean, dirty flush, DMA2D copy, LTDC front-buffer flip, or a no-op for single-buffer scanout.
+- Board sink contract: `PlayerBoardDisplayCallbacks` are optional and ordered as clean-cache, flush-dirty, then present/flip. The sink clips dirty regions and records the final surface/dirty evidence for CI.
 - Host preview contract: SDL creates a texture matching the Player surface format and only copies/presents the final surface.
 
 The matching input boundary is also small:

@@ -55,17 +55,15 @@ export namespace player {
         }
     }
 
-    template <typename Controller, typename Page>
+    template <typename Controller, typename Page, typename SinkState>
     PlayerRuntimeMemoryProbeResult run_player_runtime_memory_probe(charm::system::Clock& clock,
                                                                    PlayerPlatform& platform,
                                                                    Controller& controller,
                                                                    PlayerRuntimeConfig<Page> config,
                                                                    std::optional<PlayerRuntime<Controller, Page>>& runtime_storage,
-                                                                   MemoryDisplaySinkState& sink_state,
+                                                                   SinkState& sink_state,
                                                                    PlayerDisplaySink& display_sink,
                                                                    charm::system::ClockTick tick_us) {
-        sink_state = {};
-
         runtime_storage.emplace(clock, platform, controller, std::move(config));
         auto& runtime = *runtime_storage;
         PlayerRuntimeMemoryProbeResult out{};

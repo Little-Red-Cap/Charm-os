@@ -90,19 +90,28 @@
         (void)runtime.render(display_sink);
     }
 
-    player::PlayerRuntimeMemoryProbeResult run_memory_display_sink_probe(const PreviewOptions& options = PreviewOptions{}) {
-        static std::array<std::byte, player::PlayerOwnedDisplayBuffer::buffer_bytes> external_buffer{};
-        static player::PlayerPlatform memory_platform{player::PlayerDisplaySurface{
-            external_buffer.data(),
-            screen_width,
-            screen_height,
-            player::PlayerOwnedDisplayBuffer::stride_bytes,
-            player::PlayerOwnedDisplayBuffer::pixel_format,
-            player::PlayerDisplaySurfaceOwnership::Borrowed,
-        }};
-        static PlayerUiContext memory_ctx{};
-        memory_ctx = PlayerUiContext{};
-        player::PlayerRuntimeConfig<player::PlayerPage> memory_cfg{
+    struct RuntimeMemoryProbeHostStorage {
+        static std::array<std::byte, player::PlayerOwnedDisplayBuffer::buffer_bytes> external_buffer;
+        static player::PlayerPlatform memory_platform;
+        static PlayerUiContext memory_ctx;
+        static std::optional<PlayerRuntime> memory_runtime;
+    };
+
+    std::array<std::byte, player::PlayerOwnedDisplayBuffer::buffer_bytes> RuntimeMemoryProbeHostStorage::external_buffer{};
+    player::PlayerPlatform RuntimeMemoryProbeHostStorage::memory_platform{player::PlayerDisplaySurface{
+        RuntimeMemoryProbeHostStorage::external_buffer.data(),
+        screen_width,
+        screen_height,
+        player::PlayerOwnedDisplayBuffer::stride_bytes,
+        player::PlayerOwnedDisplayBuffer::pixel_format,
+        player::PlayerDisplaySurfaceOwnership::Borrowed,
+    }};
+    PlayerUiContext RuntimeMemoryProbeHostStorage::memory_ctx{};
+    std::optional<PlayerRuntime> RuntimeMemoryProbeHostStorage::memory_runtime{};
+
+    player::PlayerRuntimeConfig<player::PlayerPage> make_runtime_probe_config(const PreviewOptions& options) {
+        RuntimeMemoryProbeHostStorage::memory_ctx = PlayerUiContext{};
+        return player::PlayerRuntimeConfig<player::PlayerPage>{
             .app_config = make_app_config(options),
             .storage_config = player::default_storage_config(),
             .start_page = options.start_page,
@@ -110,26 +119,102 @@
             .auto_start = false,
             .clear_color = kUiBackground,
         };
-        player::MemoryDisplaySinkState sink_state{};
-        player::PlayerDisplaySink sink = player::make_memory_display_sink(sink_state);
-        static std::optional<PlayerRuntime> memory_runtime{};
-        auto result = player::run_player_runtime_memory_probe(g_clock,
-                                                              memory_platform,
-                                                              memory_ctx,
-                                                              std::move(memory_cfg),
-                                                              memory_runtime,
-                                                              sink_state,
-                                                              sink,
-                                                              g_clock.now_us());
-        const auto& presented = sink_state.last_surface;
-        result.ok = result.ok
-            && presented.pixels == external_buffer.data()
+    }
+
+    bool runtime_probe_result_matches_external_surface(const player::PlayerRuntimeMemoryProbeResult& result,
+                                                       const player::PlayerDisplaySurface& presented) noexcept {
+        return result.ok
+            && presented.pixels == RuntimeMemoryProbeHostStorage::external_buffer.data()
             && presented.width == screen_width
             && presented.height == screen_height
             && presented.stride_bytes == player::PlayerOwnedDisplayBuffer::stride_bytes
             && presented.pixel_format == player::PlayerOwnedDisplayBuffer::pixel_format
             && result.dirty.w == screen_width
             && result.dirty.h == screen_height;
+    }
+
+    player::PlayerRuntimeMemoryProbeResult run_memory_display_sink_probe(const PreviewOptions& options = PreviewOptions{}) {
+        auto memory_cfg = make_runtime_probe_config(options);
+        player::MemoryDisplaySinkState sink_state{};
+        player::PlayerDisplaySink sink = player::make_memory_display_sink(sink_state);
+        auto result = player::run_player_runtime_memory_probe(g_clock,
+                                                              RuntimeMemoryProbeHostStorage::memory_platform,
+                                                              RuntimeMemoryProbeHostStorage::memory_ctx,
+                                                              std::move(memory_cfg),
+                                                              RuntimeMemoryProbeHostStorage::memory_runtime,
+                                                              sink_state,
+                                                              sink,
+                                                              g_clock.now_us());
+        result.ok = runtime_probe_result_matches_external_surface(result, sink_state.last_surface);
+        return result;
+    }
+
+    struct UiCiBoardDisplayCallbackState {
+        int clean_cache_count{0};
+        int flush_dirty_count{0};
+        int present_count{0};
+        player::PlayerDirtyRegion last_dirty{};
+    };
+
+    bool ui_ci_board_clean_cache(void* ctx,
+                                 const player::PlayerDisplaySurface&,
+                                 player::PlayerDirtyRegion dirty) noexcept {
+        auto* state = static_cast<UiCiBoardDisplayCallbackState*>(ctx);
+        if (!state || dirty.empty()) return false;
+        state->clean_cache_count += 1;
+        state->last_dirty = dirty;
+        return true;
+    }
+
+    bool ui_ci_board_flush_dirty(void* ctx,
+                                 const player::PlayerDisplaySurface&,
+                                 player::PlayerDirtyRegion dirty) noexcept {
+        auto* state = static_cast<UiCiBoardDisplayCallbackState*>(ctx);
+        if (!state || dirty.empty()) return false;
+        state->flush_dirty_count += 1;
+        state->last_dirty = dirty;
+        return true;
+    }
+
+    bool ui_ci_board_present(void* ctx,
+                             const player::PlayerDisplaySurface&,
+                             player::PlayerDirtyRegion dirty) noexcept {
+        auto* state = static_cast<UiCiBoardDisplayCallbackState*>(ctx);
+        if (!state || dirty.empty()) return false;
+        state->present_count += 1;
+        state->last_dirty = dirty;
+        return true;
+    }
+
+    player::PlayerRuntimeMemoryProbeResult run_board_display_sink_probe(const PreviewOptions& options = PreviewOptions{}) {
+        auto memory_cfg = make_runtime_probe_config(options);
+        UiCiBoardDisplayCallbackState callback_state{};
+        player::PlayerBoardDisplaySinkState sink_state{};
+        player::PlayerDisplaySink sink = player::make_board_display_sink(
+            sink_state,
+            player::PlayerBoardDisplayCallbacks{
+                .ctx = &callback_state,
+                .clean_cache = &ui_ci_board_clean_cache,
+                .flush_dirty = &ui_ci_board_flush_dirty,
+                .present = &ui_ci_board_present,
+            });
+        auto result = player::run_player_runtime_memory_probe(g_clock,
+                                                              RuntimeMemoryProbeHostStorage::memory_platform,
+                                                              RuntimeMemoryProbeHostStorage::memory_ctx,
+                                                              std::move(memory_cfg),
+                                                              RuntimeMemoryProbeHostStorage::memory_runtime,
+                                                              sink_state,
+                                                              sink,
+                                                              g_clock.now_us());
+        result.ok = runtime_probe_result_matches_external_surface(result, sink_state.last_surface)
+            && sink_state.last_clean_cache_ok
+            && sink_state.last_flush_dirty_ok
+            && sink_state.last_present_ok
+            && callback_state.clean_cache_count == 1
+            && callback_state.flush_dirty_count == 1
+            && callback_state.present_count == 1
+            && callback_state.last_dirty.w == screen_width
+            && callback_state.last_dirty.h == screen_height;
         return result;
     }
 
@@ -175,6 +260,13 @@
             ui_ci_emit("memory_display_sink_player_ui_external_surface", true, nullptr);
         } else {
             ui_ci_emit("memory_display_sink_player_ui_external_surface", false, "memory_display_sink");
+            res.ok = false;
+            res.failed++;
+        }
+        if (run_board_display_sink_probe().ok) {
+            ui_ci_emit("board_display_sink_player_ui_external_surface", true, nullptr);
+        } else {
+            ui_ci_emit("board_display_sink_player_ui_external_surface", false, "board_display_sink");
             res.ok = false;
             res.failed++;
         }

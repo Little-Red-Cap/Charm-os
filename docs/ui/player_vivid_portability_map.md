@@ -53,9 +53,10 @@ Current short form:
 - Cover, font, storage, diagnostics, and UI-CI already have visible host gates or host-shell ownership.
 - `player.runtime` is now the common lifecycle seam between product code and host/board adapters.
 - `player.runtime_probe` constructs the real MD3 runtime around externally supplied storage and renders it into external memory; `--runtime-memory-smoke` is only the Windows host entry for that proof.
+- `make_board_display_sink()` gives the future board adapter a named seam for cache clean, dirty flush, and present/flip callbacks without changing Player UI.
 - Theme and time have useful seams, but their final provider shape should wait for a concrete portable Player target.
 - Dynamic containers fall into two buckets: product semantic state in the MD3 controller/storage/theme flow, and replaceable host implementation state in font cache, cover decode, screenshots, and UI-CI.
-- The next cleanup order should be board SDRAM/LTDC display sink, font provider, time/diagnostics provider, UI-CI grouping, then controller dynamic state slimming.
+- The next cleanup order should be concrete STM32H7 SDRAM/LTDC sink wiring, board touch adapter, font provider, time/diagnostics provider, then controller dynamic state slimming.
 
 ## Portable UI Probe Contract
 

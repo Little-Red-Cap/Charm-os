@@ -57,7 +57,7 @@ Current short form:
 - `read_player_touch_events()` gives the future board touch adapter a fixed-capacity path from sampled touch points to `PlayerInputEvent`.
 - Theme and time have useful seams, but their final provider shape should wait for a concrete portable Player target.
 - Dynamic containers fall into two buckets: product semantic state in the MD3 controller/storage/theme flow, and replaceable host implementation state in font cache, cover decode, screenshots, and UI-CI.
-- The next cleanup order should be font provider, time/diagnostics provider, UI-CI grouping, then controller dynamic state slimming.
+- The next cleanup order should be concrete `FontResourceKind::Package` representation, time/diagnostics provider, UI-CI grouping, then controller dynamic state slimming.
 
 ## Portable UI Probe Contract
 
@@ -65,6 +65,7 @@ Current short form:
 
 - `host_cover_decode=0`, so real cover decode is unavailable and default/generated cover art must keep the UI complete.
 - `host_file_fonts=0`, so file font paths are unavailable and built-in fonts must keep layout readable.
+- `font_resource_config_profile_mode` should confirm preview builds use file fonts and probe builds use built-in fonts.
 - Host storage may remain enabled so the app can still exercise real library/player flows.
 - `--font-disable-system-fallback` should still pass `--ui-ci`.
 - `--runtime-memory-smoke --font-disable-system-fallback` should pass without initializing SDL, proving the same real Player runtime can be constructed around an externally supplied framebuffer.

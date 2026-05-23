@@ -64,6 +64,28 @@
         return ok;
     }
 
+    bool run_font_resource_config_ci() noexcept {
+        const PreviewOptions options{};
+        const auto app_cfg = make_app_config(options);
+        const auto& font = app_cfg.font_resources;
+        if constexpr (player::host_features::host_file_fonts) {
+            return font.kind == player::FontResourceKind::FilePath
+                && font.has_file_resource()
+                && !font.primary_path.empty()
+                && font.small_px == player::product_config::default_font_small_px
+                && font.normal_px == player::product_config::default_font_normal_px
+                && font.large_px == player::product_config::default_font_large_px;
+        } else {
+            return font.kind == player::FontResourceKind::Builtin
+                && font.is_builtin()
+                && !font.has_file_resource()
+                && font.primary_path.empty()
+                && font.small_px == player::product_config::default_font_small_px
+                && font.normal_px == player::product_config::default_font_normal_px
+                && font.large_px == player::product_config::default_font_large_px;
+        }
+    }
+
     void ui_ci_pointer(PlayerRuntime& runtime,
                        std::uint32_t ms,
                        player::PlayerPointerAction action,
@@ -307,6 +329,14 @@
             ui_ci_emit("cover_resource_provider_static_view", true, nullptr);
         } else {
             ui_ci_emit("cover_resource_provider_static_view", false, "static_view");
+            res.ok = false;
+            res.failed++;
+        }
+
+        if (run_font_resource_config_ci()) {
+            ui_ci_emit("font_resource_config_profile_mode", true, nullptr);
+        } else {
+            ui_ci_emit("font_resource_config_profile_mode", false, "font_resource_config");
             res.ok = false;
             res.failed++;
         }

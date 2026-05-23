@@ -24,7 +24,7 @@ It is intentionally narrower than a full embedded port plan. The goal is to make
 | --- | --- | --- | --- | --- |
 | Cover | `player.cover` exposes `CoverProviderFn`; page/controller code can use generated/default cover art when decode is unavailable. | `CHARM_PLAYER_HOST_COVER_DECODE`; profile log prints `host_cover_decode`. | Host decode buffers, embedded image extraction, palette/theme sampling work buffers. | Add a pre-decoded/resource-backed cover provider contract. |
 | Theme | Player-owned cover sampling feeds dynamic surface/text roles; Vivid owns reusable role application candidates. | Indirectly tied to cover decode availability. | Fixed-budget 128x128 sampling workspace, palette candidates, controller theme state. | Keep sampling in Player; consider moving role application rules into Vivid after more app pressure. |
-| Font | Product config carries font paths and sizes; host preview binds file fonts only when enabled. | `CHARM_PLAYER_HOST_FILE_FONTS`, `CHARM_PLAYER_PC_FONT_CACHE`; profile log prints `host_file_fonts`. | FreeType/VFS font buffers, Win32/GDI glyph cache vectors, preview argv strings. | Define a board font resource/provider contract before replacing file fonts. |
+| Font | `FontResourceConfig` carries explicit font source kind plus sizes; host preview binds file fonts only when enabled. | `CHARM_PLAYER_HOST_FILE_FONTS`, `CHARM_PLAYER_PC_FONT_CACHE`; profile log prints `host_file_fonts`. | FreeType/VFS font buffers, Win32/GDI glyph cache vectors, preview argv strings. | Define the concrete board package representation behind `FontResourceKind::Package`. |
 | Runtime | `player.runtime` owns product lifecycle; `player.runtime_probe` owns reusable memory-surface proof. | Host shell selects preview/probe config and still owns SDL, argv, screenshots, and UI-CI entry. | Runtime owns `App` storage in v0; controller/platform/runtime storage is provided by the adapter. | Add a board construction path that supplies SDRAM surface, controller storage, clock, and providers without the Windows host executable. |
 | Display/Input | `PlayerDisplaySurface`, `PlayerDisplaySink`, board display callbacks, and `render_player_frame()` separate Player rendering from SDL; `PlayerInputEvent` plus touch batching separates Player input from SDL/window/touch samples. | Windows preview uses SDL display and input adapters; memory, board-sink, and board-touch probes prove real Player UI external-framebuffer/input output. | Preview SDL texture/window state; UI-CI external buffer is fixed-size static storage; input HAL structs are fixed-size. | Wire concrete board SDRAM/LTDC and touch drivers as adapter implementations without changing Player UI. |
 | Time | `player.time_utils` keeps date/week formatting out of page code. | No dedicated board clock gate yet; Windows host binds the runtime time source. | Mostly fixed strings today; playback uses runtime clock timestamps. | Add a time/clock provider adapter when a portable Player target appears. |
@@ -79,7 +79,7 @@ Recommended next slice:
 Current state:
 
 - `player.product_config` owns default font path and size constants.
-- `AppConfig` carries a `FontResourceConfig` record with fixed-capacity paths, font sizes, and an explicit `file_backed` bit.
+- `AppConfig` carries a `FontResourceConfig` record with fixed-capacity paths, font sizes, and explicit `FontResourceKind`.
 - Host file fonts are enabled only through `CHARM_PLAYER_HOST_FILE_FONTS`.
 - Win32/GDI fallback glyph caching is guarded by `CHARM_PLAYER_HOST_UI && CHARM_PLAYER_PC_FONT_CACHE && _WIN32`.
 - `portability_probe --font-disable-system-fallback` is the current proof that built-in fonts can keep the UI readable.
@@ -92,7 +92,7 @@ Dynamic allocation and portability notes:
 
 Recommended next slice:
 
-- Define a board font resource/provider contract with built-in packages and optional external resource packs.
+- Define the concrete board font package representation behind `FontResourceKind::Package`.
 - Keep file paths as host/profile resource defaults.
 - Avoid spreading file font assumptions into page builders or controllers.
 
@@ -229,7 +229,7 @@ Replaceable preview or adapter implementation state:
 Already moving in the portable direction:
 
 - `FixedString` app config and path helpers.
-- `FontResourceConfig` keeps file-backed font resource data behind the app config boundary instead of scattering TTF fields through host bootstrap.
+- `FontResourceConfig` keeps font source mode and file-backed resource data behind the app config boundary instead of scattering TTF fields through host bootstrap.
 - `CoverResourceProviderFn` gives portable builds a pre-decoded cover path before host decode.
 - `PlayerDisplaySurface` lets board code provide the final framebuffer memory instead of forcing Player to own or SDL-present it.
 - `render_player_frame()` keeps clear/transition/render/present choreography out of SDL-specific code.

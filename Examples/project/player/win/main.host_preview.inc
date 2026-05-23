@@ -172,7 +172,7 @@
         player::AppConfig app_cfg{g_player_cfg};
         auto& font = app_cfg.font_resources;
         if constexpr (player::host_features::host_file_fonts) {
-            font.file_backed = true;
+            font.kind = player::FontResourceKind::FilePath;
             if (!options.font_ttf_path.empty()) {
                 font.primary_path.assign(options.font_ttf_path);
             } else {

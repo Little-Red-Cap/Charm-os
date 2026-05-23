@@ -46,13 +46,13 @@ For the current ownership map, host shell split, Vivid extraction candidates, an
 - Host VHD storage defaults are gated by `CHARM_PLAYER_HOST_STORAGE`.
 - Product resource defaults live in `player.product_config`; host entry points should select or override them instead of hardcoding resource paths.
 - `AppConfig` stores resource paths in fixed-capacity slots so the app-level config boundary does not require dynamic strings.
-- `AppConfig` groups font resource data as `FontResourceConfig`; file-backed fonts must opt in through that record instead of leaking host TTF fields into page code.
+- `AppConfig` groups font resource data as `FontResourceConfig`; font source is explicit (`Builtin`, `FilePath`, or future `Package`) instead of leaking host TTF fields into page code.
 - Embedded and file-backed cover decoding is gated by `CHARM_PLAYER_HOST_COVER_DECODE`; portable targets can keep using generated/default covers or later provide pre-decoded resource images.
 - The Windows host shell prints `[player.features]` at startup so a preview build and a portability-probe build can be distinguished from logs. A probe with `host_cover_decode=0` is expected to skip real cover decoding.
 - `player.cover` exposes `CoverResourceProviderFn` before the legacy `CoverProviderFn` host decoder. Portable targets can return pre-decoded/resource-backed views without changing page controllers; host decode remains gated by `CHARM_PLAYER_HOST_COVER_DECODE`.
 - When no cover can be decoded, Now Playing and the mini bar use generated default cover art instead of leaving image slots empty.
 - Cover-theme sampling is capped at a fixed 128x128 working set before palette extraction, so Player-side theme sampling has an explicit memory budget.
-- FreeType/VFS file font binding is gated by `CHARM_PLAYER_HOST_FILE_FONTS`; portable targets fall back to built-in fonts until a board resource-font contract exists.
+- FreeType/VFS file font binding is gated by `CHARM_PLAYER_HOST_FILE_FONTS`; portable targets keep `FontResourceKind::Builtin` until a board resource-font package exists.
 - Playback and filesystem diagnostics are gated by explicit Player feature macros, not `_WIN32`.
 - FreeType file-backed font loading is a host/product resource path until Vivid has a board resource contract.
 - Calendar/week stamping is routed through `player.time_utils` so page controllers do not carry platform time branches.
@@ -101,7 +101,7 @@ This means Win32, Linux, SDL, and STM32 are peers at the adapter layer. None of 
 
 ## Next Cleanup Order
 
-1. Define a board font provider/resource package path so file fonts stay a host implementation.
+1. Define the concrete board font package representation behind `FontResourceKind::Package`.
 2. Split time/diagnostics providers only where a concrete board target needs them.
 3. Group UI-CI evidence by subsystem once `main.ui_ci.inc` becomes hard to review.
 4. Replace controller-owned dynamic track/list caches with fixed-capacity storage where they enter MCU-strict paths.

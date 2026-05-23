@@ -19,16 +19,30 @@ import input.raw_event;
 import ui.input_adapter;
 
 export namespace player {
+    enum class FontResourceKind : std::uint8_t {
+        Builtin,
+        FilePath,
+        Package,
+    };
+
     struct FontResourceConfig {
         FixedString<260> primary_path{};
         FixedString<260> fallback_path{};
         int small_px{product_config::default_font_small_px};
         int normal_px{product_config::default_font_normal_px};
         int large_px{product_config::default_font_large_px};
-        bool file_backed{false};
+        FontResourceKind kind{FontResourceKind::Builtin};
 
         bool has_file_resource() const noexcept {
-            return file_backed && !primary_path.empty();
+            return kind == FontResourceKind::FilePath && !primary_path.empty();
+        }
+
+        bool is_builtin() const noexcept {
+            return kind == FontResourceKind::Builtin;
+        }
+
+        bool is_package() const noexcept {
+            return kind == FontResourceKind::Package;
         }
     };
 

@@ -185,8 +185,9 @@
 
 **现象**
 
-- `Modules/system/bringup/system_bringup.cppm` 中 `InputBringupDesc`、多个 `BringupMinimal(...)` 重载、若干 `void*` 回调上下文混在一起。
-- 当前实现对“快速 bringup 很方便”，但类型边界偏弱。
+- `Modules/system/bringup/system_bringup.cppm` 曾经把 `InputBringupDesc`、多个 `BringupMinimal(...)` 重载、若干 `void*` 回调上下文混在一起。
+- 第一阶段已移除公开 `InputBringupDesc` / `make_input_desc` 拼装面，`BoardCaps + Host` 构造路径改为在 `BringupMinimal` 内部由 Host 类型 materialize input chain。
+- 当前仍保留底层 `InputPumpTask` 的 C ABI 风格 callback / ctx 窄腰，以及可选 sink 的函数指针入口。
 
 **为什么重要**
 
@@ -195,8 +196,8 @@
 
 **建议方向**
 
-- 将输入描述、调度绑定、sink/post 回调配置拆分成更窄的 descriptor。
-- 用 typed adapter 或更窄的 provider ref，减少裸 `void*` 外露。
+- 后续继续把 sink 入口收敛成 typed adapter 或 provider ref。
+- 底层 `InputPumpTask` 的 callback / ctx 暂视为 scheduler / EDA 窄腰，不在 bringup 层重新包装成公开 descriptor。
 
 ---
 

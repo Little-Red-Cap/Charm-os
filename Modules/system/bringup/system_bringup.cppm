@@ -37,61 +37,6 @@ export namespace charm::system {
               util::usize TxCap>
     class BringupMinimal {
     public:
-        struct InputBringupDesc {
-            const platform::board::InputDesc* desc{nullptr};
-            input::InputPumpTask* pump{nullptr};
-            input::ScheduleFn schedule{nullptr};
-            void* schedule_ctx{nullptr};
-            input::PostFn post_more{nullptr};
-            void* post_ctx{nullptr};
-            kernel::TaskId pump_id{};
-            input::SinkFn sink{nullptr};
-            void* sink_ctx{nullptr};
-            InputInitCfg cfg{};
-        };
-
-        static InputBringupDesc make_input_desc(const platform::board::InputDesc& desc,
-                                                input::InputPumpTask& pump,
-                                                input::ScheduleFn schedule,
-                                                void* schedule_ctx,
-                                                input::PostFn post_more,
-                                                void* post_ctx,
-                                                kernel::TaskId pump_id,
-                                                input::SinkFn sink = nullptr,
-                                                void* sink_ctx = nullptr,
-                                                InputInitCfg cfg = {}) noexcept {
-            InputBringupDesc out{};
-            out.desc = &desc;
-            out.pump = &pump;
-            out.schedule = schedule;
-            out.schedule_ctx = schedule_ctx;
-            out.post_more = post_more;
-            out.post_ctx = post_ctx;
-            out.pump_id = pump_id;
-            out.sink = sink;
-            out.sink_ctx = sink_ctx;
-            out.cfg = cfg;
-            return out;
-        }
-
-        template <typename Host>
-        static InputBringupDesc make_input_desc(const platform::board::InputDesc& desc,
-                                                Host& host,
-                                                input::SinkFn sink = nullptr,
-                                                void* sink_ctx = nullptr,
-                                                InputInitCfg cfg = {}) noexcept {
-            return make_input_desc(desc,
-                                   host.input_pump(),
-                                   host.schedule_fn(),
-                                   host.schedule_ctx(),
-                                   host.post_demand_fn(),
-                                   host.post_ctx(),
-                                   host.input_pump_id(),
-                                   sink,
-                                   sink_ctx,
-                                   cfg);
-        }
-
         template <typename Host>
         BringupMinimal(const platform::board::BoardCaps& caps,
                        Host& host,
@@ -99,24 +44,27 @@ export namespace charm::system {
                        input::SinkFn sink = nullptr,
                        void* sink_ctx = nullptr,
                        InputInitCfg cfg = {}) noexcept
-            : BringupMinimal(caps.uart1,
-                             caps.clock,
-                             caps.input,
-                             caps.spi1,
-                             caps.i2c1,
-                             caps.can0,
-                             caps.sdmmc0,
-                             caps.flash0,
-                             host.pump(),
-                             host.post_io_ready_fn(),
-                             host.post_demand_fn(),
-                             host.post_ctx(),
-                             host.pump_id(),
-                             budget,
-                             caps.console_cap,
-                             caps.input.driver
-                                 ? make_input_desc(caps.input, host, sink, sink_ctx, cfg)
-                                 : InputBringupDesc{}) {}
+            : uart_(caps.uart1),
+              console_cap_(caps.console_cap),
+              core_(charm::system::ClockOps{caps.clock.now_ms, caps.clock.now_us},
+                    caps.clock.ctx,
+                    host.pump(),
+                    host.post_io_ready_fn(),
+                    host.post_demand_fn(),
+                    host.post_ctx(),
+                    host.pump_id(),
+                    budget),
+              board_(core_.registry, core_.reactor,
+                     caps.uart1.handle, caps.uart1.config, caps.uart1.io_cap, caps.uart1.hal_cap),
+              input_desc_(caps.input),
+              spi_desc_(caps.spi1),
+              i2c_desc_(caps.i2c1),
+              can_desc_(caps.can0),
+              sdmmc_desc_(caps.sdmmc0),
+              flash_desc_(caps.flash0) {
+            emplace_input_from_host(caps.input, host, sink, sink_ctx, cfg);
+            emplace_optional_peripherals();
+        }
 
         BringupMinimal(const platform::board::UartDesc& uart,
                        const platform::board::ClockDesc& clock_desc,
@@ -132,8 +80,7 @@ export namespace charm::system {
                        void* post_ctx,
                        kernel::TaskId pump_id,
                        util::usize budget = 8,
-                       const char* console_cap = "io.console0",
-                       InputBringupDesc input = {}) noexcept
+                       const char* console_cap = "io.console0") noexcept
             : uart_(uart),
               console_cap_(console_cap),
               core_(charm::system::ClockOps{clock_desc.now_ms, clock_desc.now_us},
@@ -147,65 +94,8 @@ export namespace charm::system {
               can_desc_(can_desc),
               sdmmc_desc_(sdmmc_desc),
               flash_desc_(flash_desc) {
-            if (!input.desc) {
-                input.desc = &input_desc_;
-            }
-            input_required_ = (input.desc && input.desc->driver);
-            if (input.desc && input.pump && input.schedule) {
-                static const hal::RawInputDriver kNullDriver{};
-                const auto* driver = input.desc->driver ? input.desc->driver : &kNullDriver;
-                InputInitCaps caps{
-                    input.desc->service_cap,
-                    input.desc->router_cap,
-                    input.desc->pump_cap,
-                    "system.clock",
-                    "kernel.eda"
-                };
-                input_.emplace(hal::RawInputSource{*driver},
-                               core_.clock,
-                               *input.pump,
-                               input.schedule,
-                               input.schedule_ctx,
-                               input.post_more,
-                               input.post_ctx,
-                               input.pump_id,
-                               input.sink,
-                               input.sink_ctx,
-                               input.cfg,
-                               caps);
-            }
-            if (spi_desc_.handle.ops) {
-                spi_.emplace(spi_desc_.handle, spi_desc_.config, spi_desc_.hal_cap);
-            }
-            if (i2c_desc_.handle.ops) {
-                i2c_.emplace(i2c_desc_.handle, i2c_desc_.config, i2c_desc_.hal_cap);
-            }
-            if (sdmmc_desc_.handle.ops) {
-                sdmmc_.emplace(core_.block_registry,
-                               sdmmc_desc_.handle,
-                               sdmmc_desc_.config,
-                               sdmmc_desc_.block_cap,
-                               sdmmc_desc_.hal_cap);
-            }
-            if (flash_desc_.handle.ops) {
-                flash_.emplace(core_.block_registry,
-                               flash_desc_.handle,
-                               flash_desc_.config,
-                               flash_desc_.block_cap,
-                               flash_desc_.hal_cap);
-            }
-            if (can_desc_.channel) {
-                io::EndpointDesc desc{
-                    can_desc_.io_cap,
-                    io::cap_id(can_desc_.io_cap),
-                    io::EndpointKind::channel,
-                    io::EndpointCaps::duplex
-                };
-                can_channel_.emplace(core_.registry, *can_desc_.channel, desc);
-            }
-            if (needs_console_alias()) {
-                console_channel_.emplace(core_.registry, core_.reactor, uart_.io_cap, console_cap_);
-            }
+            input_required_ = (input_desc_.driver != nullptr);
+            emplace_optional_peripherals();
         }
 
         BringupMinimal(const platform::board::UartDesc& uart,
@@ -221,8 +111,7 @@ export namespace charm::system {
                        void* post_ctx,
                        kernel::TaskId pump_id,
                        util::usize budget = 8,
-                       const char* console_cap = "io.console0",
-                       InputBringupDesc input = {}) noexcept
+                       const char* console_cap = "io.console0") noexcept
             : BringupMinimal(uart,
                              clock_desc,
                              input_desc,
@@ -237,8 +126,7 @@ export namespace charm::system {
                              post_ctx,
                              pump_id,
                              budget,
-                             console_cap,
-                             input) {}
+                             console_cap) {}
 
         BringupMinimal(const platform::board::UartDesc& uart,
                        const platform::board::ClockDesc& clock_desc,
@@ -252,8 +140,7 @@ export namespace charm::system {
                        void* post_ctx,
                        kernel::TaskId pump_id,
                        util::usize budget = 8,
-                       const char* console_cap = "io.console0",
-                       InputBringupDesc input = {}) noexcept
+                       const char* console_cap = "io.console0") noexcept
             : BringupMinimal(uart,
                              clock_desc,
                              input_desc,
@@ -268,8 +155,7 @@ export namespace charm::system {
                              post_ctx,
                              pump_id,
                              budget,
-                             console_cap,
-                             input) {}
+                             console_cap) {}
 
         BringupMinimal(const platform::board::UartDesc& uart,
                        const platform::board::ClockDesc& clock_desc,
@@ -282,8 +168,7 @@ export namespace charm::system {
                        void* post_ctx,
                        kernel::TaskId pump_id,
                        util::usize budget = 8,
-                       const char* console_cap = "io.console0",
-                       InputBringupDesc input = {}) noexcept
+                       const char* console_cap = "io.console0") noexcept
             : BringupMinimal(uart,
                              clock_desc,
                              input_desc,
@@ -298,8 +183,7 @@ export namespace charm::system {
                              post_ctx,
                              pump_id,
                              budget,
-                             console_cap,
-                             input) {}
+                             console_cap) {}
 
         util::Result<void> start(util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all),
                                  init::Phase max_phase = init::Phase::app) noexcept {
@@ -373,6 +257,72 @@ export namespace charm::system {
         bool needs_console_alias() const noexcept {
             return console_cap_ && console_cap_[0] != '\0' &&
                    std::string_view{uart_.io_cap ? uart_.io_cap : ""}.compare(std::string_view{console_cap_}) != 0;
+        }
+
+        template <typename Host>
+        void emplace_input_from_host(const platform::board::InputDesc& desc,
+                                     Host& host,
+                                     input::SinkFn sink,
+                                     void* sink_ctx,
+                                     InputInitCfg cfg) noexcept {
+            input_required_ = (desc.driver != nullptr);
+            if (!desc.driver) {
+                return;
+            }
+            InputInitCaps caps{
+                desc.service_cap,
+                desc.router_cap,
+                desc.pump_cap,
+                "system.clock",
+                "kernel.eda"
+            };
+            input_.emplace(hal::RawInputSource{*desc.driver},
+                           core_.clock,
+                           host.input_pump(),
+                           host.schedule_fn(),
+                           host.schedule_ctx(),
+                           host.post_demand_fn(),
+                           host.post_ctx(),
+                           host.input_pump_id(),
+                           sink,
+                           sink_ctx,
+                           cfg,
+                           caps);
+        }
+
+        void emplace_optional_peripherals() noexcept {
+            if (spi_desc_.handle.ops) {
+                spi_.emplace(spi_desc_.handle, spi_desc_.config, spi_desc_.hal_cap);
+            }
+            if (i2c_desc_.handle.ops) {
+                i2c_.emplace(i2c_desc_.handle, i2c_desc_.config, i2c_desc_.hal_cap);
+            }
+            if (sdmmc_desc_.handle.ops) {
+                sdmmc_.emplace(core_.block_registry,
+                               sdmmc_desc_.handle,
+                               sdmmc_desc_.config,
+                               sdmmc_desc_.block_cap,
+                               sdmmc_desc_.hal_cap);
+            }
+            if (flash_desc_.handle.ops) {
+                flash_.emplace(core_.block_registry,
+                               flash_desc_.handle,
+                               flash_desc_.config,
+                               flash_desc_.block_cap,
+                               flash_desc_.hal_cap);
+            }
+            if (can_desc_.channel) {
+                io::EndpointDesc desc{
+                    can_desc_.io_cap,
+                    io::cap_id(can_desc_.io_cap),
+                    io::EndpointKind::channel,
+                    io::EndpointCaps::duplex
+                };
+                can_channel_.emplace(core_.registry, *can_desc_.channel, desc);
+            }
+            if (needs_console_alias()) {
+                console_channel_.emplace(core_.registry, core_.reactor, uart_.io_cap, console_cap_);
+            }
         }
     };
 

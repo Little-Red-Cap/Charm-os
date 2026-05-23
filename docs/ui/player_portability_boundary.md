@@ -31,12 +31,14 @@ For the current ownership map, host shell split, Vivid extraction candidates, an
 - SDL3 windowing, event pump, renderer, and screenshot flow live in `Examples/project/player/win`.
 - `player.runtime` owns the shared product lifecycle for Vivid Player targets: app construction, storage bootstrap, controller binding, input dispatch, ticking, frame rendering, and shutdown. Windows/SDL calls into this shell instead of open-coding product lifecycle steps.
 - `player.board_port` is the current board assembly skeleton: it groups externally owned framebuffer metadata, display callbacks, touch sample source, and built-in/package font defaults into app-common records before a board shell constructs `PlayerPlatform` / `PlayerRuntime`.
+- `player.board_runtime` is the thin board lifecycle assembly helper: a board shell can pass `PlayerBoardRuntimeConfig` plus externally owned controller/clock/storage and receive a `PlayerRuntime` wired to the board surface/sink.
 - The Windows host shell still owns preview arguments, SDL initialization, screenshot capture, UI-CI entry points, and visual preview hooks such as the spectrum overlay.
 - Player display output now goes through a small display HAL contract: app-common renders into `PlayerDisplaySurface`, and host/board code presents that surface through a `PlayerDisplaySink`.
 - SDL is only the current Windows preview display adapter. A Win32, Linux fbdev/DRM, or STM32 SDRAM/LTDC adapter can present the same `pixels / width / height / stride / pixel_format` surface without changing Player UI code.
 - `PlayerPlatform` binds an externally supplied surface; the Windows preview owns one default buffer in the host shell, while board code can pass an SDRAM framebuffer surface.
 - `make_board_display_sink()` is the board adapter seam for SDRAM/LTDC-style present. Board code owns callback state and may map clean-cache, dirty flush, and present/flip to HAL, DMA2D, LTDC, or a no-op.
 - `make_player_board_port_bindings()` turns a board framebuffer and callbacks into a `PlayerDisplaySurface`, `PlayerDisplaySink`, and `AppConfig` without knowing SDL, Win32, Linux, or MD3 page internals.
+- `make_player_board_runtime()` turns those bindings into a `PlayerPlatform` and `PlayerRuntime` without parsing argv, creating a window, or knowing page-controller internals.
 - `MemoryDisplaySink` is the portable/CI seam for SDRAM-style output. `player.runtime_probe` renders the real Player runtime into an external buffer and verifies present metadata.
 - `--runtime-memory-smoke` is the Windows host adapter entry for that probe: it runs before SDL initialization, builds the real `PlayerRuntime`, renders MD3 Player into an external memory surface, and exits without opening a host window.
 - SDL event decoding is isolated in a host input adapter include. The adapter now emits `PlayerInputEvent`; the Player app is the only place that bridges product input to Vivid raw input, wheel events, or controller commands.
@@ -67,6 +69,7 @@ For the current ownership map, host shell split, Vivid extraction candidates, an
 - It consumes a `PlayerRuntimeConfig<Page>` record for app config, storage config, start page, initial track, auto-start, and clear color.
 - It exposes the same product actions a board shell needs: `bootstrap`, `tick`, `dispatch_input`, `render`, and `shutdown`.
 - It still receives host-owned `PlayerPlatform` and controller storage. This keeps v0 small while allowing a future board shell to provide an SDRAM-backed `PlayerDisplaySurface` and board-owned controller storage.
+- `player.board_runtime` covers the board-side construction pattern around this shell: fixed external framebuffer in, board display sink out, runtime storage owned by the adapter.
 - `player.runtime_probe` is the reusable memory proof around this shell. It receives externally owned clock, platform, controller storage, runtime storage, display sink, and runtime config, then runs one bootstrap/tick/render/shutdown cycle.
 - The Windows host exposes `--runtime-memory-smoke` for a no-window runtime proof. It still lives in the host executable for convenience, but the construction path avoids SDL window, renderer, texture, event pump, screenshots, and overlay preview hooks.
 
@@ -80,7 +83,7 @@ The display boundary is intentionally small:
 - Surface contract: buffer pointer, dimensions, stride, pixel format, and ownership are explicit.
 - Board SDRAM contract: board code supplies the framebuffer address and stride, then maps `present` to cache clean, dirty flush, DMA2D copy, LTDC front-buffer flip, or a no-op for single-buffer scanout.
 - Board sink contract: `PlayerBoardDisplayCallbacks` are optional and ordered as clean-cache, flush-dirty, then present/flip. The sink clips dirty regions and records the final surface/dirty evidence for CI.
-- Board assembly contract: `PlayerBoardPortConfig` carries framebuffer, display callbacks, touch source, font package view, and audio player defaults. The board shell still owns actual HAL handles and storage lifetime.
+- Board assembly contract: `PlayerBoardPortConfig` carries framebuffer, display callbacks, touch source, font package view, and audio player defaults. `PlayerBoardRuntimeConfig` adds storage/start-page/clear-color runtime defaults. The board shell still owns actual HAL handles and storage lifetime.
 - Host preview contract: SDL creates a texture matching the Player surface format and only copies/presents the final surface.
 
 The matching input boundary is also small:
@@ -104,7 +107,7 @@ This means Win32, Linux, SDL, and STM32 are peers at the adapter layer. None of 
 
 ## Next Cleanup Order
 
-1. Define the concrete board font package binary/layout behind `PlayerBoardFontPackageView`.
-2. Add a non-Windows board shell target that constructs `PlayerPlatform` / `PlayerRuntime` from `PlayerBoardPortConfig`.
+1. Add a non-Windows board shell target that calls `make_player_board_runtime()` from board-owned clock/controller/storage/framebuffer.
+2. Define the concrete board font package binary/layout behind `PlayerBoardFontPackageView`.
 3. Split time/diagnostics providers only where a concrete board target needs them.
 4. Replace controller-owned dynamic track/list caches with fixed-capacity storage where they enter MCU-strict paths.

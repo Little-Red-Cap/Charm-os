@@ -54,11 +54,12 @@ Current short form:
 - `player.runtime` is now the common lifecycle seam between product code and host/board adapters.
 - `player.runtime_probe` constructs the real MD3 runtime around externally supplied storage and renders it into external memory; `--runtime-memory-smoke` is only the Windows host entry for that proof.
 - `player.board_port` is the board assembly skeleton for externally supplied framebuffer, display callbacks, touch source, package font metadata, and app config defaults.
+- `player.board_runtime` is the board lifecycle skeleton for turning those resources into `PlayerPlatform` / `PlayerRuntime` without SDL or argv parsing.
 - `make_board_display_sink()` gives the future board adapter a named seam for cache clean, dirty flush, and present/flip callbacks without changing Player UI.
 - `read_player_touch_events()` gives the future board touch adapter a fixed-capacity path from sampled touch points to `PlayerInputEvent`.
 - Theme and time have useful seams, but their final provider shape should wait for a concrete portable Player target.
 - Dynamic containers fall into two buckets: product semantic state in the MD3 controller/storage/theme flow, and replaceable host implementation state in font cache, cover decode, screenshots, and UI-CI.
-- The next cleanup order should be a non-Windows board shell target, concrete `FontResourceKind::Package` binary/layout, time/diagnostics provider, then controller dynamic state slimming.
+- The next cleanup order should be a non-Windows board shell target that calls `make_player_board_runtime()`, concrete `FontResourceKind::Package` binary/layout, time/diagnostics provider, then controller dynamic state slimming.
 
 ## Portable UI Probe Contract
 

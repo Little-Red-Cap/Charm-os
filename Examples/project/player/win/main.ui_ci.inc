@@ -108,6 +108,7 @@
             std::byte{0x04}, std::byte{0x05}, std::byte{0x06}, std::byte{0x07},
         };
         static std::array<std::byte, player::PlayerOwnedDisplayBuffer::buffer_bytes> board_buffer{};
+        static player::PlayerBoardRuntimeStorage<PlayerUiContext, player::PlayerPage> board_runtime_storage{};
 
         UiCiTouchSampleScript touch_script{
             .samples = {
@@ -119,7 +120,7 @@
             .count = 2,
             .index = 0,
         };
-        player::PlayerBoardPortConfig config{
+        player::PlayerBoardPortConfig package_config{
             .framebuffer = player::PlayerBoardFramebuffer{
                 .pixels = board_buffer.data(),
                 .width = screen_width,
@@ -139,12 +140,44 @@
             },
             .player_config = g_player_cfg,
         };
+        player::PlayerBoardPortConfig runtime_config_port = package_config;
+        runtime_config_port.font_package = {};
 
-        player::PlayerBoardDisplaySinkState sink_state{};
-        const auto bindings = player::make_player_board_port_bindings(config, sink_state);
+        player::PlayerBoardDisplaySinkState binding_sink_state{};
+        const auto bindings = player::make_player_board_port_bindings(package_config, binding_sink_state);
         player::PlayerTouchAdapterState touch_state{};
-        const auto touch_batch = player::read_player_board_touch_events(config, touch_state);
+        const auto touch_batch = player::read_player_board_touch_events(package_config, touch_state);
         const auto& font = bindings.app_config.font_resources;
+
+        PlayerUiContext board_ctx{};
+        player::PlayerBoardRuntimeConfig<player::PlayerPage> runtime_config{
+            .port = runtime_config_port,
+            .storage_config = player::default_storage_config(),
+            .start_page = player::PlayerPage::Home,
+            .initial_track_index = 0,
+            .auto_start = false,
+            .clear_color = kUiBackground,
+        };
+        player::PlayerDisplaySink runtime_sink =
+            player::make_player_board_runtime(g_clock, board_ctx, runtime_config, board_runtime_storage);
+        if (board_runtime_storage.runtime) {
+            (void)board_runtime_storage.runtime->bootstrap();
+        }
+        const bool bootstrap_ok = board_runtime_storage.runtime
+            && board_runtime_storage.runtime->app() != nullptr;
+        if (board_runtime_storage.runtime) {
+            board_runtime_storage.runtime->tick(g_clock.now_us());
+        }
+        const bool render_ok = board_runtime_storage.runtime
+            && board_runtime_storage.runtime->render(&runtime_sink);
+        const auto presented = board_runtime_storage.display_sink_state.last_surface;
+        const bool runtime_ok = bootstrap_ok
+            && render_ok
+            && board_runtime_storage.platform.has_value()
+            && presented.valid()
+            && presented.pixels == board_buffer.data()
+            && board_runtime_storage.display_sink_state.present_count == 1;
+        board_runtime_storage.reset();
 
         return bindings.valid()
             && bindings.surface.pixels == board_buffer.data()
@@ -162,7 +195,8 @@
             && font.large_px == 72
             && touch_batch.count == 2
             && touch_batch.events[0].pointer_action == player::PlayerPointerAction::Down
-            && touch_batch.events[1].pointer_action == player::PlayerPointerAction::Up;
+            && touch_batch.events[1].pointer_action == player::PlayerPointerAction::Up
+            && runtime_ok;
     }
 
     void ui_ci_pointer(PlayerRuntime& runtime,

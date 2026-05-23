@@ -189,6 +189,7 @@
 - 第一阶段已移除公开 `InputBringupDesc` / `make_input_desc` 拼装面，`BoardCaps + Host` 构造路径改为在 `BringupMinimal` 内部由 Host 类型 materialize input chain。
 - 公开 `BringupMinimal` / `BringupInput` 已移除 `SinkFn + void*` 兼容 overload；raw interop 需要显式写成 `input::RawSinkRef::raw(fn, ctx)`。
 - `InputInitChain` / `InputPumpBinding` 已改为传递 `input::RawSinkRef`；裸 callback / ctx 只保留在 `InputPumpTask` 执行窄腰。
+- `BringupMinimal` 已移除公开 `ReactorPumpTask& + PostFn + void* post_ctx` legacy 构造入口；bringup 公开入口统一走 `BoardCaps + Host`。
 
 **为什么重要**
 
@@ -370,7 +371,7 @@
 | T3 清理失效文档引用 | P0 | Docs | 快速修复 | DONE |
 | T4 拆分 UI/Vivid God Module | P1 | UI | 结构治理 | TODO |
 | T5 拆分 scheduler 观察职责 | P1 | System | 结构治理 | TODO |
-| T6 收敛 bringup 回调桥接 | P1 | System | 边界治理 | TODO |
+| T6 收敛 bringup 回调桥接 | P1 | System | 边界治理 | DONE |
 | T7 挪走 Net API 自检脚手架 | P1 | Net | 边界治理 | TODO |
 | T8 拆分 `fs_fatfs` 复合职责 | P1 | FS | 结构治理 | TODO |
 | T9 审视 `void* + ops` 默认扩散 | P2 | Cross-cutting | 模式治理 | TODO |

@@ -25,7 +25,7 @@ It is intentionally narrower than a full embedded port plan. The goal is to make
 | Cover | `player.cover` exposes `CoverProviderFn`; page/controller code can use generated/default cover art when decode is unavailable. | `CHARM_PLAYER_HOST_COVER_DECODE`; profile log prints `host_cover_decode`. | Host decode buffers, embedded image extraction, palette/theme sampling work buffers. | Add a pre-decoded/resource-backed cover provider contract. |
 | Theme | Player-owned cover sampling feeds dynamic surface/text roles; Vivid owns reusable role application candidates. | Indirectly tied to cover decode availability. | Fixed-budget 128x128 sampling workspace, palette candidates, controller theme state. | Keep sampling in Player; consider moving role application rules into Vivid after more app pressure. |
 | Font | Product config carries font paths and sizes; host preview binds file fonts only when enabled. | `CHARM_PLAYER_HOST_FILE_FONTS`, `CHARM_PLAYER_PC_FONT_CACHE`; profile log prints `host_file_fonts`. | FreeType/VFS font buffers, Win32/GDI glyph cache vectors, preview argv strings. | Define a board font resource/provider contract before replacing file fonts. |
-| Display/Input | `PlayerDisplaySurface`, `PlayerDisplaySink`, and `render_player_frame()` separate Player rendering from SDL; SDL input mapping is host-local. | Windows preview uses SDL adapter; memory sink proves real Player UI external-framebuffer output. | Preview SDL texture/window state; UI-CI external buffer is fixed-size static storage. | Add Win32/Linux/board SDRAM adapters as peers without changing Player UI. |
+| Display/Input | `PlayerDisplaySurface`, `PlayerDisplaySink`, and `render_player_frame()` separate Player rendering from SDL; `PlayerInputEvent` separates Player input from SDL/window/touch samples. | Windows preview uses SDL display and input adapters; memory sink proves real Player UI external-framebuffer output. | Preview SDL texture/window state; UI-CI external buffer is fixed-size static storage; input HAL structs are fixed-size. | Add Win32/Linux/board SDRAM display adapters and board touch adapters as peers without changing Player UI. |
 | Time | `player.time_utils` keeps date/week formatting out of page code. | No dedicated board clock gate yet; Windows host binds the runtime time source. | Mostly fixed strings today; playback uses runtime clock timestamps. | Add a time/clock provider adapter when a portable Player target appears. |
 | Storage | `player.storage` and `PlayerApp` isolate scan/mount flow; product config carries host VHD default. | `CHARM_PLAYER_HOST_STORAGE`; profile/resource records select VHD defaults. | Track lists, scan queues, stats history, path buffers, filesystem traversal state. | Introduce board storage capability/provider instead of page-level storage assumptions. |
 | Diagnostics | Host shell owns screenshot, font probe, UI-CI, and preview logging includes. | `CHARM_PLAYER_PLAYBACK_LOG`, `CHARM_PLAYER_FS_LOG`, host shell only screenshot/UI-CI paths. | Screenshot paths, UI-CI probe state, font probe output strings, playback log formatting. | Keep host-only; split `main.ui_ci.inc` by evidence group later. |
@@ -104,19 +104,26 @@ Current state:
 - `render_player_frame()` is the shared frame lifecycle for host preview, UI-CI, and future board sinks.
 - The Windows preview owns its default display buffer in the host shell, then presents it through an SDL display sink.
 - `MemoryDisplaySink` is the current SDRAM-style seam: UI-CI renders the real Player UI into an external buffer and verifies present metadata.
-- SDL input event decoding lives in a host-local adapter include; Player app code consumes `RawInputEvent` and `UiKey`.
+- `player.input` defines the Player product input boundary: pointer, wheel, button, command, and a minimal `PlayerTouchSampleSource` seam.
+- SDL input event decoding lives in a host-local adapter include; it only translates SDL events to `PlayerInputEvent`.
+- `player.app` is the single bridge from `PlayerInputEvent` to Vivid `RawInputEvent`, wheel dispatch, or controller command dispatch.
+- Controller command handling lives behind `handle_input_command(PlayerInputCommand)`, so board keys, SDL keys, and future Win32/Linux input can share product semantics.
+- UI-CI click, touch-style, and wheel cases now run through the Player input boundary instead of hand-building raw Vivid input.
 
 Dynamic allocation and portability notes:
 
 - The display HAL contract itself does not require dynamic allocation, exceptions, RTTI, SDL, Win32, or Linux APIs.
 - Rich Vivid scene/controller state is still not MCU-strict, but the final display output can now target an externally owned framebuffer.
-- SDL texture/window state remains host-only preview implementation state.
+- SDL texture/window/event state remains host-only preview implementation state.
+- The input HAL contract itself does not require dynamic allocation, exceptions, RTTI, SDL, Win32, Linux APIs, or a concrete touch driver.
+- A board touch adapter only needs to sample `{down, x, y, id, ms}` and emit pointer events; cache, LTDC, DMA2D, and touch-controller handles stay in board code.
 
 Recommended next slice:
 
-- Add a Win32 display sink to prove the SDL dependency can be replaced on desktop without touching Player UI.
-- Add a Linux framebuffer/DRM sink when a Linux host target appears.
+- Add a Win32 display/input adapter pair to prove SDL can be replaced on desktop without touching Player UI.
+- Add a Linux framebuffer/DRM plus evdev/input adapter pair when a Linux host target appears.
 - Add a board SDRAM/LTDC sink that maps `present` to cache clean, dirty flush, DMA2D copy, or LTDC buffer flip.
+- Add a board touch adapter that reads the panel/controller sample source and emits `PlayerInputEvent::Pointer`.
 
 ## Time
 
@@ -199,13 +206,15 @@ Already moving in the portable direction:
 - `PlayerDisplaySurface` lets board code provide the final framebuffer memory instead of forcing Player to own or SDL-present it.
 - `render_player_frame()` keeps clear/transition/render/present choreography out of SDL-specific code.
 - `MemoryDisplaySink` gives CI a SDRAM-style real-Player-UI external-buffer proof without needing board hardware.
+- `PlayerInputEvent` gives SDL, Win32, Linux, and board touch drivers the same input seam.
+- UI-CI now proves touch-style pointer dispatch and wheel dispatch through the Player input boundary.
 - Explicit host feature gates in `player.host_features`.
 - CMake host profiles that make preview/probe differences visible.
 - `CoverProviderFn` and generated/default cover fallback.
 
 ## Next Slice Candidates
 
-1. Display sink adapters: add Win32/Linux/SDRAM implementations behind the same `PlayerDisplaySink` contract.
+1. Display/input adapter pairs: add Win32/Linux/SDRAM+touch implementations behind `PlayerDisplaySink` and `PlayerInputEvent`.
 2. Font provider: define board font resource ownership and keep file fonts as a host/profile implementation.
 3. Time/diagnostics provider: keep formatting and logging out of page code, but avoid over-abstracting before a board target exists.
 4. UI-CI grouping: split `main.ui_ci.inc` by evidence family without changing behavior.

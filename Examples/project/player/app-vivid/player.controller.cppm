@@ -22,6 +22,7 @@ import charm.ui.scene;
 import charm.font.typography;
 import charm.system.clock;
 import player.playback;
+import player.input;
 import player.fs_utils;
 import player.storage;
 import player.track_probe;
@@ -212,6 +213,34 @@ export namespace player {
                 break;
             case UiKey::Mode:
                 cycle_play_mode();
+                break;
+            default:
+                break;
+            }
+        }
+
+        void handle_input_command(PlayerInputCommand command) {
+            switch (command) {
+            case PlayerInputCommand::Up:
+                handle_key_action(UiKey::Up);
+                break;
+            case PlayerInputCommand::Down:
+                handle_key_action(UiKey::Down);
+                break;
+            case PlayerInputCommand::Enter:
+                handle_key_action(UiKey::Enter);
+                break;
+            case PlayerInputCommand::PlayToggle:
+                handle_key_action(UiKey::PlayToggle);
+                break;
+            case PlayerInputCommand::Next:
+                handle_key_action(UiKey::Next);
+                break;
+            case PlayerInputCommand::Prev:
+                handle_key_action(UiKey::Prev);
+                break;
+            case PlayerInputCommand::Mode:
+                handle_key_action(UiKey::Mode);
                 break;
             default:
                 break;

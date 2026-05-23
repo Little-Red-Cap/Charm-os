@@ -17,7 +17,12 @@
                     *state->win_h = static_cast<int>(evt.window.data2);
                 }
             }
-            dispatch_sdl_event(state->platform->scene_ref(), *state->app, *state->ctx, evt);
+            const auto input_batch = translate_sdl_player_input(evt);
+            for (std::size_t i = 0; i < input_batch.count; ++i) {
+                state->app->dispatch_player_input(state->platform->scene_ref(),
+                                                  *state->ctx,
+                                                  input_batch.events[i]);
+            }
         }
     }
 

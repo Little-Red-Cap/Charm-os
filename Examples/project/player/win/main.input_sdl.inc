@@ -1,104 +1,110 @@
-    std::optional<input::Button> map_nav_button(SDL_Keycode key) noexcept {
+    struct SdlPlayerInputBatch {
+        std::array<player::PlayerInputEvent, 3> events{};
+        std::size_t count{0};
+
+        void push(const player::PlayerInputEvent& event) noexcept {
+            if (count < events.size()) {
+                events[count++] = event;
+            }
+        }
+    };
+
+    std::optional<player::PlayerInputCommand> map_player_input_command(SDL_Keycode key) noexcept {
         switch (key) {
-        case SDLK_UP: return input::Button::Up;
-        case SDLK_DOWN: return input::Button::Down;
-        case SDLK_RETURN: return input::Button::Enter;
-        case SDLK_ESCAPE: return input::Button::Back;
-        case SDLK_BACKSPACE: return input::Button::Back;
+        case SDLK_UP: return player::PlayerInputCommand::Up;
+        case SDLK_DOWN: return player::PlayerInputCommand::Down;
+        case SDLK_LEFT: return player::PlayerInputCommand::Left;
+        case SDLK_ESCAPE:
+        case SDLK_BACKSPACE:
+            return player::PlayerInputCommand::Back;
+        case SDLK_RETURN: return player::PlayerInputCommand::Enter;
+        case SDLK_SPACE: return player::PlayerInputCommand::PlayToggle;
+        case SDLK_N: return player::PlayerInputCommand::Next;
+        case SDLK_P: return player::PlayerInputCommand::Prev;
+        case SDLK_M: return player::PlayerInputCommand::Mode;
         default:
             break;
         }
         return std::nullopt;
     }
 
-    std::optional<player::UiKey> map_ui_key(SDL_Keycode key) noexcept {
-        switch (key) {
-        case SDLK_UP: return player::UiKey::Up;
-        case SDLK_DOWN: return player::UiKey::Down;
-        case SDLK_RETURN: return player::UiKey::Enter;
-        case SDLK_SPACE: return player::UiKey::PlayToggle;
-        case SDLK_N: return player::UiKey::Next;
-        case SDLK_P: return player::UiKey::Prev;
-        case SDLK_M: return player::UiKey::Mode;
+    bool player_input_command_has_button(player::PlayerInputCommand command) noexcept {
+        switch (command) {
+        case player::PlayerInputCommand::Up:
+        case player::PlayerInputCommand::Down:
+        case player::PlayerInputCommand::Left:
+        case player::PlayerInputCommand::Back:
+        case player::PlayerInputCommand::Enter:
+            return true;
         default:
             break;
         }
-        return std::nullopt;
+        return false;
     }
 
-    input::RawInputEvent make_pointer_event(bool pressed,
-                                            float x,
-                                            float y,
-                                            input::PointerAction action) noexcept {
-        input::RawInputEvent raw{};
-        raw.type = input::RawInputEventType::Pointer;
-        raw.ms = SDL_GetTicks();
-        raw.pointer = input::PointerRaw{pressed,
-                                        static_cast<std::int16_t>(x),
-                                        static_cast<std::int16_t>(y),
-                                        0};
-        raw.pointer_action = action;
-        return raw;
+    player::PlayerInputEvent make_sdl_pointer_event(std::uint32_t ms,
+                                                    bool pressed,
+                                                    float x,
+                                                    float y,
+                                                    player::PlayerPointerAction action) noexcept {
+        return player::PlayerInputEvent::make_pointer(
+            ms,
+            action,
+            player::PlayerPointerSample{pressed, x, y, 0});
     }
 
-    input::RawInputEvent make_button_event(input::Button button, bool pressed) noexcept {
-        input::RawInputEvent raw{};
-        raw.type = input::RawInputEventType::Button;
-        raw.ms = SDL_GetTicks();
-        raw.button = button;
-        raw.pressed = pressed;
-        return raw;
-    }
-
-    bool dispatch_sdl_event(::ui::scene::Scene& scene, player::App& app, PlayerUiContext& ctx, const SDL_Event& evt) {
+    SdlPlayerInputBatch translate_sdl_player_input(const SDL_Event& evt) noexcept {
+        SdlPlayerInputBatch batch{};
+        const auto ms = SDL_GetTicks();
         switch (evt.type) {
-        case SDL_EVENT_MOUSE_MOTION: {
-            input::RawInputEvent raw =
-                make_pointer_event(false, evt.motion.x, evt.motion.y, input::PointerAction::Move);
-            app.dispatch_raw_input(scene, ctx, raw);
-            return true;
-        }
-        case SDL_EVENT_MOUSE_BUTTON_DOWN: {
-            if (evt.button.button != SDL_BUTTON_LEFT) return true;
-            input::RawInputEvent raw =
-                make_pointer_event(true, evt.button.x, evt.button.y, input::PointerAction::Down);
-            app.dispatch_raw_input(scene, ctx, raw);
-            return true;
-        }
-        case SDL_EVENT_MOUSE_BUTTON_UP: {
-            if (evt.button.button != SDL_BUTTON_LEFT) return true;
-            input::RawInputEvent raw =
-                make_pointer_event(false, evt.button.x, evt.button.y, input::PointerAction::Up);
-            app.dispatch_raw_input(scene, ctx, raw);
-            return true;
-        }
-        case SDL_EVENT_MOUSE_WHEEL:
-            {
-                float mx = 0.0f;
-                float my = 0.0f;
-                SDL_GetMouseState(&mx, &my);
-                scene.dispatch_event(Event::wheel(static_cast<int>(mx),
-                                                  static_cast<int>(my),
-                                                  evt.wheel.y));
+        case SDL_EVENT_MOUSE_MOTION:
+            batch.push(make_sdl_pointer_event(ms,
+                                              false,
+                                              evt.motion.x,
+                                              evt.motion.y,
+                                              player::PlayerPointerAction::Move));
+            break;
+        case SDL_EVENT_MOUSE_BUTTON_DOWN:
+            if (evt.button.button == SDL_BUTTON_LEFT) {
+                batch.push(make_sdl_pointer_event(ms,
+                                                  true,
+                                                  evt.button.x,
+                                                  evt.button.y,
+                                                  player::PlayerPointerAction::Down));
             }
-            ctx.process_input_events();
-            return true;
+            break;
+        case SDL_EVENT_MOUSE_BUTTON_UP:
+            if (evt.button.button == SDL_BUTTON_LEFT) {
+                batch.push(make_sdl_pointer_event(ms,
+                                                  false,
+                                                  evt.button.x,
+                                                  evt.button.y,
+                                                  player::PlayerPointerAction::Up));
+            }
+            break;
+        case SDL_EVENT_MOUSE_WHEEL: {
+            float mx = 0.0f;
+            float my = 0.0f;
+            SDL_GetMouseState(&mx, &my);
+            batch.push(player::PlayerInputEvent::make_wheel(ms, mx, my, evt.wheel.y));
+            break;
+        }
         case SDL_EVENT_KEY_DOWN:
-            if (auto k = map_ui_key(evt.key.key)) {
-                ctx.handle_key_action(*k);
+            if (auto command = map_player_input_command(evt.key.key)) {
+                if (player_input_command_has_button(*command)) {
+                    batch.push(player::PlayerInputEvent::make_button(ms, *command, true));
+                }
+                batch.push(player::PlayerInputEvent::make_command(ms, *command));
             }
-            if (auto b = map_nav_button(evt.key.key)) {
-                input::RawInputEvent raw = make_button_event(*b, true);
-                app.dispatch_raw_input(scene, ctx, raw);
-            }
-            return true;
+            break;
         case SDL_EVENT_KEY_UP:
-            if (auto b = map_nav_button(evt.key.key)) {
-                input::RawInputEvent raw = make_button_event(*b, false);
-                app.dispatch_raw_input(scene, ctx, raw);
+            if (auto command = map_player_input_command(evt.key.key);
+                command && player_input_command_has_button(*command)) {
+                batch.push(player::PlayerInputEvent::make_button(ms, *command, false));
             }
-            return true;
+            break;
         default:
-            return false;
+            break;
         }
+        return batch;
     }

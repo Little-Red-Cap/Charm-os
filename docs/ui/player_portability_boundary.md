@@ -32,7 +32,7 @@ For the current ownership map, host shell split, Vivid extraction candidates, an
 - SDL is only the current Windows preview display adapter. A Win32, Linux fbdev/DRM, or STM32 SDRAM/LTDC adapter can present the same `pixels / width / height / stride / pixel_format` surface without changing Player UI code.
 - `PlayerPlatform` binds an externally supplied surface; the Windows preview owns one default buffer in the host shell, while board code can pass an SDRAM framebuffer surface.
 - `MemoryDisplaySink` is the portable/CI seam for SDRAM-style output. Its UI-CI case renders the real Player UI into an external buffer through the same frame pipeline and verifies present metadata without requiring SDL.
-- SDL event decoding is isolated in a host input adapter include. The Player app still consumes semantic `RawInputEvent` / `UiKey` input instead of learning SDL event shapes.
+- SDL event decoding is isolated in a host input adapter include. The adapter now emits `PlayerInputEvent`; the Player app is the only place that bridges product input to Vivid raw input, wheel events, or controller commands.
 - Windows command-line preview flags are parsed into a host-local `PreviewOptions` structure; page controllers should not learn about argv shape.
 - Host feature defaults are composed by `PLAYER_HOST_PROFILE`; explicit `CHARM_PLAYER_HOST_*` cache values remain valid overrides for local experiments.
 - Windows preview resource defaults are composed by `product_player_host_resources.cmake`; common code reads them through `player.product_config`.
@@ -65,8 +65,12 @@ The display boundary is intentionally small:
 The matching input boundary is also small:
 
 - Host or board code samples hardware/window events.
-- Adapter code converts them to `RawInputEvent` and `UiKey`.
-- Player app/controller consume semantic input only.
+- Adapter code converts samples to `PlayerInputEvent`.
+- `PlayerInputEvent::Pointer` covers mouse and touch down/move/up/cancel samples.
+- `PlayerInputEvent::Wheel` is bridged by `player.app`, so host adapters no longer dispatch directly to `Scene`.
+- `PlayerInputEvent::Command` is delivered to the controller through `handle_input_command()`, where product actions map to page or playback semantics.
+- Board touch integration only needs to provide `{down, x, y, id, ms}` samples through the `PlayerTouchSampleSource` shape; it does not need to simulate SDL or know Vivid internals.
+- `RawInputEvent` remains the Charm IO fact input below this boundary. It is no longer the Windows Player host adapter contract.
 
 This means Win32, Linux, SDL, and STM32 are peers at the adapter layer. None of them should leak into Player page builders or controller semantics.
 

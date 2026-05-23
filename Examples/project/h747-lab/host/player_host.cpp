@@ -1,4 +1,5 @@
 #include "apps/player/player_domain.hpp"
+#include "apps/player/player_input.hpp"
 #include "capabilities/world.hpp"
 
 #include <array>
@@ -79,11 +80,19 @@ private:
     std::uint32_t present_count_{0U};
 };
 
+class MockInput {
+public:
+    [[nodiscard]] charm::cap::InputFrame sample() const noexcept {
+        return {};
+    }
+};
+
 class MockPlayerWorld {
 public:
     using Log = StdoutLog;
     using Clock = MockClock;
     using Display = MockRasterDisplay;
+    using Input = MockInput;
 
     MockPlayerWorld() : display_(framebuffer()) {}
 
@@ -97,6 +106,10 @@ public:
 
     [[nodiscard]] Display& display() noexcept {
         return display_;
+    }
+
+    [[nodiscard]] Input& input() noexcept {
+        return input_;
     }
 
     [[nodiscard]] charm::cap::FrameBuffer framebuffer() noexcept {
@@ -126,9 +139,12 @@ private:
     Log log_{};
     Clock clock_{};
     Display display_;
+    Input input_{};
 };
 
 static_assert(charm::cap::RasterDisplayWorld<MockPlayerWorld>);
+static_assert(charm::cap::InputWorld<MockPlayerWorld>);
+static_assert(charm::cap::RasterDisplayInputWorld<MockPlayerWorld>);
 
 } // namespace host::world
 
@@ -155,82 +171,161 @@ std::uint32_t fnv1a32(const std::span<const std::byte> bytes) noexcept {
     return hash;
 }
 
-bool run_model_ci() noexcept {
-    using h747::apps::player::PlayerCommand;
-    using h747::apps::player::PlayerCommandKind;
-    using h747::apps::player::PlayerBoardSnapshot;
-    using h747::apps::player::PlayerRuntime;
+[[nodiscard]] charm::cap::InputFrame make_input_frame(const std::int16_t encoder1_delta = 0,
+                                                      const bool encoder1_pressed = false,
+                                                      const std::int16_t encoder2_delta = 0,
+                                                      const bool encoder2_pressed = false,
+                                                      const bool pointer_detected = false,
+                                                      const bool pointer_down = false,
+                                                      const std::uint16_t pointer_x = 0U,
+                                                      const std::uint16_t pointer_y = 0U,
+                                                      const std::uint16_t pointer_max_x = 0U,
+                                                      const std::uint16_t pointer_max_y = 0U) noexcept {
+    return charm::cap::InputFrame{
+        .encoder1 = charm::cap::EncoderSample{
+            .detent_delta = encoder1_delta,
+            .pressed = encoder1_pressed,
+        },
+        .encoder2 = charm::cap::EncoderSample{
+            .detent_delta = encoder2_delta,
+            .pressed = encoder2_pressed,
+        },
+        .pointer = charm::cap::PointerSample{
+            .detected = pointer_detected,
+            .down = pointer_down,
+            .x = pointer_x,
+            .y = pointer_y,
+            .max_x = pointer_max_x,
+            .max_y = pointer_max_y,
+        },
+    };
+}
 
-    PlayerRuntime runtime{};
+[[nodiscard]] bool run_input_regression() noexcept {
+    h747::apps::player::PlayerRuntime runtime{};
     runtime.reset();
-    if (!runtime.view().playing || runtime.view().storage_ready || runtime.view().cover_ready) {
-        return false;
-    }
 
-    runtime.observe_board(PlayerBoardSnapshot{
-        .display_ready = true,
-        .framebuffer_ready = true,
-        .sdram_ready = true,
-        .sdram_smoke_ok = true,
-        .qspi_power_good = false,
-        .qspi_jedec_ok = false,
-        .qspi_read_ok = false,
-    });
-    if (!runtime.view().playing || runtime.view().storage_ready || runtime.view().cover_ready) {
-        return false;
-    }
-    if (runtime.view().subtitle != "Display ready, storage probing") {
-        return false;
-    }
+    h747::apps::player::PlayerBoardSnapshot board{};
+    board.display_ready = true;
+    board.framebuffer_ready = true;
+    board.sdram_ready = true;
+    board.sdram_smoke_ok = true;
+    board.qspi_power_good = true;
+    board.qspi_jedec_ok = true;
+    runtime.observe_board(board);
 
-    runtime.observe_board(PlayerBoardSnapshot{
-        .display_ready = true,
-        .framebuffer_ready = true,
-        .sdram_ready = true,
-        .sdram_smoke_ok = true,
-        .qspi_power_good = true,
-        .qspi_jedec_ok = true,
-        .qspi_read_ok = false,
-    });
-    if (!runtime.view().playing || !runtime.view().storage_ready || !runtime.view().cover_ready) {
-        return false;
-    }
-    if (runtime.view().subtitle != "Display + storage ready") {
-        return false;
-    }
+    bool ok = true;
+    const auto expect = [&ok](const bool condition, const char* what) noexcept {
+        if (!condition) {
+            ok = false;
+            std::fprintf(stderr, "player_host: input regression failed: %s\n", what);
+        }
+    };
 
-    runtime.observe_board(PlayerBoardSnapshot{
-        .display_ready = true,
-        .framebuffer_ready = false,
-        .sdram_ready = false,
-        .sdram_smoke_ok = false,
-        .qspi_power_good = true,
-        .qspi_jedec_ok = false,
-        .qspi_read_ok = true,
-    });
-    if (runtime.view().playing || !runtime.view().storage_ready ||
-        !runtime.view().cover_ready ||
-        runtime.view().subtitle != "Display init, framebuffer pending") {
-        return false;
-    }
+    expect(runtime.view().playing, "board-ready playback should start enabled");
+    expect(runtime.view().storage_ready, "board-ready storage should be enabled");
+    expect(runtime.view().cover_ready, "board-ready cover should be enabled");
+    expect(runtime.view().subtitle == "Display + storage ready", "board-ready subtitle");
 
-    runtime.dispatch(PlayerCommand{.kind = PlayerCommandKind::toggle_play});
-    if (!runtime.view().playing) {
-        return false;
-    }
+    runtime.observe_input(make_input_frame(3));
+    expect(runtime.view().progress_percent == 36U, "encoder1 detent delta should add directly");
 
-    runtime.dispatch(PlayerCommand{.kind = PlayerCommandKind::seek_relative, .delta_percent = 80});
-    if (runtime.view().progress_percent != 100U) {
-        return false;
-    }
+    runtime.observe_input(make_input_frame(0, false, -2));
+    expect(runtime.view().progress_percent == 26U, "encoder2 detent delta should scale by five");
 
-    runtime.dispatch(PlayerCommand{.kind = PlayerCommandKind::seek_relative, .delta_percent = -120});
-    if (runtime.view().progress_percent != 0U) {
-        return false;
-    }
+    runtime.observe_input(make_input_frame(0, true));
+    expect(!runtime.view().playing, "encoder1 press should toggle playback off");
 
-    runtime.dispatch(PlayerCommand{.kind = PlayerCommandKind::next_track});
-    return runtime.view().progress_percent == 0U;
+    runtime.observe_input(make_input_frame());
+    runtime.observe_input(make_input_frame(0, true));
+    expect(runtime.view().playing, "encoder1 second press should toggle playback on");
+
+    runtime.observe_input(make_input_frame());
+    runtime.observe_input(make_input_frame(0, false, 0, true));
+    expect(runtime.view().playing, "encoder2 press should clear manual pause and restore board playback");
+
+    runtime.observe_input(make_input_frame(0,
+                                          false,
+                                          0,
+                                          false,
+                                          true,
+                                          true,
+                                          360U,
+                                          200U,
+                                          720U,
+                                          1280U));
+    expect(runtime.view().progress_percent == 50U, "pointer drag should map x to progress");
+
+    return ok;
+}
+
+[[nodiscard]] bool run_command_regression() noexcept {
+    using h747::apps::player::PlayerInputCommand;
+    using h747::apps::player::parse_player_input_event;
+
+    bool ok = true;
+    const auto expect = [&ok](const bool condition, const char* what) noexcept {
+        if (!condition) {
+            ok = false;
+            std::fprintf(stderr, "player_host: command regression failed: %s\n", what);
+        }
+    };
+
+    const auto status = parse_player_input_event(" status ");
+    expect(status.command == PlayerInputCommand::status, "status command should parse");
+    expect(!status.emits_input, "status should not emit input");
+
+    const auto toggle = parse_player_input_event("toggle");
+    expect(toggle.command == PlayerInputCommand::toggle, "toggle command should parse");
+    expect(toggle.emits_input, "toggle should emit input");
+    expect(toggle.frame.encoder1.pressed, "toggle should map to encoder1 press edge");
+
+    const auto next = parse_player_input_event("next");
+    expect(next.command == PlayerInputCommand::next, "next command should parse");
+    expect(next.emits_input, "next should emit input");
+    expect(next.frame.encoder2.detent_delta > 0, "next should move progress forward");
+
+    const auto prev = parse_player_input_event("prev");
+    expect(prev.command == PlayerInputCommand::previous, "prev command should parse");
+    expect(prev.emits_input, "prev should emit input");
+    expect(prev.frame.encoder2.detent_delta < 0, "prev should move progress backward");
+
+    const auto seek_forward = parse_player_input_event("seek+");
+    expect(seek_forward.command == PlayerInputCommand::seek_forward, "seek+ command should parse");
+    expect(seek_forward.emits_input, "seek+ should emit input");
+    expect(seek_forward.frame.encoder2.detent_delta == 1, "seek+ should map to one detent");
+
+    const auto seek_backward = parse_player_input_event("seek-");
+    expect(seek_backward.command == PlayerInputCommand::seek_backward, "seek- command should parse");
+    expect(seek_backward.emits_input, "seek- should emit input");
+    expect(seek_backward.frame.encoder2.detent_delta == -1, "seek- should map to one negative detent");
+
+    const auto unknown = parse_player_input_event("surprise");
+    expect(unknown.command == PlayerInputCommand::unknown, "unknown command should be explicit");
+    expect(!unknown.emits_input, "unknown should not emit input");
+
+    h747::apps::player::PlayerRuntime runtime{};
+    runtime.reset();
+
+    h747::apps::player::PlayerBoardSnapshot board{};
+    board.display_ready = true;
+    board.framebuffer_ready = true;
+    board.sdram_ready = true;
+    board.sdram_smoke_ok = true;
+    runtime.observe_board(board);
+    (void)runtime.consume_dirty();
+
+    runtime.observe_input(toggle.frame);
+    expect(!runtime.view().playing, "parsed toggle should pause runtime");
+    expect(runtime.consume_dirty(), "parsed toggle should mark runtime dirty");
+
+    runtime.observe_input({});
+    (void)runtime.consume_dirty();
+    runtime.observe_input(seek_forward.frame);
+    expect(runtime.view().progress_percent == 38U, "parsed seek+ should advance progress by five");
+    expect(runtime.consume_dirty(), "parsed seek+ should mark runtime dirty");
+
+    return ok;
 }
 
 bool write_ppm(const std::filesystem::path& path, host::world::MockPlayerWorld& world) {
@@ -261,6 +356,8 @@ std::filesystem::path output_path(const char* argv0) {
 
 int main(const int argc, char** argv) {
     const bool ci = has_arg(argc, argv, "--ci");
+    const bool input_ok = run_input_regression();
+    const bool command_ok = run_command_regression();
     host::world::MockPlayerWorld world{};
     h747::apps::player::PlayerRuntime runtime{};
     h747::apps::player::init(world, runtime);
@@ -281,13 +378,12 @@ int main(const int argc, char** argv) {
     }
     std::printf("player_host: ppm=%s\n", ppm.string().c_str());
     if (ci) {
-        const bool model_ok = run_model_ci();
-        const bool visual_ok = (hash == kExpectedCiHash) && (presents == kExpectedCiPresents);
-        const bool ok = model_ok && visual_ok;
-        std::printf("[player-host-ci] ok=%u model_ok=%u visual_ok=%u hash=0x%08X expected_hash=0x%08X presents=%u expected_presents=%u\n",
+        const bool ok = input_ok && command_ok && (hash == kExpectedCiHash) &&
+                        (presents == kExpectedCiPresents);
+        std::printf("[player-host-ci] ok=%u input_ok=%u command_ok=%u hash=0x%08X expected_hash=0x%08X presents=%u expected_presents=%u\n",
                     ok ? 1U : 0U,
-                    model_ok ? 1U : 0U,
-                    visual_ok ? 1U : 0U,
+                    input_ok ? 1U : 0U,
+                    command_ok ? 1U : 0U,
                     static_cast<unsigned>(hash),
                     static_cast<unsigned>(kExpectedCiHash),
                     static_cast<unsigned>(presents),

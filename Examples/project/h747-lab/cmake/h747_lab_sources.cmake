@@ -154,6 +154,13 @@ set(H747_LAB_SERVICE_memory_INCLUDE_DIRS
     "${H747_LAB_ROOT}/services/memory"
 )
 
+set(H747_LAB_SERVICE_input_SOURCES
+    "${H747_LAB_ROOT}/services/input/input.cpp"
+)
+set(H747_LAB_SERVICE_input_INCLUDE_DIRS
+    "${H747_LAB_ROOT}/services/input"
+)
+
 set(H747_LAB_SERVICE_display_SOURCES
     "${H747_LAB_ROOT}/services/display/display_min.cpp"
     "${H747_LAB_ROOT}/services/display/display_min_interrupts.cpp"

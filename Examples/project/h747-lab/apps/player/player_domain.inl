@@ -373,11 +373,12 @@ void write_line(Log& log, const char* text) noexcept {
 
 } // namespace detail
 
-template <charm::cap::RasterDisplayWorld World>
+template <charm::cap::RasterDisplayInputWorld World>
 void init(World& world, PlayerRuntime& runtime) noexcept {
     auto& log = world.log();
     detail::write_line(log, "player: init");
     runtime.reset();
+    runtime.observe_input(world.input().sample());
     detail::draw_scene(world.framebuffer(), runtime.view());
     const auto status = world.display().present(world.framebuffer().view(), {});
     (void)log.write("player: first_present=");
@@ -386,10 +387,13 @@ void init(World& world, PlayerRuntime& runtime) noexcept {
     (void)log.flush();
 }
 
-template <charm::cap::RasterDisplayWorld World>
+template <charm::cap::RasterDisplayInputWorld World>
 void loop_once(World& world, PlayerRuntime& runtime) noexcept {
+    runtime.observe_input(world.input().sample());
+    bool redraw = runtime.consume_dirty();
     const std::uint32_t now = world.clock().tick_ms().value;
-    if (!runtime.advance(now)) {
+    redraw = runtime.advance(now) || redraw;
+    if (!redraw) {
         return;
     }
 

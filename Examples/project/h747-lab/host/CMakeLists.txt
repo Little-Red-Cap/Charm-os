@@ -36,5 +36,5 @@ target_compile_options(h747_lab_host_player PRIVATE
 add_test(NAME h747_lab_host_player_ci
     COMMAND $<TARGET_FILE:h747_lab_host_player> --ci)
 set_tests_properties(h747_lab_host_player_ci PROPERTIES
-    PASS_REGULAR_EXPRESSION "\\[player-host-ci\\] ok=1"
-    FAIL_REGULAR_EXPRESSION "\\[player-host-ci\\] ok=0")
+    PASS_REGULAR_EXPRESSION "\\[player-host-ci\\] ok=1 input_ok=1 command_ok=1"
+    FAIL_REGULAR_EXPRESSION "\\[player-host-ci\\] ok=0|input_ok=0|command_ok=0")

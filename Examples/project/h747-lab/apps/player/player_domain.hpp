@@ -5,10 +5,10 @@
 
 namespace h747::apps::player {
 
-template <charm::cap::RasterDisplayWorld World>
+template <charm::cap::RasterDisplayInputWorld World>
 void init(World& world, PlayerRuntime& runtime) noexcept;
 
-template <charm::cap::RasterDisplayWorld World>
+template <charm::cap::RasterDisplayInputWorld World>
 void loop_once(World& world, PlayerRuntime& runtime) noexcept;
 
 } // namespace h747::apps::player

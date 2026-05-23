@@ -32,6 +32,7 @@ For the current ownership map, host shell split, Vivid extraction candidates, an
 - `player.runtime` owns the shared product lifecycle for Vivid Player targets: app construction, storage bootstrap, controller binding, input dispatch, ticking, frame rendering, and shutdown. Windows/SDL calls into this shell instead of open-coding product lifecycle steps.
 - `player.board_port` is the current board assembly skeleton: it groups externally owned framebuffer metadata, display callbacks, touch sample source, and built-in/package font defaults into app-common records before a board shell constructs `PlayerPlatform` / `PlayerRuntime`.
 - `player.board_runtime` is the thin board lifecycle assembly helper: a board shell can pass `PlayerBoardRuntimeConfig` plus externally owned controller/clock/storage and receive a `PlayerRuntime` wired to the board surface/sink.
+- `player.runtime.hqzy_cm7.player_ui_port_bridge` is the H747-local facts bridge for framebuffer, dirty region, display callbacks, touch source, and clock source. It stays adapter-only and does not import `player.board_runtime`, so the current HQZY profile can express future UI runtime inputs without pulling MD3/Vivid into the CM7 board build.
 - The Windows host shell still owns preview arguments, SDL initialization, screenshot capture, UI-CI entry points, and visual preview hooks such as the spectrum overlay.
 - Player display output now goes through a small display HAL contract: app-common renders into `PlayerDisplaySurface`, and host/board code presents that surface through a `PlayerDisplaySink`.
 - SDL is only the current Windows preview display adapter. A Win32, Linux fbdev/DRM, or STM32 SDRAM/LTDC adapter can present the same `pixels / width / height / stride / pixel_format` surface without changing Player UI code.
@@ -39,6 +40,7 @@ For the current ownership map, host shell split, Vivid extraction candidates, an
 - `make_board_display_sink()` is the board adapter seam for SDRAM/LTDC-style present. Board code owns callback state and may map clean-cache, dirty flush, and present/flip to HAL, DMA2D, LTDC, or a no-op.
 - `make_player_board_port_bindings()` turns a board framebuffer and callbacks into a `PlayerDisplaySurface`, `PlayerDisplaySink`, and `AppConfig` without knowing SDL, Win32, Linux, or MD3 page internals.
 - `make_player_board_runtime()` turns those bindings into a `PlayerPlatform` and `PlayerRuntime` without parsing argv, creating a window, or knowing page-controller internals.
+- `player.runtime.hqzy_cm7.player_ui_port_bridge` is the current H747-local seed for that board-seam shape. It keeps the port facts explicit while the board still runs the existing Ink/USB paths.
 - `MemoryDisplaySink` is the portable/CI seam for SDRAM-style output. `player.runtime_probe` renders the real Player runtime into an external buffer and verifies present metadata.
 - `--runtime-memory-smoke` is the Windows host adapter entry for that probe: it runs before SDL initialization, builds the real `PlayerRuntime`, renders MD3 Player into an external memory surface, and exits without opening a host window.
 - SDL event decoding is isolated in a host input adapter include. The adapter now emits `PlayerInputEvent`; the Player app is the only place that bridges product input to Vivid raw input, wheel events, or controller commands.
@@ -107,7 +109,7 @@ This means Win32, Linux, SDL, and STM32 are peers at the adapter layer. None of 
 
 ## Next Cleanup Order
 
-1. Add a non-Windows board shell target that calls `make_player_board_runtime()` from board-owned clock/controller/storage/framebuffer.
+1. Add a non-Windows board shell target that calls `make_player_board_runtime()` from board-owned clock/controller/storage/framebuffer. The H747-local `player_ui_port_bridge` is the current seed for that target shape.
 2. Define the concrete board font package binary/layout behind `PlayerBoardFontPackageView`.
 3. Split time/diagnostics providers only where a concrete board target needs them.
 4. Replace controller-owned dynamic track/list caches with fixed-capacity storage where they enter MCU-strict paths.

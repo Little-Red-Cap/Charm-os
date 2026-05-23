@@ -23,6 +23,10 @@ set(MODULE_GROUP_STORAGE_BOARD_MIN
     "${CMAKE_CURRENT_SOURCE_DIR}/../../bsp/board_sdmmc.cppm"
 )
 
+set(MODULE_GROUP_HQZY_CM7_PLAYER_UI_PORT
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../runtime/hqzy_cm7/player_ui_port_bridge.cppm"
+)
+
 set(MODULE_GROUP_HQZY_CM7_RUNTIME
     "${CMAKE_CURRENT_SOURCE_DIR}/../../runtime/hqzy_cm7/boot_log.cppm"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../runtime/hqzy_cm7/board_platform.cppm"

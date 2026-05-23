@@ -3,11 +3,13 @@ module;
 #include <array>
 #include <cstddef>
 #include <cstdio>
+#include <string_view>
 
 export module kernel.runtime_trap_ingress;
 
 export import kernel.runtime_trap;
 import kernel.eda;
+import semantic.core;
 import util.core;
 
 namespace kernel::detail {
@@ -130,7 +132,7 @@ export namespace kernel {
     };
 
     template <typename Tick>
-    struct RuntimeTrapIngressForensicWitness {
+    struct RuntimeTrapIngressWitness {
         Tick terminal_stamp{};
         util::u64 sequence{0};
         bool ready{false};
@@ -150,6 +152,8 @@ export namespace kernel {
         TrapOrigin last_failure_origin{TrapOrigin::kernel_thread};
         TrapDisposition last_failure_disposition{TrapDisposition::rejected};
         TrapError last_failure_error{TrapError::none};
+        bool has_trace{false};
+        bool has_terminal{false};
 
         [[nodiscard]] constexpr bool ok() const noexcept
         {
@@ -162,7 +166,102 @@ export namespace kernel {
             return has_last_failure && last_failure_sequence != 0u &&
                    last_failure_sequence != sequence;
         }
+
+        [[nodiscard]] constexpr semantic::Result result() const noexcept
+        {
+            return verdict() == semantic::Verdict::standing
+                       ? semantic::Result::ok
+                       : semantic::Result::failed;
+        }
+
+        [[nodiscard]] constexpr semantic::Verdict verdict() const noexcept
+        {
+            if (!has_terminal || !has_decode || !has_dispatch ||
+                !has_writeback) {
+                return semantic::Verdict::collapsed;
+            }
+
+            if (!terminal_ok &&
+                (terminal_stage == TrapIngressStage::decode ||
+                 terminal_stage == TrapIngressStage::writeback)) {
+                return semantic::Verdict::collapsed;
+            }
+
+            if (terminal_ok && last_failure_is_prior_attempt()) {
+                return semantic::Verdict::drifted;
+            }
+
+            if (terminal_ok) {
+                return semantic::Verdict::standing;
+            }
+
+            return semantic::Verdict::drifted;
+        }
+
+        [[nodiscard]] constexpr semantic::FailureDomain
+        failure_domain() const noexcept
+        {
+            const bool terminal_failed = has_terminal && !terminal_ok;
+            const bool prior_failure = last_failure_is_prior_attempt();
+            if (terminal_failed || prior_failure) {
+                const auto stage =
+                    terminal_failed ? terminal_stage : last_failure_stage;
+                const auto error =
+                    terminal_failed ? terminal_error : last_failure_error;
+
+                if (stage == TrapIngressStage::decode &&
+                    error != TrapError::none) {
+                    return semantic::FailureDomain::selection;
+                }
+
+                if (stage == TrapIngressStage::dispatch &&
+                    error != TrapError::none) {
+                    return semantic::FailureDomain::route;
+                }
+
+                if (stage == TrapIngressStage::writeback &&
+                    error != TrapError::none) {
+                    return semantic::FailureDomain::handoff;
+                }
+            }
+
+            if (!ready && has_trace) {
+                return semantic::FailureDomain::input;
+            }
+
+            return semantic::FailureDomain::none;
+        }
+
+        [[nodiscard]] constexpr std::string_view summary_path() const noexcept
+        {
+            return "runtime-trap-ingress-witness.summary";
+        }
     };
+
+    template <typename Tick>
+    using RuntimeTrapIngressForensicWitness = RuntimeTrapIngressWitness<Tick>;
+
+    template <typename Tick>
+    struct RuntimeTrapIngressWitnessHandoffTarget {
+        const RuntimeTrapIngressWitness<Tick>* witness{nullptr};
+
+        [[nodiscard]] constexpr std::string_view entry_name() const noexcept
+        {
+            return "runtime-trap-ingress-witness";
+        }
+
+        [[nodiscard]] constexpr std::string_view
+        selected_summary_path() const noexcept
+        {
+            return witness != nullptr ? witness->summary_path()
+                                      : std::string_view{
+                                            "runtime-trap-ingress-witness.summary"};
+        }
+    };
+
+    static_assert(semantic::WitnessCarrier<RuntimeTrapIngressWitness<util::u64>>);
+    static_assert(
+        semantic::HandoffTarget<RuntimeTrapIngressWitnessHandoffTarget<util::u64>>);
 
     template <typename Tick>
     [[nodiscard]] constexpr TrapFrameView trap_frame_view_from_ingress_trace_event(
@@ -334,11 +433,14 @@ export namespace kernel {
     }
 
     template <typename Tick>
-    [[nodiscard]] constexpr RuntimeTrapIngressForensicWitness<Tick>
-    trap_ingress_forensic_witness(
+    [[nodiscard]] constexpr RuntimeTrapIngressWitness<Tick> trap_ingress_witness(
         const RuntimeTrapIngressForensicSnapshot<Tick>& snapshot) noexcept
     {
-        RuntimeTrapIngressForensicWitness<Tick> witness{};
+        RuntimeTrapIngressWitness<Tick> witness{};
+        witness.has_trace = snapshot.has_terminal || snapshot.has_decode ||
+                            snapshot.has_dispatch || snapshot.has_writeback ||
+                            snapshot.has_last_failure;
+        witness.has_terminal = snapshot.has_terminal;
         if (!snapshot.has_terminal) {
             return witness;
         }
@@ -372,26 +474,34 @@ export namespace kernel {
     }
 
     template <typename Tick, std::size_t Capacity>
-    [[nodiscard]] RuntimeTrapIngressForensicWitness<Tick>
-    trap_ingress_forensic_witness(
+    [[nodiscard]] RuntimeTrapIngressWitness<Tick> trap_ingress_witness(
         const RuntimeTrapIngressTraceBuffer<Tick, Capacity>& trace) noexcept
     {
-        return trap_ingress_forensic_witness(
-            trap_ingress_forensic_snapshot(trace));
+        return trap_ingress_witness(trap_ingress_forensic_snapshot(trace));
     }
 
     template <typename Tick>
-    [[nodiscard]] constexpr bool trap_ingress_forensic_witness_ready(
-        const RuntimeTrapIngressForensicWitness<Tick>& witness) noexcept
+    [[nodiscard]] constexpr bool trap_ingress_witness_ready(
+        const RuntimeTrapIngressWitness<Tick>& witness) noexcept
     {
         return witness.ready;
     }
 
     template <typename Tick>
-    [[nodiscard]] std::size_t format_trap_ingress_forensic_witness_json(
+    [[nodiscard]] constexpr RuntimeTrapIngressWitnessHandoffTarget<Tick>
+    trap_ingress_witness_handoff_target(
+        const RuntimeTrapIngressWitness<Tick>& witness) noexcept
+    {
+        return RuntimeTrapIngressWitnessHandoffTarget<Tick>{
+            .witness = &witness,
+        };
+    }
+
+    template <typename Tick>
+    [[nodiscard]] std::size_t format_trap_ingress_witness_json(
         char* out,
         std::size_t max,
-        const RuntimeTrapIngressForensicWitness<Tick>& witness) noexcept
+        const RuntimeTrapIngressWitness<Tick>& witness) noexcept
     {
         if (out == nullptr || max == 0u) {
             return 0u;
@@ -443,6 +553,38 @@ export namespace kernel {
             trap_disposition_name(witness.last_failure_disposition),
             trap_error_name(witness.last_failure_error));
         return offset;
+    }
+
+    template <typename Tick>
+    [[nodiscard]] constexpr RuntimeTrapIngressForensicWitness<Tick>
+    trap_ingress_forensic_witness(
+        const RuntimeTrapIngressForensicSnapshot<Tick>& snapshot) noexcept
+    {
+        return trap_ingress_witness(snapshot);
+    }
+
+    template <typename Tick, std::size_t Capacity>
+    [[nodiscard]] RuntimeTrapIngressForensicWitness<Tick>
+    trap_ingress_forensic_witness(
+        const RuntimeTrapIngressTraceBuffer<Tick, Capacity>& trace) noexcept
+    {
+        return trap_ingress_witness(trace);
+    }
+
+    template <typename Tick>
+    [[nodiscard]] constexpr bool trap_ingress_forensic_witness_ready(
+        const RuntimeTrapIngressForensicWitness<Tick>& witness) noexcept
+    {
+        return trap_ingress_witness_ready(witness);
+    }
+
+    template <typename Tick>
+    [[nodiscard]] std::size_t format_trap_ingress_forensic_witness_json(
+        char* out,
+        std::size_t max,
+        const RuntimeTrapIngressForensicWitness<Tick>& witness) noexcept
+    {
+        return format_trap_ingress_witness_json(out, max, witness);
     }
 
     template <typename Frame>

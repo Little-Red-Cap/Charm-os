@@ -94,6 +94,7 @@ set(charm_armv7a_qemu_module_files
     "${CHARM_ROOT}/Modules/core/util/error.cppm"
     "${CHARM_ROOT}/Modules/core/util/type_list.cppm"
     "${CHARM_ROOT}/Modules/core/util/variant.cppm"
+    "${CHARM_ROOT}/Modules/core/semantic/semantic.core.cppm"
     "${CHARM_ROOT}/Modules/io/out/out.core.cppm"
     "${CHARM_ROOT}/Modules/io/out/out.sink.cppm"
     "${CHARM_ROOT}/Modules/io/out/out.format.cppm"

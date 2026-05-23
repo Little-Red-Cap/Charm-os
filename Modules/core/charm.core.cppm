@@ -6,6 +6,7 @@ export import util.delegate;
 export import util.error;
 export import util.expected;
 export import util.optional;
+export import semantic.core;
 export import util.type_list;
 export import util.type_state;
 export import util.units;

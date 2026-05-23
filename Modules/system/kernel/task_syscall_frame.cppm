@@ -2,11 +2,13 @@ module;
 
 #include <array>
 #include <cstddef>
+#include <string_view>
 
 export module kernel.task_syscall_frame;
 
 export import kernel.task_syscall_table;
 export import kernel.runtime_trap_ingress;
+import semantic.core;
 import util.core;
 
 export namespace kernel {
@@ -37,6 +39,15 @@ export namespace kernel {
         util::u64 arg2{0};
         util::u64 arg3{0};
     };
+
+    static_assert(
+        semantic::reflected_member_names_match_when_enabled<TaskSyscallFrameView>(
+        std::array<std::string_view, 5>{
+            "syscall",
+            "arg0",
+            "arg1",
+            "arg2",
+            "arg3"}));
 
     [[nodiscard]] constexpr bool task_syscall_frame_view_ready(
         const TaskSyscallFrameView& view) noexcept
@@ -202,6 +213,170 @@ export namespace kernel {
         bool ok{false};
     };
 
+    static_assert(
+        semantic::reflected_member_names_match_when_enabled<TaskSyscallFrameTraceEvent>(
+            std::array<std::string_view, 12>{
+                "sequence",
+                "stage",
+                "syscall",
+                "trap_service",
+                "disposition",
+                "error",
+                "arg0",
+                "arg1",
+                "arg2",
+                "arg3",
+                "value",
+                "ok"}));
+
+    struct TaskSyscallFrameForensicSnapshot {
+        using value_type = TaskSyscallFrameTraceEvent;
+
+        bool has_terminal{false};
+        value_type terminal{};
+        bool has_decode{false};
+        value_type decode{};
+        bool has_dispatch{false};
+        value_type dispatch{};
+        bool has_writeback{false};
+        value_type writeback{};
+        bool has_last_failure{false};
+        value_type last_failure{};
+
+        [[nodiscard]] constexpr util::u64 sequence() const noexcept
+        {
+            return has_terminal ? terminal.sequence : 0u;
+        }
+    };
+
+    struct TaskSyscallFrameWitness {
+        util::u64 sequence{0};
+        bool ready{false};
+        bool terminal_ok{false};
+        bool has_trace{false};
+        bool has_terminal{false};
+        bool has_decode{false};
+        bool has_dispatch{false};
+        bool has_writeback{false};
+        TaskSyscallFrameStage terminal_stage{TaskSyscallFrameStage::decode};
+        TaskSyscallId terminal_syscall{TaskSyscallId::invalid};
+        TrapService terminal_trap_service{TrapService::invalid};
+        TrapDisposition terminal_disposition{TrapDisposition::rejected};
+        TrapError terminal_error{TrapError::none};
+        util::u64 terminal_value{0};
+        bool has_last_failure{false};
+        util::u64 last_failure_sequence{0};
+        TaskSyscallFrameStage last_failure_stage{
+            TaskSyscallFrameStage::decode};
+        TaskSyscallId last_failure_syscall{TaskSyscallId::invalid};
+        TrapService last_failure_trap_service{TrapService::invalid};
+        TrapDisposition last_failure_disposition{TrapDisposition::rejected};
+        TrapError last_failure_error{TrapError::none};
+        util::u64 last_failure_value{0};
+
+        [[nodiscard]] constexpr bool ok() const noexcept
+        {
+            return ready && terminal_ok;
+        }
+
+        [[nodiscard]] constexpr bool last_failure_is_prior_attempt()
+            const noexcept
+        {
+            return has_last_failure && last_failure_sequence != 0u &&
+                   last_failure_sequence != sequence;
+        }
+
+        [[nodiscard]] constexpr semantic::Result result() const noexcept
+        {
+            return verdict() == semantic::Verdict::standing
+                       ? semantic::Result::ok
+                       : semantic::Result::failed;
+        }
+
+        [[nodiscard]] constexpr semantic::Verdict verdict() const noexcept
+        {
+            if (!has_terminal || !has_decode || !has_dispatch ||
+                !has_writeback) {
+                return semantic::Verdict::collapsed;
+            }
+
+            if (!terminal_ok &&
+                (terminal_stage == TaskSyscallFrameStage::decode ||
+                 terminal_stage == TaskSyscallFrameStage::writeback)) {
+                return semantic::Verdict::collapsed;
+            }
+
+            if (terminal_ok && last_failure_is_prior_attempt()) {
+                return semantic::Verdict::drifted;
+            }
+
+            if (terminal_ok) {
+                return semantic::Verdict::standing;
+            }
+
+            return semantic::Verdict::drifted;
+        }
+
+        [[nodiscard]] constexpr semantic::FailureDomain
+        failure_domain() const noexcept
+        {
+            const bool terminal_failed = has_terminal && !terminal_ok;
+            const bool prior_failure = last_failure_is_prior_attempt();
+            if (terminal_failed || prior_failure) {
+                const auto stage = terminal_failed ? terminal_stage
+                                                   : last_failure_stage;
+                const auto error = terminal_failed ? terminal_error
+                                                   : last_failure_error;
+
+                if (stage == TaskSyscallFrameStage::decode &&
+                    error != TrapError::none) {
+                    return semantic::FailureDomain::selection;
+                }
+
+                if (stage == TaskSyscallFrameStage::dispatch &&
+                    error != TrapError::none) {
+                    return semantic::FailureDomain::route;
+                }
+
+                if (stage == TaskSyscallFrameStage::writeback &&
+                    error != TrapError::none) {
+                    return semantic::FailureDomain::handoff;
+                }
+            }
+
+            if (!ready && has_trace) {
+                return semantic::FailureDomain::input;
+            }
+
+            return semantic::FailureDomain::none;
+        }
+
+        [[nodiscard]] constexpr std::string_view summary_path() const noexcept
+        {
+            return "task-syscall-frame-witness.summary";
+        }
+    };
+
+    struct TaskSyscallFrameWitnessHandoffTarget {
+        const TaskSyscallFrameWitness* witness{nullptr};
+
+        [[nodiscard]] constexpr std::string_view entry_name() const noexcept
+        {
+            return "task-syscall-frame-witness";
+        }
+
+        [[nodiscard]] constexpr std::string_view
+        selected_summary_path() const noexcept
+        {
+            return witness != nullptr ? witness->summary_path()
+                                      : std::string_view{
+                                            "task-syscall-frame-witness.summary"};
+        }
+    };
+
+    static_assert(semantic::WitnessCarrier<TaskSyscallFrameWitness>);
+    static_assert(semantic::HandoffTarget<TaskSyscallFrameWitnessHandoffTarget>);
+
     [[nodiscard]] constexpr TaskSyscallFrameView task_syscall_frame_view_from_trace_event(
         const TaskSyscallFrameTraceEvent& event) noexcept
     {
@@ -228,6 +403,64 @@ export namespace kernel {
     {
         return task_syscall_semantic_projection(
             task_syscall_request_from_trace_event(event));
+    }
+
+    [[nodiscard]] constexpr TaskSyscallFrameWitness
+    task_syscall_frame_witness(
+        const TaskSyscallFrameForensicSnapshot& snapshot) noexcept
+    {
+        TaskSyscallFrameWitness witness{};
+        witness.has_trace = snapshot.has_terminal || snapshot.has_decode ||
+                            snapshot.has_dispatch || snapshot.has_writeback ||
+                            snapshot.has_last_failure;
+        witness.has_terminal = snapshot.has_terminal;
+        if (!snapshot.has_terminal) {
+            return witness;
+        }
+
+        witness.sequence = snapshot.terminal.sequence;
+        witness.ready = snapshot.has_decode && snapshot.has_dispatch &&
+                        snapshot.has_writeback;
+        witness.terminal_ok = snapshot.terminal.ok;
+        witness.has_decode = snapshot.has_decode;
+        witness.has_dispatch = snapshot.has_dispatch;
+        witness.has_writeback = snapshot.has_writeback;
+        witness.terminal_stage = snapshot.terminal.stage;
+        witness.terminal_syscall = snapshot.terminal.syscall;
+        witness.terminal_trap_service = snapshot.terminal.trap_service;
+        witness.terminal_disposition = snapshot.terminal.disposition;
+        witness.terminal_error = snapshot.terminal.error;
+        witness.terminal_value = snapshot.terminal.value;
+        witness.has_last_failure = snapshot.has_last_failure;
+
+        if (snapshot.has_last_failure) {
+            witness.last_failure_sequence = snapshot.last_failure.sequence;
+            witness.last_failure_stage = snapshot.last_failure.stage;
+            witness.last_failure_syscall = snapshot.last_failure.syscall;
+            witness.last_failure_trap_service =
+                snapshot.last_failure.trap_service;
+            witness.last_failure_disposition =
+                snapshot.last_failure.disposition;
+            witness.last_failure_error = snapshot.last_failure.error;
+            witness.last_failure_value = snapshot.last_failure.value;
+        }
+
+        return witness;
+    }
+
+    [[nodiscard]] constexpr bool task_syscall_frame_witness_ready(
+        const TaskSyscallFrameWitness& witness) noexcept
+    {
+        return witness.ready;
+    }
+
+    [[nodiscard]] constexpr TaskSyscallFrameWitnessHandoffTarget
+    task_syscall_frame_witness_handoff_target(
+        const TaskSyscallFrameWitness& witness) noexcept
+    {
+        return TaskSyscallFrameWitnessHandoffTarget{
+            .witness = &witness,
+        };
     }
 
     template <std::size_t Capacity>
@@ -267,6 +500,68 @@ export namespace kernel {
         std::size_t head_{0};
         std::size_t size_{0};
     };
+
+    template <std::size_t Capacity>
+    [[nodiscard]] TaskSyscallFrameForensicSnapshot
+    task_syscall_frame_forensic_snapshot(
+        const TaskSyscallFrameTraceBuffer<Capacity>& trace) noexcept
+    {
+        TaskSyscallFrameForensicSnapshot snapshot{};
+        if (trace.size() == 0u) {
+            return snapshot;
+        }
+
+        const auto* terminal = trace.at(trace.size() - 1u);
+        if (terminal == nullptr) {
+            return snapshot;
+        }
+
+        snapshot.has_terminal = true;
+        snapshot.terminal = *terminal;
+
+        for (std::size_t index = trace.size(); index > 0u; --index) {
+            const auto* event = trace.at(index - 1u);
+            if (event == nullptr) {
+                continue;
+            }
+
+            if (!snapshot.has_last_failure && !event->ok) {
+                snapshot.has_last_failure = true;
+                snapshot.last_failure = *event;
+            }
+
+            switch (event->stage) {
+            case TaskSyscallFrameStage::decode:
+                if (!snapshot.has_decode) {
+                    snapshot.has_decode = true;
+                    snapshot.decode = *event;
+                }
+                return snapshot;
+            case TaskSyscallFrameStage::dispatch:
+                if (!snapshot.has_dispatch) {
+                    snapshot.has_dispatch = true;
+                    snapshot.dispatch = *event;
+                }
+                break;
+            case TaskSyscallFrameStage::writeback:
+                if (!snapshot.has_writeback) {
+                    snapshot.has_writeback = true;
+                    snapshot.writeback = *event;
+                }
+                break;
+            }
+        }
+
+        return snapshot;
+    }
+
+    template <std::size_t Capacity>
+    [[nodiscard]] TaskSyscallFrameWitness task_syscall_frame_witness(
+        const TaskSyscallFrameTraceBuffer<Capacity>& trace) noexcept
+    {
+        return task_syscall_frame_witness(
+            task_syscall_frame_forensic_snapshot(trace));
+    }
 
     template <typename Table,
               typename Frame,

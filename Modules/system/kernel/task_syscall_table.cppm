@@ -2,10 +2,12 @@ module;
 
 #include <array>
 #include <cstddef>
+#include <string_view>
 
 export module kernel.task_syscall_table;
 
 export import kernel.task_syscall_dispatch;
+import semantic.core;
 import util.core;
 
 export namespace kernel {
@@ -105,6 +107,117 @@ export namespace kernel {
         util::u64 value{0};
     };
 
+    static_assert(
+        semantic::reflected_member_names_match_when_enabled<TaskSyscallTableTraceEvent>(
+            std::array<std::string_view, 13>{
+                "sequence",
+                "syscall",
+                "trap_service",
+                "slot",
+                "matched",
+                "handler_valid",
+                "disposition",
+                "error",
+                "arg0",
+                "arg1",
+                "arg2",
+                "arg3",
+                "value"}));
+
+    struct TaskSyscallTableWitness {
+        util::u64 sequence{0};
+        bool ready{false};
+        bool has_trace{false};
+        TaskSyscallId syscall{TaskSyscallId::invalid};
+        TrapService trap_service{TrapService::invalid};
+        util::u16 slot{task_syscall_table_unmapped_slot};
+        bool matched{false};
+        bool handler_valid{false};
+        TrapDisposition disposition{TrapDisposition::rejected};
+        TrapError error{TrapError::unsupported_service};
+        util::u64 arg0{0};
+        util::u64 arg1{0};
+        util::u64 arg2{0};
+        util::u64 arg3{0};
+        util::u64 value{0};
+
+        [[nodiscard]] constexpr bool ok() const noexcept
+        {
+            return ready && matched && handler_valid &&
+                   disposition == TrapDisposition::handled &&
+                   error == TrapError::none;
+        }
+
+        [[nodiscard]] constexpr semantic::Result result() const noexcept
+        {
+            return verdict() == semantic::Verdict::standing
+                       ? semantic::Result::ok
+                       : semantic::Result::failed;
+        }
+
+        [[nodiscard]] constexpr semantic::Verdict verdict() const noexcept
+        {
+            if (!ready) {
+                return semantic::Verdict::collapsed;
+            }
+
+            if (ok()) {
+                return semantic::Verdict::standing;
+            }
+
+            return semantic::Verdict::drifted;
+        }
+
+        [[nodiscard]] constexpr semantic::FailureDomain
+        failure_domain() const noexcept
+        {
+            if (!ready && has_trace) {
+                return semantic::FailureDomain::input;
+            }
+
+            if (!matched || error == TrapError::unsupported_service ||
+                slot == task_syscall_table_unmapped_slot) {
+                return semantic::FailureDomain::selection;
+            }
+
+            if (!handler_valid || error == TrapError::unbound_adapter) {
+                return semantic::FailureDomain::handoff;
+            }
+
+            if (error == TrapError::unbound_bridge ||
+                error == TrapError::invalid_argument) {
+                return semantic::FailureDomain::route;
+            }
+
+            return semantic::FailureDomain::none;
+        }
+
+        [[nodiscard]] constexpr std::string_view summary_path() const noexcept
+        {
+            return "task-syscall-table-witness.summary";
+        }
+    };
+
+    struct TaskSyscallTableWitnessHandoffTarget {
+        const TaskSyscallTableWitness* witness{nullptr};
+
+        [[nodiscard]] constexpr std::string_view entry_name() const noexcept
+        {
+            return "task-syscall-table-witness";
+        }
+
+        [[nodiscard]] constexpr std::string_view
+        selected_summary_path() const noexcept
+        {
+            return witness != nullptr ? witness->summary_path()
+                                      : std::string_view{
+                                            "task-syscall-table-witness.summary"};
+        }
+    };
+
+    static_assert(semantic::WitnessCarrier<TaskSyscallTableWitness>);
+    static_assert(semantic::HandoffTarget<TaskSyscallTableWitnessHandoffTarget>);
+
     [[nodiscard]] constexpr TaskSyscallRequest
     task_syscall_request_from_trace_event(
         const TaskSyscallTableTraceEvent& event) noexcept
@@ -124,6 +237,43 @@ export namespace kernel {
     {
         return task_syscall_semantic_projection(
             task_syscall_request_from_trace_event(event));
+    }
+
+    [[nodiscard]] constexpr TaskSyscallTableWitness
+    task_syscall_table_witness(const TaskSyscallTableTraceEvent& event) noexcept
+    {
+        return TaskSyscallTableWitness{
+            .sequence = event.sequence,
+            .ready = event.sequence != 0u,
+            .has_trace = true,
+            .syscall = event.syscall,
+            .trap_service = event.trap_service,
+            .slot = event.slot,
+            .matched = event.matched,
+            .handler_valid = event.handler_valid,
+            .disposition = event.disposition,
+            .error = event.error,
+            .arg0 = event.arg0,
+            .arg1 = event.arg1,
+            .arg2 = event.arg2,
+            .arg3 = event.arg3,
+            .value = event.value,
+        };
+    }
+
+    [[nodiscard]] constexpr bool task_syscall_table_witness_ready(
+        const TaskSyscallTableWitness& witness) noexcept
+    {
+        return witness.ready;
+    }
+
+    [[nodiscard]] constexpr TaskSyscallTableWitnessHandoffTarget
+    task_syscall_table_witness_handoff_target(
+        const TaskSyscallTableWitness& witness) noexcept
+    {
+        return TaskSyscallTableWitnessHandoffTarget{
+            .witness = &witness,
+        };
     }
 
     template <std::size_t Capacity>
@@ -163,6 +313,19 @@ export namespace kernel {
         std::size_t head_{0};
         std::size_t size_{0};
     };
+
+    template <std::size_t Capacity>
+    [[nodiscard]] constexpr TaskSyscallTableWitness task_syscall_table_witness(
+        const TaskSyscallTableTraceBuffer<Capacity>& trace) noexcept
+    {
+        const auto* terminal =
+            trace.size() == 0u ? nullptr : trace.at(trace.size() - 1u);
+        if (terminal == nullptr) {
+            return TaskSyscallTableWitness{};
+        }
+
+        return task_syscall_table_witness(*terminal);
+    }
 
     template <std::size_t Capacity,
               typename TraceBuffer = TaskSyscallTableTraceBuffer<1>>

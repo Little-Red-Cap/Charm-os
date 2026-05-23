@@ -3,6 +3,7 @@ module;
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <string_view>
 
 export module kernel.runtime_trap;
 
@@ -10,6 +11,7 @@ import kernel.context;
 import kernel.eda;
 import kernel.evt;
 export import kernel.runtime_bridge;
+import semantic.core;
 import util.core;
 
 export namespace kernel {
@@ -231,6 +233,21 @@ export namespace kernel {
         bool task_valid{false};
     };
 
+    static_assert(
+        semantic::reflected_member_names_match_when_enabled<TrapRequest>(
+        std::array<std::string_view, 11>{
+            "service",
+            "arg0",
+            "arg1",
+            "arg2",
+            "arg3",
+            "return_pc",
+            "stack_pointer",
+            "status",
+            "origin",
+            "task",
+            "task_valid"}));
+
     struct TrapFrameView {
         util::u16 service_id{0};
         util::u64 arg0{0};
@@ -244,6 +261,21 @@ export namespace kernel {
         TaskId task{};
         bool task_valid{false};
     };
+
+    static_assert(
+        semantic::reflected_member_names_match_when_enabled<TrapFrameView>(
+        std::array<std::string_view, 11>{
+            "service_id",
+            "arg0",
+            "arg1",
+            "arg2",
+            "arg3",
+            "return_pc",
+            "stack_pointer",
+            "status",
+            "origin",
+            "task",
+            "task_valid"}));
 
     struct TrapYieldCurrentView {
     };
@@ -372,26 +404,15 @@ export namespace kernel {
         }
     };
 
-    struct TrapSemanticField {
-        const char* name{"arg0"};
-        util::u64 value{0};
-    };
-
-    struct TrapSemanticProjection {
-        TrapServiceCatalogEntry descriptor{};
-        std::array<TrapSemanticField, 4> fields{};
-        util::u8 field_count{0};
-        const char* result_name{"value"};
-    };
+    using TrapSemanticField = semantic::NamedValue<util::u64>;
+    using TrapSemanticProjection =
+        semantic::Projection<TrapServiceCatalogEntry, TrapSemanticField, 4>;
 
     [[nodiscard]] constexpr TrapSemanticField trap_semantic_field(
         const char* name,
         util::u64 value) noexcept
     {
-        return TrapSemanticField{
-            .name = name,
-            .value = value,
-        };
+        return semantic::named_value(name, value);
     }
 
     [[nodiscard]] constexpr TrapSemanticProjection trap_semantic_projection(
@@ -400,60 +421,47 @@ export namespace kernel {
         const auto descriptor = trap_service_catalog_entry(request.service);
         switch (descriptor.view_kind) {
         case TrapServiceViewKind::yield_current:
-            return TrapSemanticProjection{
-                .descriptor = descriptor,
-                .fields = {},
-                .field_count = 0,
-                .result_name = descriptor.result_name,
-            };
+            return semantic::make_projection(
+                descriptor, std::array<TrapSemanticField, 4>{}, 0u, descriptor.result_name);
         case TrapServiceViewKind::sleep_until:
-            return TrapSemanticProjection{
-                .descriptor = descriptor,
-                .fields = {
-                    trap_semantic_field(descriptor.wire_argument_names[0],
-                                        request.arg0),
+            return semantic::make_projection(
+                descriptor,
+                std::array<TrapSemanticField, 4>{
+                    trap_semantic_field(descriptor.wire_argument_names[0], request.arg0),
                 },
-                .field_count = 1,
-                .result_name = descriptor.result_name,
-            };
+                1u,
+                descriptor.result_name);
         case TrapServiceViewKind::debug_write:
-            return TrapSemanticProjection{
-                .descriptor = descriptor,
-                .fields = {
-                    trap_semantic_field(descriptor.wire_argument_names[0],
-                                        request.arg0),
+            return semantic::make_projection(
+                descriptor,
+                std::array<TrapSemanticField, 4>{
+                    trap_semantic_field(descriptor.wire_argument_names[0], request.arg0),
                 },
-                .field_count = 1,
-                .result_name = descriptor.result_name,
-            };
+                1u,
+                descriptor.result_name);
         case TrapServiceViewKind::capability_call:
-            return TrapSemanticProjection{
-                .descriptor = descriptor,
-                .fields = {
-                    trap_semantic_field(descriptor.wire_argument_names[0],
-                                        request.arg0),
-                    trap_semantic_field(descriptor.wire_argument_names[1],
-                                        request.arg1),
-                    trap_semantic_field(descriptor.wire_argument_names[2],
-                                        request.arg2),
+            return semantic::make_projection(
+                descriptor,
+                std::array<TrapSemanticField, 4>{
+                    trap_semantic_field(descriptor.wire_argument_names[0], request.arg0),
+                    trap_semantic_field(descriptor.wire_argument_names[1], request.arg1),
+                    trap_semantic_field(descriptor.wire_argument_names[2], request.arg2),
                 },
-                .field_count = 3,
-                .result_name = descriptor.result_name,
-            };
+                3u,
+                descriptor.result_name);
         case TrapServiceViewKind::invalid:
         case TrapServiceViewKind::opaque:
         default:
-            return TrapSemanticProjection{
-                .descriptor = descriptor,
-                .fields = {
+            return semantic::make_projection(
+                descriptor,
+                std::array<TrapSemanticField, 4>{
                     trap_semantic_field("arg0", request.arg0),
                     trap_semantic_field("arg1", request.arg1),
                     trap_semantic_field("arg2", request.arg2),
                     trap_semantic_field("arg3", request.arg3),
                 },
-                .field_count = 4,
-                .result_name = descriptor.result_name,
-            };
+                4u,
+                descriptor.result_name);
         }
     }
 

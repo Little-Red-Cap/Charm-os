@@ -2,10 +2,12 @@ module;
 
 #include <array>
 #include <cstddef>
+#include <string_view>
 
 export module kernel.task_message_session_protocol;
 
 export import kernel.task_message_session_endpoint;
+import semantic.core;
 import util.core;
 
 export namespace kernel {
@@ -214,6 +216,259 @@ export namespace kernel {
         util::u64 value{0};
     };
 
+    static_assert(
+        semantic::reflected_member_names_match_when_enabled<
+            TaskMessageSessionProtocolTraceEvent>(
+            std::array<std::string_view, 17>{
+                "sequence",
+                "kind",
+                "service_id",
+                "service_name",
+                "session_handle",
+                "open_payload",
+                "channel_slot",
+                "operation",
+                "operation_name",
+                "payload",
+                "slot",
+                "matched",
+                "handler_valid",
+                "close_handler_valid",
+                "disposition",
+                "error",
+                "value",
+            }));
+
+    struct TaskMessageSessionProtocolWitness {
+        util::u64 sequence{0};
+        bool ready{false};
+        bool has_trace{false};
+        TaskMessageSessionProtocolTraceKind kind{
+            TaskMessageSessionProtocolTraceKind::request};
+        util::u64 service_id{0};
+        util::u64 session_handle{0};
+        util::u64 open_payload{0};
+        util::u16 channel_slot{task_message_session_channel_unmapped_slot};
+        util::u64 operation{0};
+        util::u64 payload{0};
+        util::u16 slot{task_message_session_protocol_unmapped_slot};
+        bool matched{false};
+        bool handler_valid{false};
+        bool close_handler_valid{false};
+        TrapDisposition disposition{TrapDisposition::unsupported};
+        TrapError error{TrapError::unsupported_service};
+        util::u64 value{0};
+
+        [[nodiscard]] constexpr bool request_handler_branch_ok() const noexcept
+        {
+            return kind == TaskMessageSessionProtocolTraceKind::request &&
+                   matched && handler_valid &&
+                   slot != task_message_session_protocol_unmapped_slot;
+        }
+
+        [[nodiscard]] constexpr bool request_unmapped_branch_ok() const noexcept
+        {
+            return kind == TaskMessageSessionProtocolTraceKind::request &&
+                   !matched && !handler_valid &&
+                   slot == task_message_session_protocol_unmapped_slot &&
+                   disposition == TrapDisposition::unsupported &&
+                   error == TrapError::unsupported_service;
+        }
+
+        [[nodiscard]] constexpr bool request_unbound_branch_ok() const noexcept
+        {
+            return kind == TaskMessageSessionProtocolTraceKind::request &&
+                   matched && !handler_valid &&
+                   slot != task_message_session_protocol_unmapped_slot &&
+                   disposition == TrapDisposition::rejected &&
+                   error == TrapError::unbound_adapter;
+        }
+
+        [[nodiscard]] constexpr bool close_branch_ok() const noexcept
+        {
+            const bool default_close_ok =
+                !close_handler_valid &&
+                disposition == TrapDisposition::handled &&
+                error == TrapError::none && value == 0u;
+            return kind == TaskMessageSessionProtocolTraceKind::close &&
+                   operation == task_message_session_close_operation &&
+                   slot == task_message_session_protocol_unmapped_slot &&
+                   !matched && !handler_valid &&
+                   (close_handler_valid || default_close_ok);
+        }
+
+        [[nodiscard]] constexpr bool ok() const noexcept
+        {
+            return verdict() == semantic::Verdict::standing;
+        }
+
+        [[nodiscard]] constexpr semantic::Result result() const noexcept
+        {
+            return verdict() == semantic::Verdict::standing
+                       ? semantic::Result::ok
+                       : semantic::Result::failed;
+        }
+
+        [[nodiscard]] constexpr semantic::Verdict verdict() const noexcept
+        {
+            if (!ready) {
+                return semantic::Verdict::collapsed;
+            }
+
+            if (request_handler_branch_ok() ||
+                request_unmapped_branch_ok() ||
+                request_unbound_branch_ok() || close_branch_ok()) {
+                return semantic::Verdict::standing;
+            }
+
+            return semantic::Verdict::drifted;
+        }
+
+        [[nodiscard]] constexpr semantic::FailureDomain
+        failure_domain() const noexcept
+        {
+            if (!ready) {
+                return semantic::FailureDomain::input;
+            }
+
+            if (verdict() == semantic::Verdict::standing) {
+                return semantic::FailureDomain::none;
+            }
+
+            if (kind == TaskMessageSessionProtocolTraceKind::request) {
+                if (!matched ||
+                    slot == task_message_session_protocol_unmapped_slot) {
+                    return semantic::FailureDomain::selection;
+                }
+
+                if (!handler_valid) {
+                    return semantic::FailureDomain::handoff;
+                }
+
+                return semantic::FailureDomain::route;
+            }
+
+            if (kind == TaskMessageSessionProtocolTraceKind::close) {
+                return semantic::FailureDomain::handoff;
+            }
+
+            return semantic::FailureDomain::input;
+        }
+
+        [[nodiscard]] constexpr std::string_view summary_path() const noexcept
+        {
+            return "task-message-session-protocol-witness.summary";
+        }
+    };
+
+    struct TaskMessageSessionProtocolWitnessHandoffTarget {
+        const TaskMessageSessionProtocolWitness* witness{nullptr};
+
+        [[nodiscard]] constexpr std::string_view entry_name() const noexcept
+        {
+            return "task-message-session-protocol-witness";
+        }
+
+        [[nodiscard]] constexpr std::string_view
+        selected_summary_path() const noexcept
+        {
+            return witness != nullptr ? witness->summary_path()
+                                      : std::string_view{
+                                            "task-message-session-protocol-witness.summary"};
+        }
+    };
+
+    static_assert(
+        semantic::reflected_member_names_match_when_enabled<
+            TaskMessageSessionProtocolWitness>(
+            std::array<std::string_view, 17>{
+                "sequence",
+                "ready",
+                "has_trace",
+                "kind",
+                "service_id",
+                "session_handle",
+                "open_payload",
+                "channel_slot",
+                "operation",
+                "payload",
+                "slot",
+                "matched",
+                "handler_valid",
+                "close_handler_valid",
+                "disposition",
+                "error",
+                "value",
+            }));
+
+    static_assert(semantic::WitnessCarrier<TaskMessageSessionProtocolWitness>);
+    static_assert(
+        semantic::HandoffTarget<
+            TaskMessageSessionProtocolWitnessHandoffTarget>);
+
+    [[nodiscard]] constexpr TaskMessageSessionProtocolWitness
+    task_message_session_protocol_witness(
+        const TaskMessageSessionProtocolDispatchResult& result) noexcept
+    {
+        return TaskMessageSessionProtocolWitness{
+            .ready = true,
+            .kind = result.kind,
+            .service_id = result.endpoint.service_id,
+            .session_handle = result.endpoint.session_handle,
+            .open_payload = result.endpoint.open_payload,
+            .channel_slot = result.endpoint.channel_slot,
+            .operation = result.operation,
+            .payload = result.payload,
+            .slot = result.slot,
+            .matched = result.matched,
+            .handler_valid = result.handler_valid,
+            .close_handler_valid = result.close_handler_valid,
+            .disposition = result.trap.disposition,
+            .error = result.trap.error,
+            .value = result.trap.value,
+        };
+    }
+
+    [[nodiscard]] constexpr TaskMessageSessionProtocolWitness
+    task_message_session_protocol_witness(
+        const TaskMessageSessionProtocolTraceEvent& event) noexcept
+    {
+        return TaskMessageSessionProtocolWitness{
+            .sequence = event.sequence,
+            .ready = event.sequence != 0u,
+            .has_trace = true,
+            .kind = event.kind,
+            .service_id = event.service_id,
+            .session_handle = event.session_handle,
+            .open_payload = event.open_payload,
+            .channel_slot = event.channel_slot,
+            .operation = event.operation,
+            .payload = event.payload,
+            .slot = event.slot,
+            .matched = event.matched,
+            .handler_valid = event.handler_valid,
+            .close_handler_valid = event.close_handler_valid,
+            .disposition = event.disposition,
+            .error = event.error,
+            .value = event.value,
+        };
+    }
+
+    [[nodiscard]] constexpr bool task_message_session_protocol_witness_ready(
+        const TaskMessageSessionProtocolWitness& witness) noexcept
+    {
+        return witness.ready;
+    }
+
+    [[nodiscard]] constexpr TaskMessageSessionProtocolWitnessHandoffTarget
+    task_message_session_protocol_witness_handoff_target(
+        const TaskMessageSessionProtocolWitness& witness) noexcept
+    {
+        return TaskMessageSessionProtocolWitnessHandoffTarget{
+            .witness = &witness,
+        };
+    }
+
     template <std::size_t Capacity>
     class TaskMessageSessionProtocolTraceBuffer {
     public:
@@ -251,6 +506,20 @@ export namespace kernel {
         std::size_t head_{0};
         std::size_t size_{0};
     };
+
+    template <std::size_t Capacity>
+    [[nodiscard]] constexpr TaskMessageSessionProtocolWitness
+    task_message_session_protocol_witness(
+        const TaskMessageSessionProtocolTraceBuffer<Capacity>& trace) noexcept
+    {
+        const auto* terminal =
+            trace.size() == 0u ? nullptr : trace.at(trace.size() - 1u);
+        if (terminal == nullptr) {
+            return TaskMessageSessionProtocolWitness{};
+        }
+
+        return task_message_session_protocol_witness(*terminal);
+    }
 
     template <std::size_t Capacity,
               typename TraceBuffer =

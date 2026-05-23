@@ -4,6 +4,7 @@
 #include <string_view>
 
 import kernel.task_message_session_protocol_schema;
+import semantic.core;
 
 namespace demo {
     using namespace std::literals;
@@ -201,6 +202,16 @@ namespace demo {
             return false;
         }
 
+        const auto result_witness =
+            kernel::task_message_session_protocol_witness(result);
+        const auto event_witness =
+            kernel::task_message_session_protocol_witness(*event);
+        const auto terminal_witness =
+            kernel::task_message_session_protocol_witness(trace);
+        const auto handoff =
+            kernel::task_message_session_protocol_witness_handoff_target(
+                terminal_witness);
+
         return binding.valid() &&
                same_text(binding.schema().operation_name, "echo-request"sv) &&
                trap_result_matches(result.trap,
@@ -237,7 +248,24 @@ namespace demo {
                event->slot == 0u &&
                event->matched &&
                event->handler_valid &&
-               event->value == kSessionHandle + kEchoOperation + kEchoPayload;
+               event->value == kSessionHandle + kEchoOperation + kEchoPayload &&
+               result_witness.verdict() == semantic::Verdict::standing &&
+               result_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
+               result_witness.request_handler_branch_ok() &&
+               kernel::task_message_session_protocol_witness_ready(
+                   event_witness) &&
+               event_witness.verdict() == semantic::Verdict::standing &&
+               event_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
+               event_witness.request_handler_branch_ok() &&
+               terminal_witness.verdict() == semantic::Verdict::standing &&
+               terminal_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
+               std::string_view{handoff.entry_name()} ==
+                   "task-message-session-protocol-witness"sv &&
+               std::string_view{handoff.selected_summary_path()} ==
+                   "task-message-session-protocol-witness.summary"sv;
     }
 }
 
@@ -252,5 +280,9 @@ int main()
         ok ? 1 : 0,
         catalog_ok ? 1 : 0,
         binding_ok ? 1 : 0);
+    std::printf(
+        "[runtime-task-message-session-protocol-schema-witness] ok=%d summary=%s\n",
+        ok ? 1 : 0,
+        kernel::TaskMessageSessionProtocolWitness{}.summary_path().data());
     return ok ? 0 : 1;
 }

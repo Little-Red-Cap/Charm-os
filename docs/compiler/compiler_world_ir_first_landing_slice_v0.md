@@ -29,6 +29,7 @@ source facts
 这一条窄链路是可成立的。
 
 当前 static reflection 的三段式最小原型见：[`compiler_static_reflection_three_stage_prototype_v0.md`](compiler_static_reflection_three_stage_prototype_v0.md)。
+hosted reflection extraction 的只读 surface 边界见：[`compiler_hosted_reflection_extraction_surface_v0.md`](compiler_hosted_reflection_extraction_surface_v0.md)。
 
 ## 2. 切片范围
 

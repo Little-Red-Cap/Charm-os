@@ -34,6 +34,8 @@ front-page、opening-flow、witness、biography、world compare 等材料只作�
 
 `Compiler Pass Authority & Semantic Freeze Boundary v0` 是 constitution 的下游执法细则，用来约束 pass 权限、identity preservation、world fork、lossy lowering 与 paired artifact。它不定义 `World IR` 形状，也不替代本路线图。
 
+`Compiler Hosted Reflection Extraction Surface v0` 约束 C++26 static reflection 的第一条落地边界：`<meta>` 只能进入 hosted extraction，firmware 只消费 generated freestanding residue。它让 static reflection 成为 extraction 工具，而不是提前把 LLVM/World IR/codegen 或 hosted libstdc++ 依赖拖进固件路径。
+
 ## 0. 一句话宣言
 
 Charm 的长期目标，不是继续堆叠子系统，而是把嵌入式系统从“手工工程”推进为“可编译系统”。

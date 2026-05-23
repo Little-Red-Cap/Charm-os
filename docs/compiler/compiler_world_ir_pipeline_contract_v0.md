@@ -44,6 +44,8 @@ ingress
 - 可以做结构化归一，但不得改写 provenance。
 - 不得把 derived facts 冒充成已证明事实。
 
+当 extraction 使用 C++26 static reflection 时，`<meta>` 只能出现在 hosted extraction surface 中；firmware 侧只能消费 generated freestanding residue。该边界见：[`compiler_hosted_reflection_extraction_surface_v0.md`](compiler_hosted_reflection_extraction_surface_v0.md)。
+
 ### `normalize`
 
 - 把同一世界中的事实整理成可比较、可 lower 的稳定形态。

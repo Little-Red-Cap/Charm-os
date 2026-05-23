@@ -46,6 +46,7 @@ system compiler 的 front-page、opening-flow、witness、biography、world comp
 
 - [`compiler/charm_compiler_constitution_v0.md`](compiler/charm_compiler_constitution_v0.md)
 - [`compiler/compiler_pass_authority_and_freeze_boundary_v0.md`](compiler/compiler_pass_authority_and_freeze_boundary_v0.md)
+- [`compiler/compiler_hosted_reflection_extraction_surface_v0.md`](compiler/compiler_hosted_reflection_extraction_surface_v0.md)
 - [`architecture/system_compiler_roadmap.md`](architecture/system_compiler_roadmap.md)
 - [`architecture/system_compiler_vocabulary_v0.md`](architecture/system_compiler_vocabulary_v0.md)
 - [`system/artifact_report_v0.md`](system/artifact_report_v0.md)

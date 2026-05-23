@@ -2,6 +2,8 @@
 
 本文承接 [`compiler_world_ir_first_landing_slice_v0.md`](compiler_world_ir_first_landing_slice_v0.md)，定义 Charm 使用 C++26 static reflection 的第一条最小落地路线。
 
+hosted extraction 的读写边界、输出 residue 责任与 freestanding 禁区，见：[`compiler_hosted_reflection_extraction_surface_v0.md`](compiler_hosted_reflection_extraction_surface_v0.md)。
+
 核心判断：
 
 ```text
@@ -58,6 +60,8 @@ hosted reflection extraction
 当前探针入口：
 
 - [`../../scripts/compiler_static_reflection_three_stage_probe.ps1`](../../scripts/compiler_static_reflection_three_stage_probe.ps1)
+
+这条探针只证明 surface 边界：hosted TU 可以使用 `<meta>`，freestanding TU 只能消费 generated residue。它不证明完整 extractor、World IR、freeze receipt 或 artifact lineage。
 
 ## 4. 与 World Pipeline 的关系
 

@@ -17,9 +17,11 @@ import kernel.task_message_session_dispatch;
 import kernel.task_message_session_endpoint;
 import kernel.task_message_session_protocol_schema;
 import kernel.task_message_session_service;
+import kernel.task_message_session_service_loop;
 import kernel.task_state;
 import kernel.task_syscall_table;
 import kernel.thread;
+import semantic.core;
 
 namespace demo {
     using namespace std::literals;
@@ -1577,6 +1579,12 @@ int main()
         demo::inspect_protocol_trace(protocol_traces[0]);
     const bool service_trace_ok = demo::inspect_service_trace(service_trace);
     const bool pump_trace_ok = demo::inspect_pump_trace(pump_trace);
+    const auto service_loop_witness =
+        kernel::task_message_session_service_loop_witness(session_trace,
+                                                          acceptor_trace,
+                                                          protocol_traces[0],
+                                                          service_trace,
+                                                          pump_trace);
     const auto session_slot = session_service.session(0u);
     const auto lookup =
         session_service.lookup_session(demo::kBaseSessionHandle);
@@ -1702,8 +1710,27 @@ int main()
     const bool ok =
         completion_records_ok && service_ok && surface_ok && runtime_ok &&
         dispatcher_ok && dispatch_trace_ok && acceptor_trace_ok &&
-        protocol_trace_ok && service_trace_ok && pump_trace_ok;
+        protocol_trace_ok && service_trace_ok && pump_trace_ok &&
+        service_loop_witness.ok();
 
+    std::printf(
+        "[runtime-task-message-session-service-loop-witness] ok=%d verdict=%s domain=%s bootstrap=%s timeout=%s open_dispatch=%s open_service=%s roundtrip=%s close_dispatch=%s close_service=%s ghost_dispatch=%s ghost_service=%s summary=%s handoff=%d ownership=%d\n",
+        service_loop_witness.ok() ? 1 : 0,
+        semantic::verdict_name(service_loop_witness.verdict()),
+        semantic::failure_domain_name(
+            service_loop_witness.failure_domain()),
+        semantic::verdict_name(service_loop_witness.bootstrap.verdict()),
+        semantic::verdict_name(service_loop_witness.timeout.verdict()),
+        semantic::verdict_name(service_loop_witness.open_dispatch.verdict()),
+        semantic::verdict_name(service_loop_witness.open_service.verdict()),
+        semantic::verdict_name(service_loop_witness.roundtrip.verdict()),
+        semantic::verdict_name(service_loop_witness.close_dispatch.verdict()),
+        semantic::verdict_name(service_loop_witness.close_service.verdict()),
+        semantic::verdict_name(service_loop_witness.ghost_dispatch.verdict()),
+        semantic::verdict_name(service_loop_witness.ghost_service.verdict()),
+        service_loop_witness.summary_path().data(),
+        service_loop_witness.handoff_ready ? 1 : 0,
+        service_loop_witness.ownership_path ? 1 : 0);
     std::printf(
         "[runtime-task-message-session-service-loop-demo] ok=%d valid=%d server_boot=%d client_boot=%d completions=%zu served=%zu timeouts=%u idle=%u active_sessions=%zu active_channels=%zu pending_frames=%zu pending_req=%zu pending_reply=%zu pump_req=%zu pump_completion=%zu waiting=%d loops=%llu\n",
         ok ? 1 : 0,

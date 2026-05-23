@@ -22,6 +22,7 @@
 - `TaskMessageSessionServiceTraceEvent`
 - `TaskMessageSessionServiceTraceBuffer<Capacity>`
 - `TaskMessageSessionServiceResult<RawPumpResult>`
+- `TaskMessageSessionServiceWitness`
 - `TaskMessageSessionService<Pump, SessionDispatcher, SessionAcceptor, TraceBuffer>`
 - `make_task_message_session_service(...)`
 
@@ -80,6 +81,7 @@
 `Examples/kernel/runtime_task_message_session_service_loop_host` 现在进一步证明：
 - server task body 已经能由 `task_message_session_service` 真实持有 wait/timeout/drain ownership
 - 即便 client 侧只走 raw `sys_capability_call(...)`，server-side session service loop 仍能稳定闭环
+- service witness 会把纯 timeout/rearm 分支作为 standing leg，而不是误归入 dispatch drift
 
 ## 当前没有证明什么
 

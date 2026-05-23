@@ -10,12 +10,19 @@
 - `kernel.task_message_session_protocol_schema`
 - `kernel.task_message_session_protocol`
 - `kernel.task_message_session_dispatch`
+- `kernel.task_message_session_service_loop`
 
 它们第一次被焊成了一条“server-side session ownership 由真实 service task loop 持有”的 live 路径。
 
 对应 live verifier：
 
 - `Examples/kernel/runtime_task_message_session_service_loop_host`
+
+当前 service-loop semantic witness 已经从 host-local 检查提升为：
+
+- `Modules/system/kernel/task_message_session_service_loop.cppm`
+- `TaskMessageSessionServiceLoopWitness`
+- `task_message_session_service_loop_witness(...)`
 
 ## 一句话版本
 
@@ -57,6 +64,10 @@
    - verifier 结束时 mailbox / frame store / syscall pump / runtime service 都回到空闲
    - `session_service.active_sessions() == 0`
    - `session_service.active_channels() == 0`
+6. semantic witness seam
+   - bootstrap / timeout / open dispatch / open service / request roundtrip / close dispatch / close service / ghost dispatch / ghost service 九段 witness 必须同时 standing
+   - handoff target 必须可用
+   - ownership path 必须证明 `service_id / session_handle / reply_value / active session/channel` 在 open、request、close、unsupported open 路径上一致
 
 ## 当前组合路径
 
@@ -79,6 +90,9 @@
    - `kernel.task_message_session_endpoint`
    - `kernel.task_message_session_protocol_schema`
    - `kernel.task_message_session_protocol`
+4. witness：
+   - `kernel.task_message_session_service_loop`
+   - `kernel.task_message_session_roundtrip`
 
 和 `runtime_task_message_session_roundtrip_host` 的区别是：
 
@@ -108,6 +122,9 @@
   - `Examples/kernel/runtime_task_message_session_service_loop_host`
 - full smoke：
   - `scripts/minimal_kernel_runtime_host_smoke.ps1`
+- semantic witness ladder：
+  - `scripts/semantic_witness_ladder_smoke.ps1`
+  - [`minimal_kernel_semantic_witness_ladder_smoke_contract.md`](minimal_kernel_semantic_witness_ladder_smoke_contract.md)
 
 当前 verifier 至少覆盖这几类可观察证据：
 

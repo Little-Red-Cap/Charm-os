@@ -57,6 +57,9 @@
 
 - 主机调试：`cmake --preset host-debug`
 - 主机构建：`cmake --build --preset host-debug`
+- 主机 GCC16 调试：`cmake --preset host-gcc16`
+- 主机 GCC16 构建：`cmake --build --preset host-gcc16`
+  默认关闭 `WinSock` 后端，优先作为 GCC16 / C++26 模块与语义实编入口
 - RK3506 最小镜像：`cmake --preset rk3506-baremetal-image-uart0-minimal-debug`
 - RK3506 最小镜像构建：`cmake --build --preset rk3506-baremetal-image-uart0-minimal-debug`
 

@@ -2,9 +2,11 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <string_view>
 
 import kernel.evt;
 import kernel.task_message_runtime_service;
+import semantic.core;
 
 namespace demo {
     using Tick = std::uint64_t;
@@ -318,6 +320,63 @@ namespace demo {
                result.value == value;
     }
 
+    [[nodiscard]] constexpr kernel::TaskMessageSyscallPumpWitness
+    make_pump_witness_from_step(const FakeStepResult& result) noexcept
+    {
+        auto witness = kernel::TaskMessageSyscallPumpWitness{};
+        if (result.completion_dropped) {
+            witness.ready = true;
+            witness.kind = kernel::TaskMessageSyscallPumpTraceKind::completion_drop;
+            witness.owner = result.completion.owner;
+            witness.token = result.completion.token;
+            witness.request_sequence = result.completion.request_sequence;
+            witness.timeout = result.completion.timeout;
+            witness.reply_value = result.completion.trap.value;
+            witness.disposition = result.completion.trap.disposition;
+            witness.error = result.completion.trap.error;
+            return witness;
+        }
+
+        if (result.completion_ready) {
+            witness.ready = true;
+            witness.has_trace = true;
+            witness.terminal_ok = result.completion_pushed;
+            witness.kind = result.completion.timeout
+                               ? kernel::TaskMessageSyscallPumpTraceKind::timeout
+                               : kernel::TaskMessageSyscallPumpTraceKind::reply;
+            witness.owner = result.completion.owner;
+            witness.token = result.completion.token;
+            witness.request_sequence = result.completion.request_sequence;
+            witness.timeout = result.completion.timeout;
+            witness.reply_value = result.completion.trap.value;
+            witness.disposition = result.completion.trap.disposition;
+            witness.error = result.completion.trap.error;
+            return witness;
+        }
+
+        if (result.issued) {
+            witness.ready = true;
+            witness.has_trace = true;
+            witness.terminal_ok = true;
+            witness.kind = kernel::TaskMessageSyscallPumpTraceKind::issue;
+            witness.owner = result.issued_request.owner;
+            witness.token = result.issued_request.token;
+            witness.request_sequence = result.issued_request.request_sequence;
+            witness.wait_due = result.issued_request.wait_due;
+        }
+
+        return witness;
+    }
+
+    [[nodiscard]] constexpr FakeStepResult
+    make_issue_only_step(const Request& request) noexcept
+    {
+        return FakeStepResult{
+            .issued = true,
+            .issued_request = request,
+        };
+    }
+
     [[nodiscard]] bool probe_default_unbound_remote_service() noexcept
     {
         kernel::TaskMessageRuntimeServiceFacade<FakePump> facade{};
@@ -360,6 +419,10 @@ namespace demo {
 
         std::array<Completion, 5> completions{};
         auto reply_result = facade.step(make_reply_event());
+        const auto reply_lower = make_pump_witness_from_step(reply_result);
+        const auto reply_witness =
+            kernel::task_message_runtime_service_witness(
+                facade, reply_result, reply_lower);
         if (!reply_result.progressed || !reply_result.completion_ready ||
             !reply_result.completion_pushed || !reply_result.issued ||
             !facade.receive_completion(completions[0])) {
@@ -370,6 +433,12 @@ namespace demo {
         auto step3 = facade.step(make_reply_event());
         auto step4 = facade.step(make_reply_event());
         auto step5 = facade.step(make_reply_event());
+        const auto issued_only = make_issue_only_step(step4.issued_request);
+        const auto issued_witness =
+            kernel::task_message_runtime_service_witness(facade, issued_only);
+        const auto issued_handoff =
+            kernel::task_message_runtime_service_witness_handoff_target(
+                issued_witness);
         if (!facade.receive_completion(completions[1]) ||
             !facade.receive_completion(completions[2]) ||
             !facade.receive_completion(completions[3]) ||
@@ -394,6 +463,25 @@ namespace demo {
                reply_result.issued_request.token == kBaseToken + 1u &&
                reply_result.issued_request.request_sequence ==
                    kBaseSequence + 1u &&
+               kernel::task_message_runtime_service_witness_ready(
+                   reply_witness) &&
+               reply_witness.verdict() == semantic::Verdict::standing &&
+               reply_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
+               reply_witness.has_lower_provenance &&
+               reply_witness.kind ==
+                   kernel::TaskMessageRuntimeServiceWitnessKind::reply &&
+               reply_witness.owner == kDefaultOwner &&
+               reply_witness.token == kBaseToken &&
+               reply_witness.request_sequence == kBaseSequence &&
+               reply_witness.reply_value == 1u &&
+               issued_witness.verdict() == semantic::Verdict::standing &&
+               issued_witness.kind ==
+                   kernel::TaskMessageRuntimeServiceWitnessKind::issue &&
+               std::string_view{issued_handoff.entry_name()} ==
+                   "task-message-runtime-service-witness" &&
+               std::string_view{issued_handoff.selected_summary_path()} ==
+                   "task-message-runtime-service-witness.summary" &&
                reply_result.issued_request.request.syscall ==
                    kernel::TaskSyscallId::sleep_until &&
                reply_result.issued_request.request.arg0 == 42u &&
@@ -469,6 +557,10 @@ namespace demo {
             30u);
         const bool kicked = facade.kick();
         const auto timed = facade.step(make_timeout_event());
+        const auto timed_lower = make_pump_witness_from_step(timed);
+        const auto timed_witness =
+            kernel::task_message_runtime_service_witness(
+                facade, timed, timed_lower);
         Completion completion{};
         const bool received = facade.receive_completion(completion);
 
@@ -481,6 +573,10 @@ namespace demo {
         const bool rebound_enqueue = facade.debug_write(kExplicitOwner, 0x55u, 22u);
         const bool rebound_kick = facade.kick();
         const auto rebound = facade.step(make_reply_event());
+        const auto rebound_lower = make_pump_witness_from_step(rebound);
+        const auto rebound_witness =
+            kernel::task_message_runtime_service_witness(
+                facade, rebound, rebound_lower);
         Completion rebound_completion{};
         const bool rebound_receive =
             facade.receive_completion(rebound_completion);
@@ -491,12 +587,22 @@ namespace demo {
                completion.owner == kTimeoutOwner &&
                completion.token == kTimeoutToken &&
                completion.request_sequence == kTimeoutSequence &&
+               timed_witness.verdict() == semantic::Verdict::standing &&
+               timed_witness.kind ==
+                   kernel::TaskMessageRuntimeServiceWitnessKind::timeout &&
+               timed_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
                trap_result_matches(completion.trap,
                                    kernel::TrapDisposition::rejected,
                                    kernel::TrapError::none) &&
                unbound_ok && rebound_enqueue && rebound_kick &&
                rebound.progressed && rebound.completion_ready &&
                rebound.completion_pushed && rebound_receive &&
+               rebound_witness.verdict() == semantic::Verdict::standing &&
+               rebound_witness.kind ==
+                   kernel::TaskMessageRuntimeServiceWitnessKind::reply &&
+               rebound_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
                !rebound_completion.timeout &&
                rebound_completion.owner == kExplicitOwner &&
                rebound_completion.token == 0xE1u &&

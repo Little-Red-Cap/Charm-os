@@ -10,11 +10,11 @@ import charm.system.init_block;
 import charm.system.init_input;
 import charm.system.init_i2c;
 import charm.system.init_spi;
+import charm.system.bringup.input_support;
 import charm.system.reactor_pump;
 import charm.system.init_usart;
 import charm.system.clock;
 import block.registry;
-import hal_input;
 import init.graph;
 import init.materialize;
 import init.node;
@@ -266,28 +266,7 @@ export namespace charm::system {
                                      void* sink_ctx,
                                      InputInitCfg cfg) noexcept {
             input_required_ = (desc.driver != nullptr);
-            if (!desc.driver) {
-                return;
-            }
-            InputInitCaps caps{
-                desc.service_cap,
-                desc.router_cap,
-                desc.pump_cap,
-                "system.clock",
-                "kernel.eda"
-            };
-            input_.emplace(hal::RawInputSource{*desc.driver},
-                           core_.clock,
-                           host.input_pump(),
-                           host.schedule_fn(),
-                           host.schedule_ctx(),
-                           host.post_demand_fn(),
-                           host.post_ctx(),
-                           host.input_pump_id(),
-                           sink,
-                           sink_ctx,
-                           cfg,
-                           caps);
+            (void)detail::emplace_input_chain_from_host(input_, desc, core_.clock, host, sink, sink_ctx, cfg);
         }
 
         void emplace_optional_peripherals() noexcept {

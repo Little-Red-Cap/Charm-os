@@ -6,10 +6,10 @@ export module charm.system.bringup.input;
 
 import charm.system.init_core;
 import charm.system.init_input;
+import charm.system.bringup.input_support;
 import charm.system.clock;
 import charm.system.reactor_pump;
 import block.registry;
-import hal_input;
 import init.graph;
 import init.materialize;
 import init.node;
@@ -43,28 +43,7 @@ export namespace charm::system {
                     host.post_ctx(),
                     host.pump_id(),
                     budget) {
-            if (!caps.input.driver) {
-                return;
-            }
-            InputInitCaps caps_cfg{
-                caps.input.service_cap,
-                caps.input.router_cap,
-                caps.input.pump_cap,
-                "system.clock",
-                "kernel.eda"
-            };
-            input_.emplace(hal::RawInputSource{*caps.input.driver},
-                           core_.clock,
-                           host.input_pump(),
-                           host.schedule_fn(),
-                           host.schedule_ctx(),
-                           host.post_demand_fn(),
-                           host.post_ctx(),
-                           host.input_pump_id(),
-                           sink,
-                           sink_ctx,
-                           cfg,
-                           caps_cfg);
+            (void)detail::emplace_input_chain_from_host(input_, caps.input, core_.clock, host, sink, sink_ctx, cfg);
         }
 
         util::Result<void> start(util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all),

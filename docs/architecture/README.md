@@ -28,7 +28,15 @@
 先读：
 
 - [`dependency_contract.md`](dependency_contract.md)
+- [`entry_surface_contract.md`](entry_surface_contract.md)
+- [`stable_entry_aggregate_contract.md`](stable_entry_aggregate_contract.md)
 - [`dependency_whitelist.md`](dependency_whitelist.md)
+- [`legacy_runtime_facade_retirement_contract.md`](legacy_runtime_facade_retirement_contract.md)
+
+如果问题具体是 `charm.foundation` / `charm.runtime` / `charm.domain` 是否还能作为入口，优先以
+[`entry_surface_contract.md`](entry_surface_contract.md) 为准；`dependency_whitelist.md` 只描述 opt-in 构建检查。
+如果问题是 `charm.core` / `charm.system` / `charm.ui.vivid` 这类稳定入口为什么可以宽，
+优先看 [`stable_entry_aggregate_contract.md`](stable_entry_aggregate_contract.md)。
 
 ### 我想看驱动模型和设备模型
 

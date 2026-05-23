@@ -20,6 +20,12 @@
 如果你想看 RTE 作为能力装配边界的 v0 契约，
 再看：`docs/architecture/rte_capability_composition_contract_v0.md`
 
+如果你想看稳定入口、兼容入口与退役入口的分类，
+再看：`docs/architecture/entry_surface_contract.md`
+
+如果你想看 `charm.core` / `charm.system` / `charm.ui.vivid` 这类稳定聚合入口为什么可以宽，
+再看：`docs/architecture/stable_entry_aggregate_contract.md`
+
 如果你想看 system compiler 的最小结论对象应该长什么样，
 再看：`docs/system/artifact_report_v0.md`
 
@@ -63,17 +69,18 @@ Charm（统一架构）
 └─ UI/Vivid（富 UI）
 ```
 
-## 1.0 兼容入口模块与推荐入口
+## 1.0 入口模块与推荐入口
 
 历史上，Charm 用顶层入口来表达 `Foundation -> Runtime -> Domains` 的依赖方向。
-当前这套入口已经进入“兼容保留 + 子系统入口优先”的状态：
+当前这套入口已经进入“明确退役历史门面 + 子系统入口优先”的状态：
 
-- Foundation 兼容入口：`charm.foundation`（compat facade -> `charm.core`）
-- Runtime 兼容入口：`charm.runtime`（compat facade -> `charm.system + charm.io + charm.net`）
+- Foundation 兼容入口：`charm.foundation`（兼容门面 -> `charm.core`）
+- Runtime 历史入口：`charm.runtime` 已退役，仅保留 tombstone 模块，不再作为可用导入入口
 - Domains 不再提供单独的 `charm.domain` 入口；Domain 层请直接使用：
   - `charm.media`
   - `charm.ui.ink`
   - `charm.ui.vivid`
+- 入口面分类与推荐入口详见 `docs/architecture/entry_surface_contract.md`
 
 推荐的新代码入口：
 
@@ -87,8 +94,11 @@ Charm（统一架构）
 
 补充约束：
 
-- `Modules/*` 新代码不应新增对 `charm.foundation / charm.runtime / charm.domain` 的依赖。
-- `Examples/*` 与历史样例可继续使用兼容入口，作为迁移过渡面。
+- `Modules/*`、`Examples/*`、`Draft/*` 都不应新增对 `charm.foundation / charm.runtime / charm.domain` 的依赖。
+- `charm.foundation` 暂不删除，但只保留迁移语义；first-party 源码当前不再依赖它。
+- `charm.runtime` 的退役契约见 `docs/architecture/legacy_runtime_facade_retirement_contract.md`。
+- `CHARM_ENABLE_DEPENDENCY_WHITELIST=ON` 可启用 opt-in 配置期检查，详见 `docs/architecture/dependency_whitelist.md`。
+- 稳定聚合入口的宽度解释见 `docs/architecture/stable_entry_aggregate_contract.md`。
 
 UI/Vivid 公开入口：
 - 正式 public：`charm.ui.vivid`
@@ -134,10 +144,10 @@ Modules/
   ui/ink/      # Charm-ink UI
   ui/vivid/    # Charm-vivid UI
   core/charm.foundation.cppm    # 兼容入口：Foundation
-  system/charm.runtime.cppm     # 兼容入口：Runtime
-  media/charm.media.cppm        # Domain 入口：Media
-  ui/ink/charm.ui.ink.cppm      # Domain 入口：UI/Ink
-  ui/vivid/charm.ui.vivid.cppm  # Domain 入口：UI/Vivid
+  system/charm.runtime.cppm     # 退役 tombstone：禁止作为入口使用
+  media/charm.media.cppm        # 稳定子系统入口：Media
+  ui/ink/charm.ui.ink.cppm      # 稳定子系统入口：UI/Ink
+  ui/vivid/charm.ui.vivid.cppm  # 稳定子系统入口：UI/Vivid
   thirdparty/  # dr_libs/etl 等第三方源码
   platform/    # win/... 及后续 MCU 平台
 
@@ -232,7 +242,7 @@ Charm.Foundation  <-  Charm.Runtime  <-  Charm.Domains
 其中：
 
 - `Charm.Foundation` 的兼容入口是 `charm.foundation`
-- `Charm.Runtime` 的兼容入口是 `charm.runtime`
+- `Charm.Runtime` 没有兼容总入口；使用 `charm.system` / `charm.io` / `charm.net` 或叶子模块
 - `Charm.Domains` 是概念层，不再对应单独的 `charm.domain` 模块入口
 ```
 

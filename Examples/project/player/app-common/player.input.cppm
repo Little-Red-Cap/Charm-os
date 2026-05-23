@@ -1,5 +1,6 @@
 module;
 
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 
@@ -119,6 +120,19 @@ export namespace player {
         std::uint8_t last_id{0};
     };
 
+    struct PlayerInputEventBatch {
+        static constexpr std::size_t capacity = 4;
+
+        PlayerInputEvent events[capacity]{};
+        std::size_t count{0};
+
+        void push(const PlayerInputEvent& event) noexcept {
+            if (count < capacity) {
+                events[count++] = event;
+            }
+        }
+    };
+
     inline std::optional<PlayerInputEvent> make_player_input_from_touch_sample(
         PlayerTouchAdapterState& state,
         const PlayerTouchSample& sample) noexcept {
@@ -157,5 +171,21 @@ export namespace player {
         return PlayerInputEvent::make_pointer(sample.ms,
                                               action,
                                               PlayerPointerSample{sample.down, sample.x, sample.y, sample.id});
+    }
+
+    inline PlayerInputEventBatch read_player_touch_events(PlayerTouchSampleSource source,
+                                                          PlayerTouchAdapterState& state) noexcept {
+        PlayerInputEventBatch out{};
+        while (out.count < PlayerInputEventBatch::capacity) {
+            auto sample = source.read();
+            if (!sample) {
+                break;
+            }
+            auto event = make_player_input_from_touch_sample(state, *sample);
+            if (event) {
+                out.push(*event);
+            }
+        }
+        return out;
     }
 }

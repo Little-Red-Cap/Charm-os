@@ -218,6 +218,37 @@
         return result;
     }
 
+    struct UiCiTouchSampleScript {
+        std::array<player::PlayerTouchSample, 4> samples{};
+        std::size_t count{0};
+        std::size_t index{0};
+    };
+
+    std::optional<player::PlayerTouchSample> ui_ci_read_touch_sample(void* ctx) noexcept {
+        auto* script = static_cast<UiCiTouchSampleScript*>(ctx);
+        if (!script || script->index >= script->count) {
+            return std::nullopt;
+        }
+        return script->samples[script->index++];
+    }
+
+    bool ui_ci_dispatch_touch_script(PlayerRuntime& runtime, UiCiTouchSampleScript& script) {
+        player::PlayerTouchAdapterState state{};
+        player::PlayerTouchSampleSource source{&script, &ui_ci_read_touch_sample};
+        bool dispatched = false;
+        while (script.index < script.count) {
+            const auto batch = player::read_player_touch_events(source, state);
+            if (batch.count == 0) {
+                break;
+            }
+            for (std::size_t i = 0; i < batch.count; ++i) {
+                runtime.dispatch_input(batch.events[i]);
+                dispatched = true;
+            }
+        }
+        return dispatched;
+    }
+
     int run_runtime_memory_smoke(const PreviewOptions& options) noexcept {
         player::ui::set_player_system_font_fallback_enabled(!options.disable_system_font_fallback);
         const auto result = run_memory_display_sink_probe(options);
@@ -287,19 +318,27 @@
             if (r.w > 0 && r.h > 0) {
                 const int cx = r.x + r.w / 2;
                 const int cy = r.y + r.h / 2;
-                ui_ci_pointer(runtime, 10, player::PlayerPointerAction::Down, true, cx, cy);
-                ui_ci_pointer(runtime, 11, player::PlayerPointerAction::Move, true, cx + 3, cy + 2);
-                ui_ci_pointer(runtime, 12, player::PlayerPointerAction::Up, false, cx + 3, cy + 2);
-                if (wait_for_page(player::PlayerPage::NowPlaying)
-                    || settle_now_playing_transition(player::PlayerPage::NowPlaying)) {
-                    ui_ci_emit("input_boundary_touch_home_to_now", true, nullptr);
+                UiCiTouchSampleScript script{
+                    .samples = {
+                        player::PlayerTouchSample{true, static_cast<float>(cx), static_cast<float>(cy), 0, 10},
+                        player::PlayerTouchSample{true, static_cast<float>(cx + 3), static_cast<float>(cy + 2), 0, 11},
+                        player::PlayerTouchSample{false, static_cast<float>(cx + 3), static_cast<float>(cy + 2), 0, 12},
+                        player::PlayerTouchSample{},
+                    },
+                    .count = 3,
+                    .index = 0,
+                };
+                if (ui_ci_dispatch_touch_script(runtime, script)
+                    && (wait_for_page(player::PlayerPage::NowPlaying)
+                        || settle_now_playing_transition(player::PlayerPage::NowPlaying))) {
+                    ui_ci_emit("board_touch_source_home_to_now", true, nullptr);
                 } else {
-                    ui_ci_emit("input_boundary_touch_home_to_now", false, "page_not_now");
+                    ui_ci_emit("board_touch_source_home_to_now", false, "page_not_now");
                     res.ok = false;
                     res.failed++;
                 }
             } else {
-                ui_ci_emit("input_boundary_touch_home_to_now", false, "bottom_hit_zero");
+                ui_ci_emit("board_touch_source_home_to_now", false, "bottom_hit_zero");
                 res.ok = false;
                 res.failed++;
             }

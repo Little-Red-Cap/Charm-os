@@ -38,6 +38,7 @@ For the current ownership map, host shell split, Vivid extraction candidates, an
 - `MemoryDisplaySink` is the portable/CI seam for SDRAM-style output. `player.runtime_probe` renders the real Player runtime into an external buffer and verifies present metadata.
 - `--runtime-memory-smoke` is the Windows host adapter entry for that probe: it runs before SDL initialization, builds the real `PlayerRuntime`, renders MD3 Player into an external memory surface, and exits without opening a host window.
 - SDL event decoding is isolated in a host input adapter include. The adapter now emits `PlayerInputEvent`; the Player app is the only place that bridges product input to Vivid raw input, wheel events, or controller commands.
+- `read_player_touch_events()` is the board touch adapter seam: board code owns sampling state/source, while app-common converts fixed-capacity touch samples into `PlayerInputEvent` batches.
 - Windows command-line preview flags are parsed into a host-local `PreviewOptions` structure; page controllers should not learn about argv shape.
 - Host feature defaults are composed by `PLAYER_HOST_PROFILE`; explicit `CHARM_PLAYER_HOST_*` cache values remain valid overrides for local experiments.
 - Windows preview resource defaults are composed by `product_player_host_resources.cmake`; common code reads them through `player.product_config`.
@@ -86,7 +87,7 @@ The matching input boundary is also small:
 - `PlayerInputEvent::Pointer` covers mouse and touch down/move/up/cancel samples.
 - `PlayerInputEvent::Wheel` is bridged by `player.app`, so host adapters no longer dispatch directly to `Scene`.
 - `PlayerInputEvent::Command` is delivered to the controller through `handle_input_command()`, where product actions map to page or playback semantics.
-- Board touch integration only needs to provide `{down, x, y, id, ms}` samples through the `PlayerTouchSampleSource` shape; it does not need to simulate SDL or know Vivid internals.
+- Board touch integration only needs to provide `{down, x, y, id, ms}` samples through the `PlayerTouchSampleSource` shape; `read_player_touch_events()` turns those samples into a fixed-capacity event batch. It does not need to simulate SDL or know Vivid internals.
 - `RawInputEvent` remains the Charm IO fact input below this boundary. It is no longer the Windows Player host adapter contract.
 
 This means Win32, Linux, SDL, and STM32 are peers at the adapter layer. None of them should leak into Player page builders or controller semantics.
@@ -100,8 +101,7 @@ This means Win32, Linux, SDL, and STM32 are peers at the adapter layer. None of 
 
 ## Next Cleanup Order
 
-1. Add a board SDRAM/LTDC adapter that consumes `PlayerDisplaySurface` and calls board cache/flush hooks.
-2. Define a board font provider/resource package path so file fonts stay a host implementation.
-3. Split time/diagnostics providers only where a concrete board target needs them.
-4. Group UI-CI evidence by subsystem once `main.ui_ci.inc` becomes hard to review.
-5. Replace controller-owned dynamic track/list caches with fixed-capacity storage where they enter MCU-strict paths.
+1. Define a board font provider/resource package path so file fonts stay a host implementation.
+2. Split time/diagnostics providers only where a concrete board target needs them.
+3. Group UI-CI evidence by subsystem once `main.ui_ci.inc` becomes hard to review.
+4. Replace controller-owned dynamic track/list caches with fixed-capacity storage where they enter MCU-strict paths.

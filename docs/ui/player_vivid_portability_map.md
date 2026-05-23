@@ -54,9 +54,10 @@ Current short form:
 - `player.runtime` is now the common lifecycle seam between product code and host/board adapters.
 - `player.runtime_probe` constructs the real MD3 runtime around externally supplied storage and renders it into external memory; `--runtime-memory-smoke` is only the Windows host entry for that proof.
 - `make_board_display_sink()` gives the future board adapter a named seam for cache clean, dirty flush, and present/flip callbacks without changing Player UI.
+- `read_player_touch_events()` gives the future board touch adapter a fixed-capacity path from sampled touch points to `PlayerInputEvent`.
 - Theme and time have useful seams, but their final provider shape should wait for a concrete portable Player target.
 - Dynamic containers fall into two buckets: product semantic state in the MD3 controller/storage/theme flow, and replaceable host implementation state in font cache, cover decode, screenshots, and UI-CI.
-- The next cleanup order should be concrete STM32H7 SDRAM/LTDC sink wiring, board touch adapter, font provider, time/diagnostics provider, then controller dynamic state slimming.
+- The next cleanup order should be font provider, time/diagnostics provider, UI-CI grouping, then controller dynamic state slimming.
 
 ## Portable UI Probe Contract
 
@@ -67,6 +68,7 @@ Current short form:
 - Host storage may remain enabled so the app can still exercise real library/player flows.
 - `--font-disable-system-fallback` should still pass `--ui-ci`.
 - `--runtime-memory-smoke --font-disable-system-fallback` should pass without initializing SDL, proving the same real Player runtime can be constructed around an externally supplied framebuffer.
+- `--ui-ci` should include a board-touch-style path that samples touch points through `PlayerTouchSampleSource` instead of simulating SDL events.
 - The expected success line remains `done ok=1 failed=0`.
 
 If this probe fails, the first question should be "which provider or resource boundary leaked?", not "which board format should we emulate?"

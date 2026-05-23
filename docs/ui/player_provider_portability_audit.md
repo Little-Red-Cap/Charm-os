@@ -26,7 +26,7 @@ It is intentionally narrower than a full embedded port plan. The goal is to make
 | Theme | Player-owned cover sampling feeds dynamic surface/text roles; Vivid owns reusable role application candidates. | Indirectly tied to cover decode availability. | Fixed-budget 128x128 sampling workspace, palette candidates, controller theme state. | Keep sampling in Player; consider moving role application rules into Vivid after more app pressure. |
 | Font | Product config carries font paths and sizes; host preview binds file fonts only when enabled. | `CHARM_PLAYER_HOST_FILE_FONTS`, `CHARM_PLAYER_PC_FONT_CACHE`; profile log prints `host_file_fonts`. | FreeType/VFS font buffers, Win32/GDI glyph cache vectors, preview argv strings. | Define a board font resource/provider contract before replacing file fonts. |
 | Runtime | `player.runtime` owns product lifecycle; `player.runtime_probe` owns reusable memory-surface proof. | Host shell selects preview/probe config and still owns SDL, argv, screenshots, and UI-CI entry. | Runtime owns `App` storage in v0; controller/platform/runtime storage is provided by the adapter. | Add a board construction path that supplies SDRAM surface, controller storage, clock, and providers without the Windows host executable. |
-| Display/Input | `PlayerDisplaySurface`, `PlayerDisplaySink`, board display callbacks, and `render_player_frame()` separate Player rendering from SDL; `PlayerInputEvent` separates Player input from SDL/window/touch samples. | Windows preview uses SDL display and input adapters; memory and board-sink probes prove real Player UI external-framebuffer output. | Preview SDL texture/window state; UI-CI external buffer is fixed-size static storage; input HAL structs are fixed-size. | Add concrete board SDRAM/LTDC and touch adapters as peers without changing Player UI. |
+| Display/Input | `PlayerDisplaySurface`, `PlayerDisplaySink`, board display callbacks, and `render_player_frame()` separate Player rendering from SDL; `PlayerInputEvent` plus touch batching separates Player input from SDL/window/touch samples. | Windows preview uses SDL display and input adapters; memory, board-sink, and board-touch probes prove real Player UI external-framebuffer/input output. | Preview SDL texture/window state; UI-CI external buffer is fixed-size static storage; input HAL structs are fixed-size. | Wire concrete board SDRAM/LTDC and touch drivers as adapter implementations without changing Player UI. |
 | Time | `player.time_utils` keeps date/week formatting out of page code. | No dedicated board clock gate yet; Windows host binds the runtime time source. | Mostly fixed strings today; playback uses runtime clock timestamps. | Add a time/clock provider adapter when a portable Player target appears. |
 | Storage | `player.storage` and `PlayerApp` isolate scan/mount flow; product config carries host VHD default. | `CHARM_PLAYER_HOST_STORAGE`; profile/resource records select VHD defaults. | Track lists, scan queues, stats history, path buffers, filesystem traversal state. | Introduce board storage capability/provider instead of page-level storage assumptions. |
 | Diagnostics | Host shell owns screenshot, font probe, UI-CI, and preview logging includes. | `CHARM_PLAYER_PLAYBACK_LOG`, `CHARM_PLAYER_FS_LOG`, host shell only screenshot/UI-CI paths. | Screenshot paths, UI-CI probe state, font probe output strings, playback log formatting. | Keep host-only; split `main.ui_ci.inc` by evidence group later. |
@@ -108,6 +108,7 @@ Current state:
 - `make_board_display_sink()` adds the board adapter seam for cache clean, dirty flush, and present/flip callbacks while preserving the same `PlayerDisplaySink` contract.
 - `--runtime-memory-smoke` is the Windows host adapter entry for the same probe before SDL initialization, so the display proof is not coupled to a host window.
 - `player.input` defines the Player product input boundary: pointer, wheel, button, command, and a minimal `PlayerTouchSampleSource` seam.
+- `read_player_touch_events()` batches board touch samples into fixed-capacity `PlayerInputEvent` output without dynamic allocation.
 - SDL input event decoding lives in a host-local adapter include; it only translates SDL events to `PlayerInputEvent`.
 - `player.app` is the single bridge from `PlayerInputEvent` to Vivid `RawInputEvent`, wheel dispatch, or controller command dispatch.
 - Controller command handling lives behind `handle_input_command(PlayerInputCommand)`, so board keys, SDL keys, and future Win32/Linux input can share product semantics.
@@ -124,7 +125,7 @@ Dynamic allocation and portability notes:
 Recommended next slice:
 
 - Implement the concrete STM32H7 SDRAM/LTDC sink by wiring board cache clean, optional DMA2D copy, dirty flush, and LTDC buffer flip callbacks.
-- Add a board touch adapter that reads the panel/controller sample source and emits `PlayerInputEvent::Pointer`.
+- Wire the concrete board touch driver into `PlayerTouchSampleSource` and feed `read_player_touch_events()`.
 
 ## Runtime
 
@@ -241,11 +242,10 @@ Already moving in the portable direction:
 
 ## Next Slice Candidates
 
-1. Board display/input adapter pair: add SDRAM/LTDC present plus touch sample adapter behind `PlayerDisplaySink` and `PlayerInputEvent`.
-2. Font provider: define board font resource ownership and keep file fonts as a host/profile implementation.
-3. Time/diagnostics provider: keep formatting and logging out of page code, but avoid over-abstracting before a board target exists.
-4. UI-CI grouping: split `main.ui_ci.inc` by evidence family without changing behavior.
-5. Controller dynamic state slimming: replace only the dynamic state that blocks `portability_probe` or a concrete board profile.
+1. Font provider: define board font resource ownership and keep file fonts as a host/profile implementation.
+2. Time/diagnostics provider: keep formatting and logging out of page code, but avoid over-abstracting before a board target exists.
+3. UI-CI grouping: split `main.ui_ci.inc` by evidence family without changing behavior.
+4. Controller dynamic state slimming: replace only the dynamic state that blocks `portability_probe` or a concrete board profile.
 
 ## Probe Contract Reminder
 

@@ -86,26 +86,15 @@
                           player::PlayerDisplaySink* display_sink) {
         app.tick();
         ctx.tick_player(app.player());
-        platform.clear(kUiBackground);
-        platform.begin_frame();
-        if (ctx.transition_needs_destination_snapshot()) {
-            ctx.prepare_transition_destination_snapshot_scene();
-            platform.render();
-            ctx.finish_transition_destination_snapshot_capture();
-            platform.clear(kUiBackground);
-            platform.begin_frame();
-        }
-        ctx.compose_now_playing_transition_pixel_layer();
-        platform.render();
-        platform.end_frame();
-        if (display_sink) {
-            (void)display_sink->present(
-                platform.surface_ref(),
-                player::full_player_dirty_region(platform.surface_ref()));
-        }
+        player::PlayerFrameContext frame{
+            .platform = &platform,
+            .display_sink = display_sink,
+            .clear_color = kUiBackground,
+        };
+        (void)player::render_player_frame(frame, ctx);
     }
 
-    bool run_memory_display_sink_ci() {
+    bool run_memory_display_sink_ci(player::App& app) {
         static std::array<std::byte, player::PlayerOwnedDisplayBuffer::buffer_bytes> external_buffer{};
         static player::PlayerPlatform memory_platform{player::PlayerDisplaySurface{
             external_buffer.data(),
@@ -115,23 +104,18 @@
             player::PlayerOwnedDisplayBuffer::pixel_format,
             player::PlayerDisplaySurfaceOwnership::Borrowed,
         }};
+        PlayerUiContext memory_ctx{};
+        app.bind_player(memory_ctx);
+        memory_ctx.bind_scene(memory_platform.scene_ref());
+        memory_ctx.set_start_page(player::PlayerPage::Home);
+        memory_ctx.apply_storage_view(app.storage_view(), false);
         memory_platform.build_scene([&](::ui::scene::SceneBuilder& builder) {
-            const auto root = builder.create_container();
-            const auto label = builder.create_label_static("display-hal-memory-sink");
-            builder.link(root, label);
-            builder.set_rect(root, Rect{0, 0, screen_width, screen_height});
-            builder.set_rect(label, Rect{24, 24, 260, 36});
-            builder.set_root(root);
+            app.bind_ui(builder, memory_ctx);
         });
+        memory_ctx.set_page(player::PlayerPage::Home);
         player::MemoryDisplaySinkState sink_state{};
         player::PlayerDisplaySink sink = player::make_memory_display_sink(sink_state);
-        memory_platform.clear(kUiBackground);
-        memory_platform.begin_frame();
-        memory_platform.render();
-        memory_platform.end_frame();
-        (void)sink.present(
-            memory_platform.surface_ref(),
-            player::full_player_dirty_region(memory_platform.surface_ref()));
+        ui_ci_pump_frame(app, memory_ctx, memory_platform, &sink);
 
         bool has_nonzero_pixel = false;
         const auto& presented = sink_state.last_surface;
@@ -160,7 +144,9 @@
             && presented.pixel_format == player::PlayerOwnedDisplayBuffer::pixel_format
             && sink_state.last_dirty.w == screen_width
             && sink_state.last_dirty.h == screen_height
-            && has_nonzero_pixel;
+            && has_nonzero_pixel
+            && memory_ctx.handles.root
+            && memory_platform.scene_ref().root() == memory_ctx.handles.root;
 
         return ok;
     }
@@ -194,10 +180,10 @@
 
         pump_frame();
 
-        if (run_memory_display_sink_ci()) {
-            ui_ci_emit("memory_display_sink_external_surface", true, nullptr);
+        if (run_memory_display_sink_ci(app)) {
+            ui_ci_emit("memory_display_sink_player_ui_external_surface", true, nullptr);
         } else {
-            ui_ci_emit("memory_display_sink_external_surface", false, "memory_display_sink");
+            ui_ci_emit("memory_display_sink_player_ui_external_surface", false, "memory_display_sink");
             res.ok = false;
             res.failed++;
         }

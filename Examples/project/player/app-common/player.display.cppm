@@ -26,6 +26,10 @@ export namespace player {
         int y{0};
         int w{0};
         int h{0};
+
+        [[nodiscard]] constexpr bool empty() const noexcept {
+            return w <= 0 || h <= 0;
+        }
     };
 
     inline constexpr std::size_t player_display_bytes_per_pixel(PlayerDisplayPixelFormat format) noexcept {
@@ -120,6 +124,23 @@ export namespace player {
         return PlayerDirtyRegion{0, 0, surface.width, surface.height};
     }
 
+    inline constexpr PlayerDirtyRegion clip_player_dirty_region(PlayerDirtyRegion dirty,
+                                                                const PlayerDisplaySurface& surface) noexcept {
+        if (dirty.empty() || surface.width <= 0 || surface.height <= 0) {
+            return {};
+        }
+        const int x0 = dirty.x < 0 ? 0 : dirty.x;
+        const int y0 = dirty.y < 0 ? 0 : dirty.y;
+        const int x1_raw = dirty.x + dirty.w;
+        const int y1_raw = dirty.y + dirty.h;
+        const int x1 = x1_raw > surface.width ? surface.width : x1_raw;
+        const int y1 = y1_raw > surface.height ? surface.height : y1_raw;
+        if (x1 <= x0 || y1 <= y0) {
+            return {};
+        }
+        return PlayerDirtyRegion{x0, y0, x1 - x0, y1 - y0};
+    }
+
     inline constexpr PlayerDirtyRegion to_player_dirty_region(const Rect& rect) noexcept {
         return PlayerDirtyRegion{rect.x, rect.y, rect.w, rect.h};
     }
@@ -142,7 +163,7 @@ export namespace player {
             return false;
         }
         state->present_count += 1;
-        state->last_dirty = dirty;
+        state->last_dirty = clip_player_dirty_region(dirty, surface);
         state->last_surface = surface;
         return true;
     }

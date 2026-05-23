@@ -25,7 +25,7 @@ It is intentionally narrower than a full embedded port plan. The goal is to make
 | Cover | `player.cover` exposes `CoverProviderFn`; page/controller code can use generated/default cover art when decode is unavailable. | `CHARM_PLAYER_HOST_COVER_DECODE`; profile log prints `host_cover_decode`. | Host decode buffers, embedded image extraction, palette/theme sampling work buffers. | Add a pre-decoded/resource-backed cover provider contract. |
 | Theme | Player-owned cover sampling feeds dynamic surface/text roles; Vivid owns reusable role application candidates. | Indirectly tied to cover decode availability. | Fixed-budget 128x128 sampling workspace, palette candidates, controller theme state. | Keep sampling in Player; consider moving role application rules into Vivid after more app pressure. |
 | Font | Product config carries font paths and sizes; host preview binds file fonts only when enabled. | `CHARM_PLAYER_HOST_FILE_FONTS`, `CHARM_PLAYER_PC_FONT_CACHE`; profile log prints `host_file_fonts`. | FreeType/VFS font buffers, Win32/GDI glyph cache vectors, preview argv strings. | Define a board font resource/provider contract before replacing file fonts. |
-| Display/Input | `PlayerDisplaySurface` and `PlayerDisplaySink` separate Player rendering from SDL; SDL input mapping is host-local. | Windows preview uses SDL adapter; memory sink proves external framebuffer output. | Preview SDL texture/window state; UI-CI external buffer is fixed-size static storage. | Add Win32/Linux/board SDRAM adapters as peers without changing Player UI. |
+| Display/Input | `PlayerDisplaySurface`, `PlayerDisplaySink`, and `render_player_frame()` separate Player rendering from SDL; SDL input mapping is host-local. | Windows preview uses SDL adapter; memory sink proves real Player UI external-framebuffer output. | Preview SDL texture/window state; UI-CI external buffer is fixed-size static storage. | Add Win32/Linux/board SDRAM adapters as peers without changing Player UI. |
 | Time | `player.time_utils` keeps date/week formatting out of page code. | No dedicated board clock gate yet; Windows host binds the runtime time source. | Mostly fixed strings today; playback uses runtime clock timestamps. | Add a time/clock provider adapter when a portable Player target appears. |
 | Storage | `player.storage` and `PlayerApp` isolate scan/mount flow; product config carries host VHD default. | `CHARM_PLAYER_HOST_STORAGE`; profile/resource records select VHD defaults. | Track lists, scan queues, stats history, path buffers, filesystem traversal state. | Introduce board storage capability/provider instead of page-level storage assumptions. |
 | Diagnostics | Host shell owns screenshot, font probe, UI-CI, and preview logging includes. | `CHARM_PLAYER_PLAYBACK_LOG`, `CHARM_PLAYER_FS_LOG`, host shell only screenshot/UI-CI paths. | Screenshot paths, UI-CI probe state, font probe output strings, playback log formatting. | Keep host-only; split `main.ui_ci.inc` by evidence group later. |
@@ -101,8 +101,9 @@ Current state:
 
 - `player.display` defines `PlayerDisplaySurface`, `PlayerDisplaySink`, pixel format, dirty region, and ownership metadata.
 - `PlayerPlatform` binds a supplied surface and renders Vivid Scene output into it through `RuntimeCanvas`.
+- `render_player_frame()` is the shared frame lifecycle for host preview, UI-CI, and future board sinks.
 - The Windows preview owns its default display buffer in the host shell, then presents it through an SDL display sink.
-- `MemoryDisplaySink` is the current SDRAM-style seam: UI-CI renders a frame into an external buffer and verifies present metadata.
+- `MemoryDisplaySink` is the current SDRAM-style seam: UI-CI renders the real Player UI into an external buffer and verifies present metadata.
 - SDL input event decoding lives in a host-local adapter include; Player app code consumes `RawInputEvent` and `UiKey`.
 
 Dynamic allocation and portability notes:
@@ -196,7 +197,8 @@ Already moving in the portable direction:
 - `FontResourceConfig` keeps file-backed font resource data behind the app config boundary instead of scattering TTF fields through host bootstrap.
 - `CoverResourceProviderFn` gives portable builds a pre-decoded cover path before host decode.
 - `PlayerDisplaySurface` lets board code provide the final framebuffer memory instead of forcing Player to own or SDL-present it.
-- `MemoryDisplaySink` gives CI a SDRAM-style external-buffer proof without needing board hardware.
+- `render_player_frame()` keeps clear/transition/render/present choreography out of SDL-specific code.
+- `MemoryDisplaySink` gives CI a SDRAM-style real-Player-UI external-buffer proof without needing board hardware.
 - Explicit host feature gates in `player.host_features`.
 - CMake host profiles that make preview/probe differences visible.
 - `CoverProviderFn` and generated/default cover fallback.

@@ -78,4 +78,41 @@ export namespace player {
         RuntimeCanvas canvas;
         ::ui::scene::Scene scene;
     };
+
+    struct PlayerFrameContext {
+        PlayerPlatform* platform{nullptr};
+        PlayerDisplaySink* display_sink{nullptr};
+        rgba clear_color{0, 0, 0, 255};
+    };
+
+    template <typename Controller>
+    bool render_player_frame(PlayerFrameContext& frame,
+                             Controller& controller,
+                             ::ui::scene::Scene::OverlayFn overlay_fn = nullptr,
+                             void* overlay_ctx = nullptr) {
+        if (!frame.platform) {
+            return false;
+        }
+        auto& platform = *frame.platform;
+        platform.clear(frame.clear_color);
+        platform.begin_frame();
+        platform.scene_ref().set_overlay(overlay_fn, overlay_ctx);
+        if (controller.transition_needs_destination_snapshot()) {
+            controller.prepare_transition_destination_snapshot_scene();
+            platform.render();
+            controller.finish_transition_destination_snapshot_capture();
+            platform.clear(frame.clear_color);
+            platform.begin_frame();
+            platform.scene_ref().set_overlay(overlay_fn, overlay_ctx);
+        }
+        controller.compose_now_playing_transition_pixel_layer();
+        platform.render();
+        platform.end_frame();
+        if (frame.display_sink) {
+            return frame.display_sink->present(
+                platform.surface_ref(),
+                full_player_dirty_region(platform.surface_ref()));
+        }
+        return true;
+    }
 }

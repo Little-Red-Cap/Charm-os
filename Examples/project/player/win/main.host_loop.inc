@@ -32,36 +32,25 @@
         update_spectrum(state->t_sec, state->ctx->is_playing());
     }
 
+    void player_frame_overlay(::ui::scene::SceneOverlay& overlay, void* ctx) noexcept {
+        auto* state = static_cast<PlayerLoopState*>(ctx);
+        if (!state || !state->ctx || !state->scene) return;
+        draw_library_fx(overlay, *state->ctx, *state->scene);
+        draw_now_playing_fx(overlay, *state->ctx, *state->scene, state->t_sec);
+    }
+
     void loop_render(void* ctx, charm::system::ClockTick, charm::system::ClockTick) noexcept {
         auto* state = static_cast<PlayerLoopState*>(ctx);
         if (!state || !state->platform || !state->ctx || !state->scene || !state->display_sink) {
             return;
         }
         prepare_screenshot_page(*state);
-        state->platform->clear(kUiBackground);
-        state->platform->begin_frame();
-        state->platform->scene_ref().set_overlay(
-            [](::ui::scene::SceneOverlay& overlay, void* ctx) noexcept {
-                auto* state = static_cast<PlayerLoopState*>(ctx);
-                if (!state || !state->ctx || !state->scene) return;
-                draw_library_fx(overlay, *state->ctx, *state->scene);
-                draw_now_playing_fx(overlay, *state->ctx, *state->scene, state->t_sec);
-            },
-            state);
-        if (state->ctx->transition_needs_destination_snapshot()) {
-            state->ctx->prepare_transition_destination_snapshot_scene();
-            state->platform->render();
-            state->ctx->finish_transition_destination_snapshot_capture();
-            state->platform->clear(kUiBackground);
-            state->platform->begin_frame();
-        }
-        state->ctx->compose_now_playing_transition_pixel_layer();
-        state->platform->render();
-        state->platform->end_frame();
-
-        (void)state->display_sink->present(
-            state->platform->surface_ref(),
-            player::full_player_dirty_region(state->platform->surface_ref()));
+        player::PlayerFrameContext frame{
+            .platform = state->platform,
+            .display_sink = state->display_sink,
+            .clear_color = kUiBackground,
+        };
+        (void)player::render_player_frame(frame, *state->ctx, &player_frame_overlay, state);
         if (flush_screenshot(*state)) {
             return;
         }

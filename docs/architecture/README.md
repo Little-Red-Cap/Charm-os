@@ -74,8 +74,9 @@
 建议顺序：
 
 1. [`charm_methodology_charter.md`](charm_methodology_charter.md)
-2. [`system_compiler_roadmap.md`](system_compiler_roadmap.md)
-3. [`system_compiler_vocabulary_v0.md`](system_compiler_vocabulary_v0.md)
+2. [`charm_spine_v0.md`](charm_spine_v0.md)
+3. [`system_compiler_roadmap.md`](system_compiler_roadmap.md)
+4. [`system_compiler_vocabulary_v0.md`](system_compiler_vocabulary_v0.md)
 
 如果你继续往运行面和工件面走，再回到：
 
@@ -86,6 +87,7 @@
 
 先读：
 
+- [`charm_spine_v0.md`](charm_spine_v0.md)
 - [`rte_capability_composition_contract_v0.md`](rte_capability_composition_contract_v0.md)
 - [`system_compiler_vocabulary_v0.md`](system_compiler_vocabulary_v0.md)
 - [`../system/init_graph_contract.md`](../system/init_graph_contract.md)
@@ -116,7 +118,7 @@
 ## 当前建议阅读顺序
 
 - 看总架构和方法论：
-  `charm_methodology_charter.md`
+  `charm_methodology_charter.md` → `charm_spine_v0.md`
 - 看依赖与分层：
   `dependency_contract.md`
 - 看驱动与设备：
@@ -124,9 +126,9 @@
 - 看 signal/state：
   `signal_state_contract_v0.md`
 - 看 system compiler：
-  `system_compiler_roadmap.md` → `system_compiler_vocabulary_v0.md`
+  `charm_spine_v0.md` → `system_compiler_roadmap.md` → `system_compiler_vocabulary_v0.md`
 - 看 RTE / 能力装配边界：
-  `rte_capability_composition_contract_v0.md` → `system_compiler_vocabulary_v0.md` → `../system/init_graph_contract.md`
+  `charm_spine_v0.md` → `rte_capability_composition_contract_v0.md` → `system_compiler_vocabulary_v0.md` → `../system/init_graph_contract.md`
 - 看真实板级落地审计与能力回收：
   `real_board_landing_gap_audit_v0.md` → `capability_recovery_rules.md` → `capability_recovery_matrix.md`
 

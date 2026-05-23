@@ -15,6 +15,15 @@
 
 - [`app_host_poster_demo/README.md`](app_host_poster_demo/README.md)
 
+### 我想看 Charm Spine 最小平台形态
+
+先读：
+
+- [`charm_spine_smoke/README.md`](charm_spine_smoke/README.md)
+
+这个示例验证 `Capability -> Component -> Profile -> Projection -> Evidence`
+这一条 Charm Spine v0 主链路的最小可执行形态。
+
 ### 我想看 RTE 能力装配语义
 
 先读：

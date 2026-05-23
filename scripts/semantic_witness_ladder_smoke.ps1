@@ -171,6 +171,15 @@ $ladder = @(
         )
     },
     [ordered]@{
+        Name = "task-message-session-endpoint"
+        Example = "runtime_task_message_session_endpoint_host"
+        Target = "kernel-runtime-task-message-session-endpoint-host"
+        Required = @(
+            "\[runtime-task-message-session-endpoint-demo\] ok=1",
+            "\[runtime-task-message-session-endpoint-witness\] ok=1 collapsed=collapsed"
+        )
+    },
+    [ordered]@{
         Name = "task-message-session-protocol"
         Example = "runtime_task_message_session_protocol_host"
         Target = "kernel-runtime-task-message-session-protocol-host"

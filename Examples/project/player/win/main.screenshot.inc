@@ -3,25 +3,28 @@
     }
 
     void prepare_screenshot_page(PlayerLoopState& state) noexcept {
-        if (!has_pending_screenshot(state) || !state.ctx) {
+        auto* ctx = state.runtime ? state.runtime->controller() : nullptr;
+        if (!has_pending_screenshot(state) || !ctx) {
             return;
         }
-        if (state.ctx->current_page != state.screenshot_page) {
-            state.ctx->set_page(state.screenshot_page);
+        if (ctx->current_page != state.screenshot_page) {
+            ctx->set_page(state.screenshot_page);
             if (state.screenshot_wait_frames < 1) state.screenshot_wait_frames = 1;
         }
         if (state.screenshot_page == player::PlayerPage::Home
             && state.home_scroll_y >= 0
-            && state.ctx->handles.home_scroll) {
-            if (state.ctx->access.scroll_y(state.ctx->handles.home_scroll) != state.home_scroll_y) {
-                state.ctx->access.set_scroll_y(state.ctx->handles.home_scroll, state.home_scroll_y);
+            && ctx->handles.home_scroll) {
+            if (ctx->access.scroll_y(ctx->handles.home_scroll) != state.home_scroll_y) {
+                ctx->access.set_scroll_y(ctx->handles.home_scroll, state.home_scroll_y);
                 if (state.screenshot_wait_frames < 1) state.screenshot_wait_frames = 1;
             }
         }
     }
 
     bool flush_screenshot(PlayerLoopState& state) noexcept {
-        if (!has_pending_screenshot(state) || !state.platform || !state.scene || !state.ctx) {
+        auto* platform = state.runtime ? state.runtime->platform() : nullptr;
+        auto* ctx = state.runtime ? state.runtime->controller() : nullptr;
+        if (!has_pending_screenshot(state) || !platform || !ctx) {
             return false;
         }
         if (state.screenshot_wait_frames > 0) {
@@ -29,10 +32,10 @@
             return true;
         }
 
-        ::FrameBufferView view = state.platform->framebuffer_view();
+        ::FrameBufferView view = platform->framebuffer_view();
 
         if (state.screenshot_verbose) {
-            dump_font_probe_metrics(*state.platform, *state.scene, *state.ctx);
+            dump_font_probe_metrics(*platform, state.runtime->scene_ref(), *ctx);
         }
 
         if (!state.screenshot_path.empty()) {

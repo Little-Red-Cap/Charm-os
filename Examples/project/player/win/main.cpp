@@ -10,6 +10,7 @@ import player.platform;
 import player.storage;
 import player.playback;
 import player.product_config;
+import player.runtime;
 import player.ui_builder;
 import player.ui;
 import player.cover;
@@ -65,15 +66,16 @@ namespace {
         return platform::win::SteadyClock::now();
     }
 
-    static player::PlayerOwnedDisplayBuffer g_display_buffer{};
-    static player::PlayerPlatform g_platform{g_display_buffer.surface()};
     static audio::PlayerConfig g_player_cfg{};
     static charm::system::Clock g_clock{nullptr, {.now_us = &now_us}};
-    static std::optional<player::App> g_app{};
     using PlayerUiContext = player::PlayerController;
     using UiHandles = player::UiHandles;
+    using PlayerRuntime = player::PlayerRuntime<PlayerUiContext, player::PlayerPage>;
 
+    static player::PlayerOwnedDisplayBuffer g_display_buffer{};
+    static player::PlayerPlatform g_platform{g_display_buffer.surface()};
     static PlayerUiContext g_ctx{};
+    static std::optional<PlayerRuntime> g_runtime{};
 
 #include "main.host_preview.inc"
 #include "main.overlay_fx.inc"

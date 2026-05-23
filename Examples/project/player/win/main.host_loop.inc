@@ -1,6 +1,6 @@
     void loop_poll_events(void* ctx, charm::system::ClockTick, charm::system::ClockTick) noexcept {
         auto* state = static_cast<PlayerLoopState*>(ctx);
-        if (!state || !state->running || !state->app || !state->ctx || !state->platform) {
+        if (!state || !state->running || !state->runtime) {
             return;
         }
         SDL_Event evt{};
@@ -19,43 +19,36 @@
             }
             const auto input_batch = translate_sdl_player_input(evt);
             for (std::size_t i = 0; i < input_batch.count; ++i) {
-                state->app->dispatch_player_input(state->platform->scene_ref(),
-                                                  *state->ctx,
-                                                  input_batch.events[i]);
+                state->runtime->dispatch_input(input_batch.events[i]);
             }
         }
     }
 
     void loop_update(void* ctx, charm::system::ClockTick now_us, charm::system::ClockTick) noexcept {
         auto* state = static_cast<PlayerLoopState*>(ctx);
-        if (!state || !state->app || !state->ctx) {
+        if (!state || !state->runtime) {
             return;
         }
-        state->t_sec = static_cast<float>(now_us) * 0.000001f;
-        state->app->tick();
-        state->ctx->tick_player(state->app->player());
-        update_spectrum(state->t_sec, state->ctx->is_playing());
+        state->runtime->tick(now_us, player::PlayerRuntimeHooks{nullptr, &tick_player_preview_visual});
     }
 
     void player_frame_overlay(::ui::scene::SceneOverlay& overlay, void* ctx) noexcept {
         auto* state = static_cast<PlayerLoopState*>(ctx);
-        if (!state || !state->ctx || !state->scene) return;
-        draw_library_fx(overlay, *state->ctx, *state->scene);
-        draw_now_playing_fx(overlay, *state->ctx, *state->scene, state->t_sec);
+        if (!state || !state->runtime || !state->runtime->controller() || !state->runtime->platform()) return;
+        draw_library_fx(overlay, *state->runtime->controller(), state->runtime->scene_ref());
+        draw_now_playing_fx(overlay,
+                            *state->runtime->controller(),
+                            state->runtime->scene_ref(),
+                            state->runtime->t_sec());
     }
 
     void loop_render(void* ctx, charm::system::ClockTick, charm::system::ClockTick) noexcept {
         auto* state = static_cast<PlayerLoopState*>(ctx);
-        if (!state || !state->platform || !state->ctx || !state->scene || !state->display_sink) {
+        if (!state || !state->runtime || !state->display_sink) {
             return;
         }
         prepare_screenshot_page(*state);
-        player::PlayerFrameContext frame{
-            .platform = state->platform,
-            .display_sink = state->display_sink,
-            .clear_color = kUiBackground,
-        };
-        (void)player::render_player_frame(frame, *state->ctx, &player_frame_overlay, state);
+        (void)state->runtime->render(state->display_sink, &player_frame_overlay, state);
         if (flush_screenshot(*state)) {
             return;
         }
@@ -66,10 +59,7 @@
         int win_h = screen_height;
         bool running = true;
         PlayerLoopState loop_state{
-            .app = &(*g_app),
-            .platform = &g_platform,
-            .ctx = &g_ctx,
-            .scene = &g_platform.scene_ref(),
+            .runtime = &(*g_runtime),
             .display_sink = &runtime.display_sink,
             .running = &running,
             .win_w = &win_w,

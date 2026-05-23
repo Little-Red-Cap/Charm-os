@@ -64,46 +64,33 @@
         return ok;
     }
 
-    void ui_ci_pointer(player::App& app,
-                       PlayerUiContext& ctx,
-                       ::ui::scene::Scene& scene,
+    void ui_ci_pointer(PlayerRuntime& runtime,
                        std::uint32_t ms,
                        player::PlayerPointerAction action,
                        bool down,
                        int x,
                        int y) {
-        app.dispatch_player_input(scene,
-                                  ctx,
-                                  player::PlayerInputEvent::make_pointer(
-                                      ms,
-                                      action,
-                                      player::PlayerPointerSample{
-                                          down,
-                                          static_cast<float>(x),
-                                          static_cast<float>(y),
-                                          0}));
+        runtime.dispatch_input(player::PlayerInputEvent::make_pointer(
+            ms,
+            action,
+            player::PlayerPointerSample{
+                down,
+                static_cast<float>(x),
+                static_cast<float>(y),
+                0}));
     }
 
-    void ui_ci_click(player::App& app, PlayerUiContext& ctx, ::ui::scene::Scene& scene, int x, int y) {
-        ui_ci_pointer(app, ctx, scene, 0, player::PlayerPointerAction::Down, true, x, y);
-        ui_ci_pointer(app, ctx, scene, 1, player::PlayerPointerAction::Up, false, x, y);
+    void ui_ci_click(PlayerRuntime& runtime, int x, int y) {
+        ui_ci_pointer(runtime, 0, player::PlayerPointerAction::Down, true, x, y);
+        ui_ci_pointer(runtime, 1, player::PlayerPointerAction::Up, false, x, y);
     }
 
-    void ui_ci_pump_frame(player::App& app,
-                          PlayerUiContext& ctx,
-                          player::PlayerPlatform& platform,
-                          player::PlayerDisplaySink* display_sink) {
-        app.tick();
-        ctx.tick_player(app.player());
-        player::PlayerFrameContext frame{
-            .platform = &platform,
-            .display_sink = display_sink,
-            .clear_color = kUiBackground,
-        };
-        (void)player::render_player_frame(frame, ctx);
+    void ui_ci_pump_frame(PlayerRuntime& runtime, player::PlayerDisplaySink* display_sink) {
+        runtime.tick(g_clock.now_us());
+        (void)runtime.render(display_sink);
     }
 
-    bool run_memory_display_sink_ci(player::App& app) {
+    bool run_memory_display_sink_ci() {
         static std::array<std::byte, player::PlayerOwnedDisplayBuffer::buffer_bytes> external_buffer{};
         static player::PlayerPlatform memory_platform{player::PlayerDisplaySurface{
             external_buffer.data(),
@@ -113,18 +100,22 @@
             player::PlayerOwnedDisplayBuffer::pixel_format,
             player::PlayerDisplaySurfaceOwnership::Borrowed,
         }};
-        PlayerUiContext memory_ctx{};
-        app.bind_player(memory_ctx);
-        memory_ctx.bind_scene(memory_platform.scene_ref());
-        memory_ctx.set_start_page(player::PlayerPage::Home);
-        memory_ctx.apply_storage_view(app.storage_view(), false);
-        memory_platform.build_scene([&](::ui::scene::SceneBuilder& builder) {
-            app.bind_ui(builder, memory_ctx);
-        });
-        memory_ctx.set_page(player::PlayerPage::Home);
+        static PlayerUiContext memory_ctx{};
+        memory_ctx = PlayerUiContext{};
+        player::PlayerRuntimeConfig<player::PlayerPage> memory_cfg{
+            .app_config = make_app_config(PreviewOptions{}),
+            .storage_config = player::storage_config(),
+            .start_page = player::PlayerPage::Home,
+            .initial_track_index = 0,
+            .auto_start = false,
+            .clear_color = kUiBackground,
+        };
+        static std::optional<PlayerRuntime> memory_runtime{};
+        memory_runtime.emplace(g_clock, memory_platform, memory_ctx, std::move(memory_cfg));
+        (void)memory_runtime->bootstrap();
         player::MemoryDisplaySinkState sink_state{};
         player::PlayerDisplaySink sink = player::make_memory_display_sink(sink_state);
-        ui_ci_pump_frame(app, memory_ctx, memory_platform, &sink);
+        ui_ci_pump_frame(*memory_runtime, &sink);
 
         bool has_nonzero_pixel = false;
         const auto& presented = sink_state.last_surface;
@@ -145,6 +136,8 @@
             }
         }
 
+        const auto* memory_runtime_platform = memory_runtime->platform();
+        const auto* memory_runtime_ctx = memory_runtime->controller();
         const bool ok = sink_state.present_count == 1
             && presented.pixels == external_buffer.data()
             && presented.width == screen_width
@@ -154,18 +147,23 @@
             && sink_state.last_dirty.w == screen_width
             && sink_state.last_dirty.h == screen_height
             && has_nonzero_pixel
-            && memory_ctx.handles.root
-            && memory_platform.scene_ref().root() == memory_ctx.handles.root;
+            && memory_runtime_platform
+            && memory_runtime_ctx
+            && memory_runtime_ctx->handles.root
+            && memory_runtime_platform->scene_ref().root() == memory_runtime_ctx->handles.root;
 
+        memory_runtime->shutdown();
+        memory_runtime.reset();
         return ok;
     }
 
-    UiCiResult run_ui_ci(player::App& app, PlayerUiContext& ctx, player::PlayerPlatform& platform) {
+    UiCiResult run_ui_ci(PlayerRuntime& runtime) {
         UiCiResult res{};
-        auto& scene = platform.scene_ref();
+        auto& ctx = *runtime.controller();
+        auto& scene = runtime.scene_ref();
 
         auto pump_frame = [&]() {
-            ui_ci_pump_frame(app, ctx, platform, nullptr);
+            ui_ci_pump_frame(runtime, nullptr);
         };
         auto wait_for_page = [&](player::PlayerPage expected_page, int max_frames = 36) {
             if (ctx.current_page == expected_page) return true;
@@ -189,7 +187,7 @@
 
         pump_frame();
 
-        if (run_memory_display_sink_ci(app)) {
+        if (run_memory_display_sink_ci()) {
             ui_ci_emit("memory_display_sink_player_ui_external_surface", true, nullptr);
         } else {
             ui_ci_emit("memory_display_sink_player_ui_external_surface", false, "memory_display_sink");
@@ -213,9 +211,9 @@
             if (r.w > 0 && r.h > 0) {
                 const int cx = r.x + r.w / 2;
                 const int cy = r.y + r.h / 2;
-                ui_ci_pointer(app, ctx, scene, 10, player::PlayerPointerAction::Down, true, cx, cy);
-                ui_ci_pointer(app, ctx, scene, 11, player::PlayerPointerAction::Move, true, cx + 3, cy + 2);
-                ui_ci_pointer(app, ctx, scene, 12, player::PlayerPointerAction::Up, false, cx + 3, cy + 2);
+                ui_ci_pointer(runtime, 10, player::PlayerPointerAction::Down, true, cx, cy);
+                ui_ci_pointer(runtime, 11, player::PlayerPointerAction::Move, true, cx + 3, cy + 2);
+                ui_ci_pointer(runtime, 12, player::PlayerPointerAction::Up, false, cx + 3, cy + 2);
                 if (wait_for_page(player::PlayerPage::NowPlaying)
                     || settle_now_playing_transition(player::PlayerPage::NowPlaying)) {
                     ui_ci_emit("input_boundary_touch_home_to_now", true, nullptr);
@@ -239,13 +237,11 @@
             const Rect r = scene.world_rect(ctx.handles.home_scroll);
             const int before_scroll = ctx.access.scroll_y(ctx.handles.home_scroll);
             if (r.w > 0 && r.h > 0) {
-                app.dispatch_player_input(scene,
-                                          ctx,
-                                          player::PlayerInputEvent::make_wheel(
-                                              20,
-                                              static_cast<float>(r.x + r.w / 2),
-                                              static_cast<float>(r.y + r.h / 2),
-                                              -3.0f));
+                runtime.dispatch_input(player::PlayerInputEvent::make_wheel(
+                    20,
+                    static_cast<float>(r.x + r.w / 2),
+                    static_cast<float>(r.y + r.h / 2),
+                    -3.0f));
                 pump_frame();
                 const int after_scroll = ctx.access.scroll_y(ctx.handles.home_scroll);
                 if (after_scroll != before_scroll) {
@@ -791,7 +787,7 @@
             }
             const int cx = r.x + r.w / 2;
             const int cy = r.y + r.h / 2;
-            ui_ci_click(app, ctx, scene, cx, cy);
+            ui_ci_click(runtime, cx, cy);
             return true;
         };
 
@@ -993,7 +989,7 @@
             const Rect list = scene.world_rect(ctx.handles.list);
             if (list.w > 0 && list.h > 0) {
                 const int before = ctx.last_list_selected;
-                ui_ci_click(app, ctx, scene, list.x + 12, list.y + 12);
+                ui_ci_click(runtime, list.x + 12, list.y + 12);
                 pump_frame();
                 const int after = ctx.last_list_selected;
                 if (after >= 0) {
@@ -1018,7 +1014,7 @@
     }
 
     int run_ui_ci_preview(SdlHostRuntime& runtime) noexcept {
-        const UiCiResult result = run_ui_ci(*g_app, g_ctx, g_platform);
+        const UiCiResult result = run_ui_ci(*g_runtime);
         shutdown_player_preview(runtime);
         return result.ok ? 0 : 2;
     }

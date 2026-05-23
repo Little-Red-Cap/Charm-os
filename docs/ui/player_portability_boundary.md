@@ -22,12 +22,15 @@ The Player portability boundary should follow the same broad shape as the DAPLin
 - Common source modules provide stable capabilities without knowing the host preview shell.
 - Host shells own preview-only windowing, diagnostics, screenshots, and file-backed convenience paths.
 - Page controllers should depend on semantic providers, not on Windows, SDL, or file decoder details.
+- The useful DAPLink reference is its port/profile/contract discipline, not its USB firmware details; Player ports should translate that discipline into display, input, storage, font, cover, and clock providers.
 
 For the current ownership map, host shell split, Vivid extraction candidates, and portable UI probe contract, see `player_vivid_portability_map.md`.
 
 ## Host-Only Dependencies
 
 - SDL3 windowing, event pump, renderer, and screenshot flow live in `Examples/project/player/win`.
+- `player.runtime` owns the shared product lifecycle for Vivid Player targets: app construction, storage bootstrap, controller binding, input dispatch, ticking, frame rendering, and shutdown. Windows/SDL calls into this shell instead of open-coding product lifecycle steps.
+- The Windows host shell still owns preview arguments, SDL initialization, screenshot capture, UI-CI entry points, and visual preview hooks such as the spectrum overlay.
 - Player display output now goes through a small display HAL contract: app-common renders into `PlayerDisplaySurface`, and host/board code presents that surface through a `PlayerDisplaySink`.
 - SDL is only the current Windows preview display adapter. A Win32, Linux fbdev/DRM, or STM32 SDRAM/LTDC adapter can present the same `pixels / width / height / stride / pixel_format` surface without changing Player UI code.
 - `PlayerPlatform` binds an externally supplied surface; the Windows preview owns one default buffer in the host shell, while board code can pass an SDRAM framebuffer surface.
@@ -50,6 +53,16 @@ For the current ownership map, host shell split, Vivid extraction candidates, an
 - Playback and filesystem diagnostics are gated by explicit Player feature macros, not `_WIN32`.
 - FreeType file-backed font loading is a host/product resource path until Vivid has a board resource contract.
 - Calendar/week stamping is routed through `player.time_utils` so page controllers do not carry platform time branches.
+
+## Product Runtime Shell v0
+
+`player.runtime` is the current portable product shell for the Vivid Player line:
+
+- It composes `App`, `PlayerController`, and `PlayerPlatform` without depending on SDL, Win32, screenshots, or command-line parsing.
+- It consumes a `PlayerRuntimeConfig<Page>` record for app config, storage config, start page, initial track, auto-start, and clear color.
+- It exposes the same product actions a board shell needs: `bootstrap`, `tick`, `dispatch_input`, `render`, and `shutdown`.
+- It still receives host-owned `PlayerPlatform` and controller storage. This keeps v0 small while allowing a future board shell to provide an SDRAM-backed `PlayerDisplaySurface` and board-owned controller storage.
+- Its UI-CI memory sink case renders the real Player UI through the same shell into an external buffer. This is the portability proof; it is not a separate mock Player.
 
 ## Display/Input HAL v0
 
@@ -83,8 +96,8 @@ This means Win32, Linux, SDL, and STM32 are peers at the adapter layer. None of 
 
 ## Next Cleanup Order
 
-1. Move host-only diagnostics and screenshot helpers behind explicit host macros.
+1. Move the remaining host-only screenshot/font-probe diagnostics farther behind explicit host files or macros.
 2. Replace controller-owned dynamic track/list caches with fixed-capacity storage.
-3. Add a concrete Win32 or Linux display sink beside SDL to prove backend replacement without touching Player UI.
+3. Add a board or memory-backed runtime construction path that supplies `PlayerDisplaySurface` without SDL.
 4. Add a board SDRAM/LTDC adapter that consumes `PlayerDisplaySurface` and calls board cache/flush hooks.
 5. Replace host C library time fallback with a board clock/RTC adapter when the portable Player target appears.

@@ -90,7 +90,7 @@
         (void)runtime.render(display_sink);
     }
 
-    bool run_memory_display_sink_ci(const PreviewOptions& options = PreviewOptions{}) {
+    player::PlayerRuntimeMemoryProbeResult run_memory_display_sink_probe(const PreviewOptions& options = PreviewOptions{}) {
         static std::array<std::byte, player::PlayerOwnedDisplayBuffer::buffer_bytes> external_buffer{};
         static player::PlayerPlatform memory_platform{player::PlayerDisplaySurface{
             external_buffer.data(),
@@ -110,56 +110,33 @@
             .auto_start = false,
             .clear_color = kUiBackground,
         };
-        static std::optional<PlayerRuntime> memory_runtime{};
-        memory_runtime.emplace(g_clock, memory_platform, memory_ctx, std::move(memory_cfg));
-        (void)memory_runtime->bootstrap();
         player::MemoryDisplaySinkState sink_state{};
         player::PlayerDisplaySink sink = player::make_memory_display_sink(sink_state);
-        ui_ci_pump_frame(*memory_runtime, &sink);
-
-        bool has_nonzero_pixel = false;
+        static std::optional<PlayerRuntime> memory_runtime{};
+        auto result = player::run_player_runtime_memory_probe(g_clock,
+                                                              memory_platform,
+                                                              memory_ctx,
+                                                              std::move(memory_cfg),
+                                                              memory_runtime,
+                                                              sink_state,
+                                                              sink,
+                                                              g_clock.now_us());
         const auto& presented = sink_state.last_surface;
-        if (presented.valid()) {
-            const std::size_t row_step = presented.stride_bytes;
-            const std::size_t bpp = presented.bytes_per_pixel();
-            for (int y = 0; y < presented.height && !has_nonzero_pixel; y += 32) {
-                const auto* row = presented.pixels + static_cast<std::size_t>(y) * row_step;
-                for (int x = 0; x < presented.width && !has_nonzero_pixel; x += 32) {
-                    const auto* px = row + static_cast<std::size_t>(x) * bpp;
-                    for (std::size_t i = 0; i < bpp; ++i) {
-                        if (px[i] != std::byte{}) {
-                            has_nonzero_pixel = true;
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-
-        const auto* memory_runtime_platform = memory_runtime->platform();
-        const auto* memory_runtime_ctx = memory_runtime->controller();
-        const bool ok = sink_state.present_count == 1
+        result.ok = result.ok
             && presented.pixels == external_buffer.data()
             && presented.width == screen_width
             && presented.height == screen_height
             && presented.stride_bytes == player::PlayerOwnedDisplayBuffer::stride_bytes
             && presented.pixel_format == player::PlayerOwnedDisplayBuffer::pixel_format
-            && sink_state.last_dirty.w == screen_width
-            && sink_state.last_dirty.h == screen_height
-            && has_nonzero_pixel
-            && memory_runtime_platform
-            && memory_runtime_ctx
-            && memory_runtime_ctx->handles.root
-            && memory_runtime_platform->scene_ref().root() == memory_runtime_ctx->handles.root;
-
-        memory_runtime->shutdown();
-        memory_runtime.reset();
-        return ok;
+            && result.dirty.w == screen_width
+            && result.dirty.h == screen_height;
+        return result;
     }
 
     int run_runtime_memory_smoke(const PreviewOptions& options) noexcept {
         player::ui::set_player_system_font_fallback_enabled(!options.disable_system_font_fallback);
-        const bool ok = run_memory_display_sink_ci(options);
+        const auto result = run_memory_display_sink_probe(options);
+        const bool ok = result.ok;
         std::printf("[runtime-memory-smoke] done ok=%d failed=%d\n", ok ? 1 : 0, ok ? 0 : 1);
         return ok ? 0 : 2;
     }
@@ -194,7 +171,7 @@
 
         pump_frame();
 
-        if (run_memory_display_sink_ci()) {
+        if (run_memory_display_sink_probe().ok) {
             ui_ci_emit("memory_display_sink_player_ui_external_surface", true, nullptr);
         } else {
             ui_ci_emit("memory_display_sink_player_ui_external_surface", false, "memory_display_sink");

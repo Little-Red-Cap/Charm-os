@@ -2,9 +2,11 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <string_view>
 
 import kernel.evt;
 import kernel.task_message_session_api;
+import semantic.core;
 
 namespace demo {
     using Tick = std::uint64_t;
@@ -341,6 +343,26 @@ namespace demo {
                result.value == value;
     }
 
+    [[nodiscard]] constexpr kernel::TaskMessageSyscallApiWitness
+    make_syscall_reply_witness(const Completion& completion) noexcept
+    {
+        return kernel::TaskMessageSyscallApiWitness{
+            .ready = true,
+            .kind = completion.timeout
+                        ? kernel::TaskMessageSyscallApiWitnessKind::timeout
+                        : kernel::TaskMessageSyscallApiWitnessKind::reply,
+            .owner = completion.owner,
+            .token = completion.token,
+            .request_sequence = completion.request_sequence,
+            .completion_ready = true,
+            .completion_pushed = true,
+            .timeout = completion.timeout,
+            .reply_value = completion.trap.value,
+            .disposition = completion.trap.disposition,
+            .error = completion.trap.error,
+        };
+    }
+
     [[nodiscard]] bool probe_default_unbound_session_api() noexcept
     {
         TaskSession session{};
@@ -387,6 +409,11 @@ namespace demo {
         TaskSession::completion_type open_completion{};
         const bool open_received =
             session.receive_completion(open_completion);
+        const auto open_witness =
+            kernel::task_message_session_api_witness(
+                session,
+                open_completion,
+                make_syscall_reply_witness(open_completion.raw));
         const bool open_state_ok =
             session.opened() && !session.faulted() &&
             session.phase() == kernel::TaskMessageSessionPhase::open &&
@@ -404,6 +431,11 @@ namespace demo {
         TaskSession::completion_type request_completion{};
         const bool request_received =
             session.receive_completion(request_completion);
+        const auto request_witness =
+            kernel::task_message_session_api_witness(
+                session,
+                request_completion,
+                make_syscall_reply_witness(request_completion.raw));
         const bool request_state_ok =
             session.opened() && !session.faulted() &&
             session.phase() == kernel::TaskMessageSessionPhase::open &&
@@ -416,6 +448,14 @@ namespace demo {
         TaskSession::completion_type close_completion{};
         const bool close_received =
             session.receive_completion(close_completion);
+        const auto close_witness =
+            kernel::task_message_session_api_witness(
+                session,
+                close_completion,
+                make_syscall_reply_witness(close_completion.raw));
+        const auto close_handoff =
+            kernel::task_message_session_api_witness_handoff_target(
+                close_witness);
         const bool close_state_ok =
             !session.opened() && !session.faulted() &&
             session.phase() == kernel::TaskMessageSessionPhase::idle &&
@@ -435,6 +475,22 @@ namespace demo {
                open_step.completion.trap.value == kOpenedHandle &&
                open_step.completion.trap.disposition ==
                    kernel::TrapDisposition::handled &&
+               kernel::task_message_session_api_witness_ready(open_witness) &&
+               open_witness.verdict() == semantic::Verdict::standing &&
+               open_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
+               open_witness.has_lower_provenance &&
+               open_witness.action ==
+                   kernel::TaskMessageSessionActionKind::open &&
+               open_witness.phase_before ==
+                   kernel::TaskMessageSessionPhase::opening &&
+               open_witness.phase_after ==
+                   kernel::TaskMessageSessionPhase::open &&
+               open_witness.session_opened &&
+               open_witness.opened &&
+               !open_witness.faulted &&
+               open_witness.service_id == kServiceId &&
+               open_witness.session_handle == kOpenedHandle &&
                open_completion.action ==
                    kernel::TaskMessageSessionActionKind::open &&
                open_completion.phase_before ==
@@ -466,6 +522,15 @@ namespace demo {
                    kBaseSequence + 1u &&
                request_step.completion.reply.value ==
                    kRequestOperation + kRequestPayload &&
+               request_witness.verdict() == semantic::Verdict::standing &&
+               request_witness.action ==
+                   kernel::TaskMessageSessionActionKind::request &&
+               request_witness.phase_before ==
+                   kernel::TaskMessageSessionPhase::requesting &&
+               request_witness.phase_after ==
+                   kernel::TaskMessageSessionPhase::open &&
+               request_witness.service_id == kServiceId &&
+               request_witness.session_handle == kOpenedHandle &&
                request_completion.action ==
                    kernel::TaskMessageSessionActionKind::request &&
                request_completion.phase_before ==
@@ -495,6 +560,18 @@ namespace demo {
                close_step.completion.request_sequence ==
                    kBaseSequence + 2u &&
                close_step.completion.reply.value == kCloseReason &&
+               close_witness.verdict() == semantic::Verdict::standing &&
+               close_witness.action ==
+                   kernel::TaskMessageSessionActionKind::close &&
+               close_witness.phase_before ==
+                   kernel::TaskMessageSessionPhase::closing &&
+               close_witness.phase_after ==
+                   kernel::TaskMessageSessionPhase::idle &&
+               close_witness.session_closed &&
+               std::string_view{close_handoff.entry_name()} ==
+                   "task-message-session-api-witness" &&
+               std::string_view{close_handoff.selected_summary_path()} ==
+                   "task-message-session-api-witness.summary" &&
                close_completion.action ==
                    kernel::TaskMessageSessionActionKind::close &&
                close_completion.phase_before ==
@@ -553,6 +630,11 @@ namespace demo {
         TaskSession::completion_type close_completion{};
         const bool close_received =
             session.receive_completion(close_completion);
+        const auto faulted_witness =
+            kernel::task_message_session_api_witness(
+                session,
+                close_completion,
+                make_syscall_reply_witness(close_completion.raw));
         const bool faulted_state_ok =
             !session.opened() && session.faulted() &&
             session.phase() == kernel::TaskMessageSessionPhase::faulted &&
@@ -613,6 +695,13 @@ namespace demo {
                close_issue && close_kick && close_step.progressed &&
                close_step.completion_ready && close_step.completion_pushed &&
                close_received &&
+               faulted_witness.verdict() == semantic::Verdict::standing &&
+               faulted_witness.action ==
+                   kernel::TaskMessageSessionActionKind::close &&
+               faulted_witness.phase_after ==
+                   kernel::TaskMessageSessionPhase::faulted &&
+               faulted_witness.timeout &&
+               faulted_witness.session_faulted &&
                close_completion.action ==
                    kernel::TaskMessageSessionActionKind::close &&
                close_completion.phase_before ==
@@ -669,5 +758,11 @@ int main()
         default_unbound_ok ? 1 : 0,
         roundtrip_ok ? 1 : 0,
         timeout_rebind_ok ? 1 : 0);
+    std::printf(
+        "[runtime-task-message-session-api-witness] ok=%d collapsed=%s summary=%s\n",
+        ok ? 1 : 0,
+        semantic::verdict_name(
+            kernel::TaskMessageSessionApiWitness{}.verdict()),
+        kernel::TaskMessageSessionApiWitness{}.summary_path().data());
     return ok ? 0 : 1;
 }

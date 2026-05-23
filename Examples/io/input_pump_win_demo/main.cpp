@@ -110,7 +110,7 @@ int main(int argc, char** argv) {
         caps,
         host,
         8,
-        charm::system::InputSinkRef::bind(print_ctx)
+        input::RawSinkRef::bind(print_ctx)
     };
     auto r = bringup.start();
     if (!r) {

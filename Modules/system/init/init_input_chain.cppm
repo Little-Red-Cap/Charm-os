@@ -9,6 +9,7 @@ import input.service.node;
 import input.router;
 import input.router.node;
 import input.pump;
+export import input.raw_sink;
 import hal_input;
 import charm.system.clock;
 import kernel.eda;
@@ -45,8 +46,7 @@ export namespace charm::system {
                        input::PostFn post_more_fn,
                        void* post_ctx,
                        kernel::TaskId pump_id,
-                       input::SinkFn sink_fn = nullptr,
-                       void* sink_ctx = nullptr,
+                       input::RawSinkRef sink = {},
                        InputInitCfg cfg = {},
                        InputInitCaps caps = {},
                        init::Phase phase = init::Phase::core,
@@ -63,8 +63,8 @@ export namespace charm::system {
                            post_more_fn,
                            post_ctx,
                            pump_id,
-                           sink_fn ? sink_fn : &input::Router::sink_trampoline,
-                           sink_fn ? sink_ctx : static_cast<void*>(&router),
+                           sink.fn() ? sink : input::RawSinkRef::raw(&input::Router::sink_trampoline,
+                                                                     static_cast<void*>(&router)),
                            cfg.period_ms,
                            cfg.budget,
                            caps.pump_cap,

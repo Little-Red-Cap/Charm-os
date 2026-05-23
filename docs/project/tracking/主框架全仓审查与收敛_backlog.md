@@ -187,8 +187,8 @@
 
 - `Modules/system/bringup/system_bringup.cppm` 曾经把 `InputBringupDesc`、多个 `BringupMinimal(...)` 重载、若干 `void*` 回调上下文混在一起。
 - 第一阶段已移除公开 `InputBringupDesc` / `make_input_desc` 拼装面，`BoardCaps + Host` 构造路径改为在 `BringupMinimal` 内部由 Host 类型 materialize input chain。
-- 公开 `BringupMinimal` / `BringupInput` 已移除 `SinkFn + void*` 兼容 overload；raw interop 需要显式写成 `InputSinkRef::raw(fn, ctx)`。
-- 当前仍保留底层 `InputPumpTask` 的 C ABI 风格 callback / ctx 窄腰。
+- 公开 `BringupMinimal` / `BringupInput` 已移除 `SinkFn + void*` 兼容 overload；raw interop 需要显式写成 `input::RawSinkRef::raw(fn, ctx)`。
+- `InputInitChain` / `InputPumpBinding` 已改为传递 `input::RawSinkRef`；裸 callback / ctx 只保留在 `InputPumpTask` 执行窄腰。
 
 **为什么重要**
 

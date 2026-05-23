@@ -17,6 +17,7 @@ import init.plan;
 import io.registry;
 import io.reactor;
 import input.pump;
+import input.raw_sink;
 import platform.board;
 import util.core;
 import util.error;
@@ -31,7 +32,7 @@ export namespace charm::system {
         BringupInput(const platform::board::InputCaps& caps,
                      Host& host,
                      util::usize budget = 8,
-                     InputSinkRef sink = {},
+                     input::RawSinkRef sink = {},
                      InputInitCfg cfg = {}) noexcept
             : caps_(caps),
               core_(charm::system::ClockOps{caps.clock.now_ms, caps.clock.now_us},

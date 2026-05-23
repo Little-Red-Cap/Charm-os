@@ -24,6 +24,7 @@ import io.reactor;
 import io.channel;
 import io.channel.node;
 import input.pump;
+import input.raw_sink;
 import kernel.eda;
 import platform.board;
 import util.core;
@@ -41,7 +42,7 @@ export namespace charm::system {
         BringupMinimal(const platform::board::BoardCaps& caps,
                        Host& host,
                        util::usize budget = 8,
-                       InputSinkRef sink = {},
+                       input::RawSinkRef sink = {},
                        InputInitCfg cfg = {}) noexcept
             : uart_(caps.uart1),
               console_cap_(caps.console_cap),
@@ -261,7 +262,7 @@ export namespace charm::system {
         template <typename Host>
         void emplace_input_from_host(const platform::board::InputDesc& desc,
                                      Host& host,
-                                     InputSinkRef sink,
+                                     input::RawSinkRef sink,
                                      InputInitCfg cfg) noexcept {
             input_required_ = (desc.driver != nullptr);
             (void)detail::emplace_input_chain_from_host(input_, desc, core_.clock, host, sink, cfg);

@@ -2,6 +2,7 @@ import audio.player;
 import audio.result;
 import player.app;
 import player.controller;
+import player.display;
 import player.fs_utils;
 import player.host_features;
 import player.platform;
@@ -63,7 +64,8 @@ namespace {
         return platform::win::SteadyClock::now();
     }
 
-    static player::PlayerPlatform g_platform{};
+    static player::PlayerOwnedDisplayBuffer g_display_buffer{};
+    static player::PlayerPlatform g_platform{g_display_buffer.surface()};
     static audio::PlayerConfig g_player_cfg{};
     static charm::system::Clock g_clock{nullptr, {.now_us = &now_us}};
     static std::optional<player::App> g_app{};
@@ -76,11 +78,13 @@ namespace {
 #include "main.overlay_fx.inc"
 
 #include "main.font_probe.inc"
+#include "main.display_sdl.inc"
 #include "main.host_runtime.inc"
 #include "main.screenshot.inc"
 
 #include "main.ui_ci.inc"
 
+#include "main.input_sdl.inc"
 #include "main.host_loop.inc"
 }
 

@@ -29,14 +29,7 @@
             return true;
         }
 
-        auto& fb = state.platform->framebuffer_ref();
-        ::FrameBufferView view{
-            screen_pixel_format,
-            fb.data(),
-            static_cast<std::size_t>(screen_width),
-            static_cast<std::size_t>(screen_height),
-            state.platform->stride_bytes()
-        };
+        ::FrameBufferView view = state.platform->framebuffer_view();
 
         if (state.screenshot_verbose) {
             dump_font_probe_metrics(*state.platform, *state.scene, *state.ctx);

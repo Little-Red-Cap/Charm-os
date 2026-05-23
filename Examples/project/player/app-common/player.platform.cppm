@@ -1,32 +1,81 @@
 module;
+
+#include <array>
 #include <cstddef>
-#include <optional>
 #include <utility>
 
 export module player.platform;
 
-import charm.ui.scene;
+import charm.core.config;
 import charm.gfx.canvas;
+import charm.gfx.color;
 import charm.gfx.framebuffer;
+import charm.ui.scene;
+import player.display;
 
 export namespace player {
+    class PlayerOwnedDisplayBuffer {
+    public:
+        static constexpr PlayerDisplayPixelFormat pixel_format = default_player_display_pixel_format;
+        static constexpr std::size_t bytes_per_pixel = player_display_bytes_per_pixel(pixel_format);
+        static constexpr std::size_t stride_bytes =
+            static_cast<std::size_t>(screen_width) * bytes_per_pixel;
+        static constexpr std::size_t buffer_bytes =
+            stride_bytes * static_cast<std::size_t>(screen_height);
+
+        PlayerDisplaySurface surface() noexcept {
+            return PlayerDisplaySurface{
+                storage_.data(),
+                screen_width,
+                screen_height,
+                stride_bytes,
+                pixel_format,
+                PlayerDisplaySurfaceOwnership::Owned,
+            };
+        }
+
+    private:
+        alignas(4) std::array<std::byte, buffer_bytes> storage_{};
+    };
+
     struct PlayerPlatform {
-        DefaultFrameBuffer framebuffer{};
-        DefaultCanvas canvas{framebuffer};
-        ::ui::scene::Scene scene{canvas};
+        explicit PlayerPlatform(PlayerDisplaySurface surface) noexcept
+            : surface_storage(surface),
+              canvas(surface_storage.pixels,
+                     surface_storage.width,
+                     surface_storage.height,
+                     to_vivid_pixel_format(surface_storage.pixel_format),
+                     surface_storage.stride_bytes),
+              scene(canvas) {}
 
         template <typename Fn>
         void build_scene(Fn&& fn) {
             scene.build(std::forward<Fn>(fn));
         }
 
-        void begin_frame() { canvas.begin_frame(); }
+        void clear(const rgba& color) noexcept { canvas.clear(color); }
+        void begin_frame() noexcept { canvas.begin_frame(); }
         void render() { scene.render(); }
-        void end_frame() { canvas.end_frame(); }
+        void end_frame() noexcept { canvas.end_frame(); }
 
-        DefaultCanvas& canvas_ref() { return canvas; }
-        DefaultFrameBuffer& framebuffer_ref() { return framebuffer; }
-        ::ui::scene::Scene& scene_ref() { return scene; }
-        std::size_t stride_bytes() const { return DefaultFrameBuffer::stride_bytes; }
+        RuntimeCanvas& canvas_ref() noexcept { return canvas; }
+        const RuntimeCanvas& canvas_ref() const noexcept { return canvas; }
+        PlayerDisplaySurface& surface_ref() noexcept { return surface_storage; }
+        const PlayerDisplaySurface& surface_ref() const noexcept { return surface_storage; }
+        ::ui::scene::Scene& scene_ref() noexcept { return scene; }
+        const ::ui::scene::Scene& scene_ref() const noexcept { return scene; }
+
+        std::size_t stride_bytes() const noexcept { return surface_storage.stride_bytes; }
+        int width() const noexcept { return surface_storage.width; }
+        int height() const noexcept { return surface_storage.height; }
+
+        rgba get_pixel(int x, int y) const noexcept { return canvas.get_pixel(x, y); }
+        FrameBufferView framebuffer_view() noexcept { return to_framebuffer_view(surface_storage); }
+        FrameBufferView framebuffer_view() const noexcept { return to_framebuffer_view(surface_storage); }
+
+    private:
+        PlayerDisplaySurface surface_storage{};
+        RuntimeCanvas canvas;
+        ::ui::scene::Scene scene;
     };
 }

@@ -2,6 +2,8 @@
         SDL_Window* window{nullptr};
         SDL_Renderer* renderer{nullptr};
         SDL_Texture* texture{nullptr};
+        SdlDisplaySinkState display_state{};
+        player::PlayerDisplaySink display_sink{};
         bool sdl_initialized{false};
     };
 
@@ -10,8 +12,7 @@
         player::PlayerPlatform* platform{nullptr};
         PlayerUiContext* ctx{nullptr};
         ::ui::scene::Scene* scene{nullptr};
-        SDL_Renderer* renderer{nullptr};
-        SDL_Texture* texture{nullptr};
+        player::PlayerDisplaySink* display_sink{nullptr};
         bool* running{nullptr};
         int* win_w{nullptr};
         int* win_h{nullptr};
@@ -63,15 +64,17 @@
         }
 
         runtime.texture = SDL_CreateTexture(runtime.renderer,
-                                            SDL_PIXELFORMAT_RGB24,
+                                            sdl_pixel_format(g_platform.surface_ref().pixel_format),
                                             SDL_TEXTUREACCESS_STREAMING,
-                                            screen_width,
-                                            screen_height);
+                                            g_platform.width(),
+                                            g_platform.height());
         if (!runtime.texture) {
             shutdown_sdl_host_runtime(runtime);
             return false;
         }
         SDL_SetTextureScaleMode(runtime.texture, SDL_SCALEMODE_NEAREST);
+        runtime.display_state = SdlDisplaySinkState{runtime.renderer, runtime.texture};
+        runtime.display_sink = make_sdl_display_sink(runtime.display_state);
         return true;
     }
 

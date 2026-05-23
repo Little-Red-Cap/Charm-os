@@ -21,24 +21,22 @@
     }
 
     rgba sample_label_bg(player::PlayerPlatform& platform, const Rect& rect) noexcept {
-        const auto& fb = platform.framebuffer_ref();
-        const int x = std::clamp(rect.x + rect.w - 4, 0, screen_width - 1);
-        const int y = std::clamp(rect.y + rect.h / 2, 0, screen_height - 1);
-        return fb.get_pixel(static_cast<std::size_t>(x), static_cast<std::size_t>(y));
+        const int x = std::clamp(rect.x + rect.w - 4, 0, platform.width() - 1);
+        const int y = std::clamp(rect.y + rect.h / 2, 0, platform.height() - 1);
+        return platform.get_pixel(x, y);
     }
 
     PixelBounds scan_text_pixels(player::PlayerPlatform& platform,
                                  const Rect& rect,
                                  const rgba& bg) noexcept {
         PixelBounds out{};
-        const auto& fb = platform.framebuffer_ref();
         const int x0 = std::max(0, rect.x);
         const int y0 = std::max(0, rect.y);
-        const int x1 = std::min(screen_width, rect.x + rect.w);
-        const int y1 = std::min(screen_height, rect.y + rect.h);
+        const int x1 = std::min(platform.width(), rect.x + rect.w);
+        const int y1 = std::min(platform.height(), rect.y + rect.h);
         for (int y = y0; y < y1; ++y) {
             for (int x = x0; x < x1; ++x) {
-                const rgba px = fb.get_pixel(static_cast<std::size_t>(x), static_cast<std::size_t>(y));
+                const rgba px = platform.get_pixel(x, y);
                 if (color_delta(px, bg) <= 18) continue;
                 if (!out.found) {
                     out.found = true;

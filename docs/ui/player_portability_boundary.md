@@ -28,6 +28,11 @@ For the current ownership map, host shell split, Vivid extraction candidates, an
 ## Host-Only Dependencies
 
 - SDL3 windowing, event pump, renderer, and screenshot flow live in `Examples/project/player/win`.
+- Player display output now goes through a small display HAL contract: app-common renders into `PlayerDisplaySurface`, and host/board code presents that surface through a `PlayerDisplaySink`.
+- SDL is only the current Windows preview display adapter. A Win32, Linux fbdev/DRM, or STM32 SDRAM/LTDC adapter can present the same `pixels / width / height / stride / pixel_format` surface without changing Player UI code.
+- `PlayerPlatform` binds an externally supplied surface; the Windows preview owns one default buffer in the host shell, while board code can pass an SDRAM framebuffer surface.
+- `MemoryDisplaySink` is the portable/CI seam for SDRAM-style output. Its UI-CI case renders a frame into an external buffer and verifies present metadata without requiring SDL.
+- SDL event decoding is isolated in a host input adapter include. The Player app still consumes semantic `RawInputEvent` / `UiKey` input instead of learning SDL event shapes.
 - Windows command-line preview flags are parsed into a host-local `PreviewOptions` structure; page controllers should not learn about argv shape.
 - Host feature defaults are composed by `PLAYER_HOST_PROFILE`; explicit `CHARM_PLAYER_HOST_*` cache values remain valid overrides for local experiments.
 - Windows preview resource defaults are composed by `product_player_host_resources.cmake`; common code reads them through `player.product_config`.
@@ -46,6 +51,24 @@ For the current ownership map, host shell split, Vivid extraction candidates, an
 - FreeType file-backed font loading is a host/product resource path until Vivid has a board resource contract.
 - Calendar/week stamping is routed through `player.time_utils` so page controllers do not carry platform time branches.
 
+## Display/Input HAL v0
+
+The display boundary is intentionally small:
+
+- App side: render into `PlayerDisplaySurface`.
+- Adapter side: implement `PlayerDisplaySink::present(surface, dirty)`.
+- Surface contract: buffer pointer, dimensions, stride, pixel format, and ownership are explicit.
+- Board SDRAM contract: board code supplies the framebuffer address and stride, then maps `present` to cache clean, dirty flush, DMA2D copy, LTDC front-buffer flip, or a no-op for single-buffer scanout.
+- Host preview contract: SDL creates a texture matching the Player surface format and only copies/presents the final surface.
+
+The matching input boundary is also small:
+
+- Host or board code samples hardware/window events.
+- Adapter code converts them to `RawInputEvent` and `UiKey`.
+- Player app/controller consume semantic input only.
+
+This means Win32, Linux, SDL, and STM32 are peers at the adapter layer. None of them should leak into Player page builders or controller semantics.
+
 ## Portability Blockers To Retire
 
 - Dynamic `std::vector` / `std::string` state in the Material Design 3 controller and cover pipeline.
@@ -57,5 +80,6 @@ For the current ownership map, host shell split, Vivid extraction candidates, an
 
 1. Move host-only diagnostics and screenshot helpers behind explicit host macros.
 2. Replace controller-owned dynamic track/list caches with fixed-capacity storage.
-3. Add a portable pre-decoded image/resource cover provider beside the existing host decoder path.
-4. Replace host C library time fallback with a board clock/RTC adapter when the portable Player target appears.
+3. Add a concrete Win32 or Linux display sink beside SDL to prove backend replacement without touching Player UI.
+4. Add a board SDRAM/LTDC adapter that consumes `PlayerDisplaySurface` and calls board cache/flush hooks.
+5. Replace host C library time fallback with a board clock/RTC adapter when the portable Player target appears.

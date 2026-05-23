@@ -5,6 +5,7 @@
 
 import kernel.task_message_session_dispatch;
 import kernel.task_syscall_table;
+import semantic.core;
 
 namespace demo {
     using namespace std::literals;
@@ -199,6 +200,20 @@ namespace demo {
             return false;
         }
 
+        const auto first_witness =
+            kernel::task_message_session_dispatch_witness(*first);
+        const auto third_witness =
+            kernel::task_message_session_dispatch_witness(*third);
+        const auto request_witness =
+            kernel::task_message_session_dispatch_witness(request_echo);
+        const auto fifth_witness =
+            kernel::task_message_session_dispatch_witness(*fifth);
+        const auto terminal_witness =
+            kernel::task_message_session_dispatch_witness(trace);
+        const auto handoff =
+            kernel::task_message_session_dispatch_witness_handoff_target(
+                terminal_witness);
+
         return dispatcher.valid() &&
                trap_result_matches(open_echo.trap,
                                    kernel::TrapDisposition::handled,
@@ -290,7 +305,31 @@ namespace demo {
                sixth->session_slot == 0u &&
                same_text(
                    kernel::task_message_session_action_kind_name(sixth->action),
-                   "open"sv);
+                   "open"sv) &&
+               kernel::task_message_session_dispatch_witness_ready(
+                   first_witness) &&
+               first_witness.verdict() == semantic::Verdict::standing &&
+               first_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
+               first_witness.open_branch_ok() &&
+               third_witness.verdict() == semantic::Verdict::standing &&
+               third_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
+               third_witness.open_branch_ok() &&
+               request_witness.verdict() == semantic::Verdict::standing &&
+               request_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
+               request_witness.request_branch_ok() &&
+               fifth_witness.verdict() == semantic::Verdict::standing &&
+               fifth_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
+               fifth_witness.close_branch_ok() &&
+               terminal_witness.verdict() == semantic::Verdict::standing &&
+               terminal_witness.open_branch_ok() &&
+               std::string_view{handoff.entry_name()} ==
+                   "task-message-session-dispatch-witness"sv &&
+               std::string_view{handoff.selected_summary_path()} ==
+                   "task-message-session-dispatch-witness.summary"sv;
     }
 
     [[nodiscard]] bool probe_table_integration_and_errors() noexcept
@@ -363,6 +402,26 @@ namespace demo {
             return false;
         }
 
+        const auto missing_service_witness =
+            kernel::task_message_session_dispatch_witness(*session_first);
+        const auto unbound_service_witness =
+            kernel::task_message_session_dispatch_witness(*session_second);
+        const auto opened_witness =
+            kernel::task_message_session_dispatch_witness(*session_third);
+        const auto invalid_request_witness =
+            kernel::task_message_session_dispatch_witness(*session_fourth);
+        const auto valid_request_witness =
+            kernel::task_message_session_dispatch_witness(*session_fifth);
+        const auto unsupported_syscall_witness =
+            kernel::task_message_session_dispatch_witness(
+                kernel::TaskMessageSessionDispatchTraceEvent{
+                    .sequence = table_last->sequence,
+                    .syscall = table_last->syscall,
+                    .disposition = table_last->disposition,
+                    .error = table_last->error,
+                    .value = table_last->value,
+                });
+
         return trap_result_matches(unsupported_open,
                                    kernel::TrapDisposition::unsupported,
                                    kernel::TrapError::unsupported_service) &&
@@ -433,7 +492,36 @@ namespace demo {
                !table_last->matched &&
                !table_last->handler_valid &&
                table_last->error ==
-                   kernel::TrapError::unsupported_service;
+                   kernel::TrapError::unsupported_service &&
+               missing_service_witness.verdict() ==
+                   semantic::Verdict::standing &&
+               missing_service_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
+               missing_service_witness.service_missing_branch_ok() &&
+               unbound_service_witness.verdict() ==
+                   semantic::Verdict::standing &&
+               unbound_service_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
+               unbound_service_witness.service_unbound_branch_ok() &&
+               opened_witness.verdict() == semantic::Verdict::standing &&
+               opened_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
+               opened_witness.open_branch_ok() &&
+               invalid_request_witness.verdict() ==
+                   semantic::Verdict::standing &&
+               invalid_request_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
+               invalid_request_witness.session_missing_branch_ok() &&
+               valid_request_witness.verdict() ==
+                   semantic::Verdict::standing &&
+               valid_request_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
+               valid_request_witness.request_branch_ok() &&
+               unsupported_syscall_witness.verdict() ==
+                   semantic::Verdict::standing &&
+               unsupported_syscall_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
+               unsupported_syscall_witness.unsupported_syscall_branch_ok();
     }
 }
 
@@ -448,5 +536,11 @@ int main()
         ok ? 1 : 0,
         direct_ok ? 1 : 0,
         table_ok ? 1 : 0);
+    std::printf(
+        "[runtime-task-message-session-dispatch-witness] ok=%d collapsed=%s summary=%s\n",
+        ok ? 1 : 0,
+        semantic::verdict_name(
+            kernel::TaskMessageSessionDispatchWitness{}.verdict()),
+        kernel::TaskMessageSessionDispatchWitness{}.summary_path().data());
     return ok ? 0 : 1;
 }

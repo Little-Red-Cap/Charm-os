@@ -3,6 +3,7 @@ import audio.result;
 import player.app;
 import player.controller;
 import player.display;
+import player.input;
 import player.fs_utils;
 import player.platform;
 import player.storage;
@@ -74,6 +75,7 @@ namespace {
 #include "main.font_probe.inc"
 
 #include "main.display_sdl.inc"
+#include "main.input_sdl.inc"
 
     struct PlayerLoopState {
         player::App* app{nullptr};
@@ -113,20 +115,29 @@ namespace {
         }
     }
 
-    void ui_ci_click(player::App& app, PlayerUiContext& ctx, ::ui::scene::Scene& scene, int x, int y) {
-        input::RawInputEvent down{};
-        down.type = input::RawInputEventType::Pointer;
-        down.ms = 0;
-        down.pointer = input::PointerRaw{true, static_cast<std::int16_t>(x), static_cast<std::int16_t>(y), 0};
-        down.pointer_action = input::PointerAction::Down;
-        app.dispatch_raw_input(scene, ctx, down);
+    void ui_ci_pointer(player::App& app,
+                       PlayerUiContext& ctx,
+                       ::ui::scene::Scene& scene,
+                       std::uint32_t ms,
+                       player::PlayerPointerAction action,
+                       bool down,
+                       int x,
+                       int y) {
+        app.dispatch_player_input(scene,
+                                  ctx,
+                                  player::PlayerInputEvent::make_pointer(
+                                      ms,
+                                      action,
+                                      player::PlayerPointerSample{
+                                          down,
+                                          static_cast<float>(x),
+                                          static_cast<float>(y),
+                                          0}));
+    }
 
-        input::RawInputEvent up{};
-        up.type = input::RawInputEventType::Pointer;
-        up.ms = 0;
-        up.pointer = input::PointerRaw{false, static_cast<std::int16_t>(x), static_cast<std::int16_t>(y), 0};
-        up.pointer_action = input::PointerAction::Up;
-        app.dispatch_raw_input(scene, ctx, up);
+    void ui_ci_click(player::App& app, PlayerUiContext& ctx, ::ui::scene::Scene& scene, int x, int y) {
+        ui_ci_pointer(app, ctx, scene, 0, player::PlayerPointerAction::Down, true, x, y);
+        ui_ci_pointer(app, ctx, scene, 1, player::PlayerPointerAction::Up, false, x, y);
     }
 
     void ui_ci_pump_frame(player::App& app,
@@ -239,6 +250,62 @@ namespace {
             res.failed++;
         }
         pump_frame();
+
+        {
+            ctx.set_page(player::PlayerPage::Home);
+            pump_frame();
+            const Rect r = scene.world_rect(ctx.handles.bottom_hit);
+            if (r.w > 0 && r.h > 0) {
+                const int cx = r.x + r.w / 2;
+                const int cy = r.y + r.h / 2;
+                ui_ci_pointer(app, ctx, scene, 10, player::PlayerPointerAction::Down, true, cx, cy);
+                ui_ci_pointer(app, ctx, scene, 11, player::PlayerPointerAction::Move, true, cx + 3, cy + 2);
+                ui_ci_pointer(app, ctx, scene, 12, player::PlayerPointerAction::Up, false, cx + 3, cy + 2);
+                if (wait_for_page(player::PlayerPage::NowPlaying)
+                    || settle_now_playing_transition(player::PlayerPage::NowPlaying)) {
+                    ui_ci_emit("input_boundary_touch_home_to_now", true, nullptr);
+                } else {
+                    ui_ci_emit("input_boundary_touch_home_to_now", false, "page_not_now");
+                    res.ok = false;
+                    res.failed++;
+                }
+            } else {
+                ui_ci_emit("input_boundary_touch_home_to_now", false, "bottom_hit_zero");
+                res.ok = false;
+                res.failed++;
+            }
+            ctx.set_page(player::PlayerPage::Home);
+            pump_frame();
+        }
+
+        {
+            ctx.set_page(player::PlayerPage::Home);
+            pump_frame();
+            const Rect r = scene.world_rect(ctx.handles.home_scroll);
+            const int before_scroll = ctx.access.scroll_y(ctx.handles.home_scroll);
+            if (r.w > 0 && r.h > 0) {
+                app.dispatch_player_input(scene,
+                                          ctx,
+                                          player::PlayerInputEvent::make_wheel(
+                                              20,
+                                              static_cast<float>(r.x + r.w / 2),
+                                              static_cast<float>(r.y + r.h / 2),
+                                              -3.0f));
+                pump_frame();
+                const int after_scroll = ctx.access.scroll_y(ctx.handles.home_scroll);
+                if (after_scroll != before_scroll) {
+                    ui_ci_emit("input_boundary_wheel_home_scroll", true, nullptr);
+                } else {
+                    ui_ci_emit("input_boundary_wheel_home_scroll", false, "scroll_unchanged");
+                    res.ok = false;
+                    res.failed++;
+                }
+            } else {
+                ui_ci_emit("input_boundary_wheel_home_scroll", false, "home_scroll_zero");
+                res.ok = false;
+                res.failed++;
+            }
+        }
 
         {
             const auto cmd_stats = scene.last_cmd_stats();
@@ -995,11 +1062,6 @@ namespace {
         return res;
     }
 
-    bool dispatch_sdl_event(::ui::scene::Scene& scene,
-                            player::App& app,
-                            PlayerUiContext& ctx,
-                            const SDL_Event& evt);
-
     void loop_poll_events(void* ctx, charm::system::ClockTick, charm::system::ClockTick) noexcept {
         auto* state = static_cast<PlayerLoopState*>(ctx);
         if (!state || !state->running || !state->app || !state->ctx || !state->platform) {
@@ -1019,7 +1081,12 @@ namespace {
                     *state->win_h = static_cast<int>(evt.window.data2);
                 }
             }
-            dispatch_sdl_event(state->platform->scene_ref(), *state->app, *state->ctx, evt);
+            const auto input_batch = translate_sdl_player_input(evt);
+            for (std::size_t i = 0; i < input_batch.count; ++i) {
+                state->app->dispatch_player_input(state->platform->scene_ref(),
+                                                  *state->ctx,
+                                                  input_batch.events[i]);
+            }
         }
     }
 
@@ -1060,7 +1127,6 @@ namespace {
         }
     }
 
-#include "main.input_sdl.inc"
 }
 
 int main(int argc, char** argv) {

@@ -1,5 +1,6 @@
 module;
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -8,7 +9,9 @@ export module player.app;
 import player.mcu_policy;
 import audio.player;
 import audio.result;
+import charm.core.event;
 import charm.system.clock;
+import player.input;
 import player.storage;
 import player.ui;
 import player.ui_builder;
@@ -150,7 +153,104 @@ export namespace player {
             }
         }
 
+        template <typename Controller>
+        void dispatch_player_input(::ui::scene::Scene& scene,
+                                   Controller& controller,
+                                   const PlayerInputEvent& ev) {
+            switch (ev.kind) {
+            case PlayerInputEventKind::Pointer:
+                dispatch_player_pointer(scene, controller, ev);
+                break;
+            case PlayerInputEventKind::Wheel:
+                scene.dispatch_event(Event::wheel(static_cast<int>(ev.pointer.x),
+                                                  static_cast<int>(ev.pointer.y),
+                                                  static_cast<int>(ev.wheel_y),
+                                                  ev.ms));
+                controller.process_input_events();
+                break;
+            case PlayerInputEventKind::Button:
+                dispatch_player_button(scene, controller, ev);
+                break;
+            case PlayerInputEventKind::Command:
+                dispatch_player_command(controller, ev.command);
+                break;
+            default:
+                break;
+            }
+        }
+
     private:
+        [[nodiscard]] static std::int16_t clamp_pointer_coord(float value) noexcept {
+            if (value < -32768.0f) return static_cast<std::int16_t>(-32768);
+            if (value > 32767.0f) return static_cast<std::int16_t>(32767);
+            return static_cast<std::int16_t>(value);
+        }
+
+        [[nodiscard]] static input::PointerAction to_raw_pointer_action(PlayerPointerAction action) noexcept {
+            switch (action) {
+            case PlayerPointerAction::Down:
+                return input::PointerAction::Down;
+            case PlayerPointerAction::Up:
+            case PlayerPointerAction::Cancel:
+                return input::PointerAction::Up;
+            case PlayerPointerAction::Move:
+            default:
+                return input::PointerAction::Move;
+            }
+        }
+
+        [[nodiscard]] static input::Button to_raw_button(PlayerInputCommand command) noexcept {
+            switch (command) {
+            case PlayerInputCommand::Up:
+                return input::Button::Up;
+            case PlayerInputCommand::Down:
+                return input::Button::Down;
+            case PlayerInputCommand::Left:
+            case PlayerInputCommand::Back:
+                return input::Button::Back;
+            case PlayerInputCommand::Enter:
+            default:
+                return input::Button::Enter;
+            }
+        }
+
+        template <typename Controller>
+        void dispatch_player_pointer(::ui::scene::Scene& scene,
+                                     Controller& controller,
+                                     const PlayerInputEvent& ev) {
+            input::RawInputEvent raw{};
+            raw.type = input::RawInputEventType::Pointer;
+            raw.ms = ev.ms;
+            raw.pointer = input::PointerRaw{ev.pointer.down,
+                                            clamp_pointer_coord(ev.pointer.x),
+                                            clamp_pointer_coord(ev.pointer.y),
+                                            ev.pointer.id};
+            if (ev.pointer_action == PlayerPointerAction::Cancel) {
+                raw.pointer.down = false;
+            }
+            raw.pointer_action = to_raw_pointer_action(ev.pointer_action);
+            dispatch_raw_input(scene, controller, raw);
+        }
+
+        template <typename Controller>
+        void dispatch_player_button(::ui::scene::Scene& scene,
+                                    Controller& controller,
+                                    const PlayerInputEvent& ev) {
+            input::RawInputEvent raw{};
+            raw.type = input::RawInputEventType::Button;
+            raw.ms = ev.ms;
+            raw.button = to_raw_button(ev.command);
+            raw.pressed = ev.button_pressed;
+            dispatch_raw_input(scene, controller, raw);
+        }
+
+        template <typename Controller>
+        void dispatch_player_command(Controller& controller, PlayerInputCommand command) {
+            if constexpr (requires { controller.handle_input_command(command); }) {
+                controller.handle_input_command(command);
+            }
+        }
+
         AppConfig config_{};
         audio::AudioPlayer player_;
         StorageState last_storage_{};

@@ -2,6 +2,7 @@
 import audio.result;
 import player.app;
 import player.controller;
+import player.display;
 import player.fs_utils;
 import player.platform;
 import player.storage;
@@ -72,13 +73,14 @@ namespace {
 
 #include "main.font_probe.inc"
 
+#include "main.display_sdl.inc"
+
     struct PlayerLoopState {
         player::App* app{nullptr};
         player::PlayerPlatform* platform{nullptr};
         PlayerUiContext* ctx{nullptr};
         ::ui::scene::Scene* scene{nullptr};
-        SDL_Renderer* renderer{nullptr};
-        SDL_Texture* texture{nullptr};
+        player::PlayerDisplaySink* display_sink{nullptr};
         bool* running{nullptr};
         int* win_w{nullptr};
         int* win_h{nullptr};
@@ -127,25 +129,85 @@ namespace {
         app.dispatch_raw_input(scene, ctx, up);
     }
 
+    void ui_ci_pump_frame(player::App& app,
+                          PlayerUiContext& ctx,
+                          player::PlayerPlatform& platform,
+                          player::PlayerDisplaySink* display_sink) {
+        app.tick();
+        ctx.tick_player(app.player());
+        player::PlayerFrameContext frame{
+            .platform = &platform,
+            .display_sink = display_sink,
+            .clear_color = kUiBackground,
+        };
+        (void)player::render_player_frame(frame, ctx);
+    }
+
+    bool run_memory_display_sink_ci() {
+        static std::array<std::byte, player::PlayerOwnedDisplayBuffer::buffer_bytes> external_buffer{};
+        static player::PlayerPlatform memory_platform{player::PlayerDisplaySurface{
+            external_buffer.data(),
+            screen_width,
+            screen_height,
+            player::PlayerOwnedDisplayBuffer::stride_bytes,
+            player::PlayerOwnedDisplayBuffer::pixel_format,
+            player::PlayerDisplaySurfaceOwnership::Borrowed,
+        }};
+        memory_platform.build_scene([&](::ui::scene::SceneBuilder& builder) {
+            const auto root = builder.create_container();
+            const auto label = builder.create_label_static("display-hal-memory-sink");
+            builder.link(root, label);
+            builder.set_rect(root, Rect{0, 0, screen_width, screen_height});
+            builder.set_rect(label, Rect{24, 24, 260, 36});
+            builder.set_root(root);
+        });
+
+        player::MemoryDisplaySinkState sink_state{};
+        player::PlayerDisplaySink sink = player::make_memory_display_sink(sink_state);
+        memory_platform.clear(kUiBackground);
+        memory_platform.begin_frame();
+        memory_platform.render();
+        memory_platform.end_frame();
+        (void)sink.present(
+            memory_platform.surface_ref(),
+            player::full_player_dirty_region(memory_platform.surface_ref()));
+
+        bool has_nonzero_pixel = false;
+        const auto& presented = sink_state.last_surface;
+        if (presented.valid()) {
+            const std::size_t row_step = presented.stride_bytes;
+            const std::size_t bpp = presented.bytes_per_pixel();
+            for (int y = 0; y < presented.height && !has_nonzero_pixel; y += 32) {
+                const auto* row = presented.pixels + static_cast<std::size_t>(y) * row_step;
+                for (int x = 0; x < presented.width && !has_nonzero_pixel; x += 32) {
+                    const auto* px = row + static_cast<std::size_t>(x) * bpp;
+                    for (std::size_t i = 0; i < bpp; ++i) {
+                        if (px[i] != std::byte{}) {
+                            has_nonzero_pixel = true;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        return sink_state.present_count == 1
+            && presented.pixels == external_buffer.data()
+            && presented.width == screen_width
+            && presented.height == screen_height
+            && presented.stride_bytes == player::PlayerOwnedDisplayBuffer::stride_bytes
+            && presented.pixel_format == player::PlayerOwnedDisplayBuffer::pixel_format
+            && sink_state.last_dirty.w == screen_width
+            && sink_state.last_dirty.h == screen_height
+            && has_nonzero_pixel;
+    }
+
     UiCiResult run_ui_ci(player::App& app, PlayerUiContext& ctx, player::PlayerPlatform& platform) {
         UiCiResult res{};
         auto& scene = platform.scene_ref();
 
         auto pump_frame = [&]() {
-            app.tick();
-            ctx.tick_player(app.player());
-            platform.framebuffer_ref().clear(kUiBackground);
-            platform.begin_frame();
-            if (ctx.transition_needs_destination_snapshot()) {
-                ctx.prepare_transition_destination_snapshot_scene();
-                platform.render();
-                ctx.finish_transition_destination_snapshot_capture();
-                platform.framebuffer_ref().clear(kUiBackground);
-                platform.begin_frame();
-            }
-            ctx.compose_now_playing_transition_pixel_layer();
-            platform.render();
-            platform.end_frame();
+            ui_ci_pump_frame(app, ctx, platform, nullptr);
         };
         auto wait_for_page = [&](player::PlayerPage expected_page, int max_frames = 36) {
             if (ctx.current_page == expected_page) return true;
@@ -167,6 +229,15 @@ namespace {
             return ctx.current_page == expected_page;
         };
 
+        pump_frame();
+
+        if (run_memory_display_sink_ci()) {
+            ui_ci_emit("memory_display_sink_external_surface", true, nullptr);
+        } else {
+            ui_ci_emit("memory_display_sink_external_surface", false, "memory_display_sink");
+            res.ok = false;
+            res.failed++;
+        }
         pump_frame();
 
         {
@@ -965,13 +1036,18 @@ namespace {
 
     void loop_render(void* ctx, charm::system::ClockTick, charm::system::ClockTick) noexcept {
         auto* state = static_cast<PlayerLoopState*>(ctx);
-        if (!state || !state->platform || !state->ctx || !state->scene || !state->renderer || !state->texture) {
+        if (!state || !state->platform || !state->ctx || !state->scene || !state->display_sink) {
             return;
         }
         prepare_screenshot_page(*state);
-        state->platform->framebuffer_ref().clear(kUiBackground);
-        state->platform->begin_frame();
-        state->platform->scene_ref().set_overlay(
+        player::PlayerFrameContext frame{
+            .platform = state->platform,
+            .display_sink = state->display_sink,
+            .clear_color = kUiBackground,
+        };
+        (void)player::render_player_frame(
+            frame,
+            *state->ctx,
             [](::ui::scene::SceneOverlay& overlay, void* ctx) noexcept {
                 auto* state = static_cast<PlayerLoopState*>(ctx);
                 if (!state || !state->ctx || !state->scene) return;
@@ -979,135 +1055,12 @@ namespace {
                 draw_now_playing_fx(overlay, *state->ctx, *state->scene, state->t_sec);
             },
             state);
-        if (state->ctx->transition_needs_destination_snapshot()) {
-            state->ctx->prepare_transition_destination_snapshot_scene();
-            state->platform->render();
-            state->ctx->finish_transition_destination_snapshot_capture();
-            state->platform->framebuffer_ref().clear(kUiBackground);
-            state->platform->begin_frame();
-        }
-        state->ctx->compose_now_playing_transition_pixel_layer();
-        state->platform->render();
-        state->platform->end_frame();
-
-        SDL_UpdateTexture(state->texture,
-                          nullptr,
-                          state->platform->canvas_ref().data(),
-                          static_cast<int>(state->platform->stride_bytes()));
-        SDL_RenderClear(state->renderer);
-        SDL_RenderTexture(state->renderer, state->texture, nullptr, nullptr);
-        SDL_RenderPresent(state->renderer);
         if (flush_screenshot(*state)) {
             return;
         }
     }
 
-    std::optional<input::Button> map_nav_button(SDL_Keycode key) noexcept {
-        switch (key) {
-        case SDLK_UP: return input::Button::Up;
-        case SDLK_DOWN: return input::Button::Down;
-        case SDLK_RETURN: return input::Button::Enter;
-        case SDLK_ESCAPE: return input::Button::Back;
-        case SDLK_BACKSPACE: return input::Button::Back;
-        default:
-            break;
-        }
-        return std::nullopt;
-    }
-
-    std::optional<player::UiKey> map_ui_key(SDL_Keycode key) noexcept {
-        switch (key) {
-        case SDLK_UP: return player::UiKey::Up;
-        case SDLK_DOWN: return player::UiKey::Down;
-        case SDLK_RETURN: return player::UiKey::Enter;
-        case SDLK_SPACE: return player::UiKey::PlayToggle;
-        case SDLK_N: return player::UiKey::Next;
-        case SDLK_P: return player::UiKey::Prev;
-        case SDLK_M: return player::UiKey::Mode;
-        default:
-            break;
-        }
-        return std::nullopt;
-    }
-
-    bool dispatch_sdl_event(::ui::scene::Scene& scene, player::App& app, PlayerUiContext& ctx, const SDL_Event& evt) {
-        switch (evt.type) {
-        case SDL_EVENT_MOUSE_MOTION: {
-            input::RawInputEvent raw{};
-            raw.type = input::RawInputEventType::Pointer;
-            raw.ms = SDL_GetTicks();
-            raw.pointer = input::PointerRaw{false,
-                                            static_cast<std::int16_t>(evt.motion.x),
-                                            static_cast<std::int16_t>(evt.motion.y),
-                                            0};
-            raw.pointer_action = input::PointerAction::Move;
-            app.dispatch_raw_input(scene, ctx, raw);
-            return true;
-        }
-        case SDL_EVENT_MOUSE_BUTTON_DOWN: {
-            if (evt.button.button != SDL_BUTTON_LEFT) return true;
-            input::RawInputEvent raw{};
-            raw.type = input::RawInputEventType::Pointer;
-            raw.ms = SDL_GetTicks();
-            raw.pointer = input::PointerRaw{true,
-                                            static_cast<std::int16_t>(evt.button.x),
-                                            static_cast<std::int16_t>(evt.button.y),
-                                            0};
-            raw.pointer_action = input::PointerAction::Down;
-            app.dispatch_raw_input(scene, ctx, raw);
-            return true;
-        }
-        case SDL_EVENT_MOUSE_BUTTON_UP: {
-            if (evt.button.button != SDL_BUTTON_LEFT) return true;
-            input::RawInputEvent raw{};
-            raw.type = input::RawInputEventType::Pointer;
-            raw.ms = SDL_GetTicks();
-            raw.pointer = input::PointerRaw{false,
-                                            static_cast<std::int16_t>(evt.button.x),
-                                            static_cast<std::int16_t>(evt.button.y),
-                                            0};
-            raw.pointer_action = input::PointerAction::Up;
-            app.dispatch_raw_input(scene, ctx, raw);
-            return true;
-        }
-        case SDL_EVENT_MOUSE_WHEEL:
-            {
-                float mx = 0.0f;
-                float my = 0.0f;
-                SDL_GetMouseState(&mx, &my);
-                scene.dispatch_event(Event::wheel(static_cast<int>(mx),
-                                                  static_cast<int>(my),
-                                                  evt.wheel.y));
-            }
-            ctx.process_input_events();
-            return true;
-        case SDL_EVENT_KEY_DOWN:
-            if (auto k = map_ui_key(evt.key.key)) {
-                ctx.handle_key_action(*k);
-            }
-            if (auto b = map_nav_button(evt.key.key)) {
-                input::RawInputEvent raw{};
-                raw.type = input::RawInputEventType::Button;
-                raw.ms = SDL_GetTicks();
-                raw.button = *b;
-                raw.pressed = true;
-                app.dispatch_raw_input(scene, ctx, raw);
-            }
-            return true;
-        case SDL_EVENT_KEY_UP:
-            if (auto b = map_nav_button(evt.key.key)) {
-                input::RawInputEvent raw{};
-                raw.type = input::RawInputEventType::Button;
-                raw.ms = SDL_GetTicks();
-                raw.button = *b;
-                raw.pressed = false;
-                app.dispatch_raw_input(scene, ctx, raw);
-            }
-            return true;
-        default:
-            return false;
-        }
-    }
+#include "main.input_sdl.inc"
 }
 
 int main(int argc, char** argv) {
@@ -1244,7 +1197,9 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    SDL_Texture* texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGB24, SDL_TEXTUREACCESS_STREAMING,
+    SDL_Texture* texture = SDL_CreateTexture(renderer,
+                                             sdl_pixel_format(g_platform.surface_ref().pixel_format),
+                                             SDL_TEXTUREACCESS_STREAMING,
                                              screen_width, screen_height);
     if (!texture) {
         SDL_DestroyRenderer(renderer);
@@ -1379,13 +1334,17 @@ int main(int argc, char** argv) {
     int win_w = screen_width;
     int win_h = screen_height;
     bool running = true;
+    SdlDisplaySinkState display_sink_state{
+        .renderer = renderer,
+        .texture = texture,
+    };
+    player::PlayerDisplaySink display_sink = make_sdl_display_sink(display_sink_state);
     PlayerLoopState loop_state{
         .app = &(*g_app),
         .platform = &g_platform,
         .ctx = &g_ctx,
         .scene = &g_platform.scene_ref(),
-        .renderer = renderer,
-        .texture = texture,
+        .display_sink = &display_sink,
         .running = &running,
         .win_w = &win_w,
         .win_h = &win_h,

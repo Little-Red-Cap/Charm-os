@@ -4,6 +4,7 @@
 #include "console_service.hpp"
 #include "h747_world.hpp"
 #include "memory_service.hpp"
+#include "player_display_hal.hpp"
 #include "player_domain.hpp"
 #include "player_input.hpp"
 
@@ -29,6 +30,17 @@ h747::memory::StorageProbe& active_storage_probe() noexcept {
 h747::console::ConsoleLineSource& active_line_source() noexcept {
     static h747::console::ConsoleLineSource instance{};
     return instance;
+}
+
+h747::apps::player::PlayerRasterDisplaySinkState& active_player_display_sink_state() noexcept {
+    static h747::apps::player::PlayerRasterDisplaySinkState instance{};
+    return instance;
+}
+
+player::PlayerDisplaySink active_player_display_sink() noexcept {
+    return h747::apps::player::make_player_raster_display_sink(
+        active_player_display_sink_state(),
+        active_world().display());
 }
 
 h747::apps::player::PlayerBoardSnapshot capture_board_snapshot() noexcept {
@@ -144,6 +156,33 @@ void print_raster_state(const char* prefix) {
     h747::console::write("\n");
 }
 
+void print_player_display_surface(const char* prefix) {
+    const auto surface = h747::apps::player::make_player_display_surface(active_world().display());
+    h747::console::write(prefix);
+    h747::console::write("_surface");
+    h747::console::write(" valid=");
+    h747::console::write_dec(surface.valid() ? 1U : 0U);
+    h747::console::write(" size=");
+    h747::console::write_dec(static_cast<std::uint32_t>(surface.width));
+    h747::console::write("x");
+    h747::console::write_dec(static_cast<std::uint32_t>(surface.height));
+    h747::console::write(" stride=");
+    h747::console::write_dec(static_cast<std::uint32_t>(surface.stride_bytes));
+    h747::console::write(" fmt=argb8888");
+    h747::console::write(" pixels=");
+    h747::console::write_hex32(reinterpret_cast<std::uintptr_t>(surface.pixels));
+    h747::console::write("\n");
+}
+
+void present_player_platform_probe() noexcept {
+    const auto surface = h747::apps::player::make_player_display_surface(active_world().display());
+    const auto sink = active_player_display_sink();
+    const bool ok = sink.present(surface, player::full_player_dirty_region(surface));
+    h747::console::write("player_display_hal: present=");
+    h747::console::write_dec(ok ? 1U : 0U);
+    h747::console::write("\n");
+}
+
 void handle_player_command(const std::string_view line) {
     const auto event = h747::apps::player::parse_player_input_event(line);
     using h747::apps::player::PlayerInputCommand;
@@ -183,6 +222,8 @@ void init() {
     probe_resources_once();
     active_runtime().observe_board(capture_board_snapshot());
     print_raster_state("player");
+    print_player_display_surface("player");
+    present_player_platform_probe();
     init(active_world(), active_runtime());
     print_raster_state("player");
     print_help();

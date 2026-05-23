@@ -25,11 +25,13 @@ These are references, not contracts. Charm should borrow the pressure points, no
 The Windows `main.cpp` is kept as a thin assembly entry. Host-only helpers are grouped by responsibility:
 
 - `main.host_preview.inc`: preview argv parsing, host feature logging, app config resource binding, and preview-only Library setup hooks.
-- `main.host_runtime.inc`: SDL resource lifecycle, app bootstrap, common preview shutdown, and the host loop state shape.
+- `main.host_runtime.inc`: SDL resource lifecycle, `player.runtime` construction, common preview shutdown, and the host loop state shape.
 - `main.font_probe.inc`: host screenshot/font diagnostics.
 - `main.screenshot.inc`: host screenshot capture and export.
 - `main.ui_ci.inc`: host UI-CI runner and regression probes.
-- `main.host_loop.inc`: SDL event dispatch, run-loop steps, and render presentation.
+- `main.host_loop.inc`: SDL event polling, run-loop steps, and render presentation through `PlayerRuntime`.
+
+The shared product lifecycle has moved into `player.runtime`: bootstrap storage/UI/player state, dispatch `PlayerInputEvent`, tick playback/controller state, render a frame into `PlayerDisplaySurface`, and shut down. Host shells should assemble and call this runtime instead of directly driving `App`, `PlayerController`, or `render_player_frame()`.
 
 The includes stay in the same anonymous namespace so this cleanup does not create a new public API or change link boundaries.
 `main.cpp` should remain a readable assembly entry: parse preview options, initialize host runtime, bootstrap Player, run UI-CI or interactive loop, then shut down.
@@ -49,9 +51,10 @@ Detailed provider and dynamic-memory notes now live in `player_provider_portabil
 Current short form:
 
 - Cover, font, storage, diagnostics, and UI-CI already have visible host gates or host-shell ownership.
+- `player.runtime` is now the common lifecycle seam between product code and host/board adapters.
 - Theme and time have useful seams, but their final provider shape should wait for a concrete portable Player target.
 - Dynamic containers fall into two buckets: product semantic state in the MD3 controller/storage/theme flow, and replaceable host implementation state in font cache, cover decode, screenshots, and UI-CI.
-- The next cleanup order should be font provider, cover resource provider, time/diagnostics provider, UI-CI grouping, then controller dynamic state slimming.
+- The next cleanup order should be runtime construction for a non-SDL board path, font provider, time/diagnostics provider, UI-CI grouping, then controller dynamic state slimming.
 
 ## Portable UI Probe Contract
 

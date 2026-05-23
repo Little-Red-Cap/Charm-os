@@ -25,6 +25,7 @@ It is intentionally narrower than a full embedded port plan. The goal is to make
 | Cover | `player.cover` exposes `CoverProviderFn`; page/controller code can use generated/default cover art when decode is unavailable. | `CHARM_PLAYER_HOST_COVER_DECODE`; profile log prints `host_cover_decode`. | Host decode buffers, embedded image extraction, palette/theme sampling work buffers. | Add a pre-decoded/resource-backed cover provider contract. |
 | Theme | Player-owned cover sampling feeds dynamic surface/text roles; Vivid owns reusable role application candidates. | Indirectly tied to cover decode availability. | Fixed-budget 128x128 sampling workspace, palette candidates, controller theme state. | Keep sampling in Player; consider moving role application rules into Vivid after more app pressure. |
 | Font | Product config carries font paths and sizes; host preview binds file fonts only when enabled. | `CHARM_PLAYER_HOST_FILE_FONTS`, `CHARM_PLAYER_PC_FONT_CACHE`; profile log prints `host_file_fonts`. | FreeType/VFS font buffers, Win32/GDI glyph cache vectors, preview argv strings. | Define a board font resource/provider contract before replacing file fonts. |
+| Runtime | `player.runtime` owns product lifecycle: bootstrap, input dispatch, tick, render, and shutdown. | Host shell selects preview/probe config and still owns SDL, argv, screenshots, and UI-CI entry. | Runtime owns `App` storage in v0; controller/platform storage is provided by the adapter. | Add a board construction path that supplies SDRAM surface, controller storage, clock, and providers without SDL. |
 | Display/Input | `PlayerDisplaySurface`, `PlayerDisplaySink`, and `render_player_frame()` separate Player rendering from SDL; `PlayerInputEvent` separates Player input from SDL/window/touch samples. | Windows preview uses SDL display and input adapters; memory sink proves real Player UI external-framebuffer output. | Preview SDL texture/window state; UI-CI external buffer is fixed-size static storage; input HAL structs are fixed-size. | Add Win32/Linux/board SDRAM display adapters and board touch adapters as peers without changing Player UI. |
 | Time | `player.time_utils` keeps date/week formatting out of page code. | No dedicated board clock gate yet; Windows host binds the runtime time source. | Mostly fixed strings today; playback uses runtime clock timestamps. | Add a time/clock provider adapter when a portable Player target appears. |
 | Storage | `player.storage` and `PlayerApp` isolate scan/mount flow; product config carries host VHD default. | `CHARM_PLAYER_HOST_STORAGE`; profile/resource records select VHD defaults. | Track lists, scan queues, stats history, path buffers, filesystem traversal state. | Introduce board storage capability/provider instead of page-level storage assumptions. |
@@ -124,6 +125,31 @@ Recommended next slice:
 - Add a Linux framebuffer/DRM plus evdev/input adapter pair when a Linux host target appears.
 - Add a board SDRAM/LTDC sink that maps `present` to cache clean, dirty flush, DMA2D copy, or LTDC buffer flip.
 - Add a board touch adapter that reads the panel/controller sample source and emits `PlayerInputEvent::Pointer`.
+
+## Runtime
+
+Current state:
+
+- `player.runtime` is the common product lifecycle shell for the Vivid Player path.
+- Windows/SDL constructs `PlayerRuntime` with a host-owned `PlayerPlatform`, controller storage, clock, and `PlayerRuntimeConfig`.
+- `bootstrap()` owns the product sequence: bind clock, construct `App`, initialize storage, bind player/controller/scene, build UI, apply storage view, and bootstrap the selected track.
+- `dispatch_input()` is the only host loop path from `PlayerInputEvent` into `player.app` and then Vivid/controller semantics.
+- `tick()` owns `App::tick()`, `controller.tick_player()`, and optional preview visual hooks without making spectrum rendering part of the board contract.
+- `render()` owns the frame call into `render_player_frame()` so SDL, memory, and future board sinks share the same render choreography.
+- `shutdown()` owns app/controller shutdown while SDL window/texture cleanup remains host-only.
+
+Dynamic allocation and portability notes:
+
+- Runtime v0 still stores `App` in `std::optional`; this is a desktop-friendly ownership seam, not yet a fixed-allocation embedded profile.
+- Controller and `PlayerPlatform` storage are supplied from the adapter side, so a board profile can place them in static storage or a specific memory region.
+- Runtime does not depend on SDL, Win32, Linux, screenshots, argv parsing, or the UI-CI runner.
+- Runtime still imports the rich Player app/controller/display stack, so it is a lifecycle boundary, not an MCU-strict proof by itself.
+
+Recommended next slice:
+
+- Add a non-SDL runtime construction example that binds a memory/SDRAM surface, board-style clock, and board/provider config.
+- Keep screenshot, GIF, font probe, and preview argv helpers in the Windows host shell.
+- Avoid adding virtual interfaces or heap-owning provider registries until a concrete board adapter needs them.
 
 ## Time
 

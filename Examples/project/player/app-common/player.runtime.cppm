@@ -62,14 +62,12 @@ export namespace player {
         const PlayerRuntimeConfig<Page>& config() const noexcept { return config_; }
 
         bool bootstrap() {
-            if (!platform_ || !controller_) {
+            if (!clock_ || !platform_ || !controller_) {
                 return false;
             }
             charm::system::ClockCaps::TimeSource::bind(*clock_);
-            app_.emplace(std::move(config_.app_config), *clock_);
-            if (config_.storage_config.mount) {
-                init_storage(config_.storage_config);
-            }
+            app_.emplace(config_.app_config, *clock_);
+            init_storage(config_.storage_config);
             app_->bind_player(*controller_);
             controller_->bind_scene(platform_->scene_ref());
             if constexpr (requires { controller_->set_start_page(config_.start_page); }) {

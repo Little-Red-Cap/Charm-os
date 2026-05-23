@@ -68,17 +68,17 @@ memory_storage_state_t g_state{};
 
 SdramProfileRuntime g_is42s32800g_32m{
     {"is42s32800g_32m", 0x02000000U, 9U, 12U, 4U, 32U, 0U},
-    FMC_SDRAM_CLOCK_PERIOD_3,
+    FMC_SDRAM_CLOCK_PERIOD_2,
     FMC_SDRAM_CAS_LATENCY_3,
-    FMC_SDRAM_RBURST_DISABLE,
-    FMC_SDRAM_RPIPE_DELAY_0,
+    FMC_SDRAM_RBURST_ENABLE,
+    FMC_SDRAM_RPIPE_DELAY_1,
+    2U,
+    7U,
     4U,
-    10U,
-    6U,
-    10U,
-    4U,
-    4U,
-    4U,
+    7U,
+    3U,
+    2U,
+    2U,
     kSdramModeReg,
 };
 

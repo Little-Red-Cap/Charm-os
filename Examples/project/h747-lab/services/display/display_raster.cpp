@@ -21,6 +21,7 @@ constexpr std::uint32_t kFramebufferBase = 0xC0000000U;
 constexpr std::uint32_t kFramebufferBytes = kWidth * kHeight * kBytesPerPixel;
 constexpr std::uint32_t kFramebufferCount = 2U;
 constexpr std::uint32_t kFramebufferPoolBytes = kFramebufferBytes * kFramebufferCount;
+constexpr std::uint32_t kReloadWaitTimeoutMs = 50U;
 
 display_raster_state_t g_raster{};
 std::uint32_t g_front_buffer = kFramebufferBase;
@@ -51,6 +52,30 @@ void clean_dcache_range(void* address, const std::uint32_t length) noexcept {
     (void)address;
     (void)length;
 #endif
+}
+
+bool wait_reload_complete() noexcept {
+    if (hltdc_display_min.Instance == nullptr) {
+        return false;
+    }
+
+    const std::uint32_t start = HAL_GetTick();
+    do {
+        if ((hltdc_display_min.Instance->ISR & LTDC_ISR_RRIF) != 0U) {
+            hltdc_display_min.Instance->ICR = LTDC_ICR_CRRIF;
+            return true;
+        }
+        if ((hltdc_display_min.Instance->SRCR & (LTDC_SRCR_IMR | LTDC_SRCR_VBR)) == 0U) {
+            return true;
+        }
+    } while ((HAL_GetTick() - start) < kReloadWaitTimeoutMs);
+    return false;
+}
+
+void clear_ltdc_frame_flags() noexcept {
+    if (hltdc_display_min.Instance != nullptr) {
+        hltdc_display_min.Instance->ICR = LTDC_ICR_CFUIF | LTDC_ICR_CTERRIF | LTDC_ICR_CRRIF;
+    }
 }
 
 void snapshot() noexcept {
@@ -99,6 +124,11 @@ HAL_StatusTypeDef configure_layer() noexcept {
 } // namespace
 
 uint8_t display_raster_init(void) {
+    if (g_raster.init_ok != 0U) {
+        snapshot();
+        return 1U;
+    }
+
     g_raster = {};
     g_front_buffer = kFramebufferBase;
     g_back_buffer = kFramebufferBase + kFramebufferBytes;
@@ -128,6 +158,7 @@ uint8_t display_raster_init(void) {
         return 0U;
     }
 
+    clear_ltdc_frame_flags();
     if (hdsi_display_min.Instance != nullptr) {
         hdsi_display_min.Instance->WCR |= DSI_WCR_LTDCEN;
     }
@@ -159,9 +190,16 @@ uint8_t display_raster_present(const void* pixels, const uint32_t bytes) {
         return 0U;
     }
 
+    clear_ltdc_frame_flags();
     const HAL_StatusTypeDef reload_status = HAL_LTDC_Reload(&hltdc_display_min, LTDC_RELOAD_VERTICAL_BLANKING);
     g_raster.last_hal_status = static_cast<std::uint32_t>(reload_status);
     if (reload_status != HAL_OK) {
+        g_raster.present_ok = 0U;
+        snapshot();
+        return 0U;
+    }
+
+    if (!wait_reload_complete()) {
         g_raster.present_ok = 0U;
         snapshot();
         return 0U;

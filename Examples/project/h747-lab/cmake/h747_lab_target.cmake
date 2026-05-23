@@ -16,6 +16,63 @@ function(h747_lab_collect_services out_sources out_include_dirs)
     set(${out_include_dirs} ${_include_dirs} PARENT_SCOPE)
 endfunction()
 
+function(h747_lab_collect_vivid_mcu_modules target_name out_modules out_base_dirs)
+    set(CHARM_SOURCE_ROOT "${CHARM_ROOT}")
+    set(CHARM_ENABLE_UI_INK OFF CACHE BOOL "" FORCE)
+    set(CHARM_ENABLE_UI_VIVID ON CACHE BOOL "" FORCE)
+    set(CHARM_ENABLE_FREETYPE OFF CACHE BOOL "" FORCE)
+    set(CHARM_VIVID_FEATURESET "MCU_MIN" CACHE STRING "" FORCE)
+    set(CHARM_VIVID_SCREEN_WIDTH "720" CACHE STRING "" FORCE)
+    set(CHARM_VIVID_SCREEN_HEIGHT "1280" CACHE STRING "" FORCE)
+    set(CHARM_VIVID_SCREEN_PIXEL_FORMAT "RGB888" CACHE STRING "" FORCE)
+    set(CHARM_VIVID_LAYER_CACHE_SLOTS "1" CACHE STRING "" FORCE)
+    set(CHARM_VIVID_LAYER_CACHE_WIDTH "720" CACHE STRING "" FORCE)
+    set(CHARM_VIVID_LAYER_CACHE_HEIGHT "1280" CACHE STRING "" FORCE)
+    set(CHARM_VIVID_ENABLE_FLOAT_WIDGETS OFF CACHE BOOL "" FORCE)
+    set(CHARM_VIVID_SOA_MAX_NODES "192" CACHE STRING "" FORCE)
+
+    include("${CHARM_ROOT}/Modules/ui/vivid/vivid.cmake")
+
+    set(_modules
+        "${CHARM_ROOT}/Modules/gfx/font/font.cppm"
+        "${CHARM_ROOT}/Modules/gfx/font/typography.cppm"
+        "${CHARM_ROOT}/Modules/gfx/font/font_defaults_noto.cppm"
+        "${CHARM_ROOT}/Modules/gfx/font/font_noto_ascii_12.cppm"
+        "${CHARM_ROOT}/Modules/gfx/font/font_noto_sc_12.cppm"
+        "${CHARM_ROOT}/Modules/ui/vivid/core/config.cppm"
+        "${CHARM_ROOT}/Modules/ui/vivid/core/geometry.cppm"
+        "${CHARM_ROOT}/Modules/ui/vivid/core/handle.cppm"
+        "${CHARM_ROOT}/Modules/ui/vivid/gfx/canvas.cppm"
+        "${CHARM_ROOT}/Modules/ui/vivid/gfx/color.cppm"
+        "${CHARM_ROOT}/Modules/ui/vivid/gfx/draw_cmd.cppm"
+        "${CHARM_ROOT}/Modules/ui/vivid/gfx/draw_cmd_buffer.cppm"
+        "${CHARM_ROOT}/Modules/ui/vivid/gfx/draw_cmd_executor.cppm"
+        "${CHARM_ROOT}/Modules/ui/vivid/gfx/draw_cmd_schema.cppm"
+        "${CHARM_ROOT}/Modules/ui/vivid/gfx/framebuffer.cppm"
+        "${CHARM_ROOT}/Modules/ui/vivid/gfx/framebuffer_core.cppm"
+        "${CHARM_ROOT}/Modules/ui/vivid/gfx/image.cppm"
+        "${CHARM_ROOT}/Modules/ui/vivid/gfx/path.cppm"
+        "${CHARM_ROOT}/Modules/ui/vivid/gfx/pixel_format.cppm"
+        "${CHARM_ROOT}/Modules/ui/vivid/gfx/pixel_ops.cppm"
+        "${CHARM_ROOT}/Modules/ui/vivid/gfx/render_core.cppm"
+        "${CHARM_ROOT}/Modules/ui/vivid/gfx/text_box.cppm"
+        "${CHARM_ROOT}/Modules/core/alg/alg_arc.cppm"
+        "${CHARM_ROOT}/Modules/core/alg/alg_circle.cppm"
+        "${CHARM_ROOT}/Modules/core/alg/alg_round_rect.cppm"
+        "${CHARM_ROOT}/Modules/core/alg/alg_text_layout.cppm"
+        "${CHARM_ROOT}/Modules/core/service/service_dirty_rects.cppm"
+        "${CHARM_ROOT}/Modules/core/util/core.cppm"
+        "${CHARM_ROOT}/Modules/ui/common/ui.render_backend.cppm")
+
+    set(_base_dirs "${CHARM_ROOT}/Modules")
+    vivid_collect_modules(${target_name} _modules _base_dirs)
+
+    list(REMOVE_DUPLICATES _modules)
+    list(REMOVE_DUPLICATES _base_dirs)
+    set(${out_modules} "${_modules}" PARENT_SCOPE)
+    set(${out_base_dirs} "${_base_dirs}" PARENT_SCOPE)
+endfunction()
+
 function(h747_lab_select_linker_script out_script target_name app_name)
     if(app_name STREQUAL "posix_lab")
         set(${out_script} "${STM32_LINKER_SCRIPT}" PARENT_SCOPE)
@@ -90,6 +147,9 @@ function(h747_lab_add_profile profile_name)
     unset(H747_LAB_APP_NAME)
     unset(H747_LAB_APP_SOURCES)
     unset(H747_LAB_APP_INCLUDE_DIRS)
+    unset(H747_LAB_APP_MODULE_SOURCES)
+    unset(H747_LAB_APP_MODULE_BASE_DIRS)
+    unset(H747_LAB_APP_COMPILE_DEFINITIONS)
     include("${_app_manifest}")
 
     if(NOT H747_LAB_APP_NAME STREQUAL H747_LAB_PROFILE_APP)
@@ -107,13 +167,16 @@ function(h747_lab_add_profile profile_name)
         APP "${H747_LAB_PROFILE_APP}"
         APP_SOURCES ${H747_LAB_APP_SOURCES}
         APP_INCLUDE_DIRS ${H747_LAB_APP_INCLUDE_DIRS}
+        APP_MODULE_SOURCES ${H747_LAB_APP_MODULE_SOURCES}
+        APP_MODULE_BASE_DIRS ${H747_LAB_APP_MODULE_BASE_DIRS}
+        APP_COMPILE_DEFINITIONS ${H747_LAB_APP_COMPILE_DEFINITIONS}
         SERVICES ${H747_LAB_PROFILE_SERVICES})
 endfunction()
 
 function(h747_lab_add_firmware)
     set(options)
     set(oneValueArgs TARGET PROFILE APP)
-    set(multiValueArgs APP_SOURCES APP_INCLUDE_DIRS SERVICES)
+    set(multiValueArgs APP_SOURCES APP_INCLUDE_DIRS APP_MODULE_SOURCES APP_MODULE_BASE_DIRS APP_COMPILE_DEFINITIONS SERVICES)
     cmake_parse_arguments(H747_LAB_FW "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
     if(NOT H747_LAB_FW_TARGET)
@@ -204,13 +267,26 @@ function(h747_lab_add_firmware)
         add_dependencies(${H747_LAB_FW_TARGET} ${H747_LAB_FW_TARGET}_elf_samples)
     endif()
 
+    if(H747_LAB_FW_APP STREQUAL "player_md3")
+        h747_lab_collect_vivid_mcu_modules(
+            ${H747_LAB_FW_TARGET}
+            _vivid_module_sources
+            _vivid_module_base_dirs)
+        list(APPEND H747_LAB_FW_APP_MODULE_SOURCES ${_vivid_module_sources})
+        list(APPEND H747_LAB_FW_APP_MODULE_BASE_DIRS ${_vivid_module_base_dirs})
+        list(REMOVE_DUPLICATES H747_LAB_FW_APP_MODULE_SOURCES)
+        list(REMOVE_DUPLICATES H747_LAB_FW_APP_MODULE_BASE_DIRS)
+    endif()
+
     target_sources(${H747_LAB_FW_TARGET}
         PUBLIC
             FILE_SET modules TYPE CXX_MODULES
             BASE_DIRS
                 "${CHARM_ROOT}/Modules"
+                ${H747_LAB_FW_APP_MODULE_BASE_DIRS}
             FILES
                 ${H747_LAB_MODULE_SOURCES}
+                ${H747_LAB_FW_APP_MODULE_SOURCES}
     )
 
     target_include_directories(${H747_LAB_FW_TARGET} PRIVATE
@@ -222,6 +298,7 @@ function(h747_lab_add_firmware)
 
     target_compile_definitions(${H747_LAB_FW_TARGET} PRIVATE
         ${H747_LAB_COMMON_DEFINITIONS}
+        ${H747_LAB_FW_APP_COMPILE_DEFINITIONS}
         "H747_LAB_PROFILE_NAME=\"${H747_LAB_FW_PROFILE}\""
     )
 

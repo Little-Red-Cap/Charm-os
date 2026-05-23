@@ -62,6 +62,14 @@
             ]
         },
         {
+            "name": "build-h747-lab-player-md3-debug",
+            "displayName": "Build H747 Lab Player MD3 Debug",
+            "configurePreset": "h747-lab-debug",
+            "targets": [
+                "h747_lab_player_md3"
+            ]
+        },
+        {
             "name": "build-h747-lab-posix-lab-debug",
             "displayName": "Build H747 Lab POSIX Lab Debug",
             "configurePreset": "h747-lab-debug",

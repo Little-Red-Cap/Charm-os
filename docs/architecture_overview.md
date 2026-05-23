@@ -14,6 +14,9 @@
 如果你想看 system compiler 的当前核心词汇与仓库映射，
 再看：`docs/architecture/system_compiler_vocabulary_v0.md`
 
+如果你想看 RTE 作为能力装配边界的 v0 契约，
+再看：`docs/architecture/rte_capability_composition_contract_v0.md`
+
 如果你想看 system compiler 的最小结论对象应该长什么样，
 再看：`docs/system/artifact_report_v0.md`
 
@@ -176,6 +179,7 @@ Draft/        # 计划/草案（可变动）
 - 设备发现模型草案：`docs/architecture/device_model_overview.md`
 - Signal / State contract v0：`docs/architecture/signal_state_contract_v0.md`
 - Signal / State v0：`docs/architecture/signal_state_v0.md`
+- RTE 能力装配契约 v0：`docs/architecture/rte_capability_composition_contract_v0.md`
 - 系统编译器路线图：`docs/architecture/system_compiler_roadmap.md`
 - System Compiler 词汇表 v0：`docs/architecture/system_compiler_vocabulary_v0.md`
 - Artifact Report v0：`docs/system/artifact_report_v0.md`

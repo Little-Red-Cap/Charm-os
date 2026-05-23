@@ -82,6 +82,17 @@
 - [`../system/README.md`](../system/README.md)
 - [`../../schemas/README.md`](../../schemas/README.md)
 
+### 我想看 RTE / 能力装配边界
+
+先读：
+
+- [`rte_capability_composition_contract_v0.md`](rte_capability_composition_contract_v0.md)
+- [`system_compiler_vocabulary_v0.md`](system_compiler_vocabulary_v0.md)
+- [`../system/init_graph_contract.md`](../system/init_graph_contract.md)
+
+这里的 RTE 指 `capability composition boundary`，不是运行时框架、
+调度器、service locator 或 AUTOSAR 式大平台。
+
 ### 我想看外部成熟产品对 Charm 机制的启发
 
 读：
@@ -114,6 +125,8 @@
   `signal_state_contract_v0.md`
 - 看 system compiler：
   `system_compiler_roadmap.md` → `system_compiler_vocabulary_v0.md`
+- 看 RTE / 能力装配边界：
+  `rte_capability_composition_contract_v0.md` → `system_compiler_vocabulary_v0.md` → `../system/init_graph_contract.md`
 - 看真实板级落地审计与能力回收：
   `real_board_landing_gap_audit_v0.md` → `capability_recovery_rules.md` → `capability_recovery_matrix.md`
 

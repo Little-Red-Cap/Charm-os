@@ -15,6 +15,33 @@
 
 - [`app_host_poster_demo/README.md`](app_host_poster_demo/README.md)
 
+### 我想看 RTE 能力装配语义
+
+先读：
+
+- [`rte_component_context_smoke/README.md`](rte_component_context_smoke/README.md)
+
+这个示例验证 `ComponentDesc + explicit binding + ContextView + EvidenceFrame`
+能否先在普通 C++ host smoke 中成立，不提升为公共模块。
+
+### 我想看 RTE component topology 如何投影到 init.graph
+
+先读：
+
+- [`rte_init_projection_smoke/README.md`](rte_init_projection_smoke/README.md)
+
+这个示例验证 `ComponentDesc -> init::Node / init::Graph` 的最小投影桥，
+保持 RTE 只是 capability composition boundary，不接管 runtime 或调度。
+
+### 我想看 RTE profile 如何同时 materialize init 与 ContextView
+
+先读：
+
+- [`rte_profile_materialization_smoke/README.md`](rte_profile_materialization_smoke/README.md)
+
+这个示例验证同一份 component/profile 语义可以同时投影为 `init.graph`
+和 app 可见的 `ContextView`，并保持 provider binding 显式消歧。
+
 ### 我想看 runtime device 如何收口成稳定 capability
 
 先读：

@@ -11,7 +11,9 @@ import init.node;
 import util.core;
 import util.error;
 
-#if defined(__GNUC__) || defined(__clang__)
+#if defined(_WIN32)
+#define CHARM_INIT_WEAK inline
+#elif defined(__GNUC__) || defined(__clang__)
 #define CHARM_INIT_WEAK __attribute__((weak))
 #else
 #define CHARM_INIT_WEAK

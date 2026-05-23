@@ -67,6 +67,7 @@
 - `close_service=standing`
 - `ghost_dispatch=standing`
 - `ghost_service=standing`
+- `ownership-corridor=standing`
 - `handoff=1`
 - `ownership=1`
 

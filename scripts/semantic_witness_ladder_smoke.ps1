@@ -221,6 +221,7 @@ $ladder = @(
         Target = "kernel-runtime-task-message-session-service-loop-host"
         Required = @(
             "\[runtime-task-message-session-service-loop-witness\] ok=1 verdict=standing domain=none bootstrap=standing timeout=standing open_dispatch=standing open_service=standing roundtrip=standing close_dispatch=standing close_service=standing ghost_dispatch=standing ghost_service=standing",
+            "\[runtime-task-message-session-ownership-corridor-witness\] ok=1 verdict=standing domain=none roundtrip=standing service_loop=standing",
             "\[runtime-task-message-session-service-loop-demo\] ok=1",
             "\[runtime-task-message-session-service-loop-trace\] ok=1"
         )

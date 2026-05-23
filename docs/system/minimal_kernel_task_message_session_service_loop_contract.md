@@ -23,6 +23,9 @@
 - `Modules/system/kernel/task_message_session_service_loop.cppm`
 - `TaskMessageSessionServiceLoopWitness`
 - `task_message_session_service_loop_witness(...)`
+- `Modules/system/kernel/task_message_session_ownership_corridor.cppm`
+- `TaskMessageSessionOwnershipCorridorWitness`
+- `task_message_session_ownership_corridor_witness(...)`
 
 ## 一句话版本
 
@@ -66,6 +69,7 @@
    - `session_service.active_channels() == 0`
 6. semantic witness seam
    - bootstrap / timeout / open dispatch / open service / request roundtrip / close dispatch / close service / ghost dispatch / ghost service 九段 witness 必须同时 standing
+   - ownership corridor witness 必须同时 standing，作为 roundtrip + service-loop 的上层统一验收
    - handoff target 必须可用
    - ownership path 必须证明 `service_id / session_handle / reply_value / active session/channel` 在 open、request、close、unsupported open 路径上一致
 
@@ -93,6 +97,7 @@
 4. witness：
    - `kernel.task_message_session_service_loop`
    - `kernel.task_message_session_roundtrip`
+   - `kernel.task_message_session_ownership_corridor`
 
 和 `runtime_task_message_session_roundtrip_host` 的区别是：
 
@@ -125,6 +130,7 @@
 - semantic witness ladder：
   - `scripts/semantic_witness_ladder_smoke.ps1`
   - [`minimal_kernel_semantic_witness_ladder_smoke_contract.md`](minimal_kernel_semantic_witness_ladder_smoke_contract.md)
+  - 其中 `task-message-session-service-loop` case 现在也要求 `ownership-corridor` witness 行
 
 当前 verifier 至少覆盖这几类可观察证据：
 

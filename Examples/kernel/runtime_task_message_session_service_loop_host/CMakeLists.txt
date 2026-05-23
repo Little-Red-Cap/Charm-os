@@ -48,6 +48,7 @@ set(kernel_runtime_demo_modules
     "${CHARM_ROOT}/Modules/system/kernel/task_message_session_endpoint.cppm"
     "${CHARM_ROOT}/Modules/system/kernel/task_message_session_protocol.cppm"
     "${CHARM_ROOT}/Modules/system/kernel/task_message_session_protocol_schema.cppm"
+    "${CHARM_ROOT}/Modules/system/kernel/task_message_session_ownership_corridor.cppm"
     "${CHARM_ROOT}/Modules/system/kernel/task_message_session_roundtrip.cppm"
     "${CHARM_ROOT}/Modules/system/kernel/task_message_session_service.cppm"
     "${CHARM_ROOT}/Modules/system/kernel/task_message_session_service_loop.cppm"

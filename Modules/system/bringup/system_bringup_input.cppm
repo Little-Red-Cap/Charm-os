@@ -6,7 +6,7 @@ export module charm.system.bringup.input;
 
 import charm.system.init_core;
 import charm.system.init_input;
-import charm.system.bringup.input_support;
+export import charm.system.bringup.input_support;
 import charm.system.clock;
 import charm.system.reactor_pump;
 import block.registry;
@@ -31,8 +31,7 @@ export namespace charm::system {
         BringupInput(const platform::board::InputCaps& caps,
                      Host& host,
                      util::usize budget = 8,
-                     input::SinkFn sink = nullptr,
-                     void* sink_ctx = nullptr,
+                     InputSinkRef sink = {},
                      InputInitCfg cfg = {}) noexcept
             : caps_(caps),
               core_(charm::system::ClockOps{caps.clock.now_ms, caps.clock.now_us},
@@ -43,8 +42,17 @@ export namespace charm::system {
                     host.post_ctx(),
                     host.pump_id(),
                     budget) {
-            (void)detail::emplace_input_chain_from_host(input_, caps.input, core_.clock, host, sink, sink_ctx, cfg);
+            (void)detail::emplace_input_chain_from_host(input_, caps.input, core_.clock, host, sink, cfg);
         }
+
+        template <typename Host>
+        BringupInput(const platform::board::InputCaps& caps,
+                     Host& host,
+                     util::usize budget,
+                     input::SinkFn sink,
+                     void* sink_ctx,
+                     InputInitCfg cfg = {}) noexcept
+            : BringupInput(caps, host, budget, InputSinkRef::raw(sink, sink_ctx), cfg) {}
 
         util::Result<void> start(util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all),
                                  init::Phase max_phase = init::Phase::app) noexcept {

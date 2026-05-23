@@ -10,7 +10,7 @@ import charm.system.init_block;
 import charm.system.init_input;
 import charm.system.init_i2c;
 import charm.system.init_spi;
-import charm.system.bringup.input_support;
+export import charm.system.bringup.input_support;
 import charm.system.reactor_pump;
 import charm.system.init_usart;
 import charm.system.clock;
@@ -41,8 +41,7 @@ export namespace charm::system {
         BringupMinimal(const platform::board::BoardCaps& caps,
                        Host& host,
                        util::usize budget = 8,
-                       input::SinkFn sink = nullptr,
-                       void* sink_ctx = nullptr,
+                       InputSinkRef sink = {},
                        InputInitCfg cfg = {}) noexcept
             : uart_(caps.uart1),
               console_cap_(caps.console_cap),
@@ -62,9 +61,18 @@ export namespace charm::system {
               can_desc_(caps.can0),
               sdmmc_desc_(caps.sdmmc0),
               flash_desc_(caps.flash0) {
-            emplace_input_from_host(caps.input, host, sink, sink_ctx, cfg);
+            emplace_input_from_host(caps.input, host, sink, cfg);
             emplace_optional_peripherals();
         }
+
+        template <typename Host>
+        BringupMinimal(const platform::board::BoardCaps& caps,
+                       Host& host,
+                       util::usize budget,
+                       input::SinkFn sink,
+                       void* sink_ctx,
+                       InputInitCfg cfg = {}) noexcept
+            : BringupMinimal(caps, host, budget, InputSinkRef::raw(sink, sink_ctx), cfg) {}
 
         BringupMinimal(const platform::board::UartDesc& uart,
                        const platform::board::ClockDesc& clock_desc,
@@ -262,11 +270,10 @@ export namespace charm::system {
         template <typename Host>
         void emplace_input_from_host(const platform::board::InputDesc& desc,
                                      Host& host,
-                                     input::SinkFn sink,
-                                     void* sink_ctx,
+                                     InputSinkRef sink,
                                      InputInitCfg cfg) noexcept {
             input_required_ = (desc.driver != nullptr);
-            (void)detail::emplace_input_chain_from_host(input_, desc, core_.clock, host, sink, sink_ctx, cfg);
+            (void)detail::emplace_input_chain_from_host(input_, desc, core_.clock, host, sink, cfg);
         }
 
         void emplace_optional_peripherals() noexcept {

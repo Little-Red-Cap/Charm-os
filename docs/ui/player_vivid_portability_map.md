@@ -28,7 +28,7 @@ The Windows `main.cpp` is kept as a thin assembly entry. Host-only helpers are g
 - `main.host_runtime.inc`: SDL resource lifecycle, `player.runtime` construction, common preview shutdown, and the host loop state shape.
 - `main.font_probe.inc`: host screenshot/font diagnostics.
 - `main.screenshot.inc`: host screenshot capture and export.
-- `main.ui_ci.inc`: host UI-CI runner and regression probes.
+- `main.ui_ci.inc`: host UI-CI runner, regression probes, and the no-window `--runtime-memory-smoke` runtime memory proof.
 - `main.host_loop.inc`: SDL event polling, run-loop steps, and render presentation through `PlayerRuntime`.
 
 The shared product lifecycle has moved into `player.runtime`: bootstrap storage/UI/player state, dispatch `PlayerInputEvent`, tick playback/controller state, render a frame into `PlayerDisplaySurface`, and shut down. Host shells should assemble and call this runtime instead of directly driving `App`, `PlayerController`, or `render_player_frame()`.
@@ -52,9 +52,10 @@ Current short form:
 
 - Cover, font, storage, diagnostics, and UI-CI already have visible host gates or host-shell ownership.
 - `player.runtime` is now the common lifecycle seam between product code and host/board adapters.
+- `--runtime-memory-smoke` constructs the real MD3 runtime and renders it into external memory before SDL initialization, so the current proof is no longer tied to opening a Windows preview window.
 - Theme and time have useful seams, but their final provider shape should wait for a concrete portable Player target.
 - Dynamic containers fall into two buckets: product semantic state in the MD3 controller/storage/theme flow, and replaceable host implementation state in font cache, cover decode, screenshots, and UI-CI.
-- The next cleanup order should be runtime construction for a non-SDL board path, font provider, time/diagnostics provider, UI-CI grouping, then controller dynamic state slimming.
+- The next cleanup order should be board SDRAM/LTDC display sink, font provider, time/diagnostics provider, UI-CI grouping, then controller dynamic state slimming.
 
 ## Portable UI Probe Contract
 
@@ -64,6 +65,7 @@ Current short form:
 - `host_file_fonts=0`, so file font paths are unavailable and built-in fonts must keep layout readable.
 - Host storage may remain enabled so the app can still exercise real library/player flows.
 - `--font-disable-system-fallback` should still pass `--ui-ci`.
+- `--runtime-memory-smoke --font-disable-system-fallback` should pass without initializing SDL, proving the same real Player runtime can be constructed around an externally supplied framebuffer.
 - The expected success line remains `done ok=1 failed=0`.
 
 If this probe fails, the first question should be "which provider or resource boundary leaked?", not "which board format should we emulate?"

@@ -34,7 +34,8 @@ For the current ownership map, host shell split, Vivid extraction candidates, an
 - Player display output now goes through a small display HAL contract: app-common renders into `PlayerDisplaySurface`, and host/board code presents that surface through a `PlayerDisplaySink`.
 - SDL is only the current Windows preview display adapter. A Win32, Linux fbdev/DRM, or STM32 SDRAM/LTDC adapter can present the same `pixels / width / height / stride / pixel_format` surface without changing Player UI code.
 - `PlayerPlatform` binds an externally supplied surface; the Windows preview owns one default buffer in the host shell, while board code can pass an SDRAM framebuffer surface.
-- `MemoryDisplaySink` is the portable/CI seam for SDRAM-style output. Its UI-CI case renders the real Player UI into an external buffer through the same frame pipeline and verifies present metadata without requiring SDL.
+- `MemoryDisplaySink` is the portable/CI seam for SDRAM-style output. Its UI-CI case renders the real Player UI into an external buffer through the same frame pipeline and verifies present metadata.
+- `--runtime-memory-smoke` is the stronger construction proof: it runs before SDL initialization, builds the real `PlayerRuntime`, renders MD3 Player into an external memory surface, and exits without opening a host window.
 - SDL event decoding is isolated in a host input adapter include. The adapter now emits `PlayerInputEvent`; the Player app is the only place that bridges product input to Vivid raw input, wheel events, or controller commands.
 - Windows command-line preview flags are parsed into a host-local `PreviewOptions` structure; page controllers should not learn about argv shape.
 - Host feature defaults are composed by `PLAYER_HOST_PROFILE`; explicit `CHARM_PLAYER_HOST_*` cache values remain valid overrides for local experiments.
@@ -63,6 +64,7 @@ For the current ownership map, host shell split, Vivid extraction candidates, an
 - It exposes the same product actions a board shell needs: `bootstrap`, `tick`, `dispatch_input`, `render`, and `shutdown`.
 - It still receives host-owned `PlayerPlatform` and controller storage. This keeps v0 small while allowing a future board shell to provide an SDRAM-backed `PlayerDisplaySurface` and board-owned controller storage.
 - Its UI-CI memory sink case renders the real Player UI through the same shell into an external buffer. This is the portability proof; it is not a separate mock Player.
+- The Windows host also exposes `--runtime-memory-smoke` for a no-window runtime proof. It still lives in the host executable for convenience, but the construction path avoids SDL window, renderer, texture, event pump, screenshots, and overlay preview hooks.
 
 ## Display/Input HAL v0
 
@@ -98,6 +100,6 @@ This means Win32, Linux, SDL, and STM32 are peers at the adapter layer. None of 
 
 1. Move the remaining host-only screenshot/font-probe diagnostics farther behind explicit host files or macros.
 2. Replace controller-owned dynamic track/list caches with fixed-capacity storage.
-3. Add a board or memory-backed runtime construction path that supplies `PlayerDisplaySurface` without SDL.
-4. Add a board SDRAM/LTDC adapter that consumes `PlayerDisplaySurface` and calls board cache/flush hooks.
+3. Add a board SDRAM/LTDC adapter that consumes `PlayerDisplaySurface` and calls board cache/flush hooks.
+4. Replace controller-owned dynamic track/list caches with fixed-capacity storage where they enter MCU-strict paths.
 5. Replace host C library time fallback with a board clock/RTC adapter when the portable Player target appears.

@@ -90,7 +90,7 @@
         (void)runtime.render(display_sink);
     }
 
-    bool run_memory_display_sink_ci() {
+    bool run_memory_display_sink_ci(const PreviewOptions& options = PreviewOptions{}) {
         static std::array<std::byte, player::PlayerOwnedDisplayBuffer::buffer_bytes> external_buffer{};
         static player::PlayerPlatform memory_platform{player::PlayerDisplaySurface{
             external_buffer.data(),
@@ -103,10 +103,10 @@
         static PlayerUiContext memory_ctx{};
         memory_ctx = PlayerUiContext{};
         player::PlayerRuntimeConfig<player::PlayerPage> memory_cfg{
-            .app_config = make_app_config(PreviewOptions{}),
-            .storage_config = player::storage_config(),
-            .start_page = player::PlayerPage::Home,
-            .initial_track_index = 0,
+            .app_config = make_app_config(options),
+            .storage_config = player::default_storage_config(),
+            .start_page = options.start_page,
+            .initial_track_index = options.track_index_override,
             .auto_start = false,
             .clear_color = kUiBackground,
         };
@@ -155,6 +155,13 @@
         memory_runtime->shutdown();
         memory_runtime.reset();
         return ok;
+    }
+
+    int run_runtime_memory_smoke(const PreviewOptions& options) noexcept {
+        player::ui::set_player_system_font_fallback_enabled(!options.disable_system_font_fallback);
+        const bool ok = run_memory_display_sink_ci(options);
+        std::printf("[runtime-memory-smoke] done ok=%d failed=%d\n", ok ? 1 : 0, ok ? 0 : 1);
+        return ok ? 0 : 2;
     }
 
     UiCiResult run_ui_ci(PlayerRuntime& runtime) {

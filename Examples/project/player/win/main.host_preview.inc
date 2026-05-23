@@ -33,6 +33,7 @@
         int library_open_action_menu_index{-1};
         int track_index_override{0};
         bool ui_ci{false};
+        bool runtime_memory_smoke{false};
         std::string font_ttf_path{};
         std::string font_fallback_ttf_path{};
         bool disable_system_font_fallback{false};
@@ -140,6 +141,8 @@
                 out.screenshot_wait_frames = parse_non_negative_int(arg.substr(19));
             } else if (arg == "--ui-ci") {
                 out.ui_ci = true;
+            } else if (arg == "--runtime-memory-smoke") {
+                out.runtime_memory_smoke = true;
             } else if (arg.rfind("--font-ttf=", 0) == 0) {
                 out.font_ttf_path.assign(arg.substr(11));
             } else if (arg.rfind("--font-fallback-ttf=", 0) == 0) {

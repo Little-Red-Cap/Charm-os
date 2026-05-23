@@ -95,6 +95,10 @@ int main(int argc, char** argv) {
     PreviewOptions options = parse_preview_options(argc, argv);
     print_host_feature_summary();
 
+    if (options.runtime_memory_smoke) {
+        return run_runtime_memory_smoke(options);
+    }
+
     SdlHostRuntime runtime{};
     if (!init_sdl_host_runtime(runtime)) {
         return 1;

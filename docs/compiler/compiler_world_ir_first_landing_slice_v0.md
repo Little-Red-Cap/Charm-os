@@ -28,6 +28,8 @@ source facts
 
 这一条窄链路是可成立的。
 
+当前 static reflection 的三段式最小原型见：[`compiler_static_reflection_three_stage_prototype_v0.md`](compiler_static_reflection_three_stage_prototype_v0.md)。
+
 ## 2. 切片范围
 
 v0 先只承认下面这类对象属于第一切片的合理范围：

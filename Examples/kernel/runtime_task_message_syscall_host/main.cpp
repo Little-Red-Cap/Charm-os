@@ -16,6 +16,7 @@ import kernel.task_message_syscall_bridge;
 import kernel.task_state;
 import kernel.task_syscall_table;
 import kernel.thread;
+import semantic.core;
 
 namespace demo {
     using namespace std::literals;
@@ -1143,6 +1144,29 @@ int main()
         demo::inspect_syscall_dispatch_trace(syscall_dispatch_trace);
     const auto syscall_table_status =
         demo::inspect_syscall_table_trace(syscall_table_trace);
+    const auto lower_table_witness =
+        kernel::task_syscall_table_witness(syscall_table_trace);
+    const auto unsupported_bridge_witness =
+        kernel::task_message_syscall_bridge_witness(bridge_trace);
+    const auto supported_bridge_witness =
+        bridge_trace.size() >= 3u
+            ? kernel::task_message_syscall_bridge_witness(
+                  *bridge_trace.at(2u),
+                  lower_table_witness)
+            : kernel::TaskMessageSyscallBridgeWitness{};
+    auto supported_branch_with_unsupported_terminal =
+        supported_bridge_witness;
+    supported_branch_with_unsupported_terminal.has_lower_provenance = false;
+    supported_branch_with_unsupported_terminal.lower_provenance = {};
+    supported_branch_with_unsupported_terminal.disposition =
+        kernel::TrapDisposition::unsupported;
+    supported_branch_with_unsupported_terminal.error =
+        kernel::TrapError::unsupported_service;
+    supported_branch_with_unsupported_terminal.reply_value = 0u;
+    supported_branch_with_unsupported_terminal.handled = false;
+    const auto bridge_handoff =
+        kernel::task_message_syscall_bridge_witness_handoff_target(
+            unsupported_bridge_witness);
 
     const bool traces_ok = runtime_status.ok() && pump_status.ok() &&
                            dispatch_status.ok() && bridge_status.ok() &&
@@ -1163,6 +1187,38 @@ int main()
         dispatch_state.capability_calls == 0u &&
         dispatch_state.last_due == demo::kRequestValues[1] &&
         dispatch_state.last_debug_value == demo::kRequestValues[2];
+    const bool bridge_witness_ok =
+        kernel::task_message_syscall_bridge_witness_ready(
+            unsupported_bridge_witness) &&
+        unsupported_bridge_witness.verdict() ==
+            semantic::Verdict::standing &&
+        unsupported_bridge_witness.failure_domain() ==
+            semantic::FailureDomain::none &&
+        !unsupported_bridge_witness.ingress_supported &&
+        unsupported_bridge_witness.disposition ==
+            kernel::TrapDisposition::unsupported &&
+        unsupported_bridge_witness.error ==
+            kernel::TrapError::unsupported_service &&
+        !unsupported_bridge_witness.handled &&
+        kernel::task_message_syscall_bridge_witness_ready(
+            supported_bridge_witness) &&
+        supported_bridge_witness.verdict() ==
+            semantic::Verdict::standing &&
+        supported_bridge_witness.failure_domain() ==
+            semantic::FailureDomain::none &&
+        supported_bridge_witness.has_lower_provenance &&
+        supported_bridge_witness.syscall ==
+            kernel::TaskSyscallId::debug_write &&
+        supported_bridge_witness.reply_value == demo::kReplyValues[2] &&
+        supported_bridge_witness.handled &&
+        supported_branch_with_unsupported_terminal.verdict() ==
+            semantic::Verdict::standing &&
+        supported_branch_with_unsupported_terminal.failure_domain() ==
+            semantic::FailureDomain::none &&
+        std::string_view{bridge_handoff.entry_name()} ==
+            "task-message-syscall-bridge-witness" &&
+        std::string_view{bridge_handoff.selected_summary_path()} ==
+            "task-message-syscall-bridge-witness.summary";
     const bool ok = shared.mailbox_valid && shared.dispatcher_valid &&
                     shared.bridge_valid && shared.service_loop_valid &&
                     shared.service_drain_valid && shared.service_pump_valid &&
@@ -1177,6 +1233,7 @@ int main()
                     shared.idle_after_finish && shared.idle_runs >= 1u &&
                     shared.server_runs >= 7u && shared.client_runs == 5u &&
                     replies_ok && surface_ok && traces_ok &&
+                    bridge_witness_ok &&
                     message_dispatch_trace.size() == demo::kMessageCount &&
                     bridge_trace.size() == demo::kMessageCount &&
                     syscall_dispatch_trace.size() == demo::kReplyCount &&
@@ -1233,5 +1290,12 @@ int main()
         syscall_dispatch_status.ok() ? 1 : 0,
         syscall_table_status.ok() ? 1 : 0,
         pump_status.hold_count);
+    std::printf(
+        "[runtime-task-message-syscall-witness] ok=%d supported=%s unsupported=%s route=%s summary=%s\n",
+        bridge_witness_ok ? 1 : 0,
+        semantic::verdict_name(supported_bridge_witness.verdict()),
+        semantic::verdict_name(unsupported_bridge_witness.verdict()),
+        semantic::failure_domain_name(supported_bridge_witness.failure_domain()),
+        bridge_handoff.selected_summary_path().data());
     return ok ? 0 : 1;
 }

@@ -2,10 +2,12 @@ module;
 
 #include <array>
 #include <cstddef>
+#include <string_view>
 
 export module kernel.task_syscall_dispatch;
 
 export import kernel.task_syscall_catalog;
+import semantic.core;
 import util.core;
 
 export namespace kernel {
@@ -16,6 +18,15 @@ export namespace kernel {
         util::u64 arg2{0};
         util::u64 arg3{0};
     };
+
+    static_assert(
+        semantic::reflected_member_names_match_when_enabled<TaskSyscallRequest>(
+        std::array<std::string_view, 5>{
+            "syscall",
+            "arg0",
+            "arg1",
+            "arg2",
+            "arg3"}));
 
     [[nodiscard]] constexpr TaskSyscallRequest make_task_syscall_yield_request(
         TrapYieldCurrentView = {}) noexcept
@@ -84,66 +95,59 @@ export namespace kernel {
         };
     }
 
+    [[nodiscard]] constexpr TaskSyscallSemanticField
+    task_syscall_semantic_field(const char* name, util::u64 value) noexcept
+    {
+        return semantic::named_value(name, value);
+    }
+
     [[nodiscard]] constexpr TaskSyscallSemanticProjection
     task_syscall_semantic_projection(const TaskSyscallRequest& request) noexcept
     {
         const auto descriptor = task_syscall_catalog_entry(request.syscall);
         switch (descriptor.view_kind) {
         case TaskSyscallViewKind::yield:
-            return TaskSyscallSemanticProjection{
-                .descriptor = descriptor,
-                .fields = {},
-                .field_count = 0,
-                .result_name = descriptor.result_name,
-            };
+            return semantic::make_projection(
+                descriptor, std::array<TaskSyscallSemanticField, 4>{}, 0u, descriptor.result_name);
         case TaskSyscallViewKind::sleep_until:
-            return TaskSyscallSemanticProjection{
-                .descriptor = descriptor,
-                .fields = {
-                    trap_semantic_field(descriptor.wire_argument_names[0],
-                                        request.arg0),
+            return semantic::make_projection(
+                descriptor,
+                std::array<TaskSyscallSemanticField, 4>{
+                    task_syscall_semantic_field(descriptor.wire_argument_names[0], request.arg0),
                 },
-                .field_count = 1,
-                .result_name = descriptor.result_name,
-            };
+                1u,
+                descriptor.result_name);
         case TaskSyscallViewKind::debug_write:
-            return TaskSyscallSemanticProjection{
-                .descriptor = descriptor,
-                .fields = {
-                    trap_semantic_field(descriptor.wire_argument_names[0],
-                                        request.arg0),
+            return semantic::make_projection(
+                descriptor,
+                std::array<TaskSyscallSemanticField, 4>{
+                    task_syscall_semantic_field(descriptor.wire_argument_names[0], request.arg0),
                 },
-                .field_count = 1,
-                .result_name = descriptor.result_name,
-            };
+                1u,
+                descriptor.result_name);
         case TaskSyscallViewKind::capability_call:
-            return TaskSyscallSemanticProjection{
-                .descriptor = descriptor,
-                .fields = {
-                    trap_semantic_field(descriptor.wire_argument_names[0],
-                                        request.arg0),
-                    trap_semantic_field(descriptor.wire_argument_names[1],
-                                        request.arg1),
-                    trap_semantic_field(descriptor.wire_argument_names[2],
-                                        request.arg2),
+            return semantic::make_projection(
+                descriptor,
+                std::array<TaskSyscallSemanticField, 4>{
+                    task_syscall_semantic_field(descriptor.wire_argument_names[0], request.arg0),
+                    task_syscall_semantic_field(descriptor.wire_argument_names[1], request.arg1),
+                    task_syscall_semantic_field(descriptor.wire_argument_names[2], request.arg2),
                 },
-                .field_count = 3,
-                .result_name = descriptor.result_name,
-            };
+                3u,
+                descriptor.result_name);
         case TaskSyscallViewKind::invalid:
         case TaskSyscallViewKind::opaque:
         default:
-            return TaskSyscallSemanticProjection{
-                .descriptor = descriptor,
-                .fields = {
-                    trap_semantic_field("arg0", request.arg0),
-                    trap_semantic_field("arg1", request.arg1),
-                    trap_semantic_field("arg2", request.arg2),
-                    trap_semantic_field("arg3", request.arg3),
+            return semantic::make_projection(
+                descriptor,
+                std::array<TaskSyscallSemanticField, 4>{
+                    task_syscall_semantic_field("arg0", request.arg0),
+                    task_syscall_semantic_field("arg1", request.arg1),
+                    task_syscall_semantic_field("arg2", request.arg2),
+                    task_syscall_semantic_field("arg3", request.arg3),
                 },
-                .field_count = 4,
-                .result_name = descriptor.result_name,
-            };
+                4u,
+                descriptor.result_name);
         }
     }
 
@@ -159,6 +163,114 @@ export namespace kernel {
         util::u64 arg3{0};
         util::u64 value{0};
     };
+
+    static_assert(
+        semantic::reflected_member_names_match_when_enabled<TaskSyscallDispatchTraceEvent>(
+            std::array<std::string_view, 10>{
+                "sequence",
+                "syscall",
+                "trap_service",
+                "disposition",
+                "error",
+                "arg0",
+                "arg1",
+                "arg2",
+                "arg3",
+                "value"}));
+
+    struct TaskSyscallDispatchWitness {
+        util::u64 sequence{0};
+        bool ready{false};
+        bool has_trace{false};
+        TaskSyscallId syscall{TaskSyscallId::invalid};
+        TrapService trap_service{TrapService::invalid};
+        TrapDisposition disposition{TrapDisposition::rejected};
+        TrapError error{TrapError::unsupported_service};
+        util::u64 arg0{0};
+        util::u64 arg1{0};
+        util::u64 arg2{0};
+        util::u64 arg3{0};
+        util::u64 value{0};
+
+        [[nodiscard]] constexpr bool ok() const noexcept
+        {
+            return ready && disposition == TrapDisposition::handled &&
+                   error == TrapError::none;
+        }
+
+        [[nodiscard]] constexpr semantic::Result result() const noexcept
+        {
+            return verdict() == semantic::Verdict::standing
+                       ? semantic::Result::ok
+                       : semantic::Result::failed;
+        }
+
+        [[nodiscard]] constexpr semantic::Verdict verdict() const noexcept
+        {
+            if (!ready) {
+                return semantic::Verdict::collapsed;
+            }
+
+            if (error == TrapError::none &&
+                disposition == TrapDisposition::handled) {
+                return semantic::Verdict::standing;
+            }
+
+            return semantic::Verdict::drifted;
+        }
+
+        [[nodiscard]] constexpr semantic::FailureDomain
+        failure_domain() const noexcept
+        {
+            if (!ready && has_trace) {
+                return semantic::FailureDomain::input;
+            }
+
+            if (error == TrapError::unsupported_service ||
+                syscall == TaskSyscallId::invalid ||
+                trap_service == TrapService::invalid) {
+                return semantic::FailureDomain::selection;
+            }
+
+            if (error == TrapError::unbound_bridge ||
+                error == TrapError::invalid_argument) {
+                return semantic::FailureDomain::route;
+            }
+
+            if (error == TrapError::unbound_adapter ||
+                error == TrapError::writeback_failed) {
+                return semantic::FailureDomain::handoff;
+            }
+
+            return semantic::FailureDomain::none;
+        }
+
+        [[nodiscard]] constexpr std::string_view summary_path() const noexcept
+        {
+            return "task-syscall-dispatch-witness.summary";
+        }
+    };
+
+    struct TaskSyscallDispatchWitnessHandoffTarget {
+        const TaskSyscallDispatchWitness* witness{nullptr};
+
+        [[nodiscard]] constexpr std::string_view entry_name() const noexcept
+        {
+            return "task-syscall-dispatch-witness";
+        }
+
+        [[nodiscard]] constexpr std::string_view
+        selected_summary_path() const noexcept
+        {
+            return witness != nullptr ? witness->summary_path()
+                                      : std::string_view{
+                                            "task-syscall-dispatch-witness.summary"};
+        }
+    };
+
+    static_assert(semantic::WitnessCarrier<TaskSyscallDispatchWitness>);
+    static_assert(
+        semantic::HandoffTarget<TaskSyscallDispatchWitnessHandoffTarget>);
 
     [[nodiscard]] constexpr TaskSyscallRequest
     task_syscall_request_from_trace_event(
@@ -179,6 +291,41 @@ export namespace kernel {
     {
         return task_syscall_semantic_projection(
             task_syscall_request_from_trace_event(event));
+    }
+
+    [[nodiscard]] constexpr TaskSyscallDispatchWitness
+    task_syscall_dispatch_witness(
+        const TaskSyscallDispatchTraceEvent& event) noexcept
+    {
+        return TaskSyscallDispatchWitness{
+            .sequence = event.sequence,
+            .ready = event.sequence != 0u,
+            .has_trace = true,
+            .syscall = event.syscall,
+            .trap_service = event.trap_service,
+            .disposition = event.disposition,
+            .error = event.error,
+            .arg0 = event.arg0,
+            .arg1 = event.arg1,
+            .arg2 = event.arg2,
+            .arg3 = event.arg3,
+            .value = event.value,
+        };
+    }
+
+    [[nodiscard]] constexpr bool task_syscall_dispatch_witness_ready(
+        const TaskSyscallDispatchWitness& witness) noexcept
+    {
+        return witness.ready;
+    }
+
+    [[nodiscard]] constexpr TaskSyscallDispatchWitnessHandoffTarget
+    task_syscall_dispatch_witness_handoff_target(
+        const TaskSyscallDispatchWitness& witness) noexcept
+    {
+        return TaskSyscallDispatchWitnessHandoffTarget{
+            .witness = &witness,
+        };
     }
 
     template <std::size_t Capacity>
@@ -218,6 +365,20 @@ export namespace kernel {
         std::size_t head_{0};
         std::size_t size_{0};
     };
+
+    template <std::size_t Capacity>
+    [[nodiscard]] constexpr TaskSyscallDispatchWitness
+    task_syscall_dispatch_witness(
+        const TaskSyscallDispatchTraceBuffer<Capacity>& trace) noexcept
+    {
+        const auto* terminal =
+            trace.size() == 0u ? nullptr : trace.at(trace.size() - 1u);
+        if (terminal == nullptr) {
+            return TaskSyscallDispatchWitness{};
+        }
+
+        return task_syscall_dispatch_witness(*terminal);
+    }
 
     template <typename Surface,
               typename TraceBuffer = TaskSyscallDispatchTraceBuffer<1>>

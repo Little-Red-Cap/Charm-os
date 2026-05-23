@@ -4,6 +4,7 @@
 #include <string_view>
 
 import kernel.task_syscall_frame;
+import semantic.core;
 
 namespace demo {
     using namespace std::literals;
@@ -665,6 +666,9 @@ namespace demo {
 
         const auto debug_projection =
             kernel::task_syscall_semantic_projection(*eighth);
+        const auto frame_witness = kernel::task_syscall_frame_witness(frame_trace);
+        const auto frame_handoff =
+            kernel::task_syscall_frame_witness_handoff_target(frame_witness);
 
         return frame_bridge.valid() && port.valid() &&
                trap_result_matches(yielded,
@@ -737,7 +741,21 @@ namespace demo {
                twelfth->sequence == 12u &&
                twelfth->stage == kernel::TaskSyscallFrameStage::writeback &&
                twelfth->syscall == kernel::TaskSyscallId::capability_call &&
-               twelfth->value == 42u && twelfth->ok;
+               twelfth->value == 42u && twelfth->ok &&
+               kernel::task_syscall_frame_witness_ready(frame_witness) &&
+               frame_witness.ok() &&
+               frame_witness.verdict() == semantic::Verdict::standing &&
+               frame_witness.result() == semantic::Result::ok &&
+               frame_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
+               frame_witness.terminal_stage ==
+                   kernel::TaskSyscallFrameStage::writeback &&
+               frame_witness.terminal_syscall ==
+                   kernel::TaskSyscallId::capability_call &&
+               std::string_view{frame_handoff.entry_name()} ==
+                   "task-syscall-frame-witness"sv &&
+               std::string_view{frame_handoff.selected_summary_path()} ==
+                   frame_witness.summary_path();
     }
 
     [[nodiscard]] bool probe_error_paths() noexcept
@@ -809,6 +827,7 @@ namespace demo {
 
             const auto result = bridge.dispatch(frame);
             const auto* event = frame_trace.at(0u);
+            const auto witness = kernel::task_syscall_frame_witness(frame_trace);
             if (!trap_result_matches(result,
                                      kernel::TrapDisposition::rejected,
                                      kernel::TrapError::decode_failed) ||
@@ -818,7 +837,10 @@ namespace demo {
                 frame.writeback_seen ||
                 event->stage != kernel::TaskSyscallFrameStage::decode ||
                 event->error != kernel::TrapError::decode_failed ||
-                event->ok) {
+                event->ok ||
+                witness.verdict() != semantic::Verdict::collapsed ||
+                witness.failure_domain() !=
+                    semantic::FailureDomain::selection) {
                 return false;
             }
         }
@@ -860,6 +882,7 @@ namespace demo {
             const auto result = bridge.dispatch(frame);
             const auto* dispatch_event = frame_trace.at(1u);
             const auto* writeback_event = frame_trace.at(2u);
+            const auto witness = kernel::task_syscall_frame_witness(frame_trace);
             if (!trap_result_matches(result,
                                      kernel::TrapDisposition::rejected,
                                      kernel::TrapError::writeback_failed,
@@ -881,7 +904,10 @@ namespace demo {
                     kernel::TaskSyscallFrameStage::writeback ||
                 writeback_event->error !=
                     kernel::TrapError::writeback_failed ||
-                writeback_event->value != 42u || writeback_event->ok) {
+                writeback_event->value != 42u || writeback_event->ok ||
+                witness.verdict() != semantic::Verdict::collapsed ||
+                witness.failure_domain() !=
+                    semantic::FailureDomain::handoff) {
                 return false;
             }
         }

@@ -20,6 +20,7 @@ import kernel.task_message_session_service;
 import kernel.task_state;
 import kernel.task_syscall_table;
 import kernel.thread;
+import semantic.core;
 
 namespace demo {
     using namespace std::literals;
@@ -1200,6 +1201,153 @@ namespace demo {
 
         return true;
     }
+
+    template <typename Witness>
+    [[nodiscard]] bool witness_standing(const Witness& witness) noexcept
+    {
+        return witness.verdict() == semantic::Verdict::standing &&
+               witness.failure_domain() == semantic::FailureDomain::none;
+    }
+
+    template <typename HandoffTarget>
+    [[nodiscard]] bool witness_handoff_target_ok(
+        const HandoffTarget& target) noexcept
+    {
+        return !target.entry_name().empty() &&
+               !target.selected_summary_path().empty();
+    }
+
+    struct RoundtripWitnessSummary {
+        kernel::TaskMessageSessionDispatchWitness dispatch{};
+        kernel::TaskMessageSessionServiceAcceptorWitness acceptor{};
+        kernel::TaskMessageSessionProtocolWitness protocol{};
+        kernel::TaskMessageSessionServiceWitness service{};
+        kernel::TaskMessageSyscallPumpWitness pump{};
+        bool handoff_ready{false};
+        bool request_path{false};
+
+        [[nodiscard]] bool ok() const noexcept
+        {
+            return witness_standing(dispatch) &&
+                   witness_standing(acceptor) &&
+                   witness_standing(protocol) &&
+                   witness_standing(service) &&
+                   witness_standing(pump) && handoff_ready && request_path;
+        }
+    };
+
+    [[nodiscard]] RoundtripWitnessSummary inspect_roundtrip_witness(
+        SessionTrace& session_trace,
+        SessionAcceptorTrace& acceptor_trace,
+        ProtocolTrace& protocol_trace,
+        ServiceTrace& service_trace,
+        PumpTrace& pump_trace) noexcept
+    {
+        const auto* dispatch_request = session_trace.at(1u);
+        const auto* acceptor_request = acceptor_trace.at(1u);
+        const auto* protocol_request = protocol_trace.at(0u);
+        const kernel::TaskMessageSessionServiceTraceEvent* service_dispatch =
+            nullptr;
+        for (std::size_t index = 0; index < service_trace.size(); ++index) {
+            const auto* record = service_trace.at(index);
+            if (record != nullptr && record->dispatch_replied &&
+                record->reply_value == kExpectedRequestValue) {
+                service_dispatch = record;
+                break;
+            }
+        }
+
+        const kernel::TaskMessageSyscallPumpTraceEvent* pump_reply = nullptr;
+        for (std::size_t index = 0; index < pump_trace.size(); ++index) {
+            const auto* record = pump_trace.at(index);
+            if (record != nullptr &&
+                record->kind == kernel::TaskMessageSyscallPumpTraceKind::reply &&
+                record->reply_value == kExpectedRequestValue) {
+                pump_reply = record;
+                break;
+            }
+        }
+
+        RoundtripWitnessSummary summary{};
+        if (dispatch_request != nullptr) {
+            summary.dispatch =
+                kernel::task_message_session_dispatch_witness(
+                    *dispatch_request);
+        }
+        if (acceptor_request != nullptr) {
+            summary.acceptor =
+                kernel::task_message_session_service_acceptor_witness(
+                    *acceptor_request);
+        }
+        if (protocol_request != nullptr) {
+            summary.protocol =
+                kernel::task_message_session_protocol_witness(
+                    *protocol_request);
+        }
+        if (service_dispatch != nullptr) {
+            summary.service =
+                kernel::task_message_session_service_witness(
+                    *service_dispatch);
+        }
+        if (pump_reply != nullptr) {
+            summary.pump =
+                kernel::task_message_syscall_pump_witness(*pump_reply);
+        }
+
+        const auto dispatch_handoff =
+            kernel::task_message_session_dispatch_witness_handoff_target(
+                summary.dispatch);
+        const auto acceptor_handoff =
+            kernel::task_message_session_service_acceptor_witness_handoff_target(
+                summary.acceptor);
+        const auto protocol_handoff =
+            kernel::task_message_session_protocol_witness_handoff_target(
+                summary.protocol);
+        const auto service_handoff =
+            kernel::task_message_session_service_witness_handoff_target(
+                summary.service);
+        const auto pump_handoff =
+            kernel::task_message_syscall_pump_witness_handoff_target(
+                summary.pump);
+        summary.handoff_ready =
+            witness_handoff_target_ok(dispatch_handoff) &&
+            witness_handoff_target_ok(acceptor_handoff) &&
+            witness_handoff_target_ok(protocol_handoff) &&
+            witness_handoff_target_ok(service_handoff) &&
+            witness_handoff_target_ok(pump_handoff);
+        summary.request_path =
+            summary.dispatch.action ==
+                kernel::TaskMessageSessionActionKind::request &&
+            summary.acceptor.action ==
+                kernel::TaskMessageSessionActionKind::request &&
+            summary.protocol.kind ==
+                kernel::TaskMessageSessionProtocolTraceKind::request &&
+            summary.service.dispatch_accepted &&
+            summary.service.dispatch_replied &&
+            summary.pump.kind ==
+                kernel::TaskMessageSyscallPumpTraceKind::reply &&
+            summary.dispatch.session_handle == kBaseSessionHandle &&
+            summary.acceptor.session_handle == kBaseSessionHandle &&
+            summary.protocol.session_handle == kBaseSessionHandle &&
+            summary.dispatch.value == kExpectedRequestValue &&
+            summary.acceptor.value == kExpectedRequestValue &&
+            summary.protocol.value == kExpectedRequestValue &&
+            summary.service.reply_value == kExpectedRequestValue &&
+            summary.pump.reply_value == kExpectedRequestValue;
+
+        std::printf(
+            "[runtime-task-message-session-roundtrip-witness] ok=%d dispatch=%s acceptor=%s protocol=%s service=%s pump=%s summary=%s handoff=%d request=%d\n",
+            summary.ok() ? 1 : 0,
+            semantic::verdict_name(summary.dispatch.verdict()),
+            semantic::verdict_name(summary.acceptor.verdict()),
+            semantic::verdict_name(summary.protocol.verdict()),
+            semantic::verdict_name(summary.service.verdict()),
+            semantic::verdict_name(summary.pump.verdict()),
+            summary.dispatch.summary_path().data(),
+            summary.handoff_ready ? 1 : 0,
+            summary.request_path ? 1 : 0);
+        return summary;
+    }
 }
 
 int main()
@@ -1412,6 +1560,13 @@ int main()
     const bool protocol_trace_ok =
         demo::inspect_protocol_trace(protocol_traces[0]);
     const bool pump_trace_ok = demo::inspect_pump_trace(pump_trace);
+    const auto roundtrip_witness =
+        demo::inspect_roundtrip_witness(session_trace,
+                                        acceptor_trace,
+                                        protocol_traces[0],
+                                        service_trace,
+                                        pump_trace);
+    const bool roundtrip_witness_ok = roundtrip_witness.ok();
     const auto session_slot = session_service.session(0u);
     const auto lookup =
         session_service.lookup_session(demo::kBaseSessionHandle);
@@ -1606,7 +1761,7 @@ int main()
     const bool ok =
         completion_ok && service_ok && surface_ok && runtime_ok &&
         dispatcher_ok && dispatch_trace_ok && acceptor_trace_ok &&
-        protocol_trace_ok && pump_trace_ok;
+        protocol_trace_ok && pump_trace_ok && roundtrip_witness_ok;
 
     std::printf(
         "[runtime-task-message-session-roundtrip-demo] ok=%d valid=%d server_boot=%d client_boot=%d completions=%zu served=%zu timeouts=%u idle=%u active_sessions=%zu active_channels=%zu pending_frames=%zu pending_req=%zu pending_reply=%zu pump_req=%zu pump_completion=%zu waiting=%d loops=%llu\n",

@@ -4,6 +4,7 @@
 #include <string_view>
 
 import kernel.task_syscall_table;
+import semantic.core;
 
 namespace demo {
     using namespace std::literals;
@@ -215,6 +216,10 @@ namespace demo {
 
         const auto third_projection =
             kernel::task_syscall_semantic_projection(*third);
+        const auto fourth_witness = kernel::task_syscall_table_witness(table_trace);
+        const auto third_witness = kernel::task_syscall_table_witness(*third);
+        const auto fourth_handoff =
+            kernel::task_syscall_table_witness_handoff_target(fourth_witness);
 
         return yield_slot.matched && yield_slot.slot == 0u &&
                yield_slot.entry != nullptr &&
@@ -263,7 +268,18 @@ namespace demo {
                fourth->matched && fourth->handler_valid &&
                fourth->slot == 3u &&
                dispatch_third->syscall ==
-                   kernel::TaskSyscallId::capability_call;
+                   kernel::TaskSyscallId::capability_call &&
+               kernel::task_syscall_table_witness_ready(fourth_witness) &&
+               fourth_witness.ok() &&
+               fourth_witness.verdict() == semantic::Verdict::standing &&
+               fourth_witness.result() == semantic::Result::ok &&
+               fourth_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
+               third_witness.verdict() == semantic::Verdict::standing &&
+               std::string_view{fourth_handoff.entry_name()} ==
+                   "task-syscall-table-witness"sv &&
+               std::string_view{fourth_handoff.selected_summary_path()} ==
+                   fourth_witness.summary_path();
     }
 
     [[nodiscard]] bool probe_unbound_and_missing_entry() noexcept
@@ -291,6 +307,8 @@ namespace demo {
 
         const auto second_projection =
             kernel::task_syscall_semantic_projection(*second);
+        const auto first_witness = kernel::task_syscall_table_witness(*first);
+        const auto second_witness = kernel::task_syscall_table_witness(trace);
 
         return yield_lookup.matched && yield_lookup.slot == 0u &&
                !sleep_lookup.matched &&
@@ -313,7 +331,13 @@ namespace demo {
                          "sleep-until"sv) &&
                second_projection.field_count == 1u &&
                same_text(second_projection.fields[0].name, "due"sv) &&
-               second_projection.fields[0].value == 12u;
+               second_projection.fields[0].value == 12u &&
+               first_witness.verdict() == semantic::Verdict::drifted &&
+               first_witness.failure_domain() ==
+                   semantic::FailureDomain::handoff &&
+               second_witness.verdict() == semantic::Verdict::drifted &&
+               second_witness.failure_domain() ==
+                   semantic::FailureDomain::selection;
     }
 }
 

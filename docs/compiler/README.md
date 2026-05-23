@@ -9,6 +9,10 @@
 - [`charm_compiler_constitution_v0.md`](charm_compiler_constitution_v0.md)
 - [`compiler_pass_authority_and_freeze_boundary_v0.md`](compiler_pass_authority_and_freeze_boundary_v0.md)
 - [`compiler_world_lifecycle_v0.md`](compiler_world_lifecycle_v0.md)
+- [`compiler_world_ir_pipeline_contract_v0.md`](compiler_world_ir_pipeline_contract_v0.md)
+- [`compiler_world_ir_first_landing_slice_v0.md`](compiler_world_ir_first_landing_slice_v0.md)
+- [`compiler_static_reflection_three_stage_prototype_v0.md`](compiler_static_reflection_three_stage_prototype_v0.md)
+- [`compiler_hosted_reflection_extraction_surface_v0.md`](compiler_hosted_reflection_extraction_surface_v0.md)
 - [`compiler_world_lifecycle_projection_v0.md`](compiler_world_lifecycle_projection_v0.md)
 - [`compiler_world_lifecycle_projection_coverage_v0.md`](compiler_world_lifecycle_projection_coverage_v0.md)
 - [`compiler_sidecar_landing_order_v0.md`](compiler_sidecar_landing_order_v0.md)
@@ -26,6 +30,7 @@
 - `scripts/compiler_lifecycle_summary_sidecar_smoke.ps1`
 - `scripts/compiler_lifecycle_summary_runtime_evidence_bundle_hook_smoke.ps1`
 - `scripts/minimal_kernel_runtime_evidence_bundle.ps1 -ExportCompilerLifecycleSummary`
+- `scripts/compiler_static_reflection_three_stage_probe.ps1`
 
 ## 阅读关系
 
@@ -35,15 +40,19 @@
 2. [`charm_compiler_constitution_v0.md`](charm_compiler_constitution_v0.md)
 3. [`compiler_pass_authority_and_freeze_boundary_v0.md`](compiler_pass_authority_and_freeze_boundary_v0.md)
 4. [`compiler_world_lifecycle_v0.md`](compiler_world_lifecycle_v0.md)
-5. [`compiler_world_lifecycle_projection_v0.md`](compiler_world_lifecycle_projection_v0.md)
-6. [`compiler_world_lifecycle_projection_coverage_v0.md`](compiler_world_lifecycle_projection_coverage_v0.md)
-7. [`compiler_sidecar_landing_order_v0.md`](compiler_sidecar_landing_order_v0.md)
-8. [`compiler_lifecycle_summary_sidecar_contract_v0.md`](compiler_lifecycle_summary_sidecar_contract_v0.md)
-9. [`compiler_lowering_surface_contract_v0.md`](compiler_lowering_surface_contract_v0.md)
-10. [`compiler_freeze_receipt_contract_v0.md`](compiler_freeze_receipt_contract_v0.md)
-11. [`compiler_archive_manifest_contract_v0.md`](compiler_archive_manifest_contract_v0.md)
-12. [`../architecture/system_compiler_roadmap.md`](../architecture/system_compiler_roadmap.md)
-13. [`../architecture/system_compiler_vocabulary_v0.md`](../architecture/system_compiler_vocabulary_v0.md)
+5. [`compiler_world_ir_pipeline_contract_v0.md`](compiler_world_ir_pipeline_contract_v0.md)
+6. [`compiler_world_ir_first_landing_slice_v0.md`](compiler_world_ir_first_landing_slice_v0.md)
+7. [`compiler_static_reflection_three_stage_prototype_v0.md`](compiler_static_reflection_three_stage_prototype_v0.md)
+8. [`compiler_hosted_reflection_extraction_surface_v0.md`](compiler_hosted_reflection_extraction_surface_v0.md)
+9. [`compiler_world_lifecycle_projection_v0.md`](compiler_world_lifecycle_projection_v0.md)
+10. [`compiler_world_lifecycle_projection_coverage_v0.md`](compiler_world_lifecycle_projection_coverage_v0.md)
+11. [`compiler_sidecar_landing_order_v0.md`](compiler_sidecar_landing_order_v0.md)
+12. [`compiler_lifecycle_summary_sidecar_contract_v0.md`](compiler_lifecycle_summary_sidecar_contract_v0.md)
+13. [`compiler_lowering_surface_contract_v0.md`](compiler_lowering_surface_contract_v0.md)
+14. [`compiler_freeze_receipt_contract_v0.md`](compiler_freeze_receipt_contract_v0.md)
+15. [`compiler_archive_manifest_contract_v0.md`](compiler_archive_manifest_contract_v0.md)
+16. [`../architecture/system_compiler_roadmap.md`](../architecture/system_compiler_roadmap.md)
+17. [`../architecture/system_compiler_vocabulary_v0.md`](../architecture/system_compiler_vocabulary_v0.md)
 
 再按需要进入：
 

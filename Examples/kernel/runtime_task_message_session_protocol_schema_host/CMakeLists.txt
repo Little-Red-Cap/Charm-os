@@ -14,6 +14,7 @@ set(kernel_runtime_demo_modules
     "${CHARM_ROOT}/Modules/core/util/expected.cppm"
     "${CHARM_ROOT}/Modules/core/util/type_list.cppm"
     "${CHARM_ROOT}/Modules/core/util/variant.cppm"
+    "${CHARM_ROOT}/Modules/core/semantic/semantic.core.cppm"
     "${CHARM_ROOT}/Modules/core/trace_core.cppm"
     "${CHARM_ROOT}/Modules/io/out/out.core.cppm"
     "${CHARM_ROOT}/Modules/io/out/out.sink.cppm"

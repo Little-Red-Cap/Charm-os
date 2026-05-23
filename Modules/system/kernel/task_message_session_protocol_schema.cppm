@@ -2,10 +2,12 @@ module;
 
 #include <array>
 #include <cstddef>
+#include <string_view>
 
 export module kernel.task_message_session_protocol_schema;
 
 export import kernel.task_message_session_protocol;
+import semantic.core;
 import util.core;
 
 export namespace kernel {
@@ -40,6 +42,18 @@ export namespace kernel {
         const char* result_name{"value"};
         bool supported{false};
     };
+
+    static_assert(
+        semantic::reflected_member_names_match_when_enabled<
+                  TaskMessageSessionProtocolSchemaEntry>(
+        std::array<std::string_view, 7>{
+            "operation",
+            "operation_name",
+            "view_kind",
+            "field_count",
+            "field_names",
+            "result_name",
+            "supported"}));
 
     [[nodiscard]] constexpr auto task_message_session_protocol_schema_entry(
         util::u64 operation,
@@ -108,43 +122,56 @@ export namespace kernel {
         bool matched{false};
     };
 
-    struct TaskMessageSessionProtocolSemanticField {
-        const char* name{"payload"};
-        util::u64 value{0};
-    };
+    using TaskMessageSessionProtocolSemanticField =
+        semantic::NamedValue<util::u64>;
+    using TaskMessageSessionProtocolSemanticTail =
+        semantic::Projection<TaskMessageSessionProtocolSchemaEntry,
+                             TaskMessageSessionProtocolSemanticField,
+                             1>;
 
-    struct TaskMessageSessionProtocolSemanticProjection {
+    struct TaskMessageSessionProtocolSemanticProjection
+        : public TaskMessageSessionProtocolSemanticTail {
         TaskMessageSessionEndpoint endpoint{};
         util::u64 operation{0};
         util::u64 payload{0};
-        TaskMessageSessionProtocolSchemaEntry descriptor{};
-        std::array<TaskMessageSessionProtocolSemanticField, 1> fields{};
-        util::u8 field_count{0};
-        const char* result_name{"value"};
     };
+
+    static_assert(
+        semantic::reflected_member_names_match_when_enabled<
+                  TaskMessageSessionProtocolSemanticProjection>(
+        std::array<std::string_view, 3>{
+            "endpoint",
+            "operation",
+            "payload"}));
 
     [[nodiscard]] constexpr TaskMessageSessionProtocolSemanticProjection
     task_message_session_protocol_semantic_projection(
         TaskMessageSessionEndpointRequestView request,
         TaskMessageSessionProtocolSchemaEntry descriptor) noexcept
     {
-        auto projection = TaskMessageSessionProtocolSemanticProjection{
-            .endpoint = request.endpoint,
-            .operation = request.operation,
-            .payload = request.payload,
-            .descriptor = descriptor,
-            .result_name = descriptor.result_name,
-        };
+        auto tail = descriptor.field_count > 0u
+                        ? semantic::make_projection(
+                              descriptor,
+                              std::array<TaskMessageSessionProtocolSemanticField, 1>{
+                                  semantic::named_value(
+                                      descriptor.field_names[0] != nullptr
+                                          ? descriptor.field_names[0]
+                                          : "payload",
+                                      request.payload),
+                              },
+                              1u,
+                              descriptor.result_name)
+                        : semantic::make_projection(
+                              descriptor,
+                              std::array<TaskMessageSessionProtocolSemanticField, 1>{},
+                              0u,
+                              descriptor.result_name);
 
-        if (descriptor.field_count > 0u) {
-            projection.fields[0] = TaskMessageSessionProtocolSemanticField{
-                .name = descriptor.field_names[0] != nullptr
-                            ? descriptor.field_names[0]
-                            : "payload",
-                .value = request.payload,
-            };
-            projection.field_count = 1u;
-        }
+        TaskMessageSessionProtocolSemanticProjection projection{};
+        static_cast<TaskMessageSessionProtocolSemanticTail&>(projection) = tail;
+        projection.endpoint = request.endpoint;
+        projection.operation = request.operation;
+        projection.payload = request.payload;
 
         return projection;
     }

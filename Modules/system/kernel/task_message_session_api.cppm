@@ -1,10 +1,13 @@
 module;
 
+#include <array>
 #include <cstddef>
+#include <string_view>
 
 export module kernel.task_message_session_api;
 
 export import kernel.task_message_syscall_api;
+import semantic.core;
 import util.core;
 
 export namespace kernel {
@@ -108,6 +111,325 @@ export namespace kernel {
         };
         RawCompletion raw{};
     };
+
+    struct TaskMessageSessionApiWitness {
+        bool ready{false};
+        bool state_observed{false};
+        bool valid{false};
+        bool busy{false};
+        bool opened{false};
+        bool faulted{false};
+        TaskMessageSessionActionKind action{
+            TaskMessageSessionActionKind::none};
+        TaskMessageSessionPhase phase_before{TaskMessageSessionPhase::idle};
+        TaskMessageSessionPhase phase_after{TaskMessageSessionPhase::idle};
+        bool timeout{false};
+        bool session_opened{false};
+        bool session_closed{false};
+        bool session_faulted{false};
+        util::u64 service_id{0};
+        util::u64 session_handle{0};
+        util::u64 operation{0};
+        util::u64 payload{0};
+        util::u64 reply_value{0};
+        TrapDisposition disposition{TrapDisposition::rejected};
+        TrapError error{TrapError::none};
+        bool has_lower_provenance{false};
+        TaskMessageSyscallApiWitness lower_provenance{};
+
+        [[nodiscard]] constexpr bool open_branch_ok() const noexcept
+        {
+            return action == TaskMessageSessionActionKind::open &&
+                   phase_before == TaskMessageSessionPhase::opening &&
+                   phase_after ==
+                       (session_opened ? TaskMessageSessionPhase::open
+                                       : TaskMessageSessionPhase::idle) &&
+                   service_id != 0u &&
+                   operation == task_message_session_open_operation &&
+                   ((!timeout && session_opened && !session_closed &&
+                     !session_faulted && session_handle != 0u &&
+                     disposition == TrapDisposition::handled) ||
+                    ((timeout || disposition != TrapDisposition::handled) &&
+                     !session_opened && !session_closed && !session_faulted &&
+                     session_handle == 0u));
+        }
+
+        [[nodiscard]] constexpr bool request_branch_ok() const noexcept
+        {
+            return action == TaskMessageSessionActionKind::request &&
+                   phase_before == TaskMessageSessionPhase::requesting &&
+                   phase_after == TaskMessageSessionPhase::open &&
+                   !is_task_message_session_control_operation(operation) &&
+                   service_id != 0u && session_handle != 0u &&
+                   !session_opened && !session_closed && !session_faulted;
+        }
+
+        [[nodiscard]] constexpr bool close_branch_ok() const noexcept
+        {
+            return action == TaskMessageSessionActionKind::close &&
+                   phase_before == TaskMessageSessionPhase::closing &&
+                   phase_after == (timeout ? TaskMessageSessionPhase::faulted
+                                           : TaskMessageSessionPhase::idle) &&
+                   service_id != 0u && session_handle != 0u &&
+                   operation == task_message_session_close_operation &&
+                   ((timeout && !session_opened && !session_closed &&
+                     session_faulted) ||
+                    (!timeout && !session_opened && session_closed &&
+                     !session_faulted));
+        }
+
+        [[nodiscard]] constexpr bool state_consistent() const noexcept
+        {
+            if (phase_after == TaskMessageSessionPhase::open) {
+                return opened && !faulted && session_handle != 0u;
+            }
+
+            if (phase_after == TaskMessageSessionPhase::faulted) {
+                return !opened && faulted && session_handle != 0u;
+            }
+
+            if (phase_after == TaskMessageSessionPhase::idle) {
+                return !opened && !faulted;
+            }
+
+            return false;
+        }
+
+        [[nodiscard]] constexpr bool lower_route_consistent() const noexcept
+        {
+            if (!has_lower_provenance) {
+                return true;
+            }
+
+            const auto expected_kind =
+                timeout ? TaskMessageSyscallApiWitnessKind::timeout
+                        : TaskMessageSyscallApiWitnessKind::reply;
+
+            switch (action) {
+            case TaskMessageSessionActionKind::open:
+                return lower_provenance.verdict() ==
+                           semantic::Verdict::standing &&
+                       lower_provenance.kind == expected_kind &&
+                       lower_provenance.timeout == timeout &&
+                       lower_provenance.reply_value == reply_value &&
+                       lower_provenance.disposition == disposition &&
+                       lower_provenance.error == error;
+            case TaskMessageSessionActionKind::request:
+                return lower_provenance.verdict() ==
+                           semantic::Verdict::standing &&
+                       lower_provenance.kind == expected_kind &&
+                       lower_provenance.timeout == timeout &&
+                       lower_provenance.reply_value == reply_value &&
+                       lower_provenance.disposition == disposition &&
+                       lower_provenance.error == error;
+            case TaskMessageSessionActionKind::close:
+                return lower_provenance.verdict() ==
+                           semantic::Verdict::standing &&
+                       lower_provenance.kind == expected_kind &&
+                       lower_provenance.timeout == timeout &&
+                       lower_provenance.reply_value == reply_value &&
+                       lower_provenance.disposition == disposition &&
+                       lower_provenance.error == error;
+            case TaskMessageSessionActionKind::none:
+                return false;
+            }
+            return false;
+        }
+
+        [[nodiscard]] constexpr bool ok() const noexcept
+        {
+            return verdict() == semantic::Verdict::standing;
+        }
+
+        [[nodiscard]] constexpr semantic::Result result() const noexcept
+        {
+            return verdict() == semantic::Verdict::standing
+                       ? semantic::Result::ok
+                       : semantic::Result::failed;
+        }
+
+        [[nodiscard]] constexpr semantic::Verdict verdict() const noexcept
+        {
+            if (!ready) {
+                return semantic::Verdict::collapsed;
+            }
+
+            if (!state_consistent()) {
+                return semantic::Verdict::drifted;
+            }
+
+            if (!(open_branch_ok() || request_branch_ok() ||
+                  close_branch_ok())) {
+                return semantic::Verdict::drifted;
+            }
+
+            if (!lower_route_consistent()) {
+                return semantic::Verdict::drifted;
+            }
+
+            return semantic::Verdict::standing;
+        }
+
+        [[nodiscard]] constexpr semantic::FailureDomain
+        failure_domain() const noexcept
+        {
+            if (!ready) {
+                return semantic::FailureDomain::input;
+            }
+
+            if (!state_consistent()) {
+                return semantic::FailureDomain::handoff;
+            }
+
+            if (action == TaskMessageSessionActionKind::none) {
+                return semantic::FailureDomain::selection;
+            }
+
+            if (!lower_route_consistent()) {
+                return semantic::FailureDomain::route;
+            }
+
+            if (!(open_branch_ok() || request_branch_ok() ||
+                  close_branch_ok())) {
+                return semantic::FailureDomain::handoff;
+            }
+
+            return semantic::FailureDomain::none;
+        }
+
+        [[nodiscard]] constexpr std::string_view summary_path() const noexcept
+        {
+            return "task-message-session-api-witness.summary";
+        }
+    };
+
+    struct TaskMessageSessionApiWitnessHandoffTarget {
+        const TaskMessageSessionApiWitness* witness{nullptr};
+
+        [[nodiscard]] constexpr std::string_view entry_name() const noexcept
+        {
+            return "task-message-session-api-witness";
+        }
+
+        [[nodiscard]] constexpr std::string_view
+        selected_summary_path() const noexcept
+        {
+            return witness != nullptr ? witness->summary_path()
+                                      : std::string_view{
+                                            "task-message-session-api-witness.summary"};
+        }
+    };
+
+    static_assert(
+        semantic::reflected_member_names_match_when_enabled<TaskMessageSessionApiWitness>(
+            std::array<std::string_view, 22>{
+                "ready",
+                "state_observed",
+                "valid",
+                "busy",
+                "opened",
+                "faulted",
+                "action",
+                "phase_before",
+                "phase_after",
+                "timeout",
+                "session_opened",
+                "session_closed",
+                "session_faulted",
+                "service_id",
+                "session_handle",
+                "operation",
+                "payload",
+                "reply_value",
+                "disposition",
+                "error",
+                "has_lower_provenance",
+                "lower_provenance",
+            }));
+
+    static_assert(semantic::WitnessCarrier<TaskMessageSessionApiWitness>);
+    static_assert(
+        semantic::HandoffTarget<TaskMessageSessionApiWitnessHandoffTarget>);
+
+    template <typename RawCompletion>
+    [[nodiscard]] constexpr TaskMessageSessionApiWitness
+    task_message_session_api_witness(
+        const TaskMessageSessionCompletion<RawCompletion>& completion) noexcept
+    {
+        return TaskMessageSessionApiWitness{
+            .ready = completion.action != TaskMessageSessionActionKind::none,
+            .opened = completion.phase_after == TaskMessageSessionPhase::open,
+            .faulted =
+                completion.phase_after == TaskMessageSessionPhase::faulted,
+            .action = completion.action,
+            .phase_before = completion.phase_before,
+            .phase_after = completion.phase_after,
+            .timeout = completion.timeout,
+            .session_opened = completion.session_opened,
+            .session_closed = completion.session_closed,
+            .session_faulted = completion.session_faulted,
+            .service_id = completion.service_id,
+            .session_handle = completion.session_handle,
+            .operation = completion.operation,
+            .payload = completion.payload,
+            .reply_value = completion.reply_value,
+            .disposition = completion.trap.disposition,
+            .error = completion.trap.error,
+        };
+    }
+
+    template <typename Api, typename RawCompletion>
+    [[nodiscard]] constexpr TaskMessageSessionApiWitness
+    task_message_session_api_witness(
+        const Api& api,
+        const TaskMessageSessionCompletion<RawCompletion>& completion) noexcept
+    {
+        auto witness = task_message_session_api_witness(completion);
+        witness.state_observed = true;
+        witness.valid = api.valid();
+        witness.busy = api.busy();
+        return witness;
+    }
+
+    template <typename RawCompletion>
+    [[nodiscard]] constexpr TaskMessageSessionApiWitness
+    task_message_session_api_witness(
+        const TaskMessageSessionCompletion<RawCompletion>& completion,
+        const TaskMessageSyscallApiWitness& lower) noexcept
+    {
+        auto witness = task_message_session_api_witness(completion);
+        witness.has_lower_provenance = true;
+        witness.lower_provenance = lower;
+        return witness;
+    }
+
+    template <typename Api, typename RawCompletion>
+    [[nodiscard]] constexpr TaskMessageSessionApiWitness
+    task_message_session_api_witness(
+        const Api& api,
+        const TaskMessageSessionCompletion<RawCompletion>& completion,
+        const TaskMessageSyscallApiWitness& lower) noexcept
+    {
+        auto witness = task_message_session_api_witness(api, completion);
+        witness.has_lower_provenance = true;
+        witness.lower_provenance = lower;
+        return witness;
+    }
+
+    [[nodiscard]] constexpr bool task_message_session_api_witness_ready(
+        const TaskMessageSessionApiWitness& witness) noexcept
+    {
+        return witness.ready;
+    }
+
+    [[nodiscard]] constexpr TaskMessageSessionApiWitnessHandoffTarget
+    task_message_session_api_witness_handoff_target(
+        const TaskMessageSessionApiWitness& witness) noexcept
+    {
+        return TaskMessageSessionApiWitnessHandoffTarget{
+            .witness = &witness,
+        };
+    }
 
     template <typename Syscalls>
     class TaskMessageSessionApi {

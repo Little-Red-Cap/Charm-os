@@ -43,6 +43,13 @@
 
 - [`tooling/Powershell设置utf8.md`](tooling/Powershell设置utf8.md)
 
+### 我要处理 CMake preset / 构建目录 / 工具链入口
+
+先回到：
+
+- [`../../README.md`](../../README.md) 里的 `CMake Presets` 构建入口
+- [`../agent/routes/build.md`](../agent/routes/build.md)
+
 ### 我要看项目级提案或特定方向设计
 
 本目录里有一批明显属于“提案 / 草案 / 设计讨论”的文档，例如：

@@ -4,6 +4,7 @@
 #include <string_view>
 
 import kernel.task_message_session_service;
+import semantic.core;
 
 namespace demo {
     using namespace std::literals;
@@ -256,6 +257,20 @@ namespace demo {
             return false;
         }
 
+        const auto bootstrap_witness =
+            kernel::task_message_session_service_witness(*bootstrap);
+        const auto open_witness =
+            kernel::task_message_session_service_witness(*open);
+        const auto request_witness =
+            kernel::task_message_session_service_witness(*request);
+        const auto close_witness =
+            kernel::task_message_session_service_witness(*close);
+        const auto terminal_witness =
+            kernel::task_message_session_service_witness(trace);
+        const auto handoff =
+            kernel::task_message_session_service_witness_handoff_target(
+                terminal_witness);
+
         return trace.size() == 4u &&
                bootstrap->sequence == 1u &&
                bootstrap->reason ==
@@ -324,7 +339,30 @@ namespace demo {
                close->dispatch_accepted &&
                close->dispatch_handled &&
                close->dispatch_replied &&
-               close->reply_value == kCloseReason + 1u;
+               close->reply_value == kCloseReason + 1u &&
+               kernel::task_message_session_service_witness_ready(
+                   bootstrap_witness) &&
+               bootstrap_witness.verdict() == semantic::Verdict::standing &&
+               bootstrap_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
+               bootstrap_witness.bootstrap_branch_ok() &&
+               open_witness.verdict() == semantic::Verdict::standing &&
+               open_witness.failure_domain() == semantic::FailureDomain::none &&
+               open_witness.dispatch_branch_ok() &&
+               request_witness.verdict() == semantic::Verdict::standing &&
+               request_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
+               request_witness.dispatch_branch_ok() &&
+               close_witness.verdict() == semantic::Verdict::standing &&
+               close_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
+               close_witness.dispatch_branch_ok() &&
+               terminal_witness.verdict() == semantic::Verdict::standing &&
+               terminal_witness.dispatch_branch_ok() &&
+               std::string_view{handoff.entry_name()} ==
+                   "task-message-session-service-witness"sv &&
+               std::string_view{handoff.selected_summary_path()} ==
+                   "task-message-session-service-witness.summary"sv;
     }
 
     [[nodiscard]] bool probe_session_service_facade() noexcept
@@ -388,6 +426,8 @@ namespace demo {
         };
         const auto bootstrap_step = session_service.step(
             rebound_bootstrap, kBudget, kBootstrapDue);
+        const auto bootstrap_witness =
+            kernel::task_message_session_service_witness(bootstrap_step);
 
         const auto open = session_dispatcher.open_session(kServiceId, kOpenPayload);
         const auto open_lookup = session_service.lookup_session(kBaseSessionHandle);
@@ -413,6 +453,8 @@ namespace demo {
         };
         const auto open_step = session_service.step(
             pump_state.receive, kBudget, kOpenDue);
+        const auto open_witness =
+            kernel::task_message_session_service_witness(open_step);
 
         const auto request = session_dispatcher.request_session(
             kBaseSessionHandle, kRequestOperation, kRequestPayload);
@@ -437,6 +479,8 @@ namespace demo {
         };
         const auto request_step = session_service.step(
             pump_state.receive, kBudget, kRequestDue);
+        const auto request_witness =
+            kernel::task_message_session_service_witness(request_step);
 
         const auto close =
             session_dispatcher.close_session(kBaseSessionHandle, kCloseReason);
@@ -464,6 +508,8 @@ namespace demo {
         };
         const auto close_step = session_service.step(
             pump_state.receive, kBudget, kCloseDue);
+        const auto close_witness =
+            kernel::task_message_session_service_witness(close_step);
 
         const auto* closed_session_slot = session_service.session(0u);
         const auto* closed_channel_slot = session_service.channel(0u);
@@ -506,6 +552,11 @@ namespace demo {
                    kernel::TaskMessageServicePumpReason::bootstrap &&
                bootstrap_step.active_sessions == 0u &&
                bootstrap_step.active_channels == 0u &&
+               bootstrap_witness.verdict() ==
+                   semantic::Verdict::standing &&
+               bootstrap_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
+               bootstrap_witness.bootstrap_branch_ok() &&
                trap_result_matches(open.trap,
                                    kernel::TrapDisposition::handled,
                                    kernel::TrapError::none,
@@ -522,6 +573,10 @@ namespace demo {
                open_step.dispatch_handled &&
                open_step.dispatch_replied &&
                open_step.reply_value == kBaseSessionHandle &&
+               open_witness.verdict() == semantic::Verdict::standing &&
+               open_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
+               open_witness.dispatch_branch_ok() &&
                trap_result_matches(request.trap,
                                    kernel::TrapDisposition::handled,
                                    kernel::TrapError::none,
@@ -535,6 +590,10 @@ namespace demo {
                request_step.active_channels == 1u &&
                request_step.reply_value ==
                    kBaseSessionHandle + kRequestOperation + kRequestPayload &&
+               request_witness.verdict() == semantic::Verdict::standing &&
+               request_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
+               request_witness.dispatch_branch_ok() &&
                trap_result_matches(close.trap,
                                    kernel::TrapDisposition::handled,
                                    kernel::TrapError::none,
@@ -545,6 +604,10 @@ namespace demo {
                close_step.active_sessions == 0u &&
                close_step.active_channels == 0u &&
                close_step.reply_value == kCloseReason + 1u &&
+               close_witness.verdict() == semantic::Verdict::standing &&
+               close_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
+               close_witness.dispatch_branch_ok() &&
                !closed_lookup.matched && !closed_channel.matched &&
                closed_session_slot != nullptr && !closed_session_slot->active &&
                closed_channel_slot != nullptr && !closed_channel_slot->active &&
@@ -562,5 +625,11 @@ int main()
     std::printf("[runtime-task-message-session-service-demo] ok=%d facade=%d\n",
                 facade_ok ? 1 : 0,
                 facade_ok ? 1 : 0);
+    std::printf(
+        "[runtime-task-message-session-service-witness] ok=%d collapsed=%s summary=%s\n",
+        facade_ok ? 1 : 0,
+        semantic::verdict_name(
+            kernel::TaskMessageSessionServiceWitness{}.verdict()),
+        kernel::TaskMessageSessionServiceWitness{}.summary_path().data());
     return facade_ok ? 0 : 1;
 }

@@ -65,15 +65,6 @@ export namespace charm::system {
             emplace_optional_peripherals();
         }
 
-        template <typename Host>
-        BringupMinimal(const platform::board::BoardCaps& caps,
-                       Host& host,
-                       util::usize budget,
-                       input::SinkFn sink,
-                       void* sink_ctx,
-                       InputInitCfg cfg = {}) noexcept
-            : BringupMinimal(caps, host, budget, InputSinkRef::raw(sink, sink_ctx), cfg) {}
-
         BringupMinimal(const platform::board::UartDesc& uart,
                        const platform::board::ClockDesc& clock_desc,
                        const platform::board::InputDesc& input_desc,

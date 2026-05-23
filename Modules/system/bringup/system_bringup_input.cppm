@@ -45,15 +45,6 @@ export namespace charm::system {
             (void)detail::emplace_input_chain_from_host(input_, caps.input, core_.clock, host, sink, cfg);
         }
 
-        template <typename Host>
-        BringupInput(const platform::board::InputCaps& caps,
-                     Host& host,
-                     util::usize budget,
-                     input::SinkFn sink,
-                     void* sink_ctx,
-                     InputInitCfg cfg = {}) noexcept
-            : BringupInput(caps, host, budget, InputSinkRef::raw(sink, sink_ctx), cfg) {}
-
         util::Result<void> start(util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all),
                                  init::Phase max_phase = init::Phase::app) noexcept {
             return start_plan(init::compose(), runlevel_mask, max_phase);

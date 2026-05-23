@@ -2,6 +2,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <string_view>
 
 import kernel.capabilities;
 import kernel.config;
@@ -14,6 +15,7 @@ import kernel.task_message_syscall_pump;
 import kernel.task_state;
 import kernel.task_syscall_table;
 import kernel.thread;
+import semantic.core;
 
 namespace demo {
     struct Config : kernel::KernelConfig {
@@ -984,6 +986,16 @@ int main()
     }
 
     const auto pump_status = demo::inspect_pump_trace(pump_trace);
+    const auto reply_witness =
+        pump_trace.size() >= 8u
+            ? kernel::task_message_syscall_pump_witness(
+                  *pump_trace.at(7u))
+            : kernel::TaskMessageSyscallPumpWitness{};
+    const auto timeout_witness =
+        kernel::task_message_syscall_pump_witness(pump_trace);
+    const auto timeout_handoff =
+        kernel::task_message_syscall_pump_witness_handoff_target(
+            timeout_witness);
     const bool reply_values_ok =
         shared.completion_timeout[0] == false &&
         shared.completion_timeout[1] == false &&
@@ -1049,6 +1061,29 @@ int main()
         caller_adapter_state.last_error ==
             kernel::TrapError::unsupported_service &&
         caller_adapter_state.last_writeback_seen;
+    const bool pump_witness_ok =
+        kernel::task_message_syscall_pump_witness_ready(reply_witness) &&
+        reply_witness.verdict() == semantic::Verdict::standing &&
+        reply_witness.failure_domain() == semantic::FailureDomain::none &&
+        reply_witness.kind == kernel::TaskMessageSyscallPumpTraceKind::reply &&
+        !reply_witness.timeout &&
+        reply_witness.token == demo::kExpectedTokens[3] &&
+        reply_witness.request_sequence == demo::kExpectedSequences[3] &&
+        reply_witness.reply_value == demo::kExpectedValues[3] &&
+        reply_witness.disposition == demo::kExpectedDispositions[3] &&
+        reply_witness.error == demo::kExpectedErrors[3] &&
+        kernel::task_message_syscall_pump_witness_ready(timeout_witness) &&
+        timeout_witness.verdict() == semantic::Verdict::standing &&
+        timeout_witness.failure_domain() == semantic::FailureDomain::none &&
+        timeout_witness.kind ==
+            kernel::TaskMessageSyscallPumpTraceKind::timeout &&
+        timeout_witness.timeout &&
+        timeout_witness.token == demo::kMissingToken &&
+        timeout_witness.request_sequence == demo::kMissingSequence &&
+        std::string_view{timeout_handoff.entry_name()} ==
+            "task-message-syscall-pump-witness" &&
+        std::string_view{timeout_handoff.selected_summary_path()} ==
+            "task-message-syscall-pump-witness.summary";
     const bool ok =
         shared.mailbox_valid && shared.dispatcher_valid &&
         shared.frame_store_valid && shared.frame_bridge_valid &&
@@ -1065,6 +1100,7 @@ int main()
         shared.server_timeouts >= 1u && shared.wait_arm_successes >= 1u &&
         shared.idle_runs >= 1u && shared.server_runs >= 5u &&
         shared.client_runs == 6u && reply_values_ok && surface_ok &&
+        pump_witness_ok &&
         pump_status.ok && frame_store.pending() == 0u &&
         mailbox.pending_requests() == 0u && mailbox.pending_replies() == 0u &&
         mailbox.reply_waiters() == 0u && mailbox.receive_waiting() &&
@@ -1118,5 +1154,12 @@ int main()
         pump_status.timeout_count,
         pump_status.drop_seen ? 1 : 0,
         shared.missing_issue_erased ? 1 : 0);
+    std::printf(
+        "[runtime-task-message-syscall-pump-witness] ok=%d reply=%s timeout=%s route=%s summary=%s\n",
+        pump_witness_ok ? 1 : 0,
+        semantic::verdict_name(reply_witness.verdict()),
+        semantic::verdict_name(timeout_witness.verdict()),
+        semantic::failure_domain_name(timeout_witness.failure_domain()),
+        timeout_handoff.selected_summary_path().data());
     return ok ? 0 : 1;
 }

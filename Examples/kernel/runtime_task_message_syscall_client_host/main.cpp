@@ -2,6 +2,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <string_view>
 
 import kernel.capabilities;
 import kernel.config;
@@ -14,6 +15,7 @@ import kernel.task_message_syscall_client;
 import kernel.task_state;
 import kernel.task_syscall_table;
 import kernel.thread;
+import semantic.core;
 
 namespace demo {
     struct Config : kernel::KernelConfig {
@@ -961,6 +963,16 @@ int main()
 
     const auto trace_status =
         demo::inspect_client_trace(client_trace, shared);
+    const auto reply_witness =
+        client_trace.size() >= demo::kCallCount
+            ? kernel::task_message_syscall_client_witness(
+                  *client_trace.at(demo::kCallCount - 1u))
+            : kernel::TaskMessageSyscallClientWitness{};
+    const auto timeout_witness =
+        kernel::task_message_syscall_client_witness(client_trace);
+    const auto timeout_handoff =
+        kernel::task_message_syscall_client_witness_handoff_target(
+            timeout_witness);
 
     const bool replies_ok =
         shared.reply_sequences == shared.issued_sequences &&
@@ -1005,6 +1017,30 @@ int main()
         client_adapter_state.last_error ==
             kernel::TrapError::unsupported_service &&
         client_adapter_state.last_writeback_seen;
+    const bool witness_ok =
+        kernel::task_message_syscall_client_witness_ready(reply_witness) &&
+        reply_witness.verdict() == semantic::Verdict::standing &&
+        reply_witness.failure_domain() == semantic::FailureDomain::none &&
+        reply_witness.kind ==
+            kernel::TaskMessageSyscallClientTraceKind::reply &&
+        reply_witness.reply_consumed && !reply_witness.timeout_consumed &&
+        reply_witness.reply_sequence == shared.issued_sequences[3] &&
+        reply_witness.reply_value == demo::kExpectedValues[3] &&
+        reply_witness.disposition == demo::kExpectedDispositions[3] &&
+        reply_witness.error == demo::kExpectedErrors[3] &&
+        kernel::task_message_syscall_client_witness_ready(timeout_witness) &&
+        timeout_witness.verdict() == semantic::Verdict::standing &&
+        timeout_witness.failure_domain() == semantic::FailureDomain::none &&
+        timeout_witness.kind ==
+            kernel::TaskMessageSyscallClientTraceKind::timeout &&
+        !timeout_witness.reply_consumed &&
+        timeout_witness.timeout_consumed &&
+        timeout_witness.token == demo::kMissingToken &&
+        timeout_witness.request_sequence == demo::kMissingSequence &&
+        std::string_view{timeout_handoff.entry_name()} ==
+            "task-message-syscall-client-witness" &&
+        std::string_view{timeout_handoff.selected_summary_path()} ==
+            "task-message-syscall-client-witness.summary";
     const bool ok =
         shared.mailbox_valid && shared.dispatcher_valid &&
         shared.frame_store_valid && shared.frame_bridge_valid &&
@@ -1026,6 +1062,7 @@ int main()
         shared.server_timeouts >= 1u && shared.wait_arm_successes >= 1u &&
         shared.idle_runs >= 1u && shared.server_runs >= 5u &&
         shared.client_runs == 6u && trace_status.ok() &&
+        witness_ok &&
         client_trace.size() == demo::kMessageCount &&
         frame_store.pending() == 0u && mailbox.pending_requests() == 0u &&
         mailbox.pending_replies() == 0u && mailbox.reply_waiters() == 0u &&
@@ -1075,5 +1112,12 @@ int main()
         trace_status.capability_ok ? 1 : 0,
         trace_status.invalid_ok ? 1 : 0,
         trace_status.timeout_ok ? 1 : 0);
+    std::printf(
+        "[runtime-task-message-syscall-client-witness] ok=%d reply=%s timeout=%s route=%s summary=%s\n",
+        witness_ok ? 1 : 0,
+        semantic::verdict_name(reply_witness.verdict()),
+        semantic::verdict_name(timeout_witness.verdict()),
+        semantic::failure_domain_name(timeout_witness.failure_domain()),
+        timeout_handoff.selected_summary_path().data());
     return ok ? 0 : 1;
 }

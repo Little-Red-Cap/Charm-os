@@ -16,6 +16,7 @@ import kernel.task_message_syscall_frame;
 import kernel.task_state;
 import kernel.task_syscall_table;
 import kernel.thread;
+import semantic.core;
 
 namespace demo {
     using namespace std::literals;
@@ -1433,6 +1434,19 @@ int main()
         demo::inspect_syscall_dispatch_trace(syscall_dispatch_trace);
     const auto syscall_table_status =
         demo::inspect_syscall_table_trace(syscall_table_trace);
+    const auto lower_frame_witness =
+        kernel::task_syscall_frame_witness(frame_trace);
+    const auto published_frame_witness =
+        message_frame_trace.size() >= 4u
+            ? kernel::task_message_syscall_frame_witness(
+                  *message_frame_trace.at(3u),
+                  lower_frame_witness)
+            : kernel::TaskMessageSyscallFrameWitness{};
+    const auto missing_frame_witness =
+        kernel::task_message_syscall_frame_witness(message_frame_trace);
+    const auto frame_handoff =
+        kernel::task_message_syscall_frame_witness_handoff_target(
+            missing_frame_witness);
 
     const bool traces_ok = runtime_status.ok() && pump_status.ok() &&
                            message_dispatch_status.ok() &&
@@ -1504,6 +1518,41 @@ int main()
         result_ready_state.last_error ==
             kernel::TrapError::unsupported_service &&
         result_ready_state.last_writeback_seen;
+    const bool frame_witness_ok =
+        kernel::task_message_syscall_frame_witness_ready(
+            published_frame_witness) &&
+        published_frame_witness.verdict() ==
+            semantic::Verdict::standing &&
+        published_frame_witness.failure_domain() ==
+            semantic::FailureDomain::none &&
+        published_frame_witness.has_lower_provenance &&
+        published_frame_witness.slot_found &&
+        published_frame_witness.port_valid &&
+        published_frame_witness.result_ready &&
+        published_frame_witness.handled &&
+        published_frame_witness.disposition ==
+            kernel::TrapDisposition::unsupported &&
+        published_frame_witness.error ==
+            kernel::TrapError::unsupported_service &&
+        published_frame_witness.reply_value == demo::kReplyValues[3] &&
+        kernel::task_message_syscall_frame_witness_ready(
+            missing_frame_witness) &&
+        missing_frame_witness.verdict() ==
+            semantic::Verdict::standing &&
+        missing_frame_witness.failure_domain() ==
+            semantic::FailureDomain::none &&
+        !missing_frame_witness.slot_found &&
+        missing_frame_witness.port_valid &&
+        !missing_frame_witness.result_ready &&
+        !missing_frame_witness.handled &&
+        missing_frame_witness.disposition ==
+            kernel::TrapDisposition::rejected &&
+        missing_frame_witness.error ==
+            kernel::TrapError::invalid_argument &&
+        std::string_view{frame_handoff.entry_name()} ==
+            "task-message-syscall-frame-witness" &&
+        std::string_view{frame_handoff.selected_summary_path()} ==
+            "task-message-syscall-frame-witness.summary";
     const bool ok = shared.mailbox_valid && shared.dispatcher_valid &&
                     shared.frame_store_valid && shared.frame_bridge_valid &&
                     shared.message_frame_bridge_valid &&
@@ -1520,7 +1569,8 @@ int main()
                     shared.idle_after_finish && shared.idle_runs >= 1u &&
                     shared.server_runs >= 7u && shared.client_runs == 6u &&
                     replies_ok && taken_ok && frame_values_ok && surface_ok &&
-                    traces_ok && message_dispatch_trace.size() == 5u &&
+                    traces_ok && frame_witness_ok &&
+                    message_dispatch_trace.size() == 5u &&
                     message_frame_trace.size() == 5u &&
                     frame_trace.size() == 12u &&
                     syscall_dispatch_trace.size() == 3u &&
@@ -1585,5 +1635,12 @@ int main()
         syscall_dispatch_status.ok() ? 1 : 0,
         syscall_table_status.ok() ? 1 : 0,
         pump_status.hold_count);
+    std::printf(
+        "[runtime-task-message-syscall-frame-witness] ok=%d published=%s missing=%s route=%s summary=%s\n",
+        frame_witness_ok ? 1 : 0,
+        semantic::verdict_name(published_frame_witness.verdict()),
+        semantic::verdict_name(missing_frame_witness.verdict()),
+        semantic::failure_domain_name(published_frame_witness.failure_domain()),
+        frame_handoff.selected_summary_path().data());
     return ok ? 0 : 1;
 }

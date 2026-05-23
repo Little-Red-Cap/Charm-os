@@ -39,6 +39,7 @@ debug/provenance metadata
 它由 source facts 构建，经 lawful passes 派生、验证、冻结、lowering，并最终形成 target artifacts 与 witnesses。
 
 v0 中的 `World` 是法律主语，不是数据结构名。本文不定义 `WorldIR`、`TopologyIR`、`Node`、C++ class 或 schema shape。
+第一块可落地切片见：[`compiler_world_ir_first_landing_slice_v0.md`](compiler_world_ir_first_landing_slice_v0.md)。
 
 一个安全的理解是：
 
@@ -66,6 +67,8 @@ v0 先承认五类 fact：
 | `Observed Fact` | 从运行、smoke、witness 或 inspect surface 观察回来的事实 | runtime evidence、QEMU lower-half witness、bringup observed state |
 
 这些分类不是新 schema，也不是完整 failure taxonomy。它们先定义事实在 world 中的身份来源，避免把所有内容都压成“日志”“配置”或“模板展开结果”。
+
+第一条把这些法律收束成可执行管道的桥接合同见：[`compiler_world_ir_pipeline_contract_v0.md`](compiler_world_ir_pipeline_contract_v0.md)。
 
 ## 4. Pass Authority Model
 
@@ -186,6 +189,8 @@ single semantic world
 - `bringup_evidence_pipeline_v0.md`：`declared / materialized / published / observed / failed / blocked` 的当前 evidence state language。
 
 其中 `declared / materialized / published / observed` 已经可以视为 World State Transition Language 的现有胚胎，但本刀不改变它们在 bringup evidence pipeline v0 中的原有语义。
+
+从这些 law 走向第一条窄 executable pipeline 的桥接合同见：[`compiler_world_ir_pipeline_contract_v0.md`](compiler_world_ir_pipeline_contract_v0.md)。
 
 ## 10. 非目标
 

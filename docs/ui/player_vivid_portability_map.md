@@ -25,11 +25,13 @@ These are references, not contracts. Charm should borrow the pressure points, no
 The Windows `main.cpp` is kept as a thin assembly entry. Host-only helpers are grouped by responsibility:
 
 - `main.host_preview.inc`: preview argv parsing, host feature logging, app config resource binding, and preview-only Library setup hooks.
-- `main.host_runtime.inc`: SDL resource lifecycle, app bootstrap, common preview shutdown, and the host loop state shape.
+- `main.host_runtime.inc`: SDL resource lifecycle, `player.runtime` construction, common preview shutdown, and the host loop state shape.
 - `main.font_probe.inc`: host screenshot/font diagnostics.
 - `main.screenshot.inc`: host screenshot capture and export.
-- `main.ui_ci.inc`: host UI-CI runner and regression probes.
-- `main.host_loop.inc`: SDL event dispatch, run-loop steps, and render presentation.
+- `main.ui_ci.inc`: host UI-CI runner, regression probes, and the Windows adapter entry for the no-window runtime memory proof.
+- `main.host_loop.inc`: SDL event polling, run-loop steps, and render presentation through `PlayerRuntime`.
+
+The shared product lifecycle has moved into `player.runtime`: bootstrap storage/UI/player state, dispatch `PlayerInputEvent`, tick playback/controller state, render a frame into `PlayerDisplaySurface`, and shut down. Host shells should assemble and call this runtime instead of directly driving `App`, `PlayerController`, or `render_player_frame()`.
 
 The includes stay in the same anonymous namespace so this cleanup does not create a new public API or change link boundaries.
 `main.cpp` should remain a readable assembly entry: parse preview options, initialize host runtime, bootstrap Player, run UI-CI or interactive loop, then shut down.
@@ -49,9 +51,15 @@ Detailed provider and dynamic-memory notes now live in `player_provider_portabil
 Current short form:
 
 - Cover, font, storage, diagnostics, and UI-CI already have visible host gates or host-shell ownership.
+- `player.runtime` is now the common lifecycle seam between product code and host/board adapters.
+- `player.runtime_probe` constructs the real MD3 runtime around externally supplied storage and renders it into external memory; `--runtime-memory-smoke` is only the Windows host entry for that proof.
+- `player.board_port` is the board assembly skeleton for externally supplied framebuffer, display callbacks, touch source, package font metadata, and app config defaults.
+- `player.board_runtime` is the board lifecycle skeleton for turning those resources into `PlayerPlatform` / `PlayerRuntime` without SDL or argv parsing.
+- `make_board_display_sink()` gives the future board adapter a named seam for cache clean, dirty flush, and present/flip callbacks without changing Player UI.
+- `read_player_touch_events()` gives the future board touch adapter a fixed-capacity path from sampled touch points to `PlayerInputEvent`.
 - Theme and time have useful seams, but their final provider shape should wait for a concrete portable Player target.
 - Dynamic containers fall into two buckets: product semantic state in the MD3 controller/storage/theme flow, and replaceable host implementation state in font cache, cover decode, screenshots, and UI-CI.
-- The next cleanup order should be font provider, cover resource provider, time/diagnostics provider, UI-CI grouping, then controller dynamic state slimming.
+- The next cleanup order should be a non-Windows board shell target that calls `make_player_board_runtime()`, concrete `FontResourceKind::Package` binary/layout, time/diagnostics provider, then controller dynamic state slimming.
 
 ## Portable UI Probe Contract
 
@@ -59,8 +67,12 @@ Current short form:
 
 - `host_cover_decode=0`, so real cover decode is unavailable and default/generated cover art must keep the UI complete.
 - `host_file_fonts=0`, so file font paths are unavailable and built-in fonts must keep layout readable.
+- `font_resource_config_profile_mode` should confirm preview builds use file fonts and probe builds use built-in fonts.
 - Host storage may remain enabled so the app can still exercise real library/player flows.
 - `--font-disable-system-fallback` should still pass `--ui-ci`.
+- `--runtime-memory-smoke --font-disable-system-fallback` should pass without initializing SDL, proving the same real Player runtime can be constructed around an externally supplied framebuffer.
+- `--ui-ci` should include a board-touch-style path that samples touch points through `PlayerTouchSampleSource` instead of simulating SDL events.
+- `--ui-ci` should include a board-port binding proof that composes framebuffer, board display sink, touch source, and package font metadata without SDL.
 - The expected success line remains `done ok=1 failed=0`.
 
 If this probe fails, the first question should be "which provider or resource boundary leaked?", not "which board format should we emulate?"

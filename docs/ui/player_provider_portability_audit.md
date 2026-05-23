@@ -24,7 +24,9 @@ It is intentionally narrower than a full embedded port plan. The goal is to make
 | --- | --- | --- | --- | --- |
 | Cover | `player.cover` exposes `CoverProviderFn`; page/controller code can use generated/default cover art when decode is unavailable. | `CHARM_PLAYER_HOST_COVER_DECODE`; profile log prints `host_cover_decode`. | Host decode buffers, embedded image extraction, palette/theme sampling work buffers. | Add a pre-decoded/resource-backed cover provider contract. |
 | Theme | Player-owned cover sampling feeds dynamic surface/text roles; Vivid owns reusable role application candidates. | Indirectly tied to cover decode availability. | Fixed-budget 128x128 sampling workspace, palette candidates, controller theme state. | Keep sampling in Player; consider moving role application rules into Vivid after more app pressure. |
-| Font | Product config carries font paths and sizes; host preview binds file fonts only when enabled. | `CHARM_PLAYER_HOST_FILE_FONTS`, `CHARM_PLAYER_PC_FONT_CACHE`; profile log prints `host_file_fonts`. | FreeType/VFS font buffers, Win32/GDI glyph cache vectors, preview argv strings. | Define a board font resource/provider contract before replacing file fonts. |
+| Font | `FontResourceConfig` carries explicit font source kind plus sizes; host preview binds file fonts only when enabled; board ports can pass package metadata through `PlayerBoardFontPackageView`. | `CHARM_PLAYER_HOST_FILE_FONTS`, `CHARM_PLAYER_PC_FONT_CACHE`; profile log prints `host_file_fonts`. | FreeType/VFS font buffers, Win32/GDI glyph cache vectors, preview argv strings. | Define the concrete board font package binary/layout behind `FontResourceKind::Package`. |
+| Runtime | `player.runtime` owns product lifecycle; `player.board_runtime` owns the board construction helper; `player.runtime_probe` owns reusable memory-surface proof. | Host shell selects preview/probe config and still owns SDL, argv, screenshots, and UI-CI entry. | Runtime owns `App` storage in v0; controller/platform/runtime storage is provided by the adapter. | Add a non-Windows board shell that calls `make_player_board_runtime()` with board-owned resources. |
+| Display/Input | `PlayerDisplaySurface`, `PlayerDisplaySink`, board display callbacks, `PlayerBoardPortConfig`, and `render_player_frame()` separate Player rendering from SDL; `PlayerInputEvent` plus touch batching separates Player input from SDL/window/touch samples. | Windows preview uses SDL display and input adapters; memory, board-sink, board-port, and board-touch probes prove real Player UI external-framebuffer/input output. | Preview SDL texture/window state; UI-CI external buffer is fixed-size static storage; input HAL structs are fixed-size. | Add a non-Windows board shell that wires SDRAM/LTDC and touch drivers through `PlayerBoardPortConfig`. |
 | Time | `player.time_utils` keeps date/week formatting out of page code. | No dedicated board clock gate yet; Windows host binds the runtime time source. | Mostly fixed strings today; playback uses runtime clock timestamps. | Add a time/clock provider adapter when a portable Player target appears. |
 | Storage | `player.storage` and `PlayerApp` isolate scan/mount flow; product config carries host VHD default. | `CHARM_PLAYER_HOST_STORAGE`; profile/resource records select VHD defaults. | Track lists, scan queues, stats history, path buffers, filesystem traversal state. | Introduce board storage capability/provider instead of page-level storage assumptions. |
 | Diagnostics | Host shell owns screenshot, font probe, UI-CI, and preview logging includes. | `CHARM_PLAYER_PLAYBACK_LOG`, `CHARM_PLAYER_FS_LOG`, host shell only screenshot/UI-CI paths. | Screenshot paths, UI-CI probe state, font probe output strings, playback log formatting. | Keep host-only; split `main.ui_ci.inc` by evidence group later. |
@@ -77,7 +79,8 @@ Recommended next slice:
 Current state:
 
 - `player.product_config` owns default font path and size constants.
-- `AppConfig` carries a `FontResourceConfig` record with fixed-capacity paths, font sizes, and an explicit `file_backed` bit.
+- `AppConfig` carries a `FontResourceConfig` record with fixed-capacity paths, font sizes, and explicit `FontResourceKind`.
+- `PlayerBoardFontPackageView` gives board code a named place to pass package bytes/key/size metadata without pretending file paths exist.
 - Host file fonts are enabled only through `CHARM_PLAYER_HOST_FILE_FONTS`.
 - Win32/GDI fallback glyph caching is guarded by `CHARM_PLAYER_HOST_UI && CHARM_PLAYER_PC_FONT_CACHE && _WIN32`.
 - `portability_probe --font-disable-system-fallback` is the current proof that built-in fonts can keep the UI readable.
@@ -90,9 +93,69 @@ Dynamic allocation and portability notes:
 
 Recommended next slice:
 
-- Define a board font resource/provider contract with built-in packages and optional external resource packs.
+- Define the concrete board font package binary/layout behind `FontResourceKind::Package`.
 - Keep file paths as host/profile resource defaults.
 - Avoid spreading file font assumptions into page builders or controllers.
+
+## Display and Input
+
+Current state:
+
+- `player.display` defines `PlayerDisplaySurface`, `PlayerDisplaySink`, pixel format, dirty region, and ownership metadata.
+- `PlayerPlatform` binds a supplied surface and renders Vivid Scene output into it through `RuntimeCanvas`.
+- `render_player_frame()` is the shared frame lifecycle for host preview, UI-CI, and future board sinks.
+- The Windows preview owns its default display buffer in the host shell, then presents it through an SDL display sink.
+- `MemoryDisplaySink` is the current SDRAM-style seam: `player.runtime_probe` renders the real Player UI into an external buffer and verifies present metadata.
+- `make_board_display_sink()` adds the board adapter seam for cache clean, dirty flush, and present/flip callbacks while preserving the same `PlayerDisplaySink` contract.
+- `player.board_port` groups framebuffer, display callbacks, touch source, font package metadata, and audio defaults into `PlayerBoardPortConfig`.
+- `make_player_board_port_bindings()` returns the `PlayerDisplaySurface`, `PlayerDisplaySink`, and `AppConfig` a board shell needs before constructing `PlayerPlatform` and `PlayerRuntime`.
+- `player.board_runtime` adds `PlayerBoardRuntimeConfig` and `make_player_board_runtime()` so the board shell does not hand-roll `PlayerPlatform` / `PlayerRuntime` construction.
+- `--runtime-memory-smoke` is the Windows host adapter entry for the same probe before SDL initialization, so the display proof is not coupled to a host window.
+- `player.input` defines the Player product input boundary: pointer, wheel, button, command, and a minimal `PlayerTouchSampleSource` seam.
+- `read_player_touch_events()` batches board touch samples into fixed-capacity `PlayerInputEvent` output without dynamic allocation.
+- SDL input event decoding lives in a host-local adapter include; it only translates SDL events to `PlayerInputEvent`.
+- `player.app` is the single bridge from `PlayerInputEvent` to Vivid `RawInputEvent`, wheel dispatch, or controller command dispatch.
+- Controller command handling lives behind `handle_input_command(PlayerInputCommand)`, so board keys, SDL keys, and future Win32/Linux input can share product semantics.
+- UI-CI click, touch-style, and wheel cases now run through the Player input boundary instead of hand-building raw Vivid input.
+
+Dynamic allocation and portability notes:
+
+- The display HAL contract itself does not require dynamic allocation, exceptions, RTTI, SDL, Win32, or Linux APIs.
+- Rich Vivid scene/controller state is still not MCU-strict, but the final display output can now target an externally owned framebuffer.
+- SDL texture/window/event state remains host-only preview implementation state.
+- The input HAL contract itself does not require dynamic allocation, exceptions, RTTI, SDL, Win32, Linux APIs, or a concrete touch driver.
+- A board touch adapter only needs to sample `{down, x, y, id, ms}` and emit pointer events; cache, LTDC, DMA2D, and touch-controller handles stay in board code.
+
+Recommended next slice:
+
+- Add a non-Windows board shell that calls `make_player_board_runtime()` from board-owned resources.
+- Then wire concrete STM32H7 SDRAM/LTDC callbacks and touch driver sampling into that shell.
+
+## Runtime
+
+Current state:
+
+- `player.runtime` is the common product lifecycle shell for the Vivid Player path.
+- Windows/SDL constructs `PlayerRuntime` with a host-owned `PlayerPlatform`, controller storage, clock, and `PlayerRuntimeConfig`.
+- `bootstrap()` owns the product sequence: bind clock, construct `App`, initialize storage, bind player/controller/scene, build UI, apply storage view, and bootstrap the selected track.
+- `dispatch_input()` is the only host loop path from `PlayerInputEvent` into `player.app` and then Vivid/controller semantics.
+- `tick()` owns `App::tick()`, `controller.tick_player()`, and optional preview visual hooks without making spectrum rendering part of the board contract.
+- `render()` owns the frame call into `render_player_frame()` so SDL, memory, and future board sinks share the same render choreography.
+- `shutdown()` owns app/controller shutdown while SDL window/texture cleanup remains host-only.
+- `player.runtime_probe` wraps one externally supplied runtime/storage/surface configuration and records bootstrap, render, present, dirty-region, nonzero-pixel, and root-binding evidence.
+
+Dynamic allocation and portability notes:
+
+- Runtime v0 still stores `App` in `std::optional`; this is a desktop-friendly ownership seam, not yet a fixed-allocation embedded profile.
+- Controller, `PlayerPlatform`, and runtime storage are supplied from the adapter side, so a board profile can place them in static storage or a specific memory region.
+- Runtime does not depend on SDL, Win32, Linux, screenshots, argv parsing, or the UI-CI runner.
+- Runtime still imports the rich Player app/controller/display stack, so it is a lifecycle boundary, not an MCU-strict proof by itself.
+
+Recommended next slice:
+
+- Promote the no-window memory smoke shape into a non-Windows board shell using `PlayerBoardRuntimeConfig`, board-style clock, and board/provider config outside the Windows host executable.
+- Keep screenshot, GIF, font probe, and preview argv helpers in the Windows host shell.
+- Avoid adding virtual interfaces or heap-owning provider registries until a concrete board adapter needs them.
 
 ## Time
 
@@ -170,19 +233,25 @@ Replaceable preview or adapter implementation state:
 Already moving in the portable direction:
 
 - `FixedString` app config and path helpers.
-- `FontResourceConfig` keeps file-backed font resource data behind the app config boundary instead of scattering TTF fields through host bootstrap.
+- `FontResourceConfig` keeps font source mode and file-backed resource data behind the app config boundary instead of scattering TTF fields through host bootstrap.
+- `PlayerBoardPortConfig` keeps framebuffer, display callbacks, touch source, and package font metadata in one board adapter record instead of scattering them through page/controller code.
+- `PlayerBoardRuntimeConfig` keeps runtime defaults near the board adapter and leaves page/controller code unaware of board assembly details.
 - `CoverResourceProviderFn` gives portable builds a pre-decoded cover path before host decode.
+- `PlayerDisplaySurface` lets board code provide the final framebuffer memory instead of forcing Player to own or SDL-present it.
+- `render_player_frame()` keeps clear/transition/render/present choreography out of SDL-specific code.
+- `MemoryDisplaySink` gives CI a SDRAM-style real-Player-UI external-buffer proof without needing board hardware.
+- `PlayerInputEvent` gives SDL, Win32, Linux, and board touch drivers the same input seam.
+- UI-CI now proves touch-style pointer dispatch and wheel dispatch through the Player input boundary.
 - Explicit host feature gates in `player.host_features`.
 - CMake host profiles that make preview/probe differences visible.
 - `CoverProviderFn` and generated/default cover fallback.
 
 ## Next Slice Candidates
 
-1. Font provider: define board font resource ownership and keep file fonts as a host/profile implementation.
-2. Cover resource provider: add a pre-decoded/resource-backed provider beside the host decoder.
+1. Board shell target: call `make_player_board_runtime()` outside the Windows executable.
+2. Font provider: define the package binary/layout and keep file fonts as a host/profile implementation.
 3. Time/diagnostics provider: keep formatting and logging out of page code, but avoid over-abstracting before a board target exists.
-4. UI-CI grouping: split `main.ui_ci.inc` by evidence family without changing behavior.
-5. Controller dynamic state slimming: replace only the dynamic state that blocks `portability_probe` or a concrete board profile.
+4. Controller dynamic state slimming: replace only the dynamic state that blocks `portability_probe` or a concrete board profile.
 
 ## Probe Contract Reminder
 
@@ -192,5 +261,6 @@ The portability probe is not a hardware simulation. Its question is narrower and
 - Does it remain readable when file fonts and system fallback are disabled?
 - Do generated/default covers and built-in fonts preserve the product shape?
 - Do host-only diagnostics stay outside app semantics?
+- Can a frame render into an externally owned memory surface without SDL present?
 
 If the probe fails, debug the provider/resource boundary first.

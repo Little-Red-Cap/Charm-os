@@ -64,41 +64,327 @@
         return ok;
     }
 
-    void ui_ci_click(player::App& app, PlayerUiContext& ctx, ::ui::scene::Scene& scene, int x, int y) {
-        input::RawInputEvent down{};
-        down.type = input::RawInputEventType::Pointer;
-        down.ms = 0;
-        down.pointer = input::PointerRaw{true, static_cast<std::int16_t>(x), static_cast<std::int16_t>(y), 0};
-        down.pointer_action = input::PointerAction::Down;
-        app.dispatch_raw_input(scene, ctx, down);
-
-        input::RawInputEvent up{};
-        up.type = input::RawInputEventType::Pointer;
-        up.ms = 0;
-        up.pointer = input::PointerRaw{false, static_cast<std::int16_t>(x), static_cast<std::int16_t>(y), 0};
-        up.pointer_action = input::PointerAction::Up;
-        app.dispatch_raw_input(scene, ctx, up);
+    bool run_font_resource_config_ci() noexcept {
+        const PreviewOptions options{};
+        const auto app_cfg = make_app_config(options);
+        const auto& font = app_cfg.font_resources;
+        if constexpr (player::host_features::host_file_fonts) {
+            return font.kind == player::FontResourceKind::FilePath
+                && font.has_file_resource()
+                && !font.primary_path.empty()
+                && font.small_px == player::product_config::default_font_small_px
+                && font.normal_px == player::product_config::default_font_normal_px
+                && font.large_px == player::product_config::default_font_large_px;
+        } else {
+            return font.kind == player::FontResourceKind::Builtin
+                && font.is_builtin()
+                && !font.has_file_resource()
+                && font.primary_path.empty()
+                && font.small_px == player::product_config::default_font_small_px
+                && font.normal_px == player::product_config::default_font_normal_px
+                && font.large_px == player::product_config::default_font_large_px;
+        }
     }
 
-    UiCiResult run_ui_ci(player::App& app, PlayerUiContext& ctx, player::PlayerPlatform& platform) {
+    struct UiCiTouchSampleScript {
+        std::array<player::PlayerTouchSample, 4> samples{};
+        std::size_t count{0};
+        std::size_t index{0};
+    };
+
+    std::optional<player::PlayerTouchSample> ui_ci_read_touch_sample(void* ctx) noexcept {
+        auto* script = static_cast<UiCiTouchSampleScript*>(ctx);
+        if (!script || script->index >= script->count) {
+            return std::nullopt;
+        }
+        return script->samples[script->index++];
+    }
+
+    bool run_board_port_bindings_ci() noexcept {
+        static constexpr std::array<std::byte, 16> kFontPackage{
+            std::byte{0x43}, std::byte{0x48}, std::byte{0x52}, std::byte{0x4d},
+            std::byte{0x46}, std::byte{0x4f}, std::byte{0x4e}, std::byte{0x54},
+            std::byte{0x00}, std::byte{0x01}, std::byte{0x02}, std::byte{0x03},
+            std::byte{0x04}, std::byte{0x05}, std::byte{0x06}, std::byte{0x07},
+        };
+        static std::array<std::byte, player::PlayerOwnedDisplayBuffer::buffer_bytes> board_buffer{};
+        static player::PlayerBoardRuntimeStorage<PlayerUiContext, player::PlayerPage> board_runtime_storage{};
+
+        UiCiTouchSampleScript touch_script{
+            .samples = {
+                player::PlayerTouchSample{true, 10.0f, 20.0f, 0, 100},
+                player::PlayerTouchSample{false, 10.0f, 20.0f, 0, 101},
+                player::PlayerTouchSample{},
+                player::PlayerTouchSample{},
+            },
+            .count = 2,
+            .index = 0,
+        };
+        player::PlayerBoardPortConfig package_config{
+            .framebuffer = player::PlayerBoardFramebuffer{
+                .pixels = board_buffer.data(),
+                .width = screen_width,
+                .height = screen_height,
+                .stride_bytes = player::PlayerOwnedDisplayBuffer::stride_bytes,
+                .pixel_format = player::PlayerOwnedDisplayBuffer::pixel_format,
+            },
+            .display_callbacks = {},
+            .touch_source = player::PlayerTouchSampleSource{&touch_script, &ui_ci_read_touch_sample},
+            .font_package = player::PlayerBoardFontPackageView{
+                .data = kFontPackage.data(),
+                .size_bytes = kFontPackage.size(),
+                .key = "ui-ci-board-font-package",
+                .small_px = 13,
+                .normal_px = 17,
+                .large_px = 72,
+            },
+            .player_config = g_player_cfg,
+        };
+        player::PlayerBoardPortConfig runtime_config_port = package_config;
+        runtime_config_port.font_package = {};
+
+        player::PlayerBoardDisplaySinkState binding_sink_state{};
+        const auto bindings = player::make_player_board_port_bindings(package_config, binding_sink_state);
+        player::PlayerTouchAdapterState touch_state{};
+        const auto touch_batch = player::read_player_board_touch_events(package_config, touch_state);
+        const auto& font = bindings.app_config.font_resources;
+
+        PlayerUiContext board_ctx{};
+        player::PlayerBoardRuntimeConfig<player::PlayerPage> runtime_config{
+            .port = runtime_config_port,
+            .storage_config = player::default_storage_config(),
+            .start_page = player::PlayerPage::Home,
+            .initial_track_index = 0,
+            .auto_start = false,
+            .clear_color = kUiBackground,
+        };
+        player::PlayerDisplaySink runtime_sink =
+            player::make_player_board_runtime(g_clock, board_ctx, runtime_config, board_runtime_storage);
+        if (board_runtime_storage.runtime) {
+            (void)board_runtime_storage.runtime->bootstrap();
+        }
+        const bool bootstrap_ok = board_runtime_storage.runtime
+            && board_runtime_storage.runtime->app() != nullptr;
+        if (board_runtime_storage.runtime) {
+            board_runtime_storage.runtime->tick(g_clock.now_us());
+        }
+        const bool render_ok = board_runtime_storage.runtime
+            && board_runtime_storage.runtime->render(&runtime_sink);
+        const auto presented = board_runtime_storage.display_sink_state.last_surface;
+        const bool runtime_ok = bootstrap_ok
+            && render_ok
+            && board_runtime_storage.platform.has_value()
+            && presented.valid()
+            && presented.pixels == board_buffer.data()
+            && board_runtime_storage.display_sink_state.present_count == 1;
+        board_runtime_storage.reset();
+
+        return bindings.valid()
+            && bindings.surface.pixels == board_buffer.data()
+            && bindings.surface.width == screen_width
+            && bindings.surface.height == screen_height
+            && bindings.surface.stride_bytes == player::PlayerOwnedDisplayBuffer::stride_bytes
+            && bindings.surface.pixel_format == player::PlayerOwnedDisplayBuffer::pixel_format
+            && font.kind == player::FontResourceKind::Package
+            && font.has_package_resource()
+            && font.package_data == kFontPackage.data()
+            && font.package_size_bytes == kFontPackage.size()
+            && font.package_key.view() == std::string_view{"ui-ci-board-font-package"}
+            && font.small_px == 13
+            && font.normal_px == 17
+            && font.large_px == 72
+            && touch_batch.count == 2
+            && touch_batch.events[0].pointer_action == player::PlayerPointerAction::Down
+            && touch_batch.events[1].pointer_action == player::PlayerPointerAction::Up
+            && runtime_ok;
+    }
+
+    void ui_ci_pointer(PlayerRuntime& runtime,
+                       std::uint32_t ms,
+                       player::PlayerPointerAction action,
+                       bool down,
+                       int x,
+                       int y) {
+        runtime.dispatch_input(player::PlayerInputEvent::make_pointer(
+            ms,
+            action,
+            player::PlayerPointerSample{
+                down,
+                static_cast<float>(x),
+                static_cast<float>(y),
+                0}));
+    }
+
+    void ui_ci_click(PlayerRuntime& runtime, int x, int y) {
+        ui_ci_pointer(runtime, 0, player::PlayerPointerAction::Down, true, x, y);
+        ui_ci_pointer(runtime, 1, player::PlayerPointerAction::Up, false, x, y);
+    }
+
+    void ui_ci_pump_frame(PlayerRuntime& runtime, player::PlayerDisplaySink* display_sink) {
+        runtime.tick(g_clock.now_us());
+        (void)runtime.render(display_sink);
+    }
+
+    struct RuntimeMemoryProbeHostStorage {
+        static std::array<std::byte, player::PlayerOwnedDisplayBuffer::buffer_bytes> external_buffer;
+        static player::PlayerPlatform memory_platform;
+        static PlayerUiContext memory_ctx;
+        static std::optional<PlayerRuntime> memory_runtime;
+    };
+
+    std::array<std::byte, player::PlayerOwnedDisplayBuffer::buffer_bytes> RuntimeMemoryProbeHostStorage::external_buffer{};
+    player::PlayerPlatform RuntimeMemoryProbeHostStorage::memory_platform{player::PlayerDisplaySurface{
+        RuntimeMemoryProbeHostStorage::external_buffer.data(),
+        screen_width,
+        screen_height,
+        player::PlayerOwnedDisplayBuffer::stride_bytes,
+        player::PlayerOwnedDisplayBuffer::pixel_format,
+        player::PlayerDisplaySurfaceOwnership::Borrowed,
+    }};
+    PlayerUiContext RuntimeMemoryProbeHostStorage::memory_ctx{};
+    std::optional<PlayerRuntime> RuntimeMemoryProbeHostStorage::memory_runtime{};
+
+    player::PlayerRuntimeConfig<player::PlayerPage> make_runtime_probe_config(const PreviewOptions& options) {
+        RuntimeMemoryProbeHostStorage::memory_ctx = PlayerUiContext{};
+        return player::PlayerRuntimeConfig<player::PlayerPage>{
+            .app_config = make_app_config(options),
+            .storage_config = player::default_storage_config(),
+            .start_page = options.start_page,
+            .initial_track_index = options.track_index_override,
+            .auto_start = false,
+            .clear_color = kUiBackground,
+        };
+    }
+
+    bool runtime_probe_result_matches_external_surface(const player::PlayerRuntimeMemoryProbeResult& result,
+                                                       const player::PlayerDisplaySurface& presented) noexcept {
+        return result.ok
+            && presented.pixels == RuntimeMemoryProbeHostStorage::external_buffer.data()
+            && presented.width == screen_width
+            && presented.height == screen_height
+            && presented.stride_bytes == player::PlayerOwnedDisplayBuffer::stride_bytes
+            && presented.pixel_format == player::PlayerOwnedDisplayBuffer::pixel_format
+            && result.dirty.w == screen_width
+            && result.dirty.h == screen_height;
+    }
+
+    player::PlayerRuntimeMemoryProbeResult run_memory_display_sink_probe(const PreviewOptions& options = PreviewOptions{}) {
+        auto memory_cfg = make_runtime_probe_config(options);
+        player::MemoryDisplaySinkState sink_state{};
+        player::PlayerDisplaySink sink = player::make_memory_display_sink(sink_state);
+        auto result = player::run_player_runtime_memory_probe(g_clock,
+                                                              RuntimeMemoryProbeHostStorage::memory_platform,
+                                                              RuntimeMemoryProbeHostStorage::memory_ctx,
+                                                              std::move(memory_cfg),
+                                                              RuntimeMemoryProbeHostStorage::memory_runtime,
+                                                              sink_state,
+                                                              sink,
+                                                              g_clock.now_us());
+        result.ok = runtime_probe_result_matches_external_surface(result, sink_state.last_surface);
+        return result;
+    }
+
+    struct UiCiBoardDisplayCallbackState {
+        int clean_cache_count{0};
+        int flush_dirty_count{0};
+        int present_count{0};
+        player::PlayerDirtyRegion last_dirty{};
+    };
+
+    bool ui_ci_board_clean_cache(void* ctx,
+                                 const player::PlayerDisplaySurface&,
+                                 player::PlayerDirtyRegion dirty) noexcept {
+        auto* state = static_cast<UiCiBoardDisplayCallbackState*>(ctx);
+        if (!state || dirty.empty()) return false;
+        state->clean_cache_count += 1;
+        state->last_dirty = dirty;
+        return true;
+    }
+
+    bool ui_ci_board_flush_dirty(void* ctx,
+                                 const player::PlayerDisplaySurface&,
+                                 player::PlayerDirtyRegion dirty) noexcept {
+        auto* state = static_cast<UiCiBoardDisplayCallbackState*>(ctx);
+        if (!state || dirty.empty()) return false;
+        state->flush_dirty_count += 1;
+        state->last_dirty = dirty;
+        return true;
+    }
+
+    bool ui_ci_board_present(void* ctx,
+                             const player::PlayerDisplaySurface&,
+                             player::PlayerDirtyRegion dirty) noexcept {
+        auto* state = static_cast<UiCiBoardDisplayCallbackState*>(ctx);
+        if (!state || dirty.empty()) return false;
+        state->present_count += 1;
+        state->last_dirty = dirty;
+        return true;
+    }
+
+    player::PlayerRuntimeMemoryProbeResult run_board_display_sink_probe(const PreviewOptions& options = PreviewOptions{}) {
+        auto memory_cfg = make_runtime_probe_config(options);
+        UiCiBoardDisplayCallbackState callback_state{};
+        player::PlayerBoardDisplaySinkState sink_state{};
+        player::PlayerDisplaySink sink = player::make_board_display_sink(
+            sink_state,
+            player::PlayerBoardDisplayCallbacks{
+                .ctx = &callback_state,
+                .clean_cache = &ui_ci_board_clean_cache,
+                .flush_dirty = &ui_ci_board_flush_dirty,
+                .present = &ui_ci_board_present,
+            });
+        auto result = player::run_player_runtime_memory_probe(g_clock,
+                                                              RuntimeMemoryProbeHostStorage::memory_platform,
+                                                              RuntimeMemoryProbeHostStorage::memory_ctx,
+                                                              std::move(memory_cfg),
+                                                              RuntimeMemoryProbeHostStorage::memory_runtime,
+                                                              sink_state,
+                                                              sink,
+                                                              g_clock.now_us());
+        result.ok = runtime_probe_result_matches_external_surface(result, sink_state.last_surface)
+            && sink_state.last_clean_cache_ok
+            && sink_state.last_flush_dirty_ok
+            && sink_state.last_present_ok
+            && callback_state.clean_cache_count == 1
+            && callback_state.flush_dirty_count == 1
+            && callback_state.present_count == 1
+            && callback_state.last_dirty.w == screen_width
+            && callback_state.last_dirty.h == screen_height;
+        return result;
+    }
+
+    bool ui_ci_dispatch_touch_script(PlayerRuntime& runtime, UiCiTouchSampleScript& script) {
+        player::PlayerTouchAdapterState state{};
+        player::PlayerTouchSampleSource source{&script, &ui_ci_read_touch_sample};
+        bool dispatched = false;
+        while (script.index < script.count) {
+            const auto batch = player::read_player_touch_events(source, state);
+            if (batch.count == 0) {
+                break;
+            }
+            for (std::size_t i = 0; i < batch.count; ++i) {
+                runtime.dispatch_input(batch.events[i]);
+                dispatched = true;
+            }
+        }
+        return dispatched;
+    }
+
+    int run_runtime_memory_smoke(const PreviewOptions& options) noexcept {
+        player::ui::set_player_system_font_fallback_enabled(!options.disable_system_font_fallback);
+        const auto result = run_memory_display_sink_probe(options);
+        const bool ok = result.ok;
+        std::printf("[runtime-memory-smoke] done ok=%d failed=%d\n", ok ? 1 : 0, ok ? 0 : 1);
+        return ok ? 0 : 2;
+    }
+
+    UiCiResult run_ui_ci(PlayerRuntime& runtime) {
         UiCiResult res{};
-        auto& scene = platform.scene_ref();
+        auto& ctx = *runtime.controller();
+        auto& scene = runtime.scene_ref();
 
         auto pump_frame = [&]() {
-            app.tick();
-            ctx.tick_player(app.player());
-            platform.framebuffer_ref().clear(kUiBackground);
-            platform.begin_frame();
-            if (ctx.transition_needs_destination_snapshot()) {
-                ctx.prepare_transition_destination_snapshot_scene();
-                platform.render();
-                ctx.finish_transition_destination_snapshot_capture();
-                platform.framebuffer_ref().clear(kUiBackground);
-                platform.begin_frame();
-            }
-            ctx.compose_now_playing_transition_pixel_layer();
-            platform.render();
-            platform.end_frame();
+            ui_ci_pump_frame(runtime, nullptr);
         };
         auto wait_for_page = [&](player::PlayerPage expected_page, int max_frames = 36) {
             if (ctx.current_page == expected_page) return true;
@@ -122,12 +408,105 @@
 
         pump_frame();
 
+        if (run_memory_display_sink_probe().ok) {
+            ui_ci_emit("memory_display_sink_player_ui_external_surface", true, nullptr);
+        } else {
+            ui_ci_emit("memory_display_sink_player_ui_external_surface", false, "memory_display_sink");
+            res.ok = false;
+            res.failed++;
+        }
+        if (run_board_display_sink_probe().ok) {
+            ui_ci_emit("board_display_sink_player_ui_external_surface", true, nullptr);
+        } else {
+            ui_ci_emit("board_display_sink_player_ui_external_surface", false, "board_display_sink");
+            res.ok = false;
+            res.failed++;
+        }
+        if (run_board_port_bindings_ci()) {
+            ui_ci_emit("board_port_bindings_framebuffer_touch_font", true, nullptr);
+        } else {
+            ui_ci_emit("board_port_bindings_framebuffer_touch_font", false, "board_port_bindings");
+            res.ok = false;
+            res.failed++;
+        }
+        pump_frame();
+
         if (run_cover_resource_provider_ci()) {
             ui_ci_emit("cover_resource_provider_static_view", true, nullptr);
         } else {
             ui_ci_emit("cover_resource_provider_static_view", false, "static_view");
             res.ok = false;
             res.failed++;
+        }
+
+        if (run_font_resource_config_ci()) {
+            ui_ci_emit("font_resource_config_profile_mode", true, nullptr);
+        } else {
+            ui_ci_emit("font_resource_config_profile_mode", false, "font_resource_config");
+            res.ok = false;
+            res.failed++;
+        }
+
+        {
+            ctx.set_page(player::PlayerPage::Home);
+            pump_frame();
+            const Rect r = scene.world_rect(ctx.handles.bottom_hit);
+            if (r.w > 0 && r.h > 0) {
+                const int cx = r.x + r.w / 2;
+                const int cy = r.y + r.h / 2;
+                UiCiTouchSampleScript script{
+                    .samples = {
+                        player::PlayerTouchSample{true, static_cast<float>(cx), static_cast<float>(cy), 0, 10},
+                        player::PlayerTouchSample{true, static_cast<float>(cx + 3), static_cast<float>(cy + 2), 0, 11},
+                        player::PlayerTouchSample{false, static_cast<float>(cx + 3), static_cast<float>(cy + 2), 0, 12},
+                        player::PlayerTouchSample{},
+                    },
+                    .count = 3,
+                    .index = 0,
+                };
+                if (ui_ci_dispatch_touch_script(runtime, script)
+                    && (wait_for_page(player::PlayerPage::NowPlaying)
+                        || settle_now_playing_transition(player::PlayerPage::NowPlaying))) {
+                    ui_ci_emit("board_touch_source_home_to_now", true, nullptr);
+                } else {
+                    ui_ci_emit("board_touch_source_home_to_now", false, "page_not_now");
+                    res.ok = false;
+                    res.failed++;
+                }
+            } else {
+                ui_ci_emit("board_touch_source_home_to_now", false, "bottom_hit_zero");
+                res.ok = false;
+                res.failed++;
+            }
+            ctx.set_page(player::PlayerPage::Home);
+            pump_frame();
+        }
+
+        {
+            ctx.set_page(player::PlayerPage::Home);
+            pump_frame();
+            const Rect r = scene.world_rect(ctx.handles.home_scroll);
+            const int before_scroll = ctx.access.scroll_y(ctx.handles.home_scroll);
+            if (r.w > 0 && r.h > 0) {
+                runtime.dispatch_input(player::PlayerInputEvent::make_wheel(
+                    20,
+                    static_cast<float>(r.x + r.w / 2),
+                    static_cast<float>(r.y + r.h / 2),
+                    -3.0f));
+                pump_frame();
+                const int after_scroll = ctx.access.scroll_y(ctx.handles.home_scroll);
+                if (after_scroll != before_scroll) {
+                    ui_ci_emit("input_boundary_wheel_home_scroll", true, nullptr);
+                } else {
+                    ui_ci_emit("input_boundary_wheel_home_scroll", false, "scroll_unchanged");
+                    res.ok = false;
+                    res.failed++;
+                }
+            } else {
+                ui_ci_emit("input_boundary_wheel_home_scroll", false, "home_scroll_zero");
+                res.ok = false;
+                res.failed++;
+            }
         }
 
         {
@@ -659,7 +1038,7 @@
             }
             const int cx = r.x + r.w / 2;
             const int cy = r.y + r.h / 2;
-            ui_ci_click(app, ctx, scene, cx, cy);
+            ui_ci_click(runtime, cx, cy);
             return true;
         };
 
@@ -861,7 +1240,7 @@
             const Rect list = scene.world_rect(ctx.handles.list);
             if (list.w > 0 && list.h > 0) {
                 const int before = ctx.last_list_selected;
-                ui_ci_click(app, ctx, scene, list.x + 12, list.y + 12);
+                ui_ci_click(runtime, list.x + 12, list.y + 12);
                 pump_frame();
                 const int after = ctx.last_list_selected;
                 if (after >= 0) {
@@ -886,7 +1265,7 @@
     }
 
     int run_ui_ci_preview(SdlHostRuntime& runtime) noexcept {
-        const UiCiResult result = run_ui_ci(*g_app, g_ctx, g_platform);
+        const UiCiResult result = run_ui_ci(*g_runtime);
         shutdown_player_preview(runtime);
         return result.ok ? 0 : 2;
     }

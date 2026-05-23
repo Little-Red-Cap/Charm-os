@@ -4,6 +4,7 @@
 #include <string_view>
 
 import kernel.task_message_session_protocol;
+import semantic.core;
 
 namespace demo {
     using namespace std::literals;
@@ -266,6 +267,21 @@ namespace demo {
             return false;
         }
 
+        const auto echo_witness =
+            kernel::task_message_session_protocol_witness(*first);
+        const auto unsupported_witness =
+            kernel::task_message_session_protocol_witness(*third);
+        const auto close_witness =
+            kernel::task_message_session_protocol_witness(*fourth);
+        const auto default_close_witness =
+            kernel::task_message_session_protocol_witness(
+                *default_close_event);
+        const auto broken_witness =
+            kernel::task_message_session_protocol_witness(*broken_event);
+        const auto handoff =
+            kernel::task_message_session_protocol_witness_handoff_target(
+                close_witness);
+
         return protocol.valid() &&
                Protocol::capacity() == 2u &&
                lookup_echo.matched &&
@@ -373,7 +389,37 @@ namespace demo {
                broken_event->sequence == 1u &&
                broken_event->matched &&
                !broken_event->handler_valid &&
-               broken_event->error == kernel::TrapError::unbound_adapter;
+               broken_event->error == kernel::TrapError::unbound_adapter &&
+               kernel::task_message_session_protocol_witness_ready(
+                   echo_witness) &&
+               echo_witness.verdict() == semantic::Verdict::standing &&
+               echo_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
+               echo_witness.request_handler_branch_ok() &&
+               kernel::task_message_session_protocol_witness_ready(
+                   unsupported_witness) &&
+               unsupported_witness.verdict() ==
+                   semantic::Verdict::standing &&
+               unsupported_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
+               unsupported_witness.request_unmapped_branch_ok() &&
+               close_witness.verdict() == semantic::Verdict::standing &&
+               close_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
+               close_witness.close_branch_ok() &&
+               default_close_witness.verdict() ==
+                   semantic::Verdict::standing &&
+               default_close_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
+               default_close_witness.close_branch_ok() &&
+               broken_witness.verdict() == semantic::Verdict::standing &&
+               broken_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
+               broken_witness.request_unbound_branch_ok() &&
+               std::string_view{handoff.entry_name()} ==
+                   "task-message-session-protocol-witness"sv &&
+               std::string_view{handoff.selected_summary_path()} ==
+                   "task-message-session-protocol-witness.summary"sv;
     }
 
     [[nodiscard]] bool probe_endpoint_bridge() noexcept
@@ -760,6 +806,9 @@ int main()
     const bool endpoint_ok = demo::probe_endpoint_bridge();
     const bool dispatcher_ok = demo::probe_dispatcher_integration();
     const bool ok = table_ok && endpoint_ok && dispatcher_ok;
+    const auto collapsed =
+        kernel::task_message_session_protocol_witness(
+            kernel::TaskMessageSessionProtocolTraceBuffer<1>{});
 
     std::printf(
         "[runtime-task-message-session-protocol-demo] ok=%d table=%d endpoint=%d dispatcher=%d\n",
@@ -767,5 +816,11 @@ int main()
         table_ok ? 1 : 0,
         endpoint_ok ? 1 : 0,
         dispatcher_ok ? 1 : 0);
+    std::printf(
+        "[runtime-task-message-session-protocol-witness] ok=%d collapsed=%s route=%s summary=%s\n",
+        ok ? 1 : 0,
+        semantic::verdict_name(collapsed.verdict()),
+        semantic::failure_domain_name(collapsed.failure_domain()),
+        collapsed.summary_path().data());
     return ok ? 0 : 1;
 }

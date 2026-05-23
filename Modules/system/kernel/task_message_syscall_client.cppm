@@ -2,10 +2,12 @@ module;
 
 #include <array>
 #include <cstddef>
+#include <string_view>
 
 export module kernel.task_message_syscall_client;
 
 export import kernel.task_message_syscall_frame_caller;
+import semantic.core;
 import util.core;
 
 export namespace kernel {
@@ -58,10 +60,33 @@ export namespace kernel {
         bool timeout_consumed{false};
         TaskId reply_from{};
         TaskId reply_to{};
+        util::u64 reply_sequence{0};
         util::u64 reply_value{0};
         TrapDisposition disposition{TrapDisposition::rejected};
         TrapError error{TrapError::none};
     };
+
+    static_assert(
+        semantic::reflected_member_names_match_when_enabled<TaskMessageSyscallClientTraceEvent>(
+            std::array<std::string_view, 17>{
+                "sequence",
+                "kind",
+                "event_id",
+                "event_value",
+                "owner",
+                "token",
+                "request_sequence",
+                "ok",
+                "completed",
+                "reply_consumed",
+                "timeout_consumed",
+                "reply_from",
+                "reply_to",
+                "reply_sequence",
+                "reply_value",
+                "disposition",
+                "error",
+            }));
 
     template <std::size_t Capacity>
     class TaskMessageSyscallClientTraceBuffer {
@@ -100,6 +125,288 @@ export namespace kernel {
         std::size_t head_{0};
         std::size_t size_{0};
     };
+
+    struct TaskMessageSyscallClientWitness {
+        util::u64 sequence{0};
+        bool ready{false};
+        bool has_trace{false};
+        TaskMessageSyscallClientTraceKind kind{
+            TaskMessageSyscallClientTraceKind::reply};
+        TaskId owner{};
+        util::u64 token{0};
+        util::u64 request_sequence{0};
+        bool completed{false};
+        bool reply_consumed{false};
+        bool timeout_consumed{false};
+        TaskId reply_from{};
+        TaskId reply_to{};
+        util::u64 reply_sequence{0};
+        util::u64 reply_value{0};
+        TrapDisposition disposition{TrapDisposition::rejected};
+        TrapError error{TrapError::none};
+        bool has_lower_provenance{false};
+        TaskMessageSyscallFrameCallerState lower_provenance{};
+
+        [[nodiscard]] constexpr bool reply_branch_ok() const noexcept
+        {
+            return kind == TaskMessageSyscallClientTraceKind::reply &&
+                   completed && reply_consumed && !timeout_consumed &&
+                   reply_from != TaskId{} && reply_to == owner &&
+                   reply_sequence == request_sequence;
+        }
+
+        [[nodiscard]] constexpr bool timeout_branch_ok() const noexcept
+        {
+            return kind == TaskMessageSyscallClientTraceKind::timeout &&
+                   completed && !reply_consumed && timeout_consumed &&
+                   reply_from == TaskId{} && reply_to == owner &&
+                   reply_sequence == 0u && reply_value == 0u;
+        }
+
+        [[nodiscard]] constexpr bool ok() const noexcept
+        {
+            return verdict() == semantic::Verdict::standing;
+        }
+
+        [[nodiscard]] constexpr semantic::Result result() const noexcept
+        {
+            return verdict() == semantic::Verdict::standing
+                       ? semantic::Result::ok
+                       : semantic::Result::failed;
+        }
+
+        [[nodiscard]] constexpr bool lower_route_consistent() const noexcept
+        {
+            if (!has_lower_provenance) {
+                return true;
+            }
+
+            return lower_provenance.owner == owner &&
+                   lower_provenance.token == token &&
+                   lower_provenance.sequence == request_sequence;
+        }
+
+        [[nodiscard]] constexpr semantic::Verdict verdict() const noexcept
+        {
+            if (!ready) {
+                return semantic::Verdict::collapsed;
+            }
+
+            if (!(reply_branch_ok() || timeout_branch_ok())) {
+                return semantic::Verdict::drifted;
+            }
+
+            if (!lower_route_consistent()) {
+                return semantic::Verdict::drifted;
+            }
+
+            return semantic::Verdict::standing;
+        }
+
+        [[nodiscard]] constexpr semantic::FailureDomain
+        failure_domain() const noexcept
+        {
+            if (!ready) {
+                return semantic::FailureDomain::input;
+            }
+
+            const bool branch_selection_mismatch =
+                (kind == TaskMessageSyscallClientTraceKind::reply &&
+                 (!reply_consumed || timeout_consumed)) ||
+                (kind == TaskMessageSyscallClientTraceKind::timeout &&
+                 (reply_consumed || !timeout_consumed));
+            if (branch_selection_mismatch) {
+                return semantic::FailureDomain::selection;
+            }
+
+            const bool completion_shape_mismatch =
+                !completed ||
+                (kind == TaskMessageSyscallClientTraceKind::reply &&
+                 (reply_from == TaskId{} || reply_to != owner ||
+                  reply_sequence != request_sequence)) ||
+                (kind == TaskMessageSyscallClientTraceKind::timeout &&
+                 (reply_from != TaskId{} || reply_to != owner ||
+                  reply_sequence != 0u || reply_value != 0u));
+            if (completion_shape_mismatch) {
+                return semantic::FailureDomain::handoff;
+            }
+
+            if (!lower_route_consistent()) {
+                return semantic::FailureDomain::route;
+            }
+
+            return semantic::FailureDomain::none;
+        }
+
+        [[nodiscard]] constexpr std::string_view summary_path() const noexcept
+        {
+            return "task-message-syscall-client-witness.summary";
+        }
+    };
+
+    struct TaskMessageSyscallClientWitnessHandoffTarget {
+        const TaskMessageSyscallClientWitness* witness{nullptr};
+
+        [[nodiscard]] constexpr std::string_view entry_name() const noexcept
+        {
+            return "task-message-syscall-client-witness";
+        }
+
+        [[nodiscard]] constexpr std::string_view
+        selected_summary_path() const noexcept
+        {
+            return witness != nullptr ? witness->summary_path()
+                                      : std::string_view{
+                                            "task-message-syscall-client-witness.summary"};
+        }
+    };
+
+    static_assert(
+        semantic::reflected_member_names_match_when_enabled<TaskMessageSyscallClientWitness>(
+            std::array<std::string_view, 18>{
+                "sequence",
+                "ready",
+                "has_trace",
+                "kind",
+                "owner",
+                "token",
+                "request_sequence",
+                "completed",
+                "reply_consumed",
+                "timeout_consumed",
+                "reply_from",
+                "reply_to",
+                "reply_sequence",
+                "reply_value",
+                "disposition",
+                "error",
+                "has_lower_provenance",
+                "lower_provenance",
+            }));
+
+    static_assert(semantic::WitnessCarrier<TaskMessageSyscallClientWitness>);
+    static_assert(
+        semantic::HandoffTarget<TaskMessageSyscallClientWitnessHandoffTarget>);
+
+    template <typename Caller>
+    [[nodiscard]] constexpr TaskMessageSyscallClientWitness
+    task_message_syscall_client_witness(
+        const TaskMessageSyscallClientStepResult<Caller>& result) noexcept
+    {
+        const auto ready =
+            result.completed || result.reply_consumed || result.timeout_consumed;
+        return TaskMessageSyscallClientWitness{
+            .ready = ready,
+            .kind = result.timeout_consumed
+                        ? TaskMessageSyscallClientTraceKind::timeout
+                        : TaskMessageSyscallClientTraceKind::reply,
+            .owner = result.owner,
+            .token = result.token,
+            .request_sequence = result.request_sequence,
+            .completed = result.completed,
+            .reply_consumed = result.reply_consumed,
+            .timeout_consumed = result.timeout_consumed,
+            .reply_from = result.reply.from,
+            .reply_to = result.timeout_consumed ? result.owner : result.reply.to,
+            .reply_sequence = result.timeout_consumed ? 0u
+                                                      : result.reply.sequence,
+            .reply_value = result.timeout_consumed ? 0u : result.reply.value,
+            .disposition = result.trap.disposition,
+            .error = result.trap.error,
+        };
+    }
+
+    template <typename Caller>
+    [[nodiscard]] constexpr TaskMessageSyscallClientWitness
+    task_message_syscall_client_witness(
+        const TaskMessageSyscallClientStepResult<Caller>& result,
+        const TaskMessageSyscallFrameCallerState& lower) noexcept
+    {
+        auto witness = task_message_syscall_client_witness(result);
+        witness.has_lower_provenance = true;
+        witness.lower_provenance = lower;
+        return witness;
+    }
+
+    [[nodiscard]] constexpr TaskMessageSyscallClientWitness
+    task_message_syscall_client_witness(
+        const TaskMessageSyscallClientTraceEvent& event) noexcept
+    {
+        return TaskMessageSyscallClientWitness{
+            .sequence = event.sequence,
+            .ready = event.sequence != 0u,
+            .has_trace = true,
+            .kind = event.kind,
+            .owner = event.owner,
+            .token = event.token,
+            .request_sequence = event.request_sequence,
+            .completed = event.completed,
+            .reply_consumed = event.reply_consumed,
+            .timeout_consumed = event.timeout_consumed,
+            .reply_from = event.reply_from,
+            .reply_to = event.reply_to,
+            .reply_sequence = event.reply_sequence,
+            .reply_value = event.reply_value,
+            .disposition = event.disposition,
+            .error = event.error,
+        };
+    }
+
+    [[nodiscard]] constexpr TaskMessageSyscallClientWitness
+    task_message_syscall_client_witness(
+        const TaskMessageSyscallClientTraceEvent& event,
+        const TaskMessageSyscallFrameCallerState& lower) noexcept
+    {
+        auto witness = task_message_syscall_client_witness(event);
+        witness.has_lower_provenance = true;
+        witness.lower_provenance = lower;
+        return witness;
+    }
+
+    template <std::size_t Capacity>
+    [[nodiscard]] constexpr TaskMessageSyscallClientWitness
+    task_message_syscall_client_witness(
+        const TaskMessageSyscallClientTraceBuffer<Capacity>& trace) noexcept
+    {
+        const auto* terminal =
+            trace.size() == 0u ? nullptr : trace.at(trace.size() - 1u);
+        if (terminal == nullptr) {
+            return TaskMessageSyscallClientWitness{};
+        }
+
+        return task_message_syscall_client_witness(*terminal);
+    }
+
+    template <std::size_t Capacity>
+    [[nodiscard]] constexpr TaskMessageSyscallClientWitness
+    task_message_syscall_client_witness(
+        const TaskMessageSyscallClientTraceBuffer<Capacity>& trace,
+        const TaskMessageSyscallFrameCallerState& lower) noexcept
+    {
+        auto witness = task_message_syscall_client_witness(trace);
+        if (!witness.ready) {
+            return witness;
+        }
+
+        witness.has_lower_provenance = true;
+        witness.lower_provenance = lower;
+        return witness;
+    }
+
+    [[nodiscard]] constexpr bool task_message_syscall_client_witness_ready(
+        const TaskMessageSyscallClientWitness& witness) noexcept
+    {
+        return witness.ready;
+    }
+
+    [[nodiscard]] constexpr TaskMessageSyscallClientWitnessHandoffTarget
+    task_message_syscall_client_witness_handoff_target(
+        const TaskMessageSyscallClientWitness& witness) noexcept
+    {
+        return TaskMessageSyscallClientWitnessHandoffTarget{
+            .witness = &witness,
+        };
+    }
 
     template <typename Caller,
               typename TraceBuffer = TaskMessageSyscallClientTraceBuffer<1>>
@@ -326,6 +633,7 @@ export namespace kernel {
                 .timeout_consumed = false,
                 .reply_from = result.reply.from,
                 .reply_to = result.reply.to,
+                .reply_sequence = result.reply.sequence,
                 .reply_value = result.reply.value,
                 .disposition = result.trap.disposition,
                 .error = result.trap.error,
@@ -347,6 +655,7 @@ export namespace kernel {
                 .timeout_consumed = result.timeout_consumed,
                 .reply_from = TaskId{},
                 .reply_to = result.owner,
+                .reply_sequence = 0u,
                 .reply_value = 0,
                 .disposition = result.trap.disposition,
                 .error = result.trap.error,

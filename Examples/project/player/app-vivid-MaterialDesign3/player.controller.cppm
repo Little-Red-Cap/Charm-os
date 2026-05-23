@@ -29,6 +29,7 @@ import charm.ui.scene.pill_surface;
 import charm.font.typography;
 import charm.system.clock;
 import player.playback;
+import player.input;
 import player.fs_utils;
 import player.stats_history;
 import player.storage;
@@ -1399,6 +1400,38 @@ export namespace player {
             if (handle_list_navigation_key(key)) return;
             if (handle_page_back_key(key)) return;
             (void)handle_transport_key(key);
+        }
+
+        void handle_input_command(PlayerInputCommand command) {
+            switch (command) {
+            case PlayerInputCommand::Up:
+                handle_key_action(UiKey::Up);
+                break;
+            case PlayerInputCommand::Down:
+                handle_key_action(UiKey::Down);
+                break;
+            case PlayerInputCommand::Left:
+            case PlayerInputCommand::Back:
+                handle_key_action(UiKey::Left);
+                break;
+            case PlayerInputCommand::Enter:
+                handle_key_action(UiKey::Enter);
+                break;
+            case PlayerInputCommand::PlayToggle:
+                handle_key_action(UiKey::PlayToggle);
+                break;
+            case PlayerInputCommand::Next:
+                handle_key_action(UiKey::Next);
+                break;
+            case PlayerInputCommand::Prev:
+                handle_key_action(UiKey::Prev);
+                break;
+            case PlayerInputCommand::Mode:
+                handle_key_action(UiKey::Mode);
+                break;
+            default:
+                break;
+            }
         }
 
         #include "player.controller.progress.inc"

@@ -12,6 +12,7 @@ set(kernel_runtime_task_syscall_catalog_modules
     "${CHARM_ROOT}/Modules/core/util/core.cppm"
     "${CHARM_ROOT}/Modules/core/util/type_list.cppm"
     "${CHARM_ROOT}/Modules/core/util/variant.cppm"
+    "${CHARM_ROOT}/Modules/core/semantic/semantic.core.cppm"
     "${CHARM_ROOT}/Modules/system/kernel/context.cppm"
     "${CHARM_ROOT}/Modules/system/kernel/eda.cppm"
     "${CHARM_ROOT}/Modules/system/kernel/evt.cppm"

@@ -101,6 +101,9 @@
   - `Examples/kernel/runtime_task_message_session_roundtrip_host`
 - full smoke:
   - `scripts/minimal_kernel_runtime_host_smoke.ps1`
+- semantic witness ladder:
+  - `scripts/semantic_witness_ladder_smoke.ps1`
+  - [`minimal_kernel_semantic_witness_ladder_smoke_contract.md`](minimal_kernel_semantic_witness_ladder_smoke_contract.md)
 
 当前 roundtrip verifier 至少覆盖这几类可观察证据：
 

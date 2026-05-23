@@ -1,13 +1,20 @@
 import audio.player;
 import audio.result;
 import player.app;
+import player.app_config;
+import player.board_port;
+import player.board_runtime;
 import player.controller;
+import player.display;
 import player.fs_utils;
 import player.host_features;
+import player.input;
 import player.platform;
 import player.storage;
 import player.playback;
 import player.product_config;
+import player.runtime;
+import player.runtime_probe;
 import player.ui_builder;
 import player.ui;
 import player.cover;
@@ -63,30 +70,38 @@ namespace {
         return platform::win::SteadyClock::now();
     }
 
-    static player::PlayerPlatform g_platform{};
     static audio::PlayerConfig g_player_cfg{};
     static charm::system::Clock g_clock{nullptr, {.now_us = &now_us}};
-    static std::optional<player::App> g_app{};
     using PlayerUiContext = player::PlayerController;
     using UiHandles = player::UiHandles;
+    using PlayerRuntime = player::PlayerRuntime<PlayerUiContext, player::PlayerPage>;
 
+    static player::PlayerOwnedDisplayBuffer g_display_buffer{};
+    static player::PlayerPlatform g_platform{g_display_buffer.surface()};
     static PlayerUiContext g_ctx{};
+    static std::optional<PlayerRuntime> g_runtime{};
 
 #include "main.host_preview.inc"
 #include "main.overlay_fx.inc"
 
 #include "main.font_probe.inc"
+#include "main.display_sdl.inc"
 #include "main.host_runtime.inc"
 #include "main.screenshot.inc"
 
 #include "main.ui_ci.inc"
 
+#include "main.input_sdl.inc"
 #include "main.host_loop.inc"
 }
 
 int main(int argc, char** argv) {
     PreviewOptions options = parse_preview_options(argc, argv);
     print_host_feature_summary();
+
+    if (options.runtime_memory_smoke) {
+        return run_runtime_memory_smoke(options);
+    }
 
     SdlHostRuntime runtime{};
     if (!init_sdl_host_runtime(runtime)) {

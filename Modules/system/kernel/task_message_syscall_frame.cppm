@@ -2,11 +2,13 @@ module;
 
 #include <array>
 #include <cstddef>
+#include <string_view>
 
 export module kernel.task_message_syscall_frame;
 
 export import kernel.task_message_table;
 export import kernel.task_syscall_frame;
+import semantic.core;
 import util.core;
 
 export namespace kernel {
@@ -222,6 +224,181 @@ export namespace kernel {
         bool handled{false};
     };
 
+    static_assert(
+        semantic::reflected_member_names_match_when_enabled<TaskMessageSyscallFrameBridgeTraceEvent>(
+            std::array<std::string_view, 12>{
+                "sequence",
+                "from",
+                "label",
+                "token",
+                "request_sequence",
+                "slot_found",
+                "port_valid",
+                "result_ready",
+                "disposition",
+                "error",
+                "reply_value",
+                "handled",
+            }));
+
+    struct TaskMessageSyscallFrameWitness {
+        util::u64 sequence{0};
+        bool ready{false};
+        bool has_trace{false};
+        TaskId from{};
+        util::u64 label{0};
+        util::u64 token{0};
+        util::u64 request_sequence{0};
+        bool slot_found{false};
+        bool port_valid{false};
+        bool result_ready{false};
+        TrapDisposition disposition{TrapDisposition::rejected};
+        TrapError error{TrapError::none};
+        util::u64 reply_value{0};
+        bool handled{false};
+        bool has_lower_provenance{false};
+        TaskSyscallFrameWitness lower_provenance{};
+
+        [[nodiscard]] constexpr bool published_frame_branch_ok() const noexcept
+        {
+            return slot_found && port_valid && result_ready && handled;
+        }
+
+        [[nodiscard]] constexpr bool missing_frame_branch_ok() const noexcept
+        {
+            return !slot_found && port_valid && !result_ready &&
+                   disposition == TrapDisposition::rejected &&
+                   error == TrapError::invalid_argument && !handled;
+        }
+
+        [[nodiscard]] constexpr bool ok() const noexcept
+        {
+            return verdict() == semantic::Verdict::standing;
+        }
+
+        [[nodiscard]] constexpr semantic::Result result() const noexcept
+        {
+            return verdict() == semantic::Verdict::standing
+                       ? semantic::Result::ok
+                       : semantic::Result::failed;
+        }
+
+        [[nodiscard]] constexpr bool lower_route_consistent() const noexcept
+        {
+            if (!has_lower_provenance) {
+                return true;
+            }
+
+            return lower_provenance.has_terminal &&
+                   lower_provenance.terminal_disposition == disposition &&
+                   lower_provenance.terminal_error == error &&
+                   lower_provenance.terminal_value == reply_value;
+        }
+
+        [[nodiscard]] constexpr semantic::Verdict verdict() const noexcept
+        {
+            if (!ready) {
+                return semantic::Verdict::collapsed;
+            }
+
+            if (!(published_frame_branch_ok() || missing_frame_branch_ok())) {
+                return semantic::Verdict::drifted;
+            }
+
+            if (!lower_route_consistent()) {
+                return semantic::Verdict::drifted;
+            }
+
+            return semantic::Verdict::standing;
+        }
+
+        [[nodiscard]] constexpr semantic::FailureDomain
+        failure_domain() const noexcept
+        {
+            if (!ready) {
+                return semantic::FailureDomain::input;
+            }
+
+            if (!port_valid) {
+                return semantic::FailureDomain::route;
+            }
+
+            const bool published_shape_mismatch =
+                slot_found &&
+                !(port_valid && result_ready && handled);
+            const bool missing_shape_mismatch =
+                !slot_found &&
+                !(port_valid && !result_ready &&
+                  disposition == TrapDisposition::rejected &&
+                  error == TrapError::invalid_argument && !handled);
+
+            if (published_shape_mismatch || missing_shape_mismatch) {
+                if ((handled && !result_ready) ||
+                    (!handled && result_ready) ||
+                    (slot_found && disposition == TrapDisposition::rejected &&
+                     error == TrapError::invalid_argument)) {
+                    return semantic::FailureDomain::handoff;
+                }
+
+                return slot_found ? semantic::FailureDomain::route
+                                  : semantic::FailureDomain::selection;
+            }
+
+            if (!lower_route_consistent()) {
+                return semantic::FailureDomain::route;
+            }
+
+            return semantic::FailureDomain::none;
+        }
+
+        [[nodiscard]] constexpr std::string_view summary_path() const noexcept
+        {
+            return "task-message-syscall-frame-witness.summary";
+        }
+    };
+
+    struct TaskMessageSyscallFrameWitnessHandoffTarget {
+        const TaskMessageSyscallFrameWitness* witness{nullptr};
+
+        [[nodiscard]] constexpr std::string_view entry_name() const noexcept
+        {
+            return "task-message-syscall-frame-witness";
+        }
+
+        [[nodiscard]] constexpr std::string_view
+        selected_summary_path() const noexcept
+        {
+            return witness != nullptr ? witness->summary_path()
+                                      : std::string_view{
+                                            "task-message-syscall-frame-witness.summary"};
+        }
+    };
+
+    static_assert(
+        semantic::reflected_member_names_match_when_enabled<TaskMessageSyscallFrameWitness>(
+            std::array<std::string_view, 16>{
+                "sequence",
+                "ready",
+                "has_trace",
+                "from",
+                "label",
+                "token",
+                "request_sequence",
+                "slot_found",
+                "port_valid",
+                "result_ready",
+                "disposition",
+                "error",
+                "reply_value",
+                "handled",
+                "has_lower_provenance",
+                "lower_provenance",
+            }));
+
+    static_assert(semantic::WitnessCarrier<TaskMessageSyscallFrameWitness>);
+    static_assert(
+        semantic::HandoffTarget<TaskMessageSyscallFrameWitnessHandoffTarget>);
+
     [[nodiscard]] constexpr RuntimeMailboxRequest
     task_message_request_from_trace_event(
         const TaskMessageSyscallFrameBridgeTraceEvent& event) noexcept
@@ -232,6 +409,70 @@ export namespace kernel {
             .value = event.token,
             .sequence = event.request_sequence,
         };
+    }
+
+    [[nodiscard]] constexpr TaskMessageSyscallFrameWitness
+    task_message_syscall_frame_witness(
+        const TaskMessageSyscallFrameBridgeResult& result) noexcept
+    {
+        return TaskMessageSyscallFrameWitness{
+            .ready = true,
+            .from = result.request.from,
+            .label = result.request.label,
+            .token = result.token,
+            .request_sequence = result.request.sequence,
+            .slot_found = result.slot_found,
+            .port_valid = result.port_valid,
+            .result_ready = result.result_ready,
+            .disposition = result.trap.disposition,
+            .error = result.trap.error,
+            .reply_value = result.trap.value,
+            .handled = result.message.handled,
+        };
+    }
+
+    [[nodiscard]] constexpr TaskMessageSyscallFrameWitness
+    task_message_syscall_frame_witness(
+        const TaskMessageSyscallFrameBridgeResult& result,
+        const TaskSyscallFrameWitness& lower) noexcept
+    {
+        auto witness = task_message_syscall_frame_witness(result);
+        witness.has_lower_provenance = true;
+        witness.lower_provenance = lower;
+        return witness;
+    }
+
+    [[nodiscard]] constexpr TaskMessageSyscallFrameWitness
+    task_message_syscall_frame_witness(
+        const TaskMessageSyscallFrameBridgeTraceEvent& event) noexcept
+    {
+        return TaskMessageSyscallFrameWitness{
+            .sequence = event.sequence,
+            .ready = event.sequence != 0u,
+            .has_trace = true,
+            .from = event.from,
+            .label = event.label,
+            .token = event.token,
+            .request_sequence = event.request_sequence,
+            .slot_found = event.slot_found,
+            .port_valid = event.port_valid,
+            .result_ready = event.result_ready,
+            .disposition = event.disposition,
+            .error = event.error,
+            .reply_value = event.reply_value,
+            .handled = event.handled,
+        };
+    }
+
+    [[nodiscard]] constexpr TaskMessageSyscallFrameWitness
+    task_message_syscall_frame_witness(
+        const TaskMessageSyscallFrameBridgeTraceEvent& event,
+        const TaskSyscallFrameWitness& lower) noexcept
+    {
+        auto witness = task_message_syscall_frame_witness(event);
+        witness.has_lower_provenance = true;
+        witness.lower_provenance = lower;
+        return witness;
     }
 
     template <std::size_t Capacity>
@@ -271,6 +512,51 @@ export namespace kernel {
         std::size_t head_{0};
         std::size_t size_{0};
     };
+
+    template <std::size_t Capacity>
+    [[nodiscard]] constexpr TaskMessageSyscallFrameWitness
+    task_message_syscall_frame_witness(
+        const TaskMessageSyscallFrameBridgeTraceBuffer<Capacity>& trace) noexcept
+    {
+        const auto* terminal =
+            trace.size() == 0u ? nullptr : trace.at(trace.size() - 1u);
+        if (terminal == nullptr) {
+            return TaskMessageSyscallFrameWitness{};
+        }
+
+        return task_message_syscall_frame_witness(*terminal);
+    }
+
+    template <std::size_t Capacity>
+    [[nodiscard]] constexpr TaskMessageSyscallFrameWitness
+    task_message_syscall_frame_witness(
+        const TaskMessageSyscallFrameBridgeTraceBuffer<Capacity>& trace,
+        const TaskSyscallFrameWitness& lower) noexcept
+    {
+        auto witness = task_message_syscall_frame_witness(trace);
+        if (!witness.ready) {
+            return witness;
+        }
+
+        witness.has_lower_provenance = true;
+        witness.lower_provenance = lower;
+        return witness;
+    }
+
+    [[nodiscard]] constexpr bool task_message_syscall_frame_witness_ready(
+        const TaskMessageSyscallFrameWitness& witness) noexcept
+    {
+        return witness.ready;
+    }
+
+    [[nodiscard]] constexpr TaskMessageSyscallFrameWitnessHandoffTarget
+    task_message_syscall_frame_witness_handoff_target(
+        const TaskMessageSyscallFrameWitness& witness) noexcept
+    {
+        return TaskMessageSyscallFrameWitnessHandoffTarget{
+            .witness = &witness,
+        };
+    }
 
     template <typename Frames,
               typename FramePort,

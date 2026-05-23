@@ -1,10 +1,12 @@
 module;
 
 #include <array>
+#include <string_view>
 
 export module kernel.task_syscall_catalog;
 
 export import kernel.task_syscall_api;
+import semantic.core;
 import util.core;
 
 export namespace kernel {
@@ -74,6 +76,19 @@ export namespace kernel {
         const char* result_name{"value"};
         bool supported{false};
     };
+
+    static_assert(
+        semantic::reflected_member_names_match_when_enabled<TaskSyscallCatalogEntry>(
+        std::array<std::string_view, 9>{
+            "syscall",
+            "syscall_name",
+            "trap_service",
+            "trap_service_name",
+            "view_kind",
+            "wire_argument_count",
+            "wire_argument_names",
+            "result_name",
+            "supported"}));
 
     [[nodiscard]] constexpr TrapService trap_service_from_task_syscall(
         TaskSyscallId syscall) noexcept
@@ -236,22 +251,22 @@ export namespace kernel {
         };
     }
 
-    using TaskSyscallSemanticField = TrapSemanticField;
-
-    struct TaskSyscallSemanticProjection {
-        TaskSyscallCatalogEntry descriptor{};
-        std::array<TaskSyscallSemanticField, 4> fields{};
-        util::u8 field_count{0};
-        const char* result_name{"value"};
-    };
+    using TaskSyscallSemanticField = semantic::NamedValue<util::u64>;
+    using TaskSyscallSemanticProjection =
+        semantic::Projection<TaskSyscallCatalogEntry,
+                             TaskSyscallSemanticField,
+                             4>;
 
     [[nodiscard]] constexpr TaskSyscallSemanticProjection
     task_syscall_semantic_projection(const TrapRequest& request) noexcept
     {
         const auto trap_projection = trap_semantic_projection(request);
+        const auto fields = semantic::copy_named_fields<TaskSyscallSemanticField>(
+            trap_projection.fields,
+            trap_projection.field_count);
         return TaskSyscallSemanticProjection{
             .descriptor = task_syscall_catalog_entry(request.service),
-            .fields = trap_projection.fields,
+            .fields = fields,
             .field_count = trap_projection.field_count,
             .result_name = trap_projection.result_name,
         };

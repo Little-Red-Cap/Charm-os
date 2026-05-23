@@ -2,11 +2,13 @@ module;
 
 #include <array>
 #include <cstddef>
+#include <string_view>
 
 export module kernel.task_message_session_dispatch;
 
 export import kernel.task_message_session_api;
 export import kernel.task_syscall_dispatch;
+import semantic.core;
 import util.core;
 
 export namespace kernel {
@@ -232,6 +234,245 @@ export namespace kernel {
         util::u64 value{0};
     };
 
+    static_assert(
+        semantic::reflected_member_names_match_when_enabled<
+            TaskMessageSessionDispatchTraceEvent>(
+            std::array<std::string_view, 19>{
+                "sequence",
+                "syscall",
+                "action",
+                "capability_id",
+                "operation",
+                "payload",
+                "service_id",
+                "service_name",
+                "session_handle",
+                "service_slot",
+                "session_slot",
+                "matched",
+                "handler_valid",
+                "session_found",
+                "session_allocated",
+                "session_closed",
+                "disposition",
+                "error",
+                "value",
+            }));
+
+    struct TaskMessageSessionDispatchWitness {
+        util::u64 sequence{0};
+        bool ready{false};
+        bool has_trace{false};
+        TaskSyscallId syscall{TaskSyscallId::invalid};
+        TaskMessageSessionActionKind action{
+            TaskMessageSessionActionKind::none};
+        util::u64 capability_id{0};
+        util::u64 operation{0};
+        util::u64 payload{0};
+        util::u64 service_id{0};
+        util::u64 session_handle{0};
+        util::u16 service_slot{task_message_session_service_unmapped_slot};
+        util::u16 session_slot{task_message_session_unmapped_slot};
+        bool matched{false};
+        bool handler_valid{false};
+        bool session_found{false};
+        bool session_allocated{false};
+        bool session_closed{false};
+        TrapDisposition disposition{TrapDisposition::unsupported};
+        TrapError error{TrapError::unsupported_service};
+        util::u64 value{0};
+
+        [[nodiscard]] constexpr bool unsupported_syscall_branch_ok()
+            const noexcept
+        {
+            return syscall != TaskSyscallId::capability_call &&
+                   action == TaskMessageSessionActionKind::none &&
+                   disposition == TrapDisposition::unsupported &&
+                   error == TrapError::unsupported_service;
+        }
+
+        [[nodiscard]] constexpr bool service_missing_branch_ok() const noexcept
+        {
+            return action == TaskMessageSessionActionKind::open &&
+                   !matched && !handler_valid &&
+                   service_slot == task_message_session_service_unmapped_slot &&
+                   disposition == TrapDisposition::unsupported &&
+                   error == TrapError::unsupported_service;
+        }
+
+        [[nodiscard]] constexpr bool service_unbound_branch_ok() const noexcept
+        {
+            return action == TaskMessageSessionActionKind::open &&
+                   matched && !handler_valid &&
+                   service_slot != task_message_session_service_unmapped_slot &&
+                   disposition == TrapDisposition::rejected &&
+                   error == TrapError::unbound_adapter;
+        }
+
+        [[nodiscard]] constexpr bool session_missing_branch_ok() const noexcept
+        {
+            return (action == TaskMessageSessionActionKind::request ||
+                    action == TaskMessageSessionActionKind::close) &&
+                   !session_found &&
+                   session_slot == task_message_session_unmapped_slot &&
+                   disposition == TrapDisposition::rejected &&
+                   error == TrapError::invalid_argument;
+        }
+
+        [[nodiscard]] constexpr bool handler_route_ok() const noexcept
+        {
+            return matched && handler_valid &&
+                   service_slot != task_message_session_service_unmapped_slot;
+        }
+
+        [[nodiscard]] constexpr bool open_branch_ok() const noexcept
+        {
+            if (action != TaskMessageSessionActionKind::open) {
+                return false;
+            }
+
+            const bool allocated_shape =
+                session_allocated &&
+                session_slot != task_message_session_unmapped_slot &&
+                session_handle != 0u && disposition == TrapDisposition::handled &&
+                error == TrapError::none && value == session_handle;
+            const bool allocation_rejected_shape =
+                !session_allocated &&
+                session_slot == task_message_session_unmapped_slot &&
+                disposition == TrapDisposition::rejected &&
+                error == TrapError::invalid_argument;
+
+            return handler_route_ok() &&
+                   (allocated_shape || allocation_rejected_shape);
+        }
+
+        [[nodiscard]] constexpr bool request_branch_ok() const noexcept
+        {
+            return action == TaskMessageSessionActionKind::request &&
+                   session_found && !session_allocated && !session_closed &&
+                   session_handle == capability_id && handler_route_ok();
+        }
+
+        [[nodiscard]] constexpr bool close_branch_ok() const noexcept
+        {
+            return action == TaskMessageSessionActionKind::close &&
+                   session_found && !session_allocated && handler_route_ok();
+        }
+
+        [[nodiscard]] constexpr bool ok() const noexcept
+        {
+            return verdict() == semantic::Verdict::standing;
+        }
+
+        [[nodiscard]] constexpr semantic::Result result() const noexcept
+        {
+            return verdict() == semantic::Verdict::standing
+                       ? semantic::Result::ok
+                       : semantic::Result::failed;
+        }
+
+        [[nodiscard]] constexpr semantic::Verdict verdict() const noexcept
+        {
+            if (!ready) {
+                return semantic::Verdict::collapsed;
+            }
+
+            if (unsupported_syscall_branch_ok() ||
+                service_missing_branch_ok() ||
+                service_unbound_branch_ok() ||
+                session_missing_branch_ok() || open_branch_ok() ||
+                request_branch_ok() || close_branch_ok()) {
+                return semantic::Verdict::standing;
+            }
+
+            return semantic::Verdict::drifted;
+        }
+
+        [[nodiscard]] constexpr semantic::FailureDomain
+        failure_domain() const noexcept
+        {
+            if (!ready) {
+                return semantic::FailureDomain::input;
+            }
+
+            if (verdict() == semantic::Verdict::standing) {
+                return semantic::FailureDomain::none;
+            }
+
+            if (unsupported_syscall_branch_ok() ||
+                service_missing_branch_ok()) {
+                return semantic::FailureDomain::selection;
+            }
+
+            if (service_unbound_branch_ok()) {
+                return semantic::FailureDomain::handoff;
+            }
+
+            if (session_missing_branch_ok()) {
+                return semantic::FailureDomain::route;
+            }
+
+            if (!handler_valid) {
+                return semantic::FailureDomain::handoff;
+            }
+
+            return semantic::FailureDomain::route;
+        }
+
+        [[nodiscard]] constexpr std::string_view summary_path() const noexcept
+        {
+            return "task-message-session-dispatch-witness.summary";
+        }
+    };
+
+    struct TaskMessageSessionDispatchWitnessHandoffTarget {
+        const TaskMessageSessionDispatchWitness* witness{nullptr};
+
+        [[nodiscard]] constexpr std::string_view entry_name() const noexcept
+        {
+            return "task-message-session-dispatch-witness";
+        }
+
+        [[nodiscard]] constexpr std::string_view
+        selected_summary_path() const noexcept
+        {
+            return witness != nullptr ? witness->summary_path()
+                                      : std::string_view{
+                                            "task-message-session-dispatch-witness.summary"};
+        }
+    };
+
+    static_assert(
+        semantic::reflected_member_names_match_when_enabled<
+            TaskMessageSessionDispatchWitness>(
+            std::array<std::string_view, 20>{
+                "sequence",
+                "ready",
+                "has_trace",
+                "syscall",
+                "action",
+                "capability_id",
+                "operation",
+                "payload",
+                "service_id",
+                "session_handle",
+                "service_slot",
+                "session_slot",
+                "matched",
+                "handler_valid",
+                "session_found",
+                "session_allocated",
+                "session_closed",
+                "disposition",
+                "error",
+                "value",
+            }));
+
+    static_assert(semantic::WitnessCarrier<TaskMessageSessionDispatchWitness>);
+    static_assert(
+        semantic::HandoffTarget<
+            TaskMessageSessionDispatchWitnessHandoffTarget>);
+
     [[nodiscard]] constexpr TaskSyscallRequest
     task_message_session_request_from_trace_event(
         const TaskMessageSessionDispatchTraceEvent& event) noexcept
@@ -241,6 +482,75 @@ export namespace kernel {
             .arg0 = event.capability_id,
             .arg1 = event.operation,
             .arg2 = event.payload,
+        };
+    }
+
+    [[nodiscard]] constexpr TaskMessageSessionDispatchWitness
+    task_message_session_dispatch_witness(
+        const TaskMessageSessionDispatchResult& result) noexcept
+    {
+        return TaskMessageSessionDispatchWitness{
+            .ready = true,
+            .syscall = result.request.syscall,
+            .action = result.action,
+            .capability_id = result.capability_id,
+            .operation = result.operation,
+            .payload = result.payload,
+            .service_id = result.service_id,
+            .session_handle = result.session_handle,
+            .service_slot = result.service_slot,
+            .session_slot = result.session_slot,
+            .matched = result.matched,
+            .handler_valid = result.handler_valid,
+            .session_found = result.session_found,
+            .session_allocated = result.session_allocated,
+            .session_closed = result.session_closed,
+            .disposition = result.trap.disposition,
+            .error = result.trap.error,
+            .value = result.trap.value,
+        };
+    }
+
+    [[nodiscard]] constexpr TaskMessageSessionDispatchWitness
+    task_message_session_dispatch_witness(
+        const TaskMessageSessionDispatchTraceEvent& event) noexcept
+    {
+        return TaskMessageSessionDispatchWitness{
+            .sequence = event.sequence,
+            .ready = event.sequence != 0u,
+            .has_trace = true,
+            .syscall = event.syscall,
+            .action = event.action,
+            .capability_id = event.capability_id,
+            .operation = event.operation,
+            .payload = event.payload,
+            .service_id = event.service_id,
+            .session_handle = event.session_handle,
+            .service_slot = event.service_slot,
+            .session_slot = event.session_slot,
+            .matched = event.matched,
+            .handler_valid = event.handler_valid,
+            .session_found = event.session_found,
+            .session_allocated = event.session_allocated,
+            .session_closed = event.session_closed,
+            .disposition = event.disposition,
+            .error = event.error,
+            .value = event.value,
+        };
+    }
+
+    [[nodiscard]] constexpr bool task_message_session_dispatch_witness_ready(
+        const TaskMessageSessionDispatchWitness& witness) noexcept
+    {
+        return witness.ready;
+    }
+
+    [[nodiscard]] constexpr TaskMessageSessionDispatchWitnessHandoffTarget
+    task_message_session_dispatch_witness_handoff_target(
+        const TaskMessageSessionDispatchWitness& witness) noexcept
+    {
+        return TaskMessageSessionDispatchWitnessHandoffTarget{
+            .witness = &witness,
         };
     }
 
@@ -281,6 +591,20 @@ export namespace kernel {
         std::size_t head_{0};
         std::size_t size_{0};
     };
+
+    template <std::size_t Capacity>
+    [[nodiscard]] constexpr TaskMessageSessionDispatchWitness
+    task_message_session_dispatch_witness(
+        const TaskMessageSessionDispatchTraceBuffer<Capacity>& trace) noexcept
+    {
+        const auto* terminal =
+            trace.size() == 0u ? nullptr : trace.at(trace.size() - 1u);
+        if (terminal == nullptr) {
+            return TaskMessageSessionDispatchWitness{};
+        }
+
+        return task_message_session_dispatch_witness(*terminal);
+    }
 
     template <std::size_t ServiceCapacity,
               std::size_t SessionCapacity,

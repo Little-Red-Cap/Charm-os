@@ -5,6 +5,7 @@
 
 import kernel.task_message_session_acceptor;
 import kernel.task_message_session_dispatch;
+import semantic.core;
 
 namespace demo {
     using namespace std::literals;
@@ -221,6 +222,23 @@ namespace demo {
             return false;
         }
 
+        const auto first_witness =
+            kernel::task_message_session_service_acceptor_witness(*first);
+        const auto third_witness =
+            kernel::task_message_session_service_acceptor_witness(*third);
+        const auto request_witness =
+            kernel::task_message_session_service_acceptor_witness(request0);
+        const auto fifth_witness =
+            kernel::task_message_session_service_acceptor_witness(*fifth);
+        const auto sixth_witness =
+            kernel::task_message_session_service_acceptor_witness(*sixth);
+        const auto seventh_witness =
+            kernel::task_message_session_service_acceptor_witness(*seventh);
+        const auto handoff =
+            kernel::
+                task_message_session_service_acceptor_witness_handoff_target(
+                    sixth_witness);
+
         return service_acceptor.valid() &&
                trap_result_matches(open0.trap,
                                    kernel::TrapDisposition::handled,
@@ -320,7 +338,37 @@ namespace demo {
                seventh->error == kernel::TrapError::invalid_argument &&
                same_text(kernel::task_message_session_action_kind_name(
                              sixth->action),
-                         "open"sv);
+                         "open"sv) &&
+               kernel::task_message_session_service_acceptor_witness_ready(
+                   first_witness) &&
+               first_witness.verdict() == semantic::Verdict::standing &&
+               first_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
+               first_witness.open_bound_branch_ok() &&
+               third_witness.verdict() == semantic::Verdict::standing &&
+               third_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
+               third_witness.open_full_branch_ok() &&
+               request_witness.verdict() == semantic::Verdict::standing &&
+               request_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
+               request_witness.request_branch_ok() &&
+               fifth_witness.verdict() == semantic::Verdict::standing &&
+               fifth_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
+               fifth_witness.close_branch_ok() &&
+               sixth_witness.verdict() == semantic::Verdict::standing &&
+               sixth_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
+               sixth_witness.open_bound_branch_ok() &&
+               seventh_witness.verdict() == semantic::Verdict::standing &&
+               seventh_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
+               seventh_witness.channel_missing_branch_ok() &&
+               std::string_view{handoff.entry_name()} ==
+                   "task-message-session-acceptor-witness"sv &&
+               std::string_view{handoff.selected_summary_path()} ==
+                   "task-message-session-acceptor-witness.summary"sv;
     }
 
     [[nodiscard]] bool probe_unbound_and_broken_acceptors() noexcept
@@ -357,6 +405,16 @@ namespace demo {
             return false;
         }
 
+        const auto unbound_witness =
+            kernel::task_message_session_service_acceptor_witness(
+                *unbound_first);
+        const auto broken_open_witness =
+            kernel::task_message_session_service_acceptor_witness(
+                *broken_first);
+        const auto broken_request_witness =
+            kernel::task_message_session_service_acceptor_witness(
+                *broken_second);
+
         return !unbound_acceptor.valid() &&
                trap_result_matches(unbound_open.trap,
                                    kernel::TrapDisposition::rejected,
@@ -387,7 +445,20 @@ namespace demo {
                broken_first->error == kernel::TrapError::unbound_adapter &&
                broken_second->sequence == 2u &&
                !broken_second->channel_found &&
-               broken_second->error == kernel::TrapError::invalid_argument;
+               broken_second->error == kernel::TrapError::invalid_argument &&
+               unbound_witness.verdict() == semantic::Verdict::standing &&
+               unbound_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
+               unbound_witness.unbound_acceptor_branch_ok() &&
+               broken_open_witness.verdict() == semantic::Verdict::standing &&
+               broken_open_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
+               broken_open_witness.open_unbound_handler_branch_ok() &&
+               broken_request_witness.verdict() ==
+                   semantic::Verdict::standing &&
+               broken_request_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
+               broken_request_witness.channel_missing_branch_ok();
     }
 
     [[nodiscard]] bool probe_dispatcher_facade_integration() noexcept
@@ -443,6 +514,19 @@ namespace demo {
             accept_third == nullptr || accept_fourth == nullptr) {
             return false;
         }
+
+        const auto accept_first_witness =
+            kernel::task_message_session_service_acceptor_witness(
+                *accept_first);
+        const auto accept_second_witness =
+            kernel::task_message_session_service_acceptor_witness(
+                *accept_second);
+        const auto accept_third_witness =
+            kernel::task_message_session_service_acceptor_witness(
+                *accept_third);
+        const auto accept_terminal_witness =
+            kernel::task_message_session_service_acceptor_witness(
+                acceptor_trace);
 
         return dispatcher.valid() && service_acceptor.valid() &&
                trap_result_matches(open.trap,
@@ -534,7 +618,25 @@ namespace demo {
                accept_third->channel_closed &&
                accept_fourth->sequence == 4u &&
                accept_fourth->session_handle == kBaseSessionHandle + 1u &&
-               accept_fourth->channel_bound;
+               accept_fourth->channel_bound &&
+               accept_first_witness.verdict() ==
+                   semantic::Verdict::standing &&
+               accept_first_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
+               accept_first_witness.open_bound_branch_ok() &&
+               accept_second_witness.verdict() ==
+                   semantic::Verdict::standing &&
+               accept_second_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
+               accept_second_witness.request_branch_ok() &&
+               accept_third_witness.verdict() ==
+                   semantic::Verdict::standing &&
+               accept_third_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
+               accept_third_witness.close_branch_ok() &&
+               accept_terminal_witness.verdict() ==
+                   semantic::Verdict::standing &&
+               accept_terminal_witness.open_bound_branch_ok();
     }
 }
 
@@ -551,5 +653,13 @@ int main()
         direct_ok ? 1 : 0,
         invalid_ok ? 1 : 0,
         dispatcher_ok ? 1 : 0);
+    std::printf(
+        "[runtime-task-message-session-acceptor-witness] ok=%d collapsed=%s summary=%s\n",
+        ok ? 1 : 0,
+        semantic::verdict_name(
+            kernel::TaskMessageSessionServiceAcceptorWitness{}.verdict()),
+        kernel::TaskMessageSessionServiceAcceptorWitness{}
+            .summary_path()
+            .data());
     return ok ? 0 : 1;
 }

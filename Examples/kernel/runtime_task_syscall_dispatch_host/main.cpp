@@ -3,6 +3,7 @@
 #include <string_view>
 
 import kernel.task_syscall_dispatch;
+import semantic.core;
 
 namespace demo {
     using namespace std::literals;
@@ -187,8 +188,9 @@ namespace demo {
             kernel::TrapOrigin::user_task));
 
         const auto* first = trace.at(0u);
+        const auto* second = trace.at(1u);
         const auto* fourth = trace.at(3u);
-        if (first == nullptr || fourth == nullptr) {
+        if (first == nullptr || second == nullptr || fourth == nullptr) {
             return false;
         }
 
@@ -196,6 +198,11 @@ namespace demo {
             kernel::task_syscall_semantic_projection(*first);
         const auto fourth_projection =
             kernel::task_syscall_semantic_projection(*fourth);
+        const auto fourth_witness = kernel::task_syscall_dispatch_witness(trace);
+        const auto second_witness =
+            kernel::task_syscall_dispatch_witness(*second);
+        const auto fourth_handoff =
+            kernel::task_syscall_dispatch_witness_handoff_target(fourth_witness);
 
         return dispatcher.valid() && port.valid() &&
                trap_result_matches(yielded,
@@ -239,7 +246,20 @@ namespace demo {
                same_text(fourth_projection.fields[1].name, "operation"sv) &&
                fourth_projection.fields[1].value == 2u &&
                same_text(fourth_projection.fields[2].name, "payload"sv) &&
-               fourth_projection.fields[2].value == 33u;
+               fourth_projection.fields[2].value == 33u &&
+               kernel::task_syscall_dispatch_witness_ready(fourth_witness) &&
+               fourth_witness.ok() &&
+               fourth_witness.result() == semantic::Result::ok &&
+               fourth_witness.verdict() == semantic::Verdict::standing &&
+               fourth_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
+               fourth_witness.sequence == fourth->sequence &&
+               second_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
+               std::string_view{fourth_handoff.entry_name()} ==
+                   "task-syscall-dispatch-witness"sv &&
+               std::string_view{fourth_handoff.selected_summary_path()} ==
+                   fourth_witness.summary_path();
     }
 
     [[nodiscard]] bool probe_unbound_and_unsupported() noexcept
@@ -268,6 +288,9 @@ namespace demo {
 
         const auto second_projection =
             kernel::task_syscall_semantic_projection(*second);
+        const auto first_witness = kernel::task_syscall_dispatch_witness(*first);
+        const auto second_witness =
+            kernel::task_syscall_dispatch_witness(trace);
 
         return !Dispatcher{}.valid() &&
                trap_result_matches(unbound,
@@ -294,6 +317,12 @@ namespace demo {
                second_projection.fields[0].value == 0xAAu &&
                same_text(second_projection.fields[1].name, "arg1"sv) &&
                second_projection.fields[1].value == 0xBBu &&
+               first_witness.verdict() == semantic::Verdict::drifted &&
+               first_witness.failure_domain() ==
+                   semantic::FailureDomain::route &&
+               second_witness.verdict() == semantic::Verdict::drifted &&
+               second_witness.failure_domain() ==
+                   semantic::FailureDomain::selection &&
                rebound_state.yield_calls == 0u &&
                rebound_state.capability_calls == 0u;
     }

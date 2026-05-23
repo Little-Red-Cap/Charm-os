@@ -204,6 +204,7 @@
 - `Examples/kernel/runtime_task_message_session_api_host`
 - `Examples/kernel/runtime_task_message_syscall_api_host`
 - `scripts/minimal_kernel_runtime_host_smoke.ps1`
+- `scripts/semantic_witness_ladder_smoke.ps1`（只读检查这层在 semantic witness ladder 中仍然 standing）
 
 其中新的 `runtime_task_message_session_api_host` 当前证明：
 

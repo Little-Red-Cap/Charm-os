@@ -6,6 +6,8 @@
 
 上位法理见：[`../compiler/charm_compiler_constitution_v0.md`](../compiler/charm_compiler_constitution_v0.md)。本文只收敛当前允许使用的 system compiler 词汇，不替代 compile-time world、pass authority、semantic freeze、lowering 或 witness 的宪法边界。
 
+如果当前讨论涉及 C++26 static reflection，hosted/freestanding 边界见：[`../compiler/compiler_hosted_reflection_extraction_surface_v0.md`](../compiler/compiler_hosted_reflection_extraction_surface_v0.md)。本文不把 `<meta>`、模板机制或 generated residue 升格为唯一 truth source。
+
 它要回答的核心问题不是“未来最终配置文件长什么样”，而是：
 
 > **当我们讨论 system compiler 时，仓库里哪些词已经可以当正式语言使用，它们当前分别落在什么地方。**

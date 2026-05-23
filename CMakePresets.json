@@ -16,6 +16,20 @@
       }
     },
     {
+      "name": "host-gcc16",
+      "displayName": "Host GCC16 Debug",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/out/build/host-gcc16",
+      "toolchainFile": "${fileDir}/cmake/toolchains/host-gcc16-w64devkit.cmake",
+      "environment": {
+        "PATH": "D:/Toolchains/w64devkit/bin;$penv{PATH}"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CHARM_TARGET_HAS_WINSOCK": "OFF"
+      }
+    },
+    {
       "name": "aarch64-baremetal-base",
       "displayName": "AArch64 Bare-metal Base",
       "hidden": true,
@@ -129,6 +143,13 @@
     {
       "name": "host-debug",
       "configurePreset": "host-debug"
+    },
+    {
+      "name": "host-gcc16",
+      "configurePreset": "host-gcc16",
+      "environment": {
+        "PATH": "D:/Toolchains/w64devkit/bin;$penv{PATH}"
+      }
     },
     {
       "name": "rk3506-baremetal-debug",

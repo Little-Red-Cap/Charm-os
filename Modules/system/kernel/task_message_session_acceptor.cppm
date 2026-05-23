@@ -33,7 +33,7 @@ export namespace kernel {
             const TaskMessageSessionChannel& channel,
             TaskMessageSessionCloseDispatchView close) noexcept {nullptr};
 
-        [[nodiscard]] bool valid() const noexcept
+        [[nodiscard]] constexpr bool valid() const noexcept
         {
             return request_fn != nullptr && close_fn != nullptr;
         }

@@ -5,6 +5,7 @@
 
 import kernel.task_message_session_endpoint;
 import kernel.task_message_session_dispatch;
+import semantic.core;
 
 namespace demo {
     using namespace std::literals;
@@ -161,6 +162,19 @@ namespace demo {
         };
         const auto endpoint_view =
             kernel::make_task_message_session_endpoint(channel);
+        const auto endpoint_witness =
+            kernel::task_message_session_endpoint_witness(endpoint_view);
+        const auto request_view =
+            kernel::TaskMessageSessionEndpointRequestView{
+                .endpoint = endpoint_view,
+                .operation = kRequestOperation,
+                .payload = kRequestPayload,
+            };
+        const auto close_view =
+            kernel::TaskMessageSessionEndpointCloseView{
+                .endpoint = endpoint_view,
+                .reason = kCloseReason,
+            };
         const auto request = handler.request(
             channel,
             kernel::TaskMessageSessionRequestDispatchView{
@@ -176,8 +190,19 @@ namespace demo {
                 .session_handle = kBaseSessionHandle,
                 .reason = kCloseReason,
             });
+        const auto request_witness =
+            kernel::task_message_session_endpoint_request_witness(
+                request_view,
+                request);
+        const auto close_witness =
+            kernel::task_message_session_endpoint_close_witness(close_view,
+                                                                close);
 
         return handler.valid() &&
+               endpoint_witness.verdict() == semantic::Verdict::standing &&
+               endpoint_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
+               endpoint_witness.endpoint_branch_ok() &&
                endpoint_view.service_id == kServiceId &&
                same_text(endpoint_view.service_name, "echo-endpoint"sv) &&
                endpoint_view.session_handle == kBaseSessionHandle &&
@@ -188,10 +213,18 @@ namespace demo {
                                    kernel::TrapError::none,
                                    kBaseSessionHandle + kRequestOperation +
                                        kRequestPayload + 1u) &&
+               request_witness.verdict() == semantic::Verdict::standing &&
+               request_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
+               request_witness.request_branch_ok() &&
                trap_result_matches(close,
                                    kernel::TrapDisposition::handled,
                                    kernel::TrapError::none,
                                    kCloseReason + 2u) &&
+               close_witness.verdict() == semantic::Verdict::standing &&
+               close_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
+               close_witness.close_branch_ok() &&
                trap_result_matches(
                    kernel::task_message_session_endpoint_invalid_argument(),
                    kernel::TrapDisposition::rejected,
@@ -288,6 +321,24 @@ namespace demo {
             kServiceId,
             kBaseSessionHandle,
             kOpenPayload);
+        const auto broken_endpoint = kernel::TaskMessageSessionEndpoint{
+            .service_id = kServiceId,
+            .service_name = "broken-endpoint",
+            .session_handle = kBaseSessionHandle,
+            .open_payload = kOpenPayload,
+            .channel_slot = 0u,
+        };
+        auto broken_handler = kernel::TaskMessageSessionChannelHandler{};
+        const auto broken_binding =
+            kernel::TaskMessageSessionEndpointBinding{
+                .out_handler = &broken_handler,
+            };
+        const auto broken_accept_witness =
+            kernel::task_message_session_endpoint_accept_witness(
+                broken_endpoint,
+                broken_binding,
+                broken_handler,
+                broken_open.trap);
         const auto* broken_first = broken_trace.at(0u);
         if (broken_first == nullptr) {
             return false;
@@ -390,6 +441,11 @@ namespace demo {
                broken_state.last_session_handle == kBaseSessionHandle &&
                broken_state.last_channel_slot == 0u &&
                broken_state.last_binding_valid &&
+               broken_accept_witness.verdict() ==
+                   semantic::Verdict::standing &&
+               broken_accept_witness.failure_domain() ==
+                   semantic::FailureDomain::none &&
+               broken_accept_witness.accept_branch_ok() &&
                broken_trace.size() == 1u &&
                broken_first->sequence == 1u &&
                broken_first->acceptor_valid &&
@@ -560,5 +616,11 @@ int main()
         handler_ok ? 1 : 0,
         acceptor_ok ? 1 : 0,
         dispatcher_ok ? 1 : 0);
+    std::printf(
+        "[runtime-task-message-session-endpoint-witness] ok=%d collapsed=%s summary=%s\n",
+        ok ? 1 : 0,
+        semantic::verdict_name(
+            kernel::TaskMessageSessionEndpointWitness{}.verdict()),
+        kernel::TaskMessageSessionEndpointWitness{}.summary_path().data());
     return ok ? 0 : 1;
 }

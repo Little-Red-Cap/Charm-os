@@ -19,7 +19,7 @@ These are references, not contracts. Charm should borrow the pressure points, no
 - Page controller layer: owns page state, animation decisions, and player semantics. It should not know SDL, argv shape, Win32 fallback paths, or file decoder policy.
 - Vivid layer: owns reusable UI mechanisms such as surfaces, text roles, snapshots, transitions, popup/sheet primitives, and render evidence.
 - Host shell layer: owns SDL lifecycle, event pump, screenshots, UI-CI runner, host logging, and file-backed preview conveniences.
-- Board-port layer: `player.runtime.hqzy_cm7.player_ui_port_bridge` is the H747-local seed for framebuffer, dirty region, touch, and clock facts before a future board shell calls `make_player_board_runtime()`.
+- Board-port layer: `player.runtime.hqzy_cm7.player_ui_port_bridge` is the H747-local seed for framebuffer, dirty region, touch, and clock facts before a future board shell calls `make_player_board_runtime()`. Its local probe validates the facts and callback order without importing the MD3/Vivid runtime stack.
 
 ## Current Host Shell Split
 
@@ -56,7 +56,7 @@ Current short form:
 - `player.runtime_probe` constructs the real MD3 runtime around externally supplied storage and renders it into external memory; `--runtime-memory-smoke` is only the Windows host entry for that proof.
 - `player.board_port` is the board assembly skeleton for externally supplied framebuffer, display callbacks, touch source, package font metadata, and app config defaults.
 - `player.board_runtime` is the board lifecycle skeleton for turning those resources into `PlayerPlatform` / `PlayerRuntime` without SDL or argv parsing.
-- `player.runtime.hqzy_cm7.player_ui_port_bridge` is the current H747-local bridge for the same idea on the board side; it keeps the facts explicit without importing the MD3 runtime stack.
+- `player.runtime.hqzy_cm7.player_ui_port_bridge` is the current H747-local bridge for the same idea on the board side; it keeps the facts explicit, clips dirty regions, and can exercise display callbacks without importing the MD3 runtime stack.
 - `make_board_display_sink()` gives the future board adapter a named seam for cache clean, dirty flush, and present/flip callbacks without changing Player UI.
 - `read_player_touch_events()` gives the future board touch adapter a fixed-capacity path from sampled touch points to `PlayerInputEvent`.
 - Theme and time have useful seams, but their final provider shape should wait for a concrete portable Player target.

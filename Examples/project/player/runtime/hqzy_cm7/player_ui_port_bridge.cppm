@@ -26,6 +26,21 @@ export namespace player::app_test_hqzy::player_ui_port_bridge {
         }
     };
 
+    struct PortProbeResult {
+        bool framebuffer_valid{false};
+        bool clock_valid{false};
+        bool clock_read{false};
+        bool touch_valid{false};
+        bool present_callback_valid{false};
+        bool dirty_valid{false};
+        bool clean_cache_ok{true};
+        bool flush_dirty_ok{true};
+        bool present_ok{true};
+        bool ok{false};
+        DirtyRegion dirty{};
+        std::uint32_t now_ms{0};
+    };
+
     struct Framebuffer {
         std::byte* pixels{nullptr};
         int width{0};
@@ -55,6 +70,27 @@ export namespace player::app_test_hqzy::player_ui_port_bridge {
         }
     };
 
+    inline DirtyRegion full_dirty_region(const Framebuffer& fb) noexcept {
+        return DirtyRegion{0, 0, fb.width, fb.height};
+    }
+
+    inline DirtyRegion clip_dirty_region(DirtyRegion dirty, const Framebuffer& fb) noexcept {
+        if (dirty.empty() || fb.width <= 0 || fb.height <= 0) {
+            return {};
+        }
+
+        const int x0 = dirty.x < 0 ? 0 : dirty.x;
+        const int y0 = dirty.y < 0 ? 0 : dirty.y;
+        const int x1_raw = dirty.x + dirty.w;
+        const int y1_raw = dirty.y + dirty.h;
+        const int x1 = x1_raw > fb.width ? fb.width : x1_raw;
+        const int y1 = y1_raw > fb.height ? fb.height : y1_raw;
+        if (x1 <= x0 || y1 <= y0) {
+            return {};
+        }
+        return DirtyRegion{x0, y0, x1 - x0, y1 - y0};
+    }
+
     struct TouchSampleSource {
         void* ctx{nullptr};
         bool (*read)(void* ctx, bool& down, float& x, float& y, std::uint8_t& id, std::uint32_t& ms) noexcept{nullptr};
@@ -78,6 +114,10 @@ export namespace player::app_test_hqzy::player_ui_port_bridge {
         [[nodiscard]] std::uint32_t read_ms() const noexcept {
             return now_ms ? now_ms(ctx) : 0u;
         }
+
+        [[nodiscard]] bool valid() const noexcept {
+            return now_ms != nullptr;
+        }
     };
 
     struct PortConfig {
@@ -87,9 +127,65 @@ export namespace player::app_test_hqzy::player_ui_port_bridge {
         ClockSource clock{};
 
         [[nodiscard]] bool valid() const noexcept {
-            return framebuffer.valid() && clock.now_ms != nullptr;
+            return framebuffer.valid() && clock.valid();
         }
     };
+
+    inline bool present_dirty(const PortConfig& config, DirtyRegion dirty) noexcept {
+        if (!config.framebuffer.valid()) {
+            return false;
+        }
+
+        const DirtyRegion clipped = clip_dirty_region(dirty, config.framebuffer);
+        bool ok = true;
+        if (!clipped.empty() && config.display.clean_cache) {
+            ok = config.display.clean_cache(config.display.ctx, config.framebuffer, clipped) && ok;
+        }
+        if (!clipped.empty() && config.display.flush_dirty) {
+            ok = config.display.flush_dirty(config.display.ctx, config.framebuffer, clipped) && ok;
+        }
+        if (config.display.present) {
+            ok = config.display.present(config.display.ctx, config.framebuffer, clipped) && ok;
+        }
+        return ok;
+    }
+
+    inline PortProbeResult probe_port(const PortConfig& config) noexcept {
+        PortProbeResult result{};
+        result.framebuffer_valid = config.framebuffer.valid();
+        result.clock_valid = config.clock.valid();
+        result.touch_valid = config.touch.valid();
+        result.present_callback_valid = config.display.present != nullptr;
+        if (result.clock_valid) {
+            result.now_ms = config.clock.read_ms();
+            result.clock_read = true;
+        }
+        result.dirty = result.framebuffer_valid ? full_dirty_region(config.framebuffer) : DirtyRegion{};
+        result.dirty = clip_dirty_region(result.dirty, config.framebuffer);
+        result.dirty_valid = !result.dirty.empty();
+
+        if (result.framebuffer_valid) {
+            const auto& display = config.display;
+            if (result.dirty_valid && display.clean_cache) {
+                result.clean_cache_ok = display.clean_cache(display.ctx, config.framebuffer, result.dirty);
+            }
+            if (result.dirty_valid && display.flush_dirty) {
+                result.flush_dirty_ok = display.flush_dirty(display.ctx, config.framebuffer, result.dirty);
+            }
+            if (display.present) {
+                result.present_ok = display.present(display.ctx, config.framebuffer, result.dirty);
+            }
+        }
+
+        result.ok = result.framebuffer_valid
+            && result.clock_valid
+            && result.clock_read
+            && result.dirty_valid
+            && result.clean_cache_ok
+            && result.flush_dirty_ok
+            && result.present_ok;
+        return result;
+    }
 
     inline Framebuffer make_sdram_framebuffer(int width,
                                               int height,

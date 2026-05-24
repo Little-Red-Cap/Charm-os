@@ -140,11 +140,17 @@ void print_touch(const input_touch_snapshot_t& touch, const std::uint8_t probe_a
 
 void print_status() {
     const auto state = input.snapshot().raw;
+    const auto rx = h747::console::rx_stats();
     emit<"input: profile=input_probe tick={} initialized={} encoder_started={} touch_probe_attempted={}\n">(
         h747::port::tick_ms(),
         state.initialized,
         state.encoder_started,
         state.touch_probe_attempted);
+    emit<"console_rx: bytes={} lines={} overrun={} last=0x{:02X}\n">(
+        rx.bytes,
+        rx.lines,
+        rx.overrun_clears,
+        static_cast<unsigned>(rx.last_byte));
     print_touch(state.touch, state.touch_probe_attempted);
     print_encoder("encoder1"sv, state.encoder1, encoder1_accum);
     print_encoder("encoder2"sv, state.encoder2, encoder2_accum);

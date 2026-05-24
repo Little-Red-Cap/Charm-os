@@ -225,6 +225,23 @@ HAL_StatusTypeDef touch_write_reg(const std::uint8_t addr7,
                              50U);
 }
 
+bool touch_version_plausible(const std::uint8_t (&version)[6]) {
+    bool all_zero = true;
+    bool all_ff = true;
+    bool product_has_ascii = false;
+
+    for (std::uint32_t index = 0; index < 6U; ++index) {
+        const auto value = version[index];
+        all_zero = all_zero && (value == 0x00U);
+        all_ff = all_ff && (value == 0xFFU);
+        if (index < 4U) {
+            product_has_ascii = product_has_ascii || ((value >= 0x20U) && (value < 0x7FU));
+        }
+    }
+
+    return (!all_zero) && (!all_ff) && product_has_ascii;
+}
+
 void touch_reset_pulse() {
     configure_touch_gpio();
     HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_7, GPIO_PIN_RESET);
@@ -365,6 +382,9 @@ uint8_t input_touch_probe(void) {
         g_state.touch.i2c_error_code = HAL_I2C_GetError(&hi2c4);
         g_state.touch.i2c_state = HAL_I2C_GetState(&hi2c4);
         if (status != HAL_OK) {
+            continue;
+        }
+        if (!touch_version_plausible(version)) {
             continue;
         }
 

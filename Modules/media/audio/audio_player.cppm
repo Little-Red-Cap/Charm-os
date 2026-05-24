@@ -7,8 +7,10 @@ module;
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#if CHARM_TARGET_HAS_CXX_MATH
 #include <complex>
 #include <cmath>
+#endif
 #include <span>
 
 #ifndef CHARM_AUDIO_ENABLE_STRESS
@@ -23,6 +25,10 @@ module;
 #define CHARM_AUDIO_REFILL_STATS 1
 #endif
 
+#ifndef CHARM_AUDIO_ENABLE_SPECTRUM
+#define CHARM_AUDIO_ENABLE_SPECTRUM CHARM_TARGET_HAS_CXX_MATH
+#endif
+
 #if CHARM_AUDIO_ENABLE_STRESS
 #include <random>
 #endif
@@ -35,7 +41,9 @@ import audio.eq;
 import audio.format;
 import audio.pump;
 import audio.result;
+#if CHARM_AUDIO_ENABLE_SPECTRUM
 import alg_fft;
+#endif
 import charm.system.clock;
 import media.stream.sink;
 import media.stream.source;
@@ -56,6 +64,7 @@ import audio.source.file;
 #endif
 
 namespace {
+#if defined(_WIN32)
     constexpr bool kAudioLogEnabled = CHARM_AUDIO_LOG != 0;
 
     void dump_path_escaped(const char* path) {
@@ -75,6 +84,7 @@ namespace {
             }
         }
     }
+#endif
 }
 
 export namespace audio {
@@ -498,6 +508,7 @@ export namespace audio {
         static constexpr std::size_t spectrum_fft_size = 256;
 
         void enable_spectrum(bool on) noexcept {
+#if CHARM_AUDIO_ENABLE_SPECTRUM
             if (!config_.capture_output) {
                 spectrum_enabled_.store(false, std::memory_order_relaxed);
                 data_plane_.set_capture_output(false);
@@ -509,9 +520,16 @@ export namespace audio {
             if (!on) {
                 spectrum_ready_.store(false, std::memory_order_relaxed);
             }
+#else
+            (void)on;
+            spectrum_enabled_.store(false, std::memory_order_relaxed);
+            data_plane_.set_capture_output(false);
+            spectrum_ready_.store(false, std::memory_order_relaxed);
+#endif
         }
 
         bool read_spectrum(std::span<float> out) const noexcept {
+#if CHARM_AUDIO_ENABLE_SPECTRUM
             if (!spectrum_ready_.load(std::memory_order_acquire)) return false;
             if (out.size() < spectrum_bins) return false;
             const std::uint32_t idx = spectrum_index_.load(std::memory_order_acquire) & 1u;
@@ -519,6 +537,10 @@ export namespace audio {
                 out[i] = spectrum_[idx][i];
             }
             return true;
+#else
+            (void)out;
+            return false;
+#endif
         }
 
         PlayerSnapshot snapshot(bool reset_window) {
@@ -605,11 +627,13 @@ export namespace audio {
         }
 
         void init_spectrum_window() noexcept {
+#if CHARM_AUDIO_ENABLE_SPECTRUM
             constexpr float kPi = 3.14159265358979323846f;
             for (std::size_t i = 0; i < spectrum_fft_size; ++i) {
                 const float phase = static_cast<float>(i) / static_cast<float>(spectrum_fft_size - 1);
                 spectrum_window_[i] = 0.5f - 0.5f * std::cos(phase * 2.0f * kPi);
             }
+#endif
         }
 
         static media::StreamFormat to_stream_format(const AudioFormat& fmt) noexcept {
@@ -639,6 +663,7 @@ export namespace audio {
         }
 
         void push_spectrum_samples(std::span<const std::byte> data) noexcept {
+#if CHARM_AUDIO_ENABLE_SPECTRUM
             if (!spectrum_enabled_.load(std::memory_order_relaxed)) return;
             const std::size_t channels = output_fmt_.channels ? output_fmt_.channels : 1;
             if (channels == 0) return;
@@ -653,8 +678,12 @@ export namespace audio {
                     compute_spectrum();
                 }
             }
+#else
+            (void)data;
+#endif
         }
 
+#if CHARM_AUDIO_ENABLE_SPECTRUM
         void compute_spectrum() noexcept {
             for (std::size_t i = 0; i < spectrum_fft_size; ++i) {
                 spectrum_fft_[i] = std::complex<double>(
@@ -687,6 +716,7 @@ export namespace audio {
             spectrum_index_.store(next, std::memory_order_release);
             spectrum_ready_.store(true, std::memory_order_release);
         }
+#endif
 
         void apply_dsp_settings() noexcept {
             data_plane_.set_eq(eq_);
@@ -1002,7 +1032,9 @@ export namespace audio {
             total_frames_ = 0;
             last_err_ = Errc::ok;
             last_err_stage_ = PlayerErrorStage::none;
+#if CHARM_AUDIO_ENABLE_SPECTRUM
             spectrum_pos_ = 0;
+#endif
             spectrum_ready_.store(false, std::memory_order_relaxed);
             state_ = PlayerState::idle;
         }
@@ -1259,14 +1291,16 @@ export namespace audio {
         bool soft_clip_enabled_{true};
         float soft_clip_threshold_{0.85f};
 
+#if CHARM_AUDIO_ENABLE_SPECTRUM
         std::array<float, spectrum_fft_size> spectrum_time_{};
         std::array<float, spectrum_fft_size> spectrum_window_{};
         std::array<std::complex<double>, spectrum_fft_size> spectrum_fft_{};
         std::array<float, spectrum_bins> spectrum_[2]{};
         std::atomic<std::uint32_t> spectrum_index_{0};
+        std::size_t spectrum_pos_{0};
+#endif
         std::atomic<bool> spectrum_ready_{false};
         std::atomic<bool> spectrum_enabled_{false};
-        std::size_t spectrum_pos_{0};
 
         bool is_flac_{false};
         bool is_wav_{false};

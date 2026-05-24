@@ -4,7 +4,9 @@
 module;
 #include <cstdint>
 #include <cstdio>
+#if CHARM_TARGET_HAS_CXX_MATH
 #include <cmath>
+#endif
 #include <cstring>
 #include <expected>
 #include <span>
@@ -20,7 +22,9 @@ import gui.chart_scope;
 import gui.image_1bpp;
 import out.core;
 import out.format;
+#if CHARM_TARGET_HAS_CXX_MATH
 import alg_arc;
+#endif
 import alg_circle;
 
 namespace gui::detail
@@ -53,6 +57,56 @@ namespace gui::detail
         const std::size_t n = sink.pos;
         buf[n] = '\0';
         return {buf, n};
+    }
+
+    struct IntPoint {
+        int x{0};
+        int y{0};
+    };
+
+    [[nodiscard]] inline int clamp_int(int value, int min_v, int max_v) noexcept
+    {
+        if (value < min_v) return min_v;
+        if (value > max_v) return max_v;
+        return value;
+    }
+
+    [[nodiscard]] inline IntPoint scale_unit_point(int cx,
+                                                   int cy,
+                                                   int radius,
+                                                   int x100,
+                                                   int y100) noexcept
+    {
+        return IntPoint{
+            cx + (radius * x100) / 100,
+            cy + (radius * y100) / 100
+        };
+    }
+
+    [[nodiscard]] inline IntPoint gauge_arc_point(int cx, int cy, int radius, int value_0_100) noexcept
+    {
+        static constexpr int kX[] = {-71, -50, -25, 0, 25, 50, 71};
+        static constexpr int kY[] = {-71, -87, -97, -100, -97, -87, -71};
+        const int value = clamp_int(value_0_100, 0, 100);
+        const int scaled = value * 6;
+        const int segment = (scaled >= 600) ? 5 : (scaled / 100);
+        const int frac = (scaled >= 600) ? 100 : (scaled - segment * 100);
+        const int x100 = kX[segment] + ((kX[segment + 1] - kX[segment]) * frac) / 100;
+        const int y100 = kY[segment] + ((kY[segment + 1] - kY[segment]) * frac) / 100;
+        return scale_unit_point(cx, cy, radius, x100, y100);
+    }
+
+    [[nodiscard]] inline IntPoint knob_arc_point(int cx, int cy, int radius, int value_0_100) noexcept
+    {
+        static constexpr int kX[] = {-71, -99, -45, 45, 99, 71};
+        static constexpr int kY[] = {71, -16, -89, -89, -16, 71};
+        const int value = clamp_int(value_0_100, 0, 100);
+        const int scaled = value * 5;
+        const int segment = (scaled >= 500) ? 4 : (scaled / 100);
+        const int frac = (scaled >= 500) ? 100 : (scaled - segment * 100);
+        const int x100 = kX[segment] + ((kX[segment + 1] - kX[segment]) * frac) / 100;
+        const int y100 = kY[segment] + ((kY[segment + 1] - kY[segment]) * frac) / 100;
+        return scale_unit_point(cx, cy, radius, x100, y100);
     }
 }
 
@@ -285,11 +339,23 @@ export namespace gui
     template <class R>
     void draw_arc(R& r, int cx, int cy, int rad, float a0, float a1, bool on) noexcept
     {
+#if CHARM_TARGET_HAS_CXX_MATH
         const int steps = alg::arc::arc_steps_for_radius(rad);
         alg::arc::sample_arc_rad(a0, a1, steps, [&](float a) noexcept {
             const auto p = alg::arc::point_on_circle_rad(cx, cy, rad, a);
             r.setPixel(p.x, p.y, on);
         });
+#else
+        (void)a0;
+        (void)a1;
+        if (rad <= 0) return;
+        auto prev = detail::gauge_arc_point(cx, cy, rad, 0);
+        for (int i = 1; i <= 8; ++i) {
+            const auto p = detail::gauge_arc_point(cx, cy, rad, (i * 100) / 8);
+            draw_line(r, prev.x, prev.y, p.x, p.y, on);
+            prev = p;
+        }
+#endif
     }
 
     template <class R>
@@ -309,6 +375,7 @@ export namespace gui
         int rad = (rc.w / 2);
         if (rc.h < rad) rad = rc.h;
         if (rad < 4) rad = 4;
+#if CHARM_TARGET_HAS_CXX_MATH
         const float a0 = alg::arc::kPi * 0.75f;
         const float a1 = alg::arc::kPi * 0.25f;
         draw_arc(r, cx, cy, rad, a0, a1, on);
@@ -324,6 +391,28 @@ export namespace gui
         const float a = alg::arc::lerp(a0, a1, v);
         const auto needle = alg::arc::point_on_circle_rad(cx, cy, rad - 4, a);
         draw_line(r, cx, cy, needle.x, needle.y, on);
+#else
+        auto prev = detail::gauge_arc_point(cx, cy, rad, 0);
+        for (int i = 1; i <= 8; ++i) {
+            const auto p = detail::gauge_arc_point(cx, cy, rad, (i * 100) / 8);
+            draw_line(r, prev.x, prev.y, p.x, p.y, on);
+            prev = p;
+        }
+        prev = detail::gauge_arc_point(cx, cy, rad - 1, 0);
+        for (int i = 1; i <= 8; ++i) {
+            const auto p = detail::gauge_arc_point(cx, cy, rad - 1, (i * 100) / 8);
+            draw_line(r, prev.x, prev.y, p.x, p.y, on);
+            prev = p;
+        }
+        for (int i = 0; i <= 4; ++i) {
+            const int t = (i * 100) / 4;
+            const auto p0 = detail::gauge_arc_point(cx, cy, rad - 3, t);
+            const auto p1 = detail::gauge_arc_point(cx, cy, rad, t);
+            draw_line(r, p0.x, p0.y, p1.x, p1.y, on);
+        }
+        const auto needle = detail::gauge_arc_point(cx, cy, rad - 4, value_0_100);
+        draw_line(r, cx, cy, needle.x, needle.y, on);
+#endif
     }
 
     template <class R>
@@ -454,6 +543,7 @@ export namespace gui
         if (rad < 4) rad = 4;
         draw_circle(r, cx, cy, rad, on);
         draw_circle(r, cx, cy, rad - 1, on);
+#if CHARM_TARGET_HAS_CXX_MATH
         const float a0 = alg::arc::kPi * 0.75f;
         const float a1 = alg::arc::kPi * 2.25f;
         for (int i = 0; i < 6; ++i) {
@@ -467,6 +557,16 @@ export namespace gui
         const float a = alg::arc::lerp(a0, a1, v);
         const auto needle = alg::arc::point_on_circle_rad(cx, cy, rad - 4, a);
         draw_line(r, cx, cy, needle.x, needle.y, on);
+#else
+        for (int i = 0; i < 6; ++i) {
+            const int t = (i * 100) / 5;
+            const auto p0 = detail::knob_arc_point(cx, cy, rad - 2, t);
+            const auto p1 = detail::knob_arc_point(cx, cy, rad, t);
+            draw_line(r, p0.x, p0.y, p1.x, p1.y, on);
+        }
+        const auto needle = detail::knob_arc_point(cx, cy, rad - 4, value_0_100);
+        draw_line(r, cx, cy, needle.x, needle.y, on);
+#endif
     }
 
     [[nodiscard]] inline std::int16_t marquee_offset(std::int16_t text_w,

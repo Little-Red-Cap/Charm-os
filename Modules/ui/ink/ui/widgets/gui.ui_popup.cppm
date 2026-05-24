@@ -9,7 +9,9 @@ export module gui.ui_popup;
 import gui.core;
 import gui.layout;
 import gui.font;
+#if CHARM_TARGET_HAS_CXX_MATH
 import alg_round_rect;
+#endif
 
 export namespace gui::ui
 {
@@ -122,6 +124,7 @@ export namespace gui::ui
     inline void popup_fill_round_rect(R& r, const gui::Rect& rc, bool on) noexcept
     {
         if (rc.w <= 0 || rc.h <= 0) return;
+#if CHARM_TARGET_HAS_CXX_MATH
         constexpr int kRoundRadius = 2;
         alg::round_rect::fill(rc.x, rc.y, rc.w, rc.h, kRoundRadius,
             [&](int x0, int x1, int y) noexcept {
@@ -129,12 +132,37 @@ export namespace gui::ui
                     r.setPixel(x, y, on);
                 }
             });
+#else
+        if (rc.w < 3 || rc.h < 3) {
+            r.fillRect(rc, on);
+            return;
+        }
+        r.fillRect(gui::Rect{
+            (std::int16_t)(rc.x + 1),
+            rc.y,
+            (std::int16_t)(rc.w - 2),
+            1
+        }, on);
+        r.fillRect(gui::Rect{
+            rc.x,
+            (std::int16_t)(rc.y + 1),
+            rc.w,
+            (std::int16_t)(rc.h - 2)
+        }, on);
+        r.fillRect(gui::Rect{
+            (std::int16_t)(rc.x + 1),
+            (std::int16_t)(rc.y + rc.h - 1),
+            (std::int16_t)(rc.w - 2),
+            1
+        }, on);
+#endif
     }
 
     template <class R>
     inline void popup_draw_round_rect(R& r, const gui::Rect& rc, bool on) noexcept
     {
         if (rc.w <= 0 || rc.h <= 0) return;
+#if CHARM_TARGET_HAS_CXX_MATH
         constexpr int kRoundRadius = 2;
         alg::round_rect::outline(rc.x, rc.y, rc.w, rc.h, kRoundRadius,
             [&](int x, int y) noexcept {
@@ -150,6 +178,30 @@ export namespace gui::ui
                     r.setPixel(x, y, on);
                 }
             });
+#else
+        if (rc.w < 3 || rc.h < 3) {
+            r.drawRect(rc, on);
+            return;
+        }
+        const int x0 = rc.x;
+        const int y0 = rc.y;
+        const int x1 = rc.x + rc.w - 1;
+        const int y1 = rc.y + rc.h - 1;
+        for (int x = x0 + 1; x <= x1 - 1; ++x) {
+            r.setPixel(x, y0, on);
+            r.setPixel(x, y1, on);
+        }
+        for (int y = y0 + 1; y <= y1 - 1; ++y) {
+            r.setPixel(x0, y, on);
+            r.setPixel(x1, y, on);
+        }
+        if (rc.w >= 4 && rc.h >= 4) {
+            r.setPixel(x0 + 1, y0 + 1, on);
+            r.setPixel(x1 - 1, y0 + 1, on);
+            r.setPixel(x0 + 1, y1 - 1, on);
+            r.setPixel(x1 - 1, y1 - 1, on);
+        }
+#endif
     }
 
     template <class R>

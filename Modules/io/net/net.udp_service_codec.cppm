@@ -83,11 +83,8 @@ export namespace net::udp::service {
     public:
         using Status = typename Wire::Status;
         using DatagramView = typename Wire::DatagramView;
-        using SendFn = Result<UdpSendDisposition> (*)(void* ctx,
-                                                      Endpoint local,
-                                                      const Endpoint& peer,
-                                                      ByteView payload) noexcept;
-        using ErrorFn = void (*)(void* ctx, errc error) noexcept;
+        using SendFn = UdpSendFn;
+        using ErrorFn = NetErrorFn;
 
         template <ServiceOperation Op>
         using ResponseFn = void (*)(void* ctx,
@@ -98,14 +95,20 @@ export namespace net::udp::service {
         template <ServiceOperation Op>
         using TimeoutFn = void (*)(void* ctx, util::u16 request_id) noexcept;
 
+        void set_sender(UdpSenderRef sender = {}) noexcept {
+            sender_ = sender;
+        }
+
         void set_sender(SendFn fn, void* ctx) noexcept {
-            sender_ = fn;
-            sender_ctx_ = ctx;
+            set_sender(UdpSenderRef::raw(fn, ctx));
+        }
+
+        void set_error_handler(NetErrorHandlerRef handler = {}) noexcept {
+            error_ = handler;
         }
 
         void set_error_handler(ErrorFn fn, void* ctx = nullptr) noexcept {
-            error_ = fn;
-            error_ctx_ = ctx;
+            set_error_handler(NetErrorHandlerRef::raw(fn, ctx));
         }
 
         void reset() noexcept {
@@ -256,7 +259,7 @@ export namespace net::udp::service {
             detail::store_callback(pending->response_callback, on_response);
             detail::store_callback(pending->timeout_callback, on_timeout);
 
-            auto sent = sender_(sender_ctx_, local, peer, datagram.view().payload);
+            auto sent = sender_.send(local, peer, datagram.view().payload);
             if (!sent) {
                 *pending = {};
                 return util::unexpected(sent.error());
@@ -391,15 +394,11 @@ export namespace net::udp::service {
 
         void notify_error(errc error) noexcept {
             last_error_ = error;
-            if (error_) {
-                error_(error_ctx_, error);
-            }
+            error_.notify(error);
         }
 
-        SendFn sender_{nullptr};
-        void* sender_ctx_{nullptr};
-        ErrorFn error_{nullptr};
-        void* error_ctx_{nullptr};
+        UdpSenderRef sender_{};
+        NetErrorHandlerRef error_{};
         util::u16 next_request_id_{1};
         std::array<PendingCall, MaxPending> pending_{};
         util::usize request_count_{0};
@@ -415,25 +414,28 @@ export namespace net::udp::service {
     public:
         using Status = typename Wire::Status;
         using DatagramView = typename Wire::DatagramView;
-        using SendFn = Result<UdpSendDisposition> (*)(void* ctx,
-                                                      Endpoint local,
-                                                      const Endpoint& peer,
-                                                      ByteView payload) noexcept;
-        using ErrorFn = void (*)(void* ctx, errc error) noexcept;
+        using SendFn = UdpSendFn;
+        using ErrorFn = NetErrorFn;
 
         template <ServiceOperation Op>
         using RouteFn = Status (*)(void* ctx,
                                    const typename Op::Request& request,
                                    typename Op::Response& response) noexcept;
 
+        void set_sender(UdpSenderRef sender = {}) noexcept {
+            sender_ = sender;
+        }
+
         void set_sender(SendFn fn, void* ctx) noexcept {
-            sender_ = fn;
-            sender_ctx_ = ctx;
+            set_sender(UdpSenderRef::raw(fn, ctx));
+        }
+
+        void set_error_handler(NetErrorHandlerRef handler = {}) noexcept {
+            error_ = handler;
         }
 
         void set_error_handler(ErrorFn fn, void* ctx = nullptr) noexcept {
-            error_ = fn;
-            error_ctx_ = ctx;
+            set_error_handler(NetErrorHandlerRef::raw(fn, ctx));
         }
 
         void reset() noexcept {
@@ -667,7 +669,7 @@ export namespace net::udp::service {
                 return util::unexpected(errc::bad_state);
             }
 
-            auto sent = sender_(sender_ctx_, info.local, info.peer, payload);
+            auto sent = sender_.send(info.local, info.peer, payload);
             if (!sent) {
                 report_error(sent.error());
                 return util::unexpected(sent.error());
@@ -685,19 +687,15 @@ export namespace net::udp::service {
 
         void notify_error(errc error) noexcept {
             last_error_ = error;
-            if (error_) {
-                error_(error_ctx_, error);
-            }
+            error_.notify(error);
         }
 
         void report_error(errc error) noexcept {
             notify_error(error);
         }
 
-        SendFn sender_{nullptr};
-        void* sender_ctx_{nullptr};
-        ErrorFn error_{nullptr};
-        void* error_ctx_{nullptr};
+        UdpSenderRef sender_{};
+        NetErrorHandlerRef error_{};
         std::array<RouteBinding, MaxRoutes> bindings_{};
         util::usize request_count_{0};
         util::usize reply_count_{0};

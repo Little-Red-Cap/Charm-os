@@ -13,18 +13,19 @@ import util.expected;
 
 export namespace net {
     template <class Protocol>
-    concept UdpPumpBindableProtocol = UdpDatagramSink<Protocol>
-        && requires(Protocol& protocol,
-                    Result<UdpSendDisposition> (*fn)(void* ctx,
-                                                     Endpoint local,
-                                                     const Endpoint& peer,
-                                                     ByteView payload) noexcept,
-                    void* ctx) {
+    concept UdpSenderRefBindable = UdpDatagramSink<Protocol>
+        && requires(Protocol& protocol, UdpSenderRef sender) {
+               protocol.set_sender(sender);
+           };
+
+    template <class Protocol>
+    concept UdpLegacySenderBindable = UdpDatagramSink<Protocol>
+        && requires(Protocol& protocol, UdpSendFn fn, void* ctx) {
                protocol.set_sender(fn, ctx);
            };
 
     template <class Pump, class Protocol>
-    concept UdpProtocolPump = UdpPumpBindableProtocol<Protocol>
+    concept UdpProtocolPump = (UdpSenderRefBindable<Protocol> || UdpLegacySenderBindable<Protocol>)
         && requires(Pump& pump,
                     util::u16 local_port,
                     Protocol& protocol,
@@ -60,7 +61,11 @@ export namespace net {
             return util::unexpected(bound.error());
         }
 
-        protocol.set_sender(&detail::udp_pump_send_trampoline<Pump>, &pump);
+        if constexpr (UdpSenderRefBindable<Protocol>) {
+            protocol.set_sender(UdpSenderRef::raw(&detail::udp_pump_send_trampoline<Pump>, &pump));
+        } else {
+            protocol.set_sender(&detail::udp_pump_send_trampoline<Pump>, &pump);
+        }
         return {};
     }
 

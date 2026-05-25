@@ -24,11 +24,13 @@ message("Build type: " ${CMAKE_BUILD_TYPE})
 # Enable compile command to ease indexing with e.g. clangd
 set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
 
+# Set the project name before platform/toolchain setup so linker flags can use it.
+set(CMAKE_PROJECT_NAME stn32h747_hqzy_CM7)
+
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/product_player_identity.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/platform_stm32h747_hal.cmake")
 
 # Set the project name
-set(CMAKE_PROJECT_NAME stn32h747_hqzy_CM7)
 project(${CMAKE_PROJECT_NAME})
 
 # Create an executable object type

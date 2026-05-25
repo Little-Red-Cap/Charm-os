@@ -29,6 +29,16 @@ option(CHARM_ENABLE_ARCH_LINT_GUARD "Run arch_lint guard during build" OFF)
 
 add_library(${target_name})
 
+if (DEFINED CHARM_CONFIG_TARGETS AND CHARM_CONFIG_TARGETS)
+    foreach(charm_config_target IN LISTS CHARM_CONFIG_TARGETS)
+        if (NOT TARGET ${charm_config_target})
+            message(FATAL_ERROR
+                "CHARM_CONFIG_TARGETS contains non-target entry: ${charm_config_target}")
+        endif()
+    endforeach()
+    target_link_libraries(${target_name} PRIVATE ${CHARM_CONFIG_TARGETS})
+endif()
+
 target_include_directories(${target_name} PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/Modules/io/posix")
 
@@ -148,7 +158,30 @@ if (DEFINED CHARM_VIVID_PROFILE)
     message(WARNING "CHARM_VIVID_PROFILE 已废弃，Vivid 仅支持 SoA 内核")
 endif()
 
-file(GLOB_RECURSE MODULE_INTERFACE_UNITS CONFIGURE_DEPENDS "Modules/*.cppm")
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/sources/control.cmake")
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/sources/core.cmake")
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/sources/gfx.cmake")
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/sources/init.cmake")
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/sources/io.cmake")
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/sources/media.cmake")
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/sources/platform.cmake")
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/sources/system.cmake")
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/sources/thirdparty.cmake")
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/sources/ui.cmake")
+
+set(MODULE_INTERFACE_UNITS
+    ${CHARM_CONTROL_MODULES}
+    ${CHARM_CORE_MODULES}
+    ${CHARM_GFX_MODULES}
+    ${CHARM_INIT_MODULES}
+    ${CHARM_IO_MODULES}
+    ${CHARM_MEDIA_MODULES}
+    ${CHARM_PLATFORM_MODULES}
+    ${CHARM_SYSTEM_MODULES}
+    ${CHARM_THIRDPARTY_MODULES}
+    ${CHARM_UI_MODULES})
+list(REMOVE_DUPLICATES MODULE_INTERFACE_UNITS)
+
 if (NOT CHARM_ENABLE_SDL3)
     list(REMOVE_ITEM MODULE_INTERFACE_UNITS
         "${CMAKE_CURRENT_SOURCE_DIR}/Modules/media/audio/audio_sink_sdl3.cppm"
@@ -197,6 +230,7 @@ if (CHARM_ENABLE_UI_VIVID)
     include("${CMAKE_CURRENT_SOURCE_DIR}/Modules/ui/vivid/vivid.cmake")
     vivid_collect_modules(${target_name} MODULE_INTERFACE_UNITS MODULE_BASE_DIRS)
 endif()
+list(REMOVE_DUPLICATES MODULE_INTERFACE_UNITS)
 target_sources(${target_name}
         PUBLIC
         FILE_SET modules TYPE CXX_MODULES

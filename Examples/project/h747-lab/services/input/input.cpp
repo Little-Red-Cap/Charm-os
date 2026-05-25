@@ -18,7 +18,9 @@ constexpr std::uint16_t kTouchRegConfig = 0x8047U;
 constexpr std::uint16_t kTouchMaxYDefault = 1280U;
 constexpr std::uint16_t kTouchMaxXDefault = 720U;
 constexpr std::int32_t kEncoderGlitchThreshold = 20;
-constexpr std::int32_t kEncoderStepsPerDetent = 4;
+constexpr std::int32_t kEncoder1StepsPerDetent = 2;
+constexpr std::int32_t kEncoder2StepsPerDetent = 2;
+constexpr std::uint8_t kButtonActiveLevel = 0U;
 constexpr std::uint8_t kEncoderPhaseSeqCw[5] = {0U, 1U, 3U, 2U, 0U};
 constexpr std::uint8_t kEncoderPhaseSeqCcw[5] = {0U, 2U, 3U, 1U, 0U};
 constexpr std::uint8_t kEncoderPhaseQueueCapacity = 32U;
@@ -33,6 +35,7 @@ struct encoder_phase_queue_t {
 input_state_t g_state{};
 bool g_encoder_started = false;
 bool g_touch_gpio_ready = false;
+bool g_button_gpio_ready = false;
 int32_t g_encoder1_last = 0;
 int32_t g_encoder2_last = 0;
 int32_t g_encoder1_acc = 0;
@@ -111,6 +114,28 @@ void configure_touch_gpio() {
     g_touch_gpio_ready = true;
 }
 
+void configure_button_gpio() {
+    if (g_button_gpio_ready) {
+        return;
+    }
+
+    GPIO_InitTypeDef gpio{};
+
+    gpio.Pin = GPIO_PIN_5;
+    gpio.Mode = GPIO_MODE_INPUT;
+    gpio.Pull = GPIO_NOPULL;
+    gpio.Speed = GPIO_SPEED_FREQ_LOW;
+    HAL_GPIO_Init(GPIOC, &gpio);
+
+    gpio.Pin = GPIO_PIN_2;
+    gpio.Mode = GPIO_MODE_INPUT;
+    gpio.Pull = GPIO_NOPULL;
+    gpio.Speed = GPIO_SPEED_FREQ_LOW;
+    HAL_GPIO_Init(GPIOH, &gpio);
+
+    g_button_gpio_ready = true;
+}
+
 uint8_t pin_level(GPIO_TypeDef* port, const uint16_t pin) {
     return (HAL_GPIO_ReadPin(port, pin) == GPIO_PIN_SET) ? 1U : 0U;
 }
@@ -124,8 +149,15 @@ void snapshot_touch_pins() {
 }
 
 void snapshot_buttons() {
-    g_state.encoder1.button_pressed = (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_5) == GPIO_PIN_SET) ? 1U : 0U;
-    g_state.encoder2.button_pressed = (HAL_GPIO_ReadPin(GPIOH, GPIO_PIN_2) == GPIO_PIN_SET) ? 1U : 0U;
+    configure_button_gpio();
+
+    const auto encoder1_level = pin_level(GPIOC, GPIO_PIN_5);
+    const auto encoder2_level = pin_level(GPIOH, GPIO_PIN_2);
+
+    g_state.encoder1.button_level = encoder1_level;
+    g_state.encoder2.button_level = encoder2_level;
+    g_state.encoder1.button_pressed = (encoder1_level == kButtonActiveLevel) ? 1U : 0U;
+    g_state.encoder2.button_pressed = (encoder2_level == kButtonActiveLevel) ? 1U : 0U;
 }
 
 void start_encoders_once() {
@@ -153,7 +185,7 @@ int32_t signed_counter_delta_16(const int32_t current, int32_t& last) {
     return static_cast<int32_t>(delta);
 }
 
-int16_t detent_delta_from_counts(const int32_t raw_delta, int32_t& acc) {
+int16_t detent_delta_from_counts(const int32_t raw_delta, int32_t& acc, const int32_t steps_per_detent) {
     if ((raw_delta > kEncoderGlitchThreshold) || (raw_delta < -kEncoderGlitchThreshold)) {
         return 0;
     }
@@ -161,12 +193,12 @@ int16_t detent_delta_from_counts(const int32_t raw_delta, int32_t& acc) {
     acc += raw_delta;
 
     int16_t detents = 0;
-    while (acc >= kEncoderStepsPerDetent) {
-        acc -= kEncoderStepsPerDetent;
+    while (acc >= steps_per_detent) {
+        acc -= steps_per_detent;
         ++detents;
     }
-    while (acc <= -kEncoderStepsPerDetent) {
-        acc += kEncoderStepsPerDetent;
+    while (acc <= -steps_per_detent) {
+        acc += steps_per_detent;
         --detents;
     }
     return detents;
@@ -182,13 +214,13 @@ void snapshot_encoders() {
 
     g_state.encoder1.count = encoder1_count;
     g_state.encoder1.delta_counts = encoder1_delta;
-    g_state.encoder1.detent_delta = detent_delta_from_counts(encoder1_delta, g_encoder1_acc);
+    g_state.encoder1.detent_delta = detent_delta_from_counts(encoder1_delta, g_encoder1_acc, kEncoder1StepsPerDetent);
     emit_encoder_phases(g_encoder1_phase_queue, g_state.encoder1, g_state.encoder1.detent_delta);
     snapshot_encoder_queue(g_state.encoder1, g_encoder1_phase_queue);
 
     g_state.encoder2.count = encoder2_count;
     g_state.encoder2.delta_counts = encoder2_delta;
-    g_state.encoder2.detent_delta = detent_delta_from_counts(encoder2_delta, g_encoder2_acc);
+    g_state.encoder2.detent_delta = detent_delta_from_counts(encoder2_delta, g_encoder2_acc, kEncoder2StepsPerDetent);
     emit_encoder_phases(g_encoder2_phase_queue, g_state.encoder2, g_state.encoder2.detent_delta);
     snapshot_encoder_queue(g_state.encoder2, g_encoder2_phase_queue);
 }

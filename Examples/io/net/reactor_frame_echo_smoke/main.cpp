@@ -29,20 +29,16 @@ namespace {
         bool received_response{false};
         bool failed{false};
 
-        static void on_frame(void* ctx, net::ByteView payload) noexcept {
-            auto* self = static_cast<ClientState*>(ctx);
-            if (!self) return;
+        void on_frame(net::ByteView payload) noexcept {
             static constexpr util::u8 expected[]{'p', 'o', 'n', 'g'};
-            self->received_response = bytes_eq(payload, net::ByteView{expected, 4});
-            if (!self->received_response) {
-                self->failed = true;
+            received_response = bytes_eq(payload, net::ByteView{expected, 4});
+            if (!received_response) {
+                failed = true;
             }
         }
 
-        static void on_error(void* ctx, net::errc) noexcept {
-            auto* self = static_cast<ClientState*>(ctx);
-            if (!self) return;
-            self->failed = true;
+        void on_error(net::errc) noexcept {
+            failed = true;
         }
     };
 
@@ -52,30 +48,27 @@ namespace {
         bool sent_response{false};
         bool failed{false};
 
-        static void on_frame(void* ctx, net::ByteView payload) noexcept {
-            auto* self = static_cast<ServerState*>(ctx);
-            if (!self || !self->session) return;
+        void on_frame(net::ByteView payload) noexcept {
+            if (!session) return;
 
             static constexpr util::u8 request[]{'p', 'i', 'n', 'g'};
             static constexpr util::u8 response[]{'p', 'o', 'n', 'g'};
             if (!bytes_eq(payload, net::ByteView{request, 4})) {
-                self->failed = true;
+                failed = true;
                 return;
             }
 
-            self->received_request = true;
-            auto sent = self->session->send_frame(net::ByteView{response, 4});
+            received_request = true;
+            auto sent = session->send_frame(net::ByteView{response, 4});
             if (!sent) {
-                self->failed = true;
+                failed = true;
                 return;
             }
-            self->sent_response = true;
+            sent_response = true;
         }
 
-        static void on_error(void* ctx, net::errc) noexcept {
-            auto* self = static_cast<ServerState*>(ctx);
-            if (!self) return;
-            self->failed = true;
+        void on_error(net::errc) noexcept {
+            failed = true;
         }
     };
 
@@ -113,10 +106,10 @@ int main() {
     ServerState server_state{};
 
     server_state.session = &server_session;
-    client_session.set_frame_handler(&ClientState::on_frame, &client_state);
-    client_session.set_error_handler(&ClientState::on_error, &client_state);
-    server_session.set_frame_handler(&ServerState::on_frame, &server_state);
-    server_session.set_error_handler(&ServerState::on_error, &server_state);
+    client_session.set_frame_handler(net::FrameHandlerRef::bind(client_state));
+    client_session.set_error_handler(net::FrameErrorHandlerRef::bind(client_state));
+    server_session.set_frame_handler(net::FrameHandlerRef::bind(server_state));
+    server_session.set_error_handler(net::FrameErrorHandlerRef::bind(server_state));
 
     using DriverType = net::ReactorSocketDriver<net::FrameSession<64>, 8>;
     DriverType client_driver{reactor, socket_poller, client_binding, client_session};

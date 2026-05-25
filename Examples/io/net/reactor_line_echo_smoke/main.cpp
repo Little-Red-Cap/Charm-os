@@ -22,19 +22,15 @@ namespace {
         bool received_pong{false};
         bool failed{false};
 
-        static void on_line(void* ctx, std::string_view line) noexcept {
-            auto* self = static_cast<ClientState*>(ctx);
-            if (!self) return;
-            self->received_pong = line == "pong";
-            if (!self->received_pong) {
-                self->failed = true;
+        void on_line(std::string_view line) noexcept {
+            received_pong = line == "pong";
+            if (!received_pong) {
+                failed = true;
             }
         }
 
-        static void on_error(void* ctx, net::errc) noexcept {
-            auto* self = static_cast<ClientState*>(ctx);
-            if (!self) return;
-            self->failed = true;
+        void on_error(net::errc) noexcept {
+            failed = true;
         }
     };
 
@@ -44,26 +40,23 @@ namespace {
         bool sent_pong{false};
         bool failed{false};
 
-        static void on_line(void* ctx, std::string_view line) noexcept {
-            auto* self = static_cast<ServerState*>(ctx);
-            if (!self || !self->session) return;
+        void on_line(std::string_view line) noexcept {
+            if (!session) return;
             if (line != "ping") {
-                self->failed = true;
+                failed = true;
                 return;
             }
-            self->received_ping = true;
-            auto sent = self->session->send_line("pong", net::LineEnding::lf);
+            received_ping = true;
+            auto sent = session->send_line("pong", net::LineEnding::lf);
             if (!sent) {
-                self->failed = true;
+                failed = true;
                 return;
             }
-            self->sent_pong = true;
+            sent_pong = true;
         }
 
-        static void on_error(void* ctx, net::errc) noexcept {
-            auto* self = static_cast<ServerState*>(ctx);
-            if (!self) return;
-            self->failed = true;
+        void on_error(net::errc) noexcept {
+            failed = true;
         }
     };
 
@@ -101,12 +94,12 @@ int main() {
     ServerState server_state{};
 
     client_state.session = &client_session;
-    client_session.set_line_handler(&ClientState::on_line, &client_state);
-    client_session.set_error_handler(&ClientState::on_error, &client_state);
+    client_session.set_line_handler(net::LineHandlerRef::bind(client_state));
+    client_session.set_error_handler(net::LineErrorHandlerRef::bind(client_state));
 
     server_state.session = &server_session;
-    server_session.set_line_handler(&ServerState::on_line, &server_state);
-    server_session.set_error_handler(&ServerState::on_error, &server_state);
+    server_session.set_line_handler(net::LineHandlerRef::bind(server_state));
+    server_session.set_error_handler(net::LineErrorHandlerRef::bind(server_state));
 
     using DriverType = net::ReactorSocketDriver<net::LineSession<64>, 8>;
     DriverType client_driver{reactor, socket_poller, client_binding, client_session};

@@ -29,8 +29,12 @@ export namespace net {
                                    ByteView payload) noexcept;
         using ErrorFn = void (*)(void* ctx, errc error) noexcept;
 
+        void set_sender(StreamSenderRef sender = {}) noexcept {
+            frame_.set_sender(sender);
+        }
+
         void set_sender(FrameSendFn fn, void* ctx) noexcept {
-            frame_.set_sender(fn, ctx);
+            set_sender(StreamSenderRef::raw(fn, ctx));
         }
 
         void set_request_handler(RequestFn fn, void* ctx) noexcept {
@@ -203,8 +207,8 @@ export namespace net {
         }
 
         RequestSession() {
-            frame_.set_frame_handler(&RequestSession::on_frame_trampoline, this);
-            frame_.set_error_handler(&RequestSession::on_frame_error_trampoline, this);
+            frame_.set_frame_handler(FrameHandlerRef::raw(&RequestSession::on_frame_trampoline, this));
+            frame_.set_error_handler(FrameErrorHandlerRef::raw(&RequestSession::on_frame_error_trampoline, this));
         }
 
     private:

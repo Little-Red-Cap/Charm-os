@@ -1,6 +1,7 @@
 module;
 
 #include <array>
+#include <concepts>
 #include <cstddef>
 #include <cstdint>
 
@@ -104,6 +105,7 @@ export namespace net {
 
     using IoResult = Result<util::usize>;
     using EventMask = util::u32;
+    using StreamSendFn = IoResult (*)(void* ctx, ByteView data) noexcept;
 
     constexpr IoResult ok(util::usize n) noexcept {
         return IoResult{std::in_place, n};
@@ -112,6 +114,62 @@ export namespace net {
     constexpr IoResult fail(errc e) noexcept {
         return util::unexpected(e);
     }
+
+    class StreamSenderRef {
+    public:
+        constexpr StreamSenderRef() noexcept = default;
+
+        static constexpr StreamSenderRef raw(StreamSendFn send, void* ctx) noexcept {
+            return StreamSenderRef{send, ctx};
+        }
+
+        template <typename Sender>
+            requires(
+                requires(Sender& value, ByteView data) {
+                    { value.send(data) } noexcept -> std::same_as<IoResult>;
+                } ||
+                requires(Sender& value, ByteView data) {
+                    { value(data) } noexcept -> std::same_as<IoResult>;
+                })
+        static constexpr StreamSenderRef bind(Sender& sender) noexcept {
+            return StreamSenderRef{&invoke<Sender>, &sender};
+        }
+
+        [[nodiscard]] constexpr explicit operator bool() const noexcept {
+            return send_ != nullptr;
+        }
+
+        [[nodiscard]] IoResult send(ByteView data) const noexcept {
+            if (!send_) {
+                return util::unexpected(errc::bad_state);
+            }
+            return send_(ctx_, data);
+        }
+
+    private:
+        constexpr StreamSenderRef(StreamSendFn send, void* ctx) noexcept
+            : send_(send),
+              ctx_(ctx) {
+        }
+
+        template <typename Sender>
+        static IoResult invoke(void* ctx, ByteView data) noexcept {
+            auto* sender = static_cast<Sender*>(ctx);
+            if (!sender) {
+                return util::unexpected(errc::bad_state);
+            }
+            if constexpr (requires(Sender& value, ByteView bytes) {
+                              { value.send(bytes) } noexcept -> std::same_as<IoResult>;
+                          }) {
+                return sender->send(data);
+            } else {
+                return (*sender)(data);
+            }
+        }
+
+        StreamSendFn send_{nullptr};
+        void* ctx_{nullptr};
+    };
 
     enum class AddressFamily : util::u8 {
         unspecified = 0,

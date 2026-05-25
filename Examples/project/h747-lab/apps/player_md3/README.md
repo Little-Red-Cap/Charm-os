@@ -12,11 +12,12 @@ The app-local bridge owns only board/runtime assembly:
   pool;
 - bind `PlayerPlatform` to that external render surface;
 - drive the shared `PlayerRuntime` through `PlayerRuntimeShell`;
+- translate GT970 touch and dual encoder samples into `PlayerInputEvent`;
 - render the real MD3 scene into `PlayerRasterDisplaySink`;
 - keep host-only storage, cover decode, and file fonts disabled.
 
 This target is not a replacement design and must not return to a hand-drawn
 mock/probe path. The source of truth for visual behavior remains
 `Examples/project/player/app-vivid-MaterialDesign3`; H747 only supplies board
-providers and fallback seams until storage, cover, font, and input providers are
+providers and fallback seams until storage, cover, and font providers are
 connected.

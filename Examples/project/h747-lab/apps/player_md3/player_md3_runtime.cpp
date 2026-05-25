@@ -3,12 +3,14 @@
 #include "stm32h7xx_hal.h"
 #include "player_md3_runtime.hpp"
 #include "player_md3_diag.hpp"
+#include "player_md3_input.hpp"
 #include "player_md3_memory.hpp"
 
 #include <cstddef>
 #include <new>
 
 import audio.player;
+import player.input;
 import player.app;
 import player.platform;
 import player.storage;
@@ -28,6 +30,48 @@ charm::system::ClockTick player_md3_now_us(void*) noexcept {
 
 ::player::StorageConfig empty_storage_config() noexcept {
     return ::player::StorageConfig{};
+}
+
+::player::PlayerPointerAction to_player_pointer_action(
+    const h747::apps::player_md3::PlayerMd3PointerAction action) noexcept {
+    using h747::apps::player_md3::PlayerMd3PointerAction;
+    switch (action) {
+    case PlayerMd3PointerAction::Down:
+        return ::player::PlayerPointerAction::Down;
+    case PlayerMd3PointerAction::Up:
+        return ::player::PlayerPointerAction::Up;
+    case PlayerMd3PointerAction::Cancel:
+        return ::player::PlayerPointerAction::Cancel;
+    case PlayerMd3PointerAction::Move:
+    default:
+        return ::player::PlayerPointerAction::Move;
+    }
+}
+
+::player::PlayerInputCommand to_player_input_command(
+    const h747::apps::player_md3::PlayerMd3InputCommand command) noexcept {
+    using h747::apps::player_md3::PlayerMd3InputCommand;
+    switch (command) {
+    case PlayerMd3InputCommand::Up:
+        return ::player::PlayerInputCommand::Up;
+    case PlayerMd3InputCommand::Down:
+        return ::player::PlayerInputCommand::Down;
+    case PlayerMd3InputCommand::Left:
+        return ::player::PlayerInputCommand::Left;
+    case PlayerMd3InputCommand::Back:
+        return ::player::PlayerInputCommand::Back;
+    case PlayerMd3InputCommand::PlayToggle:
+        return ::player::PlayerInputCommand::PlayToggle;
+    case PlayerMd3InputCommand::Next:
+        return ::player::PlayerInputCommand::Next;
+    case PlayerMd3InputCommand::Prev:
+        return ::player::PlayerInputCommand::Prev;
+    case PlayerMd3InputCommand::Mode:
+        return ::player::PlayerInputCommand::Mode;
+    case PlayerMd3InputCommand::Enter:
+    default:
+        return ::player::PlayerInputCommand::Enter;
+    }
 }
 
 } // namespace
@@ -97,6 +141,65 @@ PlayerRuntime& runtime_emplace() noexcept {
     return *g_runtime;
 }
 
+void dispatch_player_input_event(const ::player::PlayerInputEvent& event) noexcept {
+    auto* shell = shell_ref();
+    if (shell == nullptr) {
+        return;
+    }
+
+    shell->dispatch_input(event);
+    ++state().input_events;
+}
+
+void dispatch_runtime_pointer(const PlayerMd3PointerEvent event) noexcept {
+    dispatch_player_input_event(::player::PlayerInputEvent::make_pointer(
+        event.ms,
+        to_player_pointer_action(event.action),
+        ::player::PlayerPointerSample{event.down, event.x, event.y, event.id}));
+}
+
+void dispatch_runtime_command(const std::uint32_t ms, const PlayerMd3InputCommand command) noexcept {
+    dispatch_player_input_event(::player::PlayerInputEvent::make_command(
+        ms,
+        to_player_input_command(command)));
+}
+
+void record_input_snapshot(const PlayerMd3InputSnapshot snapshot) noexcept {
+    auto& st = state();
+    st.input_touch_ready = snapshot.touch_ready;
+    st.input_touch_down = snapshot.touch_down;
+    st.input_last_id = snapshot.touch_id;
+    st.input_last_x = snapshot.touch_x;
+    st.input_last_y = snapshot.touch_y;
+    st.input_encoder1_delta = snapshot.encoder1_delta;
+    st.input_encoder2_delta = snapshot.encoder2_delta;
+    st.input_encoder1_button = snapshot.encoder1_button;
+    st.input_encoder2_button = snapshot.encoder2_button;
+}
+
+void record_input_bridge_init(const std::uint8_t touch_probe_ok,
+                              const PlayerMd3InputSnapshot snapshot) noexcept {
+    state().input_touch_probe_ok = touch_probe_ok;
+    record_input_snapshot(snapshot);
+}
+
+void record_input_bridge_poll(const PlayerMd3InputSnapshot snapshot) noexcept {
+    ++state().input_polls;
+    record_input_snapshot(snapshot);
+}
+
+void record_input_touch_event() noexcept {
+    ++state().input_touch_events;
+}
+
+void record_input_encoder_event() noexcept {
+    ++state().input_encoder_events;
+}
+
+void record_input_button_event() noexcept {
+    ++state().input_button_events;
+}
+
 bool render_frame() noexcept {
     auto* shell = shell_ref();
     if (shell == nullptr) {
@@ -140,6 +243,7 @@ void init_runtime() noexcept {
     if (g_shell == nullptr) {
         g_shell = ::new (static_cast<void*>(g_shell_storage)) PlayerRuntimeShell{runtime, shell_cfg};
     }
+    init_input_bridge();
 
     h747::console::write_line("player_md3: bootstrap begin");
     (void)g_shell->bootstrap();
@@ -156,6 +260,7 @@ void loop_runtime() noexcept {
     if (!state().runtime_bootstrapped) {
         return;
     }
+    poll_input_bridge();
     (void)render_frame();
     maybe_print_loop_status();
 }

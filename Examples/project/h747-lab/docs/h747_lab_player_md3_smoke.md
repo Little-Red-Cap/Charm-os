@@ -50,6 +50,23 @@ pyOCD exits with code 0 and prints the final erase/program summary.
 
 Serial collection uses `COM16`, `115200 8N1`.
 
+The automated capture entry is:
+
+```powershell
+.\tools\capture-player-md3-smoke.ps1
+```
+
+By default it opens `COM16` at `115200`, resets and resumes the target through
+`pyocd commander`, then writes the boot log to:
+
+```text
+cmake-build-h747-lab-debug/h747_lab_player_md3_smoke.log
+```
+
+The script exits with code 0 only when a single captured status line contains
+all of these tokens: `real_md3=1`, `mock=0`, `smoke=1/11111`,
+`exec_fail=0`, `co=0`, and `to=0`.
+
 ## Required Status Fields
 
 A healthy loop status line must contain:

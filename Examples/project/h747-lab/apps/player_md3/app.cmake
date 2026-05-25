@@ -6,7 +6,10 @@ set(H747_LAB_APP_SOURCES
     "${H747_LAB_ROOT}/apps/player_md3/player_md3_console.cpp"
     "${H747_LAB_ROOT}/apps/player_md3/player_md3_input.cpp"
     "${H747_LAB_ROOT}/apps/player_md3/player_md3_memory.cpp"
-    "${H747_LAB_ROOT}/apps/player_md3/player_md3_diag.cpp")
+    "${H747_LAB_ROOT}/apps/player_md3/player_md3_diag_render.cpp"
+    "${H747_LAB_ROOT}/apps/player_md3/player_md3_diag_scene.cpp"
+    "${H747_LAB_ROOT}/apps/player_md3/player_md3_diag_smoke.cpp"
+    "${H747_LAB_ROOT}/apps/player_md3/player_md3_diag_status.cpp")
 set(H747_LAB_APP_INCLUDE_DIRS
     "${H747_LAB_ROOT}/apps/player_md3"
     "${H747_LAB_ROOT}/apps/player"

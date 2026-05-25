@@ -26,6 +26,24 @@ not a general UI benchmark and not a replacement for visual inspection.
 7. Capture the first boot status line, at least one loop status line, and any
    input-related status lines used as evidence.
 
+The currently verified flash command for the DIY H747 lab board is:
+
+```powershell
+.\tools\flash-player-md3-pyocd.ps1
+```
+
+The script wraps the known-good pyOCD shape:
+
+```powershell
+pyocd load -u 0001 -t stm32h747xihx -f 1000k --format elf .\cmake-build-h747-lab-debug\h747_lab_player_md3.elf
+```
+
+`Exception reading AP#2 IDR: Memory transfer fault` is expected on this board
+with the current CMSIS-DAP/pyOCD path. Treat flashing as successful only when
+pyOCD exits with code 0 and prints the final erase/program summary.
+
+Serial collection uses `COM16`, `115200 8N1`.
+
 ## Required Status Fields
 
 A healthy loop status line must contain:
@@ -107,3 +125,14 @@ This proves the board is running the shared MD3 Player runtime through the
 display/input boundary. It does not yet claim high frame rate, DMA2D
 acceleration, storage-backed library scanning, file fonts, host cover decode, or
 production touch gesture policy.
+
+## Captured Sample
+
+Captured on 2026-05-25 after flashing `h747_lab_player_md3` with pyOCD:
+
+```text
+player_md3 real_md3=1 mock=0 smoke=1/11111 delta=1/1 display=1 sdram1=1/1 rt_store=1 boot=1 render=1 frames=1 present=1 cmd=109/1024 co=0 text=225/4096 to=0 exec_fail=0 content=0xFF101218:381760@0,3-719,1279
+```
+
+The same boot log also printed `player_md3: bootstrap ok`,
+`player_md3: first render ok`, and the `h747-player-md3>` console prompt.

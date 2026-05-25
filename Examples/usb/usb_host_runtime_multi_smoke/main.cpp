@@ -105,16 +105,12 @@ namespace {
         ObserveCollector* collector{nullptr};
         std::string_view capability{};
 
-        static void on_transition(void* ctx, const block::ExportTransition& transition) noexcept {
-            auto* self = static_cast<BlockObserverMux*>(ctx);
-            if (!self) {
-                return;
+        void on_transition(const block::ExportTransition& transition) noexcept {
+            if (log) {
+                record_fixed_transition(*log, transition);
             }
-            if (self->log) {
-                record_fixed_transition(*self->log, transition);
-            }
-            if (self->collector) {
-                self->collector->add_transition(self->capability, transition);
+            if (collector) {
+                collector->add_transition(capability, transition);
             }
         }
     };
@@ -125,16 +121,12 @@ namespace {
         ObserveCollector* collector{nullptr};
         std::string_view capability{};
 
-        static void on_transition(void* ctx, const io::ExportTransition& transition) noexcept {
-            auto* self = static_cast<ChannelObserverMux*>(ctx);
-            if (!self) {
-                return;
+        void on_transition(const io::ExportTransition& transition) noexcept {
+            if (log) {
+                record_fixed_transition(*log, transition);
             }
-            if (self->log) {
-                record_fixed_transition(*self->log, transition);
-            }
-            if (self->collector) {
-                self->collector->add_transition(self->capability, transition);
+            if (collector) {
+                collector->add_transition(capability, transition);
             }
         }
     };
@@ -223,8 +215,8 @@ int main(int argc, char** argv) {
     FixedTransitionLog<io::ExportTransition, 8> cdc_transitions{};
     BlockObserverMux<8> msc_observer{&msc_transitions, &runtime_observe, msc.cap_name};
     ChannelObserverMux<8> cdc_observer{&cdc_transitions, &runtime_observe, cdc.cap_name};
-    msc.set_observer(&BlockObserverMux<8>::on_transition, &msc_observer);
-    cdc.set_observer(&ChannelObserverMux<8>::on_transition, &cdc_observer);
+    msc.set_observer(block::ExportObserverRef::bind(msc_observer));
+    cdc.set_observer(io::ExportObserverRef::bind(cdc_observer));
 
     usb::host::RuntimeManager<8, 8> runtime{"usb.host.multi"};
     if (!expect_ok(msc.add_to(runtime), "failed to add MSC exported binding")) {

@@ -2,6 +2,7 @@
 #include "display_raster.h"
 #include "memory_probe.h"
 #include "player_md3_diag.hpp"
+#include "player_md3_smoke_schema.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -23,6 +24,12 @@ std::uint32_t sample_argb8888(const std::uintptr_t pixels, const std::uint32_t b
 std::uint32_t clamp_size_to_u32(const std::size_t value) noexcept {
     constexpr std::size_t max_u32 = 0xFFFFFFFFULL;
     return static_cast<std::uint32_t>(value > max_u32 ? max_u32 : value);
+}
+
+void write_field(const h747::apps::player_md3::PlayerMd3SmokeField field) {
+    h747::console::write(" ");
+    h747::console::write(h747::apps::player_md3::smoke_field_token(field));
+    h747::console::write("=");
 }
 
 } // namespace
@@ -171,10 +178,11 @@ void print_status(const char* prefix) {
     const auto memory = memory_probe_storage_state();
     const auto& st = state();
     h747::console::write(prefix);
-    h747::console::write(" real_md3=1");
-    h747::console::write(" mock=");
+    write_field(PlayerMd3SmokeField::RealMd3);
+    h747::console::write_dec(1U);
+    write_field(PlayerMd3SmokeField::Mock);
     h747::console::write_dec(st.smoke_mock_path);
-    h747::console::write(" smoke=");
+    write_field(PlayerMd3SmokeField::Smoke);
     h747::console::write_dec(st.smoke_ok);
     h747::console::write("/");
     h747::console::write_dec(st.smoke_boot_ok);
@@ -182,75 +190,75 @@ void print_status(const char* prefix) {
     h747::console::write_dec(st.smoke_present_ok);
     h747::console::write_dec(st.smoke_content_ok);
     h747::console::write_dec(st.smoke_scene_ok);
-    h747::console::write(" delta=");
+    write_field(PlayerMd3SmokeField::Delta);
     h747::console::write_dec(st.smoke_frame_delta);
     h747::console::write("/");
     h747::console::write_dec(st.smoke_present_delta);
-    h747::console::write(" display=");
+    write_field(PlayerMd3SmokeField::Display);
     h747::console::write_dec(st.display_ready ? 1U : 0U);
-    h747::console::write(" sdram1=");
+    write_field(PlayerMd3SmokeField::Sdram1);
     h747::console::write_dec(memory.sdram1_ready);
     h747::console::write("/");
     h747::console::write_dec(memory.sdram1_smoke_ok);
-    h747::console::write(" rt_store=");
+    write_field(PlayerMd3SmokeField::RuntimeStorage);
     h747::console::write_dec(st.runtime_storage_ready ? 1U : 0U);
-    h747::console::write(" boot=");
+    write_field(PlayerMd3SmokeField::Boot);
     h747::console::write_dec(st.runtime_bootstrapped ? 1U : 0U);
-    h747::console::write(" render=");
+    write_field(PlayerMd3SmokeField::Render);
     h747::console::write_dec(st.last_render_ok ? 1U : 0U);
-    h747::console::write(" frames=");
+    write_field(PlayerMd3SmokeField::Frames);
     h747::console::write_dec(st.frames);
-    h747::console::write(" present=");
+    write_field(PlayerMd3SmokeField::Present);
     h747::console::write_dec(raster.present_count);
-    h747::console::write(" layer=");
+    write_field(PlayerMd3SmokeField::Layer);
     h747::console::write_dec(raster.ltdc_layer_ready);
-    h747::console::write(" fb=");
+    write_field(PlayerMd3SmokeField::Framebuffer);
     h747::console::write_hex32(raster.framebuffer_base);
-    h747::console::write(" bytes=");
+    write_field(PlayerMd3SmokeField::Bytes);
     h747::console::write_hex32(raster.framebuffer_bytes);
-    h747::console::write(" render_buf=");
+    write_field(PlayerMd3SmokeField::RenderBuffer);
     h747::console::write_hex32(static_cast<std::uint32_t>(st.render_surface));
-    h747::console::write(" platform=");
+    write_field(PlayerMd3SmokeField::Platform);
     h747::console::write_hex32(static_cast<std::uint32_t>(st.platform_storage));
-    h747::console::write(" runtime=");
+    write_field(PlayerMd3SmokeField::Runtime);
     h747::console::write_hex32(static_cast<std::uint32_t>(st.runtime_storage));
-    h747::console::write(" pool_bytes=");
+    write_field(PlayerMd3SmokeField::PoolBytes);
     h747::console::write_hex32(st.external_pool_bytes);
-    h747::console::write(" r_s=");
+    write_field(PlayerMd3SmokeField::RenderSamples);
     h747::console::write_hex32(st.render_sample0);
     h747::console::write("/");
     h747::console::write_hex32(st.render_sample_center);
     h747::console::write("/");
     h747::console::write_hex32(st.render_sample_last);
-    h747::console::write(" cmd=");
+    write_field(PlayerMd3SmokeField::CommandBuffer);
     h747::console::write_dec(st.scene_cmd_count);
     h747::console::write("/");
     h747::console::write_dec(st.scene_cmd_capacity);
-    h747::console::write(" co=");
+    write_field(PlayerMd3SmokeField::CommandOverflow);
     h747::console::write_dec(st.scene_cmd_overflowed);
-    h747::console::write(" text=");
+    write_field(PlayerMd3SmokeField::TextBuffer);
     h747::console::write_dec(st.scene_text_used);
     h747::console::write("/");
     h747::console::write_dec(st.scene_text_capacity);
-    h747::console::write(" to=");
+    write_field(PlayerMd3SmokeField::TextOverflow);
     h747::console::write_dec(st.scene_text_overflowed);
-    h747::console::write(" exec_fail=");
+    write_field(PlayerMd3SmokeField::ExecFailed);
     h747::console::write_dec(st.scene_exec_failed);
-    h747::console::write(" exec=");
+    write_field(PlayerMd3SmokeField::ExecCounts);
     h747::console::write_dec(st.scene_exec_cmd_rect);
     h747::console::write("/");
     h747::console::write_dec(st.scene_exec_cmd_text);
     h747::console::write("/");
     h747::console::write_dec(st.scene_exec_cmd_image);
-    h747::console::write(" fail_ti=");
+    write_field(PlayerMd3SmokeField::FailTextImage);
     h747::console::write_dec(st.scene_exec_fail_text);
     h747::console::write("/");
     h747::console::write_dec(st.scene_exec_fail_image);
-    h747::console::write(" input=");
+    write_field(PlayerMd3SmokeField::Input);
     h747::console::write_dec(st.input_polls);
     h747::console::write("/");
     h747::console::write_dec(st.input_events);
-    h747::console::write(" t=");
+    write_field(PlayerMd3SmokeField::Touch);
     h747::console::write_dec(st.input_touch_probe_ok);
     h747::console::write("/");
     h747::console::write_dec(st.input_touch_ready);
@@ -260,13 +268,13 @@ void print_status(const char* prefix) {
     h747::console::write_dec(st.input_last_x);
     h747::console::write(",");
     h747::console::write_dec(st.input_last_y);
-    h747::console::write(" e=");
+    write_field(PlayerMd3SmokeField::Events);
     h747::console::write_dec(st.input_touch_events);
     h747::console::write("/");
     h747::console::write_dec(st.input_encoder_events);
     h747::console::write("/");
     h747::console::write_dec(st.input_button_events);
-    h747::console::write(" content=");
+    write_field(PlayerMd3SmokeField::Content);
     h747::console::write_hex32(st.render_bg_pixel);
     h747::console::write(":");
     h747::console::write_dec(st.render_non_bg_pixels);
@@ -278,19 +286,19 @@ void print_status(const char* prefix) {
     h747::console::write_dec(st.render_content_max_x);
     h747::console::write(",");
     h747::console::write_dec(st.render_content_max_y);
-    h747::console::write(" p_src=");
+    write_field(PlayerMd3SmokeField::PresentSource);
     h747::console::write_hex32(raster.present_src_sample0);
     h747::console::write("/");
     h747::console::write_hex32(raster.present_src_sample_center);
     h747::console::write("/");
     h747::console::write_hex32(raster.present_src_sample_last);
-    h747::console::write(" p_dst=");
+    write_field(PlayerMd3SmokeField::PresentDestination);
     h747::console::write_hex32(raster.presented_sample0);
     h747::console::write("/");
     h747::console::write_hex32(raster.presented_sample_center);
     h747::console::write("/");
     h747::console::write_hex32(raster.presented_sample_last);
-    h747::console::write(" front=");
+    write_field(PlayerMd3SmokeField::FrontBuffer);
     h747::console::write_hex32(raster.front_buffer_base);
     h747::console::write(":");
     h747::console::write_hex32(raster.front_sample0);
@@ -298,7 +306,7 @@ void print_status(const char* prefix) {
     h747::console::write_hex32(raster.front_sample_center);
     h747::console::write("/");
     h747::console::write_hex32(raster.front_sample_last);
-    h747::console::write(" back=");
+    write_field(PlayerMd3SmokeField::BackBuffer);
     h747::console::write_hex32(raster.back_buffer_base);
     h747::console::write(":");
     h747::console::write_hex32(raster.back_sample0);
@@ -306,11 +314,11 @@ void print_status(const char* prefix) {
     h747::console::write_hex32(raster.back_sample_center);
     h747::console::write("/");
     h747::console::write_hex32(raster.back_sample_last);
-    h747::console::write(" lfb=");
+    write_field(PlayerMd3SmokeField::LtdcFramebuffer);
     h747::console::write_hex32(raster.ltdc_layer_cfb_addr);
-    h747::console::write(" lcr=");
+    write_field(PlayerMd3SmokeField::LtdcControl);
     h747::console::write_hex32(raster.ltdc_layer_cr);
-    h747::console::write(" lpf=");
+    write_field(PlayerMd3SmokeField::LtdcPixelFormat);
     h747::console::write_hex32(raster.ltdc_layer_pfcr);
     h747::console::write("\n");
 }

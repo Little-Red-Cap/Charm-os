@@ -4,6 +4,12 @@ This document defines the board-level smoke collection protocol for
 `h747_lab_player_md3`. It is evidence for the real MD3 Player-on-H747 bridge,
 not a general UI benchmark and not a replacement for visual inspection.
 
+The code-side token list lives in
+`apps/player_md3/player_md3_smoke_schema.hpp`. The current schema version is
+`1`. Field token names are append-only board evidence identifiers: changing or
+removing an existing token requires updating this document and any serial
+collector that depends on the old token.
+
 ## Verified Target
 
 - Firmware target: `h747_lab_player_md3`

@@ -59,9 +59,10 @@ Current short form:
 - `player.runtime.hqzy_cm7.player_ui_port_bridge` is the current H747-local bridge for the same idea on the board side; it keeps the facts explicit, clips dirty regions, and can exercise display callbacks without importing the MD3 runtime stack.
 - `make_board_display_sink()` gives the future board adapter a named seam for cache clean, dirty flush, and present/flip callbacks without changing Player UI.
 - `read_player_touch_events()` gives the future board touch adapter a fixed-capacity path from sampled touch points to `PlayerInputEvent`.
+- `audio.spectrum` keeps FFT/host math details behind a small analyzer backend so `audio.player` can keep playback independent from spectrum visualization.
 - Theme and time have useful seams, but their final provider shape should wait for a concrete portable Player target.
 - Dynamic containers fall into two buckets: product semantic state in the MD3 controller/storage/theme flow, and replaceable host implementation state in font cache, cover decode, screenshots, and UI-CI.
-- The next cleanup order should be a non-Windows board shell target that calls `make_player_board_runtime()`; the H747-local port bridge is the seed for that path. After that, concrete `FontResourceKind::Package` binary/layout, time/diagnostics provider, then controller dynamic state slimming.
+- The next cleanup order should be a non-Windows board shell target that calls `make_player_board_runtime()`; the H747-local port bridge is the seed for that path. After that, CMSIS-DSP or fixed-point spectrum backend, concrete `FontResourceKind::Package` binary/layout, time/diagnostics provider, then controller dynamic state slimming.
 
 ## Portable UI Probe Contract
 

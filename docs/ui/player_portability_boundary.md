@@ -55,6 +55,7 @@ For the current ownership map, host shell split, Vivid extraction candidates, an
 - `AppConfig` stores resource paths in fixed-capacity slots so the app-level config boundary does not require dynamic strings.
 - `AppConfig` groups font resource data as `FontResourceConfig`; font source is explicit (`Builtin`, `FilePath`, or future `Package`) instead of leaking host TTF fields into page code.
 - Embedded and file-backed cover decoding is gated by `CHARM_PLAYER_HOST_COVER_DECODE`; portable targets can keep using generated/default covers or later provide pre-decoded resource images.
+- Audio spectrum visualization is routed through `audio.spectrum`; the current `host_fft` backend is gated by `CHARM_AUDIO_SPECTRUM_USE_HOST_FFT`, while no-math targets compile with no spectrum backend and keep playback independent from FFT availability.
 - The Windows host shell prints `[player.features]` at startup so a preview build and a portability-probe build can be distinguished from logs. A probe with `host_cover_decode=0` is expected to skip real cover decoding.
 - `player.cover` exposes `CoverResourceProviderFn` before the legacy `CoverProviderFn` host decoder. Portable targets can return pre-decoded/resource-backed views without changing page controllers; host decode remains gated by `CHARM_PLAYER_HOST_COVER_DECODE`.
 - When no cover can be decoded, Now Playing and the mini bar use generated default cover art instead of leaving image slots empty.

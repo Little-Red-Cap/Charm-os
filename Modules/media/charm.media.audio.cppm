@@ -9,6 +9,7 @@ export import audio.format;
 export import audio.pull_sim;
 export import audio.resampler.linear;
 export import audio.result;
+export import audio.spectrum;
 export import audio.source.file;
 
 #if defined(CHARM_ENABLE_SDL3)

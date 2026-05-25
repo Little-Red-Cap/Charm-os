@@ -24,6 +24,7 @@ It is intentionally narrower than a full embedded port plan. The goal is to make
 | --- | --- | --- | --- | --- |
 | Cover | `player.cover` exposes `CoverProviderFn`; page/controller code can use generated/default cover art when decode is unavailable. | `CHARM_PLAYER_HOST_COVER_DECODE`; profile log prints `host_cover_decode`. | Host decode buffers, embedded image extraction, palette/theme sampling work buffers. | Add a pre-decoded/resource-backed cover provider contract. |
 | Theme | Player-owned cover sampling feeds dynamic surface/text roles; Vivid owns reusable role application candidates. | Indirectly tied to cover decode availability. | Fixed-budget 128x128 sampling workspace, palette candidates, controller theme state. | Keep sampling in Player; consider moving role application rules into Vivid after more app pressure. |
+| Audio spectrum | `audio.spectrum` owns analyzer state and the host FFT backend; `audio.player` only calls `enable/read/push/reset`. | `CHARM_AUDIO_ENABLE_SPECTRUM` and `CHARM_AUDIO_SPECTRUM_USE_HOST_FFT`; defaults follow `CHARM_TARGET_HAS_CXX_MATH`. | Host FFT uses fixed arrays plus `<complex>/<cmath>`; no-math targets compile the disabled backend with no analyzer buffers. | Add a CMSIS-DSP or fixed-point backend behind `SpectrumAnalyzer` instead of reintroducing FFT details into `audio.player`. |
 | Font | `FontResourceConfig` carries explicit font source kind plus sizes; host preview binds file fonts only when enabled; board ports can pass package metadata through `PlayerBoardFontPackageView`. | `CHARM_PLAYER_HOST_FILE_FONTS`, `CHARM_PLAYER_PC_FONT_CACHE`; profile log prints `host_file_fonts`. | FreeType/VFS font buffers, Win32/GDI glyph cache vectors, preview argv strings. | Define the concrete board font package binary/layout behind `FontResourceKind::Package`. |
 | Runtime | `player.runtime` owns product lifecycle; `player.board_runtime` owns the board construction helper; `player.runtime_probe` owns reusable memory-surface proof. `player.runtime.hqzy_cm7.player_ui_port_bridge` is the H747-local facts bridge for framebuffer, dirty region, touch, and clock seams. | Host shell selects preview/probe config and still owns SDL, argv, screenshots, and UI-CI entry. | Runtime owns `App` storage in v0; controller/platform/runtime storage is provided by the adapter. The H747 bridge uses fixed records and function pointers only. | Add a non-Windows board shell that calls `make_player_board_runtime()` with board-owned resources. |
 | Display/Input | `PlayerDisplaySurface`, `PlayerDisplaySink`, board display callbacks, `PlayerBoardPortConfig`, and `render_player_frame()` separate Player rendering from SDL; `PlayerInputEvent` plus touch batching separates Player input from SDL/window/touch samples. `player.runtime.hqzy_cm7.player_ui_port_bridge` is the H747-local board-port seed for those facts and now has local `probe_port()` / `present_dirty()` helpers. | Windows preview uses SDL display and input adapters; memory, board-sink, board-port, and board-touch probes prove real Player UI external-framebuffer/input output. | Preview SDL texture/window state; UI-CI external buffer is fixed-size static storage; input HAL structs are fixed-size. H747 port probing adds no dynamic allocation. | Add a non-Windows board shell that wires SDRAM/LTDC and touch drivers through `PlayerBoardPortConfig`. |
@@ -73,6 +74,26 @@ Recommended next slice:
 - Keep cover sampling local to Player.
 - Document a stable `CoverTheme` or similar product-level result before moving any role machinery into Vivid.
 - Only promote role application to Vivid after another page or app needs the same rule.
+
+## Audio Spectrum
+
+Current state:
+
+- `audio.spectrum` owns the spectrum analyzer state, backend selection, FFT window, output bins, and ready/enabled flags.
+- `audio.player` no longer imports `alg_fft`, `<complex>`, or `<cmath>` for spectrum rendering; it only forwards captured PCM to `SpectrumAnalyzer`.
+- The current implemented backend is `host_fft`, selected by `CHARM_AUDIO_SPECTRUM_USE_HOST_FFT`.
+- No-math targets compile the same `audio.spectrum` module with `SpectrumBackendKind::none`, so spectrum enablement becomes a no-op and playback remains independent of FFT availability.
+
+Dynamic allocation and portability notes:
+
+- The host FFT backend uses fixed-size arrays only, but it still depends on hosted math/library features.
+- A future STM32H7 backend should use CMSIS-DSP or a fixed-point analyzer behind `SpectrumAnalyzer`; `audio.player` should not learn CMSIS headers or DSP workspace details.
+- Board code can leave spectrum disabled without changing playback semantics.
+
+Recommended next slice:
+
+- Add a concrete `cmsis_dsp` backend only when the board build has CMSIS-DSP linked and its scratch/storage budget is explicit.
+- Keep backend choice in media/profile config, not in Player page/controller code.
 
 ## Font
 

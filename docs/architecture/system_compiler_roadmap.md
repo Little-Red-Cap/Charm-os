@@ -154,6 +154,11 @@ Charm 已经有一批 system compiler 的前身，不是从白纸起步：
 当前关于最小 `artifact report` 对象边界与字段草案，
 见：`docs/system/artifact_report_v0.md`
 
+当前关于 system compiler 结果物为何应先走 `projector-first`，
+以及第一轮最值得统一的重复事实税，
+见：`docs/architecture/generative_fact_language_v0.md`
+与 `docs/system/artifact_report_projection_tax_review_v0.md`
+
 当前关于最小 system compiler 词汇表与概念映射，
 见：`docs/architecture/system_compiler_vocabulary_v0.md`
 

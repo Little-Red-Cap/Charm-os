@@ -405,13 +405,8 @@ function New-ReportFormationHeadline {
     }
 
     $systemFormation = $ReportData.system_formation
-    $caseName = if ($null -ne $ReportData.PSObject.Properties['subject'] -and
-        $null -ne $ReportData.subject -and
-        $null -ne $ReportData.subject.PSObject.Properties['case']) {
-        [string]$ReportData.subject.case
-    } else {
-        ''
-    }
+    $subjectProjection = New-ReportSubjectProjection -ReportData $ReportData
+    $caseName = if ($null -eq $subjectProjection) { '' } else { [string]$subjectProjection.case }
     $formed = [string]$systemFormation.status -eq 'formed'
     $bindingSummary = if ($null -ne $systemFormation.PSObject.Properties['binding_summary']) { $systemFormation.binding_summary } else { $null }
     $bringupSummary = if ($null -ne $systemFormation.PSObject.Properties['bringup_summary']) { $systemFormation.bringup_summary } else { $null }
@@ -1303,24 +1298,12 @@ function Get-ReportSubjectFacts {
         $ReportData
     )
 
-    if ($null -eq $ReportData -or $null -eq $ReportData.subject) {
+    $subjectProjection = New-ReportSubjectProjection -ReportData $ReportData
+    if ($null -eq $subjectProjection) {
         return @()
     }
 
-    $facts = @()
-    if (-not [string]::IsNullOrWhiteSpace([string]$ReportData.subject.profile)) {
-        $facts += "profile.$([string]$ReportData.subject.profile)"
-    }
-    if (-not [string]::IsNullOrWhiteSpace([string]$ReportData.subject.board)) {
-        $facts += "board.$([string]$ReportData.subject.board)"
-    }
-    foreach ($facetName in @($ReportData.subject.active_facets)) {
-        if (-not [string]::IsNullOrWhiteSpace([string]$facetName)) {
-            $facts += "facet.$([string]$facetName)"
-        }
-    }
-
-    return @($facts | Sort-Object -Unique)
+    return @($subjectProjection.subject_facts)
 }
 
 function Get-GraphProvidedFacts {
@@ -1524,6 +1507,7 @@ function New-ArtifactRootFactResolutionCaseSummary {
     )
 
     $report = $LoadedReport.Data
+    $subjectProjection = New-ReportSubjectProjection -ReportData $report
     $graphInfo = Load-GraphFromArtifactReport -ReportData $report
     $resourceSummary = New-ResourceSummaryResult -ReportData $report -GraphInfo $graphInfo
     $requiredFactResolution = if ($null -ne $resourceSummary.PSObject.Properties['required_fact_resolution']) {
@@ -1534,10 +1518,10 @@ function New-ArtifactRootFactResolutionCaseSummary {
 
     return [pscustomobject][ordered]@{
         report_path = $LoadedReport.Path
-        case = [string]$report.subject.case
-        profile = [string]$report.subject.profile
-        board = [string]$report.subject.board
-        active_facets = @($report.subject.active_facets)
+        case = [string]$subjectProjection.case
+        profile = [string]$subjectProjection.profile
+        board = [string]$subjectProjection.board
+        active_facets = @($subjectProjection.active_facets)
         declared_contracts = [int]$resourceSummary.declared_contracts
         audited_count = [int]$resourceSummary.audited_count
         satisfied_count = [int]$resourceSummary.satisfied_count
@@ -2100,6 +2084,7 @@ function New-ArtifactRootSystemInputCaseSummary {
     }
 
     $systemInput = $report.system_input
+    $subjectProjection = New-ReportSubjectProjection -ReportData $report
     $systemSpec = if ($null -ne $systemInput.PSObject.Properties['system_spec']) { $systemInput.system_spec } else { $null }
     $declaredInput = if ($null -ne $systemInput.PSObject.Properties['declared_input']) { $systemInput.declared_input } else { $null }
     $declaredSubject = if ($null -ne $declaredInput -and $null -ne $declaredInput.PSObject.Properties['subject']) { $declaredInput.subject } else { $null }
@@ -2109,10 +2094,10 @@ function New-ArtifactRootSystemInputCaseSummary {
     $resolvedFacets = if ($null -ne $resolvedInput -and $null -ne $resolvedInput.PSObject.Properties['active_facets']) { $resolvedInput.active_facets } else { $null }
 
     return [pscustomobject][ordered]@{
-        case = [string]$report.subject.case
-        profile = [string]$report.subject.profile
-        board = [string]$report.subject.board
-        active_facets = @($report.subject.active_facets)
+        case = [string]$subjectProjection.case
+        profile = [string]$subjectProjection.profile
+        board = [string]$subjectProjection.board
+        active_facets = @($subjectProjection.active_facets)
         case_kind = if ($null -eq $systemSpec -or [string]::IsNullOrWhiteSpace([string]$systemSpec.case_kind)) { $null } else { [string]$systemSpec.case_kind }
         source = if ($null -eq $systemSpec -or [string]::IsNullOrWhiteSpace([string]$systemSpec.source)) { $null } else { [string]$systemSpec.source }
         build_target = if ($null -eq $systemSpec -or [string]::IsNullOrWhiteSpace([string]$systemSpec.build_target)) { $null } else { [string]$systemSpec.build_target }
@@ -2378,16 +2363,17 @@ function New-ArtifactRootSystemInputCompareCaseSummary {
     }
 
     $report = $LoadedReport.Data
+    $subjectProjection = New-ReportSubjectProjection -ReportData $report
     $comparison = Get-SystemInputComparisonFromReport -ReportData $report
     if ($null -eq $comparison) {
         return $null
     }
 
     return [pscustomobject][ordered]@{
-        case = [string]$report.subject.case
-        profile = [string]$report.subject.profile
-        board = [string]$report.subject.board
-        active_facets = @($report.subject.active_facets)
+        case = [string]$subjectProjection.case
+        profile = [string]$subjectProjection.profile
+        board = [string]$subjectProjection.board
+        active_facets = @($subjectProjection.active_facets)
         changed = [bool]$comparison.changed
         summary_changes = @($comparison.summary_changes)
         system_spec_changes = @($comparison.system_spec_changes)
@@ -2630,13 +2616,14 @@ function New-ArtifactRootBindingResultCaseSummary {
     }
 
     $report = $LoadedReport.Data
+    $subjectProjection = New-ReportSubjectProjection -ReportData $report
     $bindingResult = Get-BindingResultFromReport -ReportData $report
 
     return [pscustomobject][ordered]@{
-        case = [string]$report.subject.case
-        profile = [string]$report.subject.profile
-        board = [string]$report.subject.board
-        active_facets = @($report.subject.active_facets)
+        case = [string]$subjectProjection.case
+        profile = [string]$subjectProjection.profile
+        board = [string]$subjectProjection.board
+        active_facets = @($subjectProjection.active_facets)
         required_binding_count = [int]$bindingResult.required_binding_count
         resolved_binding_count = [int]$bindingResult.resolved_binding_count
         unresolved_binding_count = [int]$bindingResult.unresolved_binding_count
@@ -2794,13 +2781,14 @@ function New-ArtifactRootBringupOrderCaseSummary {
     }
 
     $report = $LoadedReport.Data
+    $subjectProjection = New-ReportSubjectProjection -ReportData $report
     $bringupOrder = Get-BringupOrderFromReport -ReportData $report
 
     return [pscustomobject][ordered]@{
-        case = [string]$report.subject.case
-        profile = [string]$report.subject.profile
-        board = [string]$report.subject.board
-        active_facets = @($report.subject.active_facets)
+        case = [string]$subjectProjection.case
+        profile = [string]$subjectProjection.profile
+        board = [string]$subjectProjection.board
+        active_facets = @($subjectProjection.active_facets)
         ordered_node_count = [int]$bringupOrder.ordered_node_count
         blocked_node_count = [int]$bringupOrder.blocked_node_count
         phase_counts = $bringupOrder.phase_counts
@@ -2990,16 +2978,17 @@ function New-ArtifactRootResourceCompareCaseSummary {
     )
 
     $report = $LoadedReport.Data
+    $subjectProjection = New-ReportSubjectProjection -ReportData $report
     $comparison = Get-ResourceContractComparisonFromReport -ReportData $report
     if ($null -eq $comparison) {
         return $null
     }
 
     return [pscustomobject][ordered]@{
-        case = [string]$report.subject.case
-        profile = [string]$report.subject.profile
-        board = [string]$report.subject.board
-        active_facets = @($report.subject.active_facets)
+        case = [string]$subjectProjection.case
+        profile = [string]$subjectProjection.profile
+        board = [string]$subjectProjection.board
+        active_facets = @($subjectProjection.active_facets)
         changed = [bool]$comparison.changed
         summary_changes = @($comparison.summary_changes)
         contract_change_count = @($comparison.contract_changes).Count
@@ -3165,16 +3154,17 @@ function New-ArtifactRootFactResolutionCompareCaseSummary {
     )
 
     $report = $LoadedReport.Data
+    $subjectProjection = New-ReportSubjectProjection -ReportData $report
     $comparison = Get-FactResolutionComparisonFromReport -ReportData $report
     if ($null -eq $comparison) {
         return $null
     }
 
     return [pscustomobject][ordered]@{
-        case = [string]$report.subject.case
-        profile = [string]$report.subject.profile
-        board = [string]$report.subject.board
-        active_facets = @($report.subject.active_facets)
+        case = [string]$subjectProjection.case
+        profile = [string]$subjectProjection.profile
+        board = [string]$subjectProjection.board
+        active_facets = @($subjectProjection.active_facets)
         changed = [bool]$comparison.changed
         summary_changes = @($comparison.summary_changes)
         contract_change_count = @($comparison.contract_changes).Count
@@ -4108,6 +4098,7 @@ function New-ArtifactRootWhyCapabilityCaseResult {
     )
 
     $report = $LoadedReport.Data
+    $subjectProjection = New-ReportSubjectProjection -ReportData $report
     $graphInfo = Load-GraphFromArtifactReport -ReportData $report
     $whyResult = New-WhyCapabilityResult -ReportData $report -GraphInfo $graphInfo -CapabilityName $CapabilityName
     $bringupChangeKinds = @()
@@ -4124,9 +4115,9 @@ function New-ArtifactRootWhyCapabilityCaseResult {
     }
 
     return [pscustomobject][ordered]@{
-        case = [string]$report.subject.case
-        profile = [string]$report.subject.profile
-        board = [string]$report.subject.board
+        case = [string]$subjectProjection.case
+        profile = [string]$subjectProjection.profile
+        board = [string]$subjectProjection.board
         state = [string]$whyResult.state
         reasons = @($whyResult.reasons)
         provider_nodes = @($whyResult.evidence.provider_nodes)
@@ -4584,7 +4575,7 @@ function New-CapListReportView {
 
     return [ordered]@{
         report_path = $LoadedReport.Path
-        subject = $LoadedReport.Data.subject
+        subject = New-ArtifactRootSystemCompilerSubjectProjection -Report $LoadedReport.Data
         query = [ordered]@{
             kind = 'cap_list'
             scope = 'report'
@@ -4602,7 +4593,8 @@ function New-CapListArtifactRootAggregationResult {
     $capabilityMap = @{}
     $caseNames = @()
     foreach ($loadedReport in @($LoadedReports)) {
-        $caseName = [string]$loadedReport.Data.subject.case
+        $subjectProjection = New-ReportSubjectProjection -ReportData $loadedReport.Data
+        $caseName = if ($null -eq $subjectProjection) { '' } else { [string]$subjectProjection.case }
         if (-not [string]::IsNullOrWhiteSpace($caseName)) {
             $caseNames += $caseName
         }
@@ -4683,16 +4675,17 @@ function New-ArtifactRootSystemFormationCaseSummary {
     }
 
     $report = $LoadedReport.Data
+    $subjectProjection = New-ReportSubjectProjection -ReportData $report
     if ($null -eq $report.PSObject.Properties['system_formation'] -or $null -eq $report.system_formation) {
         return $null
     }
 
     $formation = $report.system_formation
     return [pscustomobject][ordered]@{
-        case = [string]$report.subject.case
-        profile = [string]$report.subject.profile
-        board = [string]$report.subject.board
-        active_facets = @($report.subject.active_facets)
+        case = [string]$subjectProjection.case
+        profile = [string]$subjectProjection.profile
+        board = [string]$subjectProjection.board
+        active_facets = @($subjectProjection.active_facets)
         status = [string]$formation.status
         case_kind = if ($null -ne $formation.PSObject.Properties['formation_basis'] -and $null -ne $formation.formation_basis) { [string]$formation.formation_basis.case_kind } else { $null }
         declared_fact_count = if ($null -ne $formation.PSObject.Properties['formation_basis'] -and $null -ne $formation.formation_basis) { [int]$formation.formation_basis.declared_fact_count } else { 0 }
@@ -5107,16 +5100,17 @@ function New-ArtifactRootSystemFormationCompareCaseSummary {
     }
 
     $report = $LoadedReport.Data
+    $subjectProjection = New-ReportSubjectProjection -ReportData $report
     $comparison = Get-SystemFormationComparisonFromReport -ReportData $report
     if ($null -eq $comparison) {
         return $null
     }
 
     return [pscustomobject][ordered]@{
-        case = [string]$report.subject.case
-        profile = [string]$report.subject.profile
-        board = [string]$report.subject.board
-        active_facets = @($report.subject.active_facets)
+        case = [string]$subjectProjection.case
+        profile = [string]$subjectProjection.profile
+        board = [string]$subjectProjection.board
+        active_facets = @($subjectProjection.active_facets)
         changed = [bool]$comparison.changed
         left_status = [string]$comparison.left.status
         right_status = [string]$comparison.right.status
@@ -5624,6 +5618,114 @@ function New-ArtifactRootSystemCompilerSubjectProjection {
         profile = [string]$Report.subject.profile
         board = [string]$Report.subject.board
         active_facets = @($Report.subject.active_facets)
+    }
+}
+
+function New-ReportSubjectProjection {
+    param(
+        $ReportData
+    )
+
+    if ($null -eq $ReportData) {
+        return $null
+    }
+
+    $artifactSubject = New-ArtifactRootSystemCompilerSubjectProjection -Report $ReportData
+    $systemInput = if ($null -ne $ReportData.PSObject.Properties['system_input']) { $ReportData.system_input } else { $null }
+    $declaredInput = if ($null -ne $systemInput -and $null -ne $systemInput.PSObject.Properties['declared_input']) { $systemInput.declared_input } else { $null }
+    $declaredSubject = if ($null -ne $declaredInput -and $null -ne $declaredInput.PSObject.Properties['subject']) { $declaredInput.subject } else { $null }
+    $resolvedInput = if ($null -ne $systemInput -and $null -ne $systemInput.PSObject.Properties['resolved_input']) { $systemInput.resolved_input } else { $null }
+    $resolvedProfile = if ($null -ne $resolvedInput -and $null -ne $resolvedInput.PSObject.Properties['profile']) { $resolvedInput.profile } else { $null }
+    $resolvedBoard = if ($null -ne $resolvedInput -and $null -ne $resolvedInput.PSObject.Properties['board']) { $resolvedInput.board } else { $null }
+    $resolvedFacets = if ($null -ne $resolvedInput -and $null -ne $resolvedInput.PSObject.Properties['active_facets']) { $resolvedInput.active_facets } else { $null }
+
+    $resolvedProfileValue = if ($null -ne $resolvedProfile -and $null -ne $resolvedProfile.PSObject.Properties['value']) {
+        $resolvedProfile.value
+    } else {
+        $artifactSubject.profile
+    }
+    $resolvedProfileSource = if ($null -ne $resolvedProfile -and $null -ne $resolvedProfile.PSObject.Properties['source'] -and -not [string]::IsNullOrWhiteSpace([string]$resolvedProfile.source)) {
+        [string]$resolvedProfile.source
+    } elseif (-not [string]::IsNullOrWhiteSpace([string]$resolvedProfileValue)) {
+        'report.subject'
+    } else {
+        'missing'
+    }
+    $resolvedBoardValue = if ($null -ne $resolvedBoard -and $null -ne $resolvedBoard.PSObject.Properties['value']) {
+        $resolvedBoard.value
+    } else {
+        $artifactSubject.board
+    }
+    $resolvedBoardSource = if ($null -ne $resolvedBoard -and $null -ne $resolvedBoard.PSObject.Properties['source'] -and -not [string]::IsNullOrWhiteSpace([string]$resolvedBoard.source)) {
+        [string]$resolvedBoard.source
+    } elseif (-not [string]::IsNullOrWhiteSpace([string]$resolvedBoardValue)) {
+        'report.subject'
+    } else {
+        'missing'
+    }
+    $resolvedFacetValues = if ($null -ne $resolvedFacets -and $null -ne $resolvedFacets.PSObject.Properties['values']) {
+        @($resolvedFacets.values)
+    } else {
+        @($artifactSubject.active_facets)
+    }
+    $resolvedFacetSource = if ($null -ne $resolvedFacets -and $null -ne $resolvedFacets.PSObject.Properties['source'] -and -not [string]::IsNullOrWhiteSpace([string]$resolvedFacets.source)) {
+        [string]$resolvedFacets.source
+    } elseif (@($resolvedFacetValues).Count -gt 0) {
+        'report.subject'
+    } else {
+        'missing'
+    }
+
+    $subjectFacts = if ($null -ne $resolvedInput -and $null -ne $resolvedInput.PSObject.Properties['subject_facts']) {
+        @($resolvedInput.subject_facts)
+    } else {
+        @()
+    }
+    if (@($subjectFacts).Count -eq 0) {
+        $subjectFacts = @()
+        if (-not [string]::IsNullOrWhiteSpace([string]$resolvedProfileValue)) {
+            $subjectFacts += "profile.$([string]$resolvedProfileValue)"
+        }
+        if (-not [string]::IsNullOrWhiteSpace([string]$resolvedBoardValue)) {
+            $subjectFacts += "board.$([string]$resolvedBoardValue)"
+        }
+        foreach ($facetName in @($resolvedFacetValues)) {
+            if (-not [string]::IsNullOrWhiteSpace([string]$facetName)) {
+                $subjectFacts += "facet.$([string]$facetName)"
+            }
+        }
+    }
+
+    return [pscustomobject][ordered]@{
+        case = [string]$artifactSubject.case
+        profile = $resolvedProfileValue
+        board = $resolvedBoardValue
+        active_facets = @($resolvedFacetValues)
+        declared = [pscustomobject][ordered]@{
+            profile = if ($null -eq $declaredSubject) { $null } else { $declaredSubject.profile }
+            board = if ($null -eq $declaredSubject) { $null } else { $declaredSubject.board }
+            active_facets = if ($null -eq $declaredSubject) { @() } else { @($declaredSubject.active_facets) }
+        }
+        resolved = [pscustomobject][ordered]@{
+            profile = [pscustomobject][ordered]@{
+                value = $resolvedProfileValue
+                source = $resolvedProfileSource
+            }
+            board = [pscustomobject][ordered]@{
+                value = $resolvedBoardValue
+                source = $resolvedBoardSource
+            }
+            active_facets = [pscustomobject][ordered]@{
+                values = @($resolvedFacetValues)
+                source = $resolvedFacetSource
+            }
+        }
+        subject_facts = @(
+            @($subjectFacts) |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+                ForEach-Object { [string]$_ } |
+                Sort-Object -Unique
+        )
     }
 }
 
@@ -7716,12 +7818,13 @@ function New-ArtifactRootBringupCaseSummary {
 
     $graphInfo = Load-GraphFromArtifactReport -ReportData $LoadedReport.Data
     $bringupEvidence = New-BringupEvidenceResult -ReportData $LoadedReport.Data -GraphInfo $graphInfo
+    $subjectProjection = New-ReportSubjectProjection -ReportData $LoadedReport.Data
 
     return [pscustomobject][ordered]@{
-        case = [string]$LoadedReport.Data.subject.case
-        profile = [string]$LoadedReport.Data.subject.profile
-        board = [string]$LoadedReport.Data.subject.board
-        active_facets = @($LoadedReport.Data.subject.active_facets)
+        case = [string]$subjectProjection.case
+        profile = [string]$subjectProjection.profile
+        board = [string]$subjectProjection.board
+        active_facets = @($subjectProjection.active_facets)
         declared_count = [int]$bringupEvidence.declared_count
         materialized_count = [int]$bringupEvidence.materialized_count
         published_count = [int]$bringupEvidence.published_count
@@ -7978,16 +8081,17 @@ function New-ArtifactRootBringupCompareCaseSummary {
     )
 
     $report = $LoadedReport.Data
+    $subjectProjection = New-ReportSubjectProjection -ReportData $report
     $comparison = Get-BringupEvidenceComparisonFromReport -ReportData $report
     if ($null -eq $comparison) {
         return $null
     }
 
     return [pscustomobject][ordered]@{
-        case = [string]$report.subject.case
-        profile = [string]$report.subject.profile
-        board = [string]$report.subject.board
-        active_facets = @($report.subject.active_facets)
+        case = [string]$subjectProjection.case
+        profile = [string]$subjectProjection.profile
+        board = [string]$subjectProjection.board
+        active_facets = @($subjectProjection.active_facets)
         changed = [bool]$comparison.changed
         summary_changes = @($comparison.summary_changes)
         capability_change_count = @($comparison.capability_changes).Count
@@ -8161,16 +8265,17 @@ function New-ArtifactRootBindingResultCompareCaseSummary {
     }
 
     $report = $LoadedReport.Data
+    $subjectProjection = New-ReportSubjectProjection -ReportData $report
     $comparison = Get-BindingResultComparisonFromReport -ReportData $report
     if ($null -eq $comparison) {
         return $null
     }
 
     return [pscustomobject][ordered]@{
-        case = [string]$report.subject.case
-        profile = [string]$report.subject.profile
-        board = [string]$report.subject.board
-        active_facets = @($report.subject.active_facets)
+        case = [string]$subjectProjection.case
+        profile = [string]$subjectProjection.profile
+        board = [string]$subjectProjection.board
+        active_facets = @($subjectProjection.active_facets)
         changed = [bool]$comparison.changed
         summary_changes = @($comparison.summary_changes)
         binding_change_count = @($comparison.binding_changes).Count
@@ -8362,16 +8467,17 @@ function New-ArtifactRootBringupOrderCompareCaseSummary {
     }
 
     $report = $LoadedReport.Data
+    $subjectProjection = New-ReportSubjectProjection -ReportData $report
     $comparison = Get-BringupOrderComparisonFromReport -ReportData $report
     if ($null -eq $comparison) {
         return $null
     }
 
     return [pscustomobject][ordered]@{
-        case = [string]$report.subject.case
-        profile = [string]$report.subject.profile
-        board = [string]$report.subject.board
-        active_facets = @($report.subject.active_facets)
+        case = [string]$subjectProjection.case
+        profile = [string]$subjectProjection.profile
+        board = [string]$subjectProjection.board
+        active_facets = @($subjectProjection.active_facets)
         changed = [bool]$comparison.changed
         summary_changes = @($comparison.summary_changes)
         entry_change_count = @($comparison.entry_changes).Count
@@ -8577,6 +8683,7 @@ function New-ComparisonOverviewCaseSummary {
     )
 
     $report = $LoadedReport.Data
+    $subjectProjection = New-ReportSubjectProjection -ReportData $report
     $hasComparison = ($null -ne $report.PSObject.Properties['comparison'] -and $null -ne $report.comparison)
     $systemInputComparison = Get-SystemInputComparisonFromReport -ReportData $report
     $systemFormationComparison = Get-SystemFormationComparisonFromReport -ReportData $report
@@ -8587,9 +8694,9 @@ function New-ComparisonOverviewCaseSummary {
     $factResolutionComparison = Get-FactResolutionComparisonFromReport -ReportData $report
 
     return [pscustomobject][ordered]@{
-        case = [string]$report.subject.case
-        profile = [string]$report.subject.profile
-        board = [string]$report.subject.board
+        case = [string]$subjectProjection.case
+        profile = [string]$subjectProjection.profile
+        board = [string]$subjectProjection.board
         compared = $hasComparison
         compare_status = Get-ComparisonStatus -ReportData $report
         metadata_change_count = [int](Get-MetadataChangeCount -ReportData $report)
@@ -8745,6 +8852,7 @@ function New-CaseSummaryRow {
     )
 
     $report = $LoadedReport.Data
+    $subjectProjection = New-ReportSubjectProjection -ReportData $report
     $systemInputComparison = Get-SystemInputComparisonFromReport -ReportData $report
     $systemFormationComparison = Get-SystemFormationComparisonFromReport -ReportData $report
     $bindingResultComparison = Get-BindingResultComparisonFromReport -ReportData $report
@@ -8753,11 +8861,11 @@ function New-CaseSummaryRow {
     $resourceComparison = Get-ResourceContractComparisonFromReport -ReportData $report
     $factResolutionComparison = Get-FactResolutionComparisonFromReport -ReportData $report
     return [pscustomobject]@{
-        Case = [string]$report.subject.case
+        Case = [string]$subjectProjection.case
         Mode = [string]$report.mode
-        Profile = [string]$report.subject.profile
-        Board = [string]$report.subject.board
-        Facets = Format-StringArray @($report.subject.active_facets)
+        Profile = [string]$subjectProjection.profile
+        Board = [string]$subjectProjection.board
+        Facets = Format-StringArray @($subjectProjection.active_facets)
         Nodes = [int]$report.structure.node_count
         Edges = [int]$report.structure.edge_count
         Unresolved = @($report.structure.unresolved_bindings).Count
@@ -8917,10 +9025,19 @@ if (-not [string]::IsNullOrWhiteSpace($WhyCapability) -and $selectedReports.Coun
 
 if ($ListCases) {
     if ($AsJson) {
-        @($selectedReports | ForEach-Object { [string]$_.Data.subject.case }) | ConvertTo-Json -Depth 2
+        @(
+            $selectedReports |
+                ForEach-Object {
+                    $subjectProjection = New-ReportSubjectProjection -ReportData $_.Data
+                    [string]$subjectProjection.case
+                }
+        ) | ConvertTo-Json -Depth 2
     } else {
         Write-Host "[ARTIFACT ROOT] $artifactRootPath"
-        $selectedReports | ForEach-Object { [string]$_.Data.subject.case }
+        $selectedReports | ForEach-Object {
+            $subjectProjection = New-ReportSubjectProjection -ReportData $_.Data
+            [string]$subjectProjection.case
+        }
     }
     exit 0
 }
@@ -9526,7 +9643,8 @@ if ($BringupEvidence) {
 
     Write-Host "[ARTIFACT ROOT] $artifactRootPath"
     Write-Host "[REPORT] $($loadedReport.Path)"
-    Write-Host "[CASE] $([string]($reportData.subject.case))"
+    $subjectProjection = New-ReportSubjectProjection -ReportData $reportData
+    Write-Host "[CASE] $([string]($subjectProjection.case))"
     Write-Host '[BRINGUP EVIDENCE]'
     Write-Host "declared_count    = $([int]$bringupEvidenceResult.declared_count)"
     Write-Host "materialized_count = $([int]$bringupEvidenceResult.materialized_count)"
@@ -9594,7 +9712,8 @@ if ($RecentTransitions) {
 
     Write-Host "[ARTIFACT ROOT] $artifactRootPath"
     Write-Host "[REPORT] $($loadedReport.Path)"
-    Write-Host "[CASE] $([string]($reportData.subject.case))"
+    $subjectProjection = New-ReportSubjectProjection -ReportData $reportData
+    Write-Host "[CASE] $([string]($subjectProjection.case))"
     Write-Host '[RECENT TRANSITIONS]'
     Write-Host "transition_count = $([int]$recentTransitionsResult.transition_count)"
     if (@($recentTransitionsResult.observed_capabilities).Count -gt 0) {
@@ -9870,7 +9989,8 @@ if ($ResourceSummary) {
 
     Write-Host "[ARTIFACT ROOT] $artifactRootPath"
     Write-Host "[REPORT] $($loadedReport.Path)"
-    Write-Host "[CASE] $([string]($reportData.subject.case))"
+    $subjectProjection = New-ReportSubjectProjection -ReportData $reportData
+    Write-Host "[CASE] $([string]($subjectProjection.case))"
     Write-Host '[RESOURCE SUMMARY]'
     Write-Host "declared_contracts = $([int]$resourceSummaryResult.declared_contracts)"
     Write-Host "audited_count      = $([int]$resourceSummaryResult.audited_count)"
@@ -9973,7 +10093,8 @@ if (-not [string]::IsNullOrWhiteSpace($GraphPath)) {
 
     Write-Host "[ARTIFACT ROOT] $artifactRootPath"
     Write-Host "[REPORT] $($loadedReport.Path)"
-    Write-Host "[CASE] $([string]($reportData.subject.case))"
+    $subjectProjection = New-ReportSubjectProjection -ReportData $reportData
+    Write-Host "[CASE] $([string]($subjectProjection.case))"
     Write-Host "[GRAPH PATH] $GraphPath"
     Write-Host "state = $([string]$graphPathResult.state)"
     Write-Host "availability_state = $([string]$graphPathResult.availability_state)"
@@ -10037,7 +10158,8 @@ if (-not [string]::IsNullOrWhiteSpace($WhyCapability)) {
 
     Write-Host "[ARTIFACT ROOT] $artifactRootPath"
     Write-Host "[REPORT] $($loadedReport.Path)"
-    Write-Host "[CASE] $([string]($reportData.subject.case))"
+    $subjectProjection = New-ReportSubjectProjection -ReportData $reportData
+    Write-Host "[CASE] $([string]($subjectProjection.case))"
     Write-Host "[WHY UNAVAILABLE] $WhyCapability"
     Write-Host "state = $([string]$whyResult.state)"
     if (@($whyResult.reasons).Count -gt 0) {
@@ -10097,7 +10219,8 @@ if ($AsJson) {
 
 Write-Host "[ARTIFACT ROOT] $artifactRootPath"
 Write-Host "[REPORT] $($loadedReport.Path)"
-Write-Host "[CASE] $([string]($reportData.subject.case))"
+$subjectProjection = New-ReportSubjectProjection -ReportData $reportData
+Write-Host "[CASE] $([string]($subjectProjection.case))"
 Write-Host "[MODE] $([string]($reportData.mode))"
 Write-Host ''
 
@@ -10116,6 +10239,7 @@ $summaryRows | Format-List Case, Mode, Profile, Board, Facets, Nodes, Edges, Unr
 
 if ($null -ne $reportData.PSObject.Properties['system_input'] -and $null -ne $reportData.system_input) {
     $systemInput = $reportData.system_input
+    $subjectProjection = New-ReportSubjectProjection -ReportData $reportData
     Write-Host '[INPUT]'
     if ($null -ne $systemInput.PSObject.Properties['system_spec'] -and $null -ne $systemInput.system_spec) {
         Write-Host "case_kind       = $([string]$systemInput.system_spec.case_kind)"
@@ -10136,14 +10260,18 @@ if ($null -ne $reportData.PSObject.Properties['system_input'] -and $null -ne $re
         $declaredInput = $systemInput.declared_input
         if ($null -ne $declaredInput.PSObject.Properties['subject'] -and $null -ne $declaredInput.subject) {
             $declaredSubjectParts = @()
-            if (-not [string]::IsNullOrWhiteSpace([string]$declaredInput.subject.profile)) {
-                $declaredSubjectParts += "profile=$([string]$declaredInput.subject.profile)"
+            $declaredSubject = if ($null -eq $subjectProjection) { $null } else { $subjectProjection.declared }
+            if ($null -eq $declaredSubject) {
+                $declaredSubject = $declaredInput.subject
             }
-            if (-not [string]::IsNullOrWhiteSpace([string]$declaredInput.subject.board)) {
-                $declaredSubjectParts += "board=$([string]$declaredInput.subject.board)"
+            if (-not [string]::IsNullOrWhiteSpace([string]$declaredSubject.profile)) {
+                $declaredSubjectParts += "profile=$([string]$declaredSubject.profile)"
             }
-            if (@($declaredInput.subject.active_facets).Count -gt 0) {
-                $declaredSubjectParts += "facets=$((@($declaredInput.subject.active_facets) -join ', '))"
+            if (-not [string]::IsNullOrWhiteSpace([string]$declaredSubject.board)) {
+                $declaredSubjectParts += "board=$([string]$declaredSubject.board)"
+            }
+            if (@($declaredSubject.active_facets).Count -gt 0) {
+                $declaredSubjectParts += "facets=$((@($declaredSubject.active_facets) -join ', '))"
             }
             if (@($declaredSubjectParts).Count -gt 0) {
                 Write-Host "declared_subject = $((@($declaredSubjectParts) -join '; '))"
@@ -10164,7 +10292,16 @@ if ($null -ne $reportData.PSObject.Properties['system_input'] -and $null -ne $re
         }
     }
     if ($null -ne $systemInput.PSObject.Properties['resolved_input'] -and $null -ne $systemInput.resolved_input) {
-        $resolvedInput = $systemInput.resolved_input
+        $resolvedInput = if ($null -eq $subjectProjection) {
+            $systemInput.resolved_input
+        } else {
+            [pscustomobject][ordered]@{
+                profile = $subjectProjection.resolved.profile
+                board = $subjectProjection.resolved.board
+                active_facets = $subjectProjection.resolved.active_facets
+                subject_facts = @($subjectProjection.subject_facts)
+            }
+        }
         Write-Host "resolved_profile = $(Format-ResolvedScalarInputText -ResolvedInput $resolvedInput.profile)"
         Write-Host "resolved_board   = $(Format-ResolvedScalarInputText -ResolvedInput $resolvedInput.board)"
         Write-Host "resolved_facets  = $(Format-ResolvedFacetInputText -ResolvedInput $resolvedInput.active_facets)"

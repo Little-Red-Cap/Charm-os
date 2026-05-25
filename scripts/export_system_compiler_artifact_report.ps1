@@ -1881,7 +1881,7 @@ function New-ResolvedCaseSubject {
     }
 }
 
-function New-SystemInputSummary {
+function New-SubjectProjectionContext {
     param(
         $CaseEntry,
         $ResolvedCaseSubject
@@ -1892,9 +1892,147 @@ function New-SystemInputSummary {
     } else {
         Get-SubjectInfo -SubjectLike $null
     }
+
+    $resolvedProfile = if ($null -eq $ResolvedCaseSubject) { $null } else { $ResolvedCaseSubject.Profile }
+    $resolvedBoard = if ($null -eq $ResolvedCaseSubject) { $null } else { $ResolvedCaseSubject.Board }
+    $resolvedActiveFacets = if ($null -eq $ResolvedCaseSubject) { @() } else { @($ResolvedCaseSubject.ActiveFacets) }
+    $resolvedProfileSource = if ($null -eq $ResolvedCaseSubject -or $null -eq $ResolvedCaseSubject.ProfileResolution) {
+        'missing'
+    } else {
+        [string]$ResolvedCaseSubject.ProfileResolution.source
+    }
+    $resolvedBoardSource = if ($null -eq $ResolvedCaseSubject -or $null -eq $ResolvedCaseSubject.BoardResolution) {
+        'missing'
+    } else {
+        [string]$ResolvedCaseSubject.BoardResolution.source
+    }
+    $resolvedFacetSource = if ($null -eq $ResolvedCaseSubject -or $null -eq $ResolvedCaseSubject.ActiveFacetResolution) {
+        'missing'
+    } else {
+        [string]$ResolvedCaseSubject.ActiveFacetResolution.source
+    }
+    $subjectFacts = @(
+        Get-SubjectFacts -ProfileValue $resolvedProfile -BoardValue $resolvedBoard -ActiveFacets $resolvedActiveFacets
+    )
+
+    return [pscustomobject][ordered]@{
+        case = if ($null -eq $CaseEntry) { $null } else { [string]$CaseEntry.name }
+        declared = [ordered]@{
+            profile = $declaredSubject.Profile
+            board = $declaredSubject.Board
+            active_facets = @($declaredSubject.ActiveFacets)
+        }
+        resolved = [ordered]@{
+            profile = [ordered]@{
+                value = $resolvedProfile
+                source = $resolvedProfileSource
+            }
+            board = [ordered]@{
+                value = $resolvedBoard
+                source = $resolvedBoardSource
+            }
+            active_facets = [ordered]@{
+                values = @($resolvedActiveFacets)
+                source = $resolvedFacetSource
+            }
+        }
+        subject_facts = @($subjectFacts)
+    }
+}
+
+function New-ArtifactReportSubjectProjection {
+    param(
+        $SubjectProjectionContext
+    )
+
+    if ($null -eq $SubjectProjectionContext) {
+        return [ordered]@{
+            case = $null
+            profile = $null
+            board = $null
+            active_facets = @()
+        }
+    }
+
+    return [ordered]@{
+        case = [string]$SubjectProjectionContext.case
+        profile = $SubjectProjectionContext.resolved.profile.value
+        board = $SubjectProjectionContext.resolved.board.value
+        active_facets = @($SubjectProjectionContext.resolved.active_facets.values)
+    }
+}
+
+function New-SystemInputSubjectProjection {
+    param(
+        $SubjectProjectionContext
+    )
+
+    if ($null -eq $SubjectProjectionContext) {
+        return [ordered]@{
+            declared_input = [ordered]@{
+                subject = [ordered]@{
+                    profile = $null
+                    board = $null
+                    active_facets = @()
+                }
+            }
+            resolved_input = [ordered]@{
+                profile = [ordered]@{
+                    value = $null
+                    source = 'missing'
+                }
+                board = [ordered]@{
+                    value = $null
+                    source = 'missing'
+                }
+                active_facets = [ordered]@{
+                    values = @()
+                    source = 'missing'
+                }
+                subject_facts = @()
+            }
+        }
+    }
+
+    return [ordered]@{
+        declared_input = [ordered]@{
+            subject = [ordered]@{
+                profile = $SubjectProjectionContext.declared.profile
+                board = $SubjectProjectionContext.declared.board
+                active_facets = @($SubjectProjectionContext.declared.active_facets)
+            }
+        }
+        resolved_input = [ordered]@{
+            profile = [ordered]@{
+                value = $SubjectProjectionContext.resolved.profile.value
+                source = [string]$SubjectProjectionContext.resolved.profile.source
+            }
+            board = [ordered]@{
+                value = $SubjectProjectionContext.resolved.board.value
+                source = [string]$SubjectProjectionContext.resolved.board.source
+            }
+            active_facets = [ordered]@{
+                values = @($SubjectProjectionContext.resolved.active_facets.values)
+                source = [string]$SubjectProjectionContext.resolved.active_facets.source
+            }
+            subject_facts = @($SubjectProjectionContext.subject_facts)
+        }
+    }
+}
+
+function New-SystemInputSummary {
+    param(
+        $CaseEntry,
+        $ResolvedCaseSubject,
+        $SubjectProjectionContext
+    )
+
+    if ($null -eq $SubjectProjectionContext) {
+        $SubjectProjectionContext = New-SubjectProjectionContext -CaseEntry $CaseEntry -ResolvedCaseSubject $ResolvedCaseSubject
+    }
     $declaredFacts = @(Get-CaseDeclaredFacts -CaseEntry $CaseEntry)
     $declaredContracts = @(Get-CaseDeclaredContracts -CaseEntry $CaseEntry)
-    $subjectFacts = @(Get-SubjectFacts -ProfileValue $ResolvedCaseSubject.Profile -BoardValue $ResolvedCaseSubject.Board -ActiveFacets $ResolvedCaseSubject.ActiveFacets)
+    $subjectProjection = New-SystemInputSubjectProjection -SubjectProjectionContext $SubjectProjectionContext
 
     return [ordered]@{
         system_spec = [ordered]@{
@@ -1906,29 +2044,11 @@ function New-SystemInputSummary {
             export_target = Get-OptionalCaseEntryString -CaseEntry $CaseEntry -PropertyName 'export_target'
         }
         declared_input = [ordered]@{
-            subject = [ordered]@{
-                profile = $declaredSubject.Profile
-                board = $declaredSubject.Board
-                active_facets = @($declaredSubject.ActiveFacets)
-            }
+            subject = $subjectProjection.declared_input.subject
             declared_facts = @($declaredFacts)
             declared_contract_entries = @($declaredContracts)
         }
-        resolved_input = [ordered]@{
-            profile = [ordered]@{
-                value = $ResolvedCaseSubject.Profile
-                source = [string]$ResolvedCaseSubject.ProfileResolution.source
-            }
-            board = [ordered]@{
-                value = $ResolvedCaseSubject.Board
-                source = [string]$ResolvedCaseSubject.BoardResolution.source
-            }
-            active_facets = [ordered]@{
-                values = @($ResolvedCaseSubject.ActiveFacets)
-                source = [string]$ResolvedCaseSubject.ActiveFacetResolution.source
-            }
-            subject_facts = @($subjectFacts)
-        }
+        resolved_input = $subjectProjection.resolved_input
     }
 }
 
@@ -2663,6 +2783,7 @@ function New-CaseResourceContractSummary {
     }
 
     $resolvedSubject = New-ResolvedCaseSubject -CaseEntry $CaseEntry -ArtifactContext $ArtifactContext
+    $subjectProjectionContext = New-SubjectProjectionContext -CaseEntry $CaseEntry -ResolvedCaseSubject $resolvedSubject
     $caseGraph = Load-CaseGraph -Bundle $Bundle -CaseEntry $CaseEntry
     $runtimeObserveInfo = Load-CaseRuntimeObserve -Bundle $Bundle -CaseEntry $CaseEntry
     $graph = if ($null -ne $caseGraph) { $caseGraph.Data } else { $null }
@@ -2691,7 +2812,7 @@ function New-CaseResourceContractSummary {
         @($runtimeCapabilities) +
         @(Get-CaseDeclaredFacts -CaseEntry $CaseEntry) +
         @($caseAuditProvidedFacts) +
-        @(Get-SubjectFacts -ProfileValue $resolvedSubject.Profile -BoardValue $resolvedSubject.Board -ActiveFacets $resolvedSubject.ActiveFacets) |
+        @($subjectProjectionContext.subject_facts) |
             Sort-Object -Unique
     )
 
@@ -2714,7 +2835,8 @@ function New-CaseFactResolutionSummary {
     }
 
     $resolvedSubject = New-ResolvedCaseSubject -CaseEntry $CaseEntry -ArtifactContext $ArtifactContext
-    $systemInputSummary = New-SystemInputSummary -CaseEntry $CaseEntry -ResolvedCaseSubject $resolvedSubject
+    $subjectProjectionContext = New-SubjectProjectionContext -CaseEntry $CaseEntry -ResolvedCaseSubject $resolvedSubject
+    $systemInputSummary = New-SystemInputSummary -CaseEntry $CaseEntry -ResolvedCaseSubject $resolvedSubject -SubjectProjectionContext $subjectProjectionContext
     $factEvidenceInfo = Get-CaseFactEvidenceInfo -Bundle $Bundle -CaseEntry $CaseEntry
     $caseGraph = Load-CaseGraph -Bundle $Bundle -CaseEntry $CaseEntry
     $runtimeObserveInfo = Load-CaseRuntimeObserve -Bundle $Bundle -CaseEntry $CaseEntry
@@ -2744,7 +2866,7 @@ function New-CaseFactResolutionSummary {
         @($runtimeCapabilities) +
         @(Get-CaseDeclaredFacts -CaseEntry $CaseEntry) +
         @($caseAuditProvidedFacts) +
-        @(Get-SubjectFacts -ProfileValue $resolvedSubject.Profile -BoardValue $resolvedSubject.Board -ActiveFacets $resolvedSubject.ActiveFacets) |
+        @($subjectProjectionContext.subject_facts) |
             Sort-Object -Unique
     )
     $resourceContractSummary = Get-ResourceContractSummary `
@@ -4374,10 +4496,8 @@ function New-ArtifactReport {
     }
 
     $resolvedSubject = New-ResolvedCaseSubject -CaseEntry $CaseEntry -ArtifactContext $ArtifactContext
-    $resolvedProfile = $resolvedSubject.Profile
-    $resolvedBoard = $resolvedSubject.Board
-    $resolvedFacets = @($resolvedSubject.ActiveFacets)
-    $systemInputSummary = New-SystemInputSummary -CaseEntry $CaseEntry -ResolvedCaseSubject $resolvedSubject
+    $subjectProjectionContext = New-SubjectProjectionContext -CaseEntry $CaseEntry -ResolvedCaseSubject $resolvedSubject
+    $systemInputSummary = New-SystemInputSummary -CaseEntry $CaseEntry -ResolvedCaseSubject $resolvedSubject -SubjectProjectionContext $subjectProjectionContext
     $declaredContracts = @(Get-CaseDeclaredContracts -CaseEntry $CaseEntry)
     $caseAuditProvidedFacts = @(Get-CaseAuditProvidedFacts -CaseEntry $CaseEntry)
     $resourceAvailableFacts = @(
@@ -4385,7 +4505,7 @@ function New-ArtifactReport {
         @($runtimeCapabilities) +
         @(Get-CaseDeclaredFacts -CaseEntry $CaseEntry) +
         @($caseAuditProvidedFacts) +
-        @(Get-SubjectFacts -ProfileValue $resolvedProfile -BoardValue $resolvedBoard -ActiveFacets $resolvedFacets)
+        @($subjectProjectionContext.subject_facts)
     ) | Sort-Object -Unique
     $resourceContractSummary = Get-ResourceContractSummary `
         -DeclaredContracts $declaredContracts `
@@ -4406,7 +4526,8 @@ function New-ArtifactReport {
     if ($null -ne $comparison) {
         $baselineCaseEntry = Get-CaseEntryByName -Bundle $ArtifactContext.LeftBundle -CaseName ([string]$CaseEntry.name)
         $baselineResolvedSubject = New-ResolvedCaseSubject -CaseEntry $baselineCaseEntry -ArtifactContext $ArtifactContext
-        $baselineSystemInputSummary = New-SystemInputSummary -CaseEntry $baselineCaseEntry -ResolvedCaseSubject $baselineResolvedSubject
+        $baselineSubjectProjectionContext = New-SubjectProjectionContext -CaseEntry $baselineCaseEntry -ResolvedCaseSubject $baselineResolvedSubject
+        $baselineSystemInputSummary = New-SystemInputSummary -CaseEntry $baselineCaseEntry -ResolvedCaseSubject $baselineResolvedSubject -SubjectProjectionContext $baselineSubjectProjectionContext
         $baselineBindingResultSummary = New-CaseBindingResultSummary -Bundle $ArtifactContext.LeftBundle -CaseEntry $baselineCaseEntry
         $baselineBringupOrderSummary = New-CaseBringupOrderSummary -Bundle $ArtifactContext.LeftBundle -CaseEntry $baselineCaseEntry
         $baselineBringupEvidenceSummary = New-CaseBringupEvidenceSummary -Bundle $ArtifactContext.LeftBundle -CaseEntry $baselineCaseEntry
@@ -4435,12 +4556,7 @@ function New-ArtifactReport {
         generator = 'scripts/export_system_compiler_artifact_report.ps1'
         report_kind = 'system_compiler.artifact_report'
         mode = $ArtifactContext.Mode
-        subject = [ordered]@{
-            case = [string]$CaseEntry.name
-            profile = $resolvedProfile
-            board = $resolvedBoard
-            active_facets = @($resolvedFacets)
-        }
+        subject = New-ArtifactReportSubjectProjection -SubjectProjectionContext $subjectProjectionContext
         system_input = $systemInputSummary
         structure = [ordered]@{
             capability_count = $allCapabilities.Count

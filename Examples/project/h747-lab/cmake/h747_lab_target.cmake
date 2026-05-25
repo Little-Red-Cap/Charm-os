@@ -21,15 +21,25 @@ function(h747_lab_collect_vivid_mcu_modules target_name out_modules out_base_dir
     set(CHARM_ENABLE_UI_INK OFF CACHE BOOL "" FORCE)
     set(CHARM_ENABLE_UI_VIVID ON CACHE BOOL "" FORCE)
     set(CHARM_ENABLE_FREETYPE OFF CACHE BOOL "" FORCE)
-    set(CHARM_VIVID_FEATURESET "MCU_MIN" CACHE STRING "" FORCE)
+    if(DEFINED H747_LAB_VIVID_FEATURESET)
+        set(_h747_vivid_featureset "${H747_LAB_VIVID_FEATURESET}")
+    else()
+        set(_h747_vivid_featureset "MCU_MIN")
+    endif()
+    set(CHARM_VIVID_FEATURESET "${_h747_vivid_featureset}" CACHE STRING "" FORCE)
     set(CHARM_VIVID_SCREEN_WIDTH "720" CACHE STRING "" FORCE)
     set(CHARM_VIVID_SCREEN_HEIGHT "1280" CACHE STRING "" FORCE)
     set(CHARM_VIVID_SCREEN_PIXEL_FORMAT "RGB888" CACHE STRING "" FORCE)
     set(CHARM_VIVID_LAYER_CACHE_SLOTS "1" CACHE STRING "" FORCE)
     set(CHARM_VIVID_LAYER_CACHE_WIDTH "720" CACHE STRING "" FORCE)
     set(CHARM_VIVID_LAYER_CACHE_HEIGHT "1280" CACHE STRING "" FORCE)
-    set(CHARM_VIVID_ENABLE_FLOAT_WIDGETS OFF CACHE BOOL "" FORCE)
-    set(CHARM_VIVID_SOA_MAX_NODES "192" CACHE STRING "" FORCE)
+    if(CHARM_VIVID_FEATURESET STREQUAL "FULL")
+        set(CHARM_VIVID_ENABLE_FLOAT_WIDGETS ON CACHE BOOL "" FORCE)
+        set(CHARM_VIVID_SOA_MAX_NODES "384" CACHE STRING "" FORCE)
+    else()
+        set(CHARM_VIVID_ENABLE_FLOAT_WIDGETS OFF CACHE BOOL "" FORCE)
+        set(CHARM_VIVID_SOA_MAX_NODES "192" CACHE STRING "" FORCE)
+    endif()
 
     include("${CHARM_ROOT}/Modules/ui/vivid/vivid.cmake")
 
@@ -38,7 +48,9 @@ function(h747_lab_collect_vivid_mcu_modules target_name out_modules out_base_dir
         "${CHARM_ROOT}/Modules/gfx/font/typography.cppm"
         "${CHARM_ROOT}/Modules/gfx/font/font_defaults_noto.cppm"
         "${CHARM_ROOT}/Modules/gfx/font/font_noto_ascii_12.cppm"
+        "${CHARM_ROOT}/Modules/gfx/font/font_noto_ascii_16.cppm"
         "${CHARM_ROOT}/Modules/gfx/font/font_noto_sc_12.cppm"
+        "${CHARM_ROOT}/Modules/gfx/font/font_noto_sc_16.cppm"
         "${CHARM_ROOT}/Modules/ui/vivid/core/config.cppm"
         "${CHARM_ROOT}/Modules/ui/vivid/core/geometry.cppm"
         "${CHARM_ROOT}/Modules/ui/vivid/core/handle.cppm"
@@ -58,11 +70,37 @@ function(h747_lab_collect_vivid_mcu_modules target_name out_modules out_base_dir
         "${CHARM_ROOT}/Modules/ui/vivid/gfx/text_box.cppm"
         "${CHARM_ROOT}/Modules/core/alg/alg_arc.cppm"
         "${CHARM_ROOT}/Modules/core/alg/alg_circle.cppm"
+        "${CHARM_ROOT}/Modules/core/alg/alg_color_extract.cppm"
+        "${CHARM_ROOT}/Modules/core/alg/alg_list_scroll.cppm"
         "${CHARM_ROOT}/Modules/core/alg/alg_round_rect.cppm"
+        "${CHARM_ROOT}/Modules/core/alg/alg_scroll.cppm"
+        "${CHARM_ROOT}/Modules/core/alg/alg_scroll_bounds.cppm"
+        "${CHARM_ROOT}/Modules/core/alg/alg_scroll_thumb.cppm"
         "${CHARM_ROOT}/Modules/core/alg/alg_text_layout.cppm"
+        "${CHARM_ROOT}/Modules/core/alg/alg_text_parse.cppm"
+        "${CHARM_ROOT}/Modules/core/alg/alg_text_scroll.cppm"
+        "${CHARM_ROOT}/Modules/core/alg/alg_virtual_list.cppm"
+        "${CHARM_ROOT}/Modules/core/service/fixed_vector.cppm"
+        "${CHARM_ROOT}/Modules/core/service/signal.cppm"
+        "${CHARM_ROOT}/Modules/core/service/state.cppm"
         "${CHARM_ROOT}/Modules/core/service/service_dirty_rects.cppm"
         "${CHARM_ROOT}/Modules/core/util/core.cppm"
+        "${CHARM_ROOT}/Modules/core/util/delegate.cppm"
+        "${CHARM_ROOT}/Modules/ui/common/charm.core.event.cppm"
         "${CHARM_ROOT}/Modules/ui/common/ui.render_backend.cppm")
+
+    if(CHARM_VIVID_FEATURESET STREQUAL "FULL")
+        file(GLOB_RECURSE _full_vivid_modules
+            "${CHARM_ROOT}/Modules/ui/vivid/core/*.cppm"
+            "${CHARM_ROOT}/Modules/ui/vivid/gfx/*.cppm"
+            "${CHARM_ROOT}/Modules/ui/vivid/widgets/*.cppm")
+        list(FILTER _full_vivid_modules EXCLUDE REGEX "/Modules/ui/vivid/font/")
+        list(FILTER _full_vivid_modules EXCLUDE REGEX "/Modules/ui/vivid/charm\\.ui\\.vivid")
+        list(FILTER _full_vivid_modules EXCLUDE REGEX "/Modules/ui/vivid/core/scene_render_detail\\.cppm$")
+        list(FILTER _full_vivid_modules EXCLUDE REGEX "/Modules/ui/vivid/gfx/snapshot\\.cppm$")
+        list(FILTER _full_vivid_modules EXCLUDE REGEX "/Modules/ui/vivid/gfx/display_policy\\.cppm$")
+        list(APPEND _modules ${_full_vivid_modules})
+    endif()
 
     set(_base_dirs "${CHARM_ROOT}/Modules")
     vivid_collect_modules(${target_name} _modules _base_dirs)
@@ -267,7 +305,7 @@ function(h747_lab_add_firmware)
         add_dependencies(${H747_LAB_FW_TARGET} ${H747_LAB_FW_TARGET}_elf_samples)
     endif()
 
-    if(H747_LAB_FW_APP STREQUAL "player_md3")
+    if(H747_LAB_FW_APP STREQUAL "player" OR H747_LAB_FW_APP STREQUAL "player_md3")
         h747_lab_collect_vivid_mcu_modules(
             ${H747_LAB_FW_TARGET}
             _vivid_module_sources
@@ -293,6 +331,7 @@ function(h747_lab_add_firmware)
         ${H747_LAB_COMMON_INCLUDE_DIRS}
         ${_service_include_dirs}
         ${H747_LAB_FW_APP_INCLUDE_DIRS}
+        "${CHARM_ROOT}/Modules/thirdparty/material_color_utils"
         "${CHARM_ROOT}/Modules/io/out"
     )
 

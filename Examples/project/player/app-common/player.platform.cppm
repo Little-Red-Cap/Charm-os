@@ -1,4 +1,5 @@
 module;
+
 #include <array>
 #include <cstddef>
 #include <utility>
@@ -13,55 +14,6 @@ import charm.ui.scene;
 import player.display;
 
 export namespace player {
-    inline constexpr PlayerDisplayPixelFormat default_player_display_pixel_format =
-        []() constexpr noexcept {
-            if constexpr (screen_pixel_format == PixelFormat::RGB565) {
-                return PlayerDisplayPixelFormat::RGB565;
-            } else if constexpr (screen_pixel_format == PixelFormat::ARGB8888) {
-                return PlayerDisplayPixelFormat::ARGB8888;
-            } else {
-                return PlayerDisplayPixelFormat::RGB888;
-            }
-        }();
-
-    inline constexpr PixelFormat to_vivid_pixel_format(PlayerDisplayPixelFormat format) noexcept {
-        switch (format) {
-        case PlayerDisplayPixelFormat::RGB565:
-            return PixelFormat::RGB565;
-        case PlayerDisplayPixelFormat::RGB888:
-            return PixelFormat::RGB888;
-        case PlayerDisplayPixelFormat::ARGB8888:
-            return PixelFormat::ARGB8888;
-        }
-        return PixelFormat::RGB888;
-    }
-
-    inline constexpr PlayerDisplayPixelFormat to_player_display_pixel_format(PixelFormat format) noexcept {
-        switch (format) {
-        case PixelFormat::RGB565:
-            return PlayerDisplayPixelFormat::RGB565;
-        case PixelFormat::RGB888:
-            return PlayerDisplayPixelFormat::RGB888;
-        case PixelFormat::ARGB8888:
-            return PlayerDisplayPixelFormat::ARGB8888;
-        }
-        return PlayerDisplayPixelFormat::RGB888;
-    }
-
-    inline constexpr PlayerDirtyRegion to_player_dirty_region(const Rect& rect) noexcept {
-        return PlayerDirtyRegion{rect.x, rect.y, rect.w, rect.h};
-    }
-
-    inline FrameBufferView to_framebuffer_view(const PlayerDisplaySurface& surface) noexcept {
-        return FrameBufferView{
-            to_vivid_pixel_format(surface.pixel_format),
-            surface.pixels,
-            static_cast<std::size_t>(surface.width > 0 ? surface.width : 0),
-            static_cast<std::size_t>(surface.height > 0 ? surface.height : 0),
-            surface.stride_bytes,
-        };
-    }
-
     class PlayerOwnedDisplayBuffer {
     public:
         static constexpr PlayerDisplayPixelFormat pixel_format = default_player_display_pixel_format;
@@ -87,15 +39,6 @@ export namespace player {
     };
 
     struct PlayerPlatform {
-        PlayerPlatform() noexcept
-            : surface_storage(default_owned_surface()),
-              canvas(surface_storage.pixels,
-                     surface_storage.width,
-                     surface_storage.height,
-                     to_vivid_pixel_format(surface_storage.pixel_format),
-                     surface_storage.stride_bytes),
-              scene(canvas) {}
-
         explicit PlayerPlatform(PlayerDisplaySurface surface) noexcept
             : surface_storage(surface),
               canvas(surface_storage.pixels,
@@ -131,11 +74,6 @@ export namespace player {
         FrameBufferView framebuffer_view() const noexcept { return to_framebuffer_view(surface_storage); }
 
     private:
-        static PlayerDisplaySurface default_owned_surface() noexcept {
-            static PlayerOwnedDisplayBuffer buffer{};
-            return buffer.surface();
-        }
-
         PlayerDisplaySurface surface_storage{};
         RuntimeCanvas canvas;
         ::ui::scene::Scene scene;

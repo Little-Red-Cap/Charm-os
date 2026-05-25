@@ -12,11 +12,15 @@ import player.fixed_string;
 import fs_block;
 import fs_core;
 import fs_errno;
+#if defined(CHARM_PLAYER_ENABLE_FATFS_STORAGE) && CHARM_PLAYER_ENABLE_FATFS_STORAGE
 import fs_fatfs;
+#endif
 import fs_stream;
 import fs_vfs;
 import player.fs_utils;
+import player.host_features;
 import player.media_scan;
+import player.product_config;
 
 export namespace player {
     using TrackLabel = FixedString<192>;
@@ -58,6 +62,7 @@ export namespace player {
         StorageConfig g_storage_config{};
         fs::BlockDevice* g_sd_device{nullptr};
 
+#if defined(CHARM_PLAYER_ENABLE_FATFS_STORAGE) && CHARM_PLAYER_ENABLE_FATFS_STORAGE
         fs::Status mount_fatfs_from_sd(const char*) {
             if (!g_sd_device) return fs::Status{fs::Errc::nosys};
             static fs::FatFsMount fat;
@@ -67,13 +72,17 @@ export namespace player {
             (void)fs::add_mount("/", fat.mount_point());
             return fs::Status{fs::Errc::ok};
         }
+#else
+        fs::Status mount_fatfs_from_sd(const char*) {
+            return fs::Status{fs::Errc::nosys};
+        }
+#endif
 
         StorageConfig default_storage_config() {
-#if defined(_WIN32)
-            return StorageConfig{&fs_utils::mount_fatfs_from_vhd, "G:/Project/dev.vhd"};
-#else
+            if constexpr (host_features::host_storage) {
+                return StorageConfig{&fs_utils::mount_fatfs_from_vhd, product_config::host_default_vhd_path};
+            }
             return StorageConfig{&mount_fatfs_from_sd, nullptr};
-#endif
         }
     }
 
@@ -89,23 +98,30 @@ export namespace player {
         detail::g_sd_device = dev;
     }
 
-    TrackScanResult scan_tracks_default() {
+    template <typename ScanResult>
+    void scan_tracks_default_into(ScanResult& out) {
         StorageConfig cfg = detail::g_storage_config;
         if (!cfg.mount) {
             cfg = detail::default_storage_config();
         }
-        return scan_tracks(cfg.mount, cfg.path);
+        scan_tracks_into(out, cfg.mount, cfg.path);
+    }
+
+    TrackScanResult scan_tracks_default() {
+        TrackScanResult out{};
+        scan_tracks_default_into(out);
+        return out;
+    }
+
+    void scan_storage_into(StorageState& out) {
+        out = {};
+        scan_tracks_default_into(out);
+        out.labels_ready = false;
     }
 
     StorageState scan_storage() {
-        auto scan = scan_tracks_default();
         StorageState out{};
-        out.fs_ready = scan.fs_ready;
-        out.has_tracks = scan.has_tracks;
-        out.status.assign(scan.status.c_str());
-        out.mount_status.assign(scan.mount_status.c_str());
-        out.tracks = scan.tracks;
-        out.labels_ready = false;
+        scan_storage_into(out);
         return out;
     }
 

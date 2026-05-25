@@ -5,6 +5,10 @@ module;
 
 export module player.display;
 
+import charm.core.config;
+import charm.core.geometry;
+import charm.gfx.framebuffer;
+
 export namespace player {
     enum class PlayerDisplayPixelFormat : std::uint8_t {
         RGB565,
@@ -31,11 +35,11 @@ export namespace player {
     inline constexpr std::size_t player_display_bytes_per_pixel(PlayerDisplayPixelFormat format) noexcept {
         switch (format) {
         case PlayerDisplayPixelFormat::RGB565:
-            return 2;
+            return PixelTraits<PixelFormat::RGB565>::bytes_per_pixel;
         case PlayerDisplayPixelFormat::RGB888:
-            return 3;
+            return PixelTraits<PixelFormat::RGB888>::bytes_per_pixel;
         case PlayerDisplayPixelFormat::ARGB8888:
-            return 4;
+            return PixelTraits<PixelFormat::ARGB8888>::bytes_per_pixel;
         }
         return 0;
     }
@@ -81,6 +85,41 @@ export namespace player {
         PlayerDisplaySurface last_surface{};
     };
 
+    inline constexpr PlayerDisplayPixelFormat default_player_display_pixel_format =
+        []() constexpr noexcept {
+            if constexpr (screen_pixel_format == PixelFormat::RGB565) {
+                return PlayerDisplayPixelFormat::RGB565;
+            } else if constexpr (screen_pixel_format == PixelFormat::ARGB8888) {
+                return PlayerDisplayPixelFormat::ARGB8888;
+            } else {
+                return PlayerDisplayPixelFormat::RGB888;
+            }
+        }();
+
+    inline constexpr PixelFormat to_vivid_pixel_format(PlayerDisplayPixelFormat format) noexcept {
+        switch (format) {
+        case PlayerDisplayPixelFormat::RGB565:
+            return PixelFormat::RGB565;
+        case PlayerDisplayPixelFormat::RGB888:
+            return PixelFormat::RGB888;
+        case PlayerDisplayPixelFormat::ARGB8888:
+            return PixelFormat::ARGB8888;
+        }
+        return PixelFormat::RGB888;
+    }
+
+    inline constexpr PlayerDisplayPixelFormat to_player_display_pixel_format(PixelFormat format) noexcept {
+        switch (format) {
+        case PixelFormat::RGB565:
+            return PlayerDisplayPixelFormat::RGB565;
+        case PixelFormat::RGB888:
+            return PlayerDisplayPixelFormat::RGB888;
+        case PixelFormat::ARGB8888:
+            return PlayerDisplayPixelFormat::ARGB8888;
+        }
+        return PlayerDisplayPixelFormat::RGB888;
+    }
+
     inline constexpr PlayerDirtyRegion full_player_dirty_region(const PlayerDisplaySurface& surface) noexcept {
         return PlayerDirtyRegion{0, 0, surface.width, surface.height};
     }
@@ -100,6 +139,20 @@ export namespace player {
             return {};
         }
         return PlayerDirtyRegion{x0, y0, x1 - x0, y1 - y0};
+    }
+
+    inline constexpr PlayerDirtyRegion to_player_dirty_region(const Rect& rect) noexcept {
+        return PlayerDirtyRegion{rect.x, rect.y, rect.w, rect.h};
+    }
+
+    inline FrameBufferView to_framebuffer_view(const PlayerDisplaySurface& surface) noexcept {
+        return FrameBufferView{
+            to_vivid_pixel_format(surface.pixel_format),
+            surface.pixels,
+            static_cast<std::size_t>(surface.width > 0 ? surface.width : 0),
+            static_cast<std::size_t>(surface.height > 0 ? surface.height : 0),
+            surface.stride_bytes,
+        };
     }
 
     inline bool memory_display_present(void* ctx,

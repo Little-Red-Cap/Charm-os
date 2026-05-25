@@ -18,6 +18,13 @@ import audio.source.file;
 #endif
 import media.stream.source;
 
+#ifndef CHARM_AUDIO_ENABLE_FLAC
+#define CHARM_AUDIO_ENABLE_FLAC 1
+#endif
+#ifndef CHARM_AUDIO_ENABLE_MP3
+#define CHARM_AUDIO_ENABLE_MP3 1
+#endif
+
 namespace {
     bool ends_with_icase(const char* text, const char* suffix) {
         if (!text || !suffix) return false;
@@ -45,9 +52,9 @@ export namespace player {
         if (!src.open(path)) return false;
         auto ref = media::make_stream_source_ref(src);
         audio::SourceKind kind = audio::SourceKind::wav;
-        if (ends_with_icase(path, ".flac")) {
+        if (CHARM_AUDIO_ENABLE_FLAC && ends_with_icase(path, ".flac")) {
             kind = audio::SourceKind::flac;
-        } else if (ends_with_icase(path, ".mp3")) {
+        } else if (CHARM_AUDIO_ENABLE_MP3 && ends_with_icase(path, ".mp3")) {
             kind = audio::SourceKind::mp3;
         } else if (ends_with_icase(path, ".wav")) {
             kind = audio::SourceKind::wav;
@@ -60,11 +67,11 @@ export namespace player {
                 const auto b1 = static_cast<unsigned char>(header[1]);
                 const auto b2 = static_cast<unsigned char>(header[2]);
                 const auto b3 = static_cast<unsigned char>(header[3]);
-                if (b0 == 'f' && b1 == 'L' && b2 == 'a' && b3 == 'C') {
+                if (CHARM_AUDIO_ENABLE_FLAC && b0 == 'f' && b1 == 'L' && b2 == 'a' && b3 == 'C') {
                     kind = audio::SourceKind::flac;
-                } else if (b0 == 'I' && b1 == 'D' && b2 == '3') {
+                } else if (CHARM_AUDIO_ENABLE_MP3 && b0 == 'I' && b1 == 'D' && b2 == '3') {
                     kind = audio::SourceKind::mp3;
-                } else if (b0 == 0xFF && (b1 & 0xE0) == 0xE0) {
+                } else if (CHARM_AUDIO_ENABLE_MP3 && b0 == 0xFF && (b1 & 0xE0) == 0xE0) {
                     kind = audio::SourceKind::mp3;
                 } else if (read && *read >= 12) {
                     const auto b8 = static_cast<unsigned char>(header[8]);

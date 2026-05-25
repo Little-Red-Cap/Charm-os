@@ -154,9 +154,8 @@ export namespace player {
         state.last_id = sample.id;
         state.initialized = true;
 
-        return PlayerInputEvent::make_pointer(
-            sample.ms,
-            action,
-            PlayerPointerSample{sample.down, sample.x, sample.y, sample.id});
+        return PlayerInputEvent::make_pointer(sample.ms,
+                                              action,
+                                              PlayerPointerSample{sample.down, sample.x, sample.y, sample.id});
     }
 }

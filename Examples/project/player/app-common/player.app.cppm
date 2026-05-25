@@ -1,41 +1,46 @@
 module;
 
 #include <cstdint>
-#include <string>
-#include <vector>
 
 export module player.app;
 
-import player.mcu_policy;
 import audio.player;
 import audio.result;
-import charm.core.event;
 import charm.system.clock;
+import player.fixed_string;
 import player.input;
+import player.product_config;
 import player.storage;
 import player.ui;
 import player.ui_builder;
+import charm.core.event;
 import charm.ui.scene;
 import input.raw_event;
 import ui.input_adapter;
 
-inline constexpr bool kPlayerAppMcuGuard =
-    (player::mcu_policy::guard("player.app uses std::string/std::vector; port before MCU build."), true);
-
 export namespace player {
+    struct FontResourceConfig {
+        FixedString<260> primary_path{};
+        FixedString<260> fallback_path{};
+        int small_px{product_config::default_font_small_px};
+        int normal_px{product_config::default_font_normal_px};
+        int large_px{product_config::default_font_large_px};
+        bool file_backed{false};
+
+        bool has_file_resource() const noexcept {
+            return file_backed && !primary_path.empty();
+        }
+    };
+
     struct AppConfig {
         audio::PlayerConfig player_config{};
-        std::string ttf_path{};
-        std::string ttf_fallback_path{};
-        int ttf_small_px{14};
-        int ttf_normal_px{18};
-        int ttf_large_px{76};
+        FontResourceConfig font_resources{};
     };
 
     class App {
     public:
         App(AppConfig config, charm::system::Clock& clock)
-            : config_(std::move(config)),
+            : config_(config),
               player_(config_.player_config, clock) {}
 
         audio::Result<void> play(const char* path) { return player_.play(path); }
@@ -55,8 +60,8 @@ export namespace player {
         audio::AudioPlayer& player() noexcept { return player_; }
         const audio::AudioPlayer& player() const noexcept { return player_; }
 
-        StorageState scan_storage() {
-            last_storage_ = player::scan_storage();
+        const StorageState& scan_storage() {
+            player::scan_storage_into(last_storage_);
             return last_storage_;
         }
 
@@ -103,34 +108,35 @@ export namespace player {
 
         template <typename Controller>
         void bind_ui(::ui::scene::SceneBuilder& builder, Controller& controller) {
-            if (!config_.ttf_path.empty()) {
+            const auto& font = config_.font_resources;
+            if (font.has_file_resource()) {
                 if constexpr (requires {
-                                  controller.set_font_config(config_.ttf_path,
-                                                             config_.ttf_fallback_path,
-                                                             config_.ttf_small_px,
-                                                             config_.ttf_normal_px,
-                                                             config_.ttf_large_px);
+                                  controller.set_font_config(font.primary_path.view(),
+                                                             font.fallback_path.view(),
+                                                             font.small_px,
+                                                             font.normal_px,
+                                                             font.large_px);
                               }) {
-                    controller.set_font_config(config_.ttf_path,
-                                               config_.ttf_fallback_path,
-                                               config_.ttf_small_px,
-                                               config_.ttf_normal_px,
-                                               config_.ttf_large_px);
+                    controller.set_font_config(font.primary_path.view(),
+                                               font.fallback_path.view(),
+                                               font.small_px,
+                                               font.normal_px,
+                                               font.large_px);
                 } else if constexpr (requires {
-                                         controller.set_font_config(config_.ttf_path,
-                                                                    config_.ttf_small_px,
-                                                                    config_.ttf_normal_px,
-                                                                    config_.ttf_large_px);
+                                         controller.set_font_config(font.primary_path.view(),
+                                                                    font.small_px,
+                                                                    font.normal_px,
+                                                                    font.large_px);
                                      }) {
-                    controller.set_font_config(config_.ttf_path,
-                                               config_.ttf_small_px,
-                                               config_.ttf_normal_px,
-                                               config_.ttf_large_px);
+                    controller.set_font_config(font.primary_path.view(),
+                                               font.small_px,
+                                               font.normal_px,
+                                               font.large_px);
                 }
             }
-            apply_player_theme();
-            controller.icons = register_player_icons();
-            controller.handles = build_ui(builder, controller, controller.icons);
+            player::ui::apply_player_theme();
+            controller.icons = player::ui::register_player_icons();
+            controller.handles = player::build_ui(builder, controller, controller.icons);
             controller.init_text_slots();
             controller.init_pages();
             if constexpr (requires { controller.refresh_exact_font_styles(); }) {

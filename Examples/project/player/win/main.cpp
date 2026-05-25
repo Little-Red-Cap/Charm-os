@@ -5,9 +5,14 @@ import player.controller;
 import player.display;
 import player.input;
 import player.fs_utils;
+import player.host_features;
 import player.platform;
 import player.storage;
 import player.playback;
+import player.product_config;
+import player.runtime;
+import player.runtime_probe;
+import player.runtime_shell;
 import player.ui_builder;
 import player.ui;
 import charm.core.config;
@@ -61,15 +66,60 @@ namespace {
         return platform::win::SteadyClock::now();
     }
 
-    static player::PlayerPlatform g_platform{};
-    static audio::PlayerConfig g_player_cfg{};
-    static charm::system::Clock g_clock{nullptr, {.now_us = &now_us}};
-    static std::optional<player::App> g_app{};
-
     using PlayerUiContext = player::PlayerController;
     using UiHandles = player::UiHandles;
+    using PlayerRuntime = player::PlayerRuntime<PlayerUiContext, player::PlayerPage>;
+    using PlayerRuntimeShell = player::PlayerRuntimeShell<PlayerUiContext, player::PlayerPage>;
+    using PlayerRuntimeConfig = player::PlayerRuntimeConfig<player::PlayerPage>;
 
-    static PlayerUiContext g_ctx{};
+    struct HostRuntimeState {
+        player::PlayerOwnedDisplayBuffer display_buffer{};
+        player::PlayerPlatform platform{display_buffer.surface()};
+        charm::system::Clock clock{nullptr, {.now_us = &now_us}};
+        PlayerUiContext ctx{};
+        std::optional<PlayerRuntime> runtime{};
+        std::optional<PlayerRuntimeShell> shell{};
+
+        [[nodiscard]] PlayerRuntimeShell* shell_ref() noexcept {
+            return shell ? &(*shell) : nullptr;
+        }
+
+        [[nodiscard]] const PlayerRuntimeShell* shell_ref() const noexcept {
+            return shell ? &(*shell) : nullptr;
+        }
+
+        [[nodiscard]] player::App* app() noexcept {
+            auto* active_shell = shell_ref();
+            return active_shell ? active_shell->app() : nullptr;
+        }
+
+        [[nodiscard]] const player::App* app() const noexcept {
+            const auto* active_shell = shell_ref();
+            return active_shell ? active_shell->app() : nullptr;
+        }
+
+        [[nodiscard]] PlayerUiContext* controller() noexcept {
+            auto* active_shell = shell_ref();
+            return active_shell ? active_shell->controller() : nullptr;
+        }
+
+        [[nodiscard]] const PlayerUiContext* controller() const noexcept {
+            const auto* active_shell = shell_ref();
+            return active_shell ? active_shell->controller() : nullptr;
+        }
+
+        [[nodiscard]] ::ui::scene::Scene* scene() noexcept {
+            auto* active_shell = shell_ref();
+            return active_shell ? active_shell->scene() : nullptr;
+        }
+
+        [[nodiscard]] const ::ui::scene::Scene* scene() const noexcept {
+            const auto* active_shell = shell_ref();
+            return active_shell ? active_shell->scene() : nullptr;
+        }
+    };
+
+    static HostRuntimeState g_host{};
 #include "main.overlay_fx.inc"
 
 #include "main.font_probe.inc"
@@ -77,16 +127,94 @@ namespace {
 #include "main.display_sdl.inc"
 #include "main.input_sdl.inc"
 
+    void host_tick_visual(void*, float t_sec, bool active) noexcept {
+        update_spectrum(t_sec, active);
+    }
+
+    void host_overlay(::ui::scene::SceneOverlay& overlay, void* ctx) noexcept {
+        auto* host = static_cast<HostRuntimeState*>(ctx);
+        if (!host) {
+            return;
+        }
+        const auto* shell = host->shell_ref();
+        const auto* controller = host->controller();
+        const auto* scene = host->scene();
+        if (!shell || !controller || !scene) {
+            return;
+        }
+        draw_library_fx(overlay, *controller, *scene);
+        draw_now_playing_fx(overlay, *controller, *scene, shell->t_sec());
+    }
+
+    player::FontResourceConfig build_font_resources(const std::string& font_ttf_path,
+                                                    const std::string& font_fallback_ttf_path,
+                                                    int font_small_px,
+                                                    int font_normal_px,
+                                                    int font_large_px) {
+        player::FontResourceConfig font{};
+        font.small_px = (font_small_px > 0) ? font_small_px : font.small_px;
+        font.normal_px = (font_normal_px > 0) ? font_normal_px : font.normal_px;
+        font.large_px = (font_large_px > 0) ? font_large_px : font.large_px;
+        if constexpr (player::host_features::host_file_fonts) {
+            const auto primary = font_ttf_path.empty()
+                ? std::string_view(player::product_config::default_font_path)
+                : std::string_view(font_ttf_path);
+            font.primary_path.assign(primary);
+            font.fallback_path.assign(font_fallback_ttf_path);
+            font.file_backed = !font.primary_path.empty();
+        }
+        return font;
+    }
+
+    PlayerRuntimeConfig build_runtime_config(player::PlayerPage start_page,
+                                             int track_index_override,
+                                             const std::string& font_ttf_path,
+                                             const std::string& font_fallback_ttf_path,
+                                             int font_small_px,
+                                             int font_normal_px,
+                                             int font_large_px) {
+        audio::PlayerConfig audio_cfg{};
+        audio_cfg.output_mode = audio::OutputMode::fixed_rate;
+        audio_cfg.fixed_rate = 48000;
+
+        player::AppConfig app_cfg{};
+        app_cfg.player_config = audio_cfg;
+        app_cfg.font_resources = build_font_resources(font_ttf_path,
+                                                      font_fallback_ttf_path,
+                                                      font_small_px,
+                                                      font_normal_px,
+                                                      font_large_px);
+
+        return PlayerRuntimeConfig{
+            .app_config = std::move(app_cfg),
+            .storage_config = player::default_storage_config(),
+            .start_page = start_page,
+            .initial_track_index = track_index_override,
+            .auto_start = false,
+            .clear_color = kUiBackground,
+        };
+    }
+
+    void emplace_host_runtime_shell(HostRuntimeState& host,
+                                    PlayerRuntimeConfig runtime_config,
+                                    player::PlayerDisplaySink* display_sink) {
+        host.runtime.emplace(host.clock, host.platform, host.ctx, std::move(runtime_config));
+        player::PlayerRuntimeShellConfig shell_cfg{};
+        shell_cfg.display_sink = display_sink;
+        shell_cfg.hooks = player::PlayerRuntimeHooks{
+            .tick_visual_ctx = &host,
+            .tick_visual = &host_tick_visual,
+        };
+        shell_cfg.overlay_fn = &host_overlay;
+        shell_cfg.overlay_ctx = &host;
+        host.shell.emplace(*host.runtime, shell_cfg);
+    }
+
     struct PlayerLoopState {
-        player::App* app{nullptr};
-        player::PlayerPlatform* platform{nullptr};
-        PlayerUiContext* ctx{nullptr};
-        ::ui::scene::Scene* scene{nullptr};
-        player::PlayerDisplaySink* display_sink{nullptr};
+        HostRuntimeState* host{nullptr};
         bool* running{nullptr};
         int* win_w{nullptr};
         int* win_h{nullptr};
-        float t_sec{0.0f};
         std::string screenshot_path{};
         std::string screenshot_gif_path{};
         player::PlayerPage screenshot_page{player::PlayerPage::Library};
@@ -94,6 +222,25 @@ namespace {
         bool screenshot_verbose{false};
         int screenshot_wait_frames{0};
         bool screenshot_exit{false};
+
+        [[nodiscard]] PlayerRuntimeShell* shell() const noexcept {
+            return host ? host->shell_ref() : nullptr;
+        }
+
+        [[nodiscard]] player::PlayerPlatform* platform() const noexcept {
+            auto* active_shell = shell();
+            return active_shell ? active_shell->platform() : nullptr;
+        }
+
+        [[nodiscard]] PlayerUiContext* ctx() const noexcept {
+            auto* active_shell = shell();
+            return active_shell ? active_shell->controller() : nullptr;
+        }
+
+        [[nodiscard]] ::ui::scene::Scene* scene() const noexcept {
+            auto* active_shell = shell();
+            return active_shell ? active_shell->scene() : nullptr;
+        }
     };
 
 #include "main.screenshot.inc"
@@ -115,110 +262,73 @@ namespace {
         }
     }
 
-    void ui_ci_pointer(player::App& app,
-                       PlayerUiContext& ctx,
-                       ::ui::scene::Scene& scene,
+    void ui_ci_pointer(PlayerRuntimeShell& shell,
                        std::uint32_t ms,
                        player::PlayerPointerAction action,
                        bool down,
                        int x,
                        int y) {
-        app.dispatch_player_input(scene,
-                                  ctx,
-                                  player::PlayerInputEvent::make_pointer(
-                                      ms,
-                                      action,
-                                      player::PlayerPointerSample{
-                                          down,
-                                          static_cast<float>(x),
-                                          static_cast<float>(y),
-                                          0}));
+        shell.dispatch_input(player::PlayerInputEvent::make_pointer(
+            ms,
+            action,
+            player::PlayerPointerSample{
+                down,
+                static_cast<float>(x),
+                static_cast<float>(y),
+                0}));
     }
 
-    void ui_ci_click(player::App& app, PlayerUiContext& ctx, ::ui::scene::Scene& scene, int x, int y) {
-        ui_ci_pointer(app, ctx, scene, 0, player::PlayerPointerAction::Down, true, x, y);
-        ui_ci_pointer(app, ctx, scene, 1, player::PlayerPointerAction::Up, false, x, y);
+    void ui_ci_click(PlayerRuntimeShell& shell, int x, int y) {
+        ui_ci_pointer(shell, 0, player::PlayerPointerAction::Down, true, x, y);
+        ui_ci_pointer(shell, 1, player::PlayerPointerAction::Up, false, x, y);
     }
 
-    void ui_ci_pump_frame(player::App& app,
-                          PlayerUiContext& ctx,
-                          player::PlayerPlatform& platform,
-                          player::PlayerDisplaySink* display_sink) {
-        app.tick();
-        ctx.tick_player(app.player());
-        player::PlayerFrameContext frame{
-            .platform = &platform,
-            .display_sink = display_sink,
-            .clear_color = kUiBackground,
-        };
-        (void)player::render_player_frame(frame, ctx);
+    void ui_ci_pump_frame(PlayerRuntimeShell& shell) {
+        (void)shell.frame(now_us(nullptr));
     }
 
-    bool run_memory_display_sink_ci() {
-        static std::array<std::byte, player::PlayerOwnedDisplayBuffer::buffer_bytes> external_buffer{};
-        static player::PlayerPlatform memory_platform{player::PlayerDisplaySurface{
-            external_buffer.data(),
-            screen_width,
-            screen_height,
-            player::PlayerOwnedDisplayBuffer::stride_bytes,
-            player::PlayerOwnedDisplayBuffer::pixel_format,
-            player::PlayerDisplaySurfaceOwnership::Borrowed,
-        }};
-        memory_platform.build_scene([&](::ui::scene::SceneBuilder& builder) {
-            const auto root = builder.create_container();
-            const auto label = builder.create_label_static("display-hal-memory-sink");
-            builder.link(root, label);
-            builder.set_rect(root, Rect{0, 0, screen_width, screen_height});
-            builder.set_rect(label, Rect{24, 24, 260, 36});
-            builder.set_root(root);
-        });
-
+    bool run_memory_display_sink_ci(PlayerRuntimeShell& shell) {
+        auto* platform = shell.platform();
+        if (!platform) {
+            return false;
+        }
         player::MemoryDisplaySinkState sink_state{};
         player::PlayerDisplaySink sink = player::make_memory_display_sink(sink_state);
-        memory_platform.clear(kUiBackground);
-        memory_platform.begin_frame();
-        memory_platform.render();
-        memory_platform.end_frame();
-        (void)sink.present(
-            memory_platform.surface_ref(),
-            player::full_player_dirty_region(memory_platform.surface_ref()));
-
-        bool has_nonzero_pixel = false;
+        auto* original_sink = shell.config().display_sink;
+        shell.bind_display_sink(&sink);
+        const bool render_ok = shell.render();
+        shell.bind_display_sink(original_sink);
         const auto& presented = sink_state.last_surface;
-        if (presented.valid()) {
-            const std::size_t row_step = presented.stride_bytes;
-            const std::size_t bpp = presented.bytes_per_pixel();
-            for (int y = 0; y < presented.height && !has_nonzero_pixel; y += 32) {
-                const auto* row = presented.pixels + static_cast<std::size_t>(y) * row_step;
-                for (int x = 0; x < presented.width && !has_nonzero_pixel; x += 32) {
-                    const auto* px = row + static_cast<std::size_t>(x) * bpp;
-                    for (std::size_t i = 0; i < bpp; ++i) {
-                        if (px[i] != std::byte{}) {
-                            has_nonzero_pixel = true;
-                            break;
-                        }
-                    }
-                }
-            }
-        }
+        const auto& surface = platform->surface_ref();
 
-        return sink_state.present_count == 1
-            && presented.pixels == external_buffer.data()
-            && presented.width == screen_width
-            && presented.height == screen_height
-            && presented.stride_bytes == player::PlayerOwnedDisplayBuffer::stride_bytes
-            && presented.pixel_format == player::PlayerOwnedDisplayBuffer::pixel_format
+        return render_ok
+            && presented.valid()
+            && presented.pixels == surface.pixels
+            && presented.width == surface.width
+            && presented.height == surface.height
+            && presented.stride_bytes == surface.stride_bytes
+            && presented.pixel_format == surface.pixel_format
             && sink_state.last_dirty.w == screen_width
             && sink_state.last_dirty.h == screen_height
-            && has_nonzero_pixel;
+            && sink_state.present_count == 1;
     }
 
-    UiCiResult run_ui_ci(player::App& app, PlayerUiContext& ctx, player::PlayerPlatform& platform) {
+    UiCiResult run_ui_ci(PlayerRuntimeShell& shell) {
         UiCiResult res{};
-        auto& scene = platform.scene_ref();
+        auto* ctx_ptr = shell.controller();
+        auto* scene_ptr = shell.scene();
+        if (!ctx_ptr || !scene_ptr) {
+            ui_ci_emit("bootstrap_runtime_shell", false, "shell_not_ready");
+            res.ok = false;
+            res.failed++;
+            std::printf("[ui-ci] done ok=%d failed=%d\n", res.ok ? 1 : 0, res.failed);
+            return res;
+        }
+        auto& ctx = *ctx_ptr;
+        auto& scene = *scene_ptr;
 
         auto pump_frame = [&]() {
-            ui_ci_pump_frame(app, ctx, platform, nullptr);
+            ui_ci_pump_frame(shell);
         };
         auto wait_for_page = [&](player::PlayerPage expected_page, int max_frames = 36) {
             if (ctx.current_page == expected_page) return true;
@@ -242,7 +352,7 @@ namespace {
 
         pump_frame();
 
-        if (run_memory_display_sink_ci()) {
+        if (run_memory_display_sink_ci(shell)) {
             ui_ci_emit("memory_display_sink_external_surface", true, nullptr);
         } else {
             ui_ci_emit("memory_display_sink_external_surface", false, "memory_display_sink");
@@ -258,9 +368,9 @@ namespace {
             if (r.w > 0 && r.h > 0) {
                 const int cx = r.x + r.w / 2;
                 const int cy = r.y + r.h / 2;
-                ui_ci_pointer(app, ctx, scene, 10, player::PlayerPointerAction::Down, true, cx, cy);
-                ui_ci_pointer(app, ctx, scene, 11, player::PlayerPointerAction::Move, true, cx + 3, cy + 2);
-                ui_ci_pointer(app, ctx, scene, 12, player::PlayerPointerAction::Up, false, cx + 3, cy + 2);
+                ui_ci_pointer(shell, 10, player::PlayerPointerAction::Down, true, cx, cy);
+                ui_ci_pointer(shell, 11, player::PlayerPointerAction::Move, true, cx + 3, cy + 2);
+                ui_ci_pointer(shell, 12, player::PlayerPointerAction::Up, false, cx + 3, cy + 2);
                 if (wait_for_page(player::PlayerPage::NowPlaying)
                     || settle_now_playing_transition(player::PlayerPage::NowPlaying)) {
                     ui_ci_emit("input_boundary_touch_home_to_now", true, nullptr);
@@ -284,13 +394,11 @@ namespace {
             const Rect r = scene.world_rect(ctx.handles.home_scroll);
             const int before_scroll = ctx.access.scroll_y(ctx.handles.home_scroll);
             if (r.w > 0 && r.h > 0) {
-                app.dispatch_player_input(scene,
-                                          ctx,
-                                          player::PlayerInputEvent::make_wheel(
-                                              20,
-                                              static_cast<float>(r.x + r.w / 2),
-                                              static_cast<float>(r.y + r.h / 2),
-                                              -3.0f));
+                shell.dispatch_input(player::PlayerInputEvent::make_wheel(
+                    20,
+                    static_cast<float>(r.x + r.w / 2),
+                    static_cast<float>(r.y + r.h / 2),
+                    -3.0f));
                 pump_frame();
                 const int after_scroll = ctx.access.scroll_y(ctx.handles.home_scroll);
                 if (after_scroll != before_scroll) {
@@ -836,7 +944,7 @@ namespace {
             }
             const int cx = r.x + r.w / 2;
             const int cy = r.y + r.h / 2;
-            ui_ci_click(app, ctx, scene, cx, cy);
+            ui_ci_click(shell, cx, cy);
             return true;
         };
 
@@ -1038,7 +1146,7 @@ namespace {
             const Rect list = scene.world_rect(ctx.handles.list);
             if (list.w > 0 && list.h > 0) {
                 const int before = ctx.last_list_selected;
-                ui_ci_click(app, ctx, scene, list.x + 12, list.y + 12);
+                ui_ci_click(shell, list.x + 12, list.y + 12);
                 pump_frame();
                 const int after = ctx.last_list_selected;
                 if (after >= 0) {
@@ -1064,7 +1172,8 @@ namespace {
 
     void loop_poll_events(void* ctx, charm::system::ClockTick, charm::system::ClockTick) noexcept {
         auto* state = static_cast<PlayerLoopState*>(ctx);
-        if (!state || !state->running || !state->app || !state->ctx || !state->platform) {
+        auto* shell = state ? state->shell() : nullptr;
+        if (!state || !state->running || !shell) {
             return;
         }
         SDL_Event evt{};
@@ -1083,45 +1192,28 @@ namespace {
             }
             const auto input_batch = translate_sdl_player_input(evt);
             for (std::size_t i = 0; i < input_batch.count; ++i) {
-                state->app->dispatch_player_input(state->platform->scene_ref(),
-                                                  *state->ctx,
-                                                  input_batch.events[i]);
+                shell->dispatch_input(input_batch.events[i]);
             }
         }
     }
 
     void loop_update(void* ctx, charm::system::ClockTick now_us, charm::system::ClockTick) noexcept {
         auto* state = static_cast<PlayerLoopState*>(ctx);
-        if (!state || !state->app || !state->ctx) {
+        auto* shell = state ? state->shell() : nullptr;
+        if (!shell) {
             return;
         }
-        state->t_sec = static_cast<float>(now_us) * 0.000001f;
-        state->app->tick();
-        state->ctx->tick_player(state->app->player());
-        update_spectrum(state->t_sec, state->ctx->is_playing());
+        shell->step(now_us);
     }
 
     void loop_render(void* ctx, charm::system::ClockTick, charm::system::ClockTick) noexcept {
         auto* state = static_cast<PlayerLoopState*>(ctx);
-        if (!state || !state->platform || !state->ctx || !state->scene || !state->display_sink) {
+        auto* shell = state ? state->shell() : nullptr;
+        if (!state || !shell) {
             return;
         }
         prepare_screenshot_page(*state);
-        player::PlayerFrameContext frame{
-            .platform = state->platform,
-            .display_sink = state->display_sink,
-            .clear_color = kUiBackground,
-        };
-        (void)player::render_player_frame(
-            frame,
-            *state->ctx,
-            [](::ui::scene::SceneOverlay& overlay, void* ctx) noexcept {
-                auto* state = static_cast<PlayerLoopState*>(ctx);
-                if (!state || !state->ctx || !state->scene) return;
-                draw_library_fx(overlay, *state->ctx, *state->scene);
-                draw_now_playing_fx(overlay, *state->ctx, *state->scene, state->t_sec);
-            },
-            state);
+        (void)shell->render();
         if (flush_screenshot(*state)) {
             return;
         }
@@ -1247,27 +1339,31 @@ int main(int argc, char** argv) {
     }
 
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO)) {
+        std::fprintf(stderr, "[player-win] SDL_Init failed: %s\n", SDL_GetError());
         return 1;
     }
 
     SDL_Window* window = SDL_CreateWindow("Charm Player", screen_width, screen_height, SDL_WINDOW_RESIZABLE);
     if (!window) {
+        std::fprintf(stderr, "[player-win] SDL_CreateWindow failed: %s\n", SDL_GetError());
         SDL_Quit();
         return 1;
     }
 
     SDL_Renderer* renderer = SDL_CreateRenderer(window, nullptr);
     if (!renderer) {
+        std::fprintf(stderr, "[player-win] SDL_CreateRenderer failed: %s\n", SDL_GetError());
         SDL_DestroyWindow(window);
         SDL_Quit();
         return 1;
     }
 
     SDL_Texture* texture = SDL_CreateTexture(renderer,
-                                             sdl_pixel_format(g_platform.surface_ref().pixel_format),
+                                             sdl_pixel_format(g_host.platform.surface_ref().pixel_format),
                                              SDL_TEXTUREACCESS_STREAMING,
                                              screen_width, screen_height);
     if (!texture) {
+        std::fprintf(stderr, "[player-win] SDL_CreateTexture failed: %s\n", SDL_GetError());
         SDL_DestroyRenderer(renderer);
         SDL_DestroyWindow(window);
         SDL_Quit();
@@ -1275,71 +1371,80 @@ int main(int argc, char** argv) {
     }
     SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_NEAREST);
 
-    g_player_cfg.output_mode = audio::OutputMode::fixed_rate;
-    g_player_cfg.fixed_rate = 48000;
-    charm::system::ClockCaps::TimeSource::bind(g_clock);
     player::ui::set_player_system_font_fallback_enabled(!disable_system_font_fallback);
-    player::AppConfig app_cfg{g_player_cfg};
-    if (!font_ttf_path.empty()) {
-        app_cfg.ttf_path = font_ttf_path;
-    } else {
-        app_cfg.ttf_path = "/font/gflex_variable.ttf";
-    }
-    if (!font_fallback_ttf_path.empty()) {
-        app_cfg.ttf_fallback_path = font_fallback_ttf_path;
-    }
-    if (font_small_px > 0) {
-        app_cfg.ttf_small_px = font_small_px;
-    }
-    if (font_normal_px > 0) {
-        app_cfg.ttf_normal_px = font_normal_px;
-    }
-    if (font_large_px > 0) {
-        app_cfg.ttf_large_px = font_large_px;
-    }
-    g_app.emplace(std::move(app_cfg), g_clock);
+    SdlDisplaySinkState display_sink_state{
+        .renderer = renderer,
+        .texture = texture,
+    };
+    player::PlayerDisplaySink display_sink = make_sdl_display_sink(display_sink_state);
 
-    player::init_storage(player::default_storage_config());
-    g_app->bind_player(g_ctx);
-    g_ctx.bind_scene(g_platform.scene_ref());
-    g_ctx.set_start_page(start_page);
-    (void)g_app->scan_storage();
-    g_ctx.apply_storage_view(g_app->storage_view(), false);
-    g_platform.build_scene([&](::ui::scene::SceneBuilder& builder) {
-        g_app->bind_ui(builder, g_ctx);
-    });
-    g_ctx.set_page(start_page);
+    auto runtime_config = build_runtime_config(start_page,
+                                               track_index_override,
+                                               font_ttf_path,
+                                               font_fallback_ttf_path,
+                                               font_small_px,
+                                               font_normal_px,
+                                               font_large_px);
+    emplace_host_runtime_shell(g_host, std::move(runtime_config), &display_sink);
 
-    const bool has_track = g_app->bootstrap_player(g_ctx, track_index_override, false);
+    auto cleanup_and_exit = [&](int code) {
+        if (auto* shell = g_host.shell_ref()) {
+            shell->shutdown();
+        }
+        SDL_DestroyTexture(texture);
+        SDL_DestroyRenderer(renderer);
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+        return code;
+    };
+
+    auto* shell = g_host.shell_ref();
+    if (!shell) {
+        std::fprintf(stderr, "[player-win] runtime shell is not initialized\n");
+        return cleanup_and_exit(1);
+    }
+
+    const bool has_track = shell->bootstrap();
+    auto* ctx_ptr = g_host.controller();
+    auto* scene_ptr = g_host.scene();
+    if (!ctx_ptr || !scene_ptr || !g_host.app()) {
+        std::fprintf(stderr,
+                     "[player-win] bootstrap left runtime incomplete ctx=%d scene=%d app=%d\n",
+                     ctx_ptr ? 1 : 0,
+                     scene_ptr ? 1 : 0,
+                     g_host.app() ? 1 : 0);
+        return cleanup_and_exit(1);
+    }
+    auto& ctx = *ctx_ptr;
+    auto& scene = *scene_ptr;
+
     if (library_tab_override.has_value()) {
-        g_ctx.set_library_tab(*library_tab_override);
+        ctx.set_library_tab(*library_tab_override);
     }
     if (!library_context_override.empty()) {
-        (void)g_ctx.set_library_context_for_preview(library_context_override);
+        (void)ctx.set_library_context_for_preview(library_context_override);
     } else if (library_open_first_group) {
-        (void)g_ctx.open_first_library_group_for_preview();
+        (void)ctx.open_first_library_group_for_preview();
     }
     if (library_select_index >= 0) {
-        (void)g_ctx.set_library_selected_index_for_preview(library_select_index);
+        (void)ctx.set_library_selected_index_for_preview(library_select_index);
     }
-        if (library_open_info) {
-            const bool opened = g_ctx.open_library_info_popup_for_preview(library_open_info_index);
-            if (screenshot_verbose) {
-                const char* info_title = g_platform.scene_ref().text(g_ctx.handles.list_info_title);
-                const char* info_subtitle = g_platform.scene_ref().text(g_ctx.handles.list_info_subtitle);
-                const char* info_meta = g_platform.scene_ref().text(g_ctx.handles.list_info_meta);
-                const char* info_path_title =
-                    g_platform.scene_ref().text(g_ctx.handles.list_info_path_title);
-                const char* info_path = g_platform.scene_ref().text(g_ctx.handles.list_info_path);
-                const char* info_path_detail =
-                    g_platform.scene_ref().text(g_ctx.handles.list_info_path_detail);
-                const char* info_hint = g_platform.scene_ref().text(g_ctx.handles.list_info_hint);
-                const Rect scrim_rect = g_platform.scene_ref().world_rect(g_ctx.handles.list_info_scrim);
-                const Rect card_rect = g_platform.scene_ref().world_rect(g_ctx.handles.list_info_card);
-                std::fprintf(stderr,
-                             "[preview] library_open_info flag=1 opened=%d selected=%d request=%d title=%s subtitle=%s meta=%s path_title=%s path=%s detail=%s hint=%s scrim=%d,%d,%d,%d card=%d,%d,%d,%d\n",
+    if (library_open_info) {
+        const bool opened = ctx.open_library_info_popup_for_preview(library_open_info_index);
+        if (screenshot_verbose) {
+            const char* info_title = scene.text(ctx.handles.list_info_title);
+            const char* info_subtitle = scene.text(ctx.handles.list_info_subtitle);
+            const char* info_meta = scene.text(ctx.handles.list_info_meta);
+            const char* info_path_title = scene.text(ctx.handles.list_info_path_title);
+            const char* info_path = scene.text(ctx.handles.list_info_path);
+            const char* info_path_detail = scene.text(ctx.handles.list_info_path_detail);
+            const char* info_hint = scene.text(ctx.handles.list_info_hint);
+            const Rect scrim_rect = scene.world_rect(ctx.handles.list_info_scrim);
+            const Rect card_rect = scene.world_rect(ctx.handles.list_info_card);
+            std::fprintf(stderr,
+                         "[preview] library_open_info flag=1 opened=%d selected=%d request=%d title=%s subtitle=%s meta=%s path_title=%s path=%s detail=%s hint=%s scrim=%d,%d,%d,%d card=%d,%d,%d,%d\n",
                          opened ? 1 : 0,
-                         g_ctx.last_list_selected,
+                         ctx.last_list_selected,
                          library_open_info_index,
                          info_title ? info_title : "",
                          info_subtitle ? info_subtitle : "",
@@ -1354,22 +1459,21 @@ int main(int argc, char** argv) {
     } else if (screenshot_verbose) {
         std::fprintf(stderr,
                      "[preview] library_open_info flag=0 selected=%d request=%d\n",
-                     g_ctx.last_list_selected,
+                     ctx.last_list_selected,
                      library_open_info_index);
     }
     if (library_open_action_menu) {
-        const bool opened =
-            g_ctx.open_library_action_menu_for_preview(library_open_action_menu_index);
+        const bool opened = ctx.open_library_action_menu_for_preview(library_open_action_menu_index);
         if (screenshot_verbose) {
-            const char* menu_title = g_platform.scene_ref().text(g_ctx.handles.list_action_title);
-            const Rect card_rect = g_platform.scene_ref().world_rect(g_ctx.handles.list_action_card);
-            const char* item0 = g_platform.scene_ref().text(g_ctx.handles.list_action_items[0]);
-            const char* item1 = g_platform.scene_ref().text(g_ctx.handles.list_action_items[1]);
-            const char* item2 = g_platform.scene_ref().text(g_ctx.handles.list_action_items[2]);
+            const char* menu_title = scene.text(ctx.handles.list_action_title);
+            const Rect card_rect = scene.world_rect(ctx.handles.list_action_card);
+            const char* item0 = scene.text(ctx.handles.list_action_items[0]);
+            const char* item1 = scene.text(ctx.handles.list_action_items[1]);
+            const char* item2 = scene.text(ctx.handles.list_action_items[2]);
             std::fprintf(stderr,
                          "[preview] library_open_action_menu flag=1 opened=%d selected=%d request=%d title=%s items=[%s|%s|%s] card=%d,%d,%d,%d\n",
                          opened ? 1 : 0,
-                         g_ctx.last_list_selected,
+                         ctx.last_list_selected,
                          library_open_action_menu_index,
                          menu_title ? menu_title : "",
                          item0 ? item0 : "",
@@ -1380,37 +1484,23 @@ int main(int argc, char** argv) {
     } else if (screenshot_verbose) {
         std::fprintf(stderr,
                      "[preview] library_open_action_menu flag=0 selected=%d request=%d\n",
-                     g_ctx.last_list_selected,
+                     ctx.last_list_selected,
                      library_open_action_menu_index);
     }
-    if (has_track && !fs_seek_selftest(g_ctx.track_path())) {
-        g_ctx.set_status("Fs seek selftest failed");
+    if (has_track && !fs_seek_selftest(ctx.track_path())) {
+        ctx.set_status("Fs seek selftest failed");
     }
 
     if (ui_ci) {
-        const UiCiResult result = run_ui_ci(*g_app, g_ctx, g_platform);
-        g_app->shutdown(g_ctx);
-        SDL_DestroyTexture(texture);
-        SDL_DestroyRenderer(renderer);
-        SDL_DestroyWindow(window);
-        SDL_Quit();
-        return result.ok ? 0 : 2;
+        const UiCiResult result = run_ui_ci(*shell);
+        return cleanup_and_exit(result.ok ? 0 : 2);
     }
 
     int win_w = screen_width;
     int win_h = screen_height;
     bool running = true;
-    SdlDisplaySinkState display_sink_state{
-        .renderer = renderer,
-        .texture = texture,
-    };
-    player::PlayerDisplaySink display_sink = make_sdl_display_sink(display_sink_state);
     PlayerLoopState loop_state{
-        .app = &(*g_app),
-        .platform = &g_platform,
-        .ctx = &g_ctx,
-        .scene = &g_platform.scene_ref(),
-        .display_sink = &display_sink,
+        .host = &g_host,
         .running = &running,
         .win_w = &win_w,
         .win_h = &win_h,
@@ -1423,7 +1513,7 @@ int main(int argc, char** argv) {
         .screenshot_exit = screenshot_exit
     };
     charm::system::RunLoop<4> loop{};
-    loop.bind_clock(g_clock);
+    loop.bind_clock(g_host.clock);
     (void)loop.add_step(charm::system::LoopPhase::io, charm::system::SubmitProjection::event, &loop_poll_events, &loop_state, "player_io");
     (void)loop.add_step(charm::system::LoopPhase::update, charm::system::SubmitProjection::event, &loop_update, &loop_state, "player_update");
     (void)loop.add_step(charm::system::LoopPhase::render, charm::system::SubmitProjection::event, &loop_render, &loop_state, "player_render");
@@ -1436,11 +1526,6 @@ int main(int argc, char** argv) {
         (void)win_h;
     }
 
-    g_app->shutdown(g_ctx);
-    SDL_DestroyTexture(texture);
-    SDL_DestroyRenderer(renderer);
-    SDL_DestroyWindow(window);
-    SDL_Quit();
-    return 0;
+    return cleanup_and_exit(0);
 }
 

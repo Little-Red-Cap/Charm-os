@@ -12,7 +12,6 @@ set(H747_LAB_COMMON_INCLUDE_DIRS
     "${H747_LAB_ROOT}/runtime"
     "${H747_LAB_ROOT}/board/h747_diy/port"
     "${H747_LAB_ROOT}/board/h747_diy/world"
-    "${CHARM_ROOT}/Examples/posix/elf_samples"
     "${DRAFT_CM7_ROOT}/Core/Inc"
     "${DRAFT_ROOT}/Common/Inc"
     "${HAL_ROOT}/Inc"
@@ -73,6 +72,7 @@ set(H747_LAB_BOARD_SOURCES
 set(H747_LAB_RUNTIME_SOURCES
     "${H747_LAB_ROOT}/runtime/foundation.cpp"
     "${H747_LAB_ROOT}/runtime/main.cpp"
+    "${H747_LAB_ROOT}/runtime/newlib_time_stub.c"
 )
 
 set(H747_LAB_MODULE_SOURCES

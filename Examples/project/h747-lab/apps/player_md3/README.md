@@ -1,18 +1,22 @@
-# H747 Lab Player MD3 Probe
+# H747 Lab Player MD3
 
-This app is a Vivid/DrawCmd display probe, not the Player product migration
-mainline.
+This app is the first real MD3 Player-on-H747 bridge. It instantiates the
+shared `Examples/project/player/app-vivid-MaterialDesign3` controller/pages
+through `PlayerRuntime<PlayerController, PlayerPage>` and presents the result
+through the H747 raster framebuffer service.
 
-It exists to exercise a small no-SDL/no-FreeType drawing path on the H747 raster
-framebuffer. It does not instantiate the Windows MD3 Player controller, pages,
-input model, cover pipeline, storage model, or transition behavior.
+The app-local bridge owns only board/runtime assembly:
 
-The product migration mainline is:
+- initialize after `power`, `memory`, and `display_raster` services are ready;
+- carve an explicit SDRAM1 render/runtime pool after the raster framebuffer
+  pool;
+- bind `PlayerPlatform` to that external render surface;
+- drive the shared `PlayerRuntime` through `PlayerRuntimeShell`;
+- render the real MD3 scene into `PlayerRasterDisplaySink`;
+- keep host-only storage, cover decode, and file fonts disabled.
 
-- keep `Examples/project/player/app-vivid-MaterialDesign3` as the visual and
-  behavior source of truth;
-- extract platform seams in `Examples/project/player/app-common`;
-- adapt H747 display/input/storage/font/cover providers in app-local bridge
-  code;
-- avoid treating this static probe as proof that the MD3 Player has been
-  ported.
+This target is not a replacement design and must not return to a hand-drawn
+mock/probe path. The source of truth for visual behavior remains
+`Examples/project/player/app-vivid-MaterialDesign3`; H747 only supplies board
+providers and fallback seams until storage, cover, font, and input providers are
+connected.

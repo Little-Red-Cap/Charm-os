@@ -167,10 +167,12 @@ public:
                 return true;
             }
         } else if (e.type == Event::Type::MouseUp) {
+            if (!dragging_) return false;
             dragging_ = false;
             if (velocity_ != 0 && (velocity_ * velocity_) < drag_threshold_sq_) velocity_ = 0;
             return true;
         } else if (e.type == Event::Type::DragEnd) {
+            if (!dragging_) return false;
             dragging_ = false;
             if (velocity_ != 0 && (velocity_ * velocity_) < drag_threshold_sq_) velocity_ = 0;
             return true;

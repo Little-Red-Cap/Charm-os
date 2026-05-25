@@ -21,3 +21,20 @@ mock/probe path. The source of truth for visual behavior remains
 `Examples/project/player/app-vivid-MaterialDesign3`; H747 only supplies board
 providers and fallback seams until storage, cover, and font providers are
 connected.
+
+## Board Smoke Evidence
+
+Serial status lines are the acceptance evidence for this bridge. A healthy
+loop line should contain:
+
+- `real_md3=1 mock=0`
+- `smoke=1/11111`
+- `delta=<frames>/<presents>` with non-zero values on loop status lines
+- `frames=<n>` and `present=<n>` increasing across loop status lines
+- `content=<bg>:<non_bg>@<min>-<max>` with non-zero content pixels
+- `exec_fail=0`, `co=0`, and `to=0`
+
+`smoke=1/11111` means boot, render, present, content, and scene execution are
+all green for the current sample window. This is intentionally app-local
+evidence: it proves this target is running the real shared MD3 Player runtime,
+not the old hand-drawn probe path.

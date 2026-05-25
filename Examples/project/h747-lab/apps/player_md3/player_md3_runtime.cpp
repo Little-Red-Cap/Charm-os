@@ -2,6 +2,7 @@
 #include "display_raster.h"
 #include "stm32h7xx_hal.h"
 #include "player_md3_runtime.hpp"
+#include "player_md3_console.hpp"
 #include "player_md3_diag.hpp"
 #include "player_md3_input.hpp"
 #include "player_md3_memory.hpp"
@@ -215,6 +216,7 @@ bool render_frame() noexcept {
     if (ok) {
         ++state().frames;
     }
+    update_smoke_verdict();
     return ok;
 }
 
@@ -254,12 +256,14 @@ void init_runtime() noexcept {
     h747::console::write_line(st.last_render_ok ? "player_md3: first render ok"
                                                 : "player_md3: first render failed");
     print_status("player_md3");
+    init_console_bridge();
 }
 
 void loop_runtime() noexcept {
     if (!state().runtime_bootstrapped) {
         return;
     }
+    poll_console_bridge();
     poll_input_bridge();
     (void)render_frame();
     maybe_print_loop_status();

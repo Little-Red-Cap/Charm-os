@@ -3,6 +3,7 @@ include("${H747_LAB_ROOT}/cmake/h747_lab_player_md3_manifest.cmake")
 set(H747_LAB_APP_SOURCES
     "${H747_LAB_ROOT}/apps/player_md3/player_md3.cpp"
     "${H747_LAB_ROOT}/apps/player_md3/player_md3_runtime.cpp"
+    "${H747_LAB_ROOT}/apps/player_md3/player_md3_console.cpp"
     "${H747_LAB_ROOT}/apps/player_md3/player_md3_input.cpp"
     "${H747_LAB_ROOT}/apps/player_md3/player_md3_memory.cpp"
     "${H747_LAB_ROOT}/apps/player_md3/player_md3_diag.cpp")

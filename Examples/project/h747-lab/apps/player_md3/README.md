@@ -38,3 +38,6 @@ loop line should contain:
 all green for the current sample window. This is intentionally app-local
 evidence: it proves this target is running the real shared MD3 Player runtime,
 not the old hand-drawn probe path.
+
+The full board collection checklist and failure triage live in
+`../../docs/h747_lab_player_md3_smoke.md`.

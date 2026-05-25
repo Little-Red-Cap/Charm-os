@@ -106,6 +106,7 @@ export namespace net {
     using IoResult = Result<util::usize>;
     using EventMask = util::u32;
     using StreamSendFn = IoResult (*)(void* ctx, ByteView data) noexcept;
+    using NetErrorFn = void (*)(void* ctx, errc error) noexcept;
 
     constexpr IoResult ok(util::usize n) noexcept {
         return IoResult{std::in_place, n};
@@ -168,6 +169,61 @@ export namespace net {
         }
 
         StreamSendFn send_{nullptr};
+        void* ctx_{nullptr};
+    };
+
+    class NetErrorHandlerRef {
+    public:
+        constexpr NetErrorHandlerRef() noexcept = default;
+
+        static constexpr NetErrorHandlerRef raw(NetErrorFn handler, void* ctx) noexcept {
+            return NetErrorHandlerRef{handler, ctx};
+        }
+
+        template <typename Handler>
+            requires(
+                requires(Handler& value, errc error) {
+                    { value.on_error(error) } noexcept -> std::same_as<void>;
+                } ||
+                requires(Handler& value, errc error) {
+                    { value(error) } noexcept -> std::same_as<void>;
+                })
+        static constexpr NetErrorHandlerRef bind(Handler& handler) noexcept {
+            return NetErrorHandlerRef{&invoke<Handler>, &handler};
+        }
+
+        [[nodiscard]] constexpr explicit operator bool() const noexcept {
+            return handler_ != nullptr;
+        }
+
+        void notify(errc error) const noexcept {
+            if (handler_) {
+                handler_(ctx_, error);
+            }
+        }
+
+    private:
+        constexpr NetErrorHandlerRef(NetErrorFn handler, void* ctx) noexcept
+            : handler_(handler),
+              ctx_(ctx) {
+        }
+
+        template <typename Handler>
+        static void invoke(void* ctx, errc error) noexcept {
+            auto* handler = static_cast<Handler*>(ctx);
+            if (!handler) {
+                return;
+            }
+            if constexpr (requires(Handler& value, errc e) {
+                              { value.on_error(e) } noexcept -> std::same_as<void>;
+                          }) {
+                handler->on_error(error);
+            } else {
+                (*handler)(error);
+            }
+        }
+
+        NetErrorFn handler_{nullptr};
         void* ctx_{nullptr};
     };
 

@@ -27,7 +27,7 @@ export namespace net {
                                    util::u16 request_id,
                                    util::u8 opcode,
                                    ByteView payload) noexcept;
-        using ErrorFn = void (*)(void* ctx, errc error) noexcept;
+        using ErrorFn = NetErrorFn;
 
         void set_sender(StreamSenderRef sender = {}) noexcept {
             frame_.set_sender(sender);
@@ -42,9 +42,12 @@ export namespace net {
             request_ctx_ = ctx;
         }
 
+        void set_error_handler(NetErrorHandlerRef handler = {}) noexcept {
+            error_ = handler;
+        }
+
         void set_error_handler(ErrorFn fn, void* ctx) noexcept {
-            error_ = fn;
-            error_ctx_ = ctx;
+            set_error_handler(NetErrorHandlerRef::raw(fn, ctx));
         }
 
         void reset() noexcept {
@@ -393,9 +396,7 @@ export namespace net {
         }
 
         void notify_error(errc error) noexcept {
-            if (error_) {
-                error_(error_ctx_, error);
-            }
+            error_.notify(error);
         }
 
         WireSession frame_{};
@@ -404,8 +405,7 @@ export namespace net {
         util::usize next_ignored_{0};
         RequestFn request_{nullptr};
         void* request_ctx_{nullptr};
-        ErrorFn error_{nullptr};
-        void* error_ctx_{nullptr};
+        NetErrorHandlerRef error_{};
         util::u16 next_request_id_{1};
         errc last_error_{errc::ok};
         errc transport_error_{errc::ok};

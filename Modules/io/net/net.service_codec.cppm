@@ -66,7 +66,7 @@ export namespace net {
     class TypedServiceSession {
     public:
         using Service = ServiceSession<MaxPayload, MaxPending, MaxRoutes, MaxDeferred>;
-        using ErrorFn = void (*)(void* ctx, errc error) noexcept;
+        using ErrorFn = NetErrorFn;
 
         template <ServiceOperation Op>
         using ResponseFn = void (*)(void* ctx,
@@ -90,16 +90,25 @@ export namespace net {
                                          const typename Op::Request& request) noexcept;
 
         TypedServiceSession() {
-            service_.set_error_handler(&TypedServiceSession::on_service_error_trampoline, this);
+            service_.set_error_handler(NetErrorHandlerRef::raw(
+                &TypedServiceSession::on_service_error_trampoline,
+                this));
+        }
+
+        void set_sender(StreamSenderRef sender = {}) noexcept {
+            service_.set_sender(sender);
         }
 
         void set_sender(FrameSendFn fn, void* ctx) noexcept {
-            service_.set_sender(fn, ctx);
+            set_sender(StreamSenderRef::raw(fn, ctx));
+        }
+
+        void set_error_handler(NetErrorHandlerRef handler = {}) noexcept {
+            error_ = handler;
         }
 
         void set_error_handler(ErrorFn fn, void* ctx) noexcept {
-            error_ = fn;
-            error_ctx_ = ctx;
+            set_error_handler(NetErrorHandlerRef::raw(fn, ctx));
         }
 
         void reset() noexcept {
@@ -626,16 +635,13 @@ export namespace net {
 
         void notify_error(errc error) noexcept {
             last_error_ = error;
-            if (error_) {
-                error_(error_ctx_, error);
-            }
+            error_.notify(error);
         }
 
         Service service_{};
         std::array<RouteBinding, MaxRoutes> bindings_{};
         std::array<PendingCall, MaxPending> pending_{};
-        ErrorFn error_{nullptr};
-        void* error_ctx_{nullptr};
+        NetErrorHandlerRef error_{};
         errc last_error_{errc::ok};
     };
 }

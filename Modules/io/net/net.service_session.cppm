@@ -58,20 +58,29 @@ export namespace net {
         using TimeoutFn = void (*)(void* ctx,
                                    util::u16 request_id,
                                    util::u8 opcode) noexcept;
-        using ErrorFn = void (*)(void* ctx, errc error) noexcept;
+        using ErrorFn = NetErrorFn;
 
         ServiceSession() {
             request_.set_request_handler(&ServiceSession::on_request_trampoline, this);
-            request_.set_error_handler(&ServiceSession::on_request_error_trampoline, this);
+            request_.set_error_handler(NetErrorHandlerRef::raw(
+                &ServiceSession::on_request_error_trampoline,
+                this));
+        }
+
+        void set_sender(StreamSenderRef sender = {}) noexcept {
+            request_.set_sender(sender);
         }
 
         void set_sender(FrameSendFn fn, void* ctx) noexcept {
-            request_.set_sender(fn, ctx);
+            set_sender(StreamSenderRef::raw(fn, ctx));
+        }
+
+        void set_error_handler(NetErrorHandlerRef handler = {}) noexcept {
+            error_ = handler;
         }
 
         void set_error_handler(ErrorFn fn, void* ctx) noexcept {
-            error_ = fn;
-            error_ctx_ = ctx;
+            set_error_handler(NetErrorHandlerRef::raw(fn, ctx));
         }
 
         void reset() noexcept {
@@ -599,17 +608,14 @@ export namespace net {
         }
 
         void notify_error(errc error) noexcept {
-            if (error_) {
-                error_(error_ctx_, error);
-            }
+            error_.notify(error);
         }
 
         WireSession request_{};
         std::array<RouteEntry, MaxRoutes> routes_{};
         std::array<PendingResponse, MaxPending> responses_{};
         std::array<DeferredReply, MaxDeferred> deferred_{};
-        ErrorFn error_{nullptr};
-        void* error_ctx_{nullptr};
+        NetErrorHandlerRef error_{};
         errc last_error_{errc::ok};
     };
 }

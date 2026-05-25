@@ -12,7 +12,7 @@ import util.expected;
 
 export namespace net::icmp::trace {
     using SendFn = net::IcmpControlSendFn;
-    using ErrorFn = void (*)(void*, errc) noexcept;
+    using ErrorFn = NetErrorFn;
 
     struct ProbeTicket {
         IcmpEchoInfo info{};
@@ -157,14 +157,20 @@ export namespace net::icmp::trace {
         Probe(Probe&&) = delete;
         Probe& operator=(Probe&&) = delete;
 
+        void set_sender(IcmpControlSenderRef sender = {}) noexcept {
+            sender_ = sender;
+        }
+
         void set_sender(SendFn fn, void* ctx) noexcept {
-            sender_ = fn;
-            sender_ctx_ = ctx;
+            set_sender(IcmpControlSenderRef::raw(fn, ctx));
+        }
+
+        void set_error_handler(NetErrorHandlerRef handler = {}) noexcept {
+            error_ = handler;
         }
 
         void set_error_handler(ErrorFn fn, void* ctx = nullptr) noexcept {
-            error_fn_ = fn;
-            error_ctx_ = ctx;
+            set_error_handler(NetErrorHandlerRef::raw(fn, ctx));
         }
 
         void configure(IpAddress local, IpAddress peer) noexcept {
@@ -403,7 +409,7 @@ export namespace net::icmp::trace {
                 report_error(errc::invalid_arg);
                 return util::unexpected(errc::invalid_arg);
             }
-            if (!configured_ || sender_ == nullptr) {
+            if (!configured_ || !sender_) {
                 report_error(errc::bad_state);
                 return util::unexpected(errc::bad_state);
             }
@@ -417,8 +423,7 @@ export namespace net::icmp::trace {
             auto ticket = next_ticket();
             ticket.ttl = ttl;
 
-            auto sent = sender_(
-                sender_ctx_,
+            auto sent = sender_.send(
                 local_,
                 peer_,
                 IcmpType::echo_request,
@@ -690,19 +695,15 @@ export namespace net::icmp::trace {
 
         void report_error(errc error) noexcept {
             last_error_ = error;
-            if (error_fn_ != nullptr) {
-                error_fn_(error_ctx_, error);
-            }
+            error_.notify(error);
         }
 
         IpAddress local_{};
         IpAddress peer_{};
         bool configured_{false};
         bool pending_{false};
-        SendFn sender_{nullptr};
-        void* sender_ctx_{nullptr};
-        ErrorFn error_fn_{nullptr};
-        void* error_ctx_{nullptr};
+        IcmpControlSenderRef sender_{};
+        NetErrorHandlerRef error_{};
         std::array<IgnoredEcho, kMaxIgnored> ignored_{};
         util::usize next_ignored_{0};
         std::array<util::u8, MaxPayload> reply_payload_{};

@@ -3,6 +3,16 @@
 本文不是最终冻结的 JSON Schema，也不是新的导出脚本实现说明。  
 它用于定义 Charm 在 `system compiler v0` 阶段的最小统一报告对象：`artifact report`。
 
+当前这条链已经识别出一批重复事实税：
+
+- 同一组系统事实同时出现在 schema、summary schema、导出脚本与 inspect / explain 面
+- 后续第一轮统一目标不是“减少多少代码”，而是以受控投影收拢这些重复事实
+
+相关体检与试点入口见：
+
+- `artifact_report_projection_tax_review_v0.md`
+- `artifact_report_projection_pilot_v0.md`
+
 当前 schema 草案与最小机器可验样例见：
 
 - `schemas/system_compiler.artifact_report.v0.schema.json`

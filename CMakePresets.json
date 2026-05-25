@@ -21,9 +21,9 @@
       "hidden": true,
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/out/build/aarch64-baremetal",
+      "toolchainFile": "${fileDir}/cmake/toolchains/aarch64-none-elf-gcc.cmake",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_TOOLCHAIN_FILE": "${fileDir}/cmake/toolchains/aarch64-none-elf-gcc.cmake",
         "CHARM_TARGET_ARCH": "aarch64",
         "CHARM_TARGET_PLATFORM": "qemu_virt",
         "CHARM_BAREMETAL": "ON",
@@ -42,9 +42,9 @@
       "hidden": true,
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/out/build/arm-none-eabi",
+      "toolchainFile": "${fileDir}/cmake/toolchains/arm-none-eabi-gcc.cmake",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_TOOLCHAIN_FILE": "${fileDir}/cmake/toolchains/arm-none-eabi-gcc.cmake",
         "CHARM_BAREMETAL": "ON",
         "CHARM_TARGET_HAS_HOSTED_CXX": "OFF"
       }
@@ -55,9 +55,9 @@
       "hidden": true,
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/out/build/armv7a-baremetal",
+      "toolchainFile": "${fileDir}/cmake/toolchains/armv7a-none-eabi-gcc.cmake",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_TOOLCHAIN_FILE": "${fileDir}/cmake/toolchains/armv7a-none-eabi-gcc.cmake",
         "CHARM_TARGET_ARCH": "armv7a",
         "CHARM_TARGET_PLATFORM": "qemu_virt",
         "CHARM_BAREMETAL": "ON",
@@ -70,9 +70,9 @@
       "hidden": true,
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/cmake-build-rk3506-baremetal",
+      "toolchainFile": "${fileDir}/cmake/toolchains/armv7a-none-eabi-gcc.cmake",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_TOOLCHAIN_FILE": "${fileDir}/cmake/toolchains/armv7a-none-eabi-gcc.cmake",
         "CHARM_TARGET_NAME": "rk3506",
         "CHARM_ENABLE_MEDIA": "OFF",
         "CHARM_ENABLE_UI_INK": "OFF",

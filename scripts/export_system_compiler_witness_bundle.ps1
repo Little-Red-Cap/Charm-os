@@ -542,8 +542,6 @@ function Resolve-SessionSummaryPathFromRuntimeEvidence {
     $sessionView = $null
     if ($null -ne $SummaryInfo.Data.PSObject.Properties["session"] -and $null -ne $SummaryInfo.Data.session) {
         $sessionView = $SummaryInfo.Data.session
-    } elseif ($null -ne $SummaryInfo.Data.PSObject.Properties["session_summary"] -and $null -ne $SummaryInfo.Data.session_summary) {
-        $sessionView = $SummaryInfo.Data.session_summary
     }
 
     if ($null -eq $sessionView) {
@@ -665,8 +663,6 @@ function Resolve-KernelRuntimeSessionSurfaceInfo {
         $sessionView = $null
         if ($null -ne $runtimeSummary.PSObject.Properties["session"] -and $null -ne $runtimeSummary.session) {
             $sessionView = $runtimeSummary.session
-        } elseif ($null -ne $runtimeSummary.PSObject.Properties["session_summary"] -and $null -ne $runtimeSummary.session_summary) {
-            $sessionView = $runtimeSummary.session_summary
         }
 
         if ($null -ne $sessionView) {
@@ -774,8 +770,6 @@ function Get-ExistingArtifactRefsFromKernelRuntimeSession {
         $sessionView = $null
         if ($null -ne $summary.PSObject.Properties["session"] -and $null -ne $summary.session) {
             $sessionView = $summary.session
-        } elseif ($null -ne $summary.PSObject.Properties["session_summary"] -and $null -ne $summary.session_summary) {
-            $sessionView = $summary.session_summary
         }
 
         if ($null -ne $sessionView) {

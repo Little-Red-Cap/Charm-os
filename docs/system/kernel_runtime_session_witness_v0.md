@@ -168,7 +168,7 @@ session summary 是体检报告
 
 现在 session summary 已经不只是旁路 artifact。
 
-- runtime evidence bundle 的 `summary.json` 通过 `session` 暴露这份 session 对象；旧字段 `session_summary` 仅作为兼容入口保留
+- runtime evidence bundle 的 `summary.json` 通过 `session` 暴露这份 session 对象
 - system compiler witness bundle 会把它消费为 `kernel_runtime_session` witness entry
 - witness bundle 的 `front_page.supporting_surfaces` 也会把它作为 `kernel_runtime_session` 入口直接暴露给 reader / IDE / proof workflow
 

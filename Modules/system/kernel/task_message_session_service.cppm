@@ -89,10 +89,18 @@ export namespace kernel {
         [[nodiscard]] constexpr bool dispatch_branch_ok() const noexcept
         {
             return (reason == TaskMessageServicePumpReason::queue_empty ||
-                    reason == TaskMessageServicePumpReason::budget_reached ||
-                    reason == TaskMessageServicePumpReason::timeout) &&
+                    reason == TaskMessageServicePumpReason::budget_reached) &&
                    progressed && !bootstrap_consumed && served > 0u &&
                    dispatch_accepted;
+        }
+
+        [[nodiscard]] constexpr bool timeout_branch_ok() const noexcept
+        {
+            return reason == TaskMessageServicePumpReason::timeout &&
+                   progressed && !bootstrap_consumed && served == 0u &&
+                   wait_armed && !hold_ready &&
+                   !dispatch_accepted && !dispatch_handled &&
+                   !dispatch_replied;
         }
 
         [[nodiscard]] constexpr bool idle_branch_ok() const noexcept
@@ -152,7 +160,8 @@ export namespace kernel {
                 return semantic::Verdict::drifted;
             }
 
-            if (bootstrap_branch_ok() || dispatch_branch_ok() ||
+            if (bootstrap_branch_ok() || timeout_branch_ok() ||
+                dispatch_branch_ok() ||
                 idle_branch_ok()) {
                 return semantic::Verdict::standing;
             }

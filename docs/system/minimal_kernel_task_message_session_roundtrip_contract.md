@@ -10,12 +10,19 @@
 - `kernel.task_message_session_protocol`
 - `kernel.task_message_session_service`
 - `kernel.task_message_session_dispatch`
+- `kernel.task_message_session_roundtrip`
 
 第一次被焊成了一条真实可跑的 client/server roundtrip。
 
 对应 live verifier：
 
 - `Examples/kernel/runtime_task_message_session_roundtrip_host`
+
+当前 roundtrip semantic witness 已经从 host-local helper 提升为：
+
+- `Modules/system/kernel/task_message_session_roundtrip.cppm`
+- `TaskMessageSessionRoundtripWitness`
+- `task_message_session_roundtrip_witness(...)`
 
 ## 一句话版本
 
@@ -53,6 +60,10 @@
 5. 运行时收口
    - verifier 结束时 `active_sessions == 0`
    - mailbox / frame store / syscall pump 都回到空闲
+6. semantic witness seam
+   - dispatch / acceptor / protocol / service / pump 五段 witness 必须同时 standing
+   - handoff target 必须可用
+   - request path 的 `service_id / session_handle / operation / payload / reply_value / channel_slot` 必须一致
 
 ## 当前组合路径
 
@@ -76,6 +87,8 @@
    - `kernel.task_message_session_endpoint`
    - `kernel.task_message_session_protocol_schema`
    - `kernel.task_message_session_protocol`
+4. witness:
+   - `kernel.task_message_session_roundtrip`
 
 这条链没有另起 transport，而是明确复用了既有的 message/syscall 证据路径。
 

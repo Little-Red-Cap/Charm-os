@@ -33,7 +33,16 @@
 - `TaskMessageSessionEndpointRequestView`
 - `TaskMessageSessionEndpointCloseView`
 - `TaskMessageSessionEndpointBinding`
+- `TaskMessageSessionEndpointWitnessKind`
+- `TaskMessageSessionEndpointWitness`
+- `TaskMessageSessionEndpointWitnessHandoffTarget`
 - `make_task_message_session_endpoint(...)`
+- `task_message_session_endpoint_witness(...)`
+- `task_message_session_endpoint_request_witness(...)`
+- `task_message_session_endpoint_close_witness(...)`
+- `task_message_session_endpoint_accept_witness(...)`
+- `task_message_session_endpoint_witness_ready(...)`
+- `task_message_session_endpoint_witness_handoff_target(...)`
 - `task_message_session_endpoint_handled(...)`
 - `task_message_session_endpoint_rejected(...)`
 - `task_message_session_endpoint_unsupported(...)`
@@ -133,13 +142,23 @@
 1. endpoint handler bridge
    - endpoint-style `request / close` target
    - 能稳定桥接回既有 `TaskMessageSessionChannelHandler`
+   - `endpoint / request / close` witness 都能保持 standing
 2. endpoint acceptor bridge
    - endpoint-style `accept(endpoint, binding)`
    - 能稳定桥接回既有 `TaskMessageSessionServiceAcceptor`
    - slot exhaustion 与 “accept 成功但未绑定 handler” 仍然按既有边界暴露
+   - `accept` witness 能区分 binding / handler handoff 边界
 3. dispatcher integration
    - `task_message_session_service_acceptor_entry(...)`
    - 仍能稳定把 endpoint facade 挂回 `TaskMessageSessionDispatcher`
+
+额外的 ladder 入口：
+
+- `scripts/semantic_witness_ladder_smoke.ps1`
+
+会检查 endpoint host 的 witness 输出：
+
+- `[runtime-task-message-session-endpoint-witness] ok=1`
 
 `Examples/kernel/runtime_task_message_session_service_loop_host` 现在进一步证明：
 

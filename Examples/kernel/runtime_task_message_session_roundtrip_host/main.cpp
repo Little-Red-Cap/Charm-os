@@ -16,6 +16,7 @@ import kernel.task_message_session_api;
 import kernel.task_message_session_dispatch;
 import kernel.task_message_session_endpoint;
 import kernel.task_message_session_protocol_schema;
+import kernel.task_message_session_roundtrip;
 import kernel.task_message_session_service;
 import kernel.task_state;
 import kernel.task_syscall_table;
@@ -1202,138 +1203,20 @@ namespace demo {
         return true;
     }
 
-    template <typename Witness>
-    [[nodiscard]] bool witness_standing(const Witness& witness) noexcept
-    {
-        return witness.verdict() == semantic::Verdict::standing &&
-               witness.failure_domain() == semantic::FailureDomain::none;
-    }
-
-    template <typename HandoffTarget>
-    [[nodiscard]] bool witness_handoff_target_ok(
-        const HandoffTarget& target) noexcept
-    {
-        return !target.entry_name().empty() &&
-               !target.selected_summary_path().empty();
-    }
-
-    struct RoundtripWitnessSummary {
-        kernel::TaskMessageSessionDispatchWitness dispatch{};
-        kernel::TaskMessageSessionServiceAcceptorWitness acceptor{};
-        kernel::TaskMessageSessionProtocolWitness protocol{};
-        kernel::TaskMessageSessionServiceWitness service{};
-        kernel::TaskMessageSyscallPumpWitness pump{};
-        bool handoff_ready{false};
-        bool request_path{false};
-
-        [[nodiscard]] bool ok() const noexcept
-        {
-            return witness_standing(dispatch) &&
-                   witness_standing(acceptor) &&
-                   witness_standing(protocol) &&
-                   witness_standing(service) &&
-                   witness_standing(pump) && handoff_ready && request_path;
-        }
-    };
-
-    [[nodiscard]] RoundtripWitnessSummary inspect_roundtrip_witness(
+    [[nodiscard]] kernel::TaskMessageSessionRoundtripWitness
+    inspect_roundtrip_witness(
         SessionTrace& session_trace,
         SessionAcceptorTrace& acceptor_trace,
         ProtocolTrace& protocol_trace,
         ServiceTrace& service_trace,
         PumpTrace& pump_trace) noexcept
     {
-        const auto* dispatch_request = session_trace.at(1u);
-        const auto* acceptor_request = acceptor_trace.at(1u);
-        const auto* protocol_request = protocol_trace.at(0u);
-        const kernel::TaskMessageSessionServiceTraceEvent* service_dispatch =
-            nullptr;
-        for (std::size_t index = 0; index < service_trace.size(); ++index) {
-            const auto* record = service_trace.at(index);
-            if (record != nullptr && record->dispatch_replied &&
-                record->reply_value == kExpectedRequestValue) {
-                service_dispatch = record;
-                break;
-            }
-        }
-
-        const kernel::TaskMessageSyscallPumpTraceEvent* pump_reply = nullptr;
-        for (std::size_t index = 0; index < pump_trace.size(); ++index) {
-            const auto* record = pump_trace.at(index);
-            if (record != nullptr &&
-                record->kind == kernel::TaskMessageSyscallPumpTraceKind::reply &&
-                record->reply_value == kExpectedRequestValue) {
-                pump_reply = record;
-                break;
-            }
-        }
-
-        RoundtripWitnessSummary summary{};
-        if (dispatch_request != nullptr) {
-            summary.dispatch =
-                kernel::task_message_session_dispatch_witness(
-                    *dispatch_request);
-        }
-        if (acceptor_request != nullptr) {
-            summary.acceptor =
-                kernel::task_message_session_service_acceptor_witness(
-                    *acceptor_request);
-        }
-        if (protocol_request != nullptr) {
-            summary.protocol =
-                kernel::task_message_session_protocol_witness(
-                    *protocol_request);
-        }
-        if (service_dispatch != nullptr) {
-            summary.service =
-                kernel::task_message_session_service_witness(
-                    *service_dispatch);
-        }
-        if (pump_reply != nullptr) {
-            summary.pump =
-                kernel::task_message_syscall_pump_witness(*pump_reply);
-        }
-
-        const auto dispatch_handoff =
-            kernel::task_message_session_dispatch_witness_handoff_target(
-                summary.dispatch);
-        const auto acceptor_handoff =
-            kernel::task_message_session_service_acceptor_witness_handoff_target(
-                summary.acceptor);
-        const auto protocol_handoff =
-            kernel::task_message_session_protocol_witness_handoff_target(
-                summary.protocol);
-        const auto service_handoff =
-            kernel::task_message_session_service_witness_handoff_target(
-                summary.service);
-        const auto pump_handoff =
-            kernel::task_message_syscall_pump_witness_handoff_target(
-                summary.pump);
-        summary.handoff_ready =
-            witness_handoff_target_ok(dispatch_handoff) &&
-            witness_handoff_target_ok(acceptor_handoff) &&
-            witness_handoff_target_ok(protocol_handoff) &&
-            witness_handoff_target_ok(service_handoff) &&
-            witness_handoff_target_ok(pump_handoff);
-        summary.request_path =
-            summary.dispatch.action ==
-                kernel::TaskMessageSessionActionKind::request &&
-            summary.acceptor.action ==
-                kernel::TaskMessageSessionActionKind::request &&
-            summary.protocol.kind ==
-                kernel::TaskMessageSessionProtocolTraceKind::request &&
-            summary.service.dispatch_accepted &&
-            summary.service.dispatch_replied &&
-            summary.pump.kind ==
-                kernel::TaskMessageSyscallPumpTraceKind::reply &&
-            summary.dispatch.session_handle == kBaseSessionHandle &&
-            summary.acceptor.session_handle == kBaseSessionHandle &&
-            summary.protocol.session_handle == kBaseSessionHandle &&
-            summary.dispatch.value == kExpectedRequestValue &&
-            summary.acceptor.value == kExpectedRequestValue &&
-            summary.protocol.value == kExpectedRequestValue &&
-            summary.service.reply_value == kExpectedRequestValue &&
-            summary.pump.reply_value == kExpectedRequestValue;
+        auto summary = kernel::task_message_session_roundtrip_witness(
+            session_trace,
+            acceptor_trace,
+            protocol_trace,
+            service_trace,
+            pump_trace);
 
         std::printf(
             "[runtime-task-message-session-roundtrip-witness] ok=%d dispatch=%s acceptor=%s protocol=%s service=%s pump=%s summary=%s handoff=%d request=%d\n",
@@ -1343,7 +1226,7 @@ namespace demo {
             semantic::verdict_name(summary.protocol.verdict()),
             semantic::verdict_name(summary.service.verdict()),
             semantic::verdict_name(summary.pump.verdict()),
-            summary.dispatch.summary_path().data(),
+            summary.summary_path().data(),
             summary.handoff_ready ? 1 : 0,
             summary.request_path ? 1 : 0);
         return summary;

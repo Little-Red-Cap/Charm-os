@@ -2,7 +2,7 @@ param(
     [string]$CMakeExe = "cmake",
     [string]$CxxCompiler = "D:/Toolchains/LLVM/bin/clang++.exe",
     [string]$Generator = "Ninja",
-    [string]$BuildRoot = "D:/Temp/charm-codex/cmake-build-semantic-witness-ladder",
+    [string]$BuildRoot = "D:/Temp/charm-codex/wl",
     [switch]$Clean,
     [switch]$KeepBuildRoot
 )
@@ -171,6 +171,15 @@ $ladder = @(
         )
     },
     [ordered]@{
+        Name = "task-message-session-endpoint"
+        Example = "runtime_task_message_session_endpoint_host"
+        Target = "kernel-runtime-task-message-session-endpoint-host"
+        Required = @(
+            "\[runtime-task-message-session-endpoint-demo\] ok=1",
+            "\[runtime-task-message-session-endpoint-witness\] ok=1 collapsed=collapsed"
+        )
+    },
+    [ordered]@{
         Name = "task-message-session-protocol"
         Example = "runtime_task_message_session_protocol_host"
         Target = "kernel-runtime-task-message-session-protocol-host"
@@ -204,6 +213,17 @@ $ladder = @(
         Required = @(
             "\[runtime-task-message-session-service-demo\] ok=1",
             "\[runtime-task-message-session-service-witness\] ok=1 collapsed=collapsed"
+        )
+    },
+    [ordered]@{
+        Name = "task-message-session-service-loop"
+        Example = "runtime_task_message_session_service_loop_host"
+        Target = "kernel-runtime-task-message-session-service-loop-host"
+        Required = @(
+            "\[runtime-task-message-session-service-loop-witness\] ok=1 verdict=standing domain=none bootstrap=standing timeout=standing open_dispatch=standing open_service=standing roundtrip=standing close_dispatch=standing close_service=standing ghost_dispatch=standing ghost_service=standing",
+            "\[runtime-task-message-session-ownership-corridor-witness\] ok=1 verdict=standing domain=none roundtrip=standing service_loop=standing",
+            "\[runtime-task-message-session-service-loop-demo\] ok=1",
+            "\[runtime-task-message-session-service-loop-trace\] ok=1"
         )
     },
     [ordered]@{

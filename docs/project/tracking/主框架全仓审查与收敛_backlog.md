@@ -200,24 +200,22 @@
 
 ---
 
-### T7. 把 Net API 自检脚手架从生产模块中挪走
+### T7. 把 Net API 自检脚手架从生产模块中挪走（已收敛）
 
 **现象**
 
-- `Modules/io/net/net.api.cppm` 存在 `#ifndef NDEBUG` 的 `ApiDummyProvider` 和 `net_api_self_check()`。
-- 目前仓库内没有其他地方引用该自检入口。
+- 历史上 `Modules/io/net/net.api.cppm` 存在 `#ifndef NDEBUG` 的 `ApiDummyProvider` 和 `net_api_self_check()`。
+- 该自检入口没有外部引用，已从正式 API 模块移除。
 
 **为什么重要**
 
 - 这类自检资产本身有价值，但不适合继续挂在正式 API surface 上。
 - 会模糊“生产导出面”和“调试/自检资产”的边界。
 
-**建议方向**
+**收敛结果**
 
-- 移入：
-  - `net.*.self_check.cppm`
-  - 或测试/内部验证专用模块
-- 正式 API 模块只保留业务导出。
+- 正式 API 模块只保留业务 facade。
+- `api_facade_smoke` 继续作为 API 行为验证入口。
 
 ---
 
@@ -369,7 +367,7 @@
 | T4 拆分 UI/Vivid God Module | P1 | UI | 结构治理 | TODO |
 | T5 拆分 scheduler 观察职责 | P1 | System | 结构治理 | TODO |
 | T6 收敛 bringup 回调桥接 | P1 | System | 边界治理 | TODO |
-| T7 挪走 Net API 自检脚手架 | P1 | Net | 边界治理 | TODO |
+| T7 挪走 Net API 自检脚手架 | P1 | Net | 边界治理 | DONE |
 | T8 拆分 `fs_fatfs` 复合职责 | P1 | FS | 结构治理 | TODO |
 | T9 审视 `void* + ops` 默认扩散 | P2 | Cross-cutting | 模式治理 | TODO |
 | T10 收敛入口聚合面规模 | P2 | Core/System/UI | 架构治理 | TODO |

@@ -16,7 +16,7 @@
 
 ## 当前 ladder 顺序
 
-当前 v0 ladder 固定覆盖 13 个 host case：
+当前 v0 ladder 固定覆盖 15 个 host case：
 
 1. `runtime_task_message_syscall_host`
 2. `runtime_task_message_syscall_frame_host`
@@ -26,11 +26,13 @@
 6. `runtime_task_message_runtime_api_host`
 7. `runtime_task_message_syscall_api_host`
 8. `runtime_task_message_session_api_host`
-9. `runtime_task_message_session_protocol_host`
-10. `runtime_task_message_session_dispatch_host`
-11. `runtime_task_message_session_acceptor_host`
-12. `runtime_task_message_session_service_host`
-13. `runtime_task_message_session_roundtrip_host`
+9. `runtime_task_message_session_endpoint_host`
+10. `runtime_task_message_session_protocol_host`
+11. `runtime_task_message_session_dispatch_host`
+12. `runtime_task_message_session_acceptor_host`
+13. `runtime_task_message_session_service_host`
+14. `runtime_task_message_session_service_loop_host`
+15. `runtime_task_message_session_roundtrip_host`
 
 这条顺序故意从下层 message-backed syscall witness 往上走到 session roundtrip witness，避免只在最终 roundtrip 成功时倒推中间语义仍然成立。
 
@@ -54,13 +56,30 @@
 
 这表示最终 seam 没有只靠 completion 值通过，而是同时消费了已有 semantic witness carrier 与 handoff target。
 
+其中 service-loop case 额外要求：
+
+- `bootstrap=standing`
+- `timeout=standing`
+- `open_dispatch=standing`
+- `open_service=standing`
+- `roundtrip=standing`
+- `close_dispatch=standing`
+- `close_service=standing`
+- `ghost_dispatch=standing`
+- `ghost_service=standing`
+- `ownership-corridor=standing`
+- `handoff=1`
+- `ownership=1`
+
+这表示 server-side session ownership loop 没有只靠最终 completion 值通过，而是把 bootstrap、timeout、open、request roundtrip、close 与 unsupported open 这些 leg 都收成了 standing witness。
+
 ## 构建目录约定
 
 脚本默认使用：
 
-- `D:/Temp/charm-codex/cmake-build-semantic-witness-ladder`
+- `D:/Temp/charm-codex/wl`
 
-原因是 C++ module `.pcm` 产物较大，而仓库盘可能空间紧张。
+原因是 C++ module `.pcm` 产物较大，而仓库盘可能空间紧张；同时短路径可以降低 Windows depfile 路径长度风险。
 
 脚本默认：
 
@@ -95,7 +114,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/semantic_witness_lad
 期望终止行：
 
 ```text
-[SEMANTIC-WITNESS-LADDER-SMOKE] result=ok cases=13
+[SEMANTIC-WITNESS-LADDER-SMOKE] result=ok cases=15
 ```
 
 如果需要保留构建目录排查失败，可以加：

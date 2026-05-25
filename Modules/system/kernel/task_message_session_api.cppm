@@ -112,6 +112,24 @@ export namespace kernel {
         RawCompletion raw{};
     };
 
+    namespace task_message_session_api_detail {
+        template <typename RawCompletion>
+        [[nodiscard]] constexpr util::u64
+        completion_reply_sequence_or_request_sequence(
+            const TaskMessageSessionCompletion<RawCompletion>& completion) noexcept
+        {
+            if (completion.timeout) {
+                return 0u;
+            }
+
+            if constexpr (requires { completion.raw.reply.sequence; }) {
+                return completion.raw.reply.sequence;
+            } else {
+                return completion.raw.request_sequence;
+            }
+        }
+    }
+
     struct TaskMessageSessionApiWitness {
         bool ready{false};
         bool state_observed{false};
@@ -127,6 +145,12 @@ export namespace kernel {
         bool session_opened{false};
         bool session_closed{false};
         bool session_faulted{false};
+        TaskId owner{};
+        util::u64 token{0};
+        util::u64 request_sequence{0};
+        TaskId reply_from{};
+        TaskId reply_to{};
+        util::u64 reply_sequence{0};
         util::u64 service_id{0};
         util::u64 session_handle{0};
         util::u64 operation{0};
@@ -322,7 +346,7 @@ export namespace kernel {
 
     static_assert(
         semantic::reflected_member_names_match_when_enabled<TaskMessageSessionApiWitness>(
-            std::array<std::string_view, 22>{
+            std::array<std::string_view, 28>{
                 "ready",
                 "state_observed",
                 "valid",
@@ -336,6 +360,12 @@ export namespace kernel {
                 "session_opened",
                 "session_closed",
                 "session_faulted",
+                "owner",
+                "token",
+                "request_sequence",
+                "reply_from",
+                "reply_to",
+                "reply_sequence",
                 "service_id",
                 "session_handle",
                 "operation",
@@ -368,6 +398,15 @@ export namespace kernel {
             .session_opened = completion.session_opened,
             .session_closed = completion.session_closed,
             .session_faulted = completion.session_faulted,
+            .owner = completion.raw.owner,
+            .token = completion.raw.token,
+            .request_sequence = completion.raw.request_sequence,
+            .reply_from = completion.raw.reply.from,
+            .reply_to = completion.timeout ? completion.raw.owner
+                                           : completion.raw.reply.to,
+            .reply_sequence =
+                task_message_session_api_detail::
+                    completion_reply_sequence_or_request_sequence(completion),
             .service_id = completion.service_id,
             .session_handle = completion.session_handle,
             .operation = completion.operation,

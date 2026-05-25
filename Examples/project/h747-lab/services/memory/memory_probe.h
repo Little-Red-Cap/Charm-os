@@ -167,6 +167,93 @@ struct memory_probe_sdram_alias_diag_t {
     memory_probe_sdram_alias_sample_t samples[24];
 };
 
+struct memory_probe_sdram_addr_sample_t {
+    std::uint32_t offset;
+    std::uint32_t expected;
+    std::uint32_t actual;
+    std::uint32_t source_offset;
+};
+
+struct memory_probe_sdram_addr_diag_t {
+    std::uint8_t ok;
+    std::uint8_t init_ok;
+    std::uint8_t sample_count;
+    std::uint8_t reserved0;
+    std::uint32_t base;
+    std::uint32_t mismatch_or;
+    std::uint32_t mismatch_and;
+    std::uint32_t fmc_sdsr;
+    std::uint32_t fmc_sdcr;
+    std::uint32_t fmc_sdtr;
+    memory_probe_sdram_addr_sample_t samples[32];
+};
+
+struct memory_probe_sdram_lane_sample_t {
+    std::uint32_t access_bits;
+    std::uint32_t offset;
+    std::uint32_t write_value;
+    std::uint32_t expected_word;
+    std::uint32_t actual_word;
+};
+
+struct memory_probe_sdram_lane_diag_t {
+    std::uint8_t ok;
+    std::uint8_t init_ok;
+    std::uint8_t sample_count;
+    std::uint8_t reserved0;
+    std::uint32_t base;
+    std::uint32_t mismatch_or;
+    std::uint32_t mismatch_and;
+    std::uint32_t fmc_sdsr;
+    std::uint32_t fmc_sdcr;
+    std::uint32_t fmc_sdtr;
+    memory_probe_sdram_lane_sample_t samples[12];
+};
+
+struct memory_probe_sdram_repeat_sample_t {
+    std::uint32_t offset;
+    std::uint32_t expected;
+    std::uint32_t reads[8];
+};
+
+struct memory_probe_sdram_repeat_diag_t {
+    std::uint8_t ok;
+    std::uint8_t init_ok;
+    std::uint8_t sample_count;
+    std::uint8_t read_count;
+    std::uint32_t base;
+    std::uint32_t mismatch_or;
+    std::uint32_t mismatch_and;
+    std::uint32_t fmc_sdsr;
+    std::uint32_t fmc_sdcr;
+    std::uint32_t fmc_sdtr;
+    memory_probe_sdram_repeat_sample_t samples[8];
+};
+
+struct memory_probe_sdram_locate_sample_t {
+    std::uint32_t write_offset;
+    std::uint32_t expected;
+    std::uint32_t hit_offset;
+    std::uint32_t hit_count;
+    std::uint32_t actual_minus_2;
+    std::uint32_t actual_minus_1;
+    std::uint32_t actual_self;
+    std::uint32_t actual_plus_1;
+    std::uint32_t actual_plus_2;
+};
+
+struct memory_probe_sdram_locate_diag_t {
+    std::uint8_t ok;
+    std::uint8_t init_ok;
+    std::uint8_t sample_count;
+    std::uint8_t reserved0;
+    std::uint32_t base;
+    std::uint32_t fmc_sdsr;
+    std::uint32_t fmc_sdcr;
+    std::uint32_t fmc_sdtr;
+    memory_probe_sdram_locate_sample_t samples[8];
+};
+
 void memory_probe_storage_init();
 void memory_probe_storage_poll();
 memory_storage_state_t memory_probe_storage_state();
@@ -183,6 +270,14 @@ std::uint8_t memory_probe_sdram1_spot_diag(memory_probe_sdram_spot_diag_t* diag)
 std::uint8_t memory_probe_sdram2_spot_diag(memory_probe_sdram_spot_diag_t* diag);
 std::uint8_t memory_probe_sdram1_alias_diag(memory_probe_sdram_alias_diag_t* diag);
 std::uint8_t memory_probe_sdram2_alias_diag(memory_probe_sdram_alias_diag_t* diag);
+std::uint8_t memory_probe_sdram1_addr_diag(memory_probe_sdram_addr_diag_t* diag);
+std::uint8_t memory_probe_sdram2_addr_diag(memory_probe_sdram_addr_diag_t* diag);
+std::uint8_t memory_probe_sdram1_lane_diag(memory_probe_sdram_lane_diag_t* diag);
+std::uint8_t memory_probe_sdram2_lane_diag(memory_probe_sdram_lane_diag_t* diag);
+std::uint8_t memory_probe_sdram1_repeat_diag(memory_probe_sdram_repeat_diag_t* diag);
+std::uint8_t memory_probe_sdram2_repeat_diag(memory_probe_sdram_repeat_diag_t* diag);
+std::uint8_t memory_probe_sdram1_locate_diag(memory_probe_sdram_locate_diag_t* diag);
+std::uint8_t memory_probe_sdram2_locate_diag(memory_probe_sdram_locate_diag_t* diag);
 std::uint8_t memory_probe_sdram1_wait_sequence_bus_diag(memory_probe_sdram_bus_diag_t* diag);
 std::uint8_t memory_probe_sdram2_wait_sequence_bus_diag(memory_probe_sdram_bus_diag_t* diag);
 std::uint8_t memory_probe_sdram1_timing_sweep(memory_probe_sdram_timing_diag_t* diag);

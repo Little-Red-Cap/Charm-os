@@ -185,8 +185,11 @@
 
 **现象**
 
-- `Modules/system/bringup/system_bringup.cppm` 中 `InputBringupDesc`、多个 `BringupMinimal(...)` 重载、若干 `void*` 回调上下文混在一起。
-- 当前实现对“快速 bringup 很方便”，但类型边界偏弱。
+- `Modules/system/bringup/system_bringup.cppm` 曾经把 `InputBringupDesc`、多个 `BringupMinimal(...)` 重载、若干 `void*` 回调上下文混在一起。
+- 第一阶段已移除公开 `InputBringupDesc` / `make_input_desc` 拼装面，`BoardCaps + Host` 构造路径改为在 `BringupMinimal` 内部由 Host 类型 materialize input chain。
+- 公开 `BringupMinimal` / `BringupInput` 已移除 `SinkFn + void*` 兼容 overload；raw interop 需要显式写成 `input::RawSinkRef::raw(fn, ctx)`。
+- `InputInitChain` / `InputPumpBinding` 已改为传递 `input::RawSinkRef`；裸 callback / ctx 只保留在 `InputPumpTask` 执行窄腰。
+- `BringupMinimal` 已移除公开 `ReactorPumpTask& + PostFn + void* post_ctx` legacy 构造入口；bringup 公开入口统一走 `BoardCaps + Host`。
 
 **为什么重要**
 
@@ -195,27 +198,29 @@
 
 **建议方向**
 
-- 将输入描述、调度绑定、sink/post 回调配置拆分成更窄的 descriptor。
-- 用 typed adapter 或更窄的 provider ref，减少裸 `void*` 外露。
+- 后续继续把 sink 能力收敛成更明确的 provider ref。
+- 底层 `InputPumpTask` 的 callback / ctx 暂视为 scheduler / EDA 窄腰，不在 bringup 层重新包装成公开 descriptor。
 
 ---
 
-### T7. 把 Net API 自检脚手架从生产模块中挪走（已收敛）
+### T7. 把 Net API 自检脚手架从生产模块中挪走
 
 **现象**
 
-- 历史上 `Modules/io/net/net.api.cppm` 存在 `#ifndef NDEBUG` 的 `ApiDummyProvider` 和 `net_api_self_check()`。
-- 该自检入口没有外部引用，已从正式 API 模块移除。
+- `Modules/io/net/net.api.cppm` 存在 `#ifndef NDEBUG` 的 `ApiDummyProvider` 和 `net_api_self_check()`。
+- 目前仓库内没有其他地方引用该自检入口。
 
 **为什么重要**
 
 - 这类自检资产本身有价值，但不适合继续挂在正式 API surface 上。
 - 会模糊“生产导出面”和“调试/自检资产”的边界。
 
-**收敛结果**
+**建议方向**
 
-- 正式 API 模块只保留业务 facade。
-- `api_facade_smoke` 继续作为 API 行为验证入口。
+- 移入：
+  - `net.*.self_check.cppm`
+  - 或测试/内部验证专用模块
+- 正式 API 模块只保留业务导出。
 
 ---
 
@@ -366,7 +371,7 @@
 | T3 清理失效文档引用 | P0 | Docs | 快速修复 | DONE |
 | T4 拆分 UI/Vivid God Module | P1 | UI | 结构治理 | TODO |
 | T5 拆分 scheduler 观察职责 | P1 | System | 结构治理 | TODO |
-| T6 收敛 bringup 回调桥接 | P1 | System | 边界治理 | TODO |
+| T6 收敛 bringup 回调桥接 | P1 | System | 边界治理 | DONE |
 | T7 挪走 Net API 自检脚手架 | P1 | Net | 边界治理 | DONE |
 | T8 拆分 `fs_fatfs` 复合职责 | P1 | FS | 结构治理 | TODO |
 | T9 审视 `void* + ops` 默认扩散 | P2 | Cross-cutting | 模式治理 | TODO |

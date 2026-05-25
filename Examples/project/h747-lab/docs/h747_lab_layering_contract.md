@@ -57,21 +57,29 @@ The old board project remains a reference source, not a dependency.
 
 Current memory evidence note:
 
-- `qspi probe` has produced valid JEDEC evidence (`EF/40/19`) with DCDC1 at
-  3.3 V.
-- SDRAM1 and SDRAM2 currently both initialize at the FMC/HAL level but fail
-  first-word readback in the same way across conservative and ST-style timing
-  presets (`0x13579BDF` read as `0x13579BC6` in smoke). New evidence should use
-  `sdramX alias`, `sdramX waitbus`, plus the expanded CAS/read-pipe/mode-register
-  `sdramX timing` sweep before changing display raster code.
-- `memory mpu normal` is a diagnostic-only command for checking whether Cortex-M7
-  MPU attributes are involved. It does not change the default boot policy until
-  hardware evidence proves it should.
-- Identical failures on both banks should be treated as a shared FMC/data-lane,
-  byte-lane, control-line, or board-layout blocker before assuming an app,
-  capability, or raster-demo bug.
-- `display_demo` remains the red-screen display baseline. Do not move raster
-  framebuffer work forward until SDRAM evidence is clean.
+- 2026-05-23 hardware retest proved the earlier SDRAM `+0x20` alias/fault
+  blocker is cleared. Keep the historical diagnostics because they remain useful
+  if a future board reintroduces the same symptom.
+- SDRAM1 and SDRAM2 both pass `locate`, `addr`, `lane`, `repeat`, `probe`, and
+  segmented `verify` under the `is42s32800g_32m` profile.
+- SDRAM1 is verified at `0xC0000000` with `size=0x02000000` and
+  `ready=true verify=true`.
+- SDRAM2 is verified at `0xD0000000` with `size=0x02000000` and
+  `ready=true verify=true`.
+- The two populated IS42S32800G-6BLI devices therefore provide 32 MiB per bank,
+  64 MiB total, with current firmware evidence for read/write availability.
+- `qspi probe` is expected to fail while DCDC1 remains at the default 1.5 V.
+  After explicit `pmic enable dcdc1 1` plus `pmic set dcdc1 3300`, QSPI has
+  produced valid JEDEC evidence (`EF/40/19`).
+- `memory mpu normal` remains a diagnostic-only command for checking whether
+  Cortex-M7 MPU attributes are involved. It does not change the default boot
+  policy.
+- If the old `+0x20` alias pattern returns, first inspect the shared FMC address
+  path around external word address bit A3 / MCU PF3 before changing app,
+  capability, raster-demo, or timing policy.
+- `display_demo` remains the red-screen display baseline. Raster framebuffer
+  work may now use SDRAM as a verified prerequisite, but it still needs its own
+  LTDC layer/present evidence.
 
 ## Capability Contract
 

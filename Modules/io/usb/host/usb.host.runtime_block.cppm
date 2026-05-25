@@ -176,8 +176,8 @@ export namespace usb::host {
             return exported_.exported();
         }
 
-        void set_observer(block::ExportObserver observer, void* ctx = nullptr) noexcept {
-            exported_.set_observer(observer, ctx);
+        void set_observer(block::ExportObserverRef observer = {}) noexcept {
+            exported_.set_observer(observer);
         }
 
         [[nodiscard]] block::PublishState publish_state() const noexcept {

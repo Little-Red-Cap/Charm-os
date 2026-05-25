@@ -11,6 +11,9 @@ function(charm_collect_system_sources out_modules out_base_dirs)
             "${CHARM_SOURCE_ROOT}/Modules/system/bringup/system_bringup_win_stub.cppm")
     endif()
 
+    list(REMOVE_ITEM _modules
+        "${CHARM_SOURCE_ROOT}/Modules/system/charm.runtime.cppm")
+
     set(${out_modules} "${_modules}" PARENT_SCOPE)
     set(${out_base_dirs} "${CHARM_SOURCE_ROOT}/Modules" PARENT_SCOPE)
 endfunction()

@@ -6,4 +6,5 @@ set(H747_LAB_PROFILE_SERVICES
     console
     power
     memory
-    display_raster)
+    display_raster
+    input)

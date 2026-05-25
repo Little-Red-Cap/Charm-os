@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstring>
+#include <span>
 
 #include "fmc.h"
 #include "power.h"
@@ -67,17 +68,17 @@ memory_storage_state_t g_state{};
 
 SdramProfileRuntime g_is42s32800g_32m{
     {"is42s32800g_32m", 0x02000000U, 9U, 12U, 4U, 32U, 0U},
-    FMC_SDRAM_CLOCK_PERIOD_3,
+    FMC_SDRAM_CLOCK_PERIOD_2,
     FMC_SDRAM_CAS_LATENCY_3,
-    FMC_SDRAM_RBURST_DISABLE,
-    FMC_SDRAM_RPIPE_DELAY_0,
+    FMC_SDRAM_RBURST_ENABLE,
+    FMC_SDRAM_RPIPE_DELAY_1,
+    2U,
+    7U,
     4U,
-    10U,
-    6U,
-    10U,
-    4U,
-    4U,
-    4U,
+    7U,
+    3U,
+    2U,
+    2U,
     kSdramModeReg,
 };
 
@@ -843,6 +844,50 @@ void capture_alias_diag_regs(const SdramBank bank, memory_probe_sdram_alias_diag
     }
 }
 
+void capture_addr_diag_regs(const SdramBank bank, memory_probe_sdram_addr_diag_t& diag) {
+    diag.fmc_sdsr = FMC_Bank5_6_R->SDSR;
+    if (bank == SdramBank::bank2) {
+        diag.fmc_sdcr = FMC_Bank5_6_R->SDCR[1];
+        diag.fmc_sdtr = FMC_Bank5_6_R->SDTR[1];
+    } else {
+        diag.fmc_sdcr = FMC_Bank5_6_R->SDCR[0];
+        diag.fmc_sdtr = FMC_Bank5_6_R->SDTR[0];
+    }
+}
+
+void capture_lane_diag_regs(const SdramBank bank, memory_probe_sdram_lane_diag_t& diag) {
+    diag.fmc_sdsr = FMC_Bank5_6_R->SDSR;
+    if (bank == SdramBank::bank2) {
+        diag.fmc_sdcr = FMC_Bank5_6_R->SDCR[1];
+        diag.fmc_sdtr = FMC_Bank5_6_R->SDTR[1];
+    } else {
+        diag.fmc_sdcr = FMC_Bank5_6_R->SDCR[0];
+        diag.fmc_sdtr = FMC_Bank5_6_R->SDTR[0];
+    }
+}
+
+void capture_repeat_diag_regs(const SdramBank bank, memory_probe_sdram_repeat_diag_t& diag) {
+    diag.fmc_sdsr = FMC_Bank5_6_R->SDSR;
+    if (bank == SdramBank::bank2) {
+        diag.fmc_sdcr = FMC_Bank5_6_R->SDCR[1];
+        diag.fmc_sdtr = FMC_Bank5_6_R->SDTR[1];
+    } else {
+        diag.fmc_sdcr = FMC_Bank5_6_R->SDCR[0];
+        diag.fmc_sdtr = FMC_Bank5_6_R->SDTR[0];
+    }
+}
+
+void capture_locate_diag_regs(const SdramBank bank, memory_probe_sdram_locate_diag_t& diag) {
+    diag.fmc_sdsr = FMC_Bank5_6_R->SDSR;
+    if (bank == SdramBank::bank2) {
+        diag.fmc_sdcr = FMC_Bank5_6_R->SDCR[1];
+        diag.fmc_sdtr = FMC_Bank5_6_R->SDTR[1];
+    } else {
+        diag.fmc_sdcr = FMC_Bank5_6_R->SDCR[0];
+        diag.fmc_sdtr = FMC_Bank5_6_R->SDTR[0];
+    }
+}
+
 std::uint8_t run_sdram_spot_diag(const SdramBank bank, memory_probe_sdram_spot_diag_t* out) {
     if (out == nullptr) {
         return 0U;
@@ -999,6 +1044,400 @@ std::uint8_t run_sdram_alias_diag(const SdramBank bank, memory_probe_sdram_alias
     diag.mismatch_and = ok ? 0U : mismatch_and;
     diag.ok = ok ? 1U : 0U;
     capture_alias_diag_regs(bank, diag);
+    *out = diag;
+    return diag.ok;
+}
+
+std::uint32_t sdram_addr_sentinel(const std::uint32_t offset) {
+    return 0xC3A50000U ^ (offset * 2654435761UL) ^ (offset >> 7U);
+}
+
+std::uint32_t find_sdram_addr_source_offset(const std::span<const std::uint32_t> offsets,
+                                            const std::uint32_t actual) {
+    for (const auto offset : offsets) {
+        if (sdram_addr_sentinel(offset) == actual) {
+            return offset;
+        }
+    }
+    return 0xFFFFFFFFU;
+}
+
+std::uint8_t run_sdram_addr_diag(const SdramBank bank, memory_probe_sdram_addr_diag_t* out) {
+    if (out == nullptr) {
+        return 0U;
+    }
+    memory_probe_sdram_addr_diag_t diag{};
+    const auto& cfg = sdram_config(bank);
+    diag.base = cfg.base;
+
+    memory_probe_storage_poll();
+    reset_sdram_result(bank);
+    if (!init_sdram_bank_for_probe(bank)) {
+        diag.init_ok = 0U;
+        capture_addr_diag_regs(bank, diag);
+        *out = diag;
+        return 0U;
+    }
+
+    const std::uint32_t size = cfg.profile->info.size_bytes;
+    const std::uint32_t tail = (size >= sizeof(std::uint32_t)) ? ((size - sizeof(std::uint32_t)) & ~0x3U) : 0U;
+    std::array<std::uint32_t, 32> offsets{};
+    std::uint32_t offset_count = 0U;
+    const auto append_offset = [&](const std::uint32_t offset) {
+        if ((offset > tail) || (offset_count >= offsets.size())) {
+            return;
+        }
+        for (std::uint32_t index = 0; index < offset_count; ++index) {
+            if (offsets[index] == offset) {
+                return;
+            }
+        }
+        offsets[offset_count++] = offset;
+    };
+
+    append_offset(0U);
+    for (std::uint32_t offset = sizeof(std::uint32_t); (offset <= tail) && (offset != 0U); offset <<= 1U) {
+        append_offset(offset);
+        if (offset >= 0x01000000U) {
+            break;
+        }
+    }
+    append_offset(tail);
+
+    diag.init_ok = 1U;
+    bool ok = true;
+    std::uint32_t mismatch_and = 0xFFFFFFFFU;
+    std::uint32_t mismatch_or = 0U;
+    const auto used_offsets = std::span<const std::uint32_t>{offsets.data(), offset_count};
+
+    for (const auto offset : used_offsets) {
+        auto* const word = reinterpret_cast<volatile std::uint32_t*>(cfg.base + offset);
+        *word = sdram_addr_sentinel(offset);
+        sync_external_writes();
+        clean_invalidate_dcache_range(reinterpret_cast<void*>(cfg.base + offset), sizeof(std::uint32_t));
+    }
+
+    for (std::uint32_t index = 0; index < offset_count; ++index) {
+        const std::uint32_t offset = offsets[index];
+        auto* const word = reinterpret_cast<volatile std::uint32_t*>(cfg.base + offset);
+        invalidate_dcache_range(reinterpret_cast<void*>(cfg.base + offset), sizeof(std::uint32_t));
+        const std::uint32_t expected = sdram_addr_sentinel(offset);
+        const std::uint32_t actual = *word;
+        const std::uint32_t mismatch = expected ^ actual;
+        if (mismatch != 0U) {
+            ok = false;
+            mismatch_or |= mismatch;
+            mismatch_and &= mismatch;
+        }
+
+        auto& sample = diag.samples[index];
+        sample.offset = offset;
+        sample.expected = expected;
+        sample.actual = actual;
+        sample.source_offset = (mismatch == 0U) ? offset : find_sdram_addr_source_offset(used_offsets, actual);
+    }
+
+    for (const auto offset : used_offsets) {
+        auto* const word = reinterpret_cast<volatile std::uint32_t*>(cfg.base + offset);
+        *word = 0U;
+        sync_external_writes();
+        clean_invalidate_dcache_range(reinterpret_cast<void*>(cfg.base + offset), sizeof(std::uint32_t));
+    }
+
+    diag.sample_count = static_cast<std::uint8_t>(offset_count);
+    diag.mismatch_or = mismatch_or;
+    diag.mismatch_and = ok ? 0U : mismatch_and;
+    diag.ok = ok ? 1U : 0U;
+    capture_addr_diag_regs(bank, diag);
+    *out = diag;
+    return diag.ok;
+}
+
+void record_sdram_lane_sample(memory_probe_sdram_lane_diag_t& diag,
+                              bool& ok,
+                              std::uint32_t& mismatch_or,
+                              std::uint32_t& mismatch_and,
+                              const std::uint32_t access_bits,
+                              const std::uint32_t offset,
+                              const std::uint32_t write_value,
+                              const std::uint32_t expected_word,
+                              const std::uint32_t actual_word) {
+    const std::uint32_t mismatch = expected_word ^ actual_word;
+    if (mismatch != 0U) {
+        ok = false;
+        mismatch_or |= mismatch;
+        mismatch_and &= mismatch;
+    }
+    if (diag.sample_count < (sizeof(diag.samples) / sizeof(diag.samples[0]))) {
+        auto& sample = diag.samples[diag.sample_count++];
+        sample.access_bits = access_bits;
+        sample.offset = offset;
+        sample.write_value = write_value;
+        sample.expected_word = expected_word;
+        sample.actual_word = actual_word;
+    }
+}
+
+std::uint8_t run_sdram_lane_diag(const SdramBank bank, memory_probe_sdram_lane_diag_t* out) {
+    if (out == nullptr) {
+        return 0U;
+    }
+    memory_probe_sdram_lane_diag_t diag{};
+    const auto& cfg = sdram_config(bank);
+    diag.base = cfg.base;
+
+    memory_probe_storage_poll();
+    reset_sdram_result(bank);
+    if (!init_sdram_bank_for_probe(bank)) {
+        diag.init_ok = 0U;
+        capture_lane_diag_regs(bank, diag);
+        *out = diag;
+        return 0U;
+    }
+
+    diag.init_ok = 1U;
+    bool ok = true;
+    std::uint32_t mismatch_and = 0xFFFFFFFFU;
+    std::uint32_t mismatch_or = 0U;
+    auto* const word = reinterpret_cast<volatile std::uint32_t*>(cfg.base);
+    auto* const bytes = reinterpret_cast<volatile std::uint8_t*>(cfg.base);
+    auto* const halfwords = reinterpret_cast<volatile std::uint16_t*>(cfg.base);
+
+    for (std::uint32_t lane = 0U; lane < 4U; ++lane) {
+        *word = 0U;
+        sync_external_writes();
+        clean_invalidate_dcache_range(reinterpret_cast<void*>(cfg.base), sizeof(std::uint32_t));
+        bytes[lane] = static_cast<std::uint8_t>(0xA5U ^ (lane * 0x11U));
+        sync_external_writes();
+        clean_invalidate_dcache_range(reinterpret_cast<void*>(cfg.base), sizeof(std::uint32_t));
+        const std::uint32_t expected = static_cast<std::uint32_t>(0xA5U ^ (lane * 0x11U)) << (lane * 8U);
+        record_sdram_lane_sample(diag, ok, mismatch_or, mismatch_and, 8U, lane, 0xA5U ^ (lane * 0x11U), expected, *word);
+    }
+
+    for (std::uint32_t lane = 0U; lane < 2U; ++lane) {
+        *word = 0U;
+        sync_external_writes();
+        clean_invalidate_dcache_range(reinterpret_cast<void*>(cfg.base), sizeof(std::uint32_t));
+        const std::uint16_t value = static_cast<std::uint16_t>(0x5AA5U ^ (lane * 0x1111U));
+        halfwords[lane] = value;
+        sync_external_writes();
+        clean_invalidate_dcache_range(reinterpret_cast<void*>(cfg.base), sizeof(std::uint32_t));
+        const std::uint32_t expected = static_cast<std::uint32_t>(value) << (lane * 16U);
+        record_sdram_lane_sample(diag, ok, mismatch_or, mismatch_and, 16U, lane * 2U, value, expected, *word);
+    }
+
+    constexpr std::array<std::uint32_t, 4> word_patterns = {
+        0x000000FFU,
+        0x0000FF00U,
+        0x00FF0000U,
+        0xFF000000U,
+    };
+    for (const auto pattern : word_patterns) {
+        *word = pattern;
+        sync_external_writes();
+        clean_invalidate_dcache_range(reinterpret_cast<void*>(cfg.base), sizeof(std::uint32_t));
+        record_sdram_lane_sample(diag, ok, mismatch_or, mismatch_and, 32U, 0U, pattern, pattern, *word);
+    }
+
+    *word = 0U;
+    sync_external_writes();
+    clean_invalidate_dcache_range(reinterpret_cast<void*>(cfg.base), sizeof(std::uint32_t));
+
+    diag.mismatch_or = mismatch_or;
+    diag.mismatch_and = ok ? 0U : mismatch_and;
+    diag.ok = ok ? 1U : 0U;
+    capture_lane_diag_regs(bank, diag);
+    *out = diag;
+    return diag.ok;
+}
+
+std::uint8_t run_sdram_repeat_diag(const SdramBank bank, memory_probe_sdram_repeat_diag_t* out) {
+    if (out == nullptr) {
+        return 0U;
+    }
+    memory_probe_sdram_repeat_diag_t diag{};
+    const auto& cfg = sdram_config(bank);
+    diag.base = cfg.base;
+    diag.read_count = 8U;
+
+    memory_probe_storage_poll();
+    reset_sdram_result(bank);
+    if (!init_sdram_bank_for_probe(bank)) {
+        diag.init_ok = 0U;
+        capture_repeat_diag_regs(bank, diag);
+        *out = diag;
+        return 0U;
+    }
+
+    const std::uint32_t size = cfg.profile->info.size_bytes;
+    const std::uint32_t tail = (size >= sizeof(std::uint32_t)) ? ((size - sizeof(std::uint32_t)) & ~0x3U) : 0U;
+    const std::array<std::uint32_t, 8> offsets = {
+        0U,
+        4U,
+        8U,
+        0x00000100U,
+        0x00010000U,
+        0x00100000U,
+        0x01000000U,
+        tail,
+    };
+
+    diag.init_ok = 1U;
+    bool ok = true;
+    std::uint32_t mismatch_and = 0xFFFFFFFFU;
+    std::uint32_t mismatch_or = 0U;
+    std::uint32_t sample_count = 0U;
+
+    for (const auto offset : offsets) {
+        if ((offset > tail) || (sample_count >= (sizeof(diag.samples) / sizeof(diag.samples[0])))) {
+            continue;
+        }
+        auto* const word = reinterpret_cast<volatile std::uint32_t*>(cfg.base + offset);
+        auto& sample = diag.samples[sample_count++];
+        sample.offset = offset;
+        sample.expected = 0x6D390000U ^ offset ^ (sample_count * 0x01010101U);
+        *word = sample.expected;
+        sync_external_writes();
+        clean_invalidate_dcache_range(reinterpret_cast<void*>(cfg.base + offset), sizeof(std::uint32_t));
+
+        for (std::uint32_t read = 0U; read < diag.read_count; ++read) {
+            invalidate_dcache_range(reinterpret_cast<void*>(cfg.base + offset), sizeof(std::uint32_t));
+            sample.reads[read] = *word;
+            const std::uint32_t mismatch = sample.expected ^ sample.reads[read];
+            if (mismatch != 0U) {
+                ok = false;
+                mismatch_or |= mismatch;
+                mismatch_and &= mismatch;
+            }
+        }
+    }
+
+    for (std::uint32_t index = 0U; index < sample_count; ++index) {
+        auto* const word = reinterpret_cast<volatile std::uint32_t*>(cfg.base + diag.samples[index].offset);
+        *word = 0U;
+        sync_external_writes();
+        clean_invalidate_dcache_range(reinterpret_cast<void*>(cfg.base + diag.samples[index].offset),
+                                      sizeof(std::uint32_t));
+    }
+
+    diag.sample_count = static_cast<std::uint8_t>(sample_count);
+    diag.mismatch_or = mismatch_or;
+    diag.mismatch_and = ok ? 0U : mismatch_and;
+    diag.ok = ok ? 1U : 0U;
+    capture_repeat_diag_regs(bank, diag);
+    *out = diag;
+    return diag.ok;
+}
+
+std::uint8_t run_sdram_locate_diag(const SdramBank bank, memory_probe_sdram_locate_diag_t* out) {
+    if (out == nullptr) {
+        return 0U;
+    }
+    memory_probe_sdram_locate_diag_t diag{};
+    const auto& cfg = sdram_config(bank);
+    diag.base = cfg.base;
+
+    memory_probe_storage_poll();
+    reset_sdram_result(bank);
+    if (!init_sdram_bank_for_probe(bank)) {
+        diag.init_ok = 0U;
+        capture_locate_diag_regs(bank, diag);
+        *out = diag;
+        return 0U;
+    }
+
+    constexpr std::uint32_t kSearchWords = 33U;
+    constexpr std::uint32_t kCenterWord = kSearchWords / 2U;
+    constexpr std::array<std::uint32_t, 8> offsets = {
+        0U,
+        4U,
+        8U,
+        0x00000100U,
+        0x00010000U,
+        0x00100000U,
+        0x01000000U,
+        0x01FFFFFCU,
+    };
+
+    diag.init_ok = 1U;
+    bool ok = true;
+    std::uint32_t sample_count = 0U;
+    const std::uint32_t size = cfg.profile->info.size_bytes;
+    const std::uint32_t window_bytes = kSearchWords * sizeof(std::uint32_t);
+    const std::uint32_t tail = (size >= sizeof(std::uint32_t)) ? ((size - sizeof(std::uint32_t)) & ~0x3U) : 0U;
+    const std::uint32_t last_window_start =
+        (size > window_bytes) ? ((size - window_bytes) & ~0x3U) : 0U;
+
+    for (const auto write_offset : offsets) {
+        if ((write_offset > tail) || (sample_count >= (sizeof(diag.samples) / sizeof(diag.samples[0])))) {
+            break;
+        }
+        std::uint32_t start_offset = (write_offset >= (kCenterWord * sizeof(std::uint32_t)))
+            ? (write_offset - (kCenterWord * sizeof(std::uint32_t)))
+            : 0U;
+        if (start_offset > last_window_start) {
+            start_offset = last_window_start;
+        }
+        auto* const window = reinterpret_cast<volatile std::uint32_t*>(cfg.base + start_offset);
+        for (std::uint32_t index = 0U; index < kSearchWords; ++index) {
+            window[index] = 0U;
+        }
+        sync_external_writes();
+        clean_invalidate_dcache_range(reinterpret_cast<void*>(cfg.base + start_offset),
+                                      kSearchWords * sizeof(std::uint32_t));
+
+        const std::uint32_t expected = 0x9B5D0000U ^ write_offset ^ (sample_count * 0x01010101U);
+        auto* const write_word = reinterpret_cast<volatile std::uint32_t*>(cfg.base + write_offset);
+        *write_word = expected;
+        sync_external_writes();
+        clean_invalidate_dcache_range(reinterpret_cast<void*>(cfg.base + start_offset),
+                                      kSearchWords * sizeof(std::uint32_t));
+
+        auto& sample = diag.samples[sample_count++];
+        sample.write_offset = write_offset;
+        sample.expected = expected;
+        sample.hit_offset = 0xFFFFFFFFU;
+        for (std::uint32_t index = 0U; index < kSearchWords; ++index) {
+            invalidate_dcache_range(reinterpret_cast<void*>(cfg.base + start_offset + (index * sizeof(std::uint32_t))),
+                                    sizeof(std::uint32_t));
+            const std::uint32_t actual = window[index];
+            if (actual == expected) {
+                if (sample.hit_count == 0U) {
+                    sample.hit_offset = start_offset + (index * sizeof(std::uint32_t));
+                }
+                ++sample.hit_count;
+            }
+        }
+
+        const std::uint32_t self_word_index = (write_offset - start_offset) / sizeof(std::uint32_t);
+        const auto read_neighbor = [&](const std::int32_t delta) -> std::uint32_t {
+            const std::int32_t index = static_cast<std::int32_t>(self_word_index) + delta;
+            if ((index < 0) || (index >= static_cast<std::int32_t>(kSearchWords))) {
+                return 0xFFFFFFFFU;
+            }
+            return window[static_cast<std::uint32_t>(index)];
+        };
+        sample.actual_minus_2 = read_neighbor(-2);
+        sample.actual_minus_1 = read_neighbor(-1);
+        sample.actual_self = read_neighbor(0);
+        sample.actual_plus_1 = read_neighbor(1);
+        sample.actual_plus_2 = read_neighbor(2);
+
+        if ((sample.hit_count != 1U) || (sample.hit_offset != write_offset) || (sample.actual_self != expected)) {
+            ok = false;
+        }
+
+        for (std::uint32_t index = 0U; index < kSearchWords; ++index) {
+            window[index] = 0U;
+        }
+        sync_external_writes();
+        clean_invalidate_dcache_range(reinterpret_cast<void*>(cfg.base + start_offset),
+                                      kSearchWords * sizeof(std::uint32_t));
+    }
+
+    diag.sample_count = static_cast<std::uint8_t>(sample_count);
+    diag.ok = ok ? 1U : 0U;
+    capture_locate_diag_regs(bank, diag);
     *out = diag;
     return diag.ok;
 }
@@ -1358,6 +1797,38 @@ std::uint8_t memory_probe_sdram1_alias_diag(memory_probe_sdram_alias_diag_t* dia
 
 std::uint8_t memory_probe_sdram2_alias_diag(memory_probe_sdram_alias_diag_t* diag) {
     return run_sdram_alias_diag(SdramBank::bank2, diag);
+}
+
+std::uint8_t memory_probe_sdram1_addr_diag(memory_probe_sdram_addr_diag_t* diag) {
+    return run_sdram_addr_diag(SdramBank::bank1, diag);
+}
+
+std::uint8_t memory_probe_sdram2_addr_diag(memory_probe_sdram_addr_diag_t* diag) {
+    return run_sdram_addr_diag(SdramBank::bank2, diag);
+}
+
+std::uint8_t memory_probe_sdram1_lane_diag(memory_probe_sdram_lane_diag_t* diag) {
+    return run_sdram_lane_diag(SdramBank::bank1, diag);
+}
+
+std::uint8_t memory_probe_sdram2_lane_diag(memory_probe_sdram_lane_diag_t* diag) {
+    return run_sdram_lane_diag(SdramBank::bank2, diag);
+}
+
+std::uint8_t memory_probe_sdram1_repeat_diag(memory_probe_sdram_repeat_diag_t* diag) {
+    return run_sdram_repeat_diag(SdramBank::bank1, diag);
+}
+
+std::uint8_t memory_probe_sdram2_repeat_diag(memory_probe_sdram_repeat_diag_t* diag) {
+    return run_sdram_repeat_diag(SdramBank::bank2, diag);
+}
+
+std::uint8_t memory_probe_sdram1_locate_diag(memory_probe_sdram_locate_diag_t* diag) {
+    return run_sdram_locate_diag(SdramBank::bank1, diag);
+}
+
+std::uint8_t memory_probe_sdram2_locate_diag(memory_probe_sdram_locate_diag_t* diag) {
+    return run_sdram_locate_diag(SdramBank::bank2, diag);
 }
 
 std::uint8_t memory_probe_sdram1_wait_sequence_bus_diag(memory_probe_sdram_bus_diag_t* diag) {

@@ -148,6 +148,10 @@ void print_help() {
     emit<"  sdram1 waitbus        - Run SDRAM1 bus diag with command busy waits\n">();
     emit<"  sdram1 spot           - Run SDRAM1 single-address spot diag\n">();
     emit<"  sdram1 alias          - Run SDRAM1 neighbor/alias read diag\n">();
+    emit<"  sdram1 addr           - Run SDRAM1 address-line sentinel diag\n">();
+    emit<"  sdram1 lane           - Run SDRAM1 byte-lane/NBL diag\n">();
+    emit<"  sdram1 repeat         - Run SDRAM1 repeated-read diag\n">();
+    emit<"  sdram1 locate         - Locate where a one-word write lands\n">();
     emit<"  sdram1 timing         - Sweep SDRAM1 CAS/pipe timing presets\n">();
     emit<"  sdram2 probe          - Run SDRAM2 gated smoke\n">();
     emit<"  sdram2 probe force    - Run SDRAM2 smoke ignoring PMIC gate\n">();
@@ -156,6 +160,10 @@ void print_help() {
     emit<"  sdram2 waitbus        - Run SDRAM2 bus diag with command busy waits\n">();
     emit<"  sdram2 spot           - Run SDRAM2 single-address spot diag\n">();
     emit<"  sdram2 alias          - Run SDRAM2 neighbor/alias read diag\n">();
+    emit<"  sdram2 addr           - Run SDRAM2 address-line sentinel diag\n">();
+    emit<"  sdram2 lane           - Run SDRAM2 byte-lane/NBL diag\n">();
+    emit<"  sdram2 repeat         - Run SDRAM2 repeated-read diag\n">();
+    emit<"  sdram2 locate         - Locate where a one-word write lands\n">();
     emit<"  sdram2 timing         - Sweep SDRAM2 CAS/pipe timing presets\n">();
     emit<"  qspi probe            - Run QSPI JEDEC/status/read probe\n">();
     emit<"  qspi probe force      - Run QSPI probe ignoring PMIC gate\n">();
@@ -398,6 +406,122 @@ void run_sdram_alias_diag(const memory::SdramBank bank) {
     }
 }
 
+void run_sdram_addr_diag(const memory::SdramBank bank) {
+    memory_probe_sdram_addr_diag_t diag{};
+    const bool ok = storage.addr_diag(bank, diag);
+    emit<"{}: addr {} init={} base=0x{:08X} samples={} mismatch_or=0x{:08X} mismatch_and=0x{:08X} sdsr=0x{:08X} sdcr=0x{:08X} sdtr=0x{:08X}\n">(
+        (bank == memory::SdramBank::bank2) ? "sdram2"sv : "sdram1"sv,
+        ok ? "ok" : "failed",
+        diag.init_ok,
+        diag.base,
+        static_cast<unsigned>(diag.sample_count),
+        diag.mismatch_or,
+        diag.mismatch_and,
+        diag.fmc_sdsr,
+        diag.fmc_sdcr,
+        diag.fmc_sdtr);
+    for (std::uint32_t index = 0; index < diag.sample_count; ++index) {
+        const auto& sample = diag.samples[index];
+        emit<"{}: addr[{}] off=0x{:08X} expected=0x{:08X} actual=0x{:08X} source=0x{:08X} xor=0x{:08X}\n">(
+            (bank == memory::SdramBank::bank2) ? "sdram2"sv : "sdram1"sv,
+            index,
+            sample.offset,
+            sample.expected,
+            sample.actual,
+            sample.source_offset,
+            sample.expected ^ sample.actual);
+    }
+}
+
+void run_sdram_lane_diag(const memory::SdramBank bank) {
+    memory_probe_sdram_lane_diag_t diag{};
+    const bool ok = storage.lane_diag(bank, diag);
+    emit<"{}: lane {} init={} base=0x{:08X} samples={} mismatch_or=0x{:08X} mismatch_and=0x{:08X} sdsr=0x{:08X} sdcr=0x{:08X} sdtr=0x{:08X}\n">(
+        (bank == memory::SdramBank::bank2) ? "sdram2"sv : "sdram1"sv,
+        ok ? "ok" : "failed",
+        diag.init_ok,
+        diag.base,
+        static_cast<unsigned>(diag.sample_count),
+        diag.mismatch_or,
+        diag.mismatch_and,
+        diag.fmc_sdsr,
+        diag.fmc_sdcr,
+        diag.fmc_sdtr);
+    for (std::uint32_t index = 0; index < diag.sample_count; ++index) {
+        const auto& sample = diag.samples[index];
+        emit<"{}: lane[{}] access={} off=0x{:08X} write=0x{:08X} expected=0x{:08X} actual=0x{:08X} xor=0x{:08X}\n">(
+            (bank == memory::SdramBank::bank2) ? "sdram2"sv : "sdram1"sv,
+            index,
+            sample.access_bits,
+            sample.offset,
+            sample.write_value,
+            sample.expected_word,
+            sample.actual_word,
+            sample.expected_word ^ sample.actual_word);
+    }
+}
+
+void run_sdram_repeat_diag(const memory::SdramBank bank) {
+    memory_probe_sdram_repeat_diag_t diag{};
+    const bool ok = storage.repeat_diag(bank, diag);
+    emit<"{}: repeat {} init={} base=0x{:08X} samples={} reads={} mismatch_or=0x{:08X} mismatch_and=0x{:08X} sdsr=0x{:08X} sdcr=0x{:08X} sdtr=0x{:08X}\n">(
+        (bank == memory::SdramBank::bank2) ? "sdram2"sv : "sdram1"sv,
+        ok ? "ok" : "failed",
+        diag.init_ok,
+        diag.base,
+        static_cast<unsigned>(diag.sample_count),
+        static_cast<unsigned>(diag.read_count),
+        diag.mismatch_or,
+        diag.mismatch_and,
+        diag.fmc_sdsr,
+        diag.fmc_sdcr,
+        diag.fmc_sdtr);
+    for (std::uint32_t index = 0; index < diag.sample_count; ++index) {
+        const auto& sample = diag.samples[index];
+        emit<"{}: repeat[{}] off=0x{:08X} expected=0x{:08X} reads=">(
+            (bank == memory::SdramBank::bank2) ? "sdram2"sv : "sdram1"sv,
+            index,
+            sample.offset,
+            sample.expected);
+        for (std::uint32_t read = 0; read < diag.read_count; ++read) {
+            if (read != 0U) {
+                emit<",">();
+            }
+            emit<"0x{:08X}">(sample.reads[read]);
+        }
+        emit<"\n">();
+    }
+}
+
+void run_sdram_locate_diag(const memory::SdramBank bank) {
+    memory_probe_sdram_locate_diag_t diag{};
+    const bool ok = storage.locate_diag(bank, diag);
+    emit<"{}: locate {} init={} base=0x{:08X} samples={} sdsr=0x{:08X} sdcr=0x{:08X} sdtr=0x{:08X}\n">(
+        (bank == memory::SdramBank::bank2) ? "sdram2"sv : "sdram1"sv,
+        ok ? "ok" : "failed",
+        diag.init_ok,
+        diag.base,
+        static_cast<unsigned>(diag.sample_count),
+        diag.fmc_sdsr,
+        diag.fmc_sdcr,
+        diag.fmc_sdtr);
+    for (std::uint32_t index = 0; index < diag.sample_count; ++index) {
+        const auto& sample = diag.samples[index];
+        emit<"{}: locate[{}] write=0x{:08X} expected=0x{:08X} hit=0x{:08X} hits={} m2=0x{:08X} m1=0x{:08X} self=0x{:08X} p1=0x{:08X} p2=0x{:08X}\n">(
+            (bank == memory::SdramBank::bank2) ? "sdram2"sv : "sdram1"sv,
+            index,
+            sample.write_offset,
+            sample.expected,
+            sample.hit_offset,
+            sample.hit_count,
+            sample.actual_minus_2,
+            sample.actual_minus_1,
+            sample.actual_self,
+            sample.actual_plus_1,
+            sample.actual_plus_2);
+    }
+}
+
 void run_sdram_timing_sweep(const memory::SdramBank bank) {
     memory_probe_sdram_timing_diag_t diag{};
     const bool ok = storage.timing_sweep(bank, diag);
@@ -552,6 +676,14 @@ void handle_command(const std::string_view line) {
         run_sdram_spot_diag(memory::SdramBank::bank1);
     } else if (cmd == "sdram1 alias"sv) {
         run_sdram_alias_diag(memory::SdramBank::bank1);
+    } else if (cmd == "sdram1 addr"sv) {
+        run_sdram_addr_diag(memory::SdramBank::bank1);
+    } else if (cmd == "sdram1 lane"sv) {
+        run_sdram_lane_diag(memory::SdramBank::bank1);
+    } else if (cmd == "sdram1 repeat"sv) {
+        run_sdram_repeat_diag(memory::SdramBank::bank1);
+    } else if (cmd == "sdram1 locate"sv) {
+        run_sdram_locate_diag(memory::SdramBank::bank1);
     } else if (cmd == "sdram1 timing"sv) {
         run_sdram_timing_sweep(memory::SdramBank::bank1);
     } else if (cmd == "sdram2 probe"sv) {
@@ -568,6 +700,14 @@ void handle_command(const std::string_view line) {
         run_sdram_spot_diag(memory::SdramBank::bank2);
     } else if (cmd == "sdram2 alias"sv) {
         run_sdram_alias_diag(memory::SdramBank::bank2);
+    } else if (cmd == "sdram2 addr"sv) {
+        run_sdram_addr_diag(memory::SdramBank::bank2);
+    } else if (cmd == "sdram2 lane"sv) {
+        run_sdram_lane_diag(memory::SdramBank::bank2);
+    } else if (cmd == "sdram2 repeat"sv) {
+        run_sdram_repeat_diag(memory::SdramBank::bank2);
+    } else if (cmd == "sdram2 locate"sv) {
+        run_sdram_locate_diag(memory::SdramBank::bank2);
     } else if (cmd == "sdram2 timing"sv) {
         run_sdram_timing_sweep(memory::SdramBank::bank2);
     } else if (cmd == "qspi probe"sv) {

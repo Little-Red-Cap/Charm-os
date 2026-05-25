@@ -1,8 +1,10 @@
 #pragma once
 
+#include "capabilities/input.hpp"
 #include "capabilities/world.hpp"
 #include "console_service.hpp"
 #include "display_raster_service.hpp"
+#include "input_service.hpp"
 
 namespace h747::world {
 
@@ -11,6 +13,7 @@ public:
     using Log = h747::console::ConsoleStream;
     using Clock = h747::console::Clock;
     using Display = h747::display::RasterPanel;
+    using Input = h747::input::Service;
 
     void init() noexcept {
         // Service lifetime is owned by the profile init.graph. The world only
@@ -30,6 +33,10 @@ public:
         return display_;
     }
 
+    [[nodiscard]] Input& input() noexcept {
+        return input_;
+    }
+
     [[nodiscard]] charm::cap::FrameBuffer framebuffer() noexcept {
         return display_.framebuffer();
     }
@@ -38,8 +45,11 @@ private:
     Log log_{};
     Clock clock_{};
     Display display_{};
+    Input input_{};
 };
 
 static_assert(charm::cap::RasterDisplayWorld<DiyBoardWorld>);
+static_assert(charm::cap::InputWorld<DiyBoardWorld>);
+static_assert(charm::cap::RasterDisplayInputWorld<DiyBoardWorld>);
 
 } // namespace h747::world

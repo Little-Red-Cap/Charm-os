@@ -1,6 +1,7 @@
 module;
 
 #include <array>
+#include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -13,32 +14,204 @@ import util.error;
 import at.parser;
 
 export namespace at {
-    using SendFn = util::Result<util::usize> (*)(void* ctx, ByteView data) noexcept;
-    using LineFn = void (*)(void* ctx, std::string_view line) noexcept;
-    using DoneFn = void (*)(void* ctx, bool ok) noexcept;
-    using UrcFn  = void (*)(void* ctx, std::string_view line) noexcept;
+    class SenderRef {
+    public:
+        constexpr SenderRef() noexcept = default;
+
+        static constexpr SenderRef raw(
+            util::Result<util::usize> (*send)(void* ctx, ByteView data) noexcept,
+            void* ctx) noexcept {
+            return SenderRef{send, ctx};
+        }
+
+        template <typename Sender>
+            requires(
+                requires(Sender& value, ByteView data) {
+                    { value.send(data) } noexcept -> std::same_as<util::Result<util::usize>>;
+                } ||
+                requires(Sender& value, ByteView data) {
+                    { value(data) } noexcept -> std::same_as<util::Result<util::usize>>;
+                })
+        static constexpr SenderRef bind(Sender& sender) noexcept {
+            return SenderRef{&invoke<Sender>, &sender};
+        }
+
+        [[nodiscard]] constexpr explicit operator bool() const noexcept {
+            return send_ != nullptr;
+        }
+
+        [[nodiscard]] util::Result<util::usize> send(ByteView data) const noexcept {
+            if (!send_) {
+                return util::unexpected(util::Errc::invalid_arg);
+            }
+            return send_(ctx_, data);
+        }
+
+    private:
+        using SendFn = util::Result<util::usize> (*)(void* ctx, ByteView data) noexcept;
+
+        constexpr SenderRef(SendFn send, void* ctx) noexcept
+            : send_(send),
+              ctx_(ctx) {
+        }
+
+        template <typename Sender>
+        static util::Result<util::usize> invoke(void* ctx, ByteView data) noexcept {
+            auto* sender = static_cast<Sender*>(ctx);
+            if (!sender) {
+                return util::unexpected(util::Errc::invalid_arg);
+            }
+            if constexpr (requires(Sender& value, ByteView bytes) {
+                              { value.send(bytes) } noexcept -> std::same_as<util::Result<util::usize>>;
+                          }) {
+                return sender->send(data);
+            } else {
+                return (*sender)(data);
+            }
+        }
+
+        SendFn send_{nullptr};
+        void* ctx_{nullptr};
+    };
+
+    class LineHandlerRef {
+    public:
+        constexpr LineHandlerRef() noexcept = default;
+
+        static constexpr LineHandlerRef raw(
+            void (*handler)(void* ctx, std::string_view line) noexcept,
+            void* ctx) noexcept {
+            return LineHandlerRef{handler, ctx};
+        }
+
+        template <typename Handler>
+            requires(
+                requires(Handler& value, std::string_view line) {
+                    { value.on_line(line) } noexcept -> std::same_as<void>;
+                } ||
+                requires(Handler& value, std::string_view line) {
+                    { value(line) } noexcept -> std::same_as<void>;
+                })
+        static constexpr LineHandlerRef bind(Handler& handler) noexcept {
+            return LineHandlerRef{&invoke<Handler>, &handler};
+        }
+
+        [[nodiscard]] constexpr explicit operator bool() const noexcept {
+            return handler_ != nullptr;
+        }
+
+        void notify(std::string_view line) const noexcept {
+            if (handler_) {
+                handler_(ctx_, line);
+            }
+        }
+
+    private:
+        using HandlerFn = void (*)(void* ctx, std::string_view line) noexcept;
+
+        constexpr LineHandlerRef(HandlerFn handler, void* ctx) noexcept
+            : handler_(handler),
+              ctx_(ctx) {
+        }
+
+        template <typename Handler>
+        static void invoke(void* ctx, std::string_view line) noexcept {
+            auto* handler = static_cast<Handler*>(ctx);
+            if (!handler) {
+                return;
+            }
+            if constexpr (requires(Handler& value, std::string_view text) {
+                              { value.on_line(text) } noexcept -> std::same_as<void>;
+                          }) {
+                handler->on_line(line);
+            } else {
+                (*handler)(line);
+            }
+        }
+
+        HandlerFn handler_{nullptr};
+        void* ctx_{nullptr};
+    };
+
+    class DoneHandlerRef {
+    public:
+        constexpr DoneHandlerRef() noexcept = default;
+
+        static constexpr DoneHandlerRef raw(
+            void (*handler)(void* ctx, bool ok) noexcept,
+            void* ctx) noexcept {
+            return DoneHandlerRef{handler, ctx};
+        }
+
+        template <typename Handler>
+            requires(
+                requires(Handler& value, bool ok) {
+                    { value.on_done(ok) } noexcept -> std::same_as<void>;
+                } ||
+                requires(Handler& value, bool ok) {
+                    { value(ok) } noexcept -> std::same_as<void>;
+                })
+        static constexpr DoneHandlerRef bind(Handler& handler) noexcept {
+            return DoneHandlerRef{&invoke<Handler>, &handler};
+        }
+
+        [[nodiscard]] constexpr explicit operator bool() const noexcept {
+            return handler_ != nullptr;
+        }
+
+        void notify(bool ok) const noexcept {
+            if (handler_) {
+                handler_(ctx_, ok);
+            }
+        }
+
+    private:
+        using HandlerFn = void (*)(void* ctx, bool ok) noexcept;
+
+        constexpr DoneHandlerRef(HandlerFn handler, void* ctx) noexcept
+            : handler_(handler),
+              ctx_(ctx) {
+        }
+
+        template <typename Handler>
+        static void invoke(void* ctx, bool ok) noexcept {
+            auto* handler = static_cast<Handler*>(ctx);
+            if (!handler) {
+                return;
+            }
+            if constexpr (requires(Handler& value, bool success) {
+                              { value.on_done(success) } noexcept -> std::same_as<void>;
+                          }) {
+                handler->on_done(ok);
+            } else {
+                (*handler)(ok);
+            }
+        }
+
+        HandlerFn handler_{nullptr};
+        void* ctx_{nullptr};
+    };
+
+    using UrcHandlerRef = LineHandlerRef;
 
     struct Command {
         std::string_view text{};
         util::u32 timeout_ms{1000};
         util::u8 retries{0};
         bool append_crlf{true};
-        LineFn on_line{nullptr};
-        DoneFn on_done{nullptr};
-        void* user{nullptr};
+        LineHandlerRef on_line{};
+        DoneHandlerRef on_done{};
     };
 
     template <util::usize MaxQueue, util::usize LineCap>
     class Session {
     public:
-        void set_sender(SendFn fn, void* ctx) noexcept {
-            send_ = fn;
-            send_ctx_ = ctx;
+        void set_sender(SenderRef sender = {}) noexcept {
+            sender_ = sender;
         }
 
-        void set_urc_handler(UrcFn fn, void* ctx) noexcept {
-            urc_ = fn;
-            urc_ctx_ = ctx;
+        void set_urc_handler(UrcHandlerRef handler = {}) noexcept {
+            urc_ = handler;
         }
 
         void reset() noexcept {
@@ -85,17 +258,17 @@ export namespace at {
     private:
         void on_event(const Event& ev) noexcept {
             if (ev.kind == EventKind::urc) {
-                if (urc_) urc_(urc_ctx_, ev.text);
+                urc_.notify(ev.text);
                 return;
             }
             if (!active_) return;
             auto& cur = queue_[head_];
             if (ev.kind == EventKind::line) {
-                if (cur.on_line) cur.on_line(cur.user, ev.text);
+                cur.on_line.notify(ev.text);
                 return;
             }
             if (ev.kind == EventKind::ok || ev.kind == EventKind::error) {
-                if (cur.on_done) cur.on_done(cur.user, ev.kind == EventKind::ok);
+                cur.on_done.notify(ev.kind == EventKind::ok);
                 pop_active();
             }
         }
@@ -111,13 +284,13 @@ export namespace at {
         }
 
         void send_current(util::u32 now_ms) noexcept {
-            if (!send_) return;
+            if (!sender_) return;
             auto& cur = queue_[head_];
             if (send_len_ == 0) {
                 const auto text_len = static_cast<util::usize>(cur.text.size());
                 const auto total_len = text_len + (cur.append_crlf ? 2u : 0u);
                 if (total_len > send_buf_.size()) {
-                    if (cur.on_done) cur.on_done(cur.user, false);
+                    cur.on_done.notify(false);
                     pop_active();
                     return;
                 }
@@ -136,10 +309,10 @@ export namespace at {
                     send_buf_.data() + send_off_,
                     send_len_ - send_off_
                 };
-                auto sent = send_(send_ctx_, view);
+                auto sent = sender_.send(view);
                 if (!sent) {
                     if (sent.error() == util::Errc::would_block) return;
-                    if (cur.on_done) cur.on_done(cur.user, false);
+                    cur.on_done.notify(false);
                     send_len_ = 0;
                     send_off_ = 0;
                     pop_active();
@@ -169,7 +342,7 @@ export namespace at {
                 send_current(now_ms);
                 return true;
             }
-            if (cur.on_done) cur.on_done(cur.user, false);
+            cur.on_done.notify(false);
             return false;
         }
 
@@ -196,17 +369,15 @@ export namespace at {
         bool active_{false};
         util::u8 attempts_{0};
         util::u32 last_send_ms_{0};
-        SendFn send_{nullptr};
-        void* send_ctx_{nullptr};
-        UrcFn urc_{nullptr};
-        void* urc_ctx_{nullptr};
+        SenderRef sender_{};
+        UrcHandlerRef urc_{};
         std::array<util::u8, LineCap + 2> send_buf_{};
         util::usize send_len_{0};
         util::usize send_off_{0};
 
     public:
         Session() {
-            parser_.set_handler(&on_event_trampoline, this);
+            parser_.set_handler(EventHandlerRef::raw(&on_event_trampoline, this));
         }
     };
 }

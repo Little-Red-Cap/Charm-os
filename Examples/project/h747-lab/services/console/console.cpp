@@ -6,6 +6,8 @@ namespace h747::console {
 
 namespace {
 
+RxStats g_rx_stats{};
+
 void write_hex_n(std::uint32_t value, const int nibbles) {
     constexpr char kHex[] = "0123456789ABCDEF";
     write("0x");
@@ -82,15 +84,19 @@ bool poll_line(char* buffer, const std::uint32_t capacity, std::uint32_t& length
 
     if ((uart->Instance->ISR & USART_ISR_ORE) != 0U) {
         uart->Instance->ICR = USART_ICR_ORECF;
+        ++g_rx_stats.overrun_clears;
     }
 
     while ((uart->Instance->ISR & UART_FLAG_RXNE) != 0U) {
         const char c = static_cast<char>(uart->Instance->RDR);
+        ++g_rx_stats.bytes;
+        g_rx_stats.last_byte = static_cast<std::uint8_t>(c);
         if ((c == '\r') || (c == '\n')) {
             buffer[length] = '\0';
             write_char('\r');
             write_char('\n');
             length = 0U;
+            ++g_rx_stats.lines;
             return true;
         }
 
@@ -117,6 +123,10 @@ bool poll_line(char* buffer, const std::uint32_t capacity, std::uint32_t& length
     }
 
     return false;
+}
+
+RxStats rx_stats() {
+    return g_rx_stats;
 }
 
 } // namespace h747::console

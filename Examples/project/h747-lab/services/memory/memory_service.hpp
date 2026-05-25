@@ -208,6 +208,34 @@ public:
         return memory_probe_sdram1_alias_diag(&diag) != 0U;
     }
 
+    bool addr_diag(const SdramBank bank, memory_probe_sdram_addr_diag_t& diag) const noexcept {
+        if (bank == SdramBank::bank2) {
+            return memory_probe_sdram2_addr_diag(&diag) != 0U;
+        }
+        return memory_probe_sdram1_addr_diag(&diag) != 0U;
+    }
+
+    bool lane_diag(const SdramBank bank, memory_probe_sdram_lane_diag_t& diag) const noexcept {
+        if (bank == SdramBank::bank2) {
+            return memory_probe_sdram2_lane_diag(&diag) != 0U;
+        }
+        return memory_probe_sdram1_lane_diag(&diag) != 0U;
+    }
+
+    bool repeat_diag(const SdramBank bank, memory_probe_sdram_repeat_diag_t& diag) const noexcept {
+        if (bank == SdramBank::bank2) {
+            return memory_probe_sdram2_repeat_diag(&diag) != 0U;
+        }
+        return memory_probe_sdram1_repeat_diag(&diag) != 0U;
+    }
+
+    bool locate_diag(const SdramBank bank, memory_probe_sdram_locate_diag_t& diag) const noexcept {
+        if (bank == SdramBank::bank2) {
+            return memory_probe_sdram2_locate_diag(&diag) != 0U;
+        }
+        return memory_probe_sdram1_locate_diag(&diag) != 0U;
+    }
+
     bool wait_sequence_bus_diag(const SdramBank bank, memory_probe_sdram_bus_diag_t& diag) const noexcept {
         if (bank == SdramBank::bank2) {
             return memory_probe_sdram2_wait_sequence_bus_diag(&diag) != 0U;

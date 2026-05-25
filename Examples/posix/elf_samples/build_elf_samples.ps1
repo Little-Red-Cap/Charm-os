@@ -1,6 +1,8 @@
 param(
     [string]$ToolchainPrefix = "arm-none-eabi-",
-    [string]$OutDir = "$PSScriptRoot/out"
+    [string]$OutDir = "$PSScriptRoot/out",
+    [string]$IncDir = "$PSScriptRoot",
+    [string]$ElfBase = "0x20080000"
 )
 
 $ErrorActionPreference = "Stop"
@@ -8,9 +10,16 @@ $ErrorActionPreference = "Stop"
 if (-not (Test-Path $OutDir)) {
     New-Item -ItemType Directory -Path $OutDir | Out-Null
 }
+if (-not (Test-Path $IncDir)) {
+    New-Item -ItemType Directory -Path $IncDir | Out-Null
+}
 
 $cc = "${ToolchainPrefix}gcc"
-$ldscript = Join-Path $PSScriptRoot "elf_samples.ld"
+$ldscriptTemplate = Join-Path $PSScriptRoot "elf_samples.ld"
+$ldscript = Join-Path $OutDir "elf_samples.generated.ld"
+$ldtext = Get-Content -Path $ldscriptTemplate -Raw -Encoding UTF8
+$ldtext = $ldtext -replace 'ELF_BASE = 0x[0-9A-Fa-f]+;', "ELF_BASE = $ElfBase;"
+[System.IO.File]::WriteAllText($ldscript, $ldtext, [System.Text.Encoding]::ASCII)
 $cflags = @(
     "-mcpu=cortex-m7",
     "-mthumb",
@@ -68,7 +77,7 @@ $samples = @(
 foreach ($name in $samples) {
     $src = Join-Path $PSScriptRoot "$name.c"
     $elf = Join-Path $OutDir "$name.elf"
-    $inc = Join-Path $PSScriptRoot "$name.elf.inc"
+    $inc = Join-Path $IncDir "$name.elf.inc"
     & $cc @cflags $src -o $elf @ldflags
     Write-IncFile -InputPath $elf -OutputPath $inc -Symbol "${name}_elf"
 }

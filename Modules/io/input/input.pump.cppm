@@ -10,6 +10,7 @@ export module input.pump;
 import charm.system.clock;
 import init.binding;
 import input.raw_event;
+import input.raw_sink;
 import input.service;
 import kernel.eda;
 import kernel.evt;
@@ -24,7 +25,6 @@ export namespace input {
                                 kernel::Event evt,
                                 charm::system::ClockTick due) noexcept;
 
-    using SinkFn = bool (*)(void* ctx, const RawInputEvent& ev) noexcept;
     using PostFn = kernel::PostFn;
 
     struct InputPumpTask {
@@ -35,7 +35,7 @@ export namespace input {
 
         InputService* service{nullptr};
         charm::system::ClockRef clock{};
-        SinkFn sink{nullptr};
+        RawSinkFn sink{nullptr};
         void* sink_ctx{nullptr};
         ScheduleFn schedule{nullptr};
         void* schedule_ctx{nullptr};
@@ -58,7 +58,7 @@ export namespace input {
 
         void bind(InputService& service_in,
                   charm::system::Clock& clock_in,
-                  SinkFn sink_fn,
+                  RawSinkFn sink_fn,
                   void* sink_ctx_in,
                   ScheduleFn schedule_fn,
                   void* schedule_ctx_in,
@@ -81,7 +81,7 @@ export namespace input {
             started = false;
         }
 
-        void set_sink(SinkFn fn, void* ctx) noexcept {
+        void set_sink(RawSinkFn fn, void* ctx) noexcept {
             sink = fn;
             sink_ctx = ctx;
         }
@@ -156,8 +156,7 @@ export namespace input {
         InputPumpTask* pump{nullptr};
         InputService* service{nullptr};
         charm::system::Clock* clock{nullptr};
-        SinkFn sink{nullptr};
-        void* sink_ctx{nullptr};
+        RawSinkRef sink{};
         ScheduleFn schedule{nullptr};
         void* schedule_ctx{nullptr};
         PostFn post_more{nullptr};
@@ -181,8 +180,7 @@ export namespace input {
                          PostFn post_more_fn,
                          void* post_ctx_in,
                          kernel::TaskId task_id,
-                         SinkFn sink_fn = nullptr,
-                         void* sink_ctx_in = nullptr,
+                         RawSinkRef sink_ref = {},
                          charm::system::ClockTick period_ms_in = 16,
                          util::usize budget_in = 8,
                          const char* cap_name = "input.pump",
@@ -195,8 +193,7 @@ export namespace input {
             : pump(&task),
               service(&service_in),
               clock(&clock_in),
-              sink(sink_fn),
-              sink_ctx(sink_ctx_in),
+              sink(sink_ref),
               schedule(schedule_fn),
               schedule_ctx(schedule_ctx_in),
               post_more(post_more_fn),
@@ -241,8 +238,8 @@ export namespace input {
             }
             self->pump->bind(*self->service,
                              *self->clock,
-                             self->sink,
-                             self->sink_ctx,
+                             self->sink.fn(),
+                             self->sink.ctx(),
                              self->schedule,
                              self->schedule_ctx,
                              self->post_more,

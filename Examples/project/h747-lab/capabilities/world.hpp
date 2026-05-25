@@ -1,6 +1,7 @@
 #pragma once
 
 #include "capabilities/display.hpp"
+#include "capabilities/input.hpp"
 #include "capabilities/stream.hpp"
 #include "capabilities/time.hpp"
 
@@ -24,5 +25,15 @@ concept RasterDisplayWorld = World<W> && requires(W& world) {
     { world.display() } -> std::same_as<typename W::Display&>;
     { world.framebuffer() } -> std::same_as<FrameBuffer>;
 } && RasterDisplaySink<typename W::Display>;
+
+template <class W>
+concept InputWorld = World<W> && requires(W& world) {
+    typename W::Input;
+
+    { world.input() } -> std::same_as<typename W::Input&>;
+} && InputSource<typename W::Input>;
+
+template <class W>
+concept RasterDisplayInputWorld = RasterDisplayWorld<W> && InputWorld<W>;
 
 } // namespace charm::cap

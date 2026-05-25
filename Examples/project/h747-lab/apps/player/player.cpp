@@ -4,7 +4,9 @@
 #include "console_service.hpp"
 #include "h747_world.hpp"
 #include "memory_service.hpp"
+#include "player_display_hal.hpp"
 #include "player_domain.hpp"
+#include "player_input.hpp"
 
 #include <string_view>
 
@@ -28,6 +30,17 @@ h747::memory::StorageProbe& active_storage_probe() noexcept {
 h747::console::ConsoleLineSource& active_line_source() noexcept {
     static h747::console::ConsoleLineSource instance{};
     return instance;
+}
+
+h747::apps::player::PlayerRasterDisplaySinkState& active_player_display_sink_state() noexcept {
+    static h747::apps::player::PlayerRasterDisplaySinkState instance{};
+    return instance;
+}
+
+player::PlayerDisplaySink active_player_display_sink() noexcept {
+    return h747::apps::player::make_player_raster_display_sink(
+        active_player_display_sink_state(),
+        active_world().display());
 }
 
 h747::apps::player::PlayerBoardSnapshot capture_board_snapshot() noexcept {
@@ -62,54 +75,6 @@ void probe_resources_periodic() noexcept {
     probe_resources_once();
 }
 
-[[nodiscard]] bool command_from_line(const std::string_view line,
-                                     h747::apps::player::PlayerCommand& out) noexcept {
-    using h747::apps::player::PlayerCommandKind;
-    if ((line == "play") || (line == "pause") || (line == "toggle")) {
-        out = h747::apps::player::PlayerCommand{.kind = PlayerCommandKind::toggle_play};
-        return true;
-    }
-    if ((line == "next") || (line == "n")) {
-        out = h747::apps::player::PlayerCommand{.kind = PlayerCommandKind::next_track};
-        return true;
-    }
-    if ((line == "prev") || (line == "previous") || (line == "p")) {
-        out = h747::apps::player::PlayerCommand{.kind = PlayerCommandKind::previous_track};
-        return true;
-    }
-    if ((line == "seek+") || (line == "+")) {
-        out = h747::apps::player::PlayerCommand{
-            .kind = PlayerCommandKind::seek_relative,
-            .delta_percent = 10,
-        };
-        return true;
-    }
-    if ((line == "seek-") || (line == "-")) {
-        out = h747::apps::player::PlayerCommand{
-            .kind = PlayerCommandKind::seek_relative,
-            .delta_percent = -10,
-        };
-        return true;
-    }
-    return false;
-}
-
-void poll_console_commands() noexcept {
-    auto line = active_line_source().poll_line();
-    if (!line) {
-        return;
-    }
-
-    h747::apps::player::PlayerCommand command{};
-    if (!command_from_line(*line, command)) {
-        h747::console::write_line("player: commands: toggle next prev seek+ seek-");
-        return;
-    }
-
-    active_runtime().dispatch(command);
-    h747::console::write_line("player: command_ok");
-}
-
 void print_hex32(const char* label, const std::uint32_t value) {
     h747::console::write(label);
     h747::console::write_hex32(value);
@@ -118,6 +83,38 @@ void print_hex32(const char* label, const std::uint32_t value) {
 void print_dec32(const char* label, const std::uint32_t value) {
     h747::console::write(label);
     h747::console::write_dec(value);
+}
+
+void print_raster_state(const char* prefix);
+
+void print_bool(const char* label, const bool value) {
+    h747::console::write(label);
+    h747::console::write(value ? "1" : "0");
+}
+
+void print_help() {
+    h747::console::write_line("player commands:");
+    h747::console::write_line("  status  - print player/display state");
+    h747::console::write_line("  toggle  - toggle play/pause");
+    h747::console::write_line("  next    - jump progress forward");
+    h747::console::write_line("  prev    - jump progress backward");
+    h747::console::write_line("  seek+   - seek forward");
+    h747::console::write_line("  seek-   - seek backward");
+}
+
+void print_player_status() {
+    const auto& view = active_runtime().view();
+    h747::console::write("player_status:");
+    print_bool(" playing=", view.playing);
+    print_dec32(" progress=", view.progress_percent);
+    print_bool(" storage=", view.storage_ready);
+    print_bool(" cover=", view.cover_ready);
+    h747::console::write(" subtitle=");
+    for (const char ch : view.subtitle) {
+        h747::console::write_char(ch);
+    }
+    h747::console::write("\n");
+    print_raster_state("player_status");
 }
 
 void print_raster_state(const char* prefix) {
@@ -159,6 +156,63 @@ void print_raster_state(const char* prefix) {
     h747::console::write("\n");
 }
 
+void print_player_display_surface(const char* prefix) {
+    const auto surface = h747::apps::player::make_player_display_surface(active_world().display());
+    h747::console::write(prefix);
+    h747::console::write("_surface");
+    h747::console::write(" valid=");
+    h747::console::write_dec(surface.valid() ? 1U : 0U);
+    h747::console::write(" size=");
+    h747::console::write_dec(static_cast<std::uint32_t>(surface.width));
+    h747::console::write("x");
+    h747::console::write_dec(static_cast<std::uint32_t>(surface.height));
+    h747::console::write(" stride=");
+    h747::console::write_dec(static_cast<std::uint32_t>(surface.stride_bytes));
+    h747::console::write(" fmt=argb8888");
+    h747::console::write(" pixels=");
+    h747::console::write_hex32(reinterpret_cast<std::uintptr_t>(surface.pixels));
+    h747::console::write("\n");
+}
+
+void present_player_platform_probe() noexcept {
+    const auto surface = h747::apps::player::make_player_display_surface(active_world().display());
+    const auto sink = active_player_display_sink();
+    const bool ok = sink.present(surface, player::full_player_dirty_region(surface));
+    h747::console::write("player_display_hal: present=");
+    h747::console::write_dec(ok ? 1U : 0U);
+    h747::console::write("\n");
+}
+
+void handle_player_command(const std::string_view line) {
+    const auto event = h747::apps::player::parse_player_input_event(line);
+    using h747::apps::player::PlayerInputCommand;
+
+    switch (event.command) {
+    case PlayerInputCommand::none:
+        return;
+    case PlayerInputCommand::help:
+        print_help();
+        return;
+    case PlayerInputCommand::status:
+        print_player_status();
+        return;
+    case PlayerInputCommand::toggle:
+    case PlayerInputCommand::next:
+    case PlayerInputCommand::previous:
+    case PlayerInputCommand::seek_forward:
+    case PlayerInputCommand::seek_backward:
+        active_runtime().observe_input(event.frame);
+        h747::console::write("player_cmd: ");
+        h747::console::write(h747::apps::player::player_input_command_name(event.command));
+        h747::console::write("\n");
+        return;
+    case PlayerInputCommand::unknown:
+        h747::console::write_line("player_cmd: unknown");
+        print_help();
+        return;
+    }
+}
+
 } // namespace
 
 namespace h747::apps::player {
@@ -168,14 +222,19 @@ void init() {
     probe_resources_once();
     active_runtime().observe_board(capture_board_snapshot());
     print_raster_state("player");
+    print_player_display_surface("player");
+    present_player_platform_probe();
     init(active_world(), active_runtime());
     print_raster_state("player");
+    print_help();
 }
 
 void loop_once() noexcept {
     probe_resources_periodic();
+    if (const auto line = active_line_source().poll_line()) {
+        handle_player_command(*line);
+    }
     active_runtime().observe_board(capture_board_snapshot());
-    poll_console_commands();
     loop_once(active_world(), active_runtime());
     static std::uint32_t last_present = 0U;
     const auto present = active_world().display().state().raw.present_count;

@@ -183,8 +183,8 @@ export namespace usb::host {
             return exported_.exported();
         }
 
-        void set_observer(io::ExportObserver observer, void* ctx = nullptr) noexcept {
-            exported_.set_observer(observer, ctx);
+        void set_observer(io::ExportObserverRef observer = {}) noexcept {
+            exported_.set_observer(observer);
         }
 
         [[nodiscard]] io::PublishState publish_state() const noexcept {

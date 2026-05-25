@@ -21,6 +21,8 @@ typedef struct display_raster_state {
     uint32_t sdram_last_hal_status;
     uint32_t present_count;
     uint32_t cache_clean_count;
+    uint32_t front_buffer_base;
+    uint32_t back_buffer_base;
     uint32_t last_hal_status;
     uint32_t dsi_error;
     uint32_t dsi_wcr;

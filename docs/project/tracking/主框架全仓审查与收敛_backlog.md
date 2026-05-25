@@ -134,17 +134,23 @@
 - `Modules/ui/vivid/core/soa_gui.cppm`
 - `Modules/ui/vivid/gfx/draw_cmd.cppm`
 - `Modules/ui/vivid/core/soa_kernel_payload.cppm`
+- `Modules/ui/vivid/core/soa_kernel_class.cppm`
+- `Modules/ui/vivid/core/scene.cppm`
 
 #### 现象
 
-- `soa_gui.cppm` 约 2065 行，包含 **28 个** `record_*` 方法。
-- `draw_cmd.cppm` 约 3266 行，同时承载命令 schema、buffer、batching、executor。
-- `soa_kernel_payload.cppm` 内存在大量按 `PayloadKind` 分发的重复逻辑，`unsupported_kind(...)` 调用密度很高。
+- `soa_gui.cppm` 已增长到约 2222 行，仍是最直观的 UI God Module，`record_*` 族职责继续堆积。
+- `draw_cmd.cppm` 已增长到约 3432 行，同时承载命令 schema、buffer、batching、executor，规模压力依旧明显。
+- `soa_kernel_payload.cppm` 仍有大量按 `PayloadKind` 分发的重复逻辑，但它已经不再是唯一的 kernel 级心智负担源头。
+- `soa_kernel_class.cppm` 已增长到约 1559 行，并开始直接承接 semantic state 与 create/destroy 生命周期重置逻辑。
+- `scene.cppm` 已增长到约 1680 行，正在演变为 scene/runtime/motion/semantic 的宽 façade。
+- `soa_kernel_types.cppm` 虽然体量小于上述几个文件，但 semantic focus/action/request 运行时词汇已进入核心类型层，后续拆分时不能再只盯 payload。
+- `focus_scope.cppm` 目前反而相对干净，更像稳定的策略边界，而不是优先拆分对象。
 
 #### 为什么重要
 
-- 这是仓库里最明显的一组“规模 + 职责”双重聚集点。
-- 后续继续加控件、加渲染特性、加样式能力时，心智负担会继续非线性上升。
+- 这仍然是仓库里最明显的一组“规模 + 职责”双重聚集点，但热点已从单一 `payload` 扩散成 `SoaGui + draw_cmd + kernel class/payload + scene façade` 的组合压力。
+- 新近的 focus / semantic / motion 能力已经进入 Vivid 主干运行时，而不是停留在 demo 层；如果不及时收口，后续演进会同时放大 UI、输入、语义和证据面四条链路的心智负担。
 
 #### 建议方向
 
@@ -157,7 +163,50 @@
   - 命令定义
   - 命令缓冲与 batch
   - 命令执行器
-- `soa_kernel_payload` 优先抽公共分发辅助，减少 `PayloadKind` 大 switch 复制。
+- `soa_kernel_payload` 与 `soa_kernel_class` 应联动收口：优先抽公共分发辅助、semantic state 访问与生命周期复位 helper，减少 `PayloadKind` 大 switch 与 class/payload 双向长大。
+- `scene` 应优先区分“稳定 public façade”与“runtime / motion / semantic 具体承载层”，避免入口面继续把内部运行时细节整体外翻。
+- `focus_scope` 当前保持小而清晰，后续应作为稳定边界保留，避免再次回卷进更大的输入或 scene 实现文件。
+
+#### 第二轮 review 后的可执行分刀
+
+- **T4a. 先收入口面，再拆实现**
+  - `charm.ui.vivid` 与 `charm.ui.scene` 继续保持现有 public module 名称稳定。
+  - 优先用 module partition / internal module / 同目录窄模块承接拆分，不急着改 public surface 命名。
+  - 所有 feature-gated 导出都要与构建配置保持一致；`provider_freetype` 这次 host 阻塞说明入口面已经不能再假设所有 hosted 能力默认存在。
+
+- **T4b. `SoaGui` 第一刀：抽出 style / decoration / recorder families**
+  - 当前 `soa_gui.cppm` 头部已经自然形成 `apply_style_*`、`draw_decoration_*`、`record_decorated_box(...)` 一组 helper，适合先抽成 `soa_gui_style_support`。
+  - `record_tree(...)` / `record_node(...)` 应保留在主文件，作为 traversal + dispatch 核心。
+  - `record_label/button/image/text_box/switch/checkbox/radio/slider/progress` 适合并成基础控件 recorder 组。
+  - `record_list/list_item/list_view/table_view/tree_view/scroll_container/text_list/number_list/roller` 适合并成 collection recorder 组。
+  - `record_progress_* / record_spinner / record_perf_overlay / record_scrollbar` 更像 feedback / indicator 组，适合作为第三批拆分。
+
+- **T4c. `draw_cmd` 第一刀：先断 schema / buffer / executor**
+  - 文件前部的 `CmdType`、`Cmd*` POD、`DrawCmd`、`DrawCmdStats`、`DrawCmdExecStats` 属于稳定 schema，可先独立成 command schema 面。
+  - `BlobArena` 与 `DrawCmdBuffer` 已经天然构成第二层，应与 command compaction / readback helper 一起收进 buffer 层。
+  - `DrawCmdExecutor` 与其内部 rect/image/text/path batching、group dispatch、tile execute 应作为单独执行层。
+  - `mark_bounds(...)`、tile replay / execute_tiles 一类逻辑可以作为更后面的 tile/runtime 层，不必和第一刀绑死。
+  - 当前 `switch(cmd.type)` 未覆盖全部枚举值的告警说明 executor 已经开始失去封闭性，拆分后要优先补齐 exhaustive dispatch。
+
+- **T4d. `soa_kernel_class` 第一刀：拆成 storage / semantic / input / widget mutators**
+  - `CommonSoA`、`create/destroy`、基础 flag/rect/style setter 属于 storage+lifecycle 核心，应优先稳定。
+  - `set_semantic*`、`semantic_snapshot(...)`、`resolve/admit/request semantic_*` 已经形成独立 semantic runtime，可单独出层。
+  - `InputActionQueue`、`InputEventQueue`、`InputState`、`FocusScopeFrame`、`input_handle_*` 已经形成 input runtime，应与 storage 主体分离。
+  - 大量 `set_list_view_* / set_table_view_* / set_tree_view_* / set_roller_*` 更像 widget payload mutator 集合，适合后置拆分。
+  - `focus_scope.cppm` 当前边界清楚，应让 `soa_kernel_class` 依赖它，而不是把 scope policy 再回卷进 class 巨文件。
+
+- **T4e. `scene` 第一刀：拆 façade / builder / layer runtime**
+  - 文件开头的大量 `export using` 与 `SceneAccess` 更像 façade 层，应尽量保持薄。
+  - `PixelSnapshotPayloadStore`、`CommandSnapshotPayloadStore`、`LayerCaptureResult`、`LayerReplayResult`、`PageLayer` 属于 layer runtime，可形成独立承载层。
+  - `LayoutCursor`、`RowBuilder`、`ColumnBuilder`、`CardBuilder`、`TileBuilder` 是 builder/layout helper，不应继续和 runtime snapshot 代码混放。
+  - `Scene` 主类应尽量只保留组装、render/dispatch、overlay、layer budget 入口，而不是继续吸纳所有 helper。
+  - 当前 `scene.cppm` 同时承接 semantic façade、builder DSL、snapshot runtime、page layer，说明它已经不是“页面 helper”，而是第二个宽入口。
+
+#### 推荐落刀顺序
+
+- 第一步：只做“搬家不改义”的窄拆分，保持 API 与行为不变。
+- 第二步：在拆分后的窄文件内补局部 contract / self-check，尤其是 `draw_cmd` exhaustive dispatch 与 `semantic/focus` 运行时边界。
+- 第三步：最后再考虑 public façade 是否要进一步收窄，避免一边大拆一边改入口名，放大构建与迁移成本。
 
 ---
 

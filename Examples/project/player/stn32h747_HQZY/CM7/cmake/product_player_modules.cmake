@@ -43,10 +43,18 @@ set(MODULE_GROUP_PRODUCT_BUNDLES
     "${CMAKE_CURRENT_SOURCE_DIR}/../../bundles/hqzy_cm7_usb_storage_bundle.cppm"
 )
 
-set(MODULE_GROUP_PRODUCT_PROFILES
+set(MODULE_GROUP_PRODUCT_PROFILE_USB_SELF_MSC
     "${CMAKE_CURRENT_SOURCE_DIR}/../../profiles/hqzy_cm7_usb_self_msc.cppm"
 )
 
-set(MODULE_GROUP_PRODUCT_PROFILE_SYSTEM
+set(MODULE_GROUP_PRODUCT_PROFILE_SYSTEM_USB_SELF_MSC
     "${CMAKE_CURRENT_SOURCE_DIR}/../../profiles/hqzy_cm7_usb_self_msc.system.cppm"
+)
+
+set(MODULE_GROUP_PRODUCT_PROFILE_USB_STORAGE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../profiles/hqzy_cm7_usb_storage.cppm"
+)
+
+set(MODULE_GROUP_PRODUCT_PROFILE_SYSTEM_USB_STORAGE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../profiles/hqzy_cm7_usb_storage.system.cppm"
 )

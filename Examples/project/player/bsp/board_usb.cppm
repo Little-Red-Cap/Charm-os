@@ -27,6 +27,7 @@ extern "C" {
 export namespace player::stm32h7::board {
     usb::driver::DcdDeviceAdapter& usb_adapter() noexcept;
     usb::driver::DcdOps& usb_dcd_ops() noexcept;
+    PCD_HandleTypeDef* usb_pcd_handle() noexcept;
 
     void usb_hw_init() noexcept;
     void usb_enable_hooks(bool enable) noexcept;
@@ -262,6 +263,10 @@ export namespace player::stm32h7::board {
             inited = true;
         }
         return g_usb_dcd_ops;
+    }
+
+    PCD_HandleTypeDef* usb_pcd_handle() noexcept {
+        return &hpcd_USB_OTG_FS;
     }
 
     void usb_set_ready(void* ctx,

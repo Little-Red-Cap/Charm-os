@@ -54,6 +54,7 @@ For the current ownership map, host shell split, Vivid extraction candidates, an
 - Product resource defaults live in `player.product_config`; host entry points should select or override them instead of hardcoding resource paths.
 - `AppConfig` stores resource paths in fixed-capacity slots so the app-level config boundary does not require dynamic strings.
 - `AppConfig` groups font resource data as `FontResourceConfig`; font source is explicit (`Builtin`, `FilePath`, or future `Package`) instead of leaking host TTF fields into page code.
+- `player.font_resource_apply` is the app-common application seam for that config. `player.app` now hands the semantic font record to the controller through `apply_player_font_resource(...)` instead of branching on file-font details itself.
 - Embedded and file-backed cover decoding is gated by `CHARM_PLAYER_HOST_COVER_DECODE`; portable targets can keep using generated/default covers or later provide pre-decoded resource images.
 - Audio spectrum visualization is routed through `audio.spectrum`; the current `host_fft` backend is gated by `CHARM_AUDIO_SPECTRUM_USE_HOST_FFT`, while no-math targets compile with no spectrum backend and keep playback independent from FFT availability.
 - The Windows host shell prints `[player.features]` at startup so a preview build and a portability-probe build can be distinguished from logs. A probe with `host_cover_decode=0` is expected to skip real cover decoding.
@@ -61,7 +62,7 @@ For the current ownership map, host shell split, Vivid extraction candidates, an
 - `player.cover` consumes the active cover resource binding before the legacy `CoverProviderFn` host decoder. Portable targets can return pre-decoded/resource-backed views without changing page controllers; host decode remains gated by `CHARM_PLAYER_HOST_COVER_DECODE`.
 - When no cover can be decoded, Now Playing and the mini bar use generated default cover art instead of leaving image slots empty.
 - Cover-theme sampling is capped at a fixed 128x128 working set before palette extraction, so Player-side theme sampling has an explicit memory budget.
-- `player.font_resource` now defines small app-common helpers for builtin, file-path, and package-backed font inputs. FreeType/VFS file font binding is still gated by `CHARM_PLAYER_HOST_FILE_FONTS`; portable targets use `FontResourceKind::Builtin` or provide package bytes through `PlayerFontPackageResourceView`.
+- `player.font_resource` now defines small app-common helpers for builtin, file-path, and package-backed font inputs. `player.font_resource_apply` owns the controller/UI application seam for those inputs. FreeType/VFS file font binding is still gated by `CHARM_PLAYER_HOST_FILE_FONTS`; portable targets use `FontResourceKind::Builtin` or provide package bytes through `PlayerFontPackageResourceView`.
 - Playback and filesystem diagnostics are gated by explicit Player feature macros, not `_WIN32`.
 - FreeType file-backed font loading is a host/product resource path until Vivid has a board resource contract.
 - Calendar/week stamping is routed through `player.time_utils` so page controllers do not carry platform time branches.

@@ -54,6 +54,15 @@
             access.set_text(handles.probe_hero_subtitle, "Today's Mix for you");
         }
 
+        void refresh_font_visual_content() noexcept {
+            apply_player_theme();
+            refresh_exact_font_styles();
+            refresh_now_playing_visual_content();
+            refresh_home_visual_if_active();
+            invalidate_library_visual_state();
+            refresh_library_visual_if_active();
+        }
+
         void rebind_player_fonts() noexcept {
             if (font_ttf_path.empty()) return;
             reset_player_font_package_cache();
@@ -62,12 +71,21 @@
                                      font_small_px,
                                      font_normal_px,
                                      font_large_px);
-            apply_player_theme();
-            refresh_exact_font_styles();
-            refresh_now_playing_visual_content();
-            refresh_home_visual_if_active();
-            invalidate_library_visual_state();
-            refresh_library_visual_if_active();
+            refresh_font_visual_content();
+        }
+
+        void apply_pending_font_resource_binding() noexcept {
+            const bool ui_built = handles.root && handles.home_title_top;
+            if (!ui_built || font_ttf_path.empty() || font_retry_done || !fs_ready) {
+                return;
+            }
+            reset_player_font_package_cache();
+            bind_player_freetype_font(font_ttf_path,
+                                     font_fallback_ttf_path,
+                                     font_small_px,
+                                     font_normal_px,
+                                     font_large_px);
+            font_retry_done = true;
         }
 
         void set_font_config(std::string_view path,
@@ -87,5 +105,45 @@
                 if (fs_ready) {
                     font_retry_done = true;
                 }
+            }
+        }
+
+        void apply_builtin_font_resource_config(int small_px,
+                                                int normal_px,
+                                                int large_px) noexcept {
+            font_ttf_path.clear();
+            font_fallback_ttf_path.clear();
+            font_small_px = small_px;
+            font_normal_px = normal_px;
+            font_large_px = large_px;
+            font_retry_done = true;
+            clear_player_font_binding();
+            const bool ui_built = handles.root && handles.home_title_top;
+            if (ui_built) {
+                refresh_font_visual_content();
+            }
+        }
+
+        void apply_font_resource_config(const FontResourceConfig& font) {
+            switch (font.kind) {
+            case FontResourceKind::FilePath:
+                set_font_config(font.primary_path.view(),
+                                font.fallback_path.view(),
+                                font.small_px,
+                                font.normal_px,
+                                font.large_px);
+                break;
+            case FontResourceKind::Package:
+                // Memory-backed package consume path is not wired into MD3 yet.
+                apply_builtin_font_resource_config(font.small_px,
+                                                   font.normal_px,
+                                                   font.large_px);
+                break;
+            case FontResourceKind::Builtin:
+            default:
+                apply_builtin_font_resource_config(font.small_px,
+                                                   font.normal_px,
+                                                   font.large_px);
+                break;
             }
         }

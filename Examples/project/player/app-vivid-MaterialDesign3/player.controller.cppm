@@ -13,6 +13,7 @@ export module player.controller;
 
 import player.fixed_string;
 import player.mcu_policy;
+import player.app_config;
 import audio.eq;
 import audio.player;
 import audio.result;

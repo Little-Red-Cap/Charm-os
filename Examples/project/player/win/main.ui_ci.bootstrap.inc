@@ -146,6 +146,31 @@
         }
     }
 
+    bool run_font_resource_runtime_apply_ci(PlayerRuntime& runtime) noexcept {
+        auto* controller = runtime.controller();
+        if (!controller) {
+            return false;
+        }
+        if constexpr (player::host_features::host_file_fonts) {
+            const bool expects_runtime_bind = controller->fs_ready;
+            return !controller->font_ttf_path.empty()
+                && controller->font_small_px == player::product_config::default_font_small_px
+                && controller->font_normal_px == player::product_config::default_font_normal_px
+                && controller->font_large_px == player::product_config::default_font_large_px
+                && controller->font_retry_done == expects_runtime_bind
+                && player::ui::font_package_bound() == expects_runtime_bind
+                && font_provider_bound() == expects_runtime_bind;
+        } else {
+            return controller->font_ttf_path.empty()
+                && controller->font_fallback_ttf_path.empty()
+                && controller->font_small_px == player::product_config::default_font_small_px
+                && controller->font_normal_px == player::product_config::default_font_normal_px
+                && controller->font_large_px == player::product_config::default_font_large_px
+                && !player::ui::font_package_bound()
+                && !font_provider_bound();
+        }
+    }
+
     template<typename RuntimeT,
              typename SceneT,
              typename ContextT,
@@ -210,6 +235,14 @@
             ui_ci_emit("font_resource_config_profile_mode", true, nullptr);
         } else {
             ui_ci_emit("font_resource_config_profile_mode", false, "font_resource_config");
+            res.ok = false;
+            res.failed++;
+        }
+
+        if (run_font_resource_runtime_apply_ci(runtime)) {
+            ui_ci_emit("font_resource_runtime_apply_mode", true, nullptr);
+        } else {
+            ui_ci_emit("font_resource_runtime_apply_mode", false, "font_resource_runtime");
             res.ok = false;
             res.failed++;
         }

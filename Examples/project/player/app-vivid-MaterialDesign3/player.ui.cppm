@@ -781,6 +781,35 @@ export namespace player::ui {
 #endif
     }
 
+    void clear_player_font_binding() noexcept {
+        set_font_provider(FontProvider{});
+        set_font_weight_provider(FontWeightProvider{});
+        set_font_glyph_loader(FontGlyphLoaderApi{}, nullptr);
+#if CHARM_PLAYER_USE_HOST_FILE_FONTS
+        auto& package_state = detail::font_package_state();
+        package_state.package.reset_cache();
+        package_state.bound = false;
+        auto& freetype = detail::freetype_state();
+        detail::reset_exact_font_cache(freetype);
+        freetype.ttf_path.clear();
+        freetype.ttf_fallback_path.clear();
+        freetype.ttf_small.clear();
+        freetype.ttf_normal.clear();
+        freetype.ttf_large.clear();
+        freetype.ttf_mono.clear();
+        freetype.ttf_small_medium.clear();
+        freetype.ttf_normal_medium.clear();
+        freetype.ttf_large_medium.clear();
+        freetype.ttf_mono_medium.clear();
+        freetype.ttf_small_bold.clear();
+        freetype.ttf_normal_bold.clear();
+        freetype.ttf_large_bold.clear();
+        freetype.ttf_mono_bold.clear();
+        freetype.ttf_fallback.clear();
+        freetype.ready = false;
+#endif
+    }
+
     void reset_player_font_package_cache() noexcept {
 #if CHARM_PLAYER_USE_HOST_FILE_FONTS
         auto& state = detail::font_package_state();

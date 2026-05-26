@@ -8,6 +8,7 @@ import audio.player;
 import audio.result;
 import charm.system.clock;
 import player.app_config;
+import player.font_resource_apply;
 import player.input;
 import player.storage;
 import player.ui;
@@ -89,37 +90,15 @@ export namespace player {
 
         template <typename Controller>
         void bind_ui(::ui::scene::SceneBuilder& builder, Controller& controller) {
-            const auto& font = config_.font_resources;
-            if (font.has_file_resource()) {
-                if constexpr (requires {
-                                  controller.set_font_config(font.primary_path.view(),
-                                                             font.fallback_path.view(),
-                                                             font.small_px,
-                                                             font.normal_px,
-                                                             font.large_px);
-                              }) {
-                    controller.set_font_config(font.primary_path.view(),
-                                               font.fallback_path.view(),
-                                               font.small_px,
-                                               font.normal_px,
-                                               font.large_px);
-                } else if constexpr (requires {
-                                         controller.set_font_config(font.primary_path.view(),
-                                                                    font.small_px,
-                                                                    font.normal_px,
-                                                                    font.large_px);
-                                     }) {
-                    controller.set_font_config(font.primary_path.view(),
-                                               font.small_px,
-                                               font.normal_px,
-                                               font.large_px);
-                }
-            }
+            apply_player_font_resource(controller, config_.font_resources);
             apply_player_theme();
             controller.icons = register_player_icons();
             controller.handles = build_ui(builder, controller, controller.icons);
             controller.init_text_slots();
             controller.init_pages();
+            if constexpr (requires { controller.apply_pending_font_resource_binding(); }) {
+                controller.apply_pending_font_resource_binding();
+            }
             if constexpr (requires { controller.refresh_exact_font_styles(); }) {
                 controller.refresh_exact_font_styles();
             }

@@ -2908,6 +2908,10 @@
                 && !library_has_context()
                 && library_tab == LibraryTab::Songs;
             const bool show = show_empty || show_group_hint || show_context_hint || show_tracks_hint;
+            const auto soften_hint_color = [](rgba color) noexcept -> rgba {
+                return rgba{color.r, color.g, color.b,
+                            static_cast<std::uint8_t>(std::min<int>(color.a, 168))};
+            };
             const auto apply_hint_style = [&](rgba color,
                                               FontWeight weight,
                                               int px) noexcept {
@@ -2915,13 +2919,13 @@
                 patch.has_font = true;
                 patch.font = &get_player_font_px(px, weight);
                 patch.has_font_color = true;
-                patch.font_color = color;
+                patch.font_color = soften_hint_color(color);
                 access.set_style_override(handles.list_hint, patch);
             };
             access.set_visible(handles.list_hint, show);
             if (!show) return;
             if (show_empty && !mount_status.empty()) {
-                apply_hint_style(roles.hint_default, FontWeight::Medium, 14);
+                apply_hint_style(roles.hint_default, FontWeight::Medium, 13);
                 if (last_list_hint_text.view() == mount_status.view()) return;
                 last_list_hint_text.assign(mount_status.view());
                 set_label_slot(handles.list_hint, text_slots.list_hint, mount_status.c_str());
@@ -2930,56 +2934,49 @@
             const char* hint = "";
             char buf[160]{};
             if (show_group_hint) {
-                apply_hint_style(roles.hint_accent, FontWeight::Medium, 14);
+                apply_hint_style(roles.hint_accent, FontWeight::Medium, 13);
                 const char* label = (library_tab == LibraryTab::Albums)
                     ? ((count == 1) ? "album" : "albums")
                     : ((count == 1) ? "artist" : "artists");
-                std::snprintf(buf, sizeof(buf), "%d %s available | Select an %s to browse tracks",
-                              count, label, library_group_object_label());
-                char path_hint_buf[80]{};
-                if (format_library_path_bar_hint(path_hint_buf, sizeof(path_hint_buf))) {
-                    append_library_status_suffix(buf, sizeof(buf), path_hint_buf);
-                }
+                std::snprintf(buf, sizeof(buf), "%d %s | Select to browse",
+                              count, label);
                 if (list_shuffle_enabled) {
                     append_library_status_suffix(buf, sizeof(buf), "Shuffled");
                 }
                 hint = buf;
             } else if (show_context_hint) {
-                char summary_buf[96]{};
+                const std::string summary_text =
+                    utf8_truncate_with_ellipsis(library_context_key.view(), 28);
                 char path_hint_buf[80]{};
-                format_library_group_summary(
-                    library_context_key.view(),
-                    library_context_is_current_group(),
-                    summary_buf,
-                    sizeof(summary_buf));
                 const bool has_path_hint = format_library_path_bar_hint(path_hint_buf, sizeof(path_hint_buf));
-                if (summary_buf[0] != '\0') {
-                    apply_hint_style(roles.hint_context, FontWeight::Medium, 14);
+                if (!summary_text.empty()) {
+                    apply_hint_style(roles.hint_context, FontWeight::Medium, 13);
                     if (has_path_hint) {
-                        std::snprintf(buf, sizeof(buf), "%s | %s", summary_buf, path_hint_buf);
+                        std::snprintf(buf, sizeof(buf), "%s | %s",
+                                      summary_text.c_str(), path_hint_buf);
                         hint = buf;
                     } else {
-                        hint = summary_buf;
+                        hint = summary_text.c_str();
                     }
                 } else if (has_path_hint) {
-                    apply_hint_style(roles.hint_accent, FontWeight::Medium, 14);
+                    apply_hint_style(roles.hint_accent, FontWeight::Medium, 13);
                     hint = path_hint_buf;
                 }
             } else if (show_tracks_hint) {
-                apply_hint_style(roles.hint_default, FontWeight::Medium, 14);
+                apply_hint_style(roles.hint_default, FontWeight::Medium, 13);
                 const char* track_label = (count == 1) ? "track" : "tracks";
                 if (list_shuffle_enabled) {
-                    std::snprintf(buf, sizeof(buf), "%d %s available | Shuffled",
+                    std::snprintf(buf, sizeof(buf), "%d %s | Shuffled",
                                   count, track_label);
                 } else {
-                    std::snprintf(buf, sizeof(buf), "%d %s available",
+                    std::snprintf(buf, sizeof(buf), "%d %s",
                                   count, track_label);
                 }
                 hint = buf;
             } else {
                 apply_hint_style(roles.hint_default,
                                  !fs_ready ? FontWeight::Medium : FontWeight::Regular,
-                                 14);
+                                 13);
                 if (!fs_ready) {
                     hint = "FS not ready";
                 } else {

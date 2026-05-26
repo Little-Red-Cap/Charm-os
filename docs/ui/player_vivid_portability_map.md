@@ -54,8 +54,9 @@ Current short form:
 - Cover, font, storage, diagnostics, and UI-CI already have visible host gates or host-shell ownership.
 - `player.runtime` is now the common lifecycle seam between product code and host/board adapters.
 - `player.runtime_probe` constructs the real MD3 runtime around externally supplied storage and renders it into external memory; `--runtime-memory-smoke` is only the Windows host entry for that proof.
-- `player.board_port` is the board assembly skeleton for externally supplied framebuffer, display callbacks, touch source, package font metadata, and app config defaults.
+- `player.board_port` is the board assembly skeleton for externally supplied framebuffer, display callbacks, touch source, package font metadata, cover resource provider binding, and app config defaults.
 - `player.board_runtime` is the board lifecycle skeleton for turning those resources into `PlayerPlatform` / `PlayerRuntime` without SDL or argv parsing.
+- `player.cover_resource` is now the app-common cover contract. Windows preview and future board adapters both provide `PlayerCoverResourceProviderBinding`, while `player.cover` stays focused on image registration, host decode fallback, and generated default cover art.
 - `player.runtime.hqzy_cm7.player_ui_port_bridge` is the current H747-local bridge for the same idea on the board side; it keeps the facts explicit, clips dirty regions, and can exercise display callbacks without importing the MD3 runtime stack.
 - `make_board_display_sink()` gives the future board adapter a named seam for cache clean, dirty flush, and present/flip callbacks without changing Player UI.
 - `read_player_touch_events()` gives the future board touch adapter a fixed-capacity path from sampled touch points to `PlayerInputEvent`.
@@ -76,6 +77,7 @@ Current short form:
 - `--runtime-memory-smoke --font-disable-system-fallback` should pass without initializing SDL, proving the same real Player runtime can be constructed around an externally supplied framebuffer.
 - `--ui-ci` should include a board-touch-style path that samples touch points through `PlayerTouchSampleSource` instead of simulating SDL events.
 - `--ui-ci` should include a board-port binding proof that composes framebuffer, board display sink, touch source, and package font metadata without SDL.
+- `--ui-ci` should prove that a cover resource binding can be installed through runtime/board assembly and consumed by the real Now Playing cover path without reintroducing host decode assumptions.
 - The expected success line remains `done ok=1 failed=0`.
 
 If this probe fails, the first question should be "which provider or resource boundary leaked?", not "which board format should we emulate?"

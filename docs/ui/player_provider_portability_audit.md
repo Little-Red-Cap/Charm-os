@@ -22,7 +22,7 @@ It is intentionally narrower than a full embedded port plan. The goal is to make
 
 | Area | Current boundary | Host gate | Dynamic allocation points | Next priority |
 | --- | --- | --- | --- | --- |
-| Cover | `player.cover` exposes `CoverProviderFn`; page/controller code can use generated/default cover art when decode is unavailable. | `CHARM_PLAYER_HOST_COVER_DECODE`; profile log prints `host_cover_decode`. | Host decode buffers, embedded image extraction, palette/theme sampling work buffers. | Add a pre-decoded/resource-backed cover provider contract. |
+| Cover | `player.cover_resource` defines the resource contract, `player.runtime` installs a `PlayerCoverResourceProviderBinding`, and `player.cover` still owns host decode fallback plus generated/default cover art. | `CHARM_PLAYER_HOST_COVER_DECODE`; profile log prints `host_cover_decode`. | Host decode buffers, embedded image extraction, palette/theme sampling work buffers. | Add real board/resource provider implementations behind the binding contract. |
 | Theme | Player-owned cover sampling feeds dynamic surface/text roles; Vivid owns reusable role application candidates. | Indirectly tied to cover decode availability. | Fixed-budget 128x128 sampling workspace, palette candidates, controller theme state. | Keep sampling in Player; consider moving role application rules into Vivid after more app pressure. |
 | Audio spectrum | `audio.spectrum` owns analyzer state and the host FFT backend; `audio.player` only calls `enable/read/push/reset`. | `CHARM_AUDIO_ENABLE_SPECTRUM` and `CHARM_AUDIO_SPECTRUM_USE_HOST_FFT`; defaults follow `CHARM_TARGET_HAS_CXX_MATH`. | Host FFT uses fixed arrays plus `<complex>/<cmath>`; no-math targets compile the disabled backend with no analyzer buffers. | Add a CMSIS-DSP or fixed-point backend behind `SpectrumAnalyzer` instead of reintroducing FFT details into `audio.player`. |
 | Font | `FontResourceConfig` carries explicit font source kind plus sizes; host preview binds file fonts only when enabled; board ports can pass package metadata through `PlayerBoardFontPackageView`. | `CHARM_PLAYER_HOST_FILE_FONTS`, `CHARM_PLAYER_PC_FONT_CACHE`; profile log prints `host_file_fonts`. | FreeType/VFS font buffers, Win32/GDI glyph cache vectors, preview argv strings. | Define the concrete board font package binary/layout behind `FontResourceKind::Package`. |
@@ -37,8 +37,10 @@ It is intentionally narrower than a full embedded port plan. The goal is to make
 
 Current state:
 
-- `player.cover` already has a small provider seam through `CoverProviderFn`.
-- `player.cover` now checks an optional `CoverResourceProviderFn` before host decode, so board/resource builds can return a pre-decoded `CoverResourceView`.
+- `player.cover_resource` now owns the app-common resource contract: `CoverResourceRequest`, `CoverResourceView`, and `PlayerCoverResourceProviderBinding`.
+- `player.runtime` installs the configured cover resource binding before UI/bootstrap work and restores the previous binding on shutdown, so provider scope is runtime-local instead of page-local.
+- `player.board_port` carries the same binding so a future board shell can supply pre-decoded cover resources without teaching page/controller code about files or decoders.
+- `player.cover` still checks the active resource binding before host decode, so board/resource builds can return a pre-decoded `CoverResourceView`.
 - The Windows preview can install the host decoder when `CHARM_PLAYER_HOST_COVER_DECODE=1`.
 - `portability_probe` disables host decode, so generated/default cover art must keep Now Playing and the mini bar complete.
 - The UI path should not assume that embedded album art can always be decoded at runtime.
@@ -52,7 +54,7 @@ Dynamic allocation and portability notes:
 
 Recommended next slice:
 
-- Add real board/resource implementations for the new pre-decoded cover provider seam.
+- Add real board/resource implementations for the runtime/board-installed cover resource binding.
 - Keep host decode as one provider implementation, not the default mental model.
 - Continue using generated/default cover art as the fallback contract.
 

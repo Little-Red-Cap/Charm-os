@@ -46,6 +46,7 @@ export namespace player {
         return PlayerRuntimeConfig<Page>{
             .app_config = make_player_board_app_config(config.port),
             .storage_config = config.storage_config,
+            .cover_resource_provider = config.port.cover_resource_provider,
             .start_page = config.start_page,
             .initial_track_index = config.initial_track_index,
             .auto_start = config.auto_start,
@@ -67,6 +68,7 @@ export namespace player {
                                 PlayerRuntimeConfig<Page>{
                                     .app_config = std::move(bindings.app_config),
                                     .storage_config = config.storage_config,
+                                    .cover_resource_provider = config.port.cover_resource_provider,
                                     .start_page = config.start_page,
                                     .initial_track_index = config.initial_track_index,
                                     .auto_start = config.auto_start,

@@ -27,6 +27,7 @@ module;
 export module player.cover;
 
 import charm.gfx.image;
+export import player.cover_resource;
 #if CHARM_PLAYER_USE_HOST_COVER_DECODE
 import fs_core;
 import fs_vfs;
@@ -42,41 +43,10 @@ export namespace player {
         int height{0};
     };
 
-    enum class DefaultCoverVariant : std::uint8_t {
-        HomeHeroPill = 0,
-        HomeOrbitDisc,
-        HomeOrbitStack,
-        HomeCenterPill,
-        HomeBottomCard,
-        HomeBottomCut,
-    };
-
-    enum class CoverResourceKind : std::uint8_t {
-        Unknown = 0,
-        EmbeddedTrack,
-        FolderFile,
-    };
-
-    struct CoverResourceRequest {
-        std::string_view path{};
-        CoverResourceKind kind{CoverResourceKind::Unknown};
-        DefaultCoverVariant fallback_variant{DefaultCoverVariant::HomeHeroPill};
-    };
-
-    struct CoverResourceView {
-        std::string_view key{};
-        std::span<const std::uint32_t> argb{};
-        int width{0};
-        int height{0};
-    };
-
     ui::gfx::ImageId default_cover_image_id() noexcept;
     ui::gfx::ImageId default_cover_image_id(DefaultCoverVariant variant) noexcept;
     ui::gfx::ImageId default_cover_image_id(std::size_t variant) noexcept;
-    using CoverResourceProviderFn = bool (*)(const CoverResourceRequest& request, CoverResourceView& out) noexcept;
     using CoverProviderFn = bool (*)(std::string_view path, CoverImage& out) noexcept;
-    void set_cover_resource_provider(CoverResourceProviderFn provider) noexcept;
-    CoverResourceProviderFn cover_resource_provider() noexcept;
     void set_cover_provider(CoverProviderFn provider) noexcept;
     CoverProviderFn cover_provider() noexcept;
 
@@ -1371,11 +1341,6 @@ export namespace player {
 #endif
 
     namespace detail {
-        CoverResourceProviderFn& active_cover_resource_provider() noexcept {
-            static CoverResourceProviderFn provider = nullptr;
-            return provider;
-        }
-
         bool default_cover_provider(std::string_view path, CoverImage& out) noexcept {
 #if !CHARM_PLAYER_USE_HOST_COVER_DECODE
             (void)path;
@@ -1399,14 +1364,6 @@ export namespace player {
         img = {};
     }
 
-    void set_cover_resource_provider(CoverResourceProviderFn provider) noexcept {
-        detail::active_cover_resource_provider() = provider;
-    }
-
-    CoverResourceProviderFn cover_resource_provider() noexcept {
-        return detail::active_cover_resource_provider();
-    }
-
     void set_cover_provider(CoverProviderFn provider) noexcept {
         detail::active_cover_provider() = provider ? provider : &detail::default_cover_provider;
     }
@@ -1418,12 +1375,12 @@ export namespace player {
     bool load_cover_image(const CoverResourceRequest& request, CoverImage& out) {
         release_cover_image(out);
         if (request.path.empty()) return false;
-        if (const auto resource_provider = detail::active_cover_resource_provider()) {
-            CoverResourceView resource{};
-            if (resource_provider(request, resource)
-                && detail::register_cover_resource_view(request, resource, out)) {
-                return true;
-            }
+        CoverResourceView resource{};
+        if (resolve_cover_resource(request, resource)
+            && detail::register_cover_resource_view(request, resource, out)) {
+            return true;
+        }
+        if (resource.width > 0 || resource.height > 0 || !resource.key.empty() || !resource.argb.empty()) {
             release_cover_image(out);
         }
         const auto provider = detail::active_cover_provider();

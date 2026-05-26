@@ -1,3 +1,7 @@
+    bool ui_ci_static_cover_provider(void*,
+                                     const player::CoverResourceRequest& request,
+                                     player::CoverResourceView& out) noexcept;
+
     struct UiCiTouchSampleScript {
         std::array<player::PlayerTouchSample, 4> samples{};
         std::size_t count{0};
@@ -50,6 +54,10 @@
                 .normal_px = 17,
                 .large_px = 72,
             },
+            .cover_resource_provider = player::PlayerCoverResourceProviderBinding{
+                .ctx = nullptr,
+                .resolve_fn = &ui_ci_static_cover_provider,
+            },
             .player_config = g_player_cfg,
         };
         player::PlayerBoardPortConfig runtime_config_port = package_config;
@@ -77,6 +85,16 @@
         }
         const bool bootstrap_ok = board_runtime_storage.runtime
             && board_runtime_storage.runtime->app() != nullptr;
+        if (bootstrap_ok) {
+            board_ctx.cover_strategy = player::CoverStrategy::embedded_only;
+            board_ctx.cover_ready = true;
+            board_ctx.cover_path.clear();
+            board_ctx.cover_embedded_path.assign("/ui-ci/static-cover");
+            board_ctx.cover_folder_path.clear();
+            board_ctx.cover_failed_embedded_path.clear();
+            board_ctx.cover_failed_folder_path.clear();
+            board_ctx.update_cover_image();
+        }
         if (board_runtime_storage.runtime) {
             board_runtime_storage.runtime->tick(g_clock.now_us());
         }
@@ -88,7 +106,12 @@
             && board_runtime_storage.platform.has_value()
             && presented.valid()
             && presented.pixels == board_buffer.data()
-            && board_runtime_storage.display_sink_state.present_count == 1;
+            && board_runtime_storage.display_sink_state.present_count == 1
+            && ::ui::gfx::image_id_valid(board_ctx.cover_image.image_id)
+            && board_ctx.cover_image.width == 2
+            && board_ctx.cover_image.height == 2
+            && board_ctx.cover_image.argb.size() == 4
+            && board_ctx.cover_image.path == "/ui-ci/static-cover-resource";
         board_runtime_storage.reset();
 
         return bindings.valid()
@@ -161,6 +184,7 @@
         return player::PlayerRuntimeConfig<player::PlayerPage>{
             .app_config = make_app_config(options),
             .storage_config = player::default_storage_config(),
+            .cover_resource_provider = make_preview_cover_resource_provider_binding(),
             .start_page = options.start_page,
             .initial_track_index = options.track_index_override,
             .auto_start = false,

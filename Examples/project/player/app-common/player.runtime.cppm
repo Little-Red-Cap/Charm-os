@@ -12,6 +12,7 @@ import charm.system.clock;
 import charm.ui.scene;
 import player.app;
 import player.app_config;
+import player.cover_resource;
 import player.display;
 import player.input;
 import player.platform;
@@ -29,6 +30,7 @@ export namespace player {
     struct PlayerRuntimeConfig {
         AppConfig app_config{};
         StorageConfig storage_config{};
+        PlayerCoverResourceProviderBinding cover_resource_provider{};
         Page start_page{};
         int initial_track_index{0};
         bool auto_start{false};
@@ -66,6 +68,7 @@ export namespace player {
             if (!clock_ || !platform_ || !controller_) {
                 return false;
             }
+            install_cover_resource_provider_binding();
             charm::system::ClockCaps::TimeSource::bind(*clock_);
             app_.emplace(config_.app_config, *clock_);
             init_storage(config_.storage_config);
@@ -130,9 +133,28 @@ export namespace player {
                 }
                 app_.reset();
             }
+            restore_cover_resource_provider_binding();
         }
 
     private:
+        void install_cover_resource_provider_binding() noexcept {
+            if (cover_resource_provider_installed_) {
+                return;
+            }
+            previous_cover_resource_provider_ = cover_resource_provider_binding();
+            set_cover_resource_provider_binding(config_.cover_resource_provider);
+            cover_resource_provider_installed_ = true;
+        }
+
+        void restore_cover_resource_provider_binding() noexcept {
+            if (!cover_resource_provider_installed_) {
+                return;
+            }
+            set_cover_resource_provider_binding(previous_cover_resource_provider_);
+            previous_cover_resource_provider_ = {};
+            cover_resource_provider_installed_ = false;
+        }
+
         void apply_storage_view_compat() {
             if constexpr (requires { controller_->apply_storage_view(app_->storage_view(), false); }) {
                 controller_->apply_storage_view(app_->storage_view(), false);
@@ -146,6 +168,8 @@ export namespace player {
         Controller* controller_{nullptr};
         PlayerRuntimeConfig<Page> config_{};
         std::optional<App> app_{};
+        PlayerCoverResourceProviderBinding previous_cover_resource_provider_{};
+        bool cover_resource_provider_installed_{false};
         float t_sec_{0.0f};
     };
 }

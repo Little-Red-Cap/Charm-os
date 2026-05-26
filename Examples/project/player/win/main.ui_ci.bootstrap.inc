@@ -8,7 +8,8 @@
             | static_cast<std::uint32_t>(a);
     }
 
-    bool ui_ci_static_cover_provider(const player::CoverResourceRequest& request,
+    bool ui_ci_static_cover_provider(void*,
+                                     const player::CoverResourceRequest& request,
                                      player::CoverResourceView& out) noexcept {
         static constexpr std::array<std::uint32_t, 4> kPixels{
             ui_ci_cover_pixel(255, 240, 120, 80),
@@ -26,8 +27,11 @@
     }
 
     bool run_cover_resource_provider_ci() noexcept {
-        const auto previous = player::cover_resource_provider();
-        player::set_cover_resource_provider(&ui_ci_static_cover_provider);
+        const auto previous = player::cover_resource_provider_binding();
+        player::set_cover_resource_provider_binding(player::PlayerCoverResourceProviderBinding{
+            .ctx = nullptr,
+            .resolve_fn = &ui_ci_static_cover_provider,
+        });
 
         player::CoverImage image{};
         player::CoverResourceRequest request{};
@@ -43,8 +47,45 @@
             && image.path == "/ui-ci/static-cover-resource";
 
         player::release_cover_image(image);
-        player::set_cover_resource_provider(previous);
+        player::set_cover_resource_provider_binding(previous);
         return ok;
+    }
+
+    template<typename RuntimeT, typename PumpFrameFn>
+    bool run_cover_resource_provider_runtime_binding_ci(RuntimeT& runtime,
+                                                        PumpFrameFn& pump_frame) noexcept {
+        auto* controller = runtime.controller();
+        if (!controller) {
+            return false;
+        }
+
+        const auto previous_binding = player::cover_resource_provider_binding();
+        player::set_cover_resource_provider_binding(player::PlayerCoverResourceProviderBinding{
+            .ctx = nullptr,
+            .resolve_fn = &ui_ci_static_cover_provider,
+        });
+
+        controller->cover_strategy = player::CoverStrategy::embedded_only;
+        controller->cover_ready = true;
+        controller->cover_path.clear();
+        controller->cover_embedded_path.assign("/ui-ci/static-cover");
+        controller->cover_folder_path.clear();
+        controller->cover_failed_embedded_path.clear();
+        controller->cover_failed_folder_path.clear();
+        controller->update_cover_image();
+        pump_frame();
+
+        const bool provider_used = ::ui::gfx::image_id_valid(controller->cover_image.image_id)
+            && controller->cover_image.width == 2
+            && controller->cover_image.height == 2
+            && controller->cover_image.argb.size() == 4
+            && controller->cover_image.path == "/ui-ci/static-cover-resource";
+
+        player::set_cover_resource_provider_binding(previous_binding);
+        const auto active_binding = player::cover_resource_provider_binding();
+        const bool restored = active_binding.ctx == previous_binding.ctx
+            && active_binding.resolve_fn == previous_binding.resolve_fn;
+        return provider_used && restored;
     }
 
     bool run_font_resource_config_ci() noexcept {
@@ -109,6 +150,14 @@
             ui_ci_emit("cover_resource_provider_static_view", true, nullptr);
         } else {
             ui_ci_emit("cover_resource_provider_static_view", false, "static_view");
+            res.ok = false;
+            res.failed++;
+        }
+
+        if (run_cover_resource_provider_runtime_binding_ci(runtime, pump_frame)) {
+            ui_ci_emit("cover_resource_provider_runtime_binding", true, nullptr);
+        } else {
+            ui_ci_emit("cover_resource_provider_runtime_binding", false, "runtime_binding");
             res.ok = false;
             res.failed++;
         }

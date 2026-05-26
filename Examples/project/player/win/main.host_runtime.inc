@@ -82,12 +82,26 @@
         update_spectrum(t_sec, active);
     }
 
+    bool host_preview_cover_resource_resolve(void*,
+                                             const player::CoverResourceRequest&,
+                                             player::CoverResourceView&) noexcept {
+        return false;
+    }
+
+    player::PlayerCoverResourceProviderBinding make_preview_cover_resource_provider_binding() noexcept {
+        return player::PlayerCoverResourceProviderBinding{
+            .ctx = nullptr,
+            .resolve_fn = &host_preview_cover_resource_resolve,
+        };
+    }
+
     void bootstrap_player_preview(const PreviewOptions& options) {
         player::ui::set_player_system_font_fallback_enabled(!options.disable_system_font_fallback);
         player::AppConfig app_cfg = make_app_config(options);
         player::PlayerRuntimeConfig<player::PlayerPage> runtime_cfg{
             .app_config = std::move(app_cfg),
             .storage_config = player::default_storage_config(),
+            .cover_resource_provider = make_preview_cover_resource_provider_binding(),
             .start_page = options.start_page,
             .initial_track_index = options.track_index_override,
             .auto_start = false,

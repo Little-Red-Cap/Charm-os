@@ -6,6 +6,7 @@ export module player.board_port;
 
 import audio.player;
 import player.app_config;
+import player.cover_resource;
 import player.display;
 import player.input;
 import player.product_config;
@@ -52,6 +53,7 @@ export namespace player {
         PlayerBoardDisplayCallbacks display_callbacks{};
         PlayerTouchSampleSource touch_source{};
         PlayerBoardFontPackageView font_package{};
+        PlayerCoverResourceProviderBinding cover_resource_provider{};
         audio::PlayerConfig player_config{};
     };
 

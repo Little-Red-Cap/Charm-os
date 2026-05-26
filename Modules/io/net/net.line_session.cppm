@@ -14,7 +14,7 @@ import util.expected;
 export namespace net {
     using SendFn = StreamSendFn;
     using LineFn = void (*)(void* ctx, std::string_view line) noexcept;
-    using ErrorFn = void (*)(void* ctx, errc error) noexcept;
+    using ErrorFn = NetErrorFn;
 
     class LineHandlerRef {
     public:
@@ -71,60 +71,7 @@ export namespace net {
         void* ctx_{nullptr};
     };
 
-    class LineErrorHandlerRef {
-    public:
-        constexpr LineErrorHandlerRef() noexcept = default;
-
-        static constexpr LineErrorHandlerRef raw(ErrorFn handler, void* ctx) noexcept {
-            return LineErrorHandlerRef{handler, ctx};
-        }
-
-        template <typename Handler>
-            requires(
-                requires(Handler& value, errc error) {
-                    { value.on_error(error) } noexcept -> std::same_as<void>;
-                } ||
-                requires(Handler& value, errc error) {
-                    { value(error) } noexcept -> std::same_as<void>;
-                })
-        static constexpr LineErrorHandlerRef bind(Handler& handler) noexcept {
-            return LineErrorHandlerRef{&invoke<Handler>, &handler};
-        }
-
-        [[nodiscard]] constexpr explicit operator bool() const noexcept {
-            return handler_ != nullptr;
-        }
-
-        void notify(errc error) const noexcept {
-            if (handler_) {
-                handler_(ctx_, error);
-            }
-        }
-
-    private:
-        constexpr LineErrorHandlerRef(ErrorFn handler, void* ctx) noexcept
-            : handler_(handler),
-              ctx_(ctx) {
-        }
-
-        template <typename Handler>
-        static void invoke(void* ctx, errc error) noexcept {
-            auto* handler = static_cast<Handler*>(ctx);
-            if (!handler) {
-                return;
-            }
-            if constexpr (requires(Handler& value, errc e) {
-                              { value.on_error(e) } noexcept -> std::same_as<void>;
-                          }) {
-                handler->on_error(error);
-            } else {
-                (*handler)(error);
-            }
-        }
-
-        ErrorFn handler_{nullptr};
-        void* ctx_{nullptr};
-    };
+    using LineErrorHandlerRef = NetErrorHandlerRef;
 
     enum class LineEnding : util::u8 {
         none,
@@ -143,7 +90,7 @@ export namespace net {
             line_ = handler;
         }
 
-        void set_error_handler(LineErrorHandlerRef handler = {}) noexcept {
+        void set_error_handler(NetErrorHandlerRef handler = {}) noexcept {
             error_ = handler;
         }
 
@@ -281,7 +228,7 @@ export namespace net {
 
         StreamSenderRef send_{};
         LineHandlerRef line_{};
-        LineErrorHandlerRef error_{};
+        NetErrorHandlerRef error_{};
         std::array<char, LineCap + 1> line_buf_{};
         util::usize line_len_{0};
         bool saw_cr_{false};

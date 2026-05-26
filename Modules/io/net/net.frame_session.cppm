@@ -12,7 +12,7 @@ import util.expected;
 export namespace net {
     using FrameSendFn = StreamSendFn;
     using FrameFn = void (*)(void* ctx, ByteView payload) noexcept;
-    using FrameErrorFn = void (*)(void* ctx, errc error) noexcept;
+    using FrameErrorFn = NetErrorFn;
 
     class FrameHandlerRef {
     public:
@@ -69,60 +69,7 @@ export namespace net {
         void* ctx_{nullptr};
     };
 
-    class FrameErrorHandlerRef {
-    public:
-        constexpr FrameErrorHandlerRef() noexcept = default;
-
-        static constexpr FrameErrorHandlerRef raw(FrameErrorFn handler, void* ctx) noexcept {
-            return FrameErrorHandlerRef{handler, ctx};
-        }
-
-        template <typename Handler>
-            requires(
-                requires(Handler& value, errc error) {
-                    { value.on_error(error) } noexcept -> std::same_as<void>;
-                } ||
-                requires(Handler& value, errc error) {
-                    { value(error) } noexcept -> std::same_as<void>;
-                })
-        static constexpr FrameErrorHandlerRef bind(Handler& handler) noexcept {
-            return FrameErrorHandlerRef{&invoke<Handler>, &handler};
-        }
-
-        [[nodiscard]] constexpr explicit operator bool() const noexcept {
-            return handler_ != nullptr;
-        }
-
-        void notify(errc error) const noexcept {
-            if (handler_) {
-                handler_(ctx_, error);
-            }
-        }
-
-    private:
-        constexpr FrameErrorHandlerRef(FrameErrorFn handler, void* ctx) noexcept
-            : handler_(handler),
-              ctx_(ctx) {
-        }
-
-        template <typename Handler>
-        static void invoke(void* ctx, errc error) noexcept {
-            auto* handler = static_cast<Handler*>(ctx);
-            if (!handler) {
-                return;
-            }
-            if constexpr (requires(Handler& value, errc e) {
-                              { value.on_error(e) } noexcept -> std::same_as<void>;
-                          }) {
-                handler->on_error(error);
-            } else {
-                (*handler)(error);
-            }
-        }
-
-        FrameErrorFn handler_{nullptr};
-        void* ctx_{nullptr};
-    };
+    using FrameErrorHandlerRef = NetErrorHandlerRef;
 
     template <util::usize MaxPayload, util::usize TxCap = MaxPayload + 2>
     class FrameSession {
@@ -135,7 +82,7 @@ export namespace net {
             frame_ = handler;
         }
 
-        void set_error_handler(FrameErrorHandlerRef handler = {}) noexcept {
+        void set_error_handler(NetErrorHandlerRef handler = {}) noexcept {
             error_ = handler;
         }
 
@@ -283,7 +230,7 @@ export namespace net {
 
         StreamSenderRef send_{};
         FrameHandlerRef frame_{};
-        FrameErrorHandlerRef error_{};
+        NetErrorHandlerRef error_{};
         std::array<util::u8, 2> header_buf_{};
         util::usize header_len_{0};
         std::array<util::u8, MaxPayload> payload_buf_{};

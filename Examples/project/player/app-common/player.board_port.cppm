@@ -8,8 +8,8 @@ import audio.player;
 import player.app_config;
 import player.cover_resource;
 import player.display;
+import player.font_resource;
 import player.input;
-import player.product_config;
 
 export namespace player {
     struct PlayerBoardFramebuffer {
@@ -35,24 +35,11 @@ export namespace player {
         }
     };
 
-    struct PlayerBoardFontPackageView {
-        const std::byte* data{nullptr};
-        std::size_t size_bytes{0};
-        const char* key{nullptr};
-        int small_px{product_config::default_font_small_px};
-        int normal_px{product_config::default_font_normal_px};
-        int large_px{product_config::default_font_large_px};
-
-        [[nodiscard]] bool valid() const noexcept {
-            return data != nullptr && size_bytes > 0;
-        }
-    };
-
     struct PlayerBoardPortConfig {
         PlayerBoardFramebuffer framebuffer{};
         PlayerBoardDisplayCallbacks display_callbacks{};
         PlayerTouchSampleSource touch_source{};
-        PlayerBoardFontPackageView font_package{};
+        PlayerFontPackageResourceView font_package{};
         PlayerCoverResourceProviderBinding cover_resource_provider{};
         PlayerCoverResourceRecordTableView cover_resource_records{};
         audio::PlayerConfig player_config{};
@@ -70,18 +57,7 @@ export namespace player {
 
     inline AppConfig make_player_board_app_config(const PlayerBoardPortConfig& config) noexcept {
         AppConfig app_config{config.player_config};
-        auto& font = app_config.font_resources;
-        if (config.font_package.valid()) {
-            font.kind = FontResourceKind::Package;
-            font.package_data = config.font_package.data;
-            font.package_size_bytes = config.font_package.size_bytes;
-            font.package_key.assign(config.font_package.key);
-            font.small_px = config.font_package.small_px;
-            font.normal_px = config.font_package.normal_px;
-            font.large_px = config.font_package.large_px;
-        } else {
-            font.kind = FontResourceKind::Builtin;
-        }
+        app_config.font_resources = make_package_font_resource_config(config.font_package);
         return app_config;
     }
 

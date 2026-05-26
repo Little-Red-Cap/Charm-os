@@ -170,27 +170,23 @@
         g_player_cfg.fixed_rate = 48000;
 
         player::AppConfig app_cfg{g_player_cfg};
-        auto& font = app_cfg.font_resources;
         if constexpr (player::host_features::host_file_fonts) {
-            font.kind = player::FontResourceKind::FilePath;
+            std::string_view primary_path = player::product_config::default_font_path;
             if (!options.font_ttf_path.empty()) {
-                font.primary_path.assign(options.font_ttf_path);
-            } else {
-                font.primary_path.assign(player::product_config::default_font_path);
+                primary_path = options.font_ttf_path;
             }
+            std::string_view fallback_path{};
             if (!options.font_fallback_ttf_path.empty()) {
-                font.fallback_path.assign(options.font_fallback_ttf_path);
+                fallback_path = options.font_fallback_ttf_path;
             }
+            app_cfg.font_resources = player::make_file_font_resource_config(primary_path, fallback_path);
+        } else {
+            app_cfg.font_resources = player::make_builtin_font_resource_config();
         }
-        if (options.font_small_px > 0) {
-            font.small_px = options.font_small_px;
-        }
-        if (options.font_normal_px > 0) {
-            font.normal_px = options.font_normal_px;
-        }
-        if (options.font_large_px > 0) {
-            font.large_px = options.font_large_px;
-        }
+        player::apply_font_resource_overrides(app_cfg.font_resources,
+                                              options.font_small_px,
+                                              options.font_normal_px,
+                                              options.font_large_px);
         return app_cfg;
     }
 

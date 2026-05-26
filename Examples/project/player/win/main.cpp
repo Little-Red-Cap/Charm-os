@@ -7,6 +7,7 @@ import player.board_runtime;
 import player.cover_resource;
 import player.controller;
 import player.display;
+import player.font_resource;
 import player.fs_utils;
 import player.host_features;
 import player.input;

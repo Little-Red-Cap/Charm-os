@@ -46,7 +46,7 @@
             },
             .display_callbacks = {},
             .touch_source = player::PlayerTouchSampleSource{&touch_script, &ui_ci_read_touch_sample},
-            .font_package = player::PlayerBoardFontPackageView{
+            .font_package = player::PlayerFontPackageResourceView{
                 .data = kFontPackage.data(),
                 .size_bytes = kFontPackage.size(),
                 .key = "ui-ci-board-font-package",

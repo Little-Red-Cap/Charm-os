@@ -54,8 +54,9 @@ Current short form:
 - Cover, font, storage, diagnostics, and UI-CI already have visible host gates or host-shell ownership.
 - `player.runtime` is now the common lifecycle seam between product code and host/board adapters.
 - `player.runtime_probe` constructs the real MD3 runtime around externally supplied storage and renders it into external memory; `--runtime-memory-smoke` is only the Windows host entry for that proof.
-- `player.board_port` is the board assembly skeleton for externally supplied framebuffer, display callbacks, touch source, package font metadata, cover resource binding or static record table, and app config defaults.
+- `player.board_port` is the board assembly skeleton for externally supplied framebuffer, display callbacks, touch source, font resource inputs, cover resource binding or static record table, and app config defaults.
 - `player.board_runtime` is the board lifecycle skeleton for turning those resources into `PlayerPlatform` / `PlayerRuntime` without SDL or argv parsing.
+- `player.font_resource` is now the app-common font input contract. Windows preview and board assembly both build `FontResourceConfig` through the same builtin/file/package helpers instead of open-coding font field assignment in each adapter.
 - `player.cover_resource` is now the app-common cover contract. Windows preview and future board adapters can provide either `PlayerCoverResourceProviderBinding` or a static `PlayerCoverResourceRecordTableView`, while `player.cover` stays focused on image registration, host decode fallback, and generated default cover art.
 - `player.runtime.hqzy_cm7.player_ui_port_bridge` is the current H747-local bridge for the same idea on the board side; it keeps the facts explicit, clips dirty regions, and can exercise display callbacks without importing the MD3 runtime stack.
 - `make_board_display_sink()` gives the future board adapter a named seam for cache clean, dirty flush, and present/flip callbacks without changing Player UI.

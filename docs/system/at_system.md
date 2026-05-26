@@ -50,14 +50,17 @@ import at.session;
 
 using AtParser = at::Parser<128>;
 
-static void on_event(void*, const at::Event& ev) noexcept {
-    // 按需分发到 EDA/日志
-    (void)ev;
-}
+struct EventLog {
+    void on_event(const at::Event& ev) noexcept {
+        // 按需分发到 EDA/日志
+        (void)ev;
+    }
+};
 
 void demo_feed(std::span<const util::u8> data) {
     AtParser p;
-    p.set_handler(on_event, nullptr);
+    EventLog log{};
+    p.set_handler(at::EventHandlerRef::bind(log));
     p.feed(data);
 }
 ```
@@ -72,6 +75,7 @@ enqueue(cmd) -> send -> wait OK/ERROR -> done
 - 解析事件由 `at.session` 内部转发。
 - `URC` 独立回调，不打断当前命令。
 - 超时触发重试，超过 `retries` 后回调失败。
+- `set_sender`、`set_urc_handler` 与 `Command` 回调优先使用 `SenderRef` / `LineHandlerRef` / `DoneHandlerRef`；`raw(fn, ctx)` 只作为 C ABI 或旧适配层逃生口。
 
 ## Transport 绑定（UART/CDC）
 

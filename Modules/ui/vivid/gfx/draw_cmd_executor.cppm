@@ -133,7 +133,9 @@ export namespace ui::draw_cmd {
                     const int dy = y - cy;
                     return dx * dx + dy * dy <= radius * radius;
                 };
-                const int span = vertical ? std::max(1, rect.h - 1) : std::max(1, rect.w - 1);
+                const int span = vertical
+                    ? std::max<int>(1, static_cast<int>(rect.h) - 1)
+                    : std::max<int>(1, static_cast<int>(rect.w) - 1);
                 for (int y = rect.y; y < rect.y + rect.h; ++y) {
                     for (int x = rect.x; x < rect.x + rect.w; ++x) {
                         if (!inside_round(x, y, rect)) continue;
@@ -349,7 +351,8 @@ export namespace ui::draw_cmd {
                 }
                 const auto items = std::span<const LineBatchItem>(
                     reinterpret_cast<const LineBatchItem*>(blob.data()), count);
-                for (const auto& item : items) {
+                for (std::size_t i = 0; i < items.size(); ++i) {
+                    const auto& item = items[i];
                     ui::render::draw_line(canvas, item.x0, item.y0, item.x1, item.y1, cur.color);
                 }
             };
@@ -367,7 +370,8 @@ export namespace ui::draw_cmd {
                 }
                 const auto items = std::span<const PathBatchItem>(
                     reinterpret_cast<const PathBatchItem*>(blob.data()), count);
-                for (const auto& item : items) {
+                for (std::size_t i = 0; i < items.size(); ++i) {
+                    const auto& item = items[i];
                     if (item.count < 2) {
                         fail_path();
                         continue;
@@ -396,7 +400,8 @@ export namespace ui::draw_cmd {
                 }
                 const auto items = std::span<const RectBatchItem>(
                     reinterpret_cast<const RectBatchItem*>(blob.data()), count);
-                for (const auto& item : items) {
+                for (std::size_t i = 0; i < items.size(); ++i) {
+                    const auto& item = items[i];
                     ui::render::draw_rect(canvas,
                                           item.rect.x, item.rect.y,
                                           item.rect.w, item.rect.h,
@@ -417,7 +422,8 @@ export namespace ui::draw_cmd {
                 }
                 const auto items = std::span<const RectBatchItem>(
                     reinterpret_cast<const RectBatchItem*>(blob.data()), count);
-                for (const auto& item : items) {
+                for (std::size_t i = 0; i < items.size(); ++i) {
+                    const auto& item = items[i];
                     ui::render::draw_round_rect(canvas,
                                                 item.rect.x, item.rect.y,
                                                 item.rect.w, item.rect.h,
@@ -441,7 +447,8 @@ export namespace ui::draw_cmd {
                 const auto items = std::span<const RectBatchItem>(
                     reinterpret_cast<const RectBatchItem*>(blob.data()), count);
                 const int radius = cur.p0;
-                for (const auto& item : items) {
+                for (std::size_t i = 0; i < items.size(); ++i) {
+                    const auto& item = items[i];
                     const int cx = item.rect.x + item.rect.w / 2;
                     const int cy = item.rect.y + item.rect.h / 2;
                     ui::render::draw_circle(canvas, cx, cy, radius, cur.color, fill);
@@ -461,7 +468,8 @@ export namespace ui::draw_cmd {
                 }
                 const auto items = std::span<const RectBatchItem>(
                     reinterpret_cast<const RectBatchItem*>(blob.data()), count);
-                for (const auto& item : items) {
+                for (std::size_t i = 0; i < items.size(); ++i) {
+                    const auto& item = items[i];
                     ui::render::draw_focus_ring(canvas, item.rect, cur.color, cur.p0, true, cur.p1, cur.p2);
                 }
             };
@@ -480,7 +488,8 @@ export namespace ui::draw_cmd {
                 const auto items = std::span<const GlyphRunItem>(
                     reinterpret_cast<const GlyphRunItem*>(blob.data()), count);
                 const Font& font = cur.font_ptr ? *cur.font_ptr : get_font(cur.font);
-                for (const auto& item : items) {
+                for (std::size_t i = 0; i < items.size(); ++i) {
+                    const auto& item = items[i];
                     if (!buf.text_span_valid(item.text)) {
                         fail_text();
                         continue;
@@ -509,7 +518,8 @@ export namespace ui::draw_cmd {
                 }
                 const auto items = std::span<const ImageBatchItem>(
                     reinterpret_cast<const ImageBatchItem*>(blob.data()), count);
-                for (const auto& item : items) {
+                for (std::size_t i = 0; i < items.size(); ++i) {
+                    const auto& item = items[i];
                     if (item.rect.w > 0 && item.rect.h > 0) {
                         ui::render::draw_image_scaled(canvas, item.rect.x, item.rect.y,
                                                       item.rect.w, item.rect.h, *image);
@@ -537,7 +547,8 @@ export namespace ui::draw_cmd {
                 }
                 const auto items = std::span<const ImageBatchItem>(
                     reinterpret_cast<const ImageBatchItem*>(blob.data()), count);
-                for (const auto& item : items) {
+                for (std::size_t i = 0; i < items.size(); ++i) {
+                    const auto& item = items[i];
                     if (item.rect.w > 0 && item.rect.h > 0) {
                         ui::render::draw_image_scaled_shaped(
                             canvas,
@@ -577,7 +588,8 @@ export namespace ui::draw_cmd {
                 const auto count = static_cast<int>(blob.size() / sizeof(ImageBatchItem));
                 const auto items = std::span<const ImageBatchItem>(
                     reinterpret_cast<const ImageBatchItem*>(blob.data()), count);
-                for (const auto& item : items) {
+                for (std::size_t i = 0; i < items.size(); ++i) {
+                    const auto& item = items[i];
                     ui::render::draw_image_nine_slice(canvas,
                                                       item.rect.x, item.rect.y,
                                                       item.rect.w, item.rect.h,
@@ -1193,7 +1205,8 @@ export namespace ui::draw_cmd {
                             if (blob.size() >= static_cast<std::size_t>(count) * sizeof(LineBatchItem)) {
                                 const auto items = std::span<const LineBatchItem>(
                                     reinterpret_cast<const LineBatchItem*>(blob.data()), count);
-                                for (const auto& item : items) {
+                                for (std::size_t i = 0; i < items.size(); ++i) {
+                                    const auto& item = items[i];
                                     mark_bounds(line_bounds(item.x0, item.y0, item.x1, item.y1));
                                 }
                             }
@@ -1208,7 +1221,8 @@ export namespace ui::draw_cmd {
                             if (blob.size() >= static_cast<std::size_t>(count) * sizeof(PathBatchItem)) {
                                 const auto items = std::span<const PathBatchItem>(
                                     reinterpret_cast<const PathBatchItem*>(blob.data()), count);
-                                for (const auto& item : items) {
+                                for (std::size_t i = 0; i < items.size(); ++i) {
+                                    const auto& item = items[i];
                                     const auto path_blob = buf.blob_at(item.blob);
                                     if (path_blob.empty()) continue;
                                     const auto points = std::span<const Point>(
@@ -1231,7 +1245,8 @@ export namespace ui::draw_cmd {
                             if (blob.size() >= static_cast<std::size_t>(count) * sizeof(RectBatchItem)) {
                                 const auto items = std::span<const RectBatchItem>(
                                     reinterpret_cast<const RectBatchItem*>(blob.data()), count);
-                                for (const auto& item : items) {
+                                for (std::size_t i = 0; i < items.size(); ++i) {
+                                    const auto& item = items[i];
                                     mark_bounds(item.rect);
                                 }
                             }

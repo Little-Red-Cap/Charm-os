@@ -1,6 +1,7 @@
 module;
 
 #include <array>
+#include <concepts>
 #include <span>
 #include <string_view>
 
@@ -34,7 +35,71 @@ export namespace block {
         ExportState after{ExportState::missing};
     };
 
-    using ExportObserver = void (*)(void* ctx, const ExportTransition& transition) noexcept;
+    class ExportObserverRef {
+    public:
+        constexpr ExportObserverRef() noexcept = default;
+
+        static constexpr ExportObserverRef raw(
+            void (*observer)(void* ctx, const ExportTransition& transition) noexcept,
+            void* ctx) noexcept {
+            return ExportObserverRef{observer, ctx};
+        }
+
+        template <typename Observer>
+            requires(
+                requires(Observer& value, const ExportTransition& event) {
+                    { value.on_transition(event) } noexcept -> std::same_as<void>;
+                } ||
+                requires(Observer& value, const ExportTransition& event) {
+                    { value.on_event(event) } noexcept -> std::same_as<void>;
+                } ||
+                requires(Observer& value, const ExportTransition& event) {
+                    { value(event) } noexcept -> std::same_as<void>;
+                })
+        static constexpr ExportObserverRef bind(Observer& observer) noexcept {
+            return ExportObserverRef{&invoke<Observer>, &observer};
+        }
+
+        [[nodiscard]] constexpr explicit operator bool() const noexcept {
+            return observer_ != nullptr;
+        }
+
+        void notify(const ExportTransition& transition) const noexcept {
+            if (observer_) {
+                observer_(ctx_, transition);
+            }
+        }
+
+    private:
+        using ObserverFn = void (*)(void* ctx, const ExportTransition& transition) noexcept;
+
+        constexpr ExportObserverRef(ObserverFn observer, void* ctx) noexcept
+            : observer_(observer),
+              ctx_(ctx) {
+        }
+
+        template <typename Observer>
+        static void invoke(void* ctx, const ExportTransition& transition) noexcept {
+            auto* observer = static_cast<Observer*>(ctx);
+            if (!observer) {
+                return;
+            }
+            if constexpr (requires(Observer& value, const ExportTransition& event) {
+                              { value.on_transition(event) } noexcept -> std::same_as<void>;
+                          }) {
+                observer->on_transition(transition);
+            } else if constexpr (requires(Observer& value, const ExportTransition& event) {
+                                     { value.on_event(event) } noexcept -> std::same_as<void>;
+                                 }) {
+                observer->on_event(transition);
+            } else {
+                (*observer)(transition);
+            }
+        }
+
+        ObserverFn observer_{nullptr};
+        void* ctx_{nullptr};
+    };
 
     template <typename RegistryT>
     class DeviceSlotExport {
@@ -141,9 +206,8 @@ export namespace block {
         [[nodiscard]] Device* target() const noexcept { return slot_.target(); }
         [[nodiscard]] const DeviceDesc& desc() const noexcept { return desc_; }
 
-        void set_observer(ExportObserver observer, void* ctx = nullptr) noexcept {
+        void set_observer(ExportObserverRef observer = {}) noexcept {
             observer_ = observer;
-            observer_ctx_ = ctx;
         }
 
         DeviceSlot& slot() noexcept { return slot_; }
@@ -164,21 +228,19 @@ export namespace block {
             if (publish_before == publish_after && before == after) {
                 return;
             }
-            observer_(observer_ctx_,
-                      ExportTransition{
-                          action,
-                          publish_before,
-                          publish_after,
-                          before,
-                          after
-                      });
+            observer_.notify(ExportTransition{
+                action,
+                publish_before,
+                publish_after,
+                before,
+                after
+            });
         }
 
         RegistryT* registry_{nullptr};
         DeviceDesc desc_{};
         DeviceSlot slot_{};
-        ExportObserver observer_{nullptr};
-        void* observer_ctx_{nullptr};
+        ExportObserverRef observer_{};
     };
 
 #ifndef NDEBUG
@@ -207,12 +269,11 @@ export namespace block {
             std::array<ExportTransition, 4> events{};
             util::usize count{0};
 
-            static void on_transition(void* ctx, const ExportTransition& transition) noexcept {
-                auto* self = static_cast<TransitionLog*>(ctx);
-                if (!self || self->count >= self->events.size()) {
+            void on_transition(const ExportTransition& transition) noexcept {
+                if (count >= events.size()) {
                     return;
                 }
-                self->events[self->count++] = transition;
+                events[count++] = transition;
             }
         };
 
@@ -221,7 +282,7 @@ export namespace block {
 
         DeviceSlotExport<Registry<2>> exported{registry, "block.usb0"};
         TransitionLog log{};
-        exported.set_observer(&TransitionLog::on_transition, &log);
+        exported.set_observer(ExportObserverRef::bind(log));
         if (exported.publish_state() != PublishState::missing) return false;
         if (exported.published()) return false;
         if (exported.exported()) return false;

@@ -1,5 +1,19 @@
 # POSIX 兼容执行面总览
 
+## 战线关系声明
+
+- `track_kind`: `maintenance`
+- `track_status`: `maintained`
+- 这条线的角色：
+  - 它是已收口的维护线，继续承接 blocker、回归和验证链维护。
+- 它当前驱动的共享收敛面：
+  - fd / pipe / spawn / ELF / errno / C surface 的维护稳定性
+  - QEMU smoke 与 newlib stdio 验证链
+- 它不能反向重定义的仓库公共规则：
+  - 不能再被当成默认扩张前线。
+  - 不能为了“更像 Linux”而重新打开无边界兼容面扩张。
+  - 不能反向主导 Charm 核心语义面和共享底座设计。
+
 ## 这是什么
 
 Charm 当前已经形成了一条可工作的 POSIX / Linux 用户态兼容执行面。

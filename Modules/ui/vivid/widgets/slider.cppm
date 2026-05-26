@@ -99,6 +99,7 @@ public:
     }
 
     bool on_event(const Event& e) {
+        if (!is_enabled()) return false;
         if (e.type == Event::Type::MouseDown) {
             if (get_rect().contains(e.x, e.y)) {
                 dragging_ = true;

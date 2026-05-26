@@ -1,6 +1,7 @@
 module;
 
 #include <array>
+#include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <string_view>
@@ -26,14 +27,70 @@ export namespace at {
         std::string_view text{};
     };
 
-    using EventFn = void (*)(void* ctx, const Event& ev) noexcept;
+    class EventHandlerRef {
+    public:
+        constexpr EventHandlerRef() noexcept = default;
+
+        static constexpr EventHandlerRef raw(
+            void (*handler)(void* ctx, const Event& event) noexcept,
+            void* ctx) noexcept {
+            return EventHandlerRef{handler, ctx};
+        }
+
+        template <typename Handler>
+            requires(
+                requires(Handler& value, const Event& event) {
+                    { value.on_event(event) } noexcept -> std::same_as<void>;
+                } ||
+                requires(Handler& value, const Event& event) {
+                    { value(event) } noexcept -> std::same_as<void>;
+                })
+        static constexpr EventHandlerRef bind(Handler& handler) noexcept {
+            return EventHandlerRef{&invoke<Handler>, &handler};
+        }
+
+        [[nodiscard]] constexpr explicit operator bool() const noexcept {
+            return handler_ != nullptr;
+        }
+
+        void notify(const Event& event) const noexcept {
+            if (handler_) {
+                handler_(ctx_, event);
+            }
+        }
+
+    private:
+        using HandlerFn = void (*)(void* ctx, const Event& event) noexcept;
+
+        constexpr EventHandlerRef(HandlerFn handler, void* ctx) noexcept
+            : handler_(handler),
+              ctx_(ctx) {
+        }
+
+        template <typename Handler>
+        static void invoke(void* ctx, const Event& event) noexcept {
+            auto* handler = static_cast<Handler*>(ctx);
+            if (!handler) {
+                return;
+            }
+            if constexpr (requires(Handler& value, const Event& ev) {
+                              { value.on_event(ev) } noexcept -> std::same_as<void>;
+                          }) {
+                handler->on_event(event);
+            } else {
+                (*handler)(event);
+            }
+        }
+
+        HandlerFn handler_{nullptr};
+        void* ctx_{nullptr};
+    };
 
     template <util::usize LineCap>
     class Parser {
     public:
-        void set_handler(EventFn fn, void* ctx) noexcept {
-            handler_ = fn;
-            ctx_ = ctx;
+        void set_handler(EventHandlerRef handler = {}) noexcept {
+            handler_ = handler;
         }
 
         void reset() noexcept {
@@ -77,7 +134,7 @@ export namespace at {
             Event ev{};
             ev.kind = classify(view);
             ev.text = view;
-            if (handler_) handler_(ctx_, ev);
+            handler_.notify(ev);
             len_ = 0;
             overflow_ = false;
         }
@@ -93,7 +150,6 @@ export namespace at {
         util::usize len_{0};
         bool saw_cr_{false};
         bool overflow_{false};
-        EventFn handler_{nullptr};
-        void* ctx_{nullptr};
+        EventHandlerRef handler_{};
     };
 }

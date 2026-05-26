@@ -38,6 +38,7 @@ export namespace gui
 
         void fillRect(const Rect& r, bool on = true) noexcept
         {
+            if (r.w <= 0 || r.h <= 0) return;
             const int x0 = r.x, y0 = r.y, x1 = r.x + r.w, y1 = r.y + r.h;
             for (int y = y0; y < y1; ++y)
                 for (int x = x0; x < x1; ++x)

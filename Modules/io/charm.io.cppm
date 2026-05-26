@@ -18,6 +18,7 @@ export import input.queue;
 export import input.raw;
 export import input.raw_event;
 export import input.raw_sampler;
+export import input.raw_sink;
 export import input.router;
 export import input.service;
 export import input.trace;

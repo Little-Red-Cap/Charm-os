@@ -62,12 +62,11 @@ namespace examples::usb::support {
         std::array<TransitionT, MaxEvents> events{};
         std::size_t count{0};
 
-        static void on_event(void* ctx, const TransitionT& transition) noexcept {
-            auto* self = static_cast<FixedTransitionLog*>(ctx);
-            if (!self || self->count >= self->events.size()) {
+        void on_event(const TransitionT& transition) noexcept {
+            if (count >= events.size()) {
                 return;
             }
-            self->events[self->count++] = transition;
+            events[count++] = transition;
         }
     };
 }

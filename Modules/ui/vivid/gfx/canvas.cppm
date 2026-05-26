@@ -13,8 +13,7 @@ import charm.gfx.pixel_ops;
 import service_dirty_rects;
 import util.core;
 
-namespace {
-    constexpr Rect rect_union(const Rect& a, const Rect& b) noexcept {
+constexpr Rect rect_union(const Rect& a, const Rect& b) noexcept {
         const Rect ra = rect_normalized(a);
         const Rect rb = rect_normalized(b);
         const int left = (ra.x < rb.x) ? ra.x : rb.x;
@@ -22,9 +21,9 @@ namespace {
         const int right = ((ra.x + ra.w) > (rb.x + rb.w)) ? (ra.x + ra.w) : (rb.x + rb.w);
         const int bottom = ((ra.y + ra.h) > (rb.y + rb.h)) ? (ra.y + ra.h) : (rb.y + rb.h);
         return Rect{left, top, right - left, bottom - top};
-    }
+}
 
-    constexpr bool rect_overlap_or_touch(const Rect& a, const Rect& b) noexcept {
+constexpr bool rect_overlap_or_touch(const Rect& a, const Rect& b) noexcept {
         const Rect ra = rect_normalized(a);
         const Rect rb = rect_normalized(b);
         const int ax2 = ra.x + ra.w;
@@ -32,10 +31,9 @@ namespace {
         const int bx2 = rb.x + rb.w;
         const int by2 = rb.y + rb.h;
         return !(ax2 < rb.x - 1 || bx2 < ra.x - 1 || ay2 < rb.y - 1 || by2 < ra.y - 1);
-    }
-
-    std::uint64_t g_alpha_blend_count = 0;
 }
+
+std::uint64_t g_alpha_blend_count = 0;
 
 export inline void reset_alpha_blend_count() noexcept { g_alpha_blend_count = 0; }
 export inline std::uint64_t alpha_blend_count() noexcept { return g_alpha_blend_count; }

@@ -57,7 +57,7 @@ export namespace at {
     public:
         ReactorDriver(io::Reactor& r, io::Channel& ch, SessionT& sess) noexcept
             : reactor_(r), channel_(ch), session_(sess) {
-            session_.set_sender(&send_trampoline, this);
+            session_.set_sender(SenderRef::raw(&send_trampoline, this));
         }
 
         util::Result<void> start() noexcept {

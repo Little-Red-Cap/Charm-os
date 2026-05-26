@@ -1,0 +1,97 @@
+{
+    "version": 4,
+    "cmakeMinimumRequired": {
+        "major": 4,
+        "minor": 0
+    },
+    "configurePresets": [
+        {
+            "name": "h747-lab-debug",
+            "displayName": "H747 Lab Debug",
+            "description": "Configure both H747 Lab firmware targets.",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/cmake-build-h747-lab-debug",
+            "toolchainFile": "${sourceDir}/cmake/toolchains/h747-lab-gcc-arm-none-eabi.cmake",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "H747_LAB_DISPLAY_PANEL_PROFILE": "dts_2lane"
+            }
+        },
+        {
+            "name": "h747-lab-display-github4lane-debug",
+            "displayName": "H747 Lab Display Github4Lane Debug",
+            "description": "Configure both H747 Lab targets with the github 4-lane HX8394D table adapted to 2 lanes.",
+            "inherits": "h747-lab-debug",
+            "binaryDir": "${sourceDir}/cmake-build-h747-lab-display-github4lane-debug",
+            "cacheVariables": {
+                "H747_LAB_DISPLAY_PANEL_PROFILE": "github4lane_2lane"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "build-h747-lab-diag-shell-debug",
+            "displayName": "Build H747 Lab Diag Shell Debug",
+            "configurePreset": "h747-lab-debug",
+            "targets": [
+                "h747_lab_diag_shell"
+            ]
+        },
+        {
+            "name": "build-h747-lab-display-demo-debug",
+            "displayName": "Build H747 Lab Display Demo Debug",
+            "configurePreset": "h747-lab-debug",
+            "targets": [
+                "h747_lab_display_demo"
+            ]
+        },
+        {
+            "name": "build-h747-lab-display-raster-demo-debug",
+            "displayName": "Build H747 Lab Display Raster Demo Debug",
+            "configurePreset": "h747-lab-debug",
+            "targets": [
+                "h747_lab_display_raster_demo"
+            ]
+        },
+        {
+            "name": "build-h747-lab-input-probe-debug",
+            "displayName": "Build H747 Lab Input Probe Debug",
+            "configurePreset": "h747-lab-debug",
+            "targets": [
+                "h747_lab_input_probe"
+            ]
+        },
+        {
+            "name": "build-h747-lab-player-debug",
+            "displayName": "Build H747 Lab Player Debug",
+            "configurePreset": "h747-lab-debug",
+            "targets": [
+                "h747_lab_player"
+            ]
+        },
+        {
+            "name": "build-h747-lab-player-md3-debug",
+            "displayName": "Build H747 Lab Player MD3 Debug",
+            "configurePreset": "h747-lab-debug",
+            "targets": [
+                "h747_lab_player_md3"
+            ]
+        },
+        {
+            "name": "build-h747-lab-posix-lab-debug",
+            "displayName": "Build H747 Lab POSIX Lab Debug",
+            "configurePreset": "h747-lab-debug",
+            "targets": [
+                "h747_lab_posix_lab"
+            ]
+        },
+        {
+            "name": "build-h747-lab-display-demo-github4lane-debug",
+            "displayName": "Build H747 Lab Display Demo Github4Lane Debug",
+            "configurePreset": "h747-lab-display-github4lane-debug",
+            "targets": [
+                "h747_lab_display_demo"
+            ]
+        }
+    ]
+}

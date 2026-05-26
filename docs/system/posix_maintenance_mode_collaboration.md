@@ -50,6 +50,7 @@
 
 - QEMU 主线 smoke 变红；
 - newlib stdio 专项 smoke 变红；
+- `docs/system/posix_elf_stage1_baseline.md` 定义的 Stage 1 官方入口、样本组或验收口径发生漂移；
 - 已经承诺的 errno / fd / path / dir / process 语义出现回退；
 - 头文件、实现、样例行为开始互相不一致。
 
@@ -92,6 +93,7 @@
 
 - QEMU 主线 smoke 失败
 - newlib stdio 专项 smoke 失败
+- Stage 1 官方验证入口失效或口径漂移
 - 已收口主干能力发生明确回归
 - 构建系统变化导致 POSIX 验证链完全断掉
 
@@ -216,8 +218,9 @@
 1. 保住 QEMU 主线 smoke
 2. 保住 newlib stdio 专项 smoke
 3. 保住已收口 ABI 契约
-4. 适配上游构建系统变化
-5. 只在真实样例阻塞时补新缺口
+4. 保住 `posix_elf_stage1_baseline.md` 对应的官方入口和口径
+5. 适配上游构建系统变化
+6. 只在真实样例阻塞时补新缺口
 
 这个顺序尽量不要反过来。
 

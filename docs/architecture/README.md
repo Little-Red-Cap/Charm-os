@@ -28,7 +28,15 @@
 先读：
 
 - [`dependency_contract.md`](dependency_contract.md)
+- [`entry_surface_contract.md`](entry_surface_contract.md)
+- [`stable_entry_aggregate_contract.md`](stable_entry_aggregate_contract.md)
 - [`dependency_whitelist.md`](dependency_whitelist.md)
+- [`legacy_runtime_facade_retirement_contract.md`](legacy_runtime_facade_retirement_contract.md)
+
+如果问题具体是 `charm.foundation` / `charm.runtime` / `charm.domain` 是否还能作为入口，优先以
+[`entry_surface_contract.md`](entry_surface_contract.md) 为准；`dependency_whitelist.md` 只描述 opt-in 构建检查。
+如果问题是 `charm.core` / `charm.system` / `charm.ui.vivid` 这类稳定入口为什么可以宽，
+优先看 [`stable_entry_aggregate_contract.md`](stable_entry_aggregate_contract.md)。
 
 ### 我想看驱动模型和设备模型
 
@@ -74,7 +82,7 @@
 建议顺序：
 
 1. [`charm_methodology_charter.md`](charm_methodology_charter.md)
-2. [`../compiler/charm_compiler_constitution_v0.md`](../compiler/charm_compiler_constitution_v0.md)
+2. [`charm_spine_v0.md`](charm_spine_v0.md)
 3. [`system_compiler_roadmap.md`](system_compiler_roadmap.md)
 4. [`system_compiler_vocabulary_v0.md`](system_compiler_vocabulary_v0.md)
 
@@ -82,6 +90,18 @@
 
 - [`../system/README.md`](../system/README.md)
 - [`../../schemas/README.md`](../../schemas/README.md)
+
+### 我想看 RTE / 能力装配边界
+
+先读：
+
+- [`charm_spine_v0.md`](charm_spine_v0.md)
+- [`rte_capability_composition_contract_v0.md`](rte_capability_composition_contract_v0.md)
+- [`system_compiler_vocabulary_v0.md`](system_compiler_vocabulary_v0.md)
+- [`../system/init_graph_contract.md`](../system/init_graph_contract.md)
+
+这里的 RTE 指 `capability composition boundary`，不是运行时框架、
+调度器、service locator 或 AUTOSAR 式大平台。
 
 ### 我想看外部成熟产品对 Charm 机制的启发
 
@@ -106,7 +126,7 @@
 ## 当前建议阅读顺序
 
 - 看总架构和方法论：
-  `charm_methodology_charter.md`
+  `charm_methodology_charter.md` → `charm_spine_v0.md`
 - 看依赖与分层：
   `dependency_contract.md`
 - 看驱动与设备：
@@ -114,7 +134,9 @@
 - 看 signal/state：
   `signal_state_contract_v0.md`
 - 看 system compiler：
-  `../compiler/charm_compiler_constitution_v0.md` → `system_compiler_roadmap.md` → `system_compiler_vocabulary_v0.md`
+  `charm_spine_v0.md` → `system_compiler_roadmap.md` → `system_compiler_vocabulary_v0.md`
+- 看 RTE / 能力装配边界：
+  `charm_spine_v0.md` → `rte_capability_composition_contract_v0.md` → `system_compiler_vocabulary_v0.md` → `../system/init_graph_contract.md`
 - 看真实板级落地审计与能力回收：
   `real_board_landing_gap_audit_v0.md` → `capability_recovery_rules.md` → `capability_recovery_matrix.md`
 

@@ -1,5 +1,20 @@
 ﻿# Player Project 示例
 
+## 战线关系声明
+
+- `track_kind`: `pressure`
+- `track_status`: `active`
+- 这条线的角色：
+  - 它是 Charm 的真实项目压力线，用真实需求而不是抽象想象去逼共享能力面收敛。
+- 它当前驱动的共享收敛面：
+  - UI/Vivid 组合层与 helper 上收
+  - profile / runtime / board glue 的组织方式
+  - Audio / USB / Storage / UI 在真实项目中的装配边界
+- 它不能反向重定义的仓库公共规则：
+  - 不能把 Player 目录默认等价为普通示例区。
+  - 不能继续保留平行启动模型、平行装配模型和长期旁路入口。
+  - 不能把共享底座收窄成 Player 私有规则。
+
 此目录用于音频播放器“项目化”验证，共用逻辑与 UI 变体拆分为 app-common / app-ink / app-vivid。
 
 当前 Player 架构收敛基线见：`ARCHITECTURE_CONVERGENCE.md`

@@ -167,6 +167,7 @@ if ($RequireBusyboxPhase2 -and -not $bb2Ok) {
 
 if ($ReportPath -ne "") {
     $report = @(
+        "mode=" + ($(if ($RequireBusyboxPhase2) { "stage1-mainline" } else { "stage1-stdio" })),
         "posix_smoke=" + ($(if ($posixOk) { "ok" } else { "fail" })),
         "busybox_phase2=" + ($(if ($bb2Ok) { "ok" } else { "fail" })),
         "elf=" + $ElfPath,

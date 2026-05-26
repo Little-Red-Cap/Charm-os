@@ -64,25 +64,24 @@ namespace {
 
     struct RawPrintCtx {
         StdoutSink* sink{nullptr};
-    };
 
-    bool on_raw(void* ctx, const input::RawInputEvent& ev) noexcept {
-        auto* c = static_cast<RawPrintCtx*>(ctx);
-        if (!c || !c->sink) return true;
-        int code = 0;
-        int value = 0;
-        if (ev.type == input::RawInputEventType::Button) {
-            code = static_cast<int>(ev.button);
-            value = ev.pressed ? 1 : 0;
+        bool on_raw(const input::RawInputEvent& ev) noexcept {
+            if (!sink) return true;
+            int code = 0;
+            int value = 0;
+            if (ev.type == input::RawInputEventType::Button) {
+                code = static_cast<int>(ev.button);
+                value = ev.pressed ? 1 : 0;
+            }
+            (void)out::println<"[raw] t={} type={} code={} value={}">(
+                *sink,
+                ev.ms,
+                static_cast<int>(ev.type),
+                code,
+                value);
+            return true;
         }
-        (void)out::println<"[raw] t={} type={} code={} value={}">(
-            *c->sink,
-            ev.ms,
-            static_cast<int>(ev.type),
-            code,
-            value);
-        return true;
-    }
+    };
 }
 
 int main(int argc, char** argv) {
@@ -111,8 +110,7 @@ int main(int argc, char** argv) {
         caps,
         host,
         8,
-        &on_raw,
-        &print_ctx
+        input::RawSinkRef::bind(print_ctx)
     };
     auto r = bringup.start();
     if (!r) {

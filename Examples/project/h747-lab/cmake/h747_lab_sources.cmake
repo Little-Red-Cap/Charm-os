@@ -1,0 +1,179 @@
+include_guard(GLOBAL)
+
+set(H747_LAB_COMMON_DEFINITIONS
+    CORE_CM7
+    USE_HAL_DRIVER
+    STM32H747xx
+    USE_PWR_LDO_SUPPLY
+)
+
+set(H747_LAB_COMMON_INCLUDE_DIRS
+    "${H747_LAB_ROOT}"
+    "${H747_LAB_ROOT}/runtime"
+    "${H747_LAB_ROOT}/board/h747_diy/port"
+    "${H747_LAB_ROOT}/board/h747_diy/world"
+    "${CHARM_ROOT}/Examples/posix/elf_samples"
+    "${DRAFT_CM7_ROOT}/Core/Inc"
+    "${DRAFT_ROOT}/Common/Inc"
+    "${HAL_ROOT}/Inc"
+    "${HAL_ROOT}/Inc/Legacy"
+    "${STM32CUBE_H7_ROOT}/Drivers/CMSIS/Device/ST/STM32H7xx/Include"
+    "${STM32CUBE_H7_ROOT}/Drivers/CMSIS/Include"
+)
+
+set(H747_LAB_PLATFORM_SOURCES
+    "${DRAFT_CM7_ROOT}/Core/Startup/startup_stm32h747xx_CM7.s"
+    "${DRAFT_ROOT}/Common/Src/system_stm32h7xx_dualcore_boot_cm4_cm7.c"
+    "${DRAFT_CM7_ROOT}/Core/Src/gpio.c"
+    "${DRAFT_CM7_ROOT}/Core/Src/dma.c"
+    "${DRAFT_CM7_ROOT}/Core/Src/fmc.c"
+    "${DRAFT_CM7_ROOT}/Core/Src/usart.c"
+    "${DRAFT_CM7_ROOT}/Core/Src/stm32h7xx_hal_msp.c"
+    "${DRAFT_CM7_ROOT}/Core/Src/syscalls.c"
+    "${DRAFT_CM7_ROOT}/Core/Src/sysmem.c"
+    "${DRAFT_CM7_ROOT}/Core/Src/quadspi.c"
+    "${DRAFT_CM7_ROOT}/Core/Src/i2c.c"
+    "${DRAFT_CM7_ROOT}/Core/Src/spi.c"
+    "${DRAFT_CM7_ROOT}/Core/Src/tim.c"
+    "${HAL_ROOT}/Src/stm32h7xx_hal.c"
+    "${HAL_ROOT}/Src/stm32h7xx_hal_cortex.c"
+    "${HAL_ROOT}/Src/stm32h7xx_hal_gpio.c"
+    "${HAL_ROOT}/Src/stm32h7xx_hal_dma.c"
+    "${HAL_ROOT}/Src/stm32h7xx_hal_dma_ex.c"
+    "${HAL_ROOT}/Src/stm32h7xx_hal_pwr.c"
+    "${HAL_ROOT}/Src/stm32h7xx_hal_pwr_ex.c"
+    "${HAL_ROOT}/Src/stm32h7xx_hal_flash.c"
+    "${HAL_ROOT}/Src/stm32h7xx_hal_flash_ex.c"
+    "${HAL_ROOT}/Src/stm32h7xx_hal_exti.c"
+    "${HAL_ROOT}/Src/stm32h7xx_hal_tim.c"
+    "${HAL_ROOT}/Src/stm32h7xx_hal_tim_ex.c"
+    "${HAL_ROOT}/Src/stm32h7xx_hal_uart.c"
+    "${HAL_ROOT}/Src/stm32h7xx_hal_uart_ex.c"
+    "${HAL_ROOT}/Src/stm32h7xx_hal_rcc.c"
+    "${HAL_ROOT}/Src/stm32h7xx_hal_rcc_ex.c"
+    "${HAL_ROOT}/Src/stm32h7xx_hal_i2c.c"
+    "${HAL_ROOT}/Src/stm32h7xx_hal_i2c_ex.c"
+    "${HAL_ROOT}/Src/stm32h7xx_hal_spi.c"
+    "${HAL_ROOT}/Src/stm32h7xx_hal_qspi.c"
+    "${HAL_ROOT}/Src/stm32h7xx_hal_dsi.c"
+    "${HAL_ROOT}/Src/stm32h7xx_hal_ltdc.c"
+    "${HAL_ROOT}/Src/stm32h7xx_hal_ltdc_ex.c"
+    "${HAL_ROOT}/Src/stm32h7xx_hal_sdram.c"
+    "${HAL_ROOT}/Src/stm32h7xx_ll_fmc.c"
+)
+
+set(H747_LAB_BOARD_SOURCES
+    "${H747_LAB_ROOT}/board/h747_diy/port/clock.cpp"
+    "${H747_LAB_ROOT}/board/h747_diy/port/drivers.cpp"
+    "${H747_LAB_ROOT}/board/h747_diy/port/error.cpp"
+    "${H747_LAB_ROOT}/board/h747_diy/port/interrupts.cpp"
+    "${H747_LAB_ROOT}/board/h747_diy/port/port.cpp"
+)
+
+set(H747_LAB_RUNTIME_SOURCES
+    "${H747_LAB_ROOT}/runtime/foundation.cpp"
+    "${H747_LAB_ROOT}/runtime/main.cpp"
+)
+
+set(H747_LAB_MODULE_SOURCES
+    "${CHARM_ROOT}/Modules/core/util/core.cppm"
+    "${CHARM_ROOT}/Modules/core/util/expected.cppm"
+    "${CHARM_ROOT}/Modules/core/util/error.cppm"
+    "${CHARM_ROOT}/Modules/core/service/service_ring_buffer.cppm"
+    "${CHARM_ROOT}/Modules/init/init.binding.cppm"
+    "${CHARM_ROOT}/Modules/core/init/init.node.cppm"
+    "${CHARM_ROOT}/Modules/core/init/init.graph.cppm"
+    "${CHARM_ROOT}/Modules/io/channel/io.channel.cppm"
+    "${CHARM_ROOT}/Modules/io/reactor/io.reactor.cppm"
+    "${CHARM_ROOT}/Modules/io/registry/io.registry.cppm"
+    "${CHARM_ROOT}/Modules/io/block/block.device.cppm"
+    "${CHARM_ROOT}/Modules/io/block/block.registry.cppm"
+    "${CHARM_ROOT}/Modules/io/fs/fs_block.cppm"
+    "${CHARM_ROOT}/Modules/io/net/net.common.cppm"
+    "${CHARM_ROOT}/Modules/io/net/net.backend.stub.cppm"
+    "${CHARM_ROOT}/Modules/io/net/net.posix.cppm"
+    "${CHARM_ROOT}/Modules/io/net/net.socket.cppm"
+    "${CHARM_ROOT}/Modules/io/out/out.core.cppm"
+    "${CHARM_ROOT}/Modules/io/out/out.sink.cppm"
+    "${CHARM_ROOT}/Modules/io/out/out.format.cppm"
+    "${CHARM_ROOT}/Modules/io/fs/fs_core.cppm"
+    "${CHARM_ROOT}/Modules/io/fs/fs_errno.cppm"
+    "${CHARM_ROOT}/Modules/io/fs/fs_path.cppm"
+    "${CHARM_ROOT}/Modules/io/fs/fs_stream.cppm"
+    "${CHARM_ROOT}/Modules/io/fs/fs_vfs.cppm"
+    "${CHARM_ROOT}/Modules/io/fs/fs_ramfs.cppm"
+    "${CHARM_ROOT}/Modules/io/posix/posix.api.cppm"
+    "${CHARM_ROOT}/Modules/io/posix/posix.elf_hostcall.cppm"
+    "${CHARM_ROOT}/Modules/io/posix/posix.env.cppm"
+    "${CHARM_ROOT}/Modules/io/posix/posix.errno.cppm"
+    "${CHARM_ROOT}/Modules/io/posix/posix.exec_context.cppm"
+    "${CHARM_ROOT}/Modules/io/posix/posix.exec_loader.cppm"
+    "${CHARM_ROOT}/Modules/io/posix/posix.exec_source.cppm"
+    "${CHARM_ROOT}/Modules/io/posix/posix.fd_table.cppm"
+    "${CHARM_ROOT}/Modules/io/posix/posix.file.cppm"
+    "${CHARM_ROOT}/Modules/io/posix/posix.image_resolver.cppm"
+    "${CHARM_ROOT}/Modules/io/posix/posix.pipe.cppm"
+    "${CHARM_ROOT}/Modules/io/posix/posix.proc.cppm"
+    "${CHARM_ROOT}/Modules/io/posix/posix.proc_types.cppm"
+    "${CHARM_ROOT}/Modules/io/posix/posix.program_catalog.cppm"
+    "${CHARM_ROOT}/Modules/io/posix/posix.program_image.cppm"
+    "${CHARM_ROOT}/Modules/io/posix/posix.program_image_elf.cppm"
+    "${CHARM_ROOT}/Modules/io/posix/posix.program_image_modulex.cppm"
+    "${CHARM_ROOT}/Modules/io/posix/posix.spawn_fds.cppm"
+    "${CHARM_ROOT}/Modules/io/posix/posix.term.cppm"
+    "${CHARM_ROOT}/Modules/io/posix/posix.user_context.cppm"
+    "${CHARM_ROOT}/Modules/io/posix/posix.user_crt.cppm"
+    "${CHARM_ROOT}/Modules/io/posix/posix.user_crt_c.cppm"
+    "${CHARM_ROOT}/Modules/io/posix/posix.user_runtime.cppm"
+    "${CHARM_ROOT}/Modules/system/clock/system_clock.cppm"
+    "${CHARM_ROOT}/Modules/system/clock/system_time.cppm"
+    "${CHARM_ROOT}/Modules/system/modulex/module_core.cppm"
+    "${CHARM_ROOT}/Modules/system/modulex/module_loader.cppm"
+    "${CHARM_ROOT}/Modules/system/modulex/module_link.cppm"
+    "${CHARM_ROOT}/Modules/system/modulex/module_view.cppm"
+)
+
+set(H747_LAB_SERVICE_console_SOURCES
+    "${H747_LAB_ROOT}/services/console/console.cpp"
+)
+set(H747_LAB_SERVICE_console_INCLUDE_DIRS
+    "${H747_LAB_ROOT}/services/console"
+)
+
+set(H747_LAB_SERVICE_power_SOURCES
+    "${H747_LAB_ROOT}/services/power/power.cpp"
+)
+set(H747_LAB_SERVICE_power_INCLUDE_DIRS
+    "${H747_LAB_ROOT}/services/power"
+)
+
+set(H747_LAB_SERVICE_memory_SOURCES
+    "${H747_LAB_ROOT}/services/memory/memory_probe.cpp"
+)
+set(H747_LAB_SERVICE_memory_INCLUDE_DIRS
+    "${H747_LAB_ROOT}/services/memory"
+)
+
+set(H747_LAB_SERVICE_input_SOURCES
+    "${H747_LAB_ROOT}/services/input/input.cpp"
+)
+set(H747_LAB_SERVICE_input_INCLUDE_DIRS
+    "${H747_LAB_ROOT}/services/input"
+)
+
+set(H747_LAB_SERVICE_display_SOURCES
+    "${H747_LAB_ROOT}/services/display/display_min.cpp"
+    "${H747_LAB_ROOT}/services/display/display_min_interrupts.cpp"
+)
+set(H747_LAB_SERVICE_display_INCLUDE_DIRS
+    "${H747_LAB_ROOT}/services/display"
+)
+
+set(H747_LAB_SERVICE_display_raster_SOURCES
+    "${H747_LAB_ROOT}/services/display/display_min.cpp"
+    "${H747_LAB_ROOT}/services/display/display_min_interrupts.cpp"
+    "${H747_LAB_ROOT}/services/display/display_raster.cpp"
+)
+set(H747_LAB_SERVICE_display_raster_INCLUDE_DIRS
+    "${H747_LAB_ROOT}/services/display"
+)

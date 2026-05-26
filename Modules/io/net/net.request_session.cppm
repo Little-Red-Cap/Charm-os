@@ -211,7 +211,7 @@ export namespace net {
 
         RequestSession() {
             frame_.set_frame_handler(FrameHandlerRef::raw(&RequestSession::on_frame_trampoline, this));
-            frame_.set_error_handler(FrameErrorHandlerRef::raw(&RequestSession::on_frame_error_trampoline, this));
+            frame_.set_error_handler(NetErrorHandlerRef::raw(&RequestSession::on_frame_error_trampoline, this));
         }
 
     private:

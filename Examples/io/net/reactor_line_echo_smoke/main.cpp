@@ -95,11 +95,11 @@ int main() {
 
     client_state.session = &client_session;
     client_session.set_line_handler(net::LineHandlerRef::bind(client_state));
-    client_session.set_error_handler(net::LineErrorHandlerRef::bind(client_state));
+    client_session.set_error_handler(net::NetErrorHandlerRef::bind(client_state));
 
     server_state.session = &server_session;
     server_session.set_line_handler(net::LineHandlerRef::bind(server_state));
-    server_session.set_error_handler(net::LineErrorHandlerRef::bind(server_state));
+    server_session.set_error_handler(net::NetErrorHandlerRef::bind(server_state));
 
     using DriverType = net::ReactorSocketDriver<net::LineSession<64>, 8>;
     DriverType client_driver{reactor, socket_poller, client_binding, client_session};

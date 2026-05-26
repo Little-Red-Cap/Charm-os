@@ -107,9 +107,9 @@ int main() {
 
     server_state.session = &server_session;
     client_session.set_frame_handler(net::FrameHandlerRef::bind(client_state));
-    client_session.set_error_handler(net::FrameErrorHandlerRef::bind(client_state));
+    client_session.set_error_handler(net::NetErrorHandlerRef::bind(client_state));
     server_session.set_frame_handler(net::FrameHandlerRef::bind(server_state));
-    server_session.set_error_handler(net::FrameErrorHandlerRef::bind(server_state));
+    server_session.set_error_handler(net::NetErrorHandlerRef::bind(server_state));
 
     using DriverType = net::ReactorSocketDriver<net::FrameSession<64>, 8>;
     DriverType client_driver{reactor, socket_poller, client_binding, client_session};

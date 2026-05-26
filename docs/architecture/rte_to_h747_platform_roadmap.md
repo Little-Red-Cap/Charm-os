@@ -70,6 +70,7 @@ Display + Player
 - `rte_profile_resolution_smoke`
 - `rte_projection_gate_smoke`
 - `rte_projection_consistency_smoke`
+- `rte_explain_projection_smoke`
 - `rte_context_slice_smoke`
 - `rte_evidence_slice_smoke`
 - `rte_multi_role_provider_smoke`
@@ -81,6 +82,8 @@ Display + Player
 
 - 上述 smoke 保持通过。
 - RTE prototype 仍留在 smoke / H747-lab 试验层。
+- explain / report surface 只能作为已解析 profile 的只读 projection，不作为
+  system compiler artifact 管线或新平台入口。
 - 不新增 manifest、DSL、generator。
 - 不把 RTE 做成 runtime framework。
 
@@ -199,6 +202,7 @@ Display + Player 切片必须证明：
 
 - host / H747 profile 下 app 输出语义一致。
 - provider identity 不泄漏进 app。
+- explain / report 只解释 binding 与 fact 差异，不进入 app runtime。
 - evidence 不直接格式化日志。
 - evidence collector 不进入 app `ContextView`。
 
@@ -216,3 +220,8 @@ Display + Player 切片必须证明：
   定义 H747-lab 当前 source-level capability contracts。
 
 本文只负责把这些文档收束成近期平台化路线，不替代任何一个具体契约。
+
+如果当前问题已经进入“哪些 Spine/RTE 语义应该真正迁到 H747，哪些只保留在
+host proof，哪些不能直接变成板级 ABI 或 monitor 接口”，继续读：
+
+- `Examples/project/h747-lab/docs/h747_lab_spine_migration_boundary.md`

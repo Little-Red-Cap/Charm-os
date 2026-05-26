@@ -54,10 +54,7 @@
                 .normal_px = 17,
                 .large_px = 72,
             },
-            .cover_resource_provider = player::PlayerCoverResourceProviderBinding{
-                .ctx = nullptr,
-                .resolve_fn = &ui_ci_static_cover_provider,
-            },
+            .cover_resource_records = ui_ci_static_cover_record_table(),
             .player_config = g_player_cfg,
         };
         player::PlayerBoardPortConfig runtime_config_port = package_config;

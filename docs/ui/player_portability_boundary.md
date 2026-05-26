@@ -30,7 +30,7 @@ For the current ownership map, host shell split, Vivid extraction candidates, an
 
 - SDL3 windowing, event pump, renderer, and screenshot flow live in `Examples/project/player/win`.
 - `player.runtime` owns the shared product lifecycle for Vivid Player targets: app construction, storage bootstrap, controller binding, input dispatch, ticking, frame rendering, and shutdown. Windows/SDL calls into this shell instead of open-coding product lifecycle steps.
-- `player.board_port` is the current board assembly skeleton: it groups externally owned framebuffer metadata, display callbacks, touch sample source, built-in/package font defaults, and cover resource provider binding into app-common records before a board shell constructs `PlayerPlatform` / `PlayerRuntime`.
+- `player.board_port` is the current board assembly skeleton: it groups externally owned framebuffer metadata, display callbacks, touch sample source, built-in/package font defaults, and cover resource inputs (explicit provider binding or static record table) into app-common records before a board shell constructs `PlayerPlatform` / `PlayerRuntime`.
 - `player.board_runtime` is the thin board lifecycle assembly helper: a board shell can pass `PlayerBoardRuntimeConfig` plus externally owned controller/clock/storage and receive a `PlayerRuntime` wired to the board surface/sink.
 - `player.runtime.hqzy_cm7.player_ui_port_bridge` is the H747-local facts bridge for framebuffer, dirty region, display callbacks, touch source, and clock source. It stays adapter-only and does not import `player.board_runtime`, so the current HQZY profile can express future UI runtime inputs without pulling MD3/Vivid into the CM7 board build.
 - The H747 bridge now has local `probe_port()` / `present_dirty()` helpers. They validate the framebuffer/clock seam, clip dirty regions, and call board display callbacks in clean-cache, flush-dirty, present order without depending on SDL, Vivid, LTDC, DMA2D, or a concrete touch driver.
@@ -57,7 +57,7 @@ For the current ownership map, host shell split, Vivid extraction candidates, an
 - Embedded and file-backed cover decoding is gated by `CHARM_PLAYER_HOST_COVER_DECODE`; portable targets can keep using generated/default covers or later provide pre-decoded resource images.
 - Audio spectrum visualization is routed through `audio.spectrum`; the current `host_fft` backend is gated by `CHARM_AUDIO_SPECTRUM_USE_HOST_FFT`, while no-math targets compile with no spectrum backend and keep playback independent from FFT availability.
 - The Windows host shell prints `[player.features]` at startup so a preview build and a portability-probe build can be distinguished from logs. A probe with `host_cover_decode=0` is expected to skip real cover decoding.
-- `player.cover_resource` now defines the cover resource contract (`CoverResourceRequest`, `CoverResourceView`, `PlayerCoverResourceProviderBinding`) in app-common, and `player.runtime` installs that binding before UI/bootstrap work begins.
+- `player.cover_resource` now defines the cover resource contract (`CoverResourceRequest`, `CoverResourceView`, `PlayerCoverResourceProviderBinding`, `PlayerCoverResourceRecordTableView`) in app-common, and `player.runtime` installs either an explicit binding or a record-table-derived binding before UI/bootstrap work begins.
 - `player.cover` consumes the active cover resource binding before the legacy `CoverProviderFn` host decoder. Portable targets can return pre-decoded/resource-backed views without changing page controllers; host decode remains gated by `CHARM_PLAYER_HOST_COVER_DECODE`.
 - When no cover can be decoded, Now Playing and the mini bar use generated default cover art instead of leaving image slots empty.
 - Cover-theme sampling is capped at a fixed 128x128 working set before palette extraction, so Player-side theme sampling has an explicit memory budget.
@@ -71,7 +71,7 @@ For the current ownership map, host shell split, Vivid extraction candidates, an
 `player.runtime` is the current portable product shell for the Vivid Player line:
 
 - It composes `App`, `PlayerController`, and `PlayerPlatform` without depending on SDL, Win32, screenshots, or command-line parsing.
-- It consumes a `PlayerRuntimeConfig<Page>` record for app config, storage config, cover resource provider binding, start page, initial track, auto-start, and clear color.
+- It consumes a `PlayerRuntimeConfig<Page>` record for app config, storage config, cover resource inputs, start page, initial track, auto-start, and clear color.
 - It exposes the same product actions a board shell needs: `bootstrap`, `tick`, `dispatch_input`, `render`, and `shutdown`.
 - It still receives host-owned `PlayerPlatform` and controller storage. This keeps v0 small while allowing a future board shell to provide an SDRAM-backed `PlayerDisplaySurface` and board-owned controller storage.
 - `player.board_runtime` covers the board-side construction pattern around this shell: fixed external framebuffer in, board display sink out, runtime storage owned by the adapter.
@@ -88,7 +88,7 @@ The display boundary is intentionally small:
 - Surface contract: buffer pointer, dimensions, stride, pixel format, and ownership are explicit.
 - Board SDRAM contract: board code supplies the framebuffer address and stride, then maps `present` to cache clean, dirty flush, DMA2D copy, LTDC front-buffer flip, or a no-op for single-buffer scanout.
 - Board sink contract: `PlayerBoardDisplayCallbacks` are optional and ordered as clean-cache, flush-dirty, then present/flip. The sink clips dirty regions and records the final surface/dirty evidence for CI.
-- Board assembly contract: `PlayerBoardPortConfig` carries framebuffer, display callbacks, touch source, font package view, cover resource provider binding, and audio player defaults. `PlayerBoardRuntimeConfig` adds storage/start-page/clear-color runtime defaults. The board shell still owns actual HAL handles and storage lifetime.
+- Board assembly contract: `PlayerBoardPortConfig` carries framebuffer, display callbacks, touch source, font package view, cover resource inputs, and audio player defaults. `PlayerBoardRuntimeConfig` adds storage/start-page/clear-color runtime defaults. The board shell still owns actual HAL handles and storage lifetime.
 - Host preview contract: SDL creates a texture matching the Player surface format and only copies/presents the final surface.
 
 The matching input boundary is also small:

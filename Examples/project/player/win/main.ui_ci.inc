@@ -15,6 +15,12 @@
         }
     }
 
+    const std::array<std::uint32_t, 4>& ui_ci_static_cover_pixels() noexcept;
+    player::PlayerCoverResourceRecordTableView ui_ci_static_cover_record_table() noexcept;
+    bool ui_ci_static_cover_provider(void*,
+                                     const player::CoverResourceRequest& request,
+                                     player::CoverResourceView& out) noexcept;
+
     #include "main.ui_ci.object_tree.inc"
 
     #include "main.ui_ci.portability.inc"

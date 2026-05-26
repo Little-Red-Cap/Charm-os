@@ -8,19 +8,41 @@
             | static_cast<std::uint32_t>(a);
     }
 
-    bool ui_ci_static_cover_provider(void*,
-                                     const player::CoverResourceRequest& request,
-                                     player::CoverResourceView& out) noexcept {
+    const std::array<std::uint32_t, 4>& ui_ci_static_cover_pixels() noexcept {
         static constexpr std::array<std::uint32_t, 4> kPixels{
             ui_ci_cover_pixel(255, 240, 120, 80),
             ui_ci_cover_pixel(255, 60, 110, 210),
             ui_ci_cover_pixel(255, 96, 180, 130),
             ui_ci_cover_pixel(255, 250, 220, 120),
         };
+        return kPixels;
+    }
+
+    player::PlayerCoverResourceRecordTableView ui_ci_static_cover_record_table() noexcept {
+        static const auto& pixels = ui_ci_static_cover_pixels();
+        static const std::array<player::PlayerCoverResourceRecord, 1> kRecords{{
+            player::PlayerCoverResourceRecord{
+                .path = "/ui-ci/static-cover",
+                .kind = player::CoverResourceKind::EmbeddedTrack,
+                .key = "/ui-ci/static-cover-resource",
+                .argb = std::span<const std::uint32_t>(pixels.data(), pixels.size()),
+                .width = 2,
+                .height = 2,
+            },
+        }};
+        return player::PlayerCoverResourceRecordTableView{
+            .records = std::span<const player::PlayerCoverResourceRecord>(kRecords.data(), kRecords.size()),
+        };
+    }
+
+    bool ui_ci_static_cover_provider(void*,
+                                     const player::CoverResourceRequest& request,
+                                     player::CoverResourceView& out) noexcept {
+        const auto& pixels = ui_ci_static_cover_pixels();
         if (request.kind != player::CoverResourceKind::EmbeddedTrack) return false;
         if (request.path != std::string_view{"/ui-ci/static-cover"}) return false;
         out.key = "/ui-ci/static-cover-resource";
-        out.argb = std::span<const std::uint32_t>(kPixels.data(), kPixels.size());
+        out.argb = std::span<const std::uint32_t>(pixels.data(), pixels.size());
         out.width = 2;
         out.height = 2;
         return true;
@@ -28,10 +50,8 @@
 
     bool run_cover_resource_provider_ci() noexcept {
         const auto previous = player::cover_resource_provider_binding();
-        player::set_cover_resource_provider_binding(player::PlayerCoverResourceProviderBinding{
-            .ctx = nullptr,
-            .resolve_fn = &ui_ci_static_cover_provider,
-        });
+        const auto table = ui_ci_static_cover_record_table();
+        player::set_cover_resource_provider_binding(player::make_cover_resource_record_table_binding(table));
 
         player::CoverImage image{};
         player::CoverResourceRequest request{};
@@ -48,6 +68,22 @@
 
         player::release_cover_image(image);
         player::set_cover_resource_provider_binding(previous);
+        return ok;
+    }
+
+    bool run_cover_resource_record_table_ci() noexcept {
+        const auto table = ui_ci_static_cover_record_table();
+        player::CoverResourceRequest request{};
+        request.path = "/ui-ci/static-cover";
+        request.kind = player::CoverResourceKind::EmbeddedTrack;
+        request.fallback_variant = player::DefaultCoverVariant::HomeHeroPill;
+
+        player::CoverResourceView out{};
+        const bool ok = player::resolve_cover_resource_record_table(table, request, out)
+            && out.key == "/ui-ci/static-cover-resource"
+            && out.width == 2
+            && out.height == 2
+            && out.argb.size() == 4;
         return ok;
     }
 
@@ -150,6 +186,14 @@
             ui_ci_emit("cover_resource_provider_static_view", true, nullptr);
         } else {
             ui_ci_emit("cover_resource_provider_static_view", false, "static_view");
+            res.ok = false;
+            res.failed++;
+        }
+
+        if (run_cover_resource_record_table_ci()) {
+            ui_ci_emit("cover_resource_record_table_static_view", true, nullptr);
+        } else {
+            ui_ci_emit("cover_resource_record_table_static_view", false, "record_table");
             res.ok = false;
             res.failed++;
         }

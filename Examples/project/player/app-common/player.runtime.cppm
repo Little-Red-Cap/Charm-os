@@ -31,6 +31,7 @@ export namespace player {
         AppConfig app_config{};
         StorageConfig storage_config{};
         PlayerCoverResourceProviderBinding cover_resource_provider{};
+        PlayerCoverResourceRecordTableView cover_resource_records{};
         Page start_page{};
         int initial_track_index{0};
         bool auto_start{false};
@@ -142,7 +143,11 @@ export namespace player {
                 return;
             }
             previous_cover_resource_provider_ = cover_resource_provider_binding();
-            set_cover_resource_provider_binding(config_.cover_resource_provider);
+            auto binding = config_.cover_resource_provider;
+            if (!binding.valid() && config_.cover_resource_records.valid()) {
+                binding = make_cover_resource_record_table_binding(config_.cover_resource_records);
+            }
+            set_cover_resource_provider_binding(binding);
             cover_resource_provider_installed_ = true;
         }
 

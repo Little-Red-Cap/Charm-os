@@ -54,6 +54,7 @@ export namespace player {
         PlayerTouchSampleSource touch_source{};
         PlayerBoardFontPackageView font_package{};
         PlayerCoverResourceProviderBinding cover_resource_provider{};
+        PlayerCoverResourceRecordTableView cover_resource_records{};
         audio::PlayerConfig player_config{};
     };
 

@@ -61,7 +61,9 @@ export namespace net {
         using ErrorFn = NetErrorFn;
 
         ServiceSession() {
-            request_.set_request_handler(&ServiceSession::on_request_trampoline, this);
+            request_.set_request_handler(WireSession::RequestHandlerRef::raw(
+                &ServiceSession::on_request_trampoline,
+                this));
             request_.set_error_handler(NetErrorHandlerRef::raw(
                 &ServiceSession::on_request_error_trampoline,
                 this));
@@ -216,9 +218,12 @@ export namespace net {
                                               payload,
                                               now_ms,
                                               timeout_ms,
-                                              &ServiceSession::on_response_trampoline,
-                                              &ServiceSession::on_timeout_trampoline,
-                                              pending);
+                                              RequestResponseHandlerRef::raw(
+                                                  &ServiceSession::on_response_trampoline,
+                                                  pending),
+                                              RequestTimeoutHandlerRef::raw(
+                                                  &ServiceSession::on_timeout_trampoline,
+                                                  pending));
             if (!sent) {
                 *pending = {};
                 return util::unexpected(sent.error());

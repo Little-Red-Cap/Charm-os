@@ -143,8 +143,12 @@ public:
             return true;
         }
         if (e.type == Event::Type::MouseDown || e.type == Event::Type::Click) {
-            if (!is_inside_any(e.x, e.y)) {
+            const bool inside_any = is_inside_any(e.x, e.y);
+            if (!inside_any) {
                 close();
+                return true;
+            }
+            if (e.type == Event::Type::MouseDown) {
                 return true;
             }
         }

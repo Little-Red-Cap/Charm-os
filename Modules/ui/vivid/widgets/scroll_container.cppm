@@ -73,18 +73,24 @@ public:
         content_height_ = 0;
         const std::size_t total = child_count();
         base_count_ = (total < kMax) ? total : kMax;
-        for (std::size_t i = 0; i < base_count_; ++i) {
+        for (std::size_t i = 0; i < total; ++i) {
             auto h = child_at(i);
             auto* ch = resolve(h);
             if (!ch) continue;
             const auto child_rect = ch->get_rect();
-            base_x_[i] = child_rect.x - container.x;
-            base_y_[i] = child_rect.y - container.y;
-            const int bottom = base_y_[i] + child_rect.h;
+            int base_x = child_rect.x - container.x;
+            int base_y = child_rect.y - container.y + scroll_y_;
+            if (i < base_count_) {
+                base_x_[i] = base_x;
+                base_y_[i] = base_y;
+                base_x = base_x_[i];
+                base_y = base_y_[i];
+            }
+            const int bottom = base_y + child_rect.h;
             if (bottom > content_height_) content_height_ = bottom;
         }
         update_scroll_bounds();
-        apply_scroll(resolve);
+        apply_scroll(resolve, false);
     }
 
     void draw(CanvasBase& cvs) {
@@ -167,10 +173,12 @@ public:
                 return true;
             }
         } else if (e.type == Event::Type::MouseUp) {
+            if (!dragging_) return false;
             dragging_ = false;
             if (velocity_ != 0 && (velocity_ * velocity_) < drag_threshold_sq_) velocity_ = 0;
             return true;
         } else if (e.type == Event::Type::DragEnd) {
+            if (!dragging_) return false;
             dragging_ = false;
             if (velocity_ != 0 && (velocity_ * velocity_) < drag_threshold_sq_) velocity_ = 0;
             return true;
@@ -200,15 +208,22 @@ public:
     }
 
     template<typename Resolver>
-    void apply_scroll(Resolver&& resolve) {
+    void apply_scroll(Resolver&& resolve, bool advance = true) {
         const auto r = get_rect();
-        for (std::size_t i = 0; i < base_count_; ++i) {
+        const std::size_t total = child_count();
+        for (std::size_t i = 0; i < total; ++i) {
             auto h = child_at(i);
             auto* ch = resolve(h);
             if (!ch) continue;
-            ch->set_pos(r.x + base_x_[i], r.y + base_y_[i] - scroll_y_);
+            int base_x = ch->get_rect().x - r.x;
+            int base_y = ch->get_rect().y - r.y + scroll_y_;
+            if (i < base_count_) {
+                base_x = base_x_[i];
+                base_y = base_y_[i];
+            }
+            ch->set_pos(r.x + base_x, r.y + base_y - scroll_y_);
         }
-        if (!dragging_ && velocity_ != 0) {
+        if (advance && !dragging_ && velocity_ != 0) {
             const int old = scroll_y_;
             const int next = clamp_scroll(scroll_y_ + velocity_);
             if (next != old) {

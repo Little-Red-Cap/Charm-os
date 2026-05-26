@@ -111,6 +111,7 @@ public:
                 return true;
             }
         } else if (e.type == Event::Type::DragEnd || e.type == Event::Type::MouseUp) {
+            if (!dragging_) return false;
             dragging_ = false;
             return true;
         } else if (e.type == Event::Type::KeyDown) {

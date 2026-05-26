@@ -39,6 +39,7 @@ public:
     using PoolBindFn = void(*)(void* ctx, int slot, int index) noexcept;
     using PoolRecycleFn = void(*)(void* ctx, int slot, int index) noexcept;
     using RowHeightFn = int(*)(void* ctx, int index) noexcept;
+    using RowFlagsFn = StructuredListRowFlagsFn;
     using ScrollFn = void(*)(void* ctx, int scroll_y, int max_scroll, int view_h, int content_h) noexcept;
 
     ListView() {
@@ -87,6 +88,11 @@ public:
         update_scroll_bounds();
         window_valid_ = false;
         mark_dirty_hint(get_rect());
+    }
+
+    void set_row_flags_fn(RowFlagsFn fn, void* ctx = nullptr) noexcept {
+        row_flags_fn_ = fn;
+        row_flags_ctx_ = ctx;
     }
 
     void set_on_draw(DrawRowFn fn, void* ctx = nullptr) noexcept {
@@ -362,6 +368,7 @@ public:
                 return true;
             }
         } else if (e.type == Event::Type::DragEnd || e.type == Event::Type::MouseUp) {
+            if (!dragging_) return false;
             dragging_ = false;
             return true;
         } else if (e.type == Event::Type::MouseWheel) {
@@ -386,6 +393,9 @@ public:
             const int index = index_from_y(e.y);
             const int count = item_count_for_render();
             if (index >= 0 && index < count) {
+                if ((row_flags_for_index(index) & kStructuredListRowFlagDisabled) != 0) {
+                    return true;
+                }
                 auto selection = make_selection_model();
                 selection.set(index);
                 return true;
@@ -609,6 +619,12 @@ private:
         return (h > 4) ? h : 4;
     }
 
+    std::uint8_t row_flags_for_index(int index) const noexcept {
+        if (!row_flags_fn_ || index < 0) return 0;
+        return row_flags_fn_(row_flags_ctx_ ? row_flags_ctx_ : data_ctx_,
+                             static_cast<std::uint16_t>(index));
+    }
+
     int offset_for_index(int index) const noexcept {
         int acc = 0;
         for (int i = 0; i < index; ++i) {
@@ -711,6 +727,8 @@ private:
     void* pool_ctx_{nullptr};
     RowHeightFn row_height_fn_{nullptr};
     void* row_height_ctx_{nullptr};
+    RowFlagsFn row_flags_fn_{nullptr};
+    void* row_flags_ctx_{nullptr};
     ScrollFn scroll_fn_{nullptr};
     void* scroll_ctx_{nullptr};
 

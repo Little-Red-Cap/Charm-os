@@ -149,6 +149,7 @@ public:
             return true;
         }
         if (e.type == Event::Type::DragEnd || e.type == Event::Type::MouseUp) {
+            if (!dragging_) return false;
             dragging_ = false;
             return true;
         }
@@ -159,7 +160,9 @@ public:
         }
         if (e.type == Event::Type::Click) {
             if (!r.contains(e.x, e.y)) return false;
-            set_selected(index_from_y(e.y));
+            const int index = index_from_y(e.y);
+            if (index < 0) return false;
+            set_selected(index);
             return true;
         }
         if (e.type == Event::Type::KeyDown) {

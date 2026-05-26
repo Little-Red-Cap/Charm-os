@@ -93,6 +93,7 @@ public:
         const auto r = get_rect();
         if (e.type == Event::Type::MouseDown) {
             if (!r.contains(e.x, e.y)) return false;
+            pointer_active_ = true;
             drag_start_pos_ = (orient_ == Orientation::Horizontal) ? e.x : e.y;
             drag_start_value_ = value();
             const Rect thumb = calc_thumb_rect(st);
@@ -119,7 +120,9 @@ public:
             }
             return true;
         } else if (e.type == Event::Type::DragEnd || e.type == Event::Type::MouseUp) {
+            if (!pointer_active_ && !dragging_) return false;
             dragging_ = false;
+            pointer_active_ = false;
             return true;
         }
         return false;
@@ -185,6 +188,7 @@ private:
     int max_{100};
     value_state_type value_{0};
     int page_size_{10};
+    bool pointer_active_{false};
     bool dragging_{false};
     int drag_start_pos_{0};
     int drag_start_value_{0};

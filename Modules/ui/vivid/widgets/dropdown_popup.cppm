@@ -118,6 +118,7 @@ public:
                 close();
                 return true;
             }
+            return true;
         } else if (e.type == Event::Type::Click) {
             if (r.contains(e.x, e.y)) {
                 const int idx = index_from_pos(e.y);

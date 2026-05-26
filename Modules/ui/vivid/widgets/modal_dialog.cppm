@@ -73,19 +73,38 @@ public:
         const Style& st = resolve_style(WidgetKind::ModalDialog, state, base, st_scratch);
         const auto layout = compute_layout(st);
         const bool inside_panel = layout.panel.contains(e.x, e.y);
+        const bool pointer_event =
+            e.type == Event::Type::MouseMove
+            || e.type == Event::Type::MouseDown
+            || e.type == Event::Type::MouseUp
+            || e.type == Event::Type::Click
+            || e.type == Event::Type::MouseWheel
+            || e.type == Event::Type::DragStart
+            || e.type == Event::Type::DragMove
+            || e.type == Event::Type::DragEnd;
+
+        if (pointer_event && !inside_panel) {
+            hot_button_ = ButtonId::None;
+            if (e.type == Event::Type::MouseDown && dismiss_on_background_) {
+                pressed_button_ = ButtonId::None;
+                set_visible(false);
+                if (on_cancel_) on_cancel_();
+            } else if (e.type == Event::Type::MouseUp
+                    || e.type == Event::Type::Click
+                    || e.type == Event::Type::DragEnd
+                    || e.type == Event::Type::Cancel) {
+                pressed_button_ = ButtonId::None;
+            }
+            return true;
+        }
 
         if (e.type == Event::Type::MouseMove) {
             hot_button_ = hit_button(layout, e.x, e.y);
-            return inside_panel;
+            return true;
         }
         if (e.type == Event::Type::MouseDown) {
-            if (!inside_panel && dismiss_on_background_) {
-                set_visible(false);
-                if (on_cancel_) on_cancel_();
-                return true;
-            }
             pressed_button_ = hit_button(layout, e.x, e.y);
-            return inside_panel;
+            return true;
         }
         if (e.type == Event::Type::MouseUp) {
             const auto hit = hit_button(layout, e.x, e.y);
@@ -99,7 +118,7 @@ public:
                 return true;
             }
             pressed_button_ = ButtonId::None;
-            return inside_panel;
+            return true;
         }
         if (e.type == Event::Type::Click) {
             const auto hit = hit_button(layout, e.x, e.y);
@@ -111,9 +130,13 @@ public:
                 if (on_cancel_) on_cancel_();
                 return true;
             }
-            return inside_panel;
+            return true;
         }
-        return inside_panel;
+        if (e.type == Event::Type::Cancel) {
+            pressed_button_ = ButtonId::None;
+            return true;
+        }
+        return false;
     }
 
 private:

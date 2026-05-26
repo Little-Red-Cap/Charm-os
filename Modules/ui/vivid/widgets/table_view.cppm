@@ -135,19 +135,29 @@ public:
             return true;
         } else if (e.type == Event::Type::Click) {
             if (!r.contains(e.x, e.y)) return false;
+            const int rows = row_count();
+            const int cols = col_count();
+            if (rows <= 0 || cols <= 0) return false;
             StructuredViewportMapper mapper{};
             mapper.rect = r;
             mapper.row_height = row_height_;
             mapper.scroll_y = scroll_.scroll_y;
-            const int row = mapper.index_at(e.y, row_count());
-            int col = 0;
+            const int row = mapper.index_at(e.y, rows);
+            if (row < 0) return false;
+
+            int col = -1;
             int acc = r.x - scroll_x_;
-            for (int i = 0; i < col_count(); ++i) {
+            for (int i = 0; i < cols; ++i) {
                 const int w = column_width(i);
-                if (e.x >= acc && e.x < acc + w) { col = i; break; }
+                if (e.x >= acc && e.x < acc + w) {
+                    col = i;
+                    break;
+                }
                 acc += w;
             }
-            if (row >= 0) set_selected(row, col);
+            if (col < 0) return false;
+
+            set_selected(row, col);
             return true;
         }
         return false;

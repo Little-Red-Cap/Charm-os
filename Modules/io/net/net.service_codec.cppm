@@ -178,8 +178,9 @@ export namespace net {
             store_callback(binding->callback, fn);
 
             auto set = service_.set_route(Op::opcode,
-                                          &TypedServiceSession::sync_route_trampoline<Op>,
-                                          binding);
+                                          ServiceRouteHandlerRef::raw(
+                                              &TypedServiceSession::sync_route_trampoline<Op>,
+                                              binding));
             if (!set) {
                 *binding = saved;
                 return util::unexpected(set.error());
@@ -211,8 +212,9 @@ export namespace net {
 
             auto set = service_.set_deferred_route(
                 Op::opcode,
-                &TypedServiceSession::deferred_route_trampoline<Op>,
-                binding);
+                Service::ServiceDeferredRouteHandlerRef::raw(
+                    &TypedServiceSession::deferred_route_trampoline<Op>,
+                    binding));
             if (!set) {
                 *binding = saved;
                 return util::unexpected(set.error());
@@ -277,9 +279,12 @@ export namespace net {
                 ByteView{wire.data(), encoded.value()},
                 now_ms,
                 timeout_ms,
-                &TypedServiceSession::on_service_response_trampoline,
-                &TypedServiceSession::on_service_timeout_trampoline,
-                pending);
+                ServiceResponseHandlerRef::raw(
+                    &TypedServiceSession::on_service_response_trampoline,
+                    pending),
+                ServiceTimeoutHandlerRef::raw(
+                    &TypedServiceSession::on_service_timeout_trampoline,
+                    pending));
             if (!sent) {
                 *pending = {};
                 return util::unexpected(sent.error());

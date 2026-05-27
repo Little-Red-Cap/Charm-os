@@ -24,7 +24,7 @@
 
 ### 2) reactor 主路径（系统默认接线）
 
-- `system.reactor_pump` 通过 host/bringup 默认使用 `post_io_ready_fn()`
+- `system.reactor_pump` 通过 host/bringup 默认使用 `reactor_pump_posts()`
 - waker 路径使用 `io-ready-submit`，drain 后 `more` 的续推路径使用 `demand-submit`（首个 demand 样板）
 - `input.pump` 在单次 budget 用满时改走 `demand-submit` 续推，避免全部依赖下一次 timer tick（第二个 demand 样板）
 - `canopen.pump` 在 `sdo/nmt` 存在 pending 发送时走 `demand-submit` 续推（第三个 demand 样板）

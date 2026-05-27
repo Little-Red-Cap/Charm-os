@@ -214,7 +214,7 @@ spec -> model -> validation -> plan -> runtime
 
 - 外部 DSL 到 codegen
 - constexpr C++ spec 到 generated tables/types
-- 未来 C++ reflection 接管部分生成
+- 未来 C++ reflection 接管部分生成（已有 probe 验证 `<meta>`、最小 RTE kind/role、spec 字段形状发现、reflected spec -> `ContextView` / evidence 投影、reflected spec 参与 profile resolution 编译期门禁，以及 reflected profile 贯穿 Charm Spine projection/evidence 主链）
 
 原则只有一个：
 

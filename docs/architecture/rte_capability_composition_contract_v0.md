@@ -114,6 +114,9 @@ provider 可以产出 `EvidenceFrame`；presentation 层可以把它打印为文
 
 同一种 `CapabilityKind` 可以有多个 role。例如同一 profile 中可以同时存在
 `log`、`shell`、`debug_trace` 三个 `TextSink` 角色。
+同一个 provider 可以显式声明并承担多个 role，但每个 role 都必须有独立的
+`Provided<CapabilityKind, CapabilityRole>` token 和独立 binding；不能因为
+provider 满足某个 `CapabilityKind` 就隐式满足所有同 kind role。
 
 ### 3.3 `ProviderDesc`
 
@@ -223,6 +226,9 @@ using DisplayDemoContext = ContextView<
 ```
 
 `ContextView` 只暴露 requirements 声明过的能力。它不是全局 world。
+同一个 resolved profile 可以同时包含多个 component slice，但每个 `ContextView`
+只能 materialize 当前 component 的 requirements，不得暴露 profile 中的其它
+provider 或其它 component 的能力。
 
 ### 3.9 `EvidenceFrame`
 
@@ -291,6 +297,8 @@ init projection 把 component topology 中的启动依赖 materialize 到 `init.
 
 规则：
 
+- init projection 入口必须接受已解析 profile，而不是原始 component/provider 列表。
+- init projection 中暴露的 provider identity 必须来自同一个 profile binding。
 - init dependency 必须是 DAG。
 - `init.graph` 只负责启动顺序和 init lifecycle。
 - 运行期事件循环、scheduler、reactor 不得被强行塞进 init DAG。
@@ -317,9 +325,19 @@ context projection 根据 `ProfileBinding` 生成 app 可见的 `ContextView`。
 
 规则：
 
+- context projection 入口必须接受已解析 profile。
 - app 只能访问它声明过的 requirements。
+- `ContextView` 中 materialize 的 provider identity 必须来自同一个 profile binding。
+- 多 component profile 必须为每个 component materialize 独立 `ContextView` slice。
 - ContextView 不暴露 provider registry。
 - ContextView 不提供 fallback lookup。
+
+`Examples/system/rte_context_slice_smoke` 是 `ContextView` slice 的 v0 可执行样本：
+同一个 resolved profile 同时服务 UI app 与 diagnostics app，但两个 app 分别只能访问
+自己的 log/display/clock 或 trace/clock 能力切片。
+`Examples/system/rte_evidence_slice_smoke` 进一步验证 evidence 不属于任何 app 的
+`ContextView` slice；它是 profile-wide side channel，可以观测 profile 内 provider，
+但不会把 evidence collector 注入应用世界。
 
 ### 5.4 Evidence projection
 
@@ -327,9 +345,34 @@ evidence projection 收集 provider / component 产出的结构化状态。
 
 规则：
 
+- evidence projection 入口必须接受已解析 profile。
+- evidence frame 中报告的 provider identity 必须来自同一个 profile binding。
 - evidence producer 不能隐式改变硬件状态。
 - evidence snapshot 应可重复读取。
 - presentation 层负责格式化。
+
+`Examples/system/rte_projection_gate_smoke` 是 projection gate 的 v0 可执行样本：
+原始 `ProfileSpec` 不能直接进入 init、context 或 evidence projection，只有
+profile resolution 产生的 `ResolvedProfile` token 可以继续派生 projection。
+`Examples/system/rte_projection_consistency_smoke` 进一步验证同一份 binding 在
+init、context 与 evidence projection 中必须保留一致的 provider identity。
+
+### 5.5 Explain projection
+
+explain projection 从已解析 profile 派生只读 report / explain surface。
+
+规则：
+
+- explain projection 入口必须接受已解析 profile。
+- raw `ProfileSpec` 不能直接进入 explain projection。
+- explain row 中报告的 provider identity 必须来自同一个 profile binding。
+- explain 可以呈现 provider facts，但不读取 runtime provider 实例。
+- presentation 层负责把 report 格式化为文本或未来 artifact。
+- v0 不定义 JSON、schema、generator 或 system compiler artifact 管线。
+
+`Examples/system/rte_explain_projection_smoke` 是 explain projection 的 v0 可执行样本：
+host 与 H747 profile 共享同一组 app capability 语义，但 explain report 可以展示
+不同 provider identity 以及 display / input fact 差异。
 
 ## 6. Profile resolution rules
 
@@ -341,6 +384,19 @@ Profile resolution 至少要满足以下规则：
 4. app 不能直接依赖 provider 名称。
 5. provider 不能通过隐藏全局对象绕过 binding。
 6. unresolved requirement 是配置错误，不是运行期 fallback 场景。
+7. 同一个 provider 可以绑定多个 role，但每个 role 必须分别声明和绑定。
+
+`Examples/system/rte_profile_resolution_smoke` 是这组规则的 v0 可执行样本。
+它把 missing binding、duplicate binding、wrong role binding、duplicate provider
+token、stale binding 与 extra binding 都固定为 profile resolution 失败场景，
+同时只让已解析的 profile 继续派生 init、context 与 evidence projection。
+`Examples/system/rte_profile_selection_smoke` 验证同一 app requirements 可以在
+host/mock profile 与 board/H747 profile 间切换：app 只依赖裁剪后的 `ContextView`，
+provider identity 的差异只出现在 profile binding、evidence projection 与 explain
+projection 中。
+`Examples/system/rte_multi_role_provider_smoke` 验证同一 provider 多 role 的合法路径：
+例如 `shared_console` 同时提供 `TextSink.log` 与 `TextSink.debug_trace`，但两个 role
+仍然必须分别声明、分别绑定、分别投影。
 
 示例：
 

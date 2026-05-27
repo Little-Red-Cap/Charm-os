@@ -135,7 +135,7 @@ export namespace charm::font {
 
         static std::string read_env_var(const char* key) noexcept {
             if (!key || !*key) return {};
-#if defined(_WIN32)
+#if defined(_WIN32) && defined(_MSC_VER)
             char* value = nullptr;
             std::size_t len = 0;
             if (_dupenv_s(&value, &len, key) != 0 || !value || len == 0) {

@@ -38,9 +38,7 @@ export namespace charm::system {
               core_(charm::system::ClockOps{caps.clock.now_ms, caps.clock.now_us},
                     caps.clock.ctx,
                     host.pump(),
-                    host.post_io_ready_fn(),
-                    host.post_demand_fn(),
-                    host.post_ctx(),
+                    host.reactor_pump_posts(),
                     host.pump_id(),
                     budget) {
             (void)detail::emplace_input_chain_from_host(input_, caps.input, core_.clock, host, sink, cfg);

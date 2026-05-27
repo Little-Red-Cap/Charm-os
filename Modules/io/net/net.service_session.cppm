@@ -1,6 +1,7 @@
 module;
 
 #include <array>
+#include <concepts>
 
 export module net.service_session;
 
@@ -36,42 +37,335 @@ export namespace net {
         return status == ServiceStatus::ok;
     }
 
+    using ServiceResponseFn = void (*)(void* ctx,
+                                       util::u16 request_id,
+                                       util::u8 opcode,
+                                       ServiceStatus status,
+                                       ByteView payload) noexcept;
+    using ServiceTimeoutFn = void (*)(void* ctx,
+                                      util::u16 request_id,
+                                      util::u8 opcode) noexcept;
+    using ServiceRouteFn = ServiceStatus (*)(void* ctx,
+                                             ByteView request,
+                                             MutByteView response,
+                                             util::usize* response_size) noexcept;
+
+    class ServiceResponseHandlerRef {
+    public:
+        constexpr ServiceResponseHandlerRef() noexcept = default;
+
+        static constexpr ServiceResponseHandlerRef raw(ServiceResponseFn handler, void* ctx) noexcept {
+            return ServiceResponseHandlerRef{handler, ctx};
+        }
+
+        template <typename Handler>
+            requires(
+                requires(Handler& value,
+                         util::u16 request_id,
+                         util::u8 opcode,
+                         ServiceStatus status,
+                         ByteView payload) {
+                    { value.on_response(request_id, opcode, status, payload) } noexcept -> std::same_as<void>;
+                } ||
+                requires(Handler& value,
+                         util::u16 request_id,
+                         util::u8 opcode,
+                         ServiceStatus status,
+                         ByteView payload) {
+                    { value(request_id, opcode, status, payload) } noexcept -> std::same_as<void>;
+                })
+        static constexpr ServiceResponseHandlerRef bind(Handler& handler) noexcept {
+            return ServiceResponseHandlerRef{&invoke<Handler>, &handler};
+        }
+
+        [[nodiscard]] constexpr explicit operator bool() const noexcept {
+            return handler_ != nullptr;
+        }
+
+        void notify(util::u16 request_id,
+                    util::u8 opcode,
+                    ServiceStatus status,
+                    ByteView payload) const noexcept {
+            if (handler_) {
+                handler_(ctx_, request_id, opcode, status, payload);
+            }
+        }
+
+    private:
+        constexpr ServiceResponseHandlerRef(ServiceResponseFn handler, void* ctx) noexcept
+            : handler_(handler),
+              ctx_(ctx) {
+        }
+
+        template <typename Handler>
+        static void invoke(void* ctx,
+                           util::u16 request_id,
+                           util::u8 opcode,
+                           ServiceStatus status,
+                           ByteView payload) noexcept {
+            auto* handler = static_cast<Handler*>(ctx);
+            if (!handler) {
+                return;
+            }
+            if constexpr (requires(Handler& value,
+                                   util::u16 id,
+                                   util::u8 op,
+                                   ServiceStatus result,
+                                   ByteView data) {
+                              {
+                                  value.on_response(id, op, result, data)
+                              } noexcept -> std::same_as<void>;
+                          }) {
+                handler->on_response(request_id, opcode, status, payload);
+            } else {
+                (*handler)(request_id, opcode, status, payload);
+            }
+        }
+
+        ServiceResponseFn handler_{nullptr};
+        void* ctx_{nullptr};
+    };
+
+    class ServiceTimeoutHandlerRef {
+    public:
+        constexpr ServiceTimeoutHandlerRef() noexcept = default;
+
+        static constexpr ServiceTimeoutHandlerRef raw(ServiceTimeoutFn handler, void* ctx) noexcept {
+            return ServiceTimeoutHandlerRef{handler, ctx};
+        }
+
+        template <typename Handler>
+            requires(
+                requires(Handler& value, util::u16 request_id, util::u8 opcode) {
+                    { value.on_timeout(request_id, opcode) } noexcept -> std::same_as<void>;
+                } ||
+                requires(Handler& value, util::u16 request_id, util::u8 opcode) {
+                    { value(request_id, opcode) } noexcept -> std::same_as<void>;
+                })
+        static constexpr ServiceTimeoutHandlerRef bind(Handler& handler) noexcept {
+            return ServiceTimeoutHandlerRef{&invoke<Handler>, &handler};
+        }
+
+        [[nodiscard]] constexpr explicit operator bool() const noexcept {
+            return handler_ != nullptr;
+        }
+
+        void notify(util::u16 request_id, util::u8 opcode) const noexcept {
+            if (handler_) {
+                handler_(ctx_, request_id, opcode);
+            }
+        }
+
+    private:
+        constexpr ServiceTimeoutHandlerRef(ServiceTimeoutFn handler, void* ctx) noexcept
+            : handler_(handler),
+              ctx_(ctx) {
+        }
+
+        template <typename Handler>
+        static void invoke(void* ctx, util::u16 request_id, util::u8 opcode) noexcept {
+            auto* handler = static_cast<Handler*>(ctx);
+            if (!handler) {
+                return;
+            }
+            if constexpr (requires(Handler& value, util::u16 id, util::u8 op) {
+                              { value.on_timeout(id, op) } noexcept -> std::same_as<void>;
+                          }) {
+                handler->on_timeout(request_id, opcode);
+            } else {
+                (*handler)(request_id, opcode);
+            }
+        }
+
+        ServiceTimeoutFn handler_{nullptr};
+        void* ctx_{nullptr};
+    };
+
+    class ServiceRouteHandlerRef {
+    public:
+        constexpr ServiceRouteHandlerRef() noexcept = default;
+
+        static constexpr ServiceRouteHandlerRef raw(ServiceRouteFn handler, void* ctx) noexcept {
+            return ServiceRouteHandlerRef{handler, ctx};
+        }
+
+        template <typename Handler>
+            requires(
+                requires(Handler& value,
+                         ByteView request,
+                         MutByteView response,
+                         util::usize* response_size) {
+                    {
+                        value.on_route(request, response, response_size)
+                    } noexcept -> std::same_as<ServiceStatus>;
+                } ||
+                requires(Handler& value,
+                         ByteView request,
+                         MutByteView response,
+                         util::usize* response_size) {
+                    {
+                        value(request, response, response_size)
+                    } noexcept -> std::same_as<ServiceStatus>;
+                })
+        static constexpr ServiceRouteHandlerRef bind(Handler& handler) noexcept {
+            return ServiceRouteHandlerRef{&invoke<Handler>, &handler};
+        }
+
+        [[nodiscard]] constexpr explicit operator bool() const noexcept {
+            return handler_ != nullptr;
+        }
+
+        [[nodiscard]] ServiceStatus handle(ByteView request,
+                                           MutByteView response,
+                                           util::usize* response_size) const noexcept {
+            if (!handler_) {
+                return ServiceStatus::internal_error;
+            }
+            return handler_(ctx_, request, response, response_size);
+        }
+
+    private:
+        constexpr ServiceRouteHandlerRef(ServiceRouteFn handler, void* ctx) noexcept
+            : handler_(handler),
+              ctx_(ctx) {
+        }
+
+        template <typename Handler>
+        static ServiceStatus invoke(void* ctx,
+                                    ByteView request,
+                                    MutByteView response,
+                                    util::usize* response_size) noexcept {
+            auto* handler = static_cast<Handler*>(ctx);
+            if (!handler) {
+                return ServiceStatus::internal_error;
+            }
+            if constexpr (requires(Handler& value,
+                                   ByteView req,
+                                   MutByteView resp,
+                                   util::usize* size) {
+                              {
+                                  value.on_route(req, resp, size)
+                              } noexcept -> std::same_as<ServiceStatus>;
+                          }) {
+                return handler->on_route(request, response, response_size);
+            } else {
+                return (*handler)(request, response, response_size);
+            }
+        }
+
+        ServiceRouteFn handler_{nullptr};
+        void* ctx_{nullptr};
+    };
+
     template <util::usize MaxPayload,
               util::usize MaxPending = 4,
               util::usize MaxRoutes = 8,
               util::usize MaxDeferred = MaxPending>
     class ServiceSession {
     public:
-        using RouteFn = ServiceStatus (*)(void* ctx,
-                                          ByteView request,
-                                          MutByteView response,
-                                          util::usize* response_size) noexcept;
+        using RouteFn = ServiceRouteFn;
         using DeferredRouteFn = void (*)(void* ctx,
                                          ServiceSession& session,
                                          ServiceReplyToken token,
                                          ByteView request) noexcept;
-        using ResponseFn = void (*)(void* ctx,
-                                    util::u16 request_id,
-                                    util::u8 opcode,
-                                    ServiceStatus status,
-                                    ByteView payload) noexcept;
-        using TimeoutFn = void (*)(void* ctx,
-                                   util::u16 request_id,
-                                   util::u8 opcode) noexcept;
-        using ErrorFn = void (*)(void* ctx, errc error) noexcept;
+        using ResponseFn = ServiceResponseFn;
+        using TimeoutFn = ServiceTimeoutFn;
+        using ErrorFn = NetErrorFn;
+
+        class ServiceDeferredRouteHandlerRef {
+        public:
+            constexpr ServiceDeferredRouteHandlerRef() noexcept = default;
+
+            static constexpr ServiceDeferredRouteHandlerRef raw(DeferredRouteFn handler, void* ctx) noexcept {
+                return ServiceDeferredRouteHandlerRef{handler, ctx};
+            }
+
+            template <typename Handler>
+                requires(
+                    requires(Handler& value,
+                             ServiceSession& session,
+                             ServiceReplyToken token,
+                             ByteView request) {
+                        { value.on_deferred_route(session, token, request) } noexcept -> std::same_as<void>;
+                    } ||
+                    requires(Handler& value,
+                             ServiceSession& session,
+                             ServiceReplyToken token,
+                             ByteView request) {
+                        { value(session, token, request) } noexcept -> std::same_as<void>;
+                    })
+            static constexpr ServiceDeferredRouteHandlerRef bind(Handler& handler) noexcept {
+                return ServiceDeferredRouteHandlerRef{&invoke<Handler>, &handler};
+            }
+
+            [[nodiscard]] constexpr explicit operator bool() const noexcept {
+                return handler_ != nullptr;
+            }
+
+            void notify(ServiceSession& session,
+                        ServiceReplyToken token,
+                        ByteView request) const noexcept {
+                if (handler_) {
+                    handler_(ctx_, session, token, request);
+                }
+            }
+
+        private:
+            constexpr ServiceDeferredRouteHandlerRef(DeferredRouteFn handler, void* ctx) noexcept
+                : handler_(handler),
+                  ctx_(ctx) {
+            }
+
+            template <typename Handler>
+            static void invoke(void* ctx,
+                               ServiceSession& session,
+                               ServiceReplyToken token,
+                               ByteView request) noexcept {
+                auto* handler = static_cast<Handler*>(ctx);
+                if (!handler) {
+                    return;
+                }
+                if constexpr (requires(Handler& value,
+                                       ServiceSession& svc,
+                                       ServiceReplyToken reply_token,
+                                       ByteView data) {
+                                  {
+                                      value.on_deferred_route(svc, reply_token, data)
+                                  } noexcept -> std::same_as<void>;
+                              }) {
+                    handler->on_deferred_route(session, token, request);
+                } else {
+                    (*handler)(session, token, request);
+                }
+            }
+
+            DeferredRouteFn handler_{nullptr};
+            void* ctx_{nullptr};
+        };
 
         ServiceSession() {
-            request_.set_request_handler(&ServiceSession::on_request_trampoline, this);
-            request_.set_error_handler(&ServiceSession::on_request_error_trampoline, this);
+            request_.set_request_handler(WireSession::RequestHandlerRef::raw(
+                &ServiceSession::on_request_trampoline,
+                this));
+            request_.set_error_handler(NetErrorHandlerRef::raw(
+                &ServiceSession::on_request_error_trampoline,
+                this));
+        }
+
+        void set_sender(StreamSenderRef sender = {}) noexcept {
+            request_.set_sender(sender);
         }
 
         void set_sender(FrameSendFn fn, void* ctx) noexcept {
-            request_.set_sender(fn, ctx);
+            set_sender(StreamSenderRef::raw(fn, ctx));
+        }
+
+        void set_error_handler(NetErrorHandlerRef handler = {}) noexcept {
+            error_ = handler;
         }
 
         void set_error_handler(ErrorFn fn, void* ctx) noexcept {
-            error_ = fn;
-            error_ctx_ = ctx;
+            set_error_handler(NetErrorHandlerRef::raw(fn, ctx));
         }
 
         void reset() noexcept {
@@ -117,8 +411,8 @@ export namespace net {
             return last_error_;
         }
 
-        [[nodiscard]] Result<void> set_route(util::u8 opcode, RouteFn fn, void* ctx = nullptr) noexcept {
-            if (!fn) {
+        [[nodiscard]] Result<void> set_route(util::u8 opcode, ServiceRouteHandlerRef handler) noexcept {
+            if (!handler) {
                 return util::unexpected(errc::invalid_arg);
             }
 
@@ -129,30 +423,37 @@ export namespace net {
 
             route->used = true;
             route->opcode = opcode;
-            route->sync = fn;
-            route->deferred = nullptr;
-            route->ctx = ctx;
+            route->sync = handler;
+            route->deferred = {};
+            return {};
+        }
+
+        [[nodiscard]] Result<void> set_route(util::u8 opcode, RouteFn fn, void* ctx = nullptr) noexcept {
+            return set_route(opcode, ServiceRouteHandlerRef::raw(fn, ctx));
+        }
+
+        [[nodiscard]] Result<void> set_deferred_route(util::u8 opcode,
+                                                      ServiceDeferredRouteHandlerRef handler) noexcept {
+            if (!handler) {
+                return util::unexpected(errc::invalid_arg);
+            }
+
+            auto* route = ensure_route(opcode);
+            if (!route) {
+                return util::unexpected(errc::busy);
+            }
+
+            route->used = true;
+            route->opcode = opcode;
+            route->sync = {};
+            route->deferred = handler;
             return {};
         }
 
         [[nodiscard]] Result<void> set_deferred_route(util::u8 opcode,
                                                       DeferredRouteFn fn,
                                                       void* ctx = nullptr) noexcept {
-            if (!fn) {
-                return util::unexpected(errc::invalid_arg);
-            }
-
-            auto* route = ensure_route(opcode);
-            if (!route) {
-                return util::unexpected(errc::busy);
-            }
-
-            route->used = true;
-            route->opcode = opcode;
-            route->sync = nullptr;
-            route->deferred = fn;
-            route->ctx = ctx;
-            return {};
+            return set_deferred_route(opcode, ServiceDeferredRouteHandlerRef::raw(fn, ctx));
         }
 
         [[nodiscard]] bool clear_route(util::u8 opcode) noexcept {
@@ -186,9 +487,8 @@ export namespace net {
                                                      ByteView payload,
                                                      util::u32 now_ms,
                                                      util::u32 timeout_ms,
-                                                     ResponseFn on_response,
-                                                     TimeoutFn on_timeout,
-                                                     void* user = nullptr) noexcept {
+                                                     ServiceResponseHandlerRef on_response = {},
+                                                     ServiceTimeoutHandlerRef on_timeout = {}) noexcept {
             if (payload.size() > MaxPayload) {
                 return util::unexpected(errc::buffer_overflow);
             }
@@ -201,15 +501,17 @@ export namespace net {
             pending->owner = this;
             pending->on_response = on_response;
             pending->on_timeout = on_timeout;
-            pending->user = user;
 
             auto sent = request_.send_request(opcode,
                                               payload,
                                               now_ms,
                                               timeout_ms,
-                                              &ServiceSession::on_response_trampoline,
-                                              &ServiceSession::on_timeout_trampoline,
-                                              pending);
+                                              RequestResponseHandlerRef::raw(
+                                                  &ServiceSession::on_response_trampoline,
+                                                  pending),
+                                              RequestTimeoutHandlerRef::raw(
+                                                  &ServiceSession::on_timeout_trampoline,
+                                                  pending));
             if (!sent) {
                 *pending = {};
                 return util::unexpected(sent.error());
@@ -217,6 +519,21 @@ export namespace net {
 
             pending->request_id = sent.value();
             return sent.value();
+        }
+
+        [[nodiscard]] Result<util::u16> send_request(util::u8 opcode,
+                                                     ByteView payload,
+                                                     util::u32 now_ms,
+                                                     util::u32 timeout_ms,
+                                                     ResponseFn on_response,
+                                                     TimeoutFn on_timeout,
+                                                     void* user = nullptr) noexcept {
+            return send_request(opcode,
+                                payload,
+                                now_ms,
+                                timeout_ms,
+                                ServiceResponseHandlerRef::raw(on_response, user),
+                                ServiceTimeoutHandlerRef::raw(on_timeout, user));
         }
 
         [[nodiscard]] bool cancel_request(util::u16 request_id) noexcept {
@@ -312,18 +629,16 @@ export namespace net {
         struct RouteEntry {
             bool used{false};
             util::u8 opcode{0};
-            RouteFn sync{nullptr};
-            DeferredRouteFn deferred{nullptr};
-            void* ctx{nullptr};
+            ServiceRouteHandlerRef sync{};
+            ServiceDeferredRouteHandlerRef deferred{};
         };
 
         struct PendingResponse {
             bool used{false};
             util::u16 request_id{0};
             ServiceSession* owner{nullptr};
-            ResponseFn on_response{nullptr};
-            TimeoutFn on_timeout{nullptr};
-            void* user{nullptr};
+            ServiceResponseHandlerRef on_response{};
+            ServiceTimeoutHandlerRef on_timeout{};
         };
 
         struct DeferredReply {
@@ -487,10 +802,10 @@ export namespace net {
             if (route->sync) {
                 std::array<util::u8, MaxPayload> response{};
                 util::usize response_size = 0;
-                const auto status = route->sync(route->ctx,
-                                                payload,
-                                                MutByteView{response.data(), response.size()},
-                                                &response_size);
+                const auto status = route->sync.handle(
+                    payload,
+                    MutByteView{response.data(), response.size()},
+                    &response_size);
                 if (response_size > response.size()) {
                     last_error_ = errc::format_error;
                     notify_error(last_error_);
@@ -519,7 +834,7 @@ export namespace net {
                     return;
                 }
 
-                route->deferred(route->ctx, *this, token.value(), payload);
+                route->deferred.notify(*this, token.value(), payload);
                 return;
             }
 
@@ -536,7 +851,6 @@ export namespace net {
                          bool ok,
                          ByteView payload) noexcept {
             const auto callback = pending.on_response;
-            void* user = pending.user;
             pending = {};
 
             auto decoded = decode_response(ok, payload);
@@ -547,7 +861,7 @@ export namespace net {
             }
 
             if (callback) {
-                callback(user, request_id, opcode, decoded.value().status, decoded.value().payload);
+                callback.notify(request_id, opcode, decoded.value().status, decoded.value().payload);
             }
         }
 
@@ -555,11 +869,10 @@ export namespace net {
                         util::u16 request_id,
                         util::u8 opcode) noexcept {
             const auto callback = pending.on_timeout;
-            void* user = pending.user;
             pending = {};
 
             if (callback) {
-                callback(user, request_id, opcode);
+                callback.notify(request_id, opcode);
                 return;
             }
 
@@ -599,17 +912,14 @@ export namespace net {
         }
 
         void notify_error(errc error) noexcept {
-            if (error_) {
-                error_(error_ctx_, error);
-            }
+            error_.notify(error);
         }
 
         WireSession request_{};
         std::array<RouteEntry, MaxRoutes> routes_{};
         std::array<PendingResponse, MaxPending> responses_{};
         std::array<DeferredReply, MaxDeferred> deferred_{};
-        ErrorFn error_{nullptr};
-        void* error_ctx_{nullptr};
+        NetErrorHandlerRef error_{};
         errc last_error_{errc::ok};
     };
 }

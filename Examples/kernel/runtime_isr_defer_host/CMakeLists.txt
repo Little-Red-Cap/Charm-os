@@ -29,6 +29,7 @@ set(kernel_runtime_demo_modules
     "${CHARM_ROOT}/Modules/system/kernel/runtime_bridge.cppm"
     "${CHARM_ROOT}/Modules/system/kernel/runtime_glue.cppm"
     "${CHARM_ROOT}/Modules/system/kernel/scheduler.cppm"
+    "${CHARM_ROOT}/Modules/system/kernel/scheduler_export.cppm"
     "${CHARM_ROOT}/Modules/system/kernel/ssu.cppm"
     "${CHARM_ROOT}/Modules/system/kernel/task_state.cppm"
     "${CHARM_ROOT}/Modules/system/kernel/thread.cppm"

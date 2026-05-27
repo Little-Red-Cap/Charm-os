@@ -5,14 +5,15 @@
 #include <span>
 #include <string_view>
 
-import charm.foundation;
-import charm.runtime;
+import charm.core;
+import fs_core;
+import fs_ramfs;
 
 int main() {
     fs::RamFs<64, 4, 16> ramfs;
     fs::File f{};
     (void)ramfs.mkdir("/demo");
-    (void)ramfs.open("/demo/hello.txt", f);
+    (void)ramfs.open("/demo/hello.txt", f, fs::OpenFlags::create);
 
     const char* msg = "hello world";
     std::span<const util::u8> bytes{reinterpret_cast<const util::u8*>(msg), std::strlen(msg)};

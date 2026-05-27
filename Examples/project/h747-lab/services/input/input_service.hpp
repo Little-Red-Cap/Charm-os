@@ -18,6 +18,77 @@ struct State {
     [[nodiscard]] bool touch_ready() const noexcept {
         return raw.touch.ready != 0U;
     }
+
+    [[nodiscard]] bool touch_detected() const noexcept {
+        return raw.touch.detected != 0U;
+    }
+
+    [[nodiscard]] bool touch_down() const noexcept {
+        return raw.touch.down != 0U;
+    }
+
+    [[nodiscard]] std::uint8_t touch_id() const noexcept {
+        return raw.touch.last_id;
+    }
+
+    [[nodiscard]] std::uint16_t touch_x() const noexcept {
+        return raw.touch.x;
+    }
+
+    [[nodiscard]] std::uint16_t touch_y() const noexcept {
+        return raw.touch.y;
+    }
+
+    [[nodiscard]] std::uint16_t touch_max_x() const noexcept {
+        return raw.touch.max_x;
+    }
+
+    [[nodiscard]] std::uint16_t touch_max_y() const noexcept {
+        return raw.touch.max_y;
+    }
+
+    [[nodiscard]] std::uint8_t touch_contacts() const noexcept {
+        return raw.touch.contacts;
+    }
+
+    [[nodiscard]] std::int16_t encoder1_detent_delta() const noexcept {
+        return raw.encoder1.detent_delta;
+    }
+
+    [[nodiscard]] std::int16_t encoder2_detent_delta() const noexcept {
+        return raw.encoder2.detent_delta;
+    }
+
+    [[nodiscard]] bool encoder1_pressed() const noexcept {
+        return raw.encoder1.button_pressed != 0U;
+    }
+
+    [[nodiscard]] bool encoder2_pressed() const noexcept {
+        return raw.encoder2.button_pressed != 0U;
+    }
+
+    [[nodiscard]] charm::cap::InputFrame frame() const noexcept {
+        return charm::cap::InputFrame{
+            .encoder1 = charm::cap::EncoderSample{
+                .detent_delta = static_cast<std::int16_t>(raw.encoder1.detent_delta),
+                .pressed = raw.encoder1.button_pressed != 0U,
+            },
+            .encoder2 = charm::cap::EncoderSample{
+                .detent_delta = static_cast<std::int16_t>(raw.encoder2.detent_delta),
+                .pressed = raw.encoder2.button_pressed != 0U,
+            },
+            .pointer = charm::cap::PointerSample{
+                .detected = raw.touch.detected != 0U,
+                .down = raw.touch.down != 0U,
+                .x = raw.touch.x,
+                .y = raw.touch.y,
+                .max_x = raw.touch.max_x,
+                .max_y = raw.touch.max_y,
+                .id = raw.touch.last_id,
+                .contacts = raw.touch.contacts,
+            },
+        };
+    }
 };
 
 class Service {
@@ -43,27 +114,7 @@ public:
     }
 
     [[nodiscard]] charm::cap::InputFrame sample() const noexcept {
-        const auto s = input_state();
-        return charm::cap::InputFrame{
-            .encoder1 = charm::cap::EncoderSample{
-                .detent_delta = static_cast<std::int16_t>(s.encoder1.detent_delta),
-                .pressed = s.encoder1.button_pressed != 0U,
-            },
-            .encoder2 = charm::cap::EncoderSample{
-                .detent_delta = static_cast<std::int16_t>(s.encoder2.detent_delta),
-                .pressed = s.encoder2.button_pressed != 0U,
-            },
-            .pointer = charm::cap::PointerSample{
-                .detected = s.touch.detected != 0U,
-                .down = s.touch.down != 0U,
-                .x = s.touch.x,
-                .y = s.touch.y,
-                .max_x = s.touch.max_x,
-                .max_y = s.touch.max_y,
-                .id = s.touch.last_id,
-                .contacts = s.touch.contacts,
-            },
-        };
+        return state().frame();
     }
 };
 

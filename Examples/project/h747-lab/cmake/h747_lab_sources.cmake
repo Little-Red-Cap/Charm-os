@@ -12,7 +12,6 @@ set(H747_LAB_COMMON_INCLUDE_DIRS
     "${H747_LAB_ROOT}/runtime"
     "${H747_LAB_ROOT}/board/h747_diy/port"
     "${H747_LAB_ROOT}/board/h747_diy/world"
-    "${CHARM_ROOT}/Examples/posix/elf_samples"
     "${DRAFT_CM7_ROOT}/Core/Inc"
     "${DRAFT_ROOT}/Common/Inc"
     "${HAL_ROOT}/Inc"
@@ -20,6 +19,9 @@ set(H747_LAB_COMMON_INCLUDE_DIRS
     "${STM32CUBE_H7_ROOT}/Drivers/CMSIS/Device/ST/STM32H7xx/Include"
     "${STM32CUBE_H7_ROOT}/Drivers/CMSIS/Include"
 )
+
+set(H747_LAB_USB_DEVICE_ROOT
+    "${STM32CUBE_H7_ROOT}/Middlewares/ST/STM32_USB_Device_Library")
 
 set(H747_LAB_PLATFORM_SOURCES
     "${DRAFT_CM7_ROOT}/Core/Startup/startup_stm32h747xx_CM7.s"
@@ -33,6 +35,8 @@ set(H747_LAB_PLATFORM_SOURCES
     "${DRAFT_CM7_ROOT}/Core/Src/sysmem.c"
     "${DRAFT_CM7_ROOT}/Core/Src/quadspi.c"
     "${DRAFT_CM7_ROOT}/Core/Src/i2c.c"
+    "${DRAFT_CM7_ROOT}/Core/Src/i2s.c"
+    "${DRAFT_CM7_ROOT}/Core/Src/sdmmc.c"
     "${DRAFT_CM7_ROOT}/Core/Src/spi.c"
     "${DRAFT_CM7_ROOT}/Core/Src/tim.c"
     "${HAL_ROOT}/Src/stm32h7xx_hal.c"
@@ -42,6 +46,8 @@ set(H747_LAB_PLATFORM_SOURCES
     "${HAL_ROOT}/Src/stm32h7xx_hal_dma_ex.c"
     "${HAL_ROOT}/Src/stm32h7xx_hal_pwr.c"
     "${HAL_ROOT}/Src/stm32h7xx_hal_pwr_ex.c"
+    "${HAL_ROOT}/Src/stm32h7xx_hal_pcd.c"
+    "${HAL_ROOT}/Src/stm32h7xx_hal_pcd_ex.c"
     "${HAL_ROOT}/Src/stm32h7xx_hal_flash.c"
     "${HAL_ROOT}/Src/stm32h7xx_hal_flash_ex.c"
     "${HAL_ROOT}/Src/stm32h7xx_hal_exti.c"
@@ -53,13 +59,23 @@ set(H747_LAB_PLATFORM_SOURCES
     "${HAL_ROOT}/Src/stm32h7xx_hal_rcc_ex.c"
     "${HAL_ROOT}/Src/stm32h7xx_hal_i2c.c"
     "${HAL_ROOT}/Src/stm32h7xx_hal_i2c_ex.c"
+    "${HAL_ROOT}/Src/stm32h7xx_hal_i2s.c"
+    "${HAL_ROOT}/Src/stm32h7xx_hal_i2s_ex.c"
     "${HAL_ROOT}/Src/stm32h7xx_hal_spi.c"
+    "${HAL_ROOT}/Src/stm32h7xx_hal_spi_ex.c"
     "${HAL_ROOT}/Src/stm32h7xx_hal_qspi.c"
     "${HAL_ROOT}/Src/stm32h7xx_hal_dsi.c"
     "${HAL_ROOT}/Src/stm32h7xx_hal_ltdc.c"
     "${HAL_ROOT}/Src/stm32h7xx_hal_ltdc_ex.c"
+    "${HAL_ROOT}/Src/stm32h7xx_hal_mmc.c"
+    "${HAL_ROOT}/Src/stm32h7xx_hal_mmc_ex.c"
+    "${HAL_ROOT}/Src/stm32h7xx_hal_sd.c"
+    "${HAL_ROOT}/Src/stm32h7xx_hal_sd_ex.c"
     "${HAL_ROOT}/Src/stm32h7xx_hal_sdram.c"
+    "${HAL_ROOT}/Src/stm32h7xx_ll_delayblock.c"
     "${HAL_ROOT}/Src/stm32h7xx_ll_fmc.c"
+    "${HAL_ROOT}/Src/stm32h7xx_ll_sdmmc.c"
+    "${HAL_ROOT}/Src/stm32h7xx_ll_usb.c"
 )
 
 set(H747_LAB_BOARD_SOURCES
@@ -73,6 +89,7 @@ set(H747_LAB_BOARD_SOURCES
 set(H747_LAB_RUNTIME_SOURCES
     "${H747_LAB_ROOT}/runtime/foundation.cpp"
     "${H747_LAB_ROOT}/runtime/main.cpp"
+    "${H747_LAB_ROOT}/runtime/newlib_time_stub.c"
 )
 
 set(H747_LAB_MODULE_SOURCES
@@ -159,6 +176,70 @@ set(H747_LAB_SERVICE_input_SOURCES
 )
 set(H747_LAB_SERVICE_input_INCLUDE_DIRS
     "${H747_LAB_ROOT}/services/input"
+)
+
+set(H747_LAB_SERVICE_storage_SOURCES
+    "${H747_LAB_ROOT}/services/storage/storage.cpp"
+)
+set(H747_LAB_SERVICE_storage_INCLUDE_DIRS
+    "${H747_LAB_ROOT}/services/storage"
+)
+
+set(H747_LAB_SERVICE_usb_msc_SOURCES
+    "${H747_LAB_ROOT}/services/usb_msc/usb_pcd.c"
+    "${H747_LAB_ROOT}/services/usb_msc/usb_irq.c"
+    "${H747_LAB_ROOT}/services/usb_msc/usb_device.c"
+    "${H747_LAB_ROOT}/services/usb_msc/usbd_desc.c"
+    "${H747_LAB_ROOT}/services/usb_msc/usbd_storage_if.c"
+    "${H747_LAB_ROOT}/services/usb_msc/usbd_conf.c"
+    "${H747_LAB_ROOT}/services/usb_msc/usb_msc_service.cpp"
+    "${H747_LAB_USB_DEVICE_ROOT}/Core/Src/usbd_core.c"
+    "${H747_LAB_USB_DEVICE_ROOT}/Core/Src/usbd_ctlreq.c"
+    "${H747_LAB_USB_DEVICE_ROOT}/Core/Src/usbd_ioreq.c"
+    "${H747_LAB_USB_DEVICE_ROOT}/Class/MSC/Src/usbd_msc.c"
+    "${H747_LAB_USB_DEVICE_ROOT}/Class/MSC/Src/usbd_msc_bot.c"
+    "${H747_LAB_USB_DEVICE_ROOT}/Class/MSC/Src/usbd_msc_data.c"
+    "${H747_LAB_USB_DEVICE_ROOT}/Class/MSC/Src/usbd_msc_scsi.c"
+)
+set(H747_LAB_SERVICE_usb_msc_INCLUDE_DIRS
+    "${H747_LAB_ROOT}/services/usb_msc"
+    "${H747_LAB_USB_DEVICE_ROOT}/Core/Inc"
+    "${H747_LAB_USB_DEVICE_ROOT}/Class/MSC/Inc"
+)
+
+set(H747_LAB_SERVICE_usb_msc_legacy_SOURCES
+    "${H747_LAB_ROOT}/services/usb_msc_legacy/usb_device.c"
+    "${H747_LAB_ROOT}/services/usb_msc_legacy/usb_irq.c"
+    "${H747_LAB_ROOT}/services/usb_msc_legacy/usbd_conf.c"
+    "${H747_LAB_ROOT}/services/usb_msc_legacy/usbd_desc.c"
+    "${H747_LAB_ROOT}/services/usb_msc_legacy/usbd_storage_if.c"
+    "${H747_LAB_ROOT}/services/usb_msc_legacy/usb_msc_legacy_service.cpp"
+    "${H747_LAB_USB_DEVICE_ROOT}/Core/Src/usbd_core.c"
+    "${H747_LAB_USB_DEVICE_ROOT}/Core/Src/usbd_ctlreq.c"
+    "${H747_LAB_USB_DEVICE_ROOT}/Core/Src/usbd_ioreq.c"
+    "${H747_LAB_USB_DEVICE_ROOT}/Class/MSC/Src/usbd_msc.c"
+    "${H747_LAB_USB_DEVICE_ROOT}/Class/MSC/Src/usbd_msc_bot.c"
+    "${H747_LAB_USB_DEVICE_ROOT}/Class/MSC/Src/usbd_msc_data.c"
+    "${H747_LAB_USB_DEVICE_ROOT}/Class/MSC/Src/usbd_msc_scsi.c"
+)
+set(H747_LAB_SERVICE_usb_msc_legacy_INCLUDE_DIRS
+    "${H747_LAB_ROOT}/services/usb_msc_legacy"
+    "${H747_LAB_USB_DEVICE_ROOT}/Core/Inc"
+    "${H747_LAB_USB_DEVICE_ROOT}/Class/MSC/Inc"
+)
+
+set(H747_LAB_SERVICE_qspi_nor_SOURCES
+    "${H747_LAB_ROOT}/services/qspi_nor/qspi_nor.cpp"
+)
+set(H747_LAB_SERVICE_qspi_nor_INCLUDE_DIRS
+    "${H747_LAB_ROOT}/services/qspi_nor"
+)
+
+set(H747_LAB_SERVICE_audio_SOURCES
+    "${H747_LAB_ROOT}/services/audio/audio.cpp"
+)
+set(H747_LAB_SERVICE_audio_INCLUDE_DIRS
+    "${H747_LAB_ROOT}/services/audio"
 )
 
 set(H747_LAB_SERVICE_display_SOURCES

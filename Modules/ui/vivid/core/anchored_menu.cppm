@@ -5,7 +5,10 @@ module;
 
 export module charm.ui.scene.anchored_menu;
 
-import charm.ui.scene;
+import charm.core.geometry;
+import charm.core.handle;
+import charm.core.style;
+import charm.ui.scene.builder_support;
 
 export namespace ui::scene {
     inline constexpr std::size_t kAnchoredMenuMaxItems = 6;

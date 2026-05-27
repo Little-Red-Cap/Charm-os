@@ -5,8 +5,11 @@
 #include <cstring>
 #include <string_view>
 
-import charm.foundation;
-import charm.runtime;
+import charm.core;
+import module_core;
+import module_link;
+import module_loader;
+import module_registry;
 
 static void demo_entry() {
     std::printf("[module_demo] entry invoked\n");

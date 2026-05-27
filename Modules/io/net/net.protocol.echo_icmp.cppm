@@ -12,7 +12,7 @@ import util.expected;
 
 export namespace net::icmp::echo {
     using SendFn = net::IcmpEchoSendFn;
-    using ErrorFn = void (*)(void*, errc) noexcept;
+    using ErrorFn = NetErrorFn;
     using ReplyFn = Result<void> (*)(void*, const IcmpEchoInfo&, PacketView) noexcept;
     using RequestFn = Result<void> (*)(void*, const IcmpEchoInfo&, PacketView) noexcept;
     using TimeoutFn = void (*)(void*, const IcmpEchoInfo&) noexcept;
@@ -131,9 +131,12 @@ export namespace net::icmp::echo {
               peer_(peer),
               configured_(true) {}
 
+        void set_sender(IcmpEchoSenderRef sender = {}) noexcept {
+            sender_ = sender;
+        }
+
         void set_sender(SendFn fn, void* ctx) noexcept {
-            sender_ = fn;
-            sender_ctx_ = ctx;
+            set_sender(IcmpEchoSenderRef::raw(fn, ctx));
         }
 
         void set_reply_handler(ReplyFn fn, void* ctx = nullptr) noexcept {
@@ -146,9 +149,12 @@ export namespace net::icmp::echo {
             timeout_ctx_ = ctx;
         }
 
+        void set_error_handler(NetErrorHandlerRef handler = {}) noexcept {
+            error_ = handler;
+        }
+
         void set_error_handler(ErrorFn fn, void* ctx = nullptr) noexcept {
-            error_fn_ = fn;
-            error_ctx_ = ctx;
+            set_error_handler(NetErrorHandlerRef::raw(fn, ctx));
         }
 
         void configure(IpAddress local, IpAddress peer) noexcept {
@@ -558,13 +564,12 @@ export namespace net::icmp::echo {
         [[nodiscard]] Result<IcmpSendDisposition> send_echo(util::u16 identifier,
                                                             util::u16 sequence,
                                                             ByteView payload) noexcept {
-            if (!configured_ || sender_ == nullptr) {
+            if (!configured_ || !sender_) {
                 report_error(errc::bad_state);
                 return util::unexpected(errc::bad_state);
             }
 
-            auto sent = sender_(
-                sender_ctx_,
+            auto sent = sender_.send(
                 local_,
                 peer_,
                 IcmpType::echo_request,
@@ -698,22 +703,18 @@ export namespace net::icmp::echo {
 
         void report_error(errc error) noexcept {
             last_error_ = error;
-            if (error_fn_ != nullptr) {
-                error_fn_(error_ctx_, error);
-            }
+            error_.notify(error);
         }
 
         IpAddress local_{};
         IpAddress peer_{};
         bool configured_{false};
-        SendFn sender_{nullptr};
-        void* sender_ctx_{nullptr};
+        IcmpEchoSenderRef sender_{};
         ReplyFn reply_fn_{nullptr};
         void* reply_ctx_{nullptr};
         TimeoutFn timeout_fn_{nullptr};
         void* timeout_ctx_{nullptr};
-        ErrorFn error_fn_{nullptr};
-        void* error_ctx_{nullptr};
+        NetErrorHandlerRef error_{};
         std::array<PendingEcho, kMaxPending> pending_{};
         std::array<IgnoredEcho, kMaxPending> ignored_{};
         util::usize next_ignored_{0};
@@ -993,7 +994,7 @@ export namespace net::icmp::echo {
         void install_handlers() noexcept {
             client_.set_reply_handler(&Probe::on_reply_trampoline, this);
             client_.set_timeout_handler(&Probe::on_timeout_trampoline, this);
-            client_.set_error_handler(&Probe::on_error_trampoline, this);
+            client_.set_error_handler(NetErrorHandlerRef::raw(&Probe::on_error_trampoline, this));
         }
 
         static Result<void> on_reply_trampoline(void* ctx,
@@ -1089,9 +1090,12 @@ export namespace net::icmp::echo {
 
     class AutoReplyServer {
     public:
+        void set_sender(IcmpEchoSenderRef sender = {}) noexcept {
+            sender_ = sender;
+        }
+
         void set_sender(SendFn fn, void* ctx) noexcept {
-            sender_ = fn;
-            sender_ctx_ = ctx;
+            set_sender(IcmpEchoSenderRef::raw(fn, ctx));
         }
 
         template <class Pump>
@@ -1104,9 +1108,12 @@ export namespace net::icmp::echo {
             request_ctx_ = ctx;
         }
 
+        void set_error_handler(NetErrorHandlerRef handler = {}) noexcept {
+            error_ = handler;
+        }
+
         void set_error_handler(ErrorFn fn, void* ctx = nullptr) noexcept {
-            error_fn_ = fn;
-            error_ctx_ = ctx;
+            set_error_handler(NetErrorHandlerRef::raw(fn, ctx));
         }
 
         void reset() noexcept {
@@ -1147,7 +1154,7 @@ export namespace net::icmp::echo {
                 ++drop_count_;
                 return {};
             }
-            if (sender_ == nullptr) {
+            if (!sender_) {
                 report_error(errc::bad_state);
                 return util::unexpected(errc::bad_state);
             }
@@ -1161,8 +1168,7 @@ export namespace net::icmp::echo {
                 }
             }
 
-            auto sent = sender_(
-                sender_ctx_,
+            auto sent = sender_.send(
                 info.local,
                 info.peer,
                 IcmpType::echo_reply,
@@ -1188,17 +1194,13 @@ export namespace net::icmp::echo {
     private:
         void report_error(errc error) noexcept {
             last_error_ = error;
-            if (error_fn_ != nullptr) {
-                error_fn_(error_ctx_, error);
-            }
+            error_.notify(error);
         }
 
-        SendFn sender_{nullptr};
-        void* sender_ctx_{nullptr};
+        IcmpEchoSenderRef sender_{};
         RequestFn request_fn_{nullptr};
         void* request_ctx_{nullptr};
-        ErrorFn error_fn_{nullptr};
-        void* error_ctx_{nullptr};
+        NetErrorHandlerRef error_{};
         util::usize request_count_{0};
         util::usize reply_count_{0};
         util::usize drop_count_{0};

@@ -16,20 +16,299 @@ function(h747_lab_collect_services out_sources out_include_dirs)
     set(${out_include_dirs} ${_include_dirs} PARENT_SCOPE)
 endfunction()
 
+function(h747_lab_check_vivid_product_modules target_name)
+    foreach(_module IN LISTS ARGN)
+        cmake_path(NORMAL_PATH _module OUTPUT_VARIABLE _module_norm)
+        if(_module_norm MATCHES "/Modules/ui/vivid/gfx/snapshot\\.cppm$")
+            message(FATAL_ERROR
+                "${target_name}: PRODUCT Vivid module set must not include charm.gfx.snapshot")
+        endif()
+        if(_module_norm MATCHES "/Modules/ui/vivid/gfx/display_policy\\.cppm$")
+            message(FATAL_ERROR
+                "${target_name}: PRODUCT Vivid module set must not include charm.gfx.display_policy")
+        endif()
+        if(NOT _module_norm MATCHES "/Modules/ui/vivid/")
+            continue()
+        endif()
+        if(NOT EXISTS "${_module_norm}")
+            continue()
+        endif()
+
+        file(READ "${_module_norm}" _module_text)
+        set(_hits)
+        if(_module_text MATCHES "std::vector")
+            list(APPEND _hits "std::vector")
+        endif()
+        if(_module_text MATCHES "std::string[^_]")
+            list(APPEND _hits "std::string")
+        endif()
+        if(_module_text MATCHES "(^|[^A-Za-z0-9_])throw([^A-Za-z0-9_]|$)")
+            list(APPEND _hits "throw")
+        endif()
+        if(_module_text MATCHES "(^|[^A-Za-z0-9_])try([^A-Za-z0-9_]|$)")
+            list(APPEND _hits "try")
+        endif()
+        if(_module_text MATCHES "(^|[^A-Za-z0-9_])catch([^A-Za-z0-9_]|$)")
+            list(APPEND _hits "catch")
+        endif()
+        if(_module_text MATCHES "(^|[^A-Za-z0-9_])new[ \t\r\n]")
+            list(APPEND _hits "new")
+        endif()
+        if(_module_text MATCHES "(^|[^A-Za-z0-9_])delete[ \t\r\n]")
+            list(APPEND _hits "delete")
+        endif()
+        if(_hits)
+            list(REMOVE_DUPLICATES _hits)
+            string(REPLACE ";" ", " _hit_text "${_hits}")
+            message(FATAL_ERROR
+                "${target_name}: PRODUCT Vivid module '${_module_norm}' contains high-risk token(s): ${_hit_text}. "
+                "Make the module MCU-clean or add an explicit product gate before admitting it.")
+        endif()
+    endforeach()
+endfunction()
+
+function(h747_lab_check_player_md3_vivid_product_whitelist target_name)
+    if(NOT target_name STREQUAL "h747_lab_player_md3")
+        return()
+    endif()
+    if(NOT CHARM_VIVID_FEATURESET STREQUAL "PRODUCT")
+        return()
+    endif()
+
+    foreach(_required_list IN ITEMS
+            CHARM_VIVID_PRODUCT_CORE_MODULES
+            CHARM_VIVID_PRODUCT_GFX_MODULES
+            CHARM_VIVID_PRODUCT_WIDGETS)
+        if(NOT DEFINED ${_required_list} OR NOT ${_required_list})
+            message(FATAL_ERROR
+                "${target_name}: ${_required_list} must be explicit in PRODUCT firmware")
+        endif()
+    endforeach()
+
+    foreach(_module IN LISTS ARGN)
+        cmake_path(NORMAL_PATH _module OUTPUT_VARIABLE _module_norm)
+        set(_allowed TRUE)
+        set(_module_name "")
+        set(_declared_modules "")
+        if(_module_norm MATCHES "/Modules/ui/vivid/core/([^/]+)\\.cppm$")
+            set(_allowed FALSE)
+            set(_module_name "${CMAKE_MATCH_1}")
+            set(_declared_modules ${CHARM_VIVID_PRODUCT_CORE_MODULES})
+        elseif(_module_norm MATCHES "/Modules/ui/vivid/gfx/([^/]+)\\.cppm$")
+            set(_allowed FALSE)
+            set(_module_name "${CMAKE_MATCH_1}")
+            set(_declared_modules ${CHARM_VIVID_PRODUCT_GFX_MODULES})
+        endif()
+
+        if(_allowed)
+            continue()
+        endif()
+        foreach(_declared_module IN LISTS _declared_modules)
+            if(_module_name STREQUAL _declared_module)
+                set(_allowed TRUE)
+                break()
+            endif()
+        endforeach()
+        if(NOT _allowed)
+            message(FATAL_ERROR
+                "${target_name}: Vivid PRODUCT module '${_module_norm}' is not declared "
+                "in the product core/gfx whitelist")
+        endif()
+    endforeach()
+endfunction()
+
+function(h747_lab_write_player_md3_vivid_product_modules target_name)
+    if(NOT target_name STREQUAL "h747_lab_player_md3")
+        return()
+    endif()
+    if(NOT CHARM_VIVID_FEATURESET STREQUAL "PRODUCT")
+        return()
+    endif()
+
+    set(_core_modules)
+    set(_gfx_modules)
+    set(_widget_modules)
+    foreach(_module IN LISTS ARGN)
+        cmake_path(NORMAL_PATH _module OUTPUT_VARIABLE _module_norm)
+        if(_module_norm MATCHES "/Modules/ui/vivid/core/([^/]+)\\.cppm$")
+            list(APPEND _core_modules "${CMAKE_MATCH_1}")
+        elseif(_module_norm MATCHES "/Modules/ui/vivid/gfx/([^/]+)\\.cppm$")
+            list(APPEND _gfx_modules "${CMAKE_MATCH_1}")
+        elseif(_module_norm MATCHES "/Modules/ui/vivid/widgets/([^/]+)\\.cppm$")
+            list(APPEND _widget_modules "${CMAKE_MATCH_1}")
+        endif()
+    endforeach()
+    list(REMOVE_DUPLICATES _core_modules)
+    list(REMOVE_DUPLICATES _gfx_modules)
+    list(REMOVE_DUPLICATES _widget_modules)
+    list(SORT _core_modules)
+    list(SORT _gfx_modules)
+    list(SORT _widget_modules)
+
+    set(_artifact_dir "${CMAKE_CURRENT_BINARY_DIR}/generated/vivid")
+    set(_artifact "${_artifact_dir}/player_md3_product_modules.txt")
+    file(MAKE_DIRECTORY "${_artifact_dir}")
+    file(WRITE "${_artifact}"
+        "# Generated by h747_lab_collect_vivid_mcu_modules().\n"
+        "# This is the H747 Player MD3 Vivid PRODUCT module evidence.\n"
+        "target=${target_name}\n"
+        "featureset=${CHARM_VIVID_FEATURESET}\n"
+        "layered_transitions=${CHARM_PLAYER_LAYERED_TRANSITIONS}\n")
+    file(APPEND "${_artifact}" "\n[core]\n")
+    foreach(_module IN LISTS _core_modules)
+        file(APPEND "${_artifact}" "${_module}\n")
+    endforeach()
+    file(APPEND "${_artifact}" "\n[gfx]\n")
+    foreach(_module IN LISTS _gfx_modules)
+        file(APPEND "${_artifact}" "${_module}\n")
+    endforeach()
+    file(APPEND "${_artifact}" "\n[widgets]\n")
+    foreach(_module IN LISTS _widget_modules)
+        file(APPEND "${_artifact}" "${_module}\n")
+    endforeach()
+endfunction()
+
+function(h747_lab_check_player_md3_host_only_boundary target_name)
+    if(NOT target_name STREQUAL "h747_lab_player_md3")
+        return()
+    endif()
+
+    foreach(_module IN LISTS ARGN)
+        cmake_path(NORMAL_PATH _module OUTPUT_VARIABLE _module_norm)
+        if(NOT CHARM_PLAYER_FILE_FONTS)
+            if(_module_norm MATCHES "/Modules/gfx/font/font_provider_freetype\\.cppm$"
+               OR _module_norm MATCHES "/Modules/ui/vivid/font/font_package\\.cppm$")
+                message(FATAL_ERROR
+                    "${target_name}: file-font module '${_module_norm}' entered the default H747 Player MD3 firmware. "
+                    "Enable CHARM_PLAYER_FILE_FONTS explicitly before admitting file-font backend modules.")
+            endif()
+        endif()
+        if(NOT CHARM_PLAYER_DEBUG_UI
+           AND _module_norm MATCHES "/Examples/project/player/app-vivid-MaterialDesign3/player\\.ui_debug\\.cppm$")
+            message(FATAL_ERROR
+                "${target_name}: player.ui_debug entered the default H747 Player MD3 firmware. "
+                "Enable CHARM_PLAYER_DEBUG_UI explicitly before admitting debug-only UI modules.")
+        endif()
+        if(NOT CHARM_PLAYER_DEBUG_UI
+           AND (_module_norm MATCHES "/Modules/ui/vivid/widgets/table_view\\.cppm$"
+                OR _module_norm MATCHES "/Modules/ui/vivid/widgets/tree_view\\.cppm$"))
+            message(FATAL_ERROR
+                "${target_name}: debug-only Vivid widget '${_module_norm}' entered the default H747 Player MD3 firmware. "
+                "Enable CHARM_PLAYER_DEBUG_UI explicitly before admitting debug/demo widgets.")
+        endif()
+        if(NOT CHARM_PLAYER_LAYERED_TRANSITIONS
+           AND (_module_norm MATCHES "/Modules/ui/vivid/core/motion_[^/]+\\.cppm$"
+                OR _module_norm MATCHES "/Modules/ui/vivid/core/page_transition\\.cppm$"
+                OR _module_norm MATCHES "/Modules/ui/vivid/gfx/snapshot\\.cppm$"))
+            message(FATAL_ERROR
+                "${target_name}: layered transition module '${_module_norm}' entered the default StaticCut firmware. "
+                "Enable CHARM_PLAYER_LAYERED_TRANSITIONS explicitly before admitting layered transition modules.")
+        endif()
+    endforeach()
+endfunction()
+
+function(h747_lab_check_player_md3_vivid_capacity_profile target_name)
+    if(NOT target_name STREQUAL "h747_lab_player_md3")
+        return()
+    endif()
+    if(NOT CHARM_VIVID_FEATURESET STREQUAL "PRODUCT")
+        return()
+    endif()
+
+    set(_caps_file "${CMAKE_CURRENT_BINARY_DIR}/generated/vivid/soa_pool_caps.cppm")
+    if(NOT EXISTS "${_caps_file}")
+        message(FATAL_ERROR
+            "${target_name}: missing generated Vivid SoA capacity artifact: ${_caps_file}")
+    endif()
+    file(READ "${_caps_file}" _caps_text)
+
+    set(_expected_text_arena "${CHARM_VIVID_SOA_TEXT_ARENA_BYTES}")
+    if(NOT _expected_text_arena)
+        message(FATAL_ERROR
+            "${target_name}: CHARM_VIVID_SOA_TEXT_ARENA_BYTES must be explicit for PRODUCT")
+    endif()
+    if(NOT _caps_text MATCHES "constexpr std::size_t kSoaTextArenaBytes = ${_expected_text_arena};")
+        message(FATAL_ERROR
+            "${target_name}: generated kSoaTextArenaBytes does not match PRODUCT profile "
+            "(${_expected_text_arena}). Check ${_caps_file}")
+    endif()
+
+    if(NOT _caps_text MATCHES "constexpr std::size_t kDefaultPoolCap = ${CHARM_VIVID_SOA_MAX_NODES};")
+        message(FATAL_ERROR
+            "${target_name}: generated kDefaultPoolCap does not match CHARM_VIVID_SOA_MAX_NODES "
+            "(${CHARM_VIVID_SOA_MAX_NODES}). Check ${_caps_file}")
+    endif()
+
+    set(_expected_zero_caps
+        TextInput
+        TextArea
+        NumberInput
+        Stepper
+        ToggleGroup
+        Checkbox
+        Radio
+        ListItem
+        NumberList
+        Roller
+        List)
+    if(NOT CHARM_PLAYER_DEBUG_UI)
+        list(APPEND _expected_zero_caps TableView TreeView)
+    endif()
+    foreach(_cap_name IN LISTS _expected_zero_caps)
+        if(NOT _caps_text MATCHES "constexpr std::size_t kPoolCap${_cap_name} = 0;")
+            message(FATAL_ERROR
+                "${target_name}: PRODUCT profile expected kPoolCap${_cap_name}=0. "
+                "This usually means a disabled widget payload pool returned to firmware. "
+                "Check ${_caps_file}")
+        endif()
+    endforeach()
+
+    if(NOT _caps_text MATCHES "constexpr std::size_t kPoolCapLabel = ${CHARM_VIVID_PAYLOAD_CAP_LABEL};")
+        message(FATAL_ERROR "${target_name}: generated Label payload cap does not match PRODUCT profile")
+    endif()
+    if(NOT _caps_text MATCHES "constexpr std::size_t kPoolCapButton = ${CHARM_VIVID_PAYLOAD_CAP_BUTTON};")
+        message(FATAL_ERROR "${target_name}: generated Button payload cap does not match PRODUCT profile")
+    endif()
+    if(NOT _caps_text MATCHES "constexpr std::size_t kPoolCapImage = ${CHARM_VIVID_PAYLOAD_CAP_IMAGE};")
+        message(FATAL_ERROR "${target_name}: generated Image payload cap does not match PRODUCT profile")
+    endif()
+    if(NOT _caps_text MATCHES "constexpr std::size_t kPoolCapListView = ${CHARM_VIVID_PAYLOAD_CAP_LIST_VIEW};")
+        message(FATAL_ERROR "${target_name}: generated ListView payload cap does not match PRODUCT profile")
+    endif()
+endfunction()
+
 function(h747_lab_collect_vivid_mcu_modules target_name out_modules out_base_dirs)
     set(CHARM_SOURCE_ROOT "${CHARM_ROOT}")
     set(CHARM_ENABLE_UI_INK OFF CACHE BOOL "" FORCE)
     set(CHARM_ENABLE_UI_VIVID ON CACHE BOOL "" FORCE)
-    set(CHARM_ENABLE_FREETYPE OFF CACHE BOOL "" FORCE)
-    set(CHARM_VIVID_FEATURESET "MCU_MIN" CACHE STRING "" FORCE)
+    if(target_name STREQUAL "h747_lab_player_md3" AND CHARM_PLAYER_FILE_FONTS)
+        set(CHARM_ENABLE_FREETYPE ON CACHE BOOL "" FORCE)
+    else()
+        set(CHARM_ENABLE_FREETYPE OFF CACHE BOOL "" FORCE)
+    endif()
+    if(DEFINED H747_LAB_VIVID_FEATURESET)
+        set(_h747_vivid_featureset "${H747_LAB_VIVID_FEATURESET}")
+    else()
+        set(_h747_vivid_featureset "MCU_MIN")
+    endif()
+    set(CHARM_VIVID_FEATURESET "${_h747_vivid_featureset}" CACHE STRING "" FORCE)
     set(CHARM_VIVID_SCREEN_WIDTH "720" CACHE STRING "" FORCE)
     set(CHARM_VIVID_SCREEN_HEIGHT "1280" CACHE STRING "" FORCE)
     set(CHARM_VIVID_SCREEN_PIXEL_FORMAT "RGB888" CACHE STRING "" FORCE)
     set(CHARM_VIVID_LAYER_CACHE_SLOTS "1" CACHE STRING "" FORCE)
     set(CHARM_VIVID_LAYER_CACHE_WIDTH "720" CACHE STRING "" FORCE)
     set(CHARM_VIVID_LAYER_CACHE_HEIGHT "1280" CACHE STRING "" FORCE)
-    set(CHARM_VIVID_ENABLE_FLOAT_WIDGETS OFF CACHE BOOL "" FORCE)
-    set(CHARM_VIVID_SOA_MAX_NODES "192" CACHE STRING "" FORCE)
+    if(CHARM_VIVID_FEATURESET STREQUAL "FULL" OR CHARM_VIVID_FEATURESET STREQUAL "PRODUCT")
+        set(CHARM_VIVID_ENABLE_FLOAT_WIDGETS ON CACHE BOOL "" FORCE)
+        if(NOT DEFINED CHARM_VIVID_SOA_MAX_NODES OR CHARM_VIVID_SOA_MAX_NODES STREQUAL "")
+            set(CHARM_VIVID_SOA_MAX_NODES "384" CACHE STRING "" FORCE)
+        endif()
+    else()
+        set(CHARM_VIVID_ENABLE_FLOAT_WIDGETS OFF CACHE BOOL "" FORCE)
+        if(NOT DEFINED CHARM_VIVID_SOA_MAX_NODES OR CHARM_VIVID_SOA_MAX_NODES STREQUAL "")
+            set(CHARM_VIVID_SOA_MAX_NODES "192" CACHE STRING "" FORCE)
+        endif()
+    endif()
 
     include("${CHARM_ROOT}/Modules/ui/vivid/vivid.cmake")
 
@@ -38,7 +317,9 @@ function(h747_lab_collect_vivid_mcu_modules target_name out_modules out_base_dir
         "${CHARM_ROOT}/Modules/gfx/font/typography.cppm"
         "${CHARM_ROOT}/Modules/gfx/font/font_defaults_noto.cppm"
         "${CHARM_ROOT}/Modules/gfx/font/font_noto_ascii_12.cppm"
+        "${CHARM_ROOT}/Modules/gfx/font/font_noto_ascii_16.cppm"
         "${CHARM_ROOT}/Modules/gfx/font/font_noto_sc_12.cppm"
+        "${CHARM_ROOT}/Modules/gfx/font/font_noto_sc_16.cppm"
         "${CHARM_ROOT}/Modules/ui/vivid/core/config.cppm"
         "${CHARM_ROOT}/Modules/ui/vivid/core/geometry.cppm"
         "${CHARM_ROOT}/Modules/ui/vivid/core/handle.cppm"
@@ -58,23 +339,74 @@ function(h747_lab_collect_vivid_mcu_modules target_name out_modules out_base_dir
         "${CHARM_ROOT}/Modules/ui/vivid/gfx/text_box.cppm"
         "${CHARM_ROOT}/Modules/core/alg/alg_arc.cppm"
         "${CHARM_ROOT}/Modules/core/alg/alg_circle.cppm"
+        "${CHARM_ROOT}/Modules/core/alg/alg_color_extract.cppm"
+        "${CHARM_ROOT}/Modules/core/alg/alg_list_scroll.cppm"
         "${CHARM_ROOT}/Modules/core/alg/alg_round_rect.cppm"
+        "${CHARM_ROOT}/Modules/core/alg/alg_scroll.cppm"
+        "${CHARM_ROOT}/Modules/core/alg/alg_scroll_bounds.cppm"
+        "${CHARM_ROOT}/Modules/core/alg/alg_scroll_thumb.cppm"
         "${CHARM_ROOT}/Modules/core/alg/alg_text_layout.cppm"
+        "${CHARM_ROOT}/Modules/core/alg/alg_text_parse.cppm"
+        "${CHARM_ROOT}/Modules/core/alg/alg_text_scroll.cppm"
+        "${CHARM_ROOT}/Modules/core/alg/alg_virtual_list.cppm"
+        "${CHARM_ROOT}/Modules/core/service/fixed_vector.cppm"
+        "${CHARM_ROOT}/Modules/core/service/signal.cppm"
+        "${CHARM_ROOT}/Modules/core/service/state.cppm"
         "${CHARM_ROOT}/Modules/core/service/service_dirty_rects.cppm"
         "${CHARM_ROOT}/Modules/core/util/core.cppm"
+        "${CHARM_ROOT}/Modules/core/util/delegate.cppm"
+        "${CHARM_ROOT}/Modules/ui/common/charm.core.event.cppm"
         "${CHARM_ROOT}/Modules/ui/common/ui.render_backend.cppm")
+
+    if(CHARM_VIVID_FEATURESET STREQUAL "FULL")
+        file(GLOB_RECURSE _full_vivid_modules
+            "${CHARM_ROOT}/Modules/ui/vivid/core/*.cppm"
+            "${CHARM_ROOT}/Modules/ui/vivid/gfx/*.cppm")
+        list(FILTER _full_vivid_modules EXCLUDE REGEX "/Modules/ui/vivid/font/")
+        list(FILTER _full_vivid_modules EXCLUDE REGEX "/Modules/ui/vivid/charm\\.ui\\.vivid")
+        list(FILTER _full_vivid_modules EXCLUDE REGEX "/Modules/ui/vivid/gfx/snapshot\\.cppm$")
+        list(FILTER _full_vivid_modules EXCLUDE REGEX "/Modules/ui/vivid/gfx/display_policy\\.cppm$")
+        list(APPEND _modules ${_full_vivid_modules})
+        file(GLOB_RECURSE _full_vivid_widget_modules
+            "${CHARM_ROOT}/Modules/ui/vivid/widgets/*.cppm")
+        list(APPEND _modules ${_full_vivid_widget_modules})
+    elseif(CHARM_VIVID_FEATURESET STREQUAL "PRODUCT")
+        vivid_collect_product_core_modules(_product_vivid_core_modules)
+        vivid_collect_product_gfx_modules(_product_vivid_gfx_modules)
+        vivid_collect_product_widget_modules(_product_vivid_widget_modules)
+        list(APPEND _modules
+            ${_product_vivid_core_modules}
+            ${_product_vivid_gfx_modules}
+            ${_product_vivid_widget_modules})
+    endif()
 
     set(_base_dirs "${CHARM_ROOT}/Modules")
     vivid_collect_modules(${target_name} _modules _base_dirs)
 
     list(REMOVE_DUPLICATES _modules)
     list(REMOVE_DUPLICATES _base_dirs)
+    if(CHARM_VIVID_FEATURESET STREQUAL "PRODUCT")
+        h747_lab_check_player_md3_vivid_product_whitelist("${target_name}" ${_modules})
+        h747_lab_check_vivid_product_modules("${target_name}" ${_modules})
+        h747_lab_write_player_md3_vivid_product_modules("${target_name}" ${_modules})
+    endif()
+    h747_lab_check_player_md3_host_only_boundary("${target_name}" ${_modules})
+    h747_lab_check_player_md3_vivid_capacity_profile("${target_name}")
     set(${out_modules} "${_modules}" PARENT_SCOPE)
     set(${out_base_dirs} "${_base_dirs}" PARENT_SCOPE)
 endfunction()
 
+function(h747_lab_app_needs_elf_load out_var app_name)
+    if(app_name STREQUAL "posix_lab" OR app_name STREQUAL "app_lab")
+        set(${out_var} TRUE PARENT_SCOPE)
+    else()
+        set(${out_var} FALSE PARENT_SCOPE)
+    endif()
+endfunction()
+
 function(h747_lab_select_linker_script out_script target_name app_name)
-    if(app_name STREQUAL "posix_lab")
+    h747_lab_app_needs_elf_load(_needs_elf_load "${app_name}")
+    if(_needs_elf_load)
         set(${out_script} "${STM32_LINKER_SCRIPT}" PARENT_SCOPE)
         return()
     endif()
@@ -100,7 +432,7 @@ function(h747_lab_select_linker_script out_script target_name app_name)
     endif()
     if(_script_text MATCHES "__elf_load_start__|__elf_load_end__|\\.elf_load")
         message(FATAL_ERROR
-            "${target_name}: non-POSIX H747 Lab target would still reserve the ELF load region. "
+            "${target_name}: H747 Lab target without dynamic ELF loading would still reserve the ELF load region. "
             "Update h747_lab_select_linker_script() for the current linker script shape.")
     endif()
 
@@ -253,6 +585,45 @@ function(h747_lab_add_firmware)
         list(APPEND _generated_app_sources ${_generated_incs})
     endif()
 
+    if(H747_LAB_FW_APP STREQUAL "app_lab")
+        set(_app_elf_samples_dir "${CHARM_ROOT}/Examples/app_abi/elf_samples")
+        set(_generated_dir "${CMAKE_CURRENT_BINARY_DIR}/generated/app_lab_elf_samples")
+        set(_generated_out_dir "${_generated_dir}/out")
+        set(_pack_tool_build_dir "${_generated_dir}/cmake-build-app-abi-store-pack-tool")
+        file(MAKE_DIRECTORY "${_generated_dir}")
+        set(_app_elf_samples
+            hello_app
+            player_min)
+        set(_generated_incs)
+        foreach(_sample IN LISTS _app_elf_samples)
+            list(APPEND _generated_incs "${_generated_dir}/${_sample}.elf.inc")
+        endforeach()
+        list(APPEND _generated_incs "${_generated_dir}/appstore.bin.inc")
+        add_custom_command(
+            OUTPUT ${_generated_incs}
+            COMMAND powershell -ExecutionPolicy Bypass -File
+                "${_app_elf_samples_dir}/build_app_elf_samples.ps1"
+                -OutDir "${_generated_out_dir}"
+                -IncDir "${_generated_dir}"
+                -ElfBase 0x24070000
+                -HostCompiler "D:/Toolchains/w64devkit/bin/g++.exe"
+                -PackToolBuildDir "${_pack_tool_build_dir}"
+                -StorePath "${_generated_out_dir}/appstore.bin"
+            DEPENDS
+                "${_app_elf_samples_dir}/build_app_elf_samples.ps1"
+                "${_app_elf_samples_dir}/app_elf.ld"
+                "${CHARM_ROOT}/Examples/app_abi/charm_app_api.h"
+                "${CHARM_ROOT}/Examples/app_abi/charm_app_store.hpp"
+                "${CHARM_ROOT}/Examples/app_abi/player_min_core.h"
+                "${_app_elf_samples_dir}/hello_app.c"
+                "${_app_elf_samples_dir}/player_min.c"
+                "${CHARM_ROOT}/Examples/system/app_abi_store_pack_tool/main.cpp"
+                "${CHARM_ROOT}/Examples/system/app_abi_store_pack_tool/CMakeLists.txt"
+            VERBATIM)
+        add_custom_target(${H747_LAB_FW_TARGET}_app_elf_samples DEPENDS ${_generated_incs})
+        list(APPEND _generated_app_sources ${_generated_incs})
+    endif()
+
     add_executable(${H747_LAB_FW_TARGET}
         ${H747_LAB_PLATFORM_SOURCES}
         ${H747_LAB_BOARD_SOURCES}
@@ -263,11 +634,52 @@ function(h747_lab_add_firmware)
         "${_profile_source}"
     )
 
+    if(H747_LAB_FW_TARGET STREQUAL "h747_lab_player_md3")
+        set(CHARM_DR_LIBS_DIR "${CHARM_ROOT}/Modules/thirdparty/dr_libs" CACHE PATH "" FORCE)
+        set(CHARM_MATERIAL_COLOR_UTILS_DIR "${CHARM_ROOT}/Modules/thirdparty/material_color_utils" CACHE PATH "" FORCE)
+        include("${CHARM_ROOT}/cmake/FatFs.cmake")
+        include("${CHARM_ROOT}/cmake/DRLibs.cmake")
+        charm_link_fatfs(${H747_LAB_FW_TARGET})
+        charm_link_dr_libs(${H747_LAB_FW_TARGET})
+        target_sources(${H747_LAB_FW_TARGET} PRIVATE
+            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/utils/utils.cc"
+            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/cam/cam.cc"
+            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/cam/hct.cc"
+            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/cam/hct_solver.cc"
+            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/cam/viewing_conditions.cc"
+            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/contrast/contrast.cc"
+            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/dislike/dislike.cc"
+            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/dynamiccolor/dynamic_color.cc"
+            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/dynamiccolor/dynamic_scheme.cc"
+            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/dynamiccolor/material_dynamic_colors.cc"
+            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/palettes/tones.cc"
+            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/quantize/celebi.cc"
+            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/quantize/lab.cc"
+            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/quantize/wsmeans.cc"
+            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/quantize/wu.cc"
+            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/score/score.cc"
+            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/scheme/scheme_expressive.cc"
+            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/scheme/scheme_fruit_salad.cc"
+            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/scheme/scheme_tonal_spot.cc"
+            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/scheme/scheme_vibrant.cc")
+        if(CHARM_PLAYER_FILE_FONTS)
+            include("${CHARM_ROOT}/cmake/FreeType.cmake")
+            if((NOT DEFINED CHARM_FREETYPE_DIR OR CHARM_FREETYPE_DIR STREQUAL "")
+               AND EXISTS "G:/Third_Party/freetype/CMakeLists.txt")
+                set(CHARM_FREETYPE_DIR "G:/Third_Party/freetype" CACHE PATH "" FORCE)
+            endif()
+            charm_link_freetype(${H747_LAB_FW_TARGET})
+        endif()
+    endif()
+
     if(TARGET ${H747_LAB_FW_TARGET}_elf_samples)
         add_dependencies(${H747_LAB_FW_TARGET} ${H747_LAB_FW_TARGET}_elf_samples)
     endif()
+    if(TARGET ${H747_LAB_FW_TARGET}_app_elf_samples)
+        add_dependencies(${H747_LAB_FW_TARGET} ${H747_LAB_FW_TARGET}_app_elf_samples)
+    endif()
 
-    if(H747_LAB_FW_APP STREQUAL "player_md3")
+    if(H747_LAB_FW_APP STREQUAL "player" OR H747_LAB_FW_APP STREQUAL "player_md3")
         h747_lab_collect_vivid_mcu_modules(
             ${H747_LAB_FW_TARGET}
             _vivid_module_sources
@@ -293,6 +705,7 @@ function(h747_lab_add_firmware)
         ${H747_LAB_COMMON_INCLUDE_DIRS}
         ${_service_include_dirs}
         ${H747_LAB_FW_APP_INCLUDE_DIRS}
+        "${CHARM_ROOT}/Modules/thirdparty/material_color_utils"
         "${CHARM_ROOT}/Modules/io/out"
     )
 
@@ -315,6 +728,14 @@ function(h747_lab_add_firmware)
     target_compile_options(${H747_LAB_FW_TARGET} PRIVATE
         $<$<COMPILE_LANGUAGE:CXX>:-Wno-volatile>
     )
+
+    if(H747_LAB_FW_TARGET STREQUAL "h747_lab_player_md3")
+        target_compile_options(${H747_LAB_FW_TARGET} PRIVATE
+            $<$<COMPILE_LANGUAGE:C>:-Os>
+            $<$<COMPILE_LANGUAGE:CXX>:-Os>
+            $<$<COMPILE_LANGUAGE:CXX>:-fno-module-lazy>
+        )
+    endif()
 
     target_link_options(${H747_LAB_FW_TARGET} PRIVATE
         ${H747_LAB_TARGET_FLAGS}
@@ -340,4 +761,6 @@ function(h747_lab_add_firmware)
                 "${CMAKE_CURRENT_BINARY_DIR}/${H747_LAB_FW_TARGET}.bin"
             VERBATIM)
     endif()
+
+    h747_lab_add_player_md3_memory_evidence("${H747_LAB_FW_TARGET}")
 endfunction()

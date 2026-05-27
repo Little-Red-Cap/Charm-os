@@ -15,11 +15,9 @@ import util.error;
 import util.expected;
 
 export namespace net {
-    using StreamSendFn = util::Result<util::usize> (*)(void* ctx, ByteView data) noexcept;
-
     template <typename T>
-    concept ReactorSession = requires(T& t, StreamSendFn fn, void* ctx, ByteView data) {
-        t.set_sender(fn, ctx);
+    concept ReactorSession = requires(T& t, ByteView data) {
+        t.set_sender(StreamSenderRef{});
         t.feed(data);
         t.notify_writable();
     };
@@ -104,7 +102,7 @@ export namespace net {
                 return util::unexpected(watch.error());
             }
 
-            session_.set_sender(&ReactorSocketDriver::send_trampoline, this);
+            session_.set_sender(StreamSenderRef::raw(&ReactorSocketDriver::send_trampoline, this));
             sub_ = sub.value();
             watch_ = watch.value();
             started_ = true;

@@ -72,10 +72,58 @@ bool wait_reload_complete() noexcept {
     return false;
 }
 
+std::uint32_t sample_argb8888(const void* pixels, const std::uint32_t byte_offset) noexcept {
+    if (pixels == nullptr) {
+        return 0U;
+    }
+    std::uint32_t value{};
+    std::memcpy(&value, static_cast<const std::byte*>(pixels) + byte_offset, sizeof(value));
+    return value;
+}
+
+std::uint32_t sample_center_offset() noexcept {
+    constexpr std::uint32_t center_x = kWidth / 2U;
+    constexpr std::uint32_t center_y = kHeight / 2U;
+    return ((center_y * kWidth) + center_x) * kBytesPerPixel;
+}
+
+void sample_surface(const void* pixels,
+                    const std::uint32_t bytes,
+                    std::uint32_t& sample0,
+                    std::uint32_t& sample_center,
+                    std::uint32_t& sample_last) noexcept {
+    if ((pixels == nullptr) || (bytes < sizeof(std::uint32_t))) {
+        sample0 = 0U;
+        sample_center = 0U;
+        sample_last = 0U;
+        return;
+    }
+
+    sample0 = sample_argb8888(pixels, 0U);
+    const std::uint32_t center = sample_center_offset();
+    sample_center = (center + sizeof(std::uint32_t) <= bytes)
+        ? sample_argb8888(pixels, center)
+        : 0U;
+    sample_last = sample_argb8888(pixels, bytes - sizeof(std::uint32_t));
+}
+
 void clear_ltdc_frame_flags() noexcept {
     if (hltdc_display_min.Instance != nullptr) {
         hltdc_display_min.Instance->ICR = LTDC_ICR_CFUIF | LTDC_ICR_CTERRIF | LTDC_ICR_CRRIF;
     }
+}
+
+HAL_StatusTypeDef refresh_dsi_from_ltdc() noexcept {
+    if (hdsi_display_min.Instance == nullptr) {
+        return HAL_ERROR;
+    }
+
+    const HAL_StatusTypeDef status = HAL_DSI_Refresh(&hdsi_display_min);
+    g_raster.dsi_refresh_hal_status = static_cast<std::uint32_t>(status);
+    if (status == HAL_OK) {
+        ++g_raster.dsi_refresh_count;
+    }
+    return status;
 }
 
 void snapshot() noexcept {
@@ -93,6 +141,29 @@ void snapshot() noexcept {
     g_raster.dsi_wcr = (hdsi_display_min.Instance != nullptr) ? hdsi_display_min.Instance->WCR : 0U;
     g_raster.dsi_wisr = (hdsi_display_min.Instance != nullptr) ? hdsi_display_min.Instance->WISR : 0U;
     g_raster.ltdc_isr = (hltdc_display_min.Instance != nullptr) ? hltdc_display_min.Instance->ISR : 0U;
+    if (LTDC_Layer1 != nullptr) {
+        g_raster.ltdc_layer_cfb_addr = LTDC_Layer1->CFBAR;
+        g_raster.ltdc_layer_cr = LTDC_Layer1->CR;
+        g_raster.ltdc_layer_pfcr = LTDC_Layer1->PFCR;
+        g_raster.ltdc_layer_cfblr = LTDC_Layer1->CFBLR;
+        g_raster.ltdc_layer_cfblnr = LTDC_Layer1->CFBLNR;
+    } else {
+        g_raster.ltdc_layer_cfb_addr = 0U;
+        g_raster.ltdc_layer_cr = 0U;
+        g_raster.ltdc_layer_pfcr = 0U;
+        g_raster.ltdc_layer_cfblr = 0U;
+        g_raster.ltdc_layer_cfblnr = 0U;
+    }
+    sample_surface(reinterpret_cast<const void*>(g_front_buffer),
+                   kFramebufferBytes,
+                   g_raster.front_sample0,
+                   g_raster.front_sample_center,
+                   g_raster.front_sample_last);
+    sample_surface(reinterpret_cast<const void*>(g_back_buffer),
+                   kFramebufferBytes,
+                   g_raster.back_sample0,
+                   g_raster.back_sample_center,
+                   g_raster.back_sample_last);
 }
 
 HAL_StatusTypeDef configure_layer() noexcept {
@@ -159,10 +230,11 @@ uint8_t display_raster_init(void) {
     }
 
     clear_ltdc_frame_flags();
-    if (hdsi_display_min.Instance != nullptr) {
-        hdsi_display_min.Instance->WCR |= DSI_WCR_LTDCEN;
-    }
     __HAL_LTDC_RELOAD_IMMEDIATE_CONFIG(&hltdc_display_min);
+    if (refresh_dsi_from_ltdc() != HAL_OK) {
+        snapshot();
+        return 0U;
+    }
     g_raster.init_ok = 1U;
     snapshot();
     return 1U;
@@ -170,6 +242,11 @@ uint8_t display_raster_init(void) {
 
 uint8_t display_raster_present(const void* pixels, const uint32_t bytes) {
     auto* back = reinterpret_cast<void*>(g_back_buffer);
+    sample_surface(pixels,
+                   bytes,
+                   g_raster.present_src_sample0,
+                   g_raster.present_src_sample_center,
+                   g_raster.present_src_sample_last);
     if ((pixels != nullptr) && (pixels != back)) {
         if (bytes > kFramebufferBytes) {
             g_raster.present_ok = 0U;
@@ -178,6 +255,11 @@ uint8_t display_raster_present(const void* pixels, const uint32_t bytes) {
         }
         std::memcpy(back, pixels, bytes);
     }
+    sample_surface(back,
+                   kFramebufferBytes,
+                   g_raster.presented_sample0,
+                   g_raster.presented_sample_center,
+                   g_raster.presented_sample_last);
 
     clean_dcache_range(back, kFramebufferBytes);
     ++g_raster.cache_clean_count;
@@ -200,6 +282,12 @@ uint8_t display_raster_present(const void* pixels, const uint32_t bytes) {
     }
 
     if (!wait_reload_complete()) {
+        g_raster.present_ok = 0U;
+        snapshot();
+        return 0U;
+    }
+
+    if (refresh_dsi_from_ltdc() != HAL_OK) {
         g_raster.present_ok = 0U;
         snapshot();
         return 0U;

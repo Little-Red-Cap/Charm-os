@@ -33,9 +33,7 @@ export namespace charm::system {
         CoreSystemChain(const charm::system::ClockOps& clock_ops,
                         void* clock_ctx,
                         ReactorPumpTask& pump_task,
-                        PostFn post_fn,
-                        PostFn post_more_fn,
-                        void* post_ctx,
+                        ReactorPumpPosts pump_posts,
                         kernel::TaskId pump_id,
                         util::usize budget = 8) noexcept
             : registry(),
@@ -47,7 +45,7 @@ export namespace charm::system {
               block_registry_binding(block_registry),
               reactor_binding(reactor),
               eda_binding(),
-              pump_binding(pump_task, reactor, post_fn, post_more_fn, post_ctx, pump_id, budget) {
+              pump_binding(pump_task, reactor, pump_posts, pump_id, budget) {
         }
 
         constexpr auto plan() const noexcept {

@@ -5,6 +5,11 @@ module;
 #include <cstdint>
 #include <limits>
 #include <type_traits>
+
+#ifndef CHARM_VIVID_MEMORY_PROFILE_SYMBOLS
+#define CHARM_VIVID_MEMORY_PROFILE_SYMBOLS 0
+#endif
+
 export module charm.core.style_sheet;
 
 export import charm.core.style;
@@ -297,6 +302,26 @@ struct ResolvedStyleView {
     const ResolvedColors* colors{nullptr};
     const ResolvedMetrics* metrics{nullptr};
     const ResolvedDecoration* decoration{nullptr};
+};
+
+export
+struct StyleSheetMemoryProfile {
+    std::size_t widget_kind_count{0};
+    std::size_t total_style_slots{0};
+    std::size_t total_variant_slots{0};
+    std::size_t max_metrics_pool{0};
+    std::size_t style_rule_capacity{0};
+    std::size_t resolved_colors_bytes{0};
+    std::size_t resolved_decoration_bytes{0};
+    std::size_t resolved_metrics_pool_bytes{0};
+    std::size_t metrics_id_bytes{0};
+    std::size_t matched_bytes{0};
+    std::size_t kind_compiled_bytes{0};
+    std::size_t style_table_static_bytes{0};
+    std::size_t base_style_bytes{0};
+    std::size_t base_style_set_bytes{0};
+    std::size_t rule_storage_bytes{0};
+    std::size_t stylesheet_size_bytes{0};
 };
 
 #if defined(VIVID_SOA_TRACE_INPUT)
@@ -1072,6 +1097,84 @@ private:
     mutable std::uint32_t style_lookup_count_{0};
 #endif
 };
+
+export
+inline constexpr StyleSheetMemoryProfile style_sheet_memory_profile() noexcept {
+    return StyleSheetMemoryProfile{
+        kWidgetKindCount,
+        kTotalStyleSlots,
+        kTotalVariantSlots,
+        kMaxMetricsPool,
+        32,
+        kTotalStyleSlots * sizeof(ResolvedColors),
+        kTotalStyleSlots * sizeof(ResolvedDecoration),
+        kMaxMetricsPool * sizeof(ResolvedMetrics),
+        kTotalVariantSlots * sizeof(std::uint8_t),
+        kTotalStyleSlots * sizeof(std::uint8_t),
+        kWidgetKindCount * sizeof(std::uint8_t),
+        sizeof(StyleTable),
+        kWidgetKindCount * sizeof(Style),
+        kWidgetKindCount * sizeof(std::uint8_t),
+        32 * sizeof(StyleRuleEntry),
+        sizeof(StyleSheet),
+    };
+}
+
+#if CHARM_VIVID_MEMORY_PROFILE_SYMBOLS && defined(__GNUC__)
+extern "C" [[gnu::used]] void charm_style_sheet_memory_profile_symbols() noexcept {
+    constexpr auto profile = style_sheet_memory_profile();
+    asm volatile(
+        ".global charm_style_sheet_profile_widget_kind_count\n"
+        ".set charm_style_sheet_profile_widget_kind_count, %c0\n"
+        ".global charm_style_sheet_profile_total_style_slots\n"
+        ".set charm_style_sheet_profile_total_style_slots, %c1\n"
+        ".global charm_style_sheet_profile_total_variant_slots\n"
+        ".set charm_style_sheet_profile_total_variant_slots, %c2\n"
+        ".global charm_style_sheet_profile_max_metrics_pool\n"
+        ".set charm_style_sheet_profile_max_metrics_pool, %c3\n"
+        ".global charm_style_sheet_profile_style_rule_capacity\n"
+        ".set charm_style_sheet_profile_style_rule_capacity, %c4\n"
+        ".global charm_style_sheet_profile_resolved_colors_bytes\n"
+        ".set charm_style_sheet_profile_resolved_colors_bytes, %c5\n"
+        ".global charm_style_sheet_profile_resolved_decoration_bytes\n"
+        ".set charm_style_sheet_profile_resolved_decoration_bytes, %c6\n"
+        ".global charm_style_sheet_profile_resolved_metrics_pool_bytes\n"
+        ".set charm_style_sheet_profile_resolved_metrics_pool_bytes, %c7\n"
+        ".global charm_style_sheet_profile_metrics_id_bytes\n"
+        ".set charm_style_sheet_profile_metrics_id_bytes, %c8\n"
+        ".global charm_style_sheet_profile_matched_bytes\n"
+        ".set charm_style_sheet_profile_matched_bytes, %c9\n"
+        ".global charm_style_sheet_profile_kind_compiled_bytes\n"
+        ".set charm_style_sheet_profile_kind_compiled_bytes, %c10\n"
+        ".global charm_style_sheet_profile_style_table_static_bytes\n"
+        ".set charm_style_sheet_profile_style_table_static_bytes, %c11\n"
+        ".global charm_style_sheet_profile_base_style_bytes\n"
+        ".set charm_style_sheet_profile_base_style_bytes, %c12\n"
+        ".global charm_style_sheet_profile_base_style_set_bytes\n"
+        ".set charm_style_sheet_profile_base_style_set_bytes, %c13\n"
+        ".global charm_style_sheet_profile_rule_storage_bytes\n"
+        ".set charm_style_sheet_profile_rule_storage_bytes, %c14\n"
+        ".global charm_style_sheet_profile_stylesheet_size_bytes\n"
+        ".set charm_style_sheet_profile_stylesheet_size_bytes, %c15\n"
+        :
+        : "i"(profile.widget_kind_count),
+          "i"(profile.total_style_slots),
+          "i"(profile.total_variant_slots),
+          "i"(profile.max_metrics_pool),
+          "i"(profile.style_rule_capacity),
+          "i"(profile.resolved_colors_bytes),
+          "i"(profile.resolved_decoration_bytes),
+          "i"(profile.resolved_metrics_pool_bytes),
+          "i"(profile.metrics_id_bytes),
+          "i"(profile.matched_bytes),
+          "i"(profile.kind_compiled_bytes),
+          "i"(profile.style_table_static_bytes),
+          "i"(profile.base_style_bytes),
+          "i"(profile.base_style_set_bytes),
+          "i"(profile.rule_storage_bytes),
+          "i"(profile.stylesheet_size_bytes));
+}
+#endif
 
 export
 inline bool apply_style_sheet(WidgetKind kind, const StyleState& state, Style& style) noexcept {

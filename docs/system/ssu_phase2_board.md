@@ -30,7 +30,7 @@
 
 ### 任务 D：SSU 观测升级（问题导向）
 
-- **任务**：让 scheduler 输出可直接回答的 SSU 概览指标（trigger/budget/blocking/domain 分布、未命名任务计数）。
+- **任务**：让 scheduler 提供可直接回答的 SSU 结构化概览指标（trigger/budget/blocking/domain 分布、未命名任务计数），由 `kernel.scheduler_export` 负责 JSON 呈现。
 - **验收**：调试/日志面可快速定位“语义分布失衡”和“未声明路径”，并输出风险等级（`ok`/`warning`/`error`）。
 - **风险**：只增加字段不绑定问题，观测数据无法驱动收敛决策。
 
@@ -45,10 +45,10 @@
 - 第二个严格模式样板构建记录。
 - `docs/system/ssu_run_loop_audit.md` 的审计更新。
 - `docs/system/ssu_submit_discipline.md` / PR 模板执行记录。
-- scheduler SSU 概览输出样例（JSON）。
+- scheduler_export SSU 概览输出样例（JSON）。
 ## 当前进展
 
-- 已在 `Examples/kernel/windows/main_m3.cpp` 接入 `format_event_source_json(...)`、`format_ssu_overview_json(...)` 与 `format_ssu_hotspots_json(...)` 调试输出。
+- 已在 `Examples/kernel/windows/main_m3.cpp` 接入 `kernel::format_event_source_json(scheduler, ...)`、`kernel::format_ssu_overview_json(scheduler, ...)` 与 `kernel::format_ssu_hotspots_json(scheduler, ...)` 调试输出。
 - 可直接在样板运行日志里观察 submit 来源、SSU 语义分布和风险热点（dominant submit / unnamed tasks / no-demand-submit）。
 
 - 当前阈值策略：由 `KernelConfig::ssu_demand_warn_permille` / `KernelConfig::ssu_demand_err_permille` 控制；`unnamed_tasks` 或 `no_demand_submit` 直接 error。

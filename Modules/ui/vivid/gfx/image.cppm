@@ -47,7 +47,7 @@ constexpr ImageView make_image_view(PixelFormat fmt,
 }
 
 export namespace ui::gfx {
-    struct ImageId {
+    struct alignas(4) ImageId {
         std::uint16_t slot{0xFFFF};
         std::uint16_t generation{0};
     };
@@ -427,7 +427,7 @@ export namespace ui::gfx {
         ImageView view{};
     };
 
-    inline ImageRegistry& image_registry() noexcept {
+    ImageRegistry& image_registry() noexcept {
         static ImageRegistry registry{};
         return registry;
     }

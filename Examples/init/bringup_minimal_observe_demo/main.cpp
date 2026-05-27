@@ -9,6 +9,7 @@
 import charm.system.bringup;
 import charm.system.clock;
 import charm.system.reactor_pump;
+import charm.system.schedule_ref;
 import init.materialize;
 import init.observe;
 import input.pump;
@@ -40,24 +41,19 @@ namespace {
             return input_pump_task;
         }
 
-        charm::system::PostFn post_io_ready_fn() noexcept {
-            return &noop_post;
+        charm::system::ReactorPumpPosts reactor_pump_posts() noexcept {
+            const auto post = charm::system::PostRef::raw(&noop_post, nullptr);
+            return charm::system::ReactorPumpPosts{
+                .wake = post,
+                .more = post,
+            };
         }
 
-        charm::system::PostFn post_demand_fn() noexcept {
-            return &noop_post;
-        }
-
-        void* post_ctx() noexcept {
-            return nullptr;
-        }
-
-        input::ScheduleFn schedule_fn() noexcept {
-            return &noop_schedule;
-        }
-
-        void* schedule_ctx() noexcept {
-            return nullptr;
+        input::InputPumpPorts input_pump_ports() noexcept {
+            return input::InputPumpPorts{
+                .schedule = charm::system::ScheduleRef::raw(&noop_schedule, nullptr),
+                .post_more = charm::system::PostRef::raw(&noop_post, nullptr),
+            };
         }
 
         static constexpr kernel::TaskId pump_id() noexcept {

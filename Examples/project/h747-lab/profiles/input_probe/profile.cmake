@@ -4,4 +4,5 @@ set(H747_LAB_PROFILE_RUNTIME foundation)
 set(H747_LAB_PROFILE_APP input_probe)
 set(H747_LAB_PROFILE_SERVICES
     console
+    power
     input)

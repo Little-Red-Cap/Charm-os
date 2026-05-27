@@ -83,8 +83,9 @@
 
 1. [`charm_methodology_charter.md`](charm_methodology_charter.md)
 2. [`charm_spine_v0.md`](charm_spine_v0.md)
-3. [`system_compiler_roadmap.md`](system_compiler_roadmap.md)
-4. [`system_compiler_vocabulary_v0.md`](system_compiler_vocabulary_v0.md)
+3. [`rte_to_h747_platform_roadmap.md`](rte_to_h747_platform_roadmap.md)
+4. [`system_compiler_roadmap.md`](system_compiler_roadmap.md)
+5. [`system_compiler_vocabulary_v0.md`](system_compiler_vocabulary_v0.md)
 
 如果你继续往运行面和工件面走，再回到：
 
@@ -97,11 +98,13 @@
 
 - [`charm_spine_v0.md`](charm_spine_v0.md)
 - [`rte_capability_composition_contract_v0.md`](rte_capability_composition_contract_v0.md)
+- [`rte_to_h747_platform_roadmap.md`](rte_to_h747_platform_roadmap.md)
 - [`system_compiler_vocabulary_v0.md`](system_compiler_vocabulary_v0.md)
 - [`../system/init_graph_contract.md`](../system/init_graph_contract.md)
 
 这里的 RTE 指 `capability composition boundary`，不是运行时框架、
 调度器、service locator 或 AUTOSAR 式大平台。
+当前近期平台化主线是 `RTE -> H747`，第一条真实垂直切片是 `Display + Player`。
 
 ### 我想看外部成熟产品对 Charm 机制的启发
 
@@ -134,9 +137,9 @@
 - 看 signal/state：
   `signal_state_contract_v0.md`
 - 看 system compiler：
-  `charm_spine_v0.md` → `system_compiler_roadmap.md` → `system_compiler_vocabulary_v0.md`
+  `charm_spine_v0.md` → `rte_to_h747_platform_roadmap.md` → `system_compiler_roadmap.md` → `system_compiler_vocabulary_v0.md`
 - 看 RTE / 能力装配边界：
-  `charm_spine_v0.md` → `rte_capability_composition_contract_v0.md` → `system_compiler_vocabulary_v0.md` → `../system/init_graph_contract.md`
+  `charm_spine_v0.md` → `rte_capability_composition_contract_v0.md` → `rte_to_h747_platform_roadmap.md` → `system_compiler_vocabulary_v0.md` → `../system/init_graph_contract.md`
 - 看真实板级落地审计与能力回收：
   `real_board_landing_gap_audit_v0.md` → `capability_recovery_rules.md` → `capability_recovery_matrix.md`
 

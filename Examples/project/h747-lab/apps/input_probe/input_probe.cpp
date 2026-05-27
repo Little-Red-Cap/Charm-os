@@ -99,13 +99,14 @@ void print_version(const input_touch_snapshot_t& touch) {
 void print_encoder(const std::string_view name,
                    const input_encoder_snapshot_t& encoder,
                    const std::int32_t accumulated) {
-    emit<"{}: count={} delta={} detent={} accum={} pressed={} queue={} last_ab=0x{:02X}\n">(
+    emit<"{}: count={} delta={} detent={} accum={} pressed={} level={} queue={} last_ab=0x{:02X}\n">(
         name,
         encoder.count,
         encoder.delta_counts,
         static_cast<int>(encoder.detent_delta),
         accumulated,
         encoder.button_pressed,
+        encoder.button_level,
         encoder.phase_queue_depth,
         static_cast<unsigned>(encoder.last_ab));
 }

@@ -2,7 +2,7 @@
 #include <cstddef>
 #include <cstdio>
 
-import charm.foundation;
+import charm.core;
 import charm.core.event;
 import charm.widgets.arc;
 import charm.widgets.checkbox;

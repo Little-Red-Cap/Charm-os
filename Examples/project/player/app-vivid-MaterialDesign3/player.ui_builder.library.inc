@@ -15,7 +15,7 @@
 
         h.list_scroll = builder.create_scrollbar_for(h.list);
         anchor_rect(builder, h.list_scroll, {0, 0, 0, 0});
-        builder.set_scrollbar_orientation(h.list_scroll, ScrollBarOrientation::Vertical);
+        builder.set_scrollbar_orientation(h.list_scroll, ::ui::scene::ScrollBarOrientation::Vertical);
 
         h.list_hint = builder.create_label_static("");
         anchor_rect(builder, h.list_hint, {0, 0, 0, 0});
@@ -567,7 +567,7 @@
         const WidgetHandle list_scroll_rail = builder.create_container();
         anchor_rect(builder, list_scroll_rail,
                     {list_scroll_rect.x + 1, list_scroll_rect.y - 2,
-                     std::max(2, list_scroll_rect.w - 2), list_scroll_rect.h + 4});
+                     std::max<int>(2, static_cast<int>(list_scroll_rect.w - 2)), list_scroll_rect.h + 4});
         {
             StylePatch patch = ::ui::scene::make_clean_surface_patch({
                 .apply_bg_color = true,

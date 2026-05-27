@@ -47,56 +47,48 @@ namespace {
         bool got_missing_response{false};
         bool failed{false};
 
-        static void on_response(void* ctx,
-                                util::u16 request_id,
-                                util::u8 opcode,
-                                net::ServiceStatus status,
-                                net::ByteView payload) noexcept {
-            auto* self = static_cast<ClientState*>(ctx);
-            if (!self) return;
-
+        void on_response(util::u16 request_id,
+                         util::u8 opcode,
+                         net::ServiceStatus status,
+                         net::ByteView payload) noexcept {
             static constexpr util::u8 pong[]{'p', 'o', 'n', 'g'};
             static constexpr util::u8 reject[]{'b', 'a', 'd', '-', 'p', 'i', 'n', 'g'};
 
-            if (request_id == self->ping_request_id) {
-                self->got_ping_response = opcode == 0x10u
+            if (request_id == ping_request_id) {
+                got_ping_response = opcode == 0x10u
                     && status == net::ServiceStatus::ok
                     && bytes_eq(payload, net::ByteView{pong, 4});
-                if (!self->got_ping_response) {
-                    self->failed = true;
+                if (!got_ping_response) {
+                    failed = true;
                 }
                 return;
             }
 
-            if (request_id == self->reject_request_id) {
-                self->got_reject_response = opcode == 0x20u
+            if (request_id == reject_request_id) {
+                got_reject_response = opcode == 0x20u
                     && status == net::ServiceStatus::bad_request
                     && bytes_eq(payload, net::ByteView{reject, 8});
-                if (!self->got_reject_response) {
-                    self->failed = true;
+                if (!got_reject_response) {
+                    failed = true;
                 }
                 return;
             }
 
-            if (request_id == self->missing_request_id) {
-                self->got_missing_response = opcode == 0x30u
+            if (request_id == missing_request_id) {
+                got_missing_response = opcode == 0x30u
                     && status == net::ServiceStatus::not_supported
                     && payload.empty();
-                if (!self->got_missing_response) {
-                    self->failed = true;
+                if (!got_missing_response) {
+                    failed = true;
                 }
                 return;
             }
 
-            self->failed = true;
+            failed = true;
         }
 
-        static void on_timeout(void* ctx,
-                               util::u16,
-                               util::u8) noexcept {
-            auto* self = static_cast<ClientState*>(ctx);
-            if (!self) return;
-            self->failed = true;
+        void on_timeout(util::u16, util::u8) noexcept {
+            failed = true;
         }
 
         static void on_error(void* ctx, net::errc) noexcept {
@@ -111,44 +103,32 @@ namespace {
         bool saw_reject_route{false};
         bool failed{false};
 
-        static net::ServiceStatus on_ping(void* ctx,
-                                          net::ByteView request,
-                                          net::MutByteView response,
-                                          util::usize* response_size) noexcept {
-            auto* self = static_cast<ServerState*>(ctx);
-            if (!self) {
-                return net::ServiceStatus::internal_error;
-            }
-
+        net::ServiceStatus on_route(net::ByteView request,
+                                    net::MutByteView response,
+                                    util::usize* response_size) noexcept {
             static constexpr util::u8 ping[]{'p', 'i', 'n', 'g'};
             static constexpr util::u8 pong[]{'p', 'o', 'n', 'g'};
 
-            self->saw_ping_route = true;
+            saw_ping_route = true;
             if (!bytes_eq(request, net::ByteView{ping, 4})) {
-                self->failed = true;
+                failed = true;
                 return net::ServiceStatus::bad_request;
             }
             if (!copy_bytes(response, net::ByteView{pong, 4}, response_size)) {
-                self->failed = true;
+                failed = true;
                 return net::ServiceStatus::internal_error;
             }
             return net::ServiceStatus::ok;
         }
 
-        static net::ServiceStatus on_reject(void* ctx,
-                                            net::ByteView,
-                                            net::MutByteView response,
-                                            util::usize* response_size) noexcept {
-            auto* self = static_cast<ServerState*>(ctx);
-            if (!self) {
-                return net::ServiceStatus::internal_error;
-            }
-
+        net::ServiceStatus reject_route(net::ByteView,
+                                        net::MutByteView response,
+                                        util::usize* response_size) noexcept {
             static constexpr util::u8 reject[]{'b', 'a', 'd', '-', 'p', 'i', 'n', 'g'};
 
-            self->saw_reject_route = true;
+            saw_reject_route = true;
             if (!copy_bytes(response, net::ByteView{reject, 8}, response_size)) {
-                self->failed = true;
+                failed = true;
                 return net::ServiceStatus::internal_error;
             }
             return net::ServiceStatus::bad_request;
@@ -158,6 +138,16 @@ namespace {
             auto* self = static_cast<ServerState*>(ctx);
             if (!self) return;
             self->failed = true;
+        }
+    };
+
+    struct RejectRoute {
+        ServerState& state;
+
+        net::ServiceStatus on_route(net::ByteView request,
+                                    net::MutByteView response,
+                                    util::usize* response_size) noexcept {
+            return state.reject_route(request, response, response_size);
         }
     };
 
@@ -193,12 +183,13 @@ int main() {
     Session server_session{};
     ClientState client_state{};
     ServerState server_state{};
+    RejectRoute reject_route_handler{server_state};
 
     client_session.set_error_handler(&ClientState::on_error, &client_state);
     server_session.set_error_handler(&ServerState::on_error, &server_state);
 
-    auto ping_route = server_session.set_route(0x10u, &ServerState::on_ping, &server_state);
-    auto reject_route = server_session.set_route(0x20u, &ServerState::on_reject, &server_state);
+    auto ping_route = server_session.set_route(0x10u, net::ServiceRouteHandlerRef::bind(server_state));
+    auto reject_route = server_session.set_route(0x20u, net::ServiceRouteHandlerRef::bind(reject_route_handler));
     if (!ping_route || !reject_route) {
         std::fputs("reactor service route registration failed\n", stderr);
         return 2;
@@ -237,9 +228,8 @@ int main() {
         net::ByteView{ping, 4},
         0,
         200,
-        &ClientState::on_response,
-        &ClientState::on_timeout,
-        &client_state);
+        net::ServiceResponseHandlerRef::bind(client_state),
+        net::ServiceTimeoutHandlerRef::bind(client_state));
     if (!ping_request) {
         std::fputs("reactor service ping request failed\n", stderr);
         return 6;
@@ -251,9 +241,8 @@ int main() {
         net::ByteView{noop, 4},
         0,
         200,
-        &ClientState::on_response,
-        &ClientState::on_timeout,
-        &client_state);
+        net::ServiceResponseHandlerRef::bind(client_state),
+        net::ServiceTimeoutHandlerRef::bind(client_state));
     if (!reject_request) {
         std::fputs("reactor service reject request failed\n", stderr);
         return 7;
@@ -265,9 +254,8 @@ int main() {
         net::ByteView{noop, 4},
         0,
         200,
-        &ClientState::on_response,
-        &ClientState::on_timeout,
-        &client_state);
+        net::ServiceResponseHandlerRef::bind(client_state),
+        net::ServiceTimeoutHandlerRef::bind(client_state));
     if (!missing_request) {
         std::fputs("reactor service missing request failed\n", stderr);
         return 8;

@@ -15,7 +15,7 @@ SSU 已经完成了从概念到主线事实层的第一轮跃迁：
 - 已有契约文档
 - 已有纪律文档
 - 已有内核最小骨架
-- 已进入 TaskRegistry / scheduler / trace 观测面
+- 已进入 TaskRegistry / scheduler 结构化观测面与 scheduler_export 呈现层
 - 已接入多个真实 task
 - 已在至少一个真实 target 上成为编译事实
 
@@ -176,8 +176,9 @@ SSU 当前的最小闭环已经很明确：
 
 ## 11. 观测面增量
 
-- scheduler 新增 `format_ssu_overview_json(...)`，可导出 trigger/budget/blocking/domain 分布与未命名 task 数。
-- scheduler 新增 `format_ssu_hotspots_json(...)`，可导出 dominant submit、demand 占比与风险等级（`ok/warning/error`）。
+- scheduler 提供结构化 `task_snapshot()` / `trace_snapshot()` 观测面。
+- `kernel.scheduler_export` 提供 `format_ssu_overview_json(scheduler, ...)`，可导出 trigger/budget/blocking/domain 分布与未命名 task 数。
+- `kernel.scheduler_export` 提供 `format_ssu_hotspots_json(scheduler, ...)`，可导出 dominant submit、demand 占比与风险等级（`ok/warning/error`）。
 - 对应看板项：`docs/system/ssu_phase2_board.md` 的任务 D（问题导向观测）。
 
 - hotspots 风险阈值已外置到 `KernelConfig`（`ssu_demand_warn_permille` / `ssu_demand_err_permille`）。

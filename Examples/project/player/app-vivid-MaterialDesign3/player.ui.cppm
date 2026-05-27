@@ -217,9 +217,25 @@ export namespace player::ui {
         ::ui::gfx::ImageId folder_active{};
     };
 
+    inline constexpr int kPlayerIconSizePx = 48;
+    inline constexpr int kPlayerIconStrideBytes = kPlayerIconSizePx * 4;
+    inline constexpr std::size_t kPlayerIconCount = 17;
+    inline constexpr std::size_t kPlayerIconBytes =
+        static_cast<std::size_t>(kPlayerIconStrideBytes) * static_cast<std::size_t>(kPlayerIconSizePx);
+    inline constexpr std::size_t kPlayerIconArenaBytes = kPlayerIconCount * kPlayerIconBytes;
+
+    struct PlayerIconPixelArena {
+        std::byte* data{nullptr};
+        std::size_t bytes{0};
+
+        constexpr bool valid() const noexcept {
+            return data != nullptr && bytes >= kPlayerIconArenaBytes;
+        }
+    };
+
     namespace detail {
-        constexpr int kIconSize = 48;
-        constexpr int kIconStride = kIconSize * 4;
+        constexpr int kIconSize = kPlayerIconSizePx;
+        constexpr int kIconStride = kPlayerIconStrideBytes;
         using IconBuffer = std::array<std::byte, kIconSize * kIconSize * 4>;
         constexpr ::ui::gfx::svg::ViewBox kIconView{24.0f, 24.0f};
         constexpr ::ui::gfx::svg::ViewBox kLegacyIconView{960.0f, 960.0f};
@@ -377,6 +393,45 @@ export namespace player::ui {
             rasterize_svg_path(buf, kPathMore, color);
         }
 
+        using IconBuildFn = void (*)(IconBuffer&, const rgba&);
+
+        ImageView icon_view_from_buffer(const IconBuffer& buf) noexcept {
+            return make_image_view(PixelFormat::ARGB8888,
+                                   kIconSize,
+                                   kIconSize,
+                                   kIconStride,
+                                   buf.data(),
+                                   false,
+                                   false);
+        }
+
+        ImageView icon_view_from_arena(PlayerIconPixelArena arena, std::size_t index) noexcept {
+            if (!arena.valid() || index >= kPlayerIconCount) return {};
+            return make_image_view(PixelFormat::ARGB8888,
+                                   kIconSize,
+                                   kIconSize,
+                                   kIconStride,
+                                   arena.data + index * kPlayerIconBytes,
+                                   false,
+                                   false);
+        }
+
+        bool build_icon_in_arena(PlayerIconPixelArena arena,
+                                 std::size_t index,
+                                 IconBuildFn build,
+                                 const rgba& color) noexcept {
+            if (!arena.valid() || index >= kPlayerIconCount || build == nullptr) return false;
+            auto* bytes = arena.data + index * kPlayerIconBytes;
+            auto& buf = *::new (static_cast<void*>(bytes)) IconBuffer{};
+            build(buf, color);
+            return true;
+        }
+
+        ::ui::gfx::ImageId register_icon_view(const ImageView& view) noexcept {
+            const auto res = ::ui::gfx::register_image_dedup(view);
+            return res.ok() ? res.id : ::ui::gfx::invalid_image_id();
+        }
+
         // TODO(player/ui): Make exact font cache size product-configurable after host-side typography tuning stabilizes.
         inline constexpr std::size_t kPlayerExactFontCacheSlots = 24;
 
@@ -470,13 +525,7 @@ export namespace player::ui {
             detail::build_prev_icon(buf, kUiListFont);
             init = true;
         }
-        return make_image_view(PixelFormat::ARGB8888,
-                               detail::kIconSize,
-                               detail::kIconSize,
-                               detail::kIconStride,
-                               buf.data(),
-                               false,
-                               false);
+        return detail::icon_view_from_buffer(buf);
     }
 
     inline ImageView icon_play() noexcept {
@@ -486,13 +535,7 @@ export namespace player::ui {
             detail::build_play_icon(buf, kUiListFont);
             init = true;
         }
-        return make_image_view(PixelFormat::ARGB8888,
-                               detail::kIconSize,
-                               detail::kIconSize,
-                               detail::kIconStride,
-                               buf.data(),
-                               false,
-                               false);
+        return detail::icon_view_from_buffer(buf);
     }
 
     inline ImageView icon_pause() noexcept {
@@ -502,13 +545,7 @@ export namespace player::ui {
             detail::build_pause_icon(buf, kUiListFont);
             init = true;
         }
-        return make_image_view(PixelFormat::ARGB8888,
-                               detail::kIconSize,
-                               detail::kIconSize,
-                               detail::kIconStride,
-                               buf.data(),
-                               false,
-                               false);
+        return detail::icon_view_from_buffer(buf);
     }
 
     inline ImageView icon_loop() noexcept {
@@ -518,13 +555,7 @@ export namespace player::ui {
             detail::build_loop_icon(buf, kUiListFont);
             init = true;
         }
-        return make_image_view(PixelFormat::ARGB8888,
-                               detail::kIconSize,
-                               detail::kIconSize,
-                               detail::kIconStride,
-                               buf.data(),
-                               false,
-                               false);
+        return detail::icon_view_from_buffer(buf);
     }
 
     inline ImageView icon_single() noexcept {
@@ -534,13 +565,7 @@ export namespace player::ui {
             detail::build_single_icon(buf, kUiListFont);
             init = true;
         }
-        return make_image_view(PixelFormat::ARGB8888,
-                               detail::kIconSize,
-                               detail::kIconSize,
-                               detail::kIconStride,
-                               buf.data(),
-                               false,
-                               false);
+        return detail::icon_view_from_buffer(buf);
     }
 
     inline ImageView icon_shuffle() noexcept {
@@ -550,13 +575,7 @@ export namespace player::ui {
             detail::build_shuffle_icon(buf, kUiListFont);
             init = true;
         }
-        return make_image_view(PixelFormat::ARGB8888,
-                               detail::kIconSize,
-                               detail::kIconSize,
-                               detail::kIconStride,
-                               buf.data(),
-                               false,
-                               false);
+        return detail::icon_view_from_buffer(buf);
     }
 
     inline ImageView icon_next() noexcept {
@@ -566,13 +585,7 @@ export namespace player::ui {
             detail::build_next_icon(buf, kUiListFont);
             init = true;
         }
-        return make_image_view(PixelFormat::ARGB8888,
-                               detail::kIconSize,
-                               detail::kIconSize,
-                               detail::kIconStride,
-                               buf.data(),
-                               false,
-                               false);
+        return detail::icon_view_from_buffer(buf);
     }
 
     inline ImageView icon_chevron_right() noexcept {
@@ -582,13 +595,7 @@ export namespace player::ui {
             detail::build_chevron_right_icon(buf, kUiListFont);
             init = true;
         }
-        return make_image_view(PixelFormat::ARGB8888,
-                               detail::kIconSize,
-                               detail::kIconSize,
-                               detail::kIconStride,
-                               buf.data(),
-                               false,
-                               false);
+        return detail::icon_view_from_buffer(buf);
     }
 
     inline ImageView icon_folder() noexcept {
@@ -598,13 +605,7 @@ export namespace player::ui {
             detail::build_folder_icon(buf, kUiListFont);
             init = true;
         }
-        return make_image_view(PixelFormat::ARGB8888,
-                               detail::kIconSize,
-                               detail::kIconSize,
-                               detail::kIconStride,
-                               buf.data(),
-                               false,
-                               false);
+        return detail::icon_view_from_buffer(buf);
     }
 
     inline ImageView icon_home() noexcept {
@@ -614,13 +615,7 @@ export namespace player::ui {
             detail::build_home_icon(buf, kUiListFont);
             init = true;
         }
-        return make_image_view(PixelFormat::ARGB8888,
-                               detail::kIconSize,
-                               detail::kIconSize,
-                               detail::kIconStride,
-                               buf.data(),
-                               false,
-                               false);
+        return detail::icon_view_from_buffer(buf);
     }
 
     inline ImageView icon_home_active() noexcept {
@@ -630,13 +625,7 @@ export namespace player::ui {
             detail::build_home_icon(buf, kUiOk);
             init = true;
         }
-        return make_image_view(PixelFormat::ARGB8888,
-                               detail::kIconSize,
-                               detail::kIconSize,
-                               detail::kIconStride,
-                               buf.data(),
-                               false,
-                               false);
+        return detail::icon_view_from_buffer(buf);
     }
 
     inline ImageView icon_search() noexcept {
@@ -646,13 +635,7 @@ export namespace player::ui {
             detail::build_search_icon(buf, kUiListFont);
             init = true;
         }
-        return make_image_view(PixelFormat::ARGB8888,
-                               detail::kIconSize,
-                               detail::kIconSize,
-                               detail::kIconStride,
-                               buf.data(),
-                               false,
-                               false);
+        return detail::icon_view_from_buffer(buf);
     }
 
     inline ImageView icon_search_active() noexcept {
@@ -662,13 +645,7 @@ export namespace player::ui {
             detail::build_search_icon(buf, kUiOk);
             init = true;
         }
-        return make_image_view(PixelFormat::ARGB8888,
-                               detail::kIconSize,
-                               detail::kIconSize,
-                               detail::kIconStride,
-                               buf.data(),
-                               false,
-                               false);
+        return detail::icon_view_from_buffer(buf);
     }
 
     inline ImageView icon_settings() noexcept {
@@ -678,13 +655,7 @@ export namespace player::ui {
             detail::build_settings_icon(buf, kUiListFont);
             init = true;
         }
-        return make_image_view(PixelFormat::ARGB8888,
-                               detail::kIconSize,
-                               detail::kIconSize,
-                               detail::kIconStride,
-                               buf.data(),
-                               false,
-                               false);
+        return detail::icon_view_from_buffer(buf);
     }
 
     inline ImageView icon_down() noexcept {
@@ -694,13 +665,7 @@ export namespace player::ui {
             detail::build_down_icon(buf, kUiListFont);
             init = true;
         }
-        return make_image_view(PixelFormat::ARGB8888,
-                               detail::kIconSize,
-                               detail::kIconSize,
-                               detail::kIconStride,
-                               buf.data(),
-                               false,
-                               false);
+        return detail::icon_view_from_buffer(buf);
     }
 
     inline ImageView icon_more() noexcept {
@@ -710,13 +675,7 @@ export namespace player::ui {
             detail::build_more_icon(buf, kUiListFont);
             init = true;
         }
-        return make_image_view(PixelFormat::ARGB8888,
-                               detail::kIconSize,
-                               detail::kIconSize,
-                               detail::kIconStride,
-                               buf.data(),
-                               false,
-                               false);
+        return detail::icon_view_from_buffer(buf);
     }
 
     inline ImageView icon_folder_active() noexcept {
@@ -726,13 +685,7 @@ export namespace player::ui {
             detail::build_folder_icon(buf, kUiOk);
             init = true;
         }
-        return make_image_view(PixelFormat::ARGB8888,
-                               detail::kIconSize,
-                               detail::kIconSize,
-                               detail::kIconStride,
-                               buf.data(),
-                               false,
-                               false);
+        return detail::icon_view_from_buffer(buf);
     }
 
     inline PlayerIconIds register_player_icons() noexcept {
@@ -758,6 +711,42 @@ export namespace player::ui {
         out.down = reg(icon_down());
         out.more = reg(icon_more());
         out.folder_active = reg(icon_folder_active());
+        return out;
+    }
+
+    inline PlayerIconIds register_player_icons(PlayerIconPixelArena arena) noexcept {
+#if defined(CHARM_PLAYER_MCU) && CHARM_PLAYER_MCU
+        if (!arena.valid()) return {};
+#else
+        if (!arena.valid()) return register_player_icons();
+#endif
+
+        PlayerIconIds out{};
+        std::size_t slot = 0;
+        auto reg = [&](detail::IconBuildFn build, const rgba& color) noexcept {
+            const std::size_t index = slot++;
+            if (!detail::build_icon_in_arena(arena, index, build, color)) {
+                return ::ui::gfx::invalid_image_id();
+            }
+            return detail::register_icon_view(detail::icon_view_from_arena(arena, index));
+        };
+        out.prev = reg(detail::build_prev_icon, kUiListFont);
+        out.play = reg(detail::build_play_icon, kUiListFont);
+        out.pause = reg(detail::build_pause_icon, kUiListFont);
+        out.next = reg(detail::build_next_icon, kUiListFont);
+        out.chevron_right = reg(detail::build_chevron_right_icon, kUiListFont);
+        out.loop = reg(detail::build_loop_icon, kUiListFont);
+        out.single = reg(detail::build_single_icon, kUiListFont);
+        out.shuffle = reg(detail::build_shuffle_icon, kUiListFont);
+        out.folder = reg(detail::build_folder_icon, kUiListFont);
+        out.home = reg(detail::build_home_icon, kUiListFont);
+        out.home_active = reg(detail::build_home_icon, kUiOk);
+        out.search = reg(detail::build_search_icon, kUiListFont);
+        out.search_active = reg(detail::build_search_icon, kUiOk);
+        out.settings = reg(detail::build_settings_icon, kUiListFont);
+        out.down = reg(detail::build_down_icon, kUiListFont);
+        out.more = reg(detail::build_more_icon, kUiListFont);
+        out.folder_active = reg(detail::build_folder_icon, kUiOk);
         return out;
     }
 

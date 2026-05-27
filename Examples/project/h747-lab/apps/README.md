@@ -42,8 +42,42 @@ Each app directory must provide an `app.cmake` manifest with:
   SDRAM framebuffer backends. The current H747 baseline uses two SDRAM1
   framebuffers and full-screen ARGB8888 present; single-buffer full-frame redraw
   is intentionally avoided because it can race LTDC layer fetch.
+- `input_probe`: touch/input evidence shell. It initializes `services/input`,
+  probes GT970/GT9xx over I2C4 with `TP_RST`/`TP_INT` evidence, and reports the
+  two hardware encoders independently. Touch failure is reported as evidence and
+  does not block encoder validation.
 - `player`: first Player-on-H747 shell. It reuses the `RasterDisplayWorld`
-  boundary, renders from a small `PlayerViewModel`, and draws a deterministic
-  player scene without depending on the old Windows Player project.
-- `posix_lab`: first POSIX-on-H747 shell. It wires RAMFS, embedded ELF samples,
-  and Charm POSIX services into a board-local evidence target.
+  and `InputWorld` boundaries, renders from a small `PlayerViewModel`, and draws
+  a deterministic player scene without depending on the old Windows Player
+  project.
+- `player_md3`: first real MD3 Player-on-H747 bridge. It reuses
+  `Examples/project/player/app-common` and `app-vivid-MaterialDesign3`, builds
+  the shared `PlayerRuntime<PlayerController, PlayerPage>`, and presents the
+  real MD3 scene through the H747 raster framebuffer service with host-only
+  storage, cover decode, and file fonts disabled.
+- `storage_firmware_runtime`: dedicated eMMC-to-USB MSC evidence app. It keeps
+  USB storage export separate from Player, boots the `services/storage` eMMC
+  path plus the app-local USB MSC service, and reports storage/MSC status over
+  serial.
+- `posix_lab`: POSIX compatibility shell. It wires RAMFS, embedded ELF samples,
+  and Charm POSIX services into a board-local evidence target for the C/POSIX
+  process line. It does not define the primary resident app ABI.
+- `app_lab`: first dynamic App ABI shell and the current resident mainline. It keeps a resident monitor on H747,
+  loads embedded App ELF images, and enters
+  `charm_app_main(api, argc, argv)` through a C-compatible capability table.
+- `dev_loader`: resident development-loader skeleton. It validates receive,
+  verify, and launch-ready staging for downloaded images, but remains dry-run
+  and does not replace `app_lab`.
+
+## Dynamic Boundary Split
+
+The current H747 dynamic-boundary role split is:
+
+- `app_lab`: resident App ABI mainline
+- `posix_lab`: POSIX / C ELF compatibility line
+- `dev_loader`: development acceleration line, intentionally after `app_lab`
+
+Read:
+
+- `../docs/h747_lab_dynamic_boundary_roadmap.md`
+- `../docs/h747_lab_spine_migration_boundary.md`

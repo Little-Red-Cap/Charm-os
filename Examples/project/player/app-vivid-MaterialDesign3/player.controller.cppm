@@ -7,6 +7,7 @@ module;
 #include <cmath>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 export module player.controller;
@@ -32,6 +33,7 @@ import charm.system.clock;
 import player.playback;
 import player.input;
 import player.fs_utils;
+import player.media_scan;
 import player.stats_history;
 import player.storage;
 import player.time_utils;
@@ -1313,10 +1315,12 @@ export namespace player {
                 on_player_error(buf);
             }
             tick_weekly_listening_stats();
+#if CHARM_PLAYER_LAYERED_TRANSITIONS
             if (now_playing_transition.active) {
                 tick_now_playing_transition(charm::system::ClockCaps::TimeSource::now());
                 return;
             }
+#endif
             refresh_page(current_page);
         }
 
@@ -1459,4 +1463,139 @@ export namespace player {
             return static_cast<int>(next_rng() % static_cast<std::uint32_t>(max));
         }
     };
+
+    struct PlayerControllerMemoryProfile {
+        std::size_t controller_size_bytes{0};
+        std::size_t track_capacity{0};
+        std::size_t library_row_model_size_bytes{0};
+        std::size_t list_order_bytes{0};
+        std::size_t row_scratch_bytes{0};
+        std::size_t duration_cache_bytes{0};
+        std::size_t cover_path_scratch_bytes{0};
+        std::size_t list_cover_cache_capacity{0};
+        std::size_t list_cover_cache_bytes{0};
+        std::size_t current_cover_bytes{0};
+        std::size_t cover_theme_bytes{0};
+        std::size_t now_playing_roles_bytes{0};
+        std::size_t text_state_bytes{0};
+        std::size_t cover_path_state_bytes{0};
+        std::size_t font_path_state_bytes{0};
+        std::size_t weekly_stats_bytes{0};
+        std::size_t weekly_history_bytes{0};
+        std::size_t ui_handles_bytes{0};
+        std::size_t icon_ids_bytes{0};
+        std::size_t playback_engine_bytes{0};
+    };
+
+    inline constexpr PlayerControllerMemoryProfile player_controller_memory_profile() noexcept {
+        return PlayerControllerMemoryProfile{
+            sizeof(PlayerController),
+            kMaxTracks,
+            sizeof(PlayerController::LibraryRowModel),
+            sizeof(std::declval<PlayerController>().list_order),
+            sizeof(std::declval<PlayerController>().list_rows),
+            sizeof(std::declval<PlayerController>().track_duration_cache_sec),
+            sizeof(std::declval<PlayerController>().list_cover_paths),
+            PlayerController::kListCoverCache,
+            sizeof(std::declval<PlayerController>().list_cover_cache),
+            sizeof(std::declval<PlayerController>().cover_image),
+            sizeof(std::declval<PlayerController>().cover_theme),
+            sizeof(std::declval<PlayerController>().now_playing_roles),
+            sizeof(std::declval<PlayerController>().title_text)
+                + sizeof(std::declval<PlayerController>().subtitle_text)
+                + sizeof(std::declval<PlayerController>().track_format_text)
+                + sizeof(std::declval<PlayerController>().last_status_text)
+                + sizeof(std::declval<PlayerController>().last_mode_text)
+                + sizeof(std::declval<PlayerController>().last_list_title_text)
+                + sizeof(std::declval<PlayerController>().last_list_hint_text)
+                + sizeof(std::declval<PlayerController>().last_debug_text)
+                + sizeof(std::declval<PlayerController>().last_info_text)
+                + sizeof(std::declval<PlayerController>().last_home_stats_total_text)
+                + sizeof(std::declval<PlayerController>().last_home_stats_plays_text)
+                + sizeof(std::declval<PlayerController>().last_home_stats_avg_text)
+                + sizeof(std::declval<PlayerController>().library_context_key)
+                + sizeof(std::declval<PlayerController>().mount_status),
+            sizeof(std::declval<PlayerController>().cover_path)
+                + sizeof(std::declval<PlayerController>().cover_embedded_path)
+                + sizeof(std::declval<PlayerController>().cover_folder_path)
+                + sizeof(std::declval<PlayerController>().cover_failed_embedded_path)
+                + sizeof(std::declval<PlayerController>().cover_failed_folder_path)
+                + sizeof(std::declval<PlayerController>().cover_tint_path),
+            sizeof(std::declval<PlayerController>().font_ttf_path)
+                + sizeof(std::declval<PlayerController>().font_fallback_ttf_path),
+            sizeof(std::declval<PlayerController>().weekly_listening_stats),
+            sizeof(std::declval<PlayerController>().weekly_listening_history),
+            sizeof(std::declval<PlayerController>().handles),
+            sizeof(std::declval<PlayerController>().icons),
+            sizeof(std::declval<PlayerController>().playback),
+        };
+    }
+
+#if defined(CHARM_PLAYER_MCU) && CHARM_PLAYER_MCU && defined(__GNUC__)
+    extern "C" [[gnu::used]] void charm_player_controller_memory_profile_symbols() noexcept {
+        constexpr auto profile = player_controller_memory_profile();
+        asm volatile(
+            ".global charm_player_controller_profile_controller_size_bytes\n"
+            ".set charm_player_controller_profile_controller_size_bytes, %c0\n"
+            ".global charm_player_controller_profile_track_capacity\n"
+            ".set charm_player_controller_profile_track_capacity, %c1\n"
+            ".global charm_player_controller_profile_library_row_model_size_bytes\n"
+            ".set charm_player_controller_profile_library_row_model_size_bytes, %c2\n"
+            ".global charm_player_controller_profile_list_order_bytes\n"
+            ".set charm_player_controller_profile_list_order_bytes, %c3\n"
+            ".global charm_player_controller_profile_row_scratch_bytes\n"
+            ".set charm_player_controller_profile_row_scratch_bytes, %c4\n"
+            ".global charm_player_controller_profile_duration_cache_bytes\n"
+            ".set charm_player_controller_profile_duration_cache_bytes, %c5\n"
+            ".global charm_player_controller_profile_cover_path_scratch_bytes\n"
+            ".set charm_player_controller_profile_cover_path_scratch_bytes, %c6\n"
+            ".global charm_player_controller_profile_list_cover_cache_capacity\n"
+            ".set charm_player_controller_profile_list_cover_cache_capacity, %c7\n"
+            ".global charm_player_controller_profile_list_cover_cache_bytes\n"
+            ".set charm_player_controller_profile_list_cover_cache_bytes, %c8\n"
+            ".global charm_player_controller_profile_current_cover_bytes\n"
+            ".set charm_player_controller_profile_current_cover_bytes, %c9\n"
+            ".global charm_player_controller_profile_cover_theme_bytes\n"
+            ".set charm_player_controller_profile_cover_theme_bytes, %c10\n"
+            ".global charm_player_controller_profile_now_playing_roles_bytes\n"
+            ".set charm_player_controller_profile_now_playing_roles_bytes, %c11\n"
+            ".global charm_player_controller_profile_text_state_bytes\n"
+            ".set charm_player_controller_profile_text_state_bytes, %c12\n"
+            ".global charm_player_controller_profile_cover_path_state_bytes\n"
+            ".set charm_player_controller_profile_cover_path_state_bytes, %c13\n"
+            ".global charm_player_controller_profile_font_path_state_bytes\n"
+            ".set charm_player_controller_profile_font_path_state_bytes, %c14\n"
+            ".global charm_player_controller_profile_weekly_stats_bytes\n"
+            ".set charm_player_controller_profile_weekly_stats_bytes, %c15\n"
+            ".global charm_player_controller_profile_weekly_history_bytes\n"
+            ".set charm_player_controller_profile_weekly_history_bytes, %c16\n"
+            ".global charm_player_controller_profile_ui_handles_bytes\n"
+            ".set charm_player_controller_profile_ui_handles_bytes, %c17\n"
+            ".global charm_player_controller_profile_icon_ids_bytes\n"
+            ".set charm_player_controller_profile_icon_ids_bytes, %c18\n"
+            ".global charm_player_controller_profile_playback_engine_bytes\n"
+            ".set charm_player_controller_profile_playback_engine_bytes, %c19\n"
+            :
+            : "i"(profile.controller_size_bytes),
+              "i"(profile.track_capacity),
+              "i"(profile.library_row_model_size_bytes),
+              "i"(profile.list_order_bytes),
+              "i"(profile.row_scratch_bytes),
+              "i"(profile.duration_cache_bytes),
+              "i"(profile.cover_path_scratch_bytes),
+              "i"(profile.list_cover_cache_capacity),
+              "i"(profile.list_cover_cache_bytes),
+              "i"(profile.current_cover_bytes),
+              "i"(profile.cover_theme_bytes),
+              "i"(profile.now_playing_roles_bytes),
+              "i"(profile.text_state_bytes),
+              "i"(profile.cover_path_state_bytes),
+              "i"(profile.font_path_state_bytes),
+              "i"(profile.weekly_stats_bytes),
+              "i"(profile.weekly_history_bytes),
+              "i"(profile.ui_handles_bytes),
+              "i"(profile.icon_ids_bytes),
+              "i"(profile.playback_engine_bytes));
+    }
+#endif
 }

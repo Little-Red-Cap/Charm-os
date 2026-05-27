@@ -484,12 +484,20 @@ export namespace net::diag {
         using ForwardExplainTimeoutFn = typename Session::template TimeoutFn<ForwardExplainOp>;
         using ForwardInspectTimeoutFn = typename Session::template TimeoutFn<ForwardInspectOp>;
 
+        void set_sender(StreamSenderRef sender = {}) noexcept {
+            session_.set_sender(sender);
+        }
+
         void set_sender(FrameSendFn fn, void* ctx) noexcept {
-            session_.set_sender(fn, ctx);
+            set_sender(StreamSenderRef::raw(fn, ctx));
+        }
+
+        void set_error_handler(NetErrorHandlerRef handler = {}) noexcept {
+            session_.set_error_handler(handler);
         }
 
         void set_error_handler(ErrorFn fn, void* ctx) noexcept {
-            session_.set_error_handler(fn, ctx);
+            set_error_handler(NetErrorHandlerRef::raw(fn, ctx));
         }
 
         void reset() noexcept {
@@ -657,12 +665,20 @@ export namespace net::diag {
                                           ServiceReplyToken token,
                                           const CounterValue& request) noexcept;
 
+        void set_sender(StreamSenderRef sender = {}) noexcept {
+            session_.set_sender(sender);
+        }
+
         void set_sender(FrameSendFn fn, void* ctx) noexcept {
-            session_.set_sender(fn, ctx);
+            set_sender(StreamSenderRef::raw(fn, ctx));
+        }
+
+        void set_error_handler(NetErrorHandlerRef handler = {}) noexcept {
+            session_.set_error_handler(handler);
         }
 
         void set_error_handler(ErrorFn fn, void* ctx) noexcept {
-            session_.set_error_handler(fn, ctx);
+            set_error_handler(NetErrorHandlerRef::raw(fn, ctx));
         }
 
         void reset() noexcept {

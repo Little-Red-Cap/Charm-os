@@ -19,6 +19,12 @@ module;
 #ifndef CHARM_AUDIO_REFILL_STATS
 #define CHARM_AUDIO_REFILL_STATS 1
 #endif
+#ifndef CHARM_AUDIO_ENABLE_FLAC
+#define CHARM_AUDIO_ENABLE_FLAC 1
+#endif
+#ifndef CHARM_AUDIO_ENABLE_MP3
+#define CHARM_AUDIO_ENABLE_MP3 1
+#endif
 
 #if CHARM_AUDIO_ENABLE_STRESS
 #include <random>
@@ -690,9 +696,9 @@ export namespace audio {
             src_iface_ = media::make_stream_source_ref(src_);
             data_plane_.close_source();
 
-            is_flac_ = ends_with_icase(path, ".flac");
+            is_flac_ = CHARM_AUDIO_ENABLE_FLAC && ends_with_icase(path, ".flac");
             is_wav_ = ends_with_icase(path, ".wav");
-            is_mp3_ = ends_with_icase(path, ".mp3");
+            is_mp3_ = CHARM_AUDIO_ENABLE_MP3 && ends_with_icase(path, ".mp3");
 
             if (!is_flac_ && !is_wav_ && !is_mp3_) {
                 std::array<std::byte, 12> header{};
@@ -703,11 +709,11 @@ export namespace audio {
                     const auto b1 = static_cast<unsigned char>(header[1]);
                     const auto b2 = static_cast<unsigned char>(header[2]);
                     const auto b3 = static_cast<unsigned char>(header[3]);
-                    if (b0 == 'f' && b1 == 'L' && b2 == 'a' && b3 == 'C') {
+                    if (CHARM_AUDIO_ENABLE_FLAC && b0 == 'f' && b1 == 'L' && b2 == 'a' && b3 == 'C') {
                         is_flac_ = true;
-                    } else if (b0 == 'I' && b1 == 'D' && b2 == '3') {
+                    } else if (CHARM_AUDIO_ENABLE_MP3 && b0 == 'I' && b1 == 'D' && b2 == '3') {
                         is_mp3_ = true;
-                    } else if (b0 == 0xFF && (b1 & 0xE0) == 0xE0) {
+                    } else if (CHARM_AUDIO_ENABLE_MP3 && b0 == 0xFF && (b1 & 0xE0) == 0xE0) {
                         is_mp3_ = true;
                     } else if (read && *read >= 12) {
                         const auto b8 = static_cast<unsigned char>(header[8]);

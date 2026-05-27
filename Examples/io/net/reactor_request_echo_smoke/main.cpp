@@ -36,32 +36,24 @@ namespace {
         bool got_timeout{false};
         bool failed{false};
 
-        static void on_response(void* ctx,
-                                util::u16 request_id,
-                                util::u8 opcode,
-                                bool ok,
-                                net::ByteView payload) noexcept {
-            auto* self = static_cast<ClientState*>(ctx);
-            if (!self) return;
-
+        void on_response(util::u16 request_id,
+                         util::u8 opcode,
+                         bool ok,
+                         net::ByteView payload) noexcept {
             static constexpr util::u8 want[]{'p', 'o', 'n', 'g'};
-            self->got_ok_response = request_id == self->request_ok_id
+            got_ok_response = request_id == request_ok_id
                 && opcode == 0x10u
                 && ok
                 && bytes_eq(payload, net::ByteView{want, 4});
-            if (!self->got_ok_response) {
-                self->failed = true;
+            if (!got_ok_response) {
+                failed = true;
             }
         }
 
-        static void on_timeout(void* ctx,
-                               util::u16 request_id,
-                               util::u8 opcode) noexcept {
-            auto* self = static_cast<ClientState*>(ctx);
-            if (!self) return;
-            self->got_timeout = request_id == self->request_timeout_id && opcode == 0x20u;
-            if (!self->got_timeout) {
-                self->failed = true;
+        void on_timeout(util::u16 request_id, util::u8 opcode) noexcept {
+            got_timeout = request_id == request_timeout_id && opcode == 0x20u;
+            if (!got_timeout) {
+                failed = true;
             }
         }
 
@@ -77,36 +69,32 @@ namespace {
         bool saw_timeout_probe{false};
         bool failed{false};
 
-        static void on_request(void* ctx,
-                               Session& session,
-                               util::u16 request_id,
-                               util::u8 opcode,
-                               net::ByteView payload) noexcept {
-            auto* self = static_cast<ServerState*>(ctx);
-            if (!self) return;
-
+        void on_request(Session& session,
+                        util::u16 request_id,
+                        util::u8 opcode,
+                        net::ByteView payload) noexcept {
             static constexpr util::u8 ping[]{'p', 'i', 'n', 'g'};
             static constexpr util::u8 pong[]{'p', 'o', 'n', 'g'};
 
             if (opcode == 0x10u) {
-                self->saw_ping_request = bytes_eq(payload, net::ByteView{ping, 4});
-                if (!self->saw_ping_request) {
-                    self->failed = true;
+                saw_ping_request = bytes_eq(payload, net::ByteView{ping, 4});
+                if (!saw_ping_request) {
+                    failed = true;
                     return;
                 }
                 auto sent = session.send_response(request_id, opcode, net::ByteView{pong, 4}, true);
                 if (!sent) {
-                    self->failed = true;
+                    failed = true;
                 }
                 return;
             }
 
             if (opcode == 0x20u) {
-                self->saw_timeout_probe = true;
+                saw_timeout_probe = true;
                 return;
             }
 
-            self->failed = true;
+            failed = true;
         }
 
         static void on_error(void* ctx, net::errc) noexcept {
@@ -149,7 +137,7 @@ int main() {
     ServerState server_state{};
 
     client_session.set_error_handler(&ClientState::on_error, &client_state);
-    server_session.set_request_handler(&ServerState::on_request, &server_state);
+    server_session.set_request_handler(Session::RequestHandlerRef::bind(server_state));
     server_session.set_error_handler(&ServerState::on_error, &server_state);
 
     Driver client_driver{reactor, socket_poller, client_binding, client_session};
@@ -185,9 +173,8 @@ int main() {
         net::ByteView{ping, 4},
         0,
         200,
-        &ClientState::on_response,
-        &ClientState::on_timeout,
-        &client_state);
+        net::RequestResponseHandlerRef::bind(client_state),
+        net::RequestTimeoutHandlerRef::bind(client_state));
     if (!ok_request) {
         std::fputs("reactor request send ok_request failed\n", stderr);
         return 5;
@@ -200,9 +187,8 @@ int main() {
         net::ByteView{hold, 4},
         0,
         30,
-        &ClientState::on_response,
-        &ClientState::on_timeout,
-        &client_state);
+        net::RequestResponseHandlerRef::bind(client_state),
+        net::RequestTimeoutHandlerRef::bind(client_state));
     if (!timeout_request) {
         std::fputs("reactor request send timeout_request failed\n", stderr);
         return 6;

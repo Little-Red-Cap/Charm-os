@@ -9,7 +9,7 @@ SSU（可调度语义单元）已经从概念提案进入 Charm 的主线事实�
 - 纪律文档
 - 内核最小类型骨架
 - registry 识别能力
-- scheduler 观测接入
+- scheduler 结构化观测接入
 - 局部严格模式样板
 
 这意味着 SSU 已越过“脑洞阶段”，开始成为 Charm 的真实系统语义脊柱之一。
@@ -106,15 +106,19 @@ SSU 的提出，就是为了解决这个问题：
 已修改：
 
 - `Modules/system/kernel/scheduler.cppm`
+- `Modules/system/kernel/scheduler_export.cppm`
 
-当前 scheduler 已能输出 SSU 标签到：
+当前 scheduler 已能提供结构化 SSU 观测到：
 
 - task snapshot
+
+`kernel.scheduler_export` 负责把这些结构化观测呈现为：
+
 - `tasks.json`
 - `trace.json`
 - `trace.csv`
-- `ssu_overview.json`（通过 `scheduler.format_ssu_overview_json(...)` 输出 trigger/budget/blocking/domain 分布）
-- `ssu_hotspots.json`（通过 `scheduler.format_ssu_hotspots_json(...)` 输出 dominant submit、demand 占比与风险等级）
+- `ssu_overview.json`（通过 `kernel::format_ssu_overview_json(scheduler, ...)` 输出 trigger/budget/blocking/domain 分布）
+- `ssu_hotspots.json`（通过 `kernel::format_ssu_hotspots_json(scheduler, ...)` 输出 dominant submit、demand 占比与风险等级）
 
 这一步非常关键：
 SSU 已经进入 observability，而不是只停留在类型声明层。

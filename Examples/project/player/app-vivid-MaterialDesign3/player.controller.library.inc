@@ -2087,7 +2087,7 @@
                 access.set_button_icon(handles.list_sort, list_shuffle_enabled ? icons.shuffle : icons.down);
             }
             if (handles.list_tab_indicator) {
-                const int indicator_w = std::max(36, active_rect.w / 4);
+                const int indicator_w = std::max<int>(36, active_rect.w / 4);
                 access.set_style_override(handles.list_tab_indicator, ::ui::scene::make_clean_surface_patch({
                     .apply_bg_color = true,
                     .apply_border_color = true,

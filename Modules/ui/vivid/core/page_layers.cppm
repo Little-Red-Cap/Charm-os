@@ -4,9 +4,10 @@ module;
 
 export module charm.ui.scene.page_layers;
 
+export import charm.core.handle;
 export import charm.core.geometry;
 
-import charm.ui.scene;
+import charm.ui.scene.builder_support;
 
 export namespace ui::scene {
     enum class PageLayerRole : std::uint8_t {

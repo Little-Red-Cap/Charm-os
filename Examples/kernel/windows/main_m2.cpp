@@ -3,8 +3,10 @@
 #include <cstdio>
 #include <utility>
 
-import charm.foundation;
-import charm.runtime;
+import charm.core;
+import kernel.scheduler;
+import kernel.thread;
+import kernel.thread_blocking;
 import platform.win.irq_guard;
 import platform.win.manual_time_source;
 import platform.win.wakeup;

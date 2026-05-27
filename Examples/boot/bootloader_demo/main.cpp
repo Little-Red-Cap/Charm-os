@@ -31,8 +31,9 @@
 #include <string_view>
 #include <vector>
 
-import charm.foundation;
-import charm.runtime;
+import charm.core;
+import charm.system;
+import io.proto.modem_xymodem;
 import kernel.eda;
 import kernel.runtime_trap;
 import platform.board;

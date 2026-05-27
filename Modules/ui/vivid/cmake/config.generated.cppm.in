@@ -15,6 +15,7 @@ export namespace charm::vivid::config {
     enum class Featureset : std::uint8_t {
         full = 0,
         mcu_min = 1,
+        product = 2,
     };
 
     enum class KernelMode : std::uint8_t {
@@ -125,6 +126,8 @@ export inline constexpr bool vivid_is_mcu_min_featureset =
     vivid_config.features.featureset == Featureset::mcu_min;
 export inline constexpr bool vivid_is_full_featureset =
     vivid_config.features.featureset == Featureset::full;
+export inline constexpr bool vivid_is_product_featureset =
+    vivid_config.features.featureset == Featureset::product;
 
 export constexpr bool vivid_widget_feature_enabled(WidgetKind kind) noexcept {
     return charm::vivid::config::widget_enabled(kind);

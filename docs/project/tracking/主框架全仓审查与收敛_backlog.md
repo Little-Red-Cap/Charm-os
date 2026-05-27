@@ -45,11 +45,11 @@
 
 ### T1. 统一 `charm.runtime` 的仓库叙事
 
-**现象**
+**历史现象**
 
-- `docs/architecture/dependency_whitelist.md` 说 `charm.runtime` 已移除。
-- 但 `Modules/system/charm.runtime.cppm` 仍存在，且明确写着 backward-compatible facade。
-- `README.md`、`docs/architecture_overview.md`、多个 `Examples/*` 仍在继续使用或介绍 `charm.runtime`。
+- `docs/architecture/dependency_whitelist.md` 曾说 `charm.runtime` 已移除。
+- `Modules/system/charm.runtime.cppm` 曾仍存在可用 facade，且 re-export 了 System / IO / Net / FS / HAL / Shell / Out 等大量模块。
+- `docs/architecture_overview.md`、多个 `Examples/*` 曾继续使用或介绍 `charm.runtime`。
 
 **为什么这是 P0**
 
@@ -57,24 +57,16 @@
 - 新同学、后续重构者、构建系统维护者会基于不同叙事做出不同判断。
 - 这类冲突会直接放大后续一切入口、依赖、迁移工作的沟通成本。
 
-**建议方向**
-
-- 在当前阶段只保留一个说法，三选一即可：
-  1. `charm.runtime` 仍是兼容入口，但已不再推荐新增依赖；
-  2. `charm.runtime` 已正式废弃，仅保留过渡窗口；
-  3. `charm.runtime` 继续存在，但被重新定义为受限聚合面。
-- 一旦选定，需同步更新：
-  - `README.md`
-  - `docs/architecture_overview.md`
-  - `docs/architecture/dependency_whitelist.md`
-  - `Modules/system/charm.runtime.cppm`
-  - `Examples/*` 中仍直接 `import charm.runtime;` 的示例
-
 **本轮收口决议**
 
-- 保留 `charm.foundation` / `charm.runtime` 作为**兼容入口**，用于示例和迁移。
-- `Modules/*` 新代码禁止新增对这些兼容入口的依赖，应优先使用子系统入口。
+- `charm.runtime` 已正式退役为 tombstone module，不再作为可用导入入口。
+- `Modules/system/charm.runtime.cppm` 不再 re-export 任何模块，正常 runtime source collection 也会排除它。
+- `Modules/*`、`Examples/*`、`Draft/*` 均不得再新增 `import charm.foundation;`、`import charm.runtime;` 或 `import charm.domain;`。
+- `CHARM_ENABLE_DEPENDENCY_WHITELIST=ON` 会拒绝一方源码中的历史入口导入。
+- 示例已迁移到 `charm.core`、`charm.system`、`charm.io` 或更窄的叶子模块入口。
+- `charm.foundation` 不删除，但仅保留迁移 facade 语义；当前 first-party 源码不保留 compat import。
 - `charm.domain` 不再作为单独模块入口存在；Domain 层统一使用 `charm.media` 与 `charm.ui.*`。
+- 具体契约见：`docs/architecture/legacy_runtime_facade_retirement_contract.md`。
 
 ---
 
@@ -278,21 +270,26 @@
 
 - `Modules/core/charm.core.cppm`
 - `Modules/system/charm.system.cppm`
-- `Modules/system/charm.runtime.cppm`
 - `Modules/ui/vivid/charm.ui.vivid.cppm`
 
 #### 现象
 
 - 当前若干入口面 import/export 数量偏大。
-- `charm.core.cppm` 中甚至有重复导出 `service_fifo` 的卫生问题。
+- `charm.core.cppm` 曾存在重复导出 `service_fifo` 的卫生问题，当前已清理。
+- `charm.runtime.cppm` 已退役为 tombstone，不再纳入入口聚合面规模治理。
+- 入口面分类已落到 `docs/architecture/entry_surface_contract.md`；历史入口已由 opt-in 白名单检查封住。
+- 稳定聚合入口契约已落到 `docs/architecture/stable_entry_aggregate_contract.md`，用于解释和约束仍然偏宽的长期入口。
 
 #### 建议方向
 
 - 重新区分：
   - 稳定入口
   - 兼容入口
+  - tombstone / retired entry
   - 产品/场景聚合入口
 - 不要求所有入口都变小，但要让“为什么这里可以大”变得可解释。
+- 下一步重点不再是历史入口回流，而是解释和压缩仍然偏宽的稳定聚合入口。
+- 当前已完成“解释边界”，后续再进入具体拆分。
 
 ---
 
@@ -337,7 +334,7 @@
 
 这些问题不大，但很适合顺手收口：
 
-- `Modules/core/charm.core.cppm` 重复导出 `service_fifo`
+- `Modules/core/charm.core.cppm` 重复导出 `service_fifo`（已清理）
 - `Modules/system/kernel/scheduler.cppm` 重复 `#include <string_view>`
 - 已确认失效文档路径修复
 - 为 `docs/README.md` 增加更明确的“现行/草案/任务单”导航说明
@@ -349,7 +346,7 @@
 建议按下面的顺序推进，而不是同时开很多大坑：
 
 1. **先收仓库叙事**
-   - `charm.runtime`
+   - `charm.runtime`（已完成，保留 tombstone）
    - 文档状态模型
    - 失效引用
 2. **再切一组最痛的 God Module**
@@ -358,7 +355,7 @@
    - `void* + ops`
    - bringup / net / fs 的 typed facade 收敛
 4. **最后统一入口面策略**
-   - 明确哪些是兼容入口、哪些是长期入口
+   - 历史入口分类已完成，继续治理仍然偏宽的稳定聚合入口
 
 ---
 
@@ -375,7 +372,7 @@
 | T7 挪走 Net API 自检脚手架 | P1 | Net | 边界治理 | DONE |
 | T8 拆分 `fs_fatfs` 复合职责 | P1 | FS | 结构治理 | TODO |
 | T9 审视 `void* + ops` 默认扩散 | P2 | Cross-cutting | 模式治理 | TODO |
-| T10 收敛入口聚合面规模 | P2 | Core/System/UI | 架构治理 | TODO |
+| T10 收敛入口聚合面规模 | P2 | Core/System/UI | 架构治理 | PARTIAL |
 | T11 拆分 `audio_player` | P2 | Media | 结构治理 | TODO |
 | T12 拆分 `usb.class_msc` | P2 | USB | 结构治理 | TODO |
 

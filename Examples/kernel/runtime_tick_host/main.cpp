@@ -10,6 +10,7 @@ import kernel.eda;
 import kernel.evt;
 import kernel.runtime_bridge;
 import kernel.scheduler;
+import kernel.scheduler_export;
 import kernel.thread;
 
 namespace demo {
@@ -307,8 +308,8 @@ int main()
 
     char event_sources[128]{};
     char snapshot[256]{};
-    (void)running.format_event_source_json(event_sources, sizeof(event_sources));
-    (void)running.format_snapshot(snapshot, sizeof(snapshot));
+    (void)kernel::format_event_source_json(running, event_sources, sizeof(event_sources));
+    (void)kernel::format_snapshot(running, snapshot, sizeof(snapshot));
     shared.timer_json_ok = demo::inspect_event_sources(event_sources);
 
     demo::inspect_runtime_trace(runtime_trace, shared, idle_id);

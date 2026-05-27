@@ -18,12 +18,12 @@ import charm.core.soa_pool_caps;
 export namespace soa_detail {
     constexpr std::uint16_t kInvalidPayloadSlot = 0xFFFF;
 
-    struct PayloadHandle {
+    struct alignas(4) PayloadHandle {
         std::uint16_t slot{kInvalidPayloadSlot};
         std::uint16_t generation{0};
     };
 
-    struct TextId {
+    struct alignas(4) TextId {
         std::uint16_t offset{0};
         std::uint16_t length{0};
     };
@@ -197,73 +197,73 @@ export namespace soa_detail {
         bool text_overflowed{false};
     };
 
-    struct LabelPayload {
+    struct alignas(4) LabelPayload {
         TextId text{};
     };
 
-    struct ButtonPayload {
+    struct alignas(4) ButtonPayload {
         TextId text{};
         ImageId icon{invalid_image_id()};
         std::uint8_t icon_size{0};
         std::uint8_t icon_reserved{0};
     };
 
-    struct ImagePayload {
+    struct alignas(4) ImagePayload {
         ImageId image{invalid_image_id()};
         std::uint8_t shape_kind{static_cast<std::uint8_t>(ImageShapeKind::Auto)};
         std::uint8_t shape_extent{0};
         std::int16_t rotation_deg{0};
     };
 
-    struct TextInputPayload {
+    struct alignas(4) TextInputPayload {
         TextId text{};
     };
 
-    struct TextAreaPayload {
+    struct alignas(4) TextAreaPayload {
         TextId text{};
     };
 
-    struct NumberInputPayload {
+    struct alignas(4) NumberInputPayload {
         TextId text{};
     };
 
     constexpr std::uint8_t kMaxSegments = 8;
     constexpr std::uint8_t kMaxStepperSteps = 8;
 
-    struct SegmentedControlPayload {
+    struct alignas(4) SegmentedControlPayload {
         std::array<TextId, kMaxSegments> labels{};
         std::uint8_t count{0};
         std::uint8_t selected{0};
     };
 
-    struct StepperPayload {
+    struct alignas(4) StepperPayload {
         std::array<TextId, kMaxStepperSteps> labels{};
         std::uint8_t count{0};
         std::uint8_t current{0};
     };
 
-    struct ToggleGroupPayload {
+    struct alignas(4) ToggleGroupPayload {
         WidgetKind group_kind{WidgetKind::None};
     };
 
-    struct CheckboxPayload {
+    struct alignas(4) CheckboxPayload {
         TextId text{};
         std::uint8_t checked{0};
     };
 
-    struct RadioPayload {
+    struct alignas(4) RadioPayload {
         TextId text{};
         std::uint8_t checked{0};
     };
 
-    struct ListItemPayload {
+    struct alignas(4) ListItemPayload {
         TextId text{};
         std::uint8_t checked{0};
     };
 
     constexpr std::uint16_t kMaxTextListItems = 32;
 
-    struct TextListPayload {
+    struct alignas(4) TextListPayload {
         std::array<TextId, kMaxTextListItems> items{};
         std::uint16_t count{0};
         std::uint16_t start{0};
@@ -290,7 +290,7 @@ export namespace soa_detail {
     constexpr std::uint8_t kListViewRowFlagGroup = kStructuredListRowFlagGroup;
     constexpr std::uint8_t kListViewRowFlagDisabled = kStructuredListRowFlagDisabled;
 
-    struct ListViewPayload {
+    struct alignas(alignof(const void*)) ListViewPayload {
         const void* text_ctx{nullptr};
         ListViewTextFn text_fn{nullptr};
         const void* subtitle_ctx{nullptr};
@@ -319,7 +319,7 @@ export namespace soa_detail {
         std::uint8_t icon_size{0};
     };
 
-    struct TableViewPayload {
+    struct alignas(alignof(const void*)) TableViewPayload {
         const void* text_ctx{nullptr};
         TableViewTextFn text_fn{nullptr};
         const void* header_ctx{nullptr};
@@ -341,7 +341,7 @@ export namespace soa_detail {
         int wheel_step{24};
     };
 
-    struct TreeViewPayload {
+    struct alignas(alignof(const void*)) TreeViewPayload {
         const void* text_ctx{nullptr};
         TreeViewTextFn text_fn{nullptr};
         const void* indent_ctx{nullptr};
@@ -356,7 +356,7 @@ export namespace soa_detail {
         int wheel_step{24};
     };
 
-    struct NumberListPayload {
+    struct alignas(4) NumberListPayload {
         std::uint16_t count{0};
         std::int16_t selected{0};
         int start{0};
@@ -366,7 +366,7 @@ export namespace soa_detail {
         int wheel_step{24};
     };
 
-    struct RollerPayload {
+    struct alignas(alignof(const void*)) RollerPayload {
         const void* text_ctx{nullptr};
         RollerTextFn text_fn{nullptr};
         std::uint16_t count{0};
@@ -376,28 +376,28 @@ export namespace soa_detail {
         int wheel_step{24};
     };
 
-    struct SwitchPayload {
+    struct alignas(4) SwitchPayload {
         std::uint8_t checked{0};
     };
 
-    struct SliderPayload {
+    struct alignas(4) SliderPayload {
         int value{0};
         int min_value{0};
         int max_value{100};
     };
 
-    struct ProgressPayload {
+    struct alignas(4) ProgressPayload {
         int value{0};
         int min_value{0};
         int max_value{100};
     };
 
-    struct SpinnerPayload {
+    struct alignas(4) SpinnerPayload {
         std::uint8_t phase{0};
         std::uint8_t reserved{0};
     };
 
-    struct ScrollBarPayload {
+    struct alignas(4) ScrollBarPayload {
         int value{0};
         int min_value{0};
         int max_value{100};
@@ -406,13 +406,13 @@ export namespace soa_detail {
         WidgetHandle target{};
     };
 
-    struct ListPayload {
+    struct alignas(4) ListPayload {
         int scroll_y{0};
         int scroll_step{24};
         int row_height{28};
     };
 
-    struct ScrollContainerPayload {
+    struct alignas(4) ScrollContainerPayload {
         int scroll_y{0};
         int scroll_step{24};
     };
@@ -442,7 +442,7 @@ export namespace soa_detail {
 #endif
 
         void reset() noexcept {
-            free_head = 0;
+            free_head = (N > 0) ? 0 : kInvalidPayloadSlot;
 #if defined(VIVID_SOA_TRACE_INPUT)
             used = 0;
             peak = 0;
@@ -450,7 +450,8 @@ export namespace soa_detail {
 #endif
             for (std::uint16_t i = 0; i < N; ++i) {
                 generation[i] = 1;
-                free_next[i] = (i + 1 < N) ? static_cast<std::uint16_t>(i + 1) : kInvalidPayloadSlot;
+                const auto next = static_cast<std::size_t>(i) + 1u;
+                free_next[i] = (next < N) ? static_cast<std::uint16_t>(next) : kInvalidPayloadSlot;
                 items[i] = T{};
 #ifndef NDEBUG
                 owner[i] = kInvalidPayloadSlot;
@@ -460,6 +461,14 @@ export namespace soa_detail {
         }
 
         PayloadHandle alloc(std::uint16_t owner_idx, WidgetKind kind) noexcept {
+            if constexpr (N == 0) {
+#if defined(VIVID_SOA_TRACE_INPUT)
+                alloc_fail += 1;
+#endif
+                (void)owner_idx;
+                (void)kind;
+                return invalid_payload_handle();
+            }
             if (free_head == kInvalidPayloadSlot) {
 #if defined(VIVID_SOA_TRACE_INPUT)
                 alloc_fail += 1;

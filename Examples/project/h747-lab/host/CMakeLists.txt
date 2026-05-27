@@ -24,6 +24,12 @@ target_include_directories(h747_lab_host_display_raster_demo PRIVATE
 target_compile_options(h747_lab_host_display_raster_demo PRIVATE
     $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall -Wextra -Wpedantic>)
 
+add_test(NAME h747_lab_host_display_raster_demo_ci
+    COMMAND $<TARGET_FILE:h747_lab_host_display_raster_demo> --ci)
+set_tests_properties(h747_lab_host_display_raster_demo_ci PROPERTIES
+    PASS_REGULAR_EXPRESSION "\\[display-raster-host-ci\\] ok=1"
+    FAIL_REGULAR_EXPRESSION "\\[display-raster-host-ci\\] ok=0")
+
 add_executable(h747_lab_host_player
     "${H747_LAB_ROOT}/host/player_host.cpp")
 
@@ -38,3 +44,50 @@ add_test(NAME h747_lab_host_player_ci
 set_tests_properties(h747_lab_host_player_ci PROPERTIES
     PASS_REGULAR_EXPRESSION "\\[player-host-ci\\] ok=1 input_ok=1 command_ok=1"
     FAIL_REGULAR_EXPRESSION "\\[player-host-ci\\] ok=0|input_ok=0|command_ok=0")
+
+add_executable(h747_lab_host_profile_evidence
+    "${H747_LAB_ROOT}/host/profile_evidence_host.cpp")
+
+target_include_directories(h747_lab_host_profile_evidence PRIVATE
+    "${H747_LAB_ROOT}")
+
+target_compile_options(h747_lab_host_profile_evidence PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall -Wextra -Wpedantic>)
+
+add_test(NAME h747_lab_host_profile_evidence_ci
+    COMMAND $<TARGET_FILE:h747_lab_host_profile_evidence>)
+set_tests_properties(h747_lab_host_profile_evidence_ci PROPERTIES
+    PASS_REGULAR_EXPRESSION "\\[h747-host-profile-evidence-ci\\] ok=1")
+
+add_executable(h747_lab_host_profile_compare
+    "${H747_LAB_ROOT}/host/profile_compare_host.cpp")
+
+target_include_directories(h747_lab_host_profile_compare PRIVATE
+    "${H747_LAB_ROOT}")
+
+target_compile_options(h747_lab_host_profile_compare PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall -Wextra -Wpedantic>)
+
+add_test(NAME h747_lab_host_profile_compare_ci
+    COMMAND $<TARGET_FILE:h747_lab_host_profile_compare>)
+set_tests_properties(h747_lab_host_profile_compare_ci PROPERTIES
+    PASS_REGULAR_EXPRESSION "\\[h747-host-profile-compare-ci\\] ok=1")
+
+add_test(NAME h747_lab_host_profile_explain_ci
+    COMMAND $<TARGET_FILE:h747_lab_host_profile_compare>)
+set_tests_properties(h747_lab_host_profile_explain_ci PROPERTIES
+    PASS_REGULAR_EXPRESSION "\\[h747-host-profile-explain-ci\\] ok=1")
+
+add_executable(h747_lab_host_app_profile_alignment
+    "${H747_LAB_ROOT}/host/app_profile_alignment_host.cpp")
+
+target_include_directories(h747_lab_host_app_profile_alignment PRIVATE
+    "${H747_LAB_ROOT}")
+
+target_compile_options(h747_lab_host_app_profile_alignment PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall -Wextra -Wpedantic>)
+
+add_test(NAME h747_lab_host_app_profile_alignment_ci
+    COMMAND $<TARGET_FILE:h747_lab_host_app_profile_alignment>)
+set_tests_properties(h747_lab_host_app_profile_alignment_ci PROPERTIES
+    PASS_REGULAR_EXPRESSION "\\[h747-host-app-profile-alignment-ci\\] ok=1")

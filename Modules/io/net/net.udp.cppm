@@ -36,6 +36,11 @@ export namespace net {
         queued,
     };
 
+    using UdpSendFn = Result<UdpSendDisposition> (*)(void* ctx,
+                                                     Endpoint local,
+                                                     const Endpoint& peer,
+                                                     ByteView payload) noexcept;
+
     struct UdpEgressProgress {
         util::usize arp_retried{0};
         util::usize arp_timed_out{0};
@@ -82,6 +87,72 @@ export namespace net {
     inline UdpDatagramSinkRef make_udp_datagram_sink_ref(T& sink) noexcept {
         return UdpDatagramSinkRef{&sink, udp_datagram_sink_ops<T>()};
     }
+
+    class UdpSenderRef {
+    public:
+        constexpr UdpSenderRef() noexcept = default;
+
+        static constexpr UdpSenderRef raw(UdpSendFn send, void* ctx) noexcept {
+            return UdpSenderRef{send, ctx};
+        }
+
+        template <typename Sender>
+            requires(
+                requires(Sender& value, Endpoint local, const Endpoint& peer, ByteView payload) {
+                    { value.send(local, peer, payload) } noexcept -> std::same_as<Result<UdpSendDisposition>>;
+                } ||
+                requires(Sender& value, Endpoint local, const Endpoint& peer, ByteView payload) {
+                    { value(local, peer, payload) } noexcept -> std::same_as<Result<UdpSendDisposition>>;
+                })
+        static constexpr UdpSenderRef bind(Sender& sender) noexcept {
+            return UdpSenderRef{&invoke<Sender>, &sender};
+        }
+
+        [[nodiscard]] constexpr explicit operator bool() const noexcept {
+            return send_ != nullptr;
+        }
+
+        [[nodiscard]] Result<UdpSendDisposition> send(Endpoint local,
+                                                      const Endpoint& peer,
+                                                      ByteView payload) const noexcept {
+            if (!send_) {
+                return util::unexpected(errc::bad_state);
+            }
+            return send_(ctx_, local, peer, payload);
+        }
+
+    private:
+        constexpr UdpSenderRef(UdpSendFn send, void* ctx) noexcept
+            : send_(send),
+              ctx_(ctx) {
+        }
+
+        template <typename Sender>
+        static Result<UdpSendDisposition> invoke(void* ctx,
+                                                 Endpoint local,
+                                                 const Endpoint& peer,
+                                                 ByteView payload) noexcept {
+            auto* sender = static_cast<Sender*>(ctx);
+            if (!sender) {
+                return util::unexpected(errc::bad_state);
+            }
+            if constexpr (requires(Sender& value,
+                                   Endpoint source,
+                                   const Endpoint& destination,
+                                   ByteView bytes) {
+                              {
+                                  value.send(source, destination, bytes)
+                              } noexcept -> std::same_as<Result<UdpSendDisposition>>;
+                          }) {
+                return sender->send(local, peer, payload);
+            } else {
+                return (*sender)(local, peer, payload);
+            }
+        }
+
+        UdpSendFn send_{nullptr};
+        void* ctx_{nullptr};
+    };
 
     [[nodiscard]] constexpr util::usize udp_header_size() noexcept {
         return 8u;

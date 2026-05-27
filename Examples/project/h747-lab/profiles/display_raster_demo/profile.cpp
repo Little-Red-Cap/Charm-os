@@ -1,5 +1,6 @@
 #include "profile.h"
 
+#include "display_raster.h"
 #include "display_raster_demo.h"
 #include "memory_probe.h"
 #include "power.h"
@@ -37,6 +38,13 @@ util::Result<void> init_power(void*) noexcept {
 
 util::Result<void> init_memory(void*) noexcept {
     memory_probe_storage_init();
+    return {};
+}
+
+util::Result<void> init_display(void*) noexcept {
+    if (display_raster_init() == 0U) {
+        return util::unexpected(util::Errc::io);
+    }
     return {};
 }
 
@@ -84,7 +92,7 @@ const init::Node kDisplayNode{
     static_cast<util::u32>(init::Runlevel::all),
     std::span<const init::CapId>(kDisplayProvides, 1),
     std::span<const init::CapId>(kDisplayRequires, 2),
-    init_noop,
+    init_display,
     nullptr,
     nullptr,
 };

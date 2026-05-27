@@ -14,7 +14,7 @@ typedef struct input_encoder_snapshot {
     uint8_t button_pressed;
     uint8_t phase_queue_depth;
     uint8_t last_ab;
-    uint8_t reserved0;
+    uint8_t button_level;
 } input_encoder_snapshot_t;
 
 typedef struct input_touch_snapshot {

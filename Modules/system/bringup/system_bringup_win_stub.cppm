@@ -76,14 +76,12 @@ export namespace charm::system {
         nmt_cfg.node_id = 1;
         canopen::NmtNode nmt{nmt_cfg};
 
-        auto& running = host.scheduler();
-        using Scheduler = std::remove_reference_t<decltype(running)>;
-        charm::system::CanopenInitChain<io::Registry<8>, Scheduler> canopen_chain{
+        charm::system::CanopenInitChain<io::Registry<8>> canopen_chain{
             bringup.registry(),
             sdo,
             nmt,
             bringup.clock(),
-            running,
+            canopen::pump_ports_from_scheduler(host.scheduler()),
             canopen_pump,
             canopen_pump_id
         };

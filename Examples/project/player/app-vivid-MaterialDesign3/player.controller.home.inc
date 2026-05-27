@@ -882,7 +882,9 @@
                     continue;
                 }
                 access.set_visible(bar, true);
-                const int fill_h = std::max(8, (slot.h * seconds + max_sec - 1) / max_sec);
+                const int fill_h = std::max<int>(
+                    8,
+                    static_cast<int>((slot.h * seconds + max_sec - 1) / max_sec));
                 access.set_rect(bar, {slot.x, slot.y + slot.h - fill_h, slot.w, fill_h});
             }
 

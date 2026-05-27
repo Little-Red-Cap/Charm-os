@@ -46,8 +46,18 @@ export namespace player {
         }
     };
 
+    struct PixelArenaConfig {
+        std::byte* data{nullptr};
+        std::size_t bytes{0};
+
+        bool valid() const noexcept {
+            return data != nullptr && bytes > 0;
+        }
+    };
+
     struct AppConfig {
         audio::PlayerConfig player_config{};
         FontResourceConfig font_resources{};
+        PixelArenaConfig icon_pixels{};
     };
 }

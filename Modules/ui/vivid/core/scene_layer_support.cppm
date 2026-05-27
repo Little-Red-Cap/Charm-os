@@ -12,7 +12,7 @@ import charm.core.geometry;
 import charm.ui.scene.layer_runtime;
 import charm.gfx.canvas;
 import charm.gfx.color;
-import charm.gfx.draw_cmd;
+export import charm.gfx.draw_cmd;
 import charm.gfx.pixel_format;
 
 export namespace ui::scene {

@@ -23,6 +23,7 @@ import out.core;
 import out.format;
 import posix.api;
 import posix.exec_source;
+import posix.elf_hostcall;
 import posix.file;
 import posix.fd_table;
 import posix.pipe;
@@ -48,6 +49,34 @@ namespace h747::apps::posix_lab {
 namespace {
 
 using namespace std::literals::string_view_literals;
+
+struct Elf32HeaderView {
+    std::uint8_t ident[16]{};
+    std::uint16_t type{0};
+    std::uint16_t machine{0};
+    std::uint32_t version{0};
+    std::uint32_t entry{0};
+    std::uint32_t phoff{0};
+    std::uint32_t shoff{0};
+    std::uint32_t flags{0};
+    std::uint16_t ehsize{0};
+    std::uint16_t phentsize{0};
+    std::uint16_t phnum{0};
+    std::uint16_t shentsize{0};
+    std::uint16_t shnum{0};
+    std::uint16_t shstrndx{0};
+};
+
+struct Elf32ProgramHeaderView {
+    std::uint32_t type{0};
+    std::uint32_t offset{0};
+    std::uint32_t vaddr{0};
+    std::uint32_t paddr{0};
+    std::uint32_t filesz{0};
+    std::uint32_t memsz{0};
+    std::uint32_t flags{0};
+    std::uint32_t align{0};
+};
 
 template <charm::cap::ByteSink Sink>
 class OutSinkAdapter {
@@ -211,17 +240,25 @@ public:
                                     MaxElfImage,
                                     MaxElfLoad>;
 
-    void* elf_load_base_ptr() noexcept {
+    void* elf_load_base_ptr() noexcept override {
         return elf_load_region_base();
     }
 
-    util::usize elf_load_capacity() const noexcept {
+    util::usize elf_load_capacity() const noexcept override {
         return elf_load_region_capacity();
     }
 
-    util::Result<void> apply_elf_hostcalls() noexcept {
-        auto result = Base::apply_elf_hostcalls();
+    util::Result<void> apply_elf_hostcalls() noexcept override {
+        auto result = posix::install_elf_hostcalls(*this,
+                                                   elf_load_region_base(),
+                                                   elf_load_region_capacity());
         if (result) {
+            const auto* table = reinterpret_cast<const posix::ElfHostCalls*>(elf_load_region_base());
+            emit<"hostcalls: write=0x{:08x} exit=0x{:08x} open=0x{:08x} read=0x{:08x}\n">(
+                static_cast<unsigned>(reinterpret_cast<std::uintptr_t>(table->write)),
+                static_cast<unsigned>(reinterpret_cast<std::uintptr_t>(table->exit)),
+                static_cast<unsigned>(reinterpret_cast<std::uintptr_t>(table->open)),
+                static_cast<unsigned>(reinterpret_cast<std::uintptr_t>(table->read)));
             prepare_elf_load_region();
         }
         return result;
@@ -246,6 +283,58 @@ constexpr SampleSpec kSamples[] = {
     {"fd_probe"sv, fd_probe_elf, fd_probe_elf_len},
     {"stat_probe"sv, stat_probe_elf, stat_probe_elf_len},
 };
+
+const SampleSpec* sample_by_name(std::string_view name) noexcept {
+    for (const auto& sample : kSamples) {
+        if (sample.name == name) {
+            return &sample;
+        }
+    }
+    return nullptr;
+}
+
+bool inspect_elf32(const SampleSpec& sample,
+                   std::uint32_t& entry,
+                   std::uint32_t& min_vaddr,
+                   std::uint16_t& phnum) noexcept {
+    if (sample.data == nullptr || sample.size < sizeof(Elf32HeaderView)) {
+        return false;
+    }
+    const auto* hdr = reinterpret_cast<const Elf32HeaderView*>(sample.data);
+    if (hdr->ident[0] != 0x7f || hdr->ident[1] != 'E' || hdr->ident[2] != 'L' || hdr->ident[3] != 'F') {
+        return false;
+    }
+    if (hdr->ident[4] != 1 || hdr->ident[5] != 1) {
+        return false;
+    }
+    const auto phoff = static_cast<util::usize>(hdr->phoff);
+    const auto phentsize = static_cast<util::usize>(hdr->phentsize);
+    if (phoff >= sample.size || phentsize < sizeof(Elf32ProgramHeaderView)) {
+        return false;
+    }
+    if ((phoff + (phentsize * hdr->phnum)) > sample.size) {
+        return false;
+    }
+    bool found_load = false;
+    std::uint32_t local_min_vaddr = 0;
+    for (std::uint16_t i = 0; i < hdr->phnum; ++i) {
+        const auto* ph = reinterpret_cast<const Elf32ProgramHeaderView*>(sample.data + phoff + (phentsize * i));
+        if (ph->type != 1) {
+            continue;
+        }
+        if (!found_load || ph->vaddr < local_min_vaddr) {
+            local_min_vaddr = ph->vaddr;
+            found_load = true;
+        }
+    }
+    if (!found_load) {
+        return false;
+    }
+    entry = hdr->entry;
+    min_vaddr = local_min_vaddr;
+    phnum = hdr->phnum;
+    return true;
+}
 
 struct RuntimeState {
     static constexpr util::usize kMaxFds = 24;
@@ -357,6 +446,7 @@ void seed_ramfs(RuntimeState& runtime) noexcept {
     (void)runtime.api.mkdir("/bin");
     (void)runtime.api.mkdir("/apps");
     (void)runtime.api.mkdir("/tmp");
+    (void)write_text_file(runtime, "/empty.txt", "");
     (void)write_text_file(runtime, "/cat.txt", "hello from h747 posix lab\n");
     (void)write_text_file(runtime, "/stat.txt", "stat-probe");
     (void)write_text_file(runtime, "/write-out.txt", "seed\n");
@@ -367,7 +457,12 @@ void register_samples(RuntimeState& runtime) noexcept {
     runtime.proc_service.enable_elf_exec(true);
     runtime.proc_service.enable_elf_hostcalls(true);
     for (const auto& sample : kSamples) {
-        (void)runtime.proc_service.register_elf_mem(sample.name, sample.data, sample.size);
+        auto registered = runtime.proc_service.register_elf_mem(sample.name, sample.data, sample.size);
+        if (!registered) {
+            emit<"sample register failed name={} err={}\n">(
+                sample.name,
+                static_cast<unsigned>(registered.error()));
+        }
     }
 }
 
@@ -408,11 +503,27 @@ void print_status(RuntimeState& runtime) noexcept {
         runtime.proc_service.elf_exec_enabled(),
         runtime.proc_service.elf_hostcalls_enabled());
     emit<"status: cwd=/ PATH=/bin:/apps samples={}\n">(static_cast<unsigned>(std::size(kSamples)));
+    emit<"status: elf_load=[0x{:08x},0x{:08x}) size={}\n">(
+        static_cast<unsigned>(reinterpret_cast<std::uintptr_t>(elf_load_region_base())),
+        static_cast<unsigned>(reinterpret_cast<std::uintptr_t>(elf_load_region_base()) + elf_load_region_capacity()),
+        static_cast<unsigned>(elf_load_region_capacity()));
 }
 
 void list_samples() noexcept {
     emit<"builtin ELF samples:\n">();
     for (const auto& sample : kSamples) {
+        std::uint32_t entry = 0;
+        std::uint32_t min_vaddr = 0;
+        std::uint16_t phnum = 0;
+        if (inspect_elf32(sample, entry, min_vaddr, phnum)) {
+            emit<"  {} ({} bytes, entry=0x{:08x}, base=0x{:08x}, ph={})\n">(
+                sample.name,
+                static_cast<unsigned>(sample.size),
+                entry,
+                min_vaddr,
+                static_cast<unsigned>(phnum));
+            continue;
+        }
         emit<"  {} ({} bytes)\n">(sample.name, static_cast<unsigned>(sample.size));
     }
 }
@@ -433,10 +544,11 @@ void print_wait_result(const posix::WaitStatus& st) noexcept {
         st.code);
 }
 
-bool run_spawn(RuntimeState& runtime,
-               const char* path,
-               std::span<const char* const> argv,
-               posix::PathMode mode) noexcept {
+std::optional<int> run_spawn(RuntimeState& runtime,
+                             const char* path,
+                             std::span<const char* const> argv,
+                             posix::PathMode mode,
+                             bool capture_stdout) noexcept {
     auto envp_storage = default_envp();
     posix::SpawnConfig cfg{};
     cfg.path = path;
@@ -445,27 +557,86 @@ bool run_spawn(RuntimeState& runtime,
     cfg.cwd = "/";
     cfg.path_mode = mode;
 
+    int stdout_pipe[2]{-1, -1};
+    posix::FileActions<16> file_actions{};
+    if (capture_stdout) {
+        if (runtime.api.pipe(stdout_pipe) != 0) {
+            emit<"spawn: stdout pipe failed\n">();
+            return std::nullopt;
+        }
+        if (runtime.api.fcntl(stdout_pipe[0], posix::F_SETFD, posix::FD_CLOEXEC) != 0) {
+            (void)runtime.api.close(stdout_pipe[0]);
+            (void)runtime.api.close(stdout_pipe[1]);
+            emit<"spawn: stdout pipe setup failed\n">();
+            return std::nullopt;
+        }
+        (void)file_actions.add_close(stdout_pipe[0]);
+        (void)file_actions.add_close(stdout_pipe[1]);
+        cfg.file_actions = &file_actions;
+        cfg.stdio_out = stdout_pipe[1];
+    }
+
+    emit<"spawn: request path={} argc={} mode={} load=0x{:08x}/{}\n">(
+        std::string_view{path ? path : ""},
+        static_cast<unsigned>(argv.size()),
+        static_cast<unsigned>(mode),
+        static_cast<unsigned>(reinterpret_cast<std::uintptr_t>(runtime.proc_service.elf_load_base_ptr())),
+        static_cast<unsigned>(runtime.proc_service.elf_load_capacity()));
+
     auto result = runtime.proc_service.spawn(cfg);
     if (!result) {
         emit<"spawn: failed err={}\n">(static_cast<unsigned>(result.error()));
-        return false;
+        if (capture_stdout) {
+            (void)runtime.api.close(stdout_pipe[0]);
+            (void)runtime.api.close(stdout_pipe[1]);
+        }
+        return std::nullopt;
     }
     emit<"spawn: pid={} path={}\n">(result.value().pid.value, std::string_view{path});
     auto waited = runtime.proc_service.waitpid(result.value().pid, 0);
     if (!waited) {
         emit<"wait: failed err={}\n">(static_cast<unsigned>(waited.error()));
-        return false;
+        if (capture_stdout) {
+            (void)runtime.api.close(stdout_pipe[0]);
+            (void)runtime.api.close(stdout_pipe[1]);
+        }
+        return std::nullopt;
     }
+
+    if (capture_stdout) {
+        (void)runtime.api.close(stdout_pipe[1]);
+        stdout_pipe[1] = -1;
+        std::array<char, 128> out_buf{};
+        while (true) {
+            const auto n = runtime.api.read(stdout_pipe[0], out_buf.data(), out_buf.size());
+            if (n < 0) {
+                emit<"stdout drain failed\n">();
+                break;
+            }
+            if (n == 0) {
+                break;
+            }
+            for (int i = 0; i < n; ++i) {
+                h747::console::write_char(out_buf[static_cast<std::size_t>(i)]);
+            }
+        }
+        (void)runtime.api.close(stdout_pipe[0]);
+        stdout_pipe[0] = -1;
+    }
+
     print_wait_result(waited.value());
-    return true;
+    return waited.value().code;
 }
 
-bool run_builtin(RuntimeState& runtime, std::string_view name, std::string_view arg_text) noexcept {
+std::optional<int> run_builtin(RuntimeState& runtime,
+                               std::string_view name,
+                               std::string_view arg_text,
+                               bool capture_stdout = false) noexcept {
     std::array<char, 192> arg_blob{};
     auto parsed = parse_args<16>(arg_text, arg_blob);
     if (!parsed) {
         emit<"run: argv too large\n">();
-        return false;
+        return std::nullopt;
     }
 
     std::array<const char*, 17> argv{};
@@ -473,11 +644,30 @@ bool run_builtin(RuntimeState& runtime, std::string_view name, std::string_view 
     const auto image_name = "elfmem:"sv;
     if (image_name.size() + name.size() + 1 > image_path.size()) {
         emit<"run: name too long\n">();
-        return false;
+        return std::nullopt;
     }
     std::memcpy(image_path.data(), image_name.data(), image_name.size());
     std::memcpy(image_path.data() + image_name.size(), name.data(), name.size());
     image_path[image_name.size() + name.size()] = '\0';
+
+    if (const auto* sample = sample_by_name(name)) {
+        std::uint32_t entry = 0;
+        std::uint32_t min_vaddr = 0;
+        std::uint16_t phnum = 0;
+        if (inspect_elf32(*sample, entry, min_vaddr, phnum)) {
+            emit<"run: builtin={} size={} entry=0x{:08x} base=0x{:08x} ph={} load=0x{:08x}\n">(
+                sample->name,
+                static_cast<unsigned>(sample->size),
+                entry,
+                min_vaddr,
+                static_cast<unsigned>(phnum),
+                static_cast<unsigned>(reinterpret_cast<std::uintptr_t>(elf_load_region_base())));
+        } else {
+            emit<"run: builtin={} size={} elf=unparsed\n">(
+                sample->name,
+                static_cast<unsigned>(sample->size));
+        }
+    }
 
     util::usize argc = 0;
     argv[argc++] = image_path.data();
@@ -488,7 +678,8 @@ bool run_builtin(RuntimeState& runtime, std::string_view name, std::string_view 
     return run_spawn(runtime,
                      image_path.data(),
                      std::span<const char* const>{argv.data(), argc},
-                     posix::PathMode::exact);
+                     posix::PathMode::exact,
+                     capture_stdout);
 }
 
 void run_path(RuntimeState& runtime, std::string_view path, std::string_view arg_text) noexcept {
@@ -522,12 +713,18 @@ void run_path(RuntimeState& runtime, std::string_view path, std::string_view arg
     (void)run_spawn(runtime,
                     path_buf.data(),
                     std::span<const char* const>{argv.data(), argc},
-                    posix::PathMode::search_path);
+                    posix::PathMode::search_path,
+                    false);
 }
 
-bool smoke_step(RuntimeState& runtime, std::string_view name, std::string_view args = {}) noexcept {
+bool smoke_step(RuntimeState& runtime,
+                std::string_view name,
+                std::string_view args = {},
+                int expected_code = 0,
+                bool capture_stdout = false) noexcept {
     emit<"[smoke] run {} {}\n">(name, args);
-    return run_builtin(runtime, name, args);
+    auto code = run_builtin(runtime, name, args, capture_stdout);
+    return code.has_value() && code.value() == expected_code;
 }
 
 void run_smoke(RuntimeState& runtime) noexcept {
@@ -536,12 +733,13 @@ void run_smoke(RuntimeState& runtime) noexcept {
     ok = smoke_step(runtime, "argv_dump", "a b") && ok;
     ok = smoke_step(runtime, "env_dump") && ok;
     ok = smoke_step(runtime, "stderr_demo") && ok;
-    ok = smoke_step(runtime, "exit_code", "7") && ok;
-    ok = smoke_step(runtime, "fd_probe", "/cat.txt") && ok;
-    ok = smoke_step(runtime, "stat_probe", "/stat.txt") && ok;
+    ok = smoke_step(runtime, "exit_code", "7", 7) && ok;
+    ok = smoke_step(runtime, "fd_probe", {}, 0, true) && ok;
+    ok = smoke_step(runtime, "stat_probe", {}, 0, true) && ok;
     ok = smoke_step(runtime, "cat_file", "/cat.txt") && ok;
     ok = smoke_step(runtime, "write_file", "/tmp/write-smoke.txt payload") && ok;
-    ok = smoke_step(runtime, "append_file", "/tmp/append-smoke.txt tail") && ok;
+    ok = write_text_file(runtime, "/append-out.txt", "base\n") && ok;
+    ok = smoke_step(runtime, "append_file") && ok;
     emit<"[smoke] result={}\n">(ok ? "ok"sv : "failed"sv);
 }
 

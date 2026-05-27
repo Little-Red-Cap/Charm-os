@@ -92,7 +92,21 @@ export namespace player {
         void bind_ui(::ui::scene::SceneBuilder& builder, Controller& controller) {
             apply_player_font_resource(controller, config_.font_resources);
             apply_player_theme();
-            controller.icons = register_player_icons();
+#if defined(CHARM_PLAYER_MCU) && CHARM_PLAYER_MCU
+            controller.icons = register_player_icons(PlayerIconPixelArena{
+                config_.icon_pixels.data,
+                config_.icon_pixels.bytes,
+            });
+#else
+            if (config_.icon_pixels.valid()) {
+                controller.icons = register_player_icons(PlayerIconPixelArena{
+                    config_.icon_pixels.data,
+                    config_.icon_pixels.bytes,
+                });
+            } else {
+                controller.icons = register_player_icons();
+            }
+#endif
             controller.handles = build_ui(builder, controller, controller.icons);
             controller.init_text_slots();
             controller.init_pages();

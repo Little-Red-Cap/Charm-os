@@ -1,8 +1,14 @@
 #include <cstdint>
 #include <cstdio>
 
-import charm.foundation;
-import charm.runtime;
+import charm.core;
+import power.core;
+import power.policy;
+import power.port;
+import power.trace;
+import power.types;
+import service_trace;
+import trace_core;
 import platform.win.power;
 
 namespace {

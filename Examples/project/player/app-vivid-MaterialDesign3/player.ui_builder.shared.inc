@@ -174,6 +174,20 @@
         builder.set_rect(h, r);
     }
 
+    static WidgetHandle create_label_text(::ui::scene::SceneBuilder& builder,
+                                          std::string_view text) {
+        char buffer[192]{};
+        std::size_t len = text.size();
+        if (len >= sizeof(buffer)) {
+            len = sizeof(buffer) - 1U;
+        }
+        for (std::size_t i = 0; i < len; ++i) {
+            buffer[i] = text[i];
+        }
+        buffer[len] = '\0';
+        return builder.create_label(buffer);
+    }
+
     static UiLayout make_layout() noexcept {
         const int top_bar_h = 44;
         const int top_bar_y = kUiPadding;
@@ -799,7 +813,7 @@
                                               WidgetHandle parent,
                                               const Rect& rect,
                                               std::string_view text) {
-        const WidgetHandle chip = builder.create_label_static(text.data());
+        const WidgetHandle chip = create_label_text(builder, text);
         apply_time_label_style(builder, chip);
         builder.set_label_align(chip, ::ui::scene::TextAlignH::Center, ::ui::scene::TextAlignV::Center);
         anchor_rect(builder, chip, rect);
@@ -1120,7 +1134,7 @@
             h.home_daily_mix_preview_plates[2] = slot.plate;
         }
 
-        const WidgetHandle body_label = builder.create_label_static(body.data());
+        const WidgetHandle body_label = create_label_text(builder, body);
         apply_player_text_style(builder, body_label, PlayerTextRole::CardBody, kUiSubtitle);
         builder.set_label_align(body_label, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
         anchor_rect(builder, body_label, {20, 94, rect.w - 120, 18});
@@ -1158,7 +1172,7 @@
         h.home_recently_played_action = create_home_card_action_button(
             builder, root, {rect.w - 58, 14, 36, 36}, icons.next, 18, 18);
 
-        const WidgetHandle body_label = builder.create_label_static(body.data());
+        const WidgetHandle body_label = create_label_text(builder, body);
         apply_player_text_style(builder, body_label, PlayerTextRole::CardBody, kUiSubtitle);
         builder.set_label_align(body_label, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
         anchor_rect(builder, body_label, {20, 44, rect.w - 136, 18});
@@ -1229,13 +1243,13 @@
                                       true};
         const WidgetHandle root = card.root();
 
-        const WidgetHandle title_label = builder.create_label_static(title.data());
+        const WidgetHandle title_label = create_label_text(builder, title);
         apply_player_text_style(builder, title_label, PlayerTextRole::CardTitle, kUiTitle);
         builder.set_label_align(title_label, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
         anchor_rect(builder, title_label, {16, 12, rect.w - 120, 24});
         builder.link(root, title_label);
 
-        const WidgetHandle body_label = builder.create_label_static(body.data());
+        const WidgetHandle body_label = create_label_text(builder, body);
         apply_player_text_style(builder, body_label, PlayerTextRole::CardBody, kUiSubtitle);
         builder.set_label_align(body_label, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
         anchor_rect(builder, body_label, {16, 38, rect.w - 120, 18});
@@ -1371,11 +1385,15 @@
                                         int next_size,
                                         int bar_gap) {
         const Rect content = bottom_row.content_rect();
-        const int tile_w = std::max(0, content.w - play_size - next_size - bar_gap * 2);
+        const int tile_w = std::max<int>(
+            0,
+            static_cast<int>(content.w - play_size - next_size - bar_gap * 2));
         const int tile_h = content.h;
         const Rect tile_rect = bottom_row.next_rect(tile_w, tile_h);
         const int bottom_text_x = 56;
-        const int bottom_text_w = std::max(0, tile_rect.w - bottom_text_x - 4);
+        const int bottom_text_w = std::max<int>(
+            0,
+            static_cast<int>(tile_rect.w - bottom_text_x - 4));
 
         ::ui::scene::TileBuilder bottom_tile{builder, tile_rect, 48, 8, false, kStyleClassInvalid, true, ""};
         h.bottom_cover = bottom_tile.image();

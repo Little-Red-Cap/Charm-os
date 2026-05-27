@@ -1,6 +1,7 @@
 module;
 
 #include <array>
+#include <concepts>
 #include <string_view>
 
 export module net.line_session;
@@ -11,9 +12,66 @@ import util.error;
 import util.expected;
 
 export namespace net {
-    using SendFn = util::Result<util::usize> (*)(void* ctx, ByteView data) noexcept;
+    using SendFn = StreamSendFn;
     using LineFn = void (*)(void* ctx, std::string_view line) noexcept;
-    using ErrorFn = void (*)(void* ctx, errc error) noexcept;
+    using ErrorFn = NetErrorFn;
+
+    class LineHandlerRef {
+    public:
+        constexpr LineHandlerRef() noexcept = default;
+
+        static constexpr LineHandlerRef raw(LineFn handler, void* ctx) noexcept {
+            return LineHandlerRef{handler, ctx};
+        }
+
+        template <typename Handler>
+            requires(
+                requires(Handler& value, std::string_view line) {
+                    { value.on_line(line) } noexcept -> std::same_as<void>;
+                } ||
+                requires(Handler& value, std::string_view line) {
+                    { value(line) } noexcept -> std::same_as<void>;
+                })
+        static constexpr LineHandlerRef bind(Handler& handler) noexcept {
+            return LineHandlerRef{&invoke<Handler>, &handler};
+        }
+
+        [[nodiscard]] constexpr explicit operator bool() const noexcept {
+            return handler_ != nullptr;
+        }
+
+        void notify(std::string_view line) const noexcept {
+            if (handler_) {
+                handler_(ctx_, line);
+            }
+        }
+
+    private:
+        constexpr LineHandlerRef(LineFn handler, void* ctx) noexcept
+            : handler_(handler),
+              ctx_(ctx) {
+        }
+
+        template <typename Handler>
+        static void invoke(void* ctx, std::string_view line) noexcept {
+            auto* handler = static_cast<Handler*>(ctx);
+            if (!handler) {
+                return;
+            }
+            if constexpr (requires(Handler& value, std::string_view text) {
+                              { value.on_line(text) } noexcept -> std::same_as<void>;
+                          }) {
+                handler->on_line(line);
+            } else {
+                (*handler)(line);
+            }
+        }
+
+        LineFn handler_{nullptr};
+        void* ctx_{nullptr};
+    };
+
+    using LineErrorHandlerRef = NetErrorHandlerRef;
 
     enum class LineEnding : util::u8 {
         none,
@@ -24,24 +82,20 @@ export namespace net {
     template <util::usize LineCap, util::usize TxCap = LineCap + 2>
     class LineSession {
     public:
-        void set_sender(SendFn fn, void* ctx) noexcept {
-            send_ = fn;
-            send_ctx_ = ctx;
+        void set_sender(StreamSenderRef sender = {}) noexcept {
+            send_ = sender;
         }
 
-        void set_line_handler(LineFn fn, void* ctx) noexcept {
-            line_ = fn;
-            line_ctx_ = ctx;
+        void set_line_handler(LineHandlerRef handler = {}) noexcept {
+            line_ = handler;
         }
 
-        void set_error_handler(ErrorFn fn, void* ctx) noexcept {
-            error_ = fn;
-            error_ctx_ = ctx;
+        void set_error_handler(NetErrorHandlerRef handler = {}) noexcept {
+            error_ = handler;
         }
 
         void reset() noexcept {
-            send_ = nullptr;
-            send_ctx_ = nullptr;
+            send_ = {};
             line_len_ = 0;
             saw_cr_ = false;
             overflow_ = false;
@@ -139,9 +193,7 @@ export namespace net {
                 return;
             }
             line_buf_[line_len_] = '\0';
-            if (line_) {
-                line_(line_ctx_, std::string_view{line_buf_.data(), line_len_});
-            }
+            line_.notify(std::string_view{line_buf_.data(), line_len_});
             line_len_ = 0;
         }
 
@@ -151,7 +203,7 @@ export namespace net {
             }
 
             while (tx_off_ < tx_len_) {
-                auto sent = send_(send_ctx_, ByteView{tx_buf_.data() + tx_off_, tx_len_ - tx_off_});
+                auto sent = send_.send(ByteView{tx_buf_.data() + tx_off_, tx_len_ - tx_off_});
                 if (!sent) {
                     last_error_ = sent.error();
                     if (sent.error() == errc::would_block) {
@@ -171,17 +223,12 @@ export namespace net {
         }
 
         void notify_error(errc error) noexcept {
-            if (error_) {
-                error_(error_ctx_, error);
-            }
+            error_.notify(error);
         }
 
-        SendFn send_{nullptr};
-        void* send_ctx_{nullptr};
-        LineFn line_{nullptr};
-        void* line_ctx_{nullptr};
-        ErrorFn error_{nullptr};
-        void* error_ctx_{nullptr};
+        StreamSenderRef send_{};
+        LineHandlerRef line_{};
+        NetErrorHandlerRef error_{};
         std::array<char, LineCap + 1> line_buf_{};
         util::usize line_len_{0};
         bool saw_cr_{false};

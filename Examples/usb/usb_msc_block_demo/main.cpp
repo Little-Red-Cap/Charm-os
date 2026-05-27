@@ -206,10 +206,14 @@ namespace {
             return true;
         }
 
-        charm::system::PostFn post_fn() noexcept { return &MiniHost::post; }
-        charm::system::PostFn post_io_ready_fn() noexcept { return &MiniHost::post; }
-        charm::system::PostFn post_demand_fn() noexcept { return &MiniHost::post; }
-        void* post_ctx() noexcept { return nullptr; }
+        charm::system::ReactorPumpPosts reactor_pump_posts() noexcept {
+            const auto post_ref = charm::system::PostRef::raw(&MiniHost::post, nullptr);
+            return charm::system::ReactorPumpPosts{
+                .wake = post_ref,
+                .more = post_ref,
+            };
+        }
+
         kernel::TaskId pump_id() noexcept { return kernel::TaskId{0}; }
     };
 

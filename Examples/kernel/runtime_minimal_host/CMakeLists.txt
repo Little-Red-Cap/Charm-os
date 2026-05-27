@@ -35,6 +35,7 @@ set(kernel_runtime_demo_modules
     "${CHARM_ROOT}/Modules/system/kernel/runtime_trap.cppm"
     "${CHARM_ROOT}/Modules/system/kernel/runtime_trap_ingress.cppm"
     "${CHARM_ROOT}/Modules/system/kernel/scheduler.cppm"
+    "${CHARM_ROOT}/Modules/system/kernel/scheduler_export.cppm"
     "${CHARM_ROOT}/Modules/system/kernel/ssu.cppm"
     "${CHARM_ROOT}/Modules/system/kernel/task_state.cppm"
     "${CHARM_ROOT}/Modules/system/kernel/thread.cppm"

@@ -20,6 +20,9 @@
 如果你想看 RTE 作为能力装配边界的 v0 契约，
 再看：`docs/architecture/rte_capability_composition_contract_v0.md`
 
+如果你想看 RTE 如何推进到 H747-lab 的近期平台化主线，
+再看：`docs/architecture/rte_to_h747_platform_roadmap.md`
+
 如果你想看稳定入口、兼容入口与退役入口的分类，
 再看：`docs/architecture/entry_surface_contract.md`
 

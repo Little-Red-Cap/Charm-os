@@ -12,7 +12,9 @@ import player.fixed_string;
 import fs_block;
 import fs_core;
 import fs_errno;
+#if defined(CHARM_PLAYER_ENABLE_FATFS_STORAGE) && CHARM_PLAYER_ENABLE_FATFS_STORAGE
 import fs_fatfs;
+#endif
 import fs_stream;
 import fs_vfs;
 import player.fs_utils;
@@ -21,9 +23,9 @@ import player.media_scan;
 import player.product_config;
 
 export namespace player {
-    using TrackLabel = FixedString<192>;
-    using TrackTitle = FixedString<192>;
-    using TrackSubtitle = FixedString<32>;
+    using TrackLabel = FixedString<product_config::track_label_text_capacity>;
+    using TrackTitle = FixedString<product_config::track_title_text_capacity>;
+    using TrackSubtitle = FixedString<product_config::track_subtitle_text_capacity>;
     using TrackLabelList = service::FixedVector<TrackLabel, kMaxTracks>;
     using TrackTitleList = service::FixedVector<TrackTitle, kMaxTracks>;
     using TrackSubtitleList = service::FixedVector<TrackSubtitle, kMaxTracks>;
@@ -36,8 +38,8 @@ export namespace player {
     struct StorageState {
         bool fs_ready{false};
         bool has_tracks{false};
-        FixedString<128> status{};
-        FixedString<128> mount_status{};
+        FixedString<product_config::scan_status_text_capacity> status{};
+        FixedString<product_config::scan_status_text_capacity> mount_status{};
         TrackList tracks{};
         TrackLabelList track_labels{};
         TrackTitleList track_titles{};
@@ -60,6 +62,7 @@ export namespace player {
         StorageConfig g_storage_config{};
         fs::BlockDevice* g_sd_device{nullptr};
 
+#if defined(CHARM_PLAYER_ENABLE_FATFS_STORAGE) && CHARM_PLAYER_ENABLE_FATFS_STORAGE
         fs::Status mount_fatfs_from_sd(const char*) {
             if (!g_sd_device) return fs::Status{fs::Errc::nosys};
             static fs::FatFsMount fat;
@@ -69,6 +72,11 @@ export namespace player {
             (void)fs::add_mount("/", fat.mount_point());
             return fs::Status{fs::Errc::ok};
         }
+#else
+        fs::Status mount_fatfs_from_sd(const char*) {
+            return fs::Status{fs::Errc::nosys};
+        }
+#endif
 
         StorageConfig default_storage_config() {
             if constexpr (host_features::host_storage) {
@@ -90,23 +98,35 @@ export namespace player {
         detail::g_sd_device = dev;
     }
 
-    TrackScanResult scan_tracks_default() {
+    template <typename ScanResult>
+    void scan_tracks_default_into(ScanResult& out) {
         StorageConfig cfg = detail::g_storage_config;
         if (!cfg.mount) {
             cfg = detail::default_storage_config();
         }
-        return scan_tracks(cfg.mount, cfg.path);
+        auto scan = scan_tracks(cfg.mount, cfg.path);
+        out.fs_ready = scan.fs_ready;
+        out.has_tracks = scan.has_tracks;
+        out.status.assign(scan.status.view());
+        out.mount_status.assign(scan.mount_status.view());
+        out.tracks = scan.tracks;
+    }
+
+    TrackScanResult scan_tracks_default() {
+        TrackScanResult out{};
+        scan_tracks_default_into(out);
+        return out;
+    }
+
+    void scan_storage_into(StorageState& out) {
+        out = {};
+        scan_tracks_default_into(out);
+        out.labels_ready = false;
     }
 
     StorageState scan_storage() {
-        auto scan = scan_tracks_default();
         StorageState out{};
-        out.fs_ready = scan.fs_ready;
-        out.has_tracks = scan.has_tracks;
-        out.status.assign(scan.status.c_str());
-        out.mount_status.assign(scan.mount_status.c_str());
-        out.tracks = scan.tracks;
-        out.labels_ready = false;
+        scan_storage_into(out);
         return out;
     }
 
@@ -178,7 +198,9 @@ export namespace player {
         detail::g_storage_config = StorageConfig{&detail::mount_fatfs_from_sd, nullptr};
     }
 
-    bool check_track_ready(std::string_view vfs_path, FixedString<128>& out_status) {
+    bool check_track_ready(
+        std::string_view vfs_path,
+        FixedString<product_config::status_text_capacity>& out_status) {
         fs::File f{};
         auto st = fs::vfs_open(vfs_path, f);
         if (st) {

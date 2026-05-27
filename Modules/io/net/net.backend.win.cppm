@@ -4,11 +4,11 @@ module;
 #define WIN32_LEAN_AND_MEAN
 #endif
 
-#include <winsock2.h>
-#include <ws2tcpip.h>
-
 #include <array>
 #include <utility>
+
+#include <winsock2.h>
+#include <ws2tcpip.h>
 
 export module net.backend.win;
 

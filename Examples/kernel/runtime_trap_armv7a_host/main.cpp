@@ -15,6 +15,7 @@ import kernel.evt;
 import kernel.task_syscall_api;
 import kernel.runtime_trap_ingress;
 import kernel.scheduler;
+import kernel.scheduler_export;
 import kernel.thread;
 
 namespace demo {
@@ -694,8 +695,8 @@ int main()
     char snapshot[512]{};
     char scheduler_trace[4096]{};
     char ingress_witness_json[512]{};
-    (void)running.format_snapshot(snapshot, sizeof(snapshot));
-    (void)running.format_trace_csv(scheduler_trace, sizeof(scheduler_trace));
+    (void)kernel::format_snapshot(running, snapshot, sizeof(snapshot));
+    (void)kernel::format_trace_csv(running, scheduler_trace, sizeof(scheduler_trace));
     const auto ingress_forensics =
         kernel::trap_ingress_forensic_snapshot(trap_ingress_trace);
     const auto ingress_witness =

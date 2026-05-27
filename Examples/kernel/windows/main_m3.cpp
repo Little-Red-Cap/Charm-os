@@ -3,8 +3,9 @@
 #include <cstdio>
 #include <utility>
 
-import charm.foundation;
-import charm.runtime;
+import charm.core;
+import kernel.scheduler;
+import kernel.scheduler_export;
 import kernel.ssu;
 import platform.win.irq_guard;
 import platform.win.manual_time_source;
@@ -108,11 +109,11 @@ int main() {
     char event_src_json[160]{};
     char ssu_overview_json[256]{};
     char ssu_hotspots_json[320]{};
-    (void)running.format_snapshot(stats_buf, sizeof(stats_buf));
-    (void)running.format_trace_json(trace_json, sizeof(trace_json));
-    (void)running.format_event_source_json(event_src_json, sizeof(event_src_json));
-    (void)running.format_ssu_overview_json(ssu_overview_json, sizeof(ssu_overview_json));
-    (void)running.format_ssu_hotspots_json(ssu_hotspots_json, sizeof(ssu_hotspots_json));
+    (void)kernel::format_snapshot(running, stats_buf, sizeof(stats_buf));
+    (void)kernel::format_trace_json(running, trace_json, sizeof(trace_json));
+    (void)kernel::format_event_source_json(running, event_src_json, sizeof(event_src_json));
+    (void)kernel::format_ssu_overview_json(running, ssu_overview_json, sizeof(ssu_overview_json));
+    (void)kernel::format_ssu_hotspots_json(running, ssu_hotspots_json, sizeof(ssu_hotspots_json));
     std::printf("[Stats] %s\n", stats_buf);
     std::printf("[EventSource.json] %s\n", event_src_json);
     std::printf("[SsuOverview.json] %s\n", ssu_overview_json);

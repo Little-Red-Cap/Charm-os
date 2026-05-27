@@ -22,5 +22,6 @@ Optional modules and features only. Default OFF in main route.
 - alert hook signature stable
 
 ## Trace Export (Structured)
-- `format_trace_json()` for machine-friendly JSON array
-- `format_trace_csv()` for line-based export (header: `trace_v1,t,task,id,payload,count,kind`)
+- `kernel.scheduler` owns structured observations (`snapshot`, `task_snapshot`, `trace_snapshot`)
+- `kernel.scheduler_export` owns presentation helpers such as `format_trace_json()` and `format_trace_csv()`
+- CSV header: `trace_v1,t,task,id,payload,count,kind`

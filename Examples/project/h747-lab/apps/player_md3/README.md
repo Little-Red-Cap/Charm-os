@@ -100,15 +100,21 @@ are emitted as link-time absolute symbols, so the evidence is machine-readable
 without adding runtime RAM/Flash storage.
 
 Current PRODUCT baseline after Player icon pixels moved to the SDRAM runtime
-icon arena:
+icon arena and Library row/cover-path caches were made on-demand:
+
+- `RAM_D1 110824 B`
+- `RAM_D2 4 KB`
+- `FLASH 730608 B`
+
+`RAM_D1.record_threshold_bytes=110824` is currently evidence-only; structural
+ownership errors still fail the build, while RAM size movement is recorded for
+review.
+
+Previous baseline before Library row/cover-path caches were made on-demand:
 
 - `RAM_D1 272256 B`
 - `RAM_D2 4 KB`
 - `FLASH 892840 B`
-
-`RAM_D1.record_threshold_bytes=272256` is currently evidence-only; structural
-ownership errors still fail the build, while RAM size movement is recorded for
-review.
 
 Previous baseline before Player icon pixels were moved out of RAM_D1:
 
@@ -122,19 +128,19 @@ Player icon pixels now use an explicit SDRAM runtime icon arena. The post-link
 gate rejects `player::ui::icon_*::buf` symbols in RAM_D1; the expected arena
 size is `156672 B`.
 
-Current top RAM_D1 ownership after icon arena placement:
+Current top RAM_D1 ownership after Library cache on-demand placement:
 
-- `PlayerController 176920 B`
 - `Theme 55556 B`
 - `StyleSheet 18880 B`
+- `PlayerController 15488 B`
 - `FatFs static state 6152 B`
 - `ImageRegistry 2936 B`
 
 Current `PlayerController` capacity breakdown:
 
 - `track_capacity=256`
-- `list_rows_bytes=94212`
-- `list_cover_paths_bytes=67588`
+- `row_scratch_bytes=364`
+- `cover_path_scratch_bytes=264`
 - `list_cover_cache_bytes=6576`
 - `text_state_bytes=1444`
 - `cover_path_state_bytes=1584`

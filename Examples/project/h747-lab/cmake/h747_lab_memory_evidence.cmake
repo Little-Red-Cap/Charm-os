@@ -136,9 +136,9 @@ function(_h747_mem_run_evidence)
         track_capacity
         library_row_model_size_bytes
         list_order_bytes
-        list_rows_bytes
+        row_scratch_bytes
         duration_cache_bytes
-        list_cover_paths_bytes
+        cover_path_scratch_bytes
         list_cover_cache_capacity
         list_cover_cache_bytes
         current_cover_bytes
@@ -483,7 +483,7 @@ option(H747_PLAYER_MD3_MEMORY_GATE
     ON)
 set(H747_PLAYER_MD3_MEMORY_TOP_N "32" CACHE STRING
     "Number of top RAM symbols to include in H747 Player MD3 memory evidence")
-set(H747_PLAYER_MD3_RAM_D1_RECORD_BYTES "272256" CACHE STRING
+set(H747_PLAYER_MD3_RAM_D1_RECORD_BYTES "110824" CACHE STRING
     "Recorded H747 Player MD3 RAM_D1 baseline; evidence-only, not a hard gate")
 
 function(h747_lab_add_player_md3_memory_evidence target_name)

@@ -274,7 +274,6 @@ export namespace player {
         };
 
         struct LibraryRowRecipe {
-            const LibraryRowModel* model{};
             int row_index{-1};
             int track_index{-1};
             bool group_row{false};
@@ -291,29 +290,18 @@ export namespace player {
             ::ui::scene::ImageId fallback_icon{};
             bool prefer_cover{false};
 
-            std::string_view title() const noexcept {
-                return model ? model->title.view() : std::string_view{};
-            }
+            std::string_view title() const noexcept { return title_text; }
+            std::string_view subtitle() const noexcept { return subtitle_text; }
+            std::string_view tail() const noexcept { return tail_text; }
+            const char* title_c_str() const noexcept { return title_text.empty() ? "" : title_text.data(); }
+            const char* subtitle_c_str() const noexcept { return subtitle_text.empty() ? "" : subtitle_text.data(); }
+            const char* tail_c_str() const noexcept { return tail_text.empty() ? "" : tail_text.data(); }
 
-            std::string_view subtitle() const noexcept {
-                return model ? model->subtitle.view() : std::string_view{};
-            }
-
-            std::string_view tail() const noexcept {
-                return model ? model->tail.view() : std::string_view{};
-            }
-
-            const char* title_c_str() const noexcept {
-                return model ? model->title.c_str() : "";
-            }
-
-            const char* subtitle_c_str() const noexcept {
-                return model ? model->subtitle.c_str() : "";
-            }
-
-            const char* tail_c_str() const noexcept {
-                return model ? model->tail.c_str() : "";
-            }
+        private:
+            friend struct PlayerController;
+            std::string_view title_text{};
+            std::string_view subtitle_text{};
+            std::string_view tail_text{};
         };
 
         PlaybackEngine playback{};
@@ -379,11 +367,12 @@ export namespace player {
         } library_visual_state{};
         std::uint32_t library_visual_generation{1};
         service::FixedVector<int, kMaxTracks> list_order{};
-        service::FixedVector<LibraryRowModel, kMaxTracks> list_rows{};
         service::FixedVector<int, kMaxTracks> track_duration_cache_sec{};
         std::size_t list_duration_probe_cursor{0};
         std::uint64_t last_list_duration_probe_ms{0};
-        service::FixedVector<FixedString<product_config::path_text_capacity>, kMaxTracks> list_cover_paths{};
+        mutable FixedString<product_config::library_row_title_capacity> list_row_title_scratch{};
+        mutable FixedString<product_config::library_row_subtitle_capacity> list_row_subtitle_scratch{};
+        mutable FixedString<product_config::library_row_tail_capacity> list_row_tail_scratch{};
         struct ListCoverCacheEntry {
             FixedString<product_config::path_text_capacity> path{};
             ResolvedCover image{};
@@ -1557,9 +1546,9 @@ export namespace player {
         std::size_t track_capacity{0};
         std::size_t library_row_model_size_bytes{0};
         std::size_t list_order_bytes{0};
-        std::size_t list_rows_bytes{0};
+        std::size_t row_scratch_bytes{0};
         std::size_t duration_cache_bytes{0};
-        std::size_t list_cover_paths_bytes{0};
+        std::size_t cover_path_scratch_bytes{0};
         std::size_t list_cover_cache_capacity{0};
         std::size_t list_cover_cache_bytes{0};
         std::size_t current_cover_bytes{0};
@@ -1581,9 +1570,11 @@ export namespace player {
             kMaxTracks,
             sizeof(PlayerController::LibraryRowModel),
             sizeof(std::declval<PlayerController>().list_order),
-            sizeof(std::declval<PlayerController>().list_rows),
+            sizeof(std::declval<PlayerController>().list_row_title_scratch)
+                + sizeof(std::declval<PlayerController>().list_row_subtitle_scratch)
+                + sizeof(std::declval<PlayerController>().list_row_tail_scratch),
             sizeof(std::declval<PlayerController>().track_duration_cache_sec),
-            sizeof(std::declval<PlayerController>().list_cover_paths),
+            sizeof(FixedString<product_config::path_text_capacity>),
             PlayerController::kListCoverCacheMax,
             sizeof(std::declval<PlayerController>().list_cover_cache),
             sizeof(std::declval<PlayerController>().current_cover),
@@ -1631,12 +1622,12 @@ export namespace player {
             ".set charm_player_controller_profile_library_row_model_size_bytes, %c2\n"
             ".global charm_player_controller_profile_list_order_bytes\n"
             ".set charm_player_controller_profile_list_order_bytes, %c3\n"
-            ".global charm_player_controller_profile_list_rows_bytes\n"
-            ".set charm_player_controller_profile_list_rows_bytes, %c4\n"
+            ".global charm_player_controller_profile_row_scratch_bytes\n"
+            ".set charm_player_controller_profile_row_scratch_bytes, %c4\n"
             ".global charm_player_controller_profile_duration_cache_bytes\n"
             ".set charm_player_controller_profile_duration_cache_bytes, %c5\n"
-            ".global charm_player_controller_profile_list_cover_paths_bytes\n"
-            ".set charm_player_controller_profile_list_cover_paths_bytes, %c6\n"
+            ".global charm_player_controller_profile_cover_path_scratch_bytes\n"
+            ".set charm_player_controller_profile_cover_path_scratch_bytes, %c6\n"
             ".global charm_player_controller_profile_list_cover_cache_capacity\n"
             ".set charm_player_controller_profile_list_cover_cache_capacity, %c7\n"
             ".global charm_player_controller_profile_list_cover_cache_bytes\n"
@@ -1668,9 +1659,9 @@ export namespace player {
               "i"(profile.track_capacity),
               "i"(profile.library_row_model_size_bytes),
               "i"(profile.list_order_bytes),
-              "i"(profile.list_rows_bytes),
+              "i"(profile.row_scratch_bytes),
               "i"(profile.duration_cache_bytes),
-              "i"(profile.list_cover_paths_bytes),
+              "i"(profile.cover_path_scratch_bytes),
               "i"(profile.list_cover_cache_capacity),
               "i"(profile.list_cover_cache_bytes),
               "i"(profile.current_cover_bytes),

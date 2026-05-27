@@ -467,22 +467,18 @@
             return track_duration_cache_sec[static_cast<std::size_t>(track_index)];
         }
 
-        LibraryRowModel* library_row_model(int row_index) noexcept {
-            if (row_index < 0 || row_index >= static_cast<int>(list_rows.size())) return nullptr;
-            return &list_rows[static_cast<std::size_t>(row_index)];
-        }
-
-        const LibraryRowModel* library_row_model(int row_index) const noexcept {
-            if (row_index < 0 || row_index >= static_cast<int>(list_rows.size())) return nullptr;
-            return &list_rows[static_cast<std::size_t>(row_index)];
-        }
-
         LibraryRowRecipe make_library_row_recipe(int row_index) const noexcept {
             LibraryRowRecipe out{};
             out.row_index = row_index;
-            out.model = library_row_model(row_index);
             out.track_index = list_index_to_track(row_index);
-            out.group_row = out.model ? out.model->group_row : false;
+            format_library_row_text(row_index,
+                                    list_row_title_scratch,
+                                    list_row_subtitle_scratch,
+                                    list_row_tail_scratch,
+                                    out.group_row);
+            out.title_text = list_row_title_scratch.view();
+            out.subtitle_text = list_row_subtitle_scratch.view();
+            out.tail_text = list_row_tail_scratch.view();
             out.selected_row = (row_index == last_list_selected);
             out.menu_title_cstr = out.group_row ? "Group" : "Track";
             if (out.group_row) {
@@ -490,12 +486,12 @@
             } else if (track_index >= 0 && out.track_index >= 0) {
                 out.current_row = (out.track_index == track_index);
             }
-            if (out.model) {
-                if (!out.model->title.empty()) out.menu_title_cstr = out.model->title.c_str();
-                out.detail_primary = out.model->title.view();
-                out.detail_secondary = out.model->subtitle.view();
+            if (!out.title_text.empty()) {
+                out.menu_title_cstr = out.title_c_str();
+                out.detail_primary = out.title_text;
+                out.detail_secondary = out.subtitle_text;
             }
-            const bool row_has_action = (out.model != nullptr) || (out.track_index >= 0);
+            const bool row_has_action = !out.title_text.empty() || (out.track_index >= 0);
             if (out.group_row) {
                 out.show_tail_action = false;
                 out.tail_action_icon = ::ui::scene::invalid_image_id();
@@ -526,9 +522,6 @@
                     : icons.folder;
                 out.prefer_cover = is_audio_path(out.track_path);
             }
-            if (out.track_index < static_cast<int>(list_cover_paths.size())) {
-                out.cover_path = list_cover_paths[static_cast<std::size_t>(out.track_index)].view();
-            }
             return out;
         }
 
@@ -542,13 +535,11 @@
             return true;
         }
 
-        void refresh_list_row_tail(LibraryRowModel& row, int track_index) {
-            row.tail.clear();
+        void format_library_row_tail(FixedString<product_config::library_row_tail_capacity>& tail,
+                                     int track_index) const noexcept {
+            tail.clear();
             const auto* tracks = storage.tracks;
             if (!tracks || track_index < 0 || track_index >= static_cast<int>(tracks->size())) {
-                return;
-            }
-            if (row.group_row) {
                 return;
             }
             const auto path = (*tracks)[static_cast<std::size_t>(track_index)].view();
@@ -556,50 +547,13 @@
             if (duration_sec > 0) {
                 char buf[16]{};
                 format_duration_compact(duration_sec, buf, sizeof(buf));
-                row.tail.assign(buf);
+                tail.assign(buf);
             } else if (duration_sec == kTrackDurationUnknown) {
-                row.tail.assign("--:--");
+                tail.assign("--:--");
             } else {
-                row.tail.assign(format_from_path(path));
+                tail.assign(format_from_path(path));
             }
-            player::font_cache::ensure_text(row.tail.view());
-        }
-
-        void rebuild_list_display_tails() {
-            const std::size_t count = list_order.size();
-            if (list_rows.size() != count) {
-                (void)list_rows.resize(count);
-            }
-            for (std::size_t i = 0; i < count; ++i) {
-                refresh_list_row_tail(list_rows[i], list_order[i]);
-            }
-        }
-
-        bool refresh_list_tail_for_track(int track_index) {
-            if (track_index < 0 || library_shows_group_rows()) return false;
-            const int row_index = track_index_to_list(track_index);
-            auto* row = library_row_model(row_index);
-            if (!row || row->group_row) return false;
-            refresh_list_row_tail(*row, track_index);
-            return true;
-        }
-
-        bool refresh_group_row_summary_for_track(int track_index) {
-            if (track_index < 0 || !library_shows_group_rows()) return false;
-            const int row_index = track_index_to_list(track_index);
-            auto* row = library_row_model(row_index);
-            if (!row || !row->group_row) return false;
-
-            const auto key = library_group_title_for_track(track_index);
-            char buf[64]{};
-            format_library_group_summary(key,
-                                         library_group_row_is_current(row_index),
-                                         buf,
-                                         sizeof(buf),
-                                         false);
-            row->subtitle.assign(buf);
-            player::font_cache::ensure_text(row->subtitle.view());
-            return true;
+            player::font_cache::ensure_text(tail.view());
         }
 
         void notify_list_subtitle_source_changed() {
@@ -637,15 +591,9 @@
                 const bool changed = cache_track_duration(track_index, ok ? seconds : 0);
                 if (changed) {
                     if (library_shows_group_rows()) {
-                        if (refresh_group_row_summary_for_track(track_index)) {
-                            notify_list_subtitle_source_changed();
-                        } else {
-                            rebuild_list_display_cache();
-                            notify_list_subtitle_source_changed();
-                            notify_list_tail_source_changed();
-                        }
+                        notify_list_subtitle_source_changed();
                     } else {
-                        if (refresh_list_tail_for_track(track_index)) {
+                        if (track_index_to_list(track_index) >= 0) {
                             notify_list_tail_source_changed();
                         }
                         if (library_has_context() && library_context_matches_track(track_index)) {
@@ -1025,18 +973,11 @@
             }
             const auto candidate_track_path =
                 (*tracks)[static_cast<std::size_t>(candidate_track_index)].view();
-            std::string_view candidate_cover_path{};
-            if (candidate_track_index < static_cast<int>(list_cover_paths.size())) {
-                candidate_cover_path =
-                    list_cover_paths[static_cast<std::size_t>(candidate_track_index)].view();
-            }
             if (!request_track_path.empty()) {
                 if (request_track_path == candidate_track_path) return true;
-                if (!candidate_cover_path.empty() && request_track_path == candidate_cover_path) return true;
             }
             if (!request_cover_path.empty()) {
                 if (request_cover_path == candidate_track_path) return true;
-                if (!candidate_cover_path.empty() && request_cover_path == candidate_cover_path) return true;
             }
             return false;
         }
@@ -1676,11 +1617,7 @@
             set_label(handles.list_info_hint, library_popup_close_hint());
 
             ::ui::scene::ImageId image_id = ::ui::scene::invalid_image_id();
-            std::string_view cover_path{};
-            if (track_idx < static_cast<int>(list_cover_paths.size())) {
-                cover_path = list_cover_paths[static_cast<std::size_t>(track_idx)].view();
-            }
-            image_id = resolve_list_cover_icon(path, cover_path);
+            image_id = resolve_list_cover_icon(path);
             set_image_slot_if_present(library_info_cover_slot(), image_id, false);
             return true;
         }
@@ -1856,12 +1793,11 @@
             if (list_index < 0 || list_index >= static_cast<int>(list_order.size())) return;
             const auto row = make_library_row_recipe(list_index);
             if (row.group_row) {
-                if (row.model) {
-                    library_context_key.assign(row.title());
-                    refresh_list_view();
-                    ensure_library_context_selection();
-                    show_library_context_status();
-                }
+                if (row.title().empty()) return;
+                library_context_key.assign(row.title());
+                refresh_list_view();
+                ensure_library_context_selection();
+                show_library_context_status();
                 return;
             }
             const int track_idx = list_index_to_track(list_index);
@@ -2244,82 +2180,91 @@
             return {};
         }
 
-        void rebuild_list_display_cache() {
-            list_rows.clear();
+        void format_library_row_text(int row_index,
+                                     FixedString<product_config::library_row_title_capacity>& title_out,
+                                     FixedString<product_config::library_row_subtitle_capacity>& subtitle_out,
+                                     FixedString<product_config::library_row_tail_capacity>& tail_out,
+                                     bool& group_row_out) const noexcept {
+            title_out.clear();
+            subtitle_out.clear();
+            tail_out.clear();
+            group_row_out = false;
 
-            const std::size_t count = list_order.size();
-            (void)list_rows.resize(count);
-            for (std::size_t i = 0; i < count; ++i) {
-                auto& row = list_rows[i];
-                row.title.clear();
-                row.subtitle.clear();
-                row.tail.clear();
-                row.group_row = false;
-                const int track_index = list_order[i];
-                const auto* tracks = storage.tracks;
-                if (!tracks || track_index < 0 || track_index >= static_cast<int>(tracks->size())) {
-                    row.title.assign("Unknown Track");
-                    row.subtitle.assign("Track");
-                    continue;
-                }
-                const auto path = (*tracks)[static_cast<std::size_t>(track_index)].view();
-                const std::string_view stem = library_track_stem(path);
-                const std::string_view artist = library_artist_from_stem(stem);
-                const std::string_view title = library_title_from_stem(stem);
-                const std::string_view album = library_parent_folder(path);
-                std::string_view display_title{};
-                std::string_view display_subtitle{};
-                if (library_shows_group_rows()) {
-                    row.group_row = true;
-                    display_title = library_group_title_for_track(track_index);
-                    char buf[64]{};
-                    const bool is_current_group = library_group_row_is_current(static_cast<int>(i));
-                    format_library_group_summary(display_title, is_current_group, buf, sizeof(buf), false);
-                    row.title.assign(display_title.empty() ? std::string_view{"Library"} : display_title);
-                    row.subtitle.assign(buf);
-                    player::font_cache::ensure_text(row.title.view());
-                    player::font_cache::ensure_text(row.subtitle.view());
-                    continue;
-                }
-
-                switch (library_tab) {
-                case LibraryTab::Songs:
-                    display_title = title.empty() ? stem : title;
-                    if (!artist.empty() && !album.empty()) {
-                        char subtitle_buf[192]{};
-                        std::snprintf(subtitle_buf, sizeof(subtitle_buf), "%.*s / %.*s",
-                                      static_cast<int>(artist.size()), artist.data(),
-                                      static_cast<int>(album.size()), album.data());
-                        row.subtitle.assign(subtitle_buf);
-                        display_subtitle = row.subtitle.view();
-                    } else if (!artist.empty()) {
-                        display_subtitle = artist;
-                    } else if (!album.empty()) {
-                        display_subtitle = album;
-                    }
-                    break;
-                case LibraryTab::Albums:
-                    display_title = title.empty() ? (stem.empty() ? std::string_view{"Track"} : stem) : title;
-                    if (!artist.empty()) {
-                        display_subtitle = artist;
-                    }
-                    break;
-                case LibraryTab::Artists:
-                    display_title = title.empty() ? (stem.empty() ? std::string_view{"Track"} : stem) : title;
-                    if (!album.empty()) {
-                        display_subtitle = album;
-                    }
-                    break;
-                }
-
-                if (display_title.empty()) display_title = "Unknown Track";
-                if (library_looks_like_format(display_subtitle)) display_subtitle = {};
-                row.title.assign(display_title);
-                row.subtitle.assign(display_subtitle);
-                player::font_cache::ensure_text(row.title.view());
-                player::font_cache::ensure_text(row.subtitle.view());
+            const int track_index = list_index_to_track(row_index);
+            const auto* tracks = storage.tracks;
+            if (!tracks || track_index < 0 || track_index >= static_cast<int>(tracks->size())) {
+                title_out.assign("Unknown Track");
+                subtitle_out.assign("Track");
+                player::font_cache::ensure_text(title_out.view());
+                player::font_cache::ensure_text(subtitle_out.view());
+                return;
             }
-            rebuild_list_display_tails();
+
+            const auto path = (*tracks)[static_cast<std::size_t>(track_index)].view();
+            const std::string_view stem = library_track_stem(path);
+            const std::string_view artist = library_artist_from_stem(stem);
+            const std::string_view title = library_title_from_stem(stem);
+            const std::string_view album = library_parent_folder(path);
+            std::string_view display_title{};
+            std::string_view display_subtitle{};
+            if (library_shows_group_rows()) {
+                group_row_out = true;
+                display_title = library_group_title_for_track(track_index);
+                char buf[64]{};
+                const bool is_current_group = library_group_row_is_current(row_index);
+                format_library_group_summary(display_title, is_current_group, buf, sizeof(buf), false);
+                title_out.assign(display_title.empty() ? std::string_view{"Library"} : display_title);
+                subtitle_out.assign(buf);
+                player::font_cache::ensure_text(title_out.view());
+                player::font_cache::ensure_text(subtitle_out.view());
+                return;
+            }
+
+            switch (library_tab) {
+            case LibraryTab::Songs:
+                display_title = title.empty() ? stem : title;
+                if (!artist.empty() && !album.empty()) {
+                    char subtitle_buf[192]{};
+                    std::snprintf(subtitle_buf, sizeof(subtitle_buf), "%.*s / %.*s",
+                                  static_cast<int>(artist.size()), artist.data(),
+                                  static_cast<int>(album.size()), album.data());
+                    subtitle_out.assign(subtitle_buf);
+                    display_subtitle = subtitle_out.view();
+                } else if (!artist.empty()) {
+                    display_subtitle = artist;
+                } else if (!album.empty()) {
+                    display_subtitle = album;
+                }
+                break;
+            case LibraryTab::Albums:
+                display_title = title.empty() ? (stem.empty() ? std::string_view{"Track"} : stem) : title;
+                if (!artist.empty()) {
+                    display_subtitle = artist;
+                }
+                break;
+            case LibraryTab::Artists:
+                display_title = title.empty() ? (stem.empty() ? std::string_view{"Track"} : stem) : title;
+                if (!album.empty()) {
+                    display_subtitle = album;
+                }
+                break;
+            }
+
+            if (display_title.empty()) display_title = "Unknown Track";
+            if (library_looks_like_format(display_subtitle)) display_subtitle = {};
+            title_out.assign(display_title);
+            if (subtitle_out.empty()) {
+                subtitle_out.assign(display_subtitle);
+            }
+            format_library_row_tail(tail_out, track_index);
+            player::font_cache::ensure_text(title_out.view());
+            player::font_cache::ensure_text(subtitle_out.view());
+        }
+
+        void rebuild_list_display_cache() {
+            list_row_title_scratch.clear();
+            list_row_subtitle_scratch.clear();
+            list_row_tail_scratch.clear();
         }
 
         int list_index_to_track(int list_index) const noexcept {
@@ -2351,7 +2296,7 @@
             auto* self = static_cast<const PlayerController*>(ctx);
             if (!self) return "";
             const auto row = self->make_library_row_recipe(static_cast<int>(index));
-            if (row.model) {
+            if (!row.title().empty()) {
                 return row.title_c_str();
             }
             const int track_index = self->list_index_to_track(static_cast<int>(index));
@@ -2365,7 +2310,7 @@
             auto* self = static_cast<const PlayerController*>(ctx);
             if (!self) return "";
             const auto row = self->make_library_row_recipe(static_cast<int>(index));
-            if (row.model) {
+            if (!row.subtitle().empty()) {
                 return row.subtitle_c_str();
             }
             const int track_index = self->list_index_to_track(static_cast<int>(index));
@@ -2389,7 +2334,7 @@
             } else if (row.current_row) {
                 return self->library_current_group_state_text();
             }
-            if (row.model) {
+            if (!row.tail().empty()) {
                 return row.tail_c_str();
             }
             const int track_index = self->list_index_to_track(static_cast<int>(index));
@@ -2437,7 +2382,7 @@
             if (!row.prefer_cover) {
                 return row.fallback_icon;
             }
-            const auto cover_id = self->resolve_list_cover_icon(row.track_path, row.cover_path);
+            const auto cover_id = self->resolve_list_cover_icon(row.track_path);
             if (::ui::scene::image_id_valid(cover_id)) return cover_id;
             return row.fallback_icon;
         }
@@ -2477,32 +2422,15 @@
             return !out_path.empty();
         }
 
-        void build_list_cover_paths() {
-            list_cover_paths.clear();
-            const auto* tracks = storage.tracks;
-            if (!tracks) return;
-            const std::size_t count = tracks->size();
-            for (std::size_t i = 0; i < count; ++i) {
-                FixedString<260> cover_path;
-                const auto& track_path = (*tracks)[i];
-                cover_path.assign(track_path.view());
-                if (!list_cover_paths.push_back(cover_path)) {
-                    break;
-                }
-            }
-        }
-
         ::ui::scene::ImageId resolve_list_cover_icon(std::string_view track_path,
-                                                     std::string_view cover_path_view) {
+                                                     std::string_view cover_path_view = {}) {
             if (!covers_enabled() || list_cover_cache_entries == 0) {
                 return ::ui::scene::invalid_image_id();
             }
             FixedString<260> cover_path;
             if (!cover_path_view.empty()) {
                 cover_path.assign(cover_path_view);
-            } else if (!track_path.empty()) {
-                cover_path.assign(track_path);
-            } else {
+            } else if (!resolve_cover_path_for_track(track_path, cover_path)) {
                 return ::ui::scene::invalid_image_id();
             }
             if (!library_allows_cover_request(track_path, cover_path.view())) {
@@ -2874,7 +2802,6 @@
             clear_list_cover_cache();
             reset_track_duration_cache();
             refresh_track_labels();
-            build_list_cover_paths();
             refresh_home_collage_if_active(true);
             if (fs_ready && !font_retry_done && !font_ttf_path.empty()) {
                 rebind_player_fonts();

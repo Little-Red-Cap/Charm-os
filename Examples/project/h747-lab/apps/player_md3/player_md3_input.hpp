@@ -2,14 +2,9 @@
 
 #include <cstdint>
 
-namespace h747::apps::player_md3 {
+#include "capabilities/input.hpp"
 
-enum class PlayerMd3PointerAction : std::uint8_t {
-    Down,
-    Move,
-    Up,
-    Cancel,
-};
+namespace h747::apps::player_md3 {
 
 enum class PlayerMd3InputCommand : std::uint8_t {
     Up,
@@ -23,13 +18,12 @@ enum class PlayerMd3InputCommand : std::uint8_t {
     Mode,
 };
 
-struct PlayerMd3PointerEvent {
-    std::uint32_t ms{0};
-    PlayerMd3PointerAction action{PlayerMd3PointerAction::Move};
-    bool down{false};
-    float x{0.0f};
-    float y{0.0f};
-    std::uint8_t id{0};
+enum class PlayerMd3InputRouteSource : std::uint8_t {
+    Unknown = 0,
+    Console,
+    Touch,
+    Encoder,
+    Button,
 };
 
 struct PlayerMd3InputSnapshot {
@@ -45,9 +39,13 @@ struct PlayerMd3InputSnapshot {
 };
 
 void init_input_bridge() noexcept;
+[[nodiscard]] bool reprobe_input_bridge() noexcept;
 void poll_input_bridge() noexcept;
-void dispatch_runtime_pointer(PlayerMd3PointerEvent event) noexcept;
+void dispatch_runtime_pointer(charm::cap::PointerEvent event) noexcept;
 void dispatch_runtime_command(std::uint32_t ms, PlayerMd3InputCommand command) noexcept;
+void reset_input_route_evidence() noexcept;
+void record_input_route(PlayerMd3InputRouteSource source, PlayerMd3InputCommand command) noexcept;
+void record_input_route(PlayerMd3InputRouteSource source, charm::cap::PointerAction action) noexcept;
 void record_input_bridge_init(std::uint8_t touch_probe_ok, PlayerMd3InputSnapshot snapshot) noexcept;
 void record_input_bridge_poll(PlayerMd3InputSnapshot snapshot) noexcept;
 void record_input_touch_event() noexcept;

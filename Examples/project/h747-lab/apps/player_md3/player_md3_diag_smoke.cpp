@@ -1,7 +1,7 @@
+#include <cstdint>
+
 #include "display_raster.h"
 #include "player_md3_diag.hpp"
-
-#include <cstdint>
 
 namespace h747::apps::player_md3 {
 

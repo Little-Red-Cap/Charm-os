@@ -7,4 +7,6 @@ set(H747_LAB_PROFILE_SERVICES
     power
     memory
     display_raster
+    storage
+    audio
     input)

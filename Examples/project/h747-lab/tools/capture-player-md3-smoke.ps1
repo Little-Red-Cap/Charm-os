@@ -5,7 +5,10 @@ param(
     [string]$Target = "stm32h747xihx",
     [string]$Frequency = "1000k",
     [int]$TimeoutSeconds = 120,
-    [string]$Log = ""
+    [string]$Log = "",
+    [switch]$ResourceSmoke,
+    [switch]$InputSmoke,
+    [switch]$PlaybackSmoke
 )
 
 $ErrorActionPreference = "Stop"
@@ -33,11 +36,54 @@ $RequiredTokens = @(
     "co=0",
     "to=0"
 )
+$ResourceTokens = @(
+    "fs=",
+    "font=",
+    "cover=",
+    "media="
+)
+$InputSmokeTokens = @(
+    "input_smoke="
+)
+$PlaybackSmokeTokens = @(
+    "playback=",
+    "playback_smoke="
+)
+$StrictFields = @(
+    "delta",
+    "display",
+    "sdram1",
+    "rt_store",
+    "boot",
+    "render",
+    "frames",
+    "present",
+    "content",
+    "input",
+    "t",
+    "e",
+    "p_src",
+    "p_dst",
+    "front",
+    "back",
+    "lfb",
+    "lpf",
+    "bytes"
+)
 
 $LogWriter = $null
 $Serial = $null
 $MatchedLine = $null
+$ResourceMatchedLine = $null
+$InputMatchedLine = $null
+$PlaybackMatchedLine = $null
+$PlaybackFailedLine = $null
 $FailureReason = $null
+$LastSmokeFailure = $null
+$NeedResourceSmoke = $ResourceSmoke.IsPresent -or $PlaybackSmoke.IsPresent
+$NeedInputSmoke = $InputSmoke.IsPresent
+$NeedPlaybackSmoke = $PlaybackSmoke.IsPresent
+$PlaybackResourceFailure = $null
 
 function Write-CaptureLine {
     param([string]$Line)
@@ -46,14 +92,453 @@ function Write-CaptureLine {
     Write-Host $Line
 }
 
+function Write-CaptureText {
+    param([string]$Text)
+    if ([string]::IsNullOrEmpty($Text)) {
+        return
+    }
+    $LogWriter.Write($Text)
+    $LogWriter.Flush()
+    Write-Host -NoNewline $Text
+}
+
+function Send-SerialLineSlow {
+    param(
+        [System.IO.Ports.SerialPort]$SerialPort,
+        [string]$Line,
+        [int]$EchoTimeoutMilliseconds = 30000
+    )
+
+    $EchoCapture = New-Object System.Text.StringBuilder
+    foreach ($Ch in ($Line.ToCharArray())) {
+        $SerialPort.Write([string]$Ch)
+        $Deadline = [DateTime]::UtcNow.AddMilliseconds($EchoTimeoutMilliseconds)
+        $Echoed = $false
+        while ([DateTime]::UtcNow -lt $Deadline) {
+            $Chunk = $SerialPort.ReadExisting()
+            if ($Chunk.Length -gt 0) {
+                [void]$EchoCapture.Append($Chunk)
+                Write-CaptureText $Chunk
+                if ($Chunk.Contains([string]$Ch)) {
+                    $Echoed = $true
+                    break
+                }
+            }
+            Start-Sleep -Milliseconds 50
+        }
+        if (-not $Echoed) {
+            throw "Timed out waiting for command character echo: '$Ch'"
+        }
+    }
+    $SerialPort.Write("`r")
+    $LineDeadline = [DateTime]::UtcNow.AddMilliseconds($EchoTimeoutMilliseconds)
+    while ([DateTime]::UtcNow -lt $LineDeadline) {
+        $Chunk = $SerialPort.ReadExisting()
+        if ($Chunk.Length -gt 0) {
+            [void]$EchoCapture.Append($Chunk)
+            Write-CaptureText $Chunk
+            if (($Chunk.Contains("`n")) -or ($Chunk.Contains("`r"))) {
+                break
+            }
+        }
+        Start-Sleep -Milliseconds 50
+    }
+}
+
+function Drain-SerialUntilPrompt {
+    param(
+        [System.IO.Ports.SerialPort]$SerialPort,
+        [DateTime]$Deadline
+    )
+
+    $Capture = New-Object System.Text.StringBuilder
+    while ([DateTime]::UtcNow -lt $Deadline) {
+        $Chunk = $SerialPort.ReadExisting()
+        if ($Chunk.Length -gt 0) {
+            [void]$Capture.Append($Chunk)
+            Write-CaptureText $Chunk
+            if ($Capture.ToString() -like "*h747-player-md3>*") {
+                return $true
+            }
+        }
+        Start-Sleep -Milliseconds 50
+    }
+    return $false
+}
+
 function Test-SmokeLine {
     param([string]$Line)
-    foreach ($Token in $RequiredTokens) {
+    return $null -eq (Get-SmokeLineFailureReason -Line $Line)
+}
+
+function Test-ResourceLine {
+    param([string]$Line)
+    foreach ($Token in $ResourceTokens) {
         if ($Line -notlike "*$Token*") {
             return $false
         }
     }
     return $true
+}
+
+function Get-PlaybackResourceFailureReason {
+    param([string]$Line)
+    $Fields = Get-StatusFields -Line $Line
+    foreach ($Token in $ResourceTokens) {
+        $Key = $Token.TrimEnd("=")
+        if (-not $Fields.ContainsKey($Key)) {
+            return "missing resource field: $Key"
+        }
+    }
+
+    $Fs = $Fields["fs"]
+    if ($Fs -notmatch "^([0-9]+)/([0-9]+)/([0-9]+)/(-?[0-9]+)$") {
+        return "fs shape invalid: $Fs"
+    }
+    $FsMount = [uint64]$Matches[1]
+    $FsTracks = [uint64]$Matches[2]
+    $FsHasTracks = [uint64]$Matches[3]
+    $FsErr = [int64]$Matches[4]
+    if (($FsMount -ne 1) -or ($FsTracks -eq 0) -or ($FsHasTracks -ne 1) -or ($FsErr -ne 0)) {
+        return "playback requires fs=1/<n>/1/0 with n>0; got fs=$Fs"
+    }
+
+    $Font = $Fields["font"]
+    if ($Font -notmatch "^([0-9]+)/([0-9]+)/([0-9]+)/(-?[0-9]+)$") {
+        return "font shape invalid: $Font"
+    }
+    $FontPrimary = [uint64]$Matches[1]
+    $FontFallback = [uint64]$Matches[2]
+    $FontErr = [int64]$Matches[4]
+    if (($FontPrimary -ne 1) -or ($FontFallback -ne 1) -or ($FontErr -ne 0)) {
+        return "playback requires font=1/1/*/0; got font=$Font"
+    }
+
+    $Media = $Fields["media"]
+    if ($Media -notmatch "^([0-9]+)/([0-9]+)/([0-9]+)/(-?[0-9]+)$") {
+        return "media shape invalid: $Media"
+    }
+    $MediaOpen = [uint64]$Matches[1]
+    $MediaReady = [uint64]$Matches[3]
+    $MediaErr = [int64]$Matches[4]
+    if (($MediaOpen -ne 1) -or ($MediaReady -ne 1) -or ($MediaErr -ne 0)) {
+        return "playback requires media=1/*/1/0; got media=$Media"
+    }
+
+    $Cover = $Fields["cover"]
+    if ($Cover -notmatch "^([0-9]+)/([0-9]+)/([0-9]+)x([0-9]+)/(-?[0-9]+)$") {
+        return "cover shape invalid: $Cover"
+    }
+
+    return $null
+}
+
+function Test-InputSmokeLine {
+    param([string]$Line)
+    foreach ($Token in $InputSmokeTokens) {
+        if ($Line -notlike "*$Token*") {
+            return $false
+        }
+    }
+    $Fields = Get-StatusFields -Line $Line
+    if (-not $Fields.ContainsKey("input_smoke")) {
+        return $false
+    }
+    $Value = $Fields["input_smoke"]
+    if ($Value -notmatch "^([0-9]+)/([0-9]+)/([0-9]+)-([0-9]+)/([0-9]+)/([0-9]+)$") {
+        return $false
+    }
+    $Ok = [uint64]$Matches[1]
+    $Cmds = [uint64]$Matches[2]
+    $Before = [uint64]$Matches[3]
+    $After = [uint64]$Matches[4]
+    $Frames = [uint64]$Matches[5]
+    $ExecFail = [uint64]$Matches[6]
+    if (($Ok -ne 1) -or ($Cmds -lt 8) -or ($After -le $Before) -or
+        ($Frames -eq 0) -or ($ExecFail -ne 0)) {
+        return $false
+    }
+
+    if (-not $Fields.ContainsKey("input_route")) {
+        return $false
+    }
+    $Route = $Fields["input_route"]
+    if ($Route -notmatch "^([0-9]+)/([0-9]+)/([0-9]+)/([0-9]+)@([0-9]+)/([0-9]+)/([0-9]+)$") {
+        return $false
+    }
+    $Console = [uint64]$Matches[1]
+    $LastSource = [uint64]$Matches[5]
+    $LastKind = [uint64]$Matches[6]
+    $LastCode = [uint64]$Matches[7]
+    return (($Console -ge $Cmds) -and ($LastSource -eq 1) -and
+        ($LastKind -eq 1) -and ($LastCode -eq 4))
+}
+
+function Test-PlaybackSmokeLine {
+    param([string]$Line)
+    foreach ($Token in $PlaybackSmokeTokens) {
+        if ($Line -notlike "*$Token*") {
+            return $false
+        }
+    }
+    $Fields = Get-StatusFields -Line $Line
+    if (-not $Fields.ContainsKey("playback_smoke")) {
+        return $false
+    }
+    $Value = $Fields["playback_smoke"]
+    if ($Value -notmatch "^([0-9]+)/([0-9]+)-([0-9]+)/([0-9]+)/([0-9]+)/(-?[0-9]+)/(-?[0-9]+)$") {
+        return $false
+    }
+    $Ok = [uint64]$Matches[1]
+    $Before = [uint64]$Matches[2]
+    $After = [uint64]$Matches[3]
+    $Frames = [uint64]$Matches[4]
+    $SawPlaying = [uint64]$Matches[5]
+    $Stage = [int64]$Matches[6]
+    $Err = [int64]$Matches[7]
+    return (($Ok -eq 1) -and ($After -gt $Before) -and ($Frames -gt 0) -and
+        ($SawPlaying -eq 1) -and ($Stage -eq 0) -and ($Err -eq 0))
+}
+
+function Test-HasPlaybackSmokeField {
+    param([string]$Line)
+    $Fields = Get-StatusFields -Line $Line
+    return $Fields.ContainsKey("playback_smoke")
+}
+
+function Get-InputSmokeSummary {
+    param([string]$Line)
+    $Fields = Get-StatusFields -Line $Line
+    if (-not $Fields.ContainsKey("input_smoke")) {
+        return "missing input_smoke field"
+    }
+    $Value = $Fields["input_smoke"]
+    if ($Value -notmatch "^([0-9]+)/([0-9]+)/([0-9]+)-([0-9]+)/([0-9]+)/([0-9]+)$") {
+        return "input_smoke shape invalid: $Value"
+    }
+    $Ok = [uint64]$Matches[1]
+    $Cmds = [uint64]$Matches[2]
+    $Before = [uint64]$Matches[3]
+    $After = [uint64]$Matches[4]
+    $Frames = [uint64]$Matches[5]
+    $ExecFail = [uint64]$Matches[6]
+    $Delta = $After - $Before
+    $RouteSummary = "input_route=missing"
+    if ($Fields.ContainsKey("input_route")) {
+        $Route = $Fields["input_route"]
+        if ($Route -match "^([0-9]+)/([0-9]+)/([0-9]+)/([0-9]+)@([0-9]+)/([0-9]+)/([0-9]+)$") {
+            $RouteSummary = "input_route=console$($Matches[1]) touch$($Matches[2]) encoder$($Matches[3]) button$($Matches[4]) last=$($Matches[5])/$($Matches[6])/$($Matches[7])"
+        } else {
+            $RouteSummary = "input_route=invalid:$Route"
+        }
+    }
+    return "input_smoke=ok$Ok cmds=$Cmds events_delta=$Delta frames=$Frames exec_fail=$ExecFail $RouteSummary"
+}
+
+function Get-PlaybackSmokeSummary {
+    param([string]$Line)
+    $Fields = Get-StatusFields -Line $Line
+    if (-not $Fields.ContainsKey("playback_smoke")) {
+        return "missing playback_smoke field"
+    }
+    $Value = $Fields["playback_smoke"]
+    if ($Value -notmatch "^([0-9]+)/([0-9]+)-([0-9]+)/([0-9]+)/([0-9]+)/(-?[0-9]+)/(-?[0-9]+)$") {
+        return "playback_smoke shape invalid: $Value"
+    }
+    $Ok = [uint64]$Matches[1]
+    $Before = [uint64]$Matches[2]
+    $After = [uint64]$Matches[3]
+    $Frames = [uint64]$Matches[4]
+    $SawPlaying = [uint64]$Matches[5]
+    $Stage = [int64]$Matches[6]
+    $Err = [int64]$Matches[7]
+    $Delta = $After - $Before
+    return "playback_smoke=ok$Ok callbacks_delta=$Delta frames=$Frames saw_playing=$SawPlaying stage=$Stage err=$Err"
+}
+
+function Get-ResourceSummary {
+    param([string]$Line)
+    $Fields = Get-StatusFields -Line $Line
+    foreach ($Token in $ResourceTokens) {
+        $Key = $Token.TrimEnd("=")
+        if (-not $Fields.ContainsKey($Key)) {
+            return "missing resource field: $Key"
+        }
+    }
+
+    $Fs = $Fields["fs"]
+    $Font = $Fields["font"]
+    $Cover = $Fields["cover"]
+    $Media = $Fields["media"]
+
+    if ($Fs -notmatch "^([0-9]+)/([0-9]+)/([0-9]+)/(-?[0-9]+)$") {
+        return "resource fields present; fs shape invalid: $Fs"
+    }
+    $FsMount = [uint64]$Matches[1]
+    $FsTracks = [uint64]$Matches[2]
+    $FsHasTracks = [uint64]$Matches[3]
+    $FsErr = [int64]$Matches[4]
+
+    if ($Font -notmatch "^([0-9]+)/([0-9]+)/([0-9]+)/(-?[0-9]+)$") {
+        return "resource fields present; font shape invalid: $Font"
+    }
+    $FontPrimary = [uint64]$Matches[1]
+    $FontFallback = [uint64]$Matches[2]
+    $FontErr = [int64]$Matches[4]
+
+    if ($Cover -notmatch "^([0-9]+)/([0-9]+)/([0-9]+)x([0-9]+)/(-?[0-9]+)$") {
+        return "resource fields present; cover shape invalid: $Cover"
+    }
+    $CoverFound = [uint64]$Matches[1]
+    $CoverDecoded = [uint64]$Matches[2]
+    $CoverW = [uint64]$Matches[3]
+    $CoverH = [uint64]$Matches[4]
+    $CoverErr = [int64]$Matches[5]
+
+    if ($Media -notmatch "^([0-9]+)/([0-9]+)/([0-9]+)/(-?[0-9]+)$") {
+        return "resource fields present; media shape invalid: $Media"
+    }
+    $MediaOpen = [uint64]$Matches[1]
+    $MediaDuration = [uint64]$Matches[2]
+    $MediaReady = [uint64]$Matches[3]
+    $MediaErr = [int64]$Matches[4]
+
+    $StorageState = if ($FsMount -eq 1) { "mounted" } else { "not-mounted(err=$FsErr)" }
+    $TrackState = if (($FsTracks -gt 0) -and ($FsHasTracks -eq 1)) { "tracks=$FsTracks" } else { "no-tracks" }
+    $FontState = if (($FontPrimary -eq 1) -and ($FontFallback -eq 1) -and ($FontErr -eq 0)) {
+        "fonts-present"
+    } else {
+        "fonts-missing(err=$FontErr)"
+    }
+    $MediaState = if (($MediaOpen -eq 1) -and ($MediaReady -eq 1) -and ($MediaErr -eq 0)) {
+        if ($MediaDuration -eq 1) { "media-ready+duration" } else { "media-ready(no-duration)" }
+    } else {
+        "media-missing(err=$MediaErr)"
+    }
+    $CoverState = if (($CoverFound -eq 1) -and ($CoverDecoded -eq 1) -and ($CoverW -gt 0) -and ($CoverH -gt 0) -and ($CoverErr -eq 0)) {
+        "cover-ready(${CoverW}x${CoverH})"
+    } elseif ($CoverFound -eq 1) {
+        "cover-found-decode-failed(err=$CoverErr)"
+    } else {
+        "cover-missing(err=$CoverErr)"
+    }
+
+    $Populated = (($FsMount -eq 1) -and ($FsTracks -gt 0) -and ($FsHasTracks -eq 1) -and
+        ($FontPrimary -eq 1) -and ($FontFallback -eq 1) -and
+        ($MediaOpen -eq 1) -and ($MediaReady -eq 1))
+    $Mode = if ($Populated) { "populated" } else { "empty-or-missing" }
+    return "resource=$Mode fs=$StorageState $TrackState font=$FontState media=$MediaState cover=$CoverState"
+}
+
+function Get-StatusFields {
+    param([string]$Line)
+    $Fields = @{}
+    foreach ($Part in ($Line -split "\s+")) {
+        $Equals = $Part.IndexOf("=")
+        if ($Equals -le 0) {
+            continue
+        }
+        $Key = $Part.Substring(0, $Equals)
+        $Value = $Part.Substring($Equals + 1)
+        $Fields[$Key] = $Value
+    }
+    return ,$Fields
+}
+
+function Test-DecimalPairNonZero {
+    param(
+        [string]$Value,
+        [string]$Name
+    )
+    if ($Value -notmatch "^([0-9]+)/([0-9]+)$") {
+        return "${Name} must have <a>/<b> decimal shape"
+    }
+    if (([uint64]$Matches[1] -eq 0) -or ([uint64]$Matches[2] -eq 0)) {
+        return "${Name} values must both be non-zero"
+    }
+    return $null
+}
+
+function Test-DecimalGreaterThanZero {
+    param(
+        [string]$Value,
+        [string]$Name
+    )
+    if ($Value -notmatch "^[0-9]+$") {
+        return "${Name} must be decimal"
+    }
+    if ([uint64]$Value -eq 0) {
+        return "${Name} must be greater than zero"
+    }
+    return $null
+}
+
+function Test-ContentField {
+    param([string]$Value)
+    if ($Value -notmatch "^0x[0-9A-Fa-f]+:([0-9]+)@[0-9]+,[0-9]+-[0-9]+,[0-9]+$") {
+        return "content must have <bg>:<non_bg>@<min>-<max> shape"
+    }
+    if ([uint64]$Matches[1] -eq 0) {
+        return "content non-background pixel count must be greater than zero"
+    }
+    return $null
+}
+
+function Test-InputFields {
+    param([hashtable]$Fields)
+    if ($Fields["input"] -notmatch "^[0-9]+/[0-9]+$") {
+        return "input must have <polls>/<events> shape"
+    }
+    if ($Fields["t"] -notmatch "^[0-9]+/[0-9]+/[0-9]+@[0-9]+,[0-9]+$") {
+        return "t must have <probe>/<ready>/<down>@<x>,<y> shape"
+    }
+    if ($Fields["e"] -notmatch "^[0-9]+/[0-9]+/[0-9]+$") {
+        return "e must have <touch>/<encoder>/<button> shape"
+    }
+    if ($Fields.ContainsKey("input_route") -and
+        ($Fields["input_route"] -notmatch "^[0-9]+/[0-9]+/[0-9]+/[0-9]+@[0-9]+/[0-9]+/[0-9]+$")) {
+        return "input_route must have <console>/<touch>/<encoder>/<button>@<src>/<kind>/<code> shape"
+    }
+    return $null
+}
+
+function Get-SmokeLineFailureReason {
+    param([string]$Line)
+    if ($Line -notmatch "^player_md3(\.loop)?\s") {
+        return "line is not a player_md3 status line"
+    }
+    foreach ($Token in $RequiredTokens) {
+        if ($Line -notlike "*$Token*") {
+            return "missing token: $Token"
+        }
+    }
+
+    $Fields = Get-StatusFields -Line $Line
+    foreach ($Field in $StrictFields) {
+        if (-not $Fields.ContainsKey($Field)) {
+            return "missing field: $Field"
+        }
+    }
+
+    $Reason = Test-DecimalPairNonZero -Value $Fields["delta"] -Name "delta"
+    if ($null -ne $Reason) { return $Reason }
+    $Reason = Test-DecimalGreaterThanZero -Value $Fields["frames"] -Name "frames"
+    if ($null -ne $Reason) { return $Reason }
+    $Reason = Test-DecimalGreaterThanZero -Value $Fields["present"] -Name "present"
+    if ($null -ne $Reason) { return $Reason }
+    if ($Fields["display"] -ne "1") { return "display must be 1" }
+    if ($Fields["sdram1"] -ne "1/1") { return "sdram1 must be 1/1" }
+    if ($Fields["rt_store"] -ne "1") { return "rt_store must be 1" }
+    if ($Fields["boot"] -ne "1") { return "boot must be 1" }
+    if ($Fields["render"] -ne "1") { return "render must be 1" }
+    if ($Fields["bytes"] -ine "0x00384000") { return "bytes must be 0x00384000" }
+
+    $Reason = Test-ContentField -Value $Fields["content"]
+    if ($null -ne $Reason) { return $Reason }
+    $Reason = Test-InputFields -Fields $Fields
+    if ($null -ne $Reason) { return $Reason }
+
+    return $null
 }
 
 try {
@@ -69,6 +554,9 @@ try {
     Write-CaptureLine "  target:    $Target"
     Write-CaptureLine "  frequency: $Frequency"
     Write-CaptureLine "  timeout:   ${TimeoutSeconds}s"
+    Write-CaptureLine "  resource:  $NeedResourceSmoke"
+    Write-CaptureLine "  input:     $NeedInputSmoke"
+    Write-CaptureLine "  playback:  $NeedPlaybackSmoke"
     Write-CaptureLine "  log:       $ResolvedLog"
     Write-CaptureLine ""
 
@@ -135,14 +623,132 @@ try {
             }
 
             Write-CaptureLine $Line
-            if (Test-SmokeLine $Line) {
+            $SmokeFailure = Get-SmokeLineFailureReason -Line $Line
+            if ($null -eq $SmokeFailure) {
                 $MatchedLine = $Line
-                break
+                if (-not $NeedResourceSmoke -and -not $NeedInputSmoke -and -not $NeedPlaybackSmoke) {
+                    break
+                }
+                if (Test-ResourceLine $Line) {
+                    $ResourceMatchedLine = $Line
+                    if ($NeedPlaybackSmoke) {
+                        $PlaybackResourceFailure = Get-PlaybackResourceFailureReason -Line $Line
+                    }
+                    if (-not $NeedInputSmoke -and -not $NeedPlaybackSmoke) {
+                        break
+                    }
+                }
+                if (Test-InputSmokeLine $Line) {
+                    $InputMatchedLine = $Line
+                    if (-not $NeedPlaybackSmoke) {
+                        break
+                    }
+                }
+                if (Test-PlaybackSmokeLine $Line) {
+                    $PlaybackMatchedLine = $Line
+                    if (-not $NeedInputSmoke -or ($null -ne $InputMatchedLine)) {
+                        break
+                    }
+                }
+            } elseif ($Line -like "player_md3*") {
+                $LastSmokeFailure = $SmokeFailure
+            }
+
+            if ($NeedInputSmoke -and ($null -ne $MatchedLine) -and ($null -eq $InputMatchedLine)) {
+                # MD3 rendering is heavy enough that the board-side polled UART RX path can
+                # overrun when a full command line is sent at host speed. Wait for the prompt
+                # when possible, then pace the command one byte at a time.
+                $PromptDeadline = [DateTime]::UtcNow.AddSeconds(5)
+                [void](Drain-SerialUntilPrompt -SerialPort $Serial -Deadline $PromptDeadline)
+                Write-CaptureLine "Injecting input smoke command..."
+                Send-SerialLineSlow -SerialPort $Serial -Line "input smoke"
+                $InputDeadline = [DateTime]::UtcNow.AddSeconds([Math]::Max(30, $TimeoutSeconds))
+                while ([DateTime]::UtcNow -lt $InputDeadline) {
+                    try {
+                        $InputLine = $Serial.ReadLine().TrimEnd("`r", "`n")
+                    } catch [System.TimeoutException] {
+                        continue
+                    }
+                    if ($InputLine.Length -eq 0) {
+                        continue
+                    }
+                    Write-CaptureLine $InputLine
+                    if ($null -ne (Get-SmokeLineFailureReason -Line $InputLine)) {
+                        continue
+                    }
+                    if (Test-InputSmokeLine $InputLine) {
+                        $InputMatchedLine = $InputLine
+                        break
+                    }
+                }
+                if (($null -ne $InputMatchedLine) -and (-not $NeedPlaybackSmoke)) {
+                    break
+                }
+            }
+
+            if ($NeedPlaybackSmoke -and ($null -ne $MatchedLine) -and
+                ($null -ne $ResourceMatchedLine) -and ($null -eq $PlaybackMatchedLine)) {
+                $PromptDeadline = [DateTime]::UtcNow.AddSeconds(5)
+                [void](Drain-SerialUntilPrompt -SerialPort $Serial -Deadline $PromptDeadline)
+                Write-CaptureLine "Injecting playback smoke command..."
+                Send-SerialLineSlow -SerialPort $Serial -Line "playback smoke"
+                $PlaybackDeadline = [DateTime]::UtcNow.AddSeconds([Math]::Max(60, $TimeoutSeconds))
+                while ([DateTime]::UtcNow -lt $PlaybackDeadline) {
+                    try {
+                        $PlaybackLine = $Serial.ReadLine().TrimEnd("`r", "`n")
+                    } catch [System.TimeoutException] {
+                        continue
+                    }
+                    if ($PlaybackLine.Length -eq 0) {
+                        continue
+                    }
+                    Write-CaptureLine $PlaybackLine
+                    if ($null -ne (Get-SmokeLineFailureReason -Line $PlaybackLine)) {
+                        continue
+                    }
+                    if (Test-ResourceLine $PlaybackLine) {
+                        $ResourceMatchedLine = $PlaybackLine
+                        $PlaybackResourceFailure = Get-PlaybackResourceFailureReason -Line $PlaybackLine
+                    }
+                    if (Test-PlaybackSmokeLine $PlaybackLine) {
+                        $PlaybackMatchedLine = $PlaybackLine
+                        break
+                    }
+                    if (Test-HasPlaybackSmokeField $PlaybackLine) {
+                        $PlaybackFailedLine = $PlaybackLine
+                        break
+                    }
+                }
+                if ($null -ne $PlaybackMatchedLine) {
+                    break
+                }
+                if ($null -ne $PlaybackFailedLine) {
+                    if ($null -ne $PlaybackResourceFailure) {
+                        $FailureReason = "playback resource precondition failed: $PlaybackResourceFailure; $(Get-PlaybackSmokeSummary -Line $PlaybackFailedLine)"
+                    } else {
+                        $FailureReason = "playback smoke command failed: $(Get-PlaybackSmokeSummary -Line $PlaybackFailedLine)"
+                    }
+                    break
+                }
             }
         }
 
         if ($null -eq $MatchedLine) {
-            $FailureReason = "timed out before matching a valid smoke line"
+            if ($null -ne $LastSmokeFailure) {
+                $FailureReason = "timed out before matching a valid smoke line; last failure: $LastSmokeFailure"
+            } else {
+                $FailureReason = "timed out before matching a valid smoke line"
+            }
+        } elseif ($null -ne $FailureReason) {
+            # Keep the more specific failure captured inside the command/state machine.
+        } elseif ($NeedResourceSmoke -and ($null -eq $ResourceMatchedLine)) {
+            $FailureReason = "timed out before matching resource smoke fields on a valid strict status line"
+        } elseif ($NeedInputSmoke -and ($null -eq $InputMatchedLine)) {
+            $FailureReason = "timed out before matching input smoke evidence on a valid strict status line"
+        } elseif ($NeedPlaybackSmoke -and ($null -ne $PlaybackResourceFailure)) {
+            $FailureReason = "playback resource precondition failed: $PlaybackResourceFailure"
+        } elseif ($NeedPlaybackSmoke -and ($null -eq $PlaybackMatchedLine)) {
+            $FailureReason = "timed out before matching playback smoke evidence on a valid strict status line"
         }
     }
 } finally {
@@ -157,10 +763,25 @@ try {
     }
 }
 
-if ($null -ne $MatchedLine) {
+if (($null -ne $MatchedLine) -and
+    ((-not $NeedResourceSmoke) -or ($null -ne $ResourceMatchedLine)) -and
+    ((-not $NeedInputSmoke) -or ($null -ne $InputMatchedLine)) -and
+    ((-not $NeedPlaybackSmoke) -or ($null -ne $PlaybackMatchedLine))) {
     Write-Host ""
     Write-Host "Smoke capture passed."
     Write-Host "Matched line: $MatchedLine"
+    if ($NeedResourceSmoke) {
+        Write-Host "Resource line: $ResourceMatchedLine"
+        Write-Host (Get-ResourceSummary -Line $ResourceMatchedLine)
+    }
+    if ($NeedInputSmoke) {
+        Write-Host "Input line: $InputMatchedLine"
+        Write-Host (Get-InputSmokeSummary -Line $InputMatchedLine)
+    }
+    if ($NeedPlaybackSmoke) {
+        Write-Host "Playback line: $PlaybackMatchedLine"
+        Write-Host (Get-PlaybackSmokeSummary -Line $PlaybackMatchedLine)
+    }
     Write-Host "Log: $Log"
     exit 0
 }

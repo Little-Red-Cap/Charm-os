@@ -1,14 +1,20 @@
+#include <cstddef>
+#include <cstdint>
+#include <new>
+#include <span>
+
 #include "console.h"
+#include "audio.h"
 #include "display_raster.h"
+#include "storage.h"
 #include "stm32h7xx_hal.h"
 #include "player_md3_runtime.hpp"
 #include "player_md3_console.hpp"
 #include "player_md3_diag.hpp"
 #include "player_md3_input.hpp"
 #include "player_md3_memory.hpp"
-
-#include <cstddef>
-#include <new>
+#include "player_md3_resource_probe.hpp"
+#include "port.h"
 
 import audio.player;
 import player.input;
@@ -16,6 +22,10 @@ import player.app;
 import player.platform;
 import player.storage;
 import player.ui;
+import fs_block;
+import fs_errno;
+import fs_stream;
+import util.core;
 
 namespace {
 
@@ -33,17 +43,122 @@ charm::system::ClockTick player_md3_now_us(void*) noexcept {
     return ::player::StorageConfig{};
 }
 
+fs::Status emmc_read(void*, util::u64 lba, std::span<util::u8> data) noexcept {
+    if (lba > 0xFFFFFFFFULL || data.empty()) {
+        return fs::Status{fs::Errc::inval};
+    }
+    return h747_storage_read_blocks(static_cast<std::uint32_t>(lba),
+                                    data.data(),
+                                    static_cast<std::uint32_t>(data.size())) != 0U
+        ? fs::Status{fs::Errc::ok}
+        : fs::Status{fs::Errc::io};
+}
+
+fs::Status emmc_write(void*, util::u64 lba, std::span<const util::u8> data) noexcept {
+    if (lba > 0xFFFFFFFFULL || data.empty()) {
+        return fs::Status{fs::Errc::inval};
+    }
+    return h747_storage_write_blocks(static_cast<std::uint32_t>(lba),
+                                     data.data(),
+                                     static_cast<std::uint32_t>(data.size())) != 0U
+        ? fs::Status{fs::Errc::ok}
+        : fs::Status{fs::Errc::rofs};
+}
+
+fs::Status emmc_erase(void*, util::u64, util::u64) noexcept {
+    return fs::Status{fs::Errc::notsup};
+}
+
+fs::Status emmc_flush(void*) noexcept {
+    return h747_storage_flush() != 0U ? fs::Status{fs::Errc::ok} : fs::Status{fs::Errc::io};
+}
+
+fs::BlockDevice* board_emmc_block_device() noexcept {
+    static fs::BlockDevice dev{};
+    const auto block_size = h747_storage_block_size();
+    const auto block_count = h747_storage_block_count();
+    if (block_size == 0U || block_count == 0U) {
+        return nullptr;
+    }
+    dev.ctx = nullptr;
+    dev.read = &emmc_read;
+    dev.write = &emmc_write;
+    dev.erase = &emmc_erase;
+    dev.flush = &emmc_flush;
+    dev.block_size = block_size;
+    dev.block_count = block_count;
+    dev.caps = (1U << 0U) | (1U << 3U);
+    return &dev;
+}
+
+void refresh_board_resource_state() noexcept {
+    const auto storage = h747_storage_state();
+    const auto audio = h747_audio_state();
+    auto& st = h747::apps::player_md3::state();
+    st.storage_attempted = storage.attempted;
+    st.storage_initialized = storage.initialized;
+    st.storage_ready = storage.ready;
+    st.storage_block_device_ready = storage.block_device_ready;
+    st.storage_fat_probe_ok = storage.fat_probe_ok;
+    st.storage_partition_auto = storage.partition_auto;
+    st.storage_init_status = storage.init_status;
+    st.storage_last_hal_status = storage.last_hal_status;
+    st.storage_last_error = storage.last_error;
+    st.storage_card_state = storage.card_state;
+    st.storage_block_size = storage.block_size;
+    st.storage_blocks = storage.exposed_block_count;
+    st.storage_part_lba = storage.partition_lba;
+    st.storage_reads = storage.read_count;
+    st.storage_read_fails = storage.read_fail_count;
+    st.storage_wait_timeouts = storage.wait_timeout_count;
+    st.storage_last_lba = storage.last_lba;
+    st.storage_last_count = storage.last_count;
+    st.storage_sta = storage.sta;
+    st.storage_selected_bus_width = storage.selected_bus_width;
+    st.storage_wide_status_8 = storage.wide_status_8;
+    st.storage_wide_status_4 = storage.wide_status_4;
+    st.storage_wide_status_1 = storage.wide_status_1;
+    st.audio_ready = audio.i2s_ready;
+    st.audio_dma_ready = audio.dma_ready;
+    st.audio_i2s_status = audio.i2s_status;
+    st.audio_dma_status = audio.dma_status;
+    st.audio_dma_half_count = audio.dma_half_count;
+    st.audio_dma_full_count = audio.dma_full_count;
+    st.audio_underrun_count = audio.underrun_count;
+}
+
+::player::StorageConfig board_storage_config() noexcept {
+    auto* block = board_emmc_block_device();
+    if (block == nullptr) {
+        refresh_board_resource_state();
+        return empty_storage_config();
+    }
+    ::player::init_storage(*block);
+    refresh_board_resource_state();
+    return ::player::storage_config();
+}
+
+float scale_coord(std::uint16_t value, std::uint16_t max_value, std::uint32_t extent) noexcept {
+    if (max_value <= 1U || extent == 0U) {
+        return static_cast<float>(value);
+    }
+
+    const auto clamped = static_cast<std::uint32_t>((value < max_value) ? value : (max_value - 1U));
+    return (static_cast<float>(clamped) * static_cast<float>(extent - 1U)) /
+           static_cast<float>(max_value - 1U);
+}
+
 ::player::PlayerPointerAction to_player_pointer_action(
-    const h747::apps::player_md3::PlayerMd3PointerAction action) noexcept {
-    using h747::apps::player_md3::PlayerMd3PointerAction;
+    const charm::cap::PointerAction action) noexcept {
+    using charm::cap::PointerAction;
     switch (action) {
-    case PlayerMd3PointerAction::Down:
+    case PointerAction::down:
         return ::player::PlayerPointerAction::Down;
-    case PlayerMd3PointerAction::Up:
+    case PointerAction::up:
         return ::player::PlayerPointerAction::Up;
-    case PlayerMd3PointerAction::Cancel:
+    case PointerAction::cancel:
         return ::player::PlayerPointerAction::Cancel;
-    case PlayerMd3PointerAction::Move:
+    case PointerAction::move:
     default:
         return ::player::PlayerPointerAction::Move;
     }
@@ -101,10 +216,19 @@ charm::system::Clock& clock_ref() noexcept {
 
     ::player::AppConfig app_cfg{};
     app_cfg.player_config = audio_cfg;
+    app_cfg.ui_policy.font_mode = ::player::PlayerUiFontMode::BuiltinOnly;
+    app_cfg.ui_policy.cover_mode = ::player::PlayerUiCoverMode::ResourceProviderOnly;
+    app_cfg.ui_policy.transition_mode = ::player::PlayerUiTransitionMode::StaticCut;
+    app_cfg.ui_policy.list_cover_cache_entries = 0;
+    app_cfg.ui_policy.enable_perf_overlay = false;
+    app_cfg.ui_resources.icon_pixel_arena = ::player::ui::PlayerIconPixelArena{
+        reinterpret_cast<std::byte*>(state().icon_pixel_arena),
+        state().icon_pixel_arena_bytes,
+    };
 
     return ::player::PlayerRuntimeConfig<::player::PlayerPage>{
         .app_config = app_cfg,
-        .storage_config = empty_storage_config(),
+        .storage_config = board_storage_config(),
         .start_page = ::player::PlayerPage::Home,
         .initial_track_index = 0,
         .auto_start = false,
@@ -152,17 +276,71 @@ void dispatch_player_input_event(const ::player::PlayerInputEvent& event) noexce
     ++state().input_events;
 }
 
-void dispatch_runtime_pointer(const PlayerMd3PointerEvent event) noexcept {
+void dispatch_runtime_pointer(const charm::cap::PointerEvent event) noexcept {
+    constexpr std::uint32_t kDisplayWidth = 720U;
+    constexpr std::uint32_t kDisplayHeight = 1280U;
+    const auto x = scale_coord(event.sample.x, event.sample.max_x, kDisplayWidth);
+    const auto y = scale_coord(event.sample.y, event.sample.max_y, kDisplayHeight);
     dispatch_player_input_event(::player::PlayerInputEvent::make_pointer(
-        event.ms,
+        h747::port::tick_ms(),
         to_player_pointer_action(event.action),
-        ::player::PlayerPointerSample{event.down, event.x, event.y, event.id}));
+        ::player::PlayerPointerSample{
+            event.sample.down,
+            x,
+            y,
+            event.sample.id,
+        }));
 }
 
 void dispatch_runtime_command(const std::uint32_t ms, const PlayerMd3InputCommand command) noexcept {
     dispatch_player_input_event(::player::PlayerInputEvent::make_command(
         ms,
         to_player_input_command(command)));
+}
+
+void reset_input_route_evidence() noexcept {
+    auto& st = state();
+    st.input_route_console_commands = 0U;
+    st.input_route_touch_pointers = 0U;
+    st.input_route_encoder_commands = 0U;
+    st.input_route_button_commands = 0U;
+    st.input_route_last_source = 0U;
+    st.input_route_last_kind = 0U;
+    st.input_route_last_code = 0U;
+}
+
+void record_input_route(const PlayerMd3InputRouteSource source,
+                        const PlayerMd3InputCommand command) noexcept {
+    auto& st = state();
+    switch (source) {
+    case PlayerMd3InputRouteSource::Console:
+        ++st.input_route_console_commands;
+        break;
+    case PlayerMd3InputRouteSource::Encoder:
+        ++st.input_route_encoder_commands;
+        break;
+    case PlayerMd3InputRouteSource::Button:
+        ++st.input_route_button_commands;
+        break;
+    case PlayerMd3InputRouteSource::Touch:
+    case PlayerMd3InputRouteSource::Unknown:
+    default:
+        break;
+    }
+    st.input_route_last_source = static_cast<std::uint8_t>(source);
+    st.input_route_last_kind = 1U;
+    st.input_route_last_code = static_cast<std::uint8_t>(command);
+}
+
+void record_input_route(const PlayerMd3InputRouteSource source,
+                        const charm::cap::PointerAction action) noexcept {
+    auto& st = state();
+    if (source == PlayerMd3InputRouteSource::Touch) {
+        ++st.input_route_touch_pointers;
+    }
+    st.input_route_last_source = static_cast<std::uint8_t>(source);
+    st.input_route_last_kind = 2U;
+    st.input_route_last_code = static_cast<std::uint8_t>(action);
 }
 
 void record_input_snapshot(const PlayerMd3InputSnapshot snapshot) noexcept {
@@ -201,18 +379,45 @@ void record_input_button_event() noexcept {
     ++state().input_button_events;
 }
 
+void refresh_playback_probe_state() noexcept {
+    auto& st = state();
+    auto* shell = shell_ref();
+    auto* app = shell ? shell->app() : nullptr;
+    const auto audio_state = h747_audio_state();
+    st.playback_dma_callbacks = audio_state.dma_half_count + audio_state.dma_full_count;
+    st.playback_underruns = audio_state.underrun_count;
+    st.playback_track_ready = controller_ref().track_ready() ? 1U : 0U;
+    if (!app) {
+        st.playback_player_state = 0U;
+        st.playback_running = 0U;
+        st.playback_last_error_stage = 0;
+        st.playback_last_error = 0;
+        return;
+    }
+    const auto& player = app->player();
+    st.playback_player_state = static_cast<std::uint8_t>(player.state());
+    st.playback_running = player.is_running() ? 1U : 0U;
+    st.playback_last_error_stage = static_cast<std::int32_t>(player.last_error_stage());
+    st.playback_last_error = static_cast<std::int32_t>(player.last_error());
+}
+
 bool render_frame() noexcept {
     auto* shell = shell_ref();
     if (shell == nullptr) {
         return false;
     }
     const bool ok = shell->frame(clock_ref().now_us());
+    refresh_board_resource_state();
+    if ((state().frames % 120U) == 0U) {
+        refresh_resource_probe_state();
+    }
     state().last_render_ok = ok;
     sample_render_surface();
     if (ok && ((state().frames < 2U) || ((state().frames % 30U) == 0U))) {
         sample_render_content_bounds();
     }
     sample_scene_stats();
+    refresh_playback_probe_state();
     if (ok) {
         ++state().frames;
     }
@@ -252,6 +457,7 @@ void init_runtime() noexcept {
     st.runtime_bootstrapped = g_shell->app() != nullptr;
     h747::console::write_line(st.runtime_bootstrapped ? "player_md3: bootstrap ok"
                                                       : "player_md3: bootstrap failed");
+    run_resource_probe_once();
     (void)render_frame();
     h747::console::write_line(st.last_render_ok ? "player_md3: first render ok"
                                                 : "player_md3: first render failed");

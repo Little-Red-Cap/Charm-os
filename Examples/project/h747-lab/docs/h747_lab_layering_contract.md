@@ -9,6 +9,12 @@ Its current role in the broader Charm roadmap is defined by
 real-board pressure field for the `RTE -> H747` platformization line, with
 `Display + Player` as the first host/board shared app semantics slice.
 
+If the current question is specifically "which Spine/RTE semantics should
+survive into H747 worlds, resident monitor surfaces, or future ELF ABI
+boundaries", continue with:
+
+- `docs/h747_lab_spine_migration_boundary.md`
+
 ## Build Contract
 
 - Configure from `Examples/project/h747-lab`.
@@ -48,10 +54,12 @@ For `h747_lab_player_md3`, this layering means:
 - `services/display` owns raster framebuffer presentation and LTDC-facing
   facts.
 - `services/input` owns GT970/GT9xx probing, I2C4 transport, encoder counters,
-  and button GPIO facts.
+  and button GPIO facts, and exposes typed input snapshots through
+  `input_service.hpp`.
 - `apps/player_md3` owns only the board-to-Player adapter: SDRAM render/runtime
   pool selection, `PlayerDisplaySurface` binding, `PlayerRuntimeShell`
-  lifecycle, `PlayerInputEvent` translation, and serial diagnostics.
+  lifecycle, translation from generic `InputFrame`/pointer/button observations
+  into `PlayerInputEvent`, and serial diagnostics.
 - `Examples/project/player/app-vivid-MaterialDesign3` remains the visual and
   controller source of truth. H747 Lab must not replace it with a separate
   board-only mock UI.
@@ -116,8 +124,8 @@ The first trial contracts are `Stream` and `Display`, documented in
 shaped and reviewed without touching DSI/LTDC, I2C4, or TIM internals.
 `player_md3` is the first real shared-Player vertical slice: it instantiates the
 desktop MD3 `PlayerRuntime`, renders into an SDRAM-backed external surface,
-presents through the raster display sink, and translates touch/encoder facts
-into Player semantic input.
+presents through the raster display sink, and translates generic
+touch/encoder facts from `input.service` into Player semantic input.
 `posix_lab` is the first board target for Charm POSIX/ELF evidence and should
 stay isolated from display and player policy.
 

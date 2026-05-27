@@ -3,6 +3,9 @@
 
 #include <cstdint>
 
+extern "C" DMA_HandleTypeDef hdma_usart1_tx;
+extern "C" DMA_HandleTypeDef hdma_usart1_rx;
+
 namespace {
 
 struct ExceptionFrame {
@@ -174,6 +177,12 @@ void SysTick_Handler(void) {
 }
 void USART1_IRQHandler(void) {
     HAL_UART_IRQHandler(&huart1);
+}
+void DMA1_Stream2_IRQHandler(void) {
+    HAL_DMA_IRQHandler(&hdma_usart1_tx);
+}
+void DMA1_Stream3_IRQHandler(void) {
+    HAL_DMA_IRQHandler(&hdma_usart1_rx);
 }
 
 __attribute__((weak)) void LTDC_IRQHandler(void) {}

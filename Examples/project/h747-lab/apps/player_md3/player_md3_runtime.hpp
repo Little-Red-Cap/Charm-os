@@ -1,9 +1,9 @@
 #pragma once
 
+#include <cstdint>
+
 #include "display_raster_service.hpp"
 #include "player_display_hal.hpp"
-
-#include <cstdint>
 
 import charm.system.clock;
 import player.controller;
@@ -27,6 +27,8 @@ struct PlayerMd3State {
     std::uintptr_t render_surface{0};
     std::uintptr_t platform_storage{0};
     std::uintptr_t runtime_storage{0};
+    std::uintptr_t icon_pixel_arena{0};
+    std::uint32_t icon_pixel_arena_bytes{0};
     std::uint32_t external_pool_bytes{0};
     std::uint32_t render_sample0{0};
     std::uint32_t render_sample_center{0};
@@ -69,6 +71,81 @@ struct PlayerMd3State {
     std::int16_t input_encoder2_delta{0};
     std::uint8_t input_encoder1_button{0};
     std::uint8_t input_encoder2_button{0};
+    std::uint8_t input_smoke_ok{0};
+    std::uint32_t input_smoke_cmds{0};
+    std::uint32_t input_smoke_before_events{0};
+    std::uint32_t input_smoke_after_events{0};
+    std::uint32_t input_smoke_frames{0};
+    std::uint32_t input_smoke_exec_fail{0};
+    std::uint32_t input_route_console_commands{0};
+    std::uint32_t input_route_touch_pointers{0};
+    std::uint32_t input_route_encoder_commands{0};
+    std::uint32_t input_route_button_commands{0};
+    std::uint8_t input_route_last_source{0};
+    std::uint8_t input_route_last_kind{0};
+    std::uint8_t input_route_last_code{0};
+    std::uint8_t storage_ready{0};
+    std::uint8_t storage_fat_probe_ok{0};
+    std::uint8_t storage_attempted{0};
+    std::uint8_t storage_initialized{0};
+    std::uint8_t storage_block_device_ready{0};
+    std::uint8_t storage_partition_auto{0};
+    std::uint8_t audio_ready{0};
+    std::uint8_t audio_dma_ready{0};
+    std::uint32_t storage_blocks{0};
+    std::uint32_t storage_part_lba{0};
+    std::uint32_t storage_reads{0};
+    std::uint32_t storage_read_fails{0};
+    std::uint32_t storage_init_status{0};
+    std::uint32_t storage_last_hal_status{0};
+    std::uint32_t storage_last_error{0};
+    std::uint32_t storage_card_state{0};
+    std::uint32_t storage_block_size{0};
+    std::uint32_t storage_wait_timeouts{0};
+    std::uint32_t storage_last_lba{0};
+    std::uint32_t storage_last_count{0};
+    std::uint32_t storage_sta{0};
+    std::uint32_t storage_selected_bus_width{0};
+    std::uint32_t storage_wide_status_8{0};
+    std::uint32_t storage_wide_status_4{0};
+    std::uint32_t storage_wide_status_1{0};
+    std::uint32_t audio_i2s_status{0};
+    std::uint32_t audio_dma_status{0};
+    std::uint32_t audio_dma_half_count{0};
+    std::uint32_t audio_dma_full_count{0};
+    std::uint32_t audio_underrun_count{0};
+    std::uint8_t resource_probe_done{0};
+    std::uint8_t fs_mount_ok{0};
+    std::uint8_t fs_has_tracks{0};
+    std::uint8_t font_primary_open{0};
+    std::uint8_t font_fallback_open{0};
+    std::uint8_t font_cache_ready{0};
+    std::uint8_t cover_folder_found{0};
+    std::uint8_t cover_decode_ok{0};
+    std::uint8_t media_first_open{0};
+    std::uint8_t media_duration_ok{0};
+    std::uint8_t media_track_ready{0};
+    std::uint32_t fs_track_count{0};
+    std::int32_t fs_mount_err{0};
+    std::int32_t font_err{0};
+    std::int32_t cover_err{0};
+    std::int32_t media_err{0};
+    std::uint32_t cover_width{0};
+    std::uint32_t cover_height{0};
+    std::uint8_t playback_player_state{0};
+    std::uint8_t playback_running{0};
+    std::uint8_t playback_track_ready{0};
+    std::uint32_t playback_dma_callbacks{0};
+    std::uint32_t playback_underruns{0};
+    std::int32_t playback_last_error_stage{0};
+    std::int32_t playback_last_error{0};
+    std::uint8_t playback_smoke_ok{0};
+    std::uint32_t playback_smoke_before_callbacks{0};
+    std::uint32_t playback_smoke_after_callbacks{0};
+    std::uint32_t playback_smoke_frames{0};
+    std::uint8_t playback_smoke_saw_playing{0};
+    std::int32_t playback_smoke_error_stage{0};
+    std::int32_t playback_smoke_error{0};
     std::uint32_t render_bg_pixel{0};
     std::uint32_t render_non_bg_pixels{0};
     std::uint32_t render_content_min_x{0};
@@ -90,5 +167,6 @@ charm::system::Clock& clock_ref() noexcept;
 void init_runtime() noexcept;
 void loop_runtime() noexcept;
 bool render_frame() noexcept;
+void refresh_playback_probe_state() noexcept;
 
 } // namespace h747::apps::player_md3

@@ -1,9 +1,11 @@
+#include <cstddef>
+#include <cstdint>
+
 #include "display_raster.h"
 #include "memory_probe.h"
 #include "player_md3_memory.hpp"
 
-#include <cstddef>
-#include <cstdint>
+import player.ui;
 
 namespace {
 
@@ -57,6 +59,8 @@ bool ensure_runtime_storage_ready() noexcept {
     cursor = align_up(platform_begin + sizeof(::player::PlayerPlatform), alignof(PlayerRuntime));
     const std::uintptr_t runtime_begin = cursor;
     cursor = align_up(runtime_begin + sizeof(PlayerRuntime), 32U);
+    const std::uintptr_t icon_arena_begin = cursor;
+    cursor = align_up(icon_arena_begin + ::player::ui::kPlayerIconArenaBytes, 32U);
 
     if (render_begin < sdram_begin || cursor > sdram_end) {
         return false;
@@ -65,6 +69,8 @@ bool ensure_runtime_storage_ready() noexcept {
     st.render_surface = render_begin;
     st.platform_storage = platform_begin;
     st.runtime_storage = runtime_begin;
+    st.icon_pixel_arena = icon_arena_begin;
+    st.icon_pixel_arena_bytes = static_cast<std::uint32_t>(::player::ui::kPlayerIconArenaBytes);
     st.external_pool_bytes = static_cast<std::uint32_t>(cursor - render_begin);
     st.runtime_storage_ready = true;
     return true;

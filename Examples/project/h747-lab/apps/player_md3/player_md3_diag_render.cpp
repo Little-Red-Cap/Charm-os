@@ -1,9 +1,9 @@
-#include "display_raster.h"
-#include "player_md3_diag.hpp"
-
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+
+#include "display_raster.h"
+#include "player_md3_diag.hpp"
 
 namespace {
 

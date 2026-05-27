@@ -27,9 +27,11 @@ collector that depends on the old token.
 3. Wait for at least one `player_md3.loop` status line.
 4. Run `status` at the `h747-player-md3>` prompt.
 5. Optionally run `touch probe` if touch evidence needs to be refreshed.
-6. Exercise input through hardware or console commands:
+6. Optionally run `input route reset` before a manual hardware input test, then
+   exercise one source and run `input route status` or `status`.
+7. Exercise input through hardware or console commands:
    `up`, `down`, `enter`, `back`, `play`, `next`, `prev`, and `mode`.
-7. Capture the first boot status line, at least one loop status line, and any
+8. Capture the first boot status line, at least one loop status line, and any
    input-related status lines used as evidence.
 
 The currently verified flash command for the DIY H747 lab board is:
@@ -38,10 +40,10 @@ The currently verified flash command for the DIY H747 lab board is:
 .\tools\flash-player-md3-pyocd.ps1
 ```
 
-The script wraps the known-good pyOCD shape:
+The script wraps the current pyOCD shape:
 
 ```powershell
-pyocd load -u 0001 -t stm32h747xihx -f 1000k --format elf .\cmake-build-h747-lab-debug\h747_lab_player_md3.elf
+pyocd load -u 0001 -t stm32h747xihx -f 1000k --connect halt --erase sector --format bin -a 0x08000000 .\cmake-build-h747-lab-debug\h747_lab_player_md3.bin
 ```
 
 `Exception reading AP#2 IDR: Memory transfer fault` is expected on this board
@@ -63,9 +65,84 @@ By default it opens `COM16` at `115200`, resets and resumes the target through
 cmake-build-h747-lab-debug/h747_lab_player_md3_smoke.log
 ```
 
-The script exits with code 0 only when a single captured status line contains
-all of these tokens: `real_md3=1`, `mock=0`, `smoke=1/11111`,
-`exec_fail=0`, `co=0`, and `to=0`.
+The script exits with code 0 only when a single captured `player_md3` status
+line passes the strict board evidence gate. The gate keeps the original core
+tokens:
+
+- `real_md3=1`
+- `mock=0`
+- `smoke=1/11111`
+- `exec_fail=0`
+- `co=0`
+- `to=0`
+
+It also requires the Display + Player evidence fields that align with
+`profiles/profile_evidence.hpp`: `delta`, `display`, `sdram1`, `rt_store`,
+`boot`, `render`, `frames`, `present`, `bytes`, `content`, `input`, `t`, `e`,
+`p_src`, `p_dst`, `front`, `back`, `lfb`, and `lpf`.
+
+The current strict numeric checks are intentionally minimal:
+
+- `delta=<frames>/<presents>` has both sides non-zero.
+- `frames` and `present` are greater than zero.
+- `display=1`, `sdram1=1/1`, `rt_store=1`, `boot=1`, and `render=1`.
+- `bytes=0x00384000`, matching the 720x1280 ARGB8888 framebuffer size.
+- `content=<bg>:<non_bg>@<min_x>,<min_y>-<max_x>,<max_y>` has `non_bg > 0`.
+- `input`, `t`, and `e` fields have the expected fact shape, but hardware input
+  events are not required to be non-zero for automatic boot acceptance.
+
+Resource evidence is optional and does not change the basic display smoke:
+
+```powershell
+.\tools\capture-player-md3-smoke.ps1 -ResourceSmoke
+```
+
+With `-ResourceSmoke`, the capture also waits for `fs=`, `font=`, `cover=`,
+and `media=` fields. Missing files are accepted as evidence when resources have
+not yet been copied to eMMC; the fields are intended to show which layer is
+missing rather than to fail the first-frame MD3 smoke.
+
+The console command `resource status` re-runs the same app-local resource probe
+and prints a fresh `player_md3` status line. It is useful after updating eMMC
+contents without changing the firmware.
+
+Manual input route evidence uses the same status schema and does not alter
+Player state by itself:
+
+```text
+input route reset
+input route status
+```
+
+`input route reset` clears only the app-local route counters and last-route
+fields. It does not clear raw hardware facts, input event totals, controller
+state, or smoke verdicts. This makes it useful for one-source-at-a-time board
+bring-up: reset, touch/rotate/press once, then read `input_route` and `input`.
+
+Playback smoke is a populated-resource gate:
+
+```powershell
+.\tools\capture-player-md3-smoke.ps1 -PlaybackSmoke
+```
+
+With `-PlaybackSmoke`, the capture first requires the basic display smoke and a
+populated resource line. It then sends `playback smoke` over the same serial
+console, and the firmware starts the first scanned track through the existing
+Player input/control path. The command is rejected as a playback gate when the
+resource line does not satisfy `fs=1/<n>/1/0`, `font=1/1/*/0`, and
+`media=1/*/1/0`.
+
+Input smoke is optional and does not require hardware interaction:
+
+```powershell
+.\tools\capture-player-md3-smoke.ps1 -InputSmoke
+```
+
+With `-InputSmoke`, the capture first waits for a valid basic smoke line, then
+sends `input smoke` over the serial console. The firmware injects the fixed
+semantic command sequence `down`, `up`, `mode`, `play`, `next`, `prev`,
+`enter`, and `back` through the same `PlayerInputEvent` boundary used by
+hardware input, renders a few frames, and prints a fresh status line.
 
 ## Required Status Fields
 
@@ -87,6 +164,10 @@ A healthy loop status line must contain:
 - `exec_fail=0`
 - `content=<bg>:<non_bg>@<min_x>,<min_y>-<max_x>,<max_y>` with
   `non_bg > 0` and a non-empty bounds box
+- `bytes=0x00384000`
+- `p_src=<first>/<center>/<last>` and `p_dst=<first>/<center>/<last>`
+- `front=<addr>:<first>/<center>/<last>` and `back=<addr>:<first>/<center>/<last>`
+- `lfb=<addr>` and `lpf=<value>`
 
 `smoke=1/11111` expands to:
 
@@ -106,10 +187,140 @@ The same status line also carries input bridge evidence:
   readiness/down state, and the last reported coordinates.
 - `e=<touch>/<encoder>/<button>` records touch, encoder, and button events
   translated into the Player input boundary.
+- `input_route=<console>/<touch>/<encoder>/<button>@<src>/<kind>/<code>`
+  records app-local routing evidence. The counters show how many events from
+  each source reached the Player input boundary. `src` is `0` unknown, `1`
+  console, `2` touch, `3` encoder, and `4` button. `kind=1` means a semantic
+  command and `kind=2` means a pointer action. `code` is the command enum value
+  for commands or pointer action enum value for touch.
+- `input_smoke=<ok>/<cmds>/<before>-<after>/<frames>/<exec_fail>` records the
+  automatic serial input smoke verdict, command count, input event count before
+  and after injection, frames rendered by the smoke command, and scene execute
+  failure count after the sequence.
 
 Hardware input evidence is preferred. Console commands are acceptable for
 bring-up because they inject the same semantic Player command path, but they do
 not prove the GT970 or encoder hardware path by themselves.
+
+The automatic strict gate only checks that input facts are present and shaped
+correctly. This matches the Phase 1 `Input.primary_input` profile evidence:
+the board provider is `h747_input_service`, pointer capability is
+`gt9xx_best_effort`, and encoder capability is `dual_encoder`; it does not
+require a human to touch the panel during every CI-style capture.
+
+`input_route` is diagnostic evidence only. It lets manual bring-up distinguish
+"hardware sampled but not routed" from "routed into the real Player runtime but
+the UI did not visibly react". It is append-only and must not become a product
+input API.
+
+For manual hardware route checks, use this sequence:
+
+```text
+input route reset
+<touch panel, rotate encoder, or press encoder button>
+input route status
+```
+
+Expected route source changes:
+
+- Touch interaction increments the second `input_route` counter and leaves the
+  last route as `2/2/<pointer-action>`.
+- Encoder rotation increments the third `input_route` counter and leaves the
+  last route as `3/1/<command>`.
+- Encoder button press increments the fourth `input_route` counter and leaves
+  the last route as `4/1/<command>`.
+
+If raw fields under `t=` or `e=` change but `input_route` does not, the break is
+inside the app-local source-to-event bridge. If `input_route` changes but
+`input=<polls>/<events>` does not, the break is after route normalization and
+before or inside `PlayerRuntimeShell::dispatch_input()`.
+
+Input smoke acceptance requires `input_smoke=1/<cmds>/<before>-<after>/<frames>/0`
+with `cmds >= 8`, `after > before`, and `frames > 0`. It also requires
+`input_route` to show at least `cmds` console-routed commands and the last route
+to be `1/1/4`, meaning console source, command kind, and `Back` command code.
+The command must not directly mutate controller state; it only injects semantic
+input into the runtime shell.
+
+## Storage And Resource Evidence
+
+Resource smoke fields are appended to the normal status line:
+
+- `storage=<ready>/<fat_probe>/<reads>/<fails>@<part_lba>:<blocks>` records the
+  board storage service state and remains the first storage-layer signal.
+- `storage_detail=<attempted>/<initialized>/<block_ready>/<part_auto>@<block_size>:<init>/<hal>/<err>/<card>/<wait_to>/<last_lba>/<last_count>/<sta>`
+  records the eMMC bring-up details used to separate "service not called" from
+  HAL init, card-state, transfer-timeout, and FAT probe failures. `err` and
+  `sta` are hexadecimal.
+- `storage_bus=<selected>/<wide8>/<wide4>/<wide1>` records the selected SDMMC
+  bus width and the HAL status observed while trying 8-bit, 4-bit, and 1-bit
+  operation. The current bring-up starts `HAL_MMC_Init()` in 1-bit mode and
+  treats wider modes as optional upgrades so a failed wide-bus switch does not
+  hide a usable 1-bit block device path.
+- `fs=<mount_ok>/<tracks>/<has_tracks>/<mount_err>` records Player mount and
+  media scan state. `tracks` counts audio files discovered by the current scan.
+- `font=<primary_open>/<fallback_open>/<cache_ready>/<err>` probes
+  `/fonts/NotoSansSC-Regular.ttf` and `/fonts/NotoSans-Regular.ttf`.
+- `cover=<folder_found>/<decode_ok>/<w>x<h>/<err>` checks first-track folder
+  cover candidates, then falls back to embedded cover decode.
+- `media=<first_open>/<duration_ok>/<track_ready>/<err>` checks first-track VFS
+  open, duration probe, and Player track readiness.
+- `playback=<state>/<running>/<track_ready>/<cb>/<underrun>/<stage>/<err>`
+  records the AudioPlayer state, whether the player is running, controller
+  track readiness, I2S DMA half/full callback total, underrun count, and last
+  AudioPlayer error stage/code.
+- `playback_smoke=<ok>/<before>-<after>/<frames>/<saw_playing>/<stage>/<err>`
+  records the automatic playback smoke verdict, DMA callback count before and
+  after the command, frames rendered during the command, whether `playing` was
+  observed, and the final stage/error. `stage=-1` is reserved by this board
+  smoke for "resource precondition failed"; successful playback smoke requires
+  `stage=0` and `err=0`.
+
+Current resource layout:
+
+- Fonts: `/fonts/NotoSansSC-Regular.ttf`, `/fonts/NotoSans-Regular.ttf`
+- Music: `/music` first, then `/` and one level of subdirectories
+- Folder covers: `cover.jpg`, `cover.png`, `cover.bmp`, `folder.jpg`,
+  `folder.png`, `folder.bmp`
+
+The optional staging helper creates the expected directory shape on the host:
+
+```powershell
+.\tools\stage-player-md3-resources.ps1 `
+  -PrimaryFont <path-to-NotoSansSC-Regular.ttf> `
+  -FallbackFont <path-to-NotoSans-Regular.ttf> `
+  -Track <path-to-one-mp3-flac-or-wav> `
+  -Cover <path-to-cover-jpg-png-or-bmp>
+```
+
+By default it writes to:
+
+```text
+cmake-build-h747-lab-debug/player_md3_resources
+```
+
+Copy that directory's contents to the FAT root of eMMC. The helper does not
+write to the board by itself.
+
+Common error values follow the shared `Errc` numeric values: `0` means ok,
+`-2` means not found, `-5` means I/O error, and `1002` means decode failure.
+When eMMC resources are not populated, `font=0/0/...`, `fs=.../0/...`, and
+`cover=0/0/...` are expected and must not invalidate `smoke=1/11111`.
+
+Two acceptance modes are defined:
+
+- Empty-resource smoke: basic display smoke passes and resource fields are
+  present. `fs=0/...`, `font=0/0/...`, `media=0/...`, and `cover=0/0/...` are
+  valid as long as the error values explain the missing layer.
+- Populated-resource smoke: after copying the minimal resource layout to eMMC,
+  expect `fs=1/<n>/1/0`, `font=1/1/*/0`, and `media=1/*/1/0`. If a folder cover
+  exists, expect `cover=1/1/<w>x<h>/0`; if no folder cover exists, `cover=0/0/...`
+  is allowed only when the media file has no embedded cover.
+- Playback smoke: after populated-resource smoke is green, expect
+  `playback_smoke=1/<before>-<after>/<frames>/1/0/0` with `after > before` and
+  `frames > 0`. The accepted status line must still include the basic smoke
+  tokens `smoke=1/11111`, `exec_fail=0`, `co=0`, and `to=0`. Human hearing is
+  useful extra evidence, but it is not an automatic gate.
 
 ## Failure Triage
 
@@ -134,6 +345,35 @@ not prove the GT970 or encoder hardware path by themselves.
   surface being presented.
 - `input` counters do not change after hardware interaction: check
   `services/input` first, then the app-local `PlayerInputEvent` translation.
+- `input_route` source counters change but `input` total does not: check the
+  runtime dispatch bridge before changing hardware sampling.
+- `input_route` source counters do not change while raw hardware facts do:
+  check the app-local source-to-command mapping in `player_md3_input.cpp`.
+- `input_smoke=0/*`: check the serial command path, `dispatch_runtime_command`,
+  scene execution health, and command/text overflow fields before changing
+  controller logic.
+- `storage=0/*` or `fs=0/*`: check eMMC init, partition detection, FAT probe,
+  and FatFs mount before changing Player UI.
+- `storage_detail=0/*`: the storage init node did not run; check profile wiring.
+- `storage_detail=1/0/*`: the storage init node ran but HAL/card bring-up did
+  not reach ready; use the `init`, `hal`, `err`, `card`, `wait_to`, and `sta`
+  values before changing Player resource code.
+- `storage_bus=1/*`: the card stayed on the conservative 1-bit path. This is
+  acceptable for resource bring-up; fix 4-bit/8-bit only after VFS/media smoke
+  is otherwise green.
+- `font=0/0/*`: copy the expected font files to `/fonts` or update the profile
+  resource config.
+- `media=0/*`: check that audio files are under `/music` or one scanned root
+  subdirectory and that VFS paths can be opened.
+- `cover=1/0/*`: a folder cover was found but image decode failed; check image
+  format and size. `cover=0/0/*` with no tracks or no cover file is acceptable.
+- `playback_smoke=0/*` with `stage=-1`: the playback command did not run because
+  resource preconditions are not green. Fix `fs`, `font`, or `media` first.
+- `playback_smoke=0/*` with callback count unchanged: check I2S DMA startup,
+  DMA IRQ routing, and `audio.sink.i2s` callback wiring before changing UI.
+- `playback=<state>/*/<stage>/<err>` with a non-zero stage/error: triage the
+  reported AudioPlayer stage first, for example open source, decode, sink open,
+  buffer allocation, or sink start.
 
 ## Current Acceptance
 
@@ -141,21 +381,52 @@ The first acceptable board evidence for this target is a captured serial sample
 where a `player_md3.loop` line reports:
 
 ```text
-real_md3=1 mock=0 smoke=1/11111 ... delta=<non-zero>/<non-zero> ... exec_fail=0 ... content=<bg>:<non-zero>@...
+real_md3=1 mock=0 smoke=1/11111 ... delta=<non-zero>/<non-zero> ... display=1 ... bytes=0x00384000 ... exec_fail=0 ... input=<polls>/<events> ... content=<bg>:<non-zero>@...
 ```
 
 This proves the board is running the shared MD3 Player runtime through the
-display/input boundary. It does not yet claim high frame rate, DMA2D
-acceleration, storage-backed library scanning, file fonts, host cover decode, or
-production touch gesture policy.
+display/input boundary, with the expected 720x1280 ARGB8888 double-buffered
+raster path. Resource smoke can additionally prove storage-backed library
+scanning, file font presence, and cover/media decode evidence when eMMC has
+been populated. Playback smoke can additionally prove that the first scanned
+track reaches the I2S DMA callback path. It does not yet claim high frame rate,
+DMA2D acceleration, production touch gesture policy, or subjective audio
+quality.
 
 ## Captured Sample
 
 Captured on 2026-05-25 after flashing `h747_lab_player_md3` with pyOCD:
 
 ```text
-player_md3 real_md3=1 mock=0 smoke=1/11111 delta=1/1 display=1 sdram1=1/1 rt_store=1 boot=1 render=1 frames=1 present=1 cmd=109/1024 co=0 text=225/4096 to=0 exec_fail=0 content=0xFF101218:381760@0,3-719,1279
+player_md3 real_md3=1 mock=0 smoke=1/11111 delta=1/1 display=1 sdram1=1/1 rt_store=1 boot=1 render=1 frames=1 present=1 layer=1 fb=0xC0000000 bytes=0x00384000 render_buf=0xC0708000 platform=0xC0A8C000 runtime=0xC0D97328 pool_bytes=0x00724D20 r_s=0xFF101218/0xFF101218/0xFF12141E cmd=111/1024 co=0 text=225/4096 to=0 exec_fail=0 exec=60/31/10 fail_ti=0/0 input=0/0 t=1/1/0@0,0 e=0/0/0 storage=0/0/0/0@0:0 audio=1/1/0/0 content=0xFF101218:382479@0,3-719,1279 p_src=0xFF101218/0xFF101218/0xFF12141E p_dst=0xFF101218/0xFF101218/0xFF12141E front=0xC0384000:0xFF101218/0xFF101218/0xFF12141E back=0xC0000000:0x00000000/0x00000000/0x00000000 lfb=0xC0384000 lcr=0x00000001 lpf=0x00000000
 ```
 
 The same boot log also printed `player_md3: bootstrap ok`,
 `player_md3: first render ok`, and the `h747-player-md3>` console prompt.
+
+## Current Board Verification
+
+2026-05-26 verification:
+
+- `cmake --build --preset build-h747-lab-player-md3-debug -- -j1` passed and
+  produced `h747_lab_player_md3.bin`.
+- `.\tools\flash-player-md3-pyocd.ps1` completed successfully through pyOCD
+  using `bin` at `0x08000000`. pyOCD still reported the expected
+  `Exception reading AP#2 IDR: Memory transfer fault`, then completed with:
+  `Erased 1441792 bytes (11 sectors), programmed 1441792 bytes (1408 pages)`.
+- `.\tools\capture-player-md3-smoke.ps1` passed the strict display smoke gate.
+- `.\tools\capture-player-md3-smoke.ps1 -ResourceSmoke` passed the resource
+  field gate and reported:
+
+```text
+resource=empty-or-missing fs=not-mounted(err=-2) no-tracks font=fonts-missing(err=-38) media=media-missing(err=-2) cover=cover-missing(err=-2)
+```
+
+The accepted status line included:
+
+```text
+storage=0/0/0/0@0:0 audio=1/1/0/0 fs=0/0/0/-2 font=0/0/0/-38 cover=0/0/0x0/-2 media=0/0/0/-2
+```
+
+This is the expected empty-resource board state before eMMC is populated. It
+does not invalidate the MD3 Home first-frame smoke.

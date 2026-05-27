@@ -1,10 +1,10 @@
+#include <cstdint>
+
 #include "console.h"
 #include "display_raster.h"
 #include "memory_probe.h"
 #include "player_md3_diag.hpp"
 #include "player_md3_smoke_schema.hpp"
-
-#include <cstdint>
 
 namespace {
 
@@ -26,6 +26,15 @@ public:
 
     void dec(const std::uint32_t value) const {
         h747::console::write_dec(value);
+    }
+
+    void sdec(const std::int32_t value) const {
+        if (value < 0) {
+            text("-");
+            dec(static_cast<std::uint32_t>(-value));
+            return;
+        }
+        dec(static_cast<std::uint32_t>(value));
     }
 
     void hex32(const std::uint32_t value) const {
@@ -162,6 +171,148 @@ void print_status(const char* prefix) {
     out.dec(st.input_encoder_events);
     out.slash();
     out.dec(st.input_button_events);
+    out.field(PlayerMd3SmokeField::InputRoute);
+    out.dec(st.input_route_console_commands);
+    out.slash();
+    out.dec(st.input_route_touch_pointers);
+    out.slash();
+    out.dec(st.input_route_encoder_commands);
+    out.slash();
+    out.dec(st.input_route_button_commands);
+    out.at();
+    out.dec(st.input_route_last_source);
+    out.slash();
+    out.dec(st.input_route_last_kind);
+    out.slash();
+    out.dec(st.input_route_last_code);
+    out.field(PlayerMd3SmokeField::InputSmoke);
+    out.dec(st.input_smoke_ok);
+    out.slash();
+    out.dec(st.input_smoke_cmds);
+    out.slash();
+    out.dec(st.input_smoke_before_events);
+    out.dash();
+    out.dec(st.input_smoke_after_events);
+    out.slash();
+    out.dec(st.input_smoke_frames);
+    out.slash();
+    out.dec(st.input_smoke_exec_fail);
+    out.field(PlayerMd3SmokeField::Storage);
+    out.dec(st.storage_ready);
+    out.slash();
+    out.dec(st.storage_fat_probe_ok);
+    out.slash();
+    out.dec(st.storage_reads);
+    out.slash();
+    out.dec(st.storage_read_fails);
+    out.at();
+    out.dec(st.storage_part_lba);
+    out.colon();
+    out.dec(st.storage_blocks);
+    out.field(PlayerMd3SmokeField::StorageDetail);
+    out.dec(st.storage_attempted);
+    out.slash();
+    out.dec(st.storage_initialized);
+    out.slash();
+    out.dec(st.storage_block_device_ready);
+    out.slash();
+    out.dec(st.storage_partition_auto);
+    out.at();
+    out.dec(st.storage_block_size);
+    out.colon();
+    out.dec(st.storage_init_status);
+    out.slash();
+    out.dec(st.storage_last_hal_status);
+    out.slash();
+    out.hex32(st.storage_last_error);
+    out.slash();
+    out.dec(st.storage_card_state);
+    out.slash();
+    out.dec(st.storage_wait_timeouts);
+    out.slash();
+    out.dec(st.storage_last_lba);
+    out.slash();
+    out.dec(st.storage_last_count);
+    out.slash();
+    out.hex32(st.storage_sta);
+    out.field(PlayerMd3SmokeField::StorageBus);
+    out.dec(st.storage_selected_bus_width);
+    out.slash();
+    out.dec(st.storage_wide_status_8);
+    out.slash();
+    out.dec(st.storage_wide_status_4);
+    out.slash();
+    out.dec(st.storage_wide_status_1);
+    out.field(PlayerMd3SmokeField::Audio);
+    out.dec(st.audio_ready);
+    out.slash();
+    out.dec(st.audio_dma_ready);
+    out.slash();
+    out.dec(st.audio_i2s_status);
+    out.slash();
+    out.dec(st.audio_dma_status);
+    out.field(PlayerMd3SmokeField::Fs);
+    out.dec(st.fs_mount_ok);
+    out.slash();
+    out.dec(st.fs_track_count);
+    out.slash();
+    out.dec(st.fs_has_tracks);
+    out.slash();
+    out.sdec(st.fs_mount_err);
+    out.field(PlayerMd3SmokeField::Font);
+    out.dec(st.font_primary_open);
+    out.slash();
+    out.dec(st.font_fallback_open);
+    out.slash();
+    out.dec(st.font_cache_ready);
+    out.slash();
+    out.sdec(st.font_err);
+    out.field(PlayerMd3SmokeField::Cover);
+    out.dec(st.cover_folder_found);
+    out.slash();
+    out.dec(st.cover_decode_ok);
+    out.slash();
+    out.dec(st.cover_width);
+    out.text("x");
+    out.dec(st.cover_height);
+    out.slash();
+    out.sdec(st.cover_err);
+    out.field(PlayerMd3SmokeField::Media);
+    out.dec(st.media_first_open);
+    out.slash();
+    out.dec(st.media_duration_ok);
+    out.slash();
+    out.dec(st.media_track_ready);
+    out.slash();
+    out.sdec(st.media_err);
+    out.field(PlayerMd3SmokeField::Playback);
+    out.dec(st.playback_player_state);
+    out.slash();
+    out.dec(st.playback_running);
+    out.slash();
+    out.dec(st.playback_track_ready);
+    out.slash();
+    out.dec(st.playback_dma_callbacks);
+    out.slash();
+    out.dec(st.playback_underruns);
+    out.slash();
+    out.sdec(st.playback_last_error_stage);
+    out.slash();
+    out.sdec(st.playback_last_error);
+    out.field(PlayerMd3SmokeField::PlaybackSmoke);
+    out.dec(st.playback_smoke_ok);
+    out.slash();
+    out.dec(st.playback_smoke_before_callbacks);
+    out.dash();
+    out.dec(st.playback_smoke_after_callbacks);
+    out.slash();
+    out.dec(st.playback_smoke_frames);
+    out.slash();
+    out.dec(st.playback_smoke_saw_playing);
+    out.slash();
+    out.sdec(st.playback_smoke_error_stage);
+    out.slash();
+    out.sdec(st.playback_smoke_error);
     out.field(PlayerMd3SmokeField::Content);
     out.hex32(st.render_bg_pixel);
     out.colon();

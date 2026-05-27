@@ -2,6 +2,7 @@
 
 #include "drivers.h"
 #include "i2c.h"
+#include "power.h"
 #include "stm32h7xx_hal.h"
 #include "tim.h"
 
@@ -17,6 +18,8 @@ constexpr std::uint16_t kTouchRegStatus = 0x814EU;
 constexpr std::uint16_t kTouchRegConfig = 0x8047U;
 constexpr std::uint16_t kTouchMaxYDefault = 1280U;
 constexpr std::uint16_t kTouchMaxXDefault = 720U;
+constexpr std::uint16_t kTouchDcdc1TargetMv = 3300U;
+constexpr std::uint32_t kTouchPowerSettleDelayMs = 20U;
 constexpr std::int32_t kEncoderGlitchThreshold = 20;
 constexpr std::int32_t kEncoder1StepsPerDetent = 2;
 constexpr std::int32_t kEncoder2StepsPerDetent = 2;
@@ -282,6 +285,31 @@ void touch_reset_pulse() {
     HAL_Delay(60U);
 }
 
+bool ensure_touch_power_ready() {
+    power_pmic_snapshot_t pmic = power_pmic_snapshot();
+    if (pmic.ready == 0U) {
+        if (power_pmic_init_minimal() == 0U) {
+            return false;
+        }
+        pmic = power_pmic_snapshot();
+    }
+
+    const bool dcdc1_needs_fix = (pmic.dcdc1_enabled == 0U) || (pmic.dcdc1_mv != kTouchDcdc1TargetMv);
+    if (!dcdc1_needs_fix) {
+        return true;
+    }
+
+    const bool enable_ok = power_pmic_set_rail_enabled(POWER_PMIC_RAIL_DCDC1, 1U) != 0U;
+    const bool voltage_ok = power_pmic_set_rail_voltage_mv(POWER_PMIC_RAIL_DCDC1, kTouchDcdc1TargetMv) != 0U;
+    if (!enable_ok || !voltage_ok) {
+        return false;
+    }
+
+    HAL_Delay(kTouchPowerSettleDelayMs);
+    pmic = power_pmic_snapshot();
+    return (pmic.ready != 0U) && (pmic.dcdc1_enabled != 0U) && (pmic.dcdc1_mv == kTouchDcdc1TargetMv);
+}
+
 void touch_capture_resolution(const std::uint8_t addr7) {
     std::uint8_t cfg[6]{};
     if (touch_read_reg(addr7, kTouchRegConfig, cfg, sizeof(cfg)) == HAL_OK) {
@@ -397,6 +425,12 @@ uint8_t input_touch_probe(void) {
     g_state.touch.probe_status0 = UINT32_MAX;
     g_state.touch.probe_status1 = UINT32_MAX;
     std::memset(g_state.touch.version, 0, sizeof(g_state.touch.version));
+
+    if (!ensure_touch_power_ready()) {
+        snapshot_touch_pins();
+        g_state.touch.last_hal_status = static_cast<std::uint32_t>(HAL_ERROR);
+        return 0U;
+    }
 
     touch_reset_pulse();
 

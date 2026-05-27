@@ -4,10 +4,15 @@ set(CMAKE_SYSTEM_PROCESSOR arm)
 set(H747_LAB_ARM_GNU_TOOLCHAIN_ROOT ""
     CACHE PATH "Optional Arm GNU Toolchain root for h747-lab")
 
+set(_H747_LAB_ARM_GNU_TOOLCHAIN_LATEST "D:/Toolchains/Arm GNU Toolchain arm-none-eabi/latest")
+set(_H747_LAB_ARM_GNU_TOOLCHAIN_LEGACY_15_2 "D:/Toolchains/Arm GNU Toolchain arm-none-eabi/15.2 rel1")
+
 if(H747_LAB_ARM_GNU_TOOLCHAIN_ROOT)
     set(_H747_LAB_ARM_GNU_BIN "${H747_LAB_ARM_GNU_TOOLCHAIN_ROOT}/bin")
-elseif(EXISTS "D:/Toolchains/Arm GNU Toolchain arm-none-eabi/15.2 rel1/bin/arm-none-eabi-gcc.exe")
-    set(_H747_LAB_ARM_GNU_BIN "D:/Toolchains/Arm GNU Toolchain arm-none-eabi/15.2 rel1/bin")
+elseif(EXISTS "${_H747_LAB_ARM_GNU_TOOLCHAIN_LATEST}/bin/arm-none-eabi-gcc.exe")
+    set(_H747_LAB_ARM_GNU_BIN "${_H747_LAB_ARM_GNU_TOOLCHAIN_LATEST}/bin")
+elseif(EXISTS "${_H747_LAB_ARM_GNU_TOOLCHAIN_LEGACY_15_2}/bin/arm-none-eabi-gcc.exe")
+    set(_H747_LAB_ARM_GNU_BIN "${_H747_LAB_ARM_GNU_TOOLCHAIN_LEGACY_15_2}/bin")
 else()
     set(_H747_LAB_ARM_GNU_BIN "")
 endif()

@@ -78,11 +78,43 @@
             ]
         },
         {
+            "name": "build-h747-lab-storage-firmware-runtime-debug",
+            "displayName": "Build H747 Lab Storage Firmware Runtime Debug",
+            "configurePreset": "h747-lab-debug",
+            "targets": [
+                "h747_lab_storage_firmware_runtime"
+            ]
+        },
+        {
+            "name": "build-h747-lab-usb-msc-legacy-probe-debug",
+            "displayName": "Build H747 Lab USB MSC Legacy Probe Debug",
+            "configurePreset": "h747-lab-debug",
+            "targets": [
+                "h747_lab_usb_msc_legacy_probe"
+            ]
+        },
+        {
             "name": "build-h747-lab-posix-lab-debug",
             "displayName": "Build H747 Lab POSIX Lab Debug",
             "configurePreset": "h747-lab-debug",
             "targets": [
                 "h747_lab_posix_lab"
+            ]
+        },
+        {
+            "name": "build-h747-lab-app-lab-debug",
+            "displayName": "Build H747 Lab App Lab Debug",
+            "configurePreset": "h747-lab-debug",
+            "targets": [
+                "h747_lab_app_lab"
+            ]
+        },
+        {
+            "name": "build-h747-lab-dev-loader-debug",
+            "displayName": "Build H747 Lab Dev Loader Debug",
+            "configurePreset": "h747-lab-debug",
+            "targets": [
+                "h747_lab_dev_loader"
             ]
         },
         {

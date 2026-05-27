@@ -11,6 +11,8 @@ The current platformization roadmap is documented in
 the real-board pressure field for the `RTE -> H747` line, and `Display + Player`
 is the first vertical slice that must prove host/mock and H747 providers can
 carry the same app semantics.
+Host/H747 profile facts are compared by the host profile explain smoke as a
+read-only report surface; those provider identities do not enter app/world code.
 
 ## Contract Home
 
@@ -81,12 +83,19 @@ The first trial contracts live in `capabilities/input.hpp`:
 - `EncoderSample`
 - `PointerSample`
 - `InputFrame`
+- `PointerAction`
+- `PointerEvent`
+- `ButtonEdge`
+- `InputObservation`
+- `InputFrameTracker`
 - `InputSource`
 
 These contracts deliberately describe snapshots and simple facts only:
 
 - encoder detent delta and press state
 - pointer detected/down state and coordinates
+- pointer `down/move/up/cancel` edges derived from successive frames
+- encoder button pressed/released edges derived from successive frames
 - touch detection is allowed to fail independently from encoder evidence
 - no HAL handle exposure
 - no UI routing, gesture semantics, or board-specific timing assumptions
@@ -94,15 +103,18 @@ These contracts deliberately describe snapshots and simple facts only:
 `h747_lab_input_probe` is the board truth target for this contract. It reports
 GT970/GT9xx I2C4 probe status, TP_INT/TP_RST levels, touch samples, encoder
 detents, and encoder button state. Player-facing code should consume the
-resulting `InputFrame` rather than reaching into `services/input` internals.
+resulting `InputFrame` plus generic edge observations rather than reaching into
+`services/input` internals.
 
 `h747_lab_player_md3` is the first app bridge that consumes these facts for a
-real UI runtime. Its app-local adapter maps GT970 touch samples to
-`PlayerInputEvent::Pointer`, encoder1 detents to `Up/Down`, encoder2 detents to
-`Prev/Next`, and encoder buttons to `Enter/PlayToggle`. Console commands may
-inject the same semantic Player commands for board bring-up, but page/controller
-code must still see only Player input events, not HAL, I2C, TIM, GPIO, or console
-implementation details.
+real UI runtime. Its app-local adapter now consumes the typed
+`services/input/input_service.hpp` facade, derives generic pointer/button edges
+through `InputFrameTracker`, maps pointer events to `PlayerInputEvent::Pointer`,
+encoder1 detents to `Up/Down`, encoder2 detents to `Prev/Next`, and encoder
+button rising edges to `Enter/PlayToggle`. Console commands may inject the same
+semantic Player commands for board bring-up, but page/controller code must
+still see only Player input events, not HAL, I2C, TIM, GPIO, touch-IC register
+layout, or console implementation details.
 
 ## World
 

@@ -2,11 +2,186 @@
 
 #include "port.h"
 
+#include <array>
+#include <algorithm>
+#include <cstddef>
+#include <cstring>
+
 namespace h747::console {
 
 namespace {
 
+constexpr std::uint32_t kRxDmaBufferSize = 4096U;
+constexpr std::uintptr_t kCacheLineSize = 32U;
+
 RxStats g_rx_stats{};
+alignas(32) __attribute__((section(".dma_buffer")))
+std::array<std::uint8_t, kRxDmaBufferSize> g_rx_dma_buffer{};
+std::uint32_t g_rx_dma_read_pos{0};
+bool g_rx_dma_start_attempted{false};
+bool g_rx_dma_active{false};
+
+void clear_uart_overrun(UART_HandleTypeDef* uart) {
+    if ((uart == nullptr) || (uart->Instance == nullptr)) {
+        return;
+    }
+    if ((uart->Instance->ISR & USART_ISR_ORE) != 0U) {
+        uart->Instance->ICR = USART_ICR_ORECF;
+        ++g_rx_stats.overrun_clears;
+    }
+}
+
+constexpr std::uintptr_t cache_align_down(const std::uintptr_t address) noexcept {
+    return address & ~(kCacheLineSize - 1U);
+}
+
+constexpr std::uintptr_t cache_align_up(const std::uintptr_t address) noexcept {
+    return (address + kCacheLineSize - 1U) & ~(kCacheLineSize - 1U);
+}
+
+void invalidate_rx_cache_range(const std::uint32_t offset, const std::uint32_t length) {
+#if defined(__DCACHE_PRESENT) && (__DCACHE_PRESENT == 1U)
+    if (((SCB->CCR & SCB_CCR_DC_Msk) == 0U) || length == 0U) {
+        return;
+    }
+
+    const auto start = reinterpret_cast<std::uintptr_t>(g_rx_dma_buffer.data() + offset);
+    const auto aligned_start = cache_align_down(start);
+    const auto aligned_end = cache_align_up(start + length);
+    SCB_InvalidateDCache_by_Addr(reinterpret_cast<std::uint32_t*>(aligned_start),
+                                 static_cast<std::int32_t>(aligned_end - aligned_start));
+#else
+    (void)offset;
+    (void)length;
+#endif
+}
+
+void invalidate_rx_cache_span(const std::uint32_t read_pos, const std::uint32_t write_pos) {
+    if (read_pos == write_pos) {
+        return;
+    }
+    if (read_pos < write_pos) {
+        invalidate_rx_cache_range(read_pos, write_pos - read_pos);
+        return;
+    }
+    invalidate_rx_cache_range(read_pos, kRxDmaBufferSize - read_pos);
+    invalidate_rx_cache_range(0U, write_pos);
+}
+
+void try_start_rx_dma() {
+    if (g_rx_dma_start_attempted) {
+        return;
+    }
+    g_rx_dma_start_attempted = true;
+
+    auto* uart = h747::port::uart1_handle();
+    if ((uart == nullptr) || (uart->Instance == nullptr) || (uart->hdmarx == nullptr)) {
+        ++g_rx_stats.dma_start_failed;
+        return;
+    }
+
+    clear_uart_overrun(uart);
+    if (HAL_DMA_DeInit(uart->hdmarx) != HAL_OK) {
+        ++g_rx_stats.dma_start_failed;
+        return;
+    }
+    uart->hdmarx->Init.Mode = DMA_CIRCULAR;
+    if (HAL_DMA_Init(uart->hdmarx) != HAL_OK) {
+        ++g_rx_stats.dma_start_failed;
+        return;
+    }
+    g_rx_dma_read_pos = 0;
+    invalidate_rx_cache_range(0U, kRxDmaBufferSize);
+    if (HAL_UART_Receive_DMA(uart, g_rx_dma_buffer.data(), g_rx_dma_buffer.size()) != HAL_OK) {
+        ++g_rx_stats.dma_start_failed;
+        return;
+    }
+
+    g_rx_dma_active = true;
+    ++g_rx_stats.dma_started;
+}
+
+std::uint32_t rx_dma_write_pos() {
+    auto* uart = h747::port::uart1_handle();
+    if (!g_rx_dma_active || uart == nullptr || uart->hdmarx == nullptr) {
+        return g_rx_dma_read_pos;
+    }
+    const auto remaining = __HAL_DMA_GET_COUNTER(uart->hdmarx);
+    if (remaining > g_rx_dma_buffer.size()) {
+        return g_rx_dma_read_pos;
+    }
+    return static_cast<std::uint32_t>((g_rx_dma_buffer.size() - remaining) % g_rx_dma_buffer.size());
+}
+
+bool poll_dma_byte(std::uint8_t& byte) {
+    try_start_rx_dma();
+    if (!g_rx_dma_active) {
+        return false;
+    }
+
+    const auto write_pos = rx_dma_write_pos();
+    g_rx_stats.dma_read_pos = g_rx_dma_read_pos;
+    g_rx_stats.dma_write_pos = write_pos;
+    g_rx_stats.dma_buffer_size = g_rx_dma_buffer.size();
+    if (g_rx_dma_read_pos == write_pos) {
+        return false;
+    }
+
+    invalidate_rx_cache_span(g_rx_dma_read_pos, write_pos);
+    byte = g_rx_dma_buffer[g_rx_dma_read_pos];
+    g_rx_dma_read_pos = (g_rx_dma_read_pos + 1U) % g_rx_dma_buffer.size();
+    ++g_rx_stats.bytes;
+    ++g_rx_stats.dma_bytes;
+    g_rx_stats.last_byte = byte;
+    g_rx_stats.dma_read_pos = g_rx_dma_read_pos;
+    return true;
+}
+
+std::uint32_t poll_dma_bytes(std::span<std::uint8_t> bytes) {
+    try_start_rx_dma();
+    if (!g_rx_dma_active || bytes.empty()) {
+        return 0U;
+    }
+
+    const auto write_pos = rx_dma_write_pos();
+    g_rx_stats.dma_read_pos = g_rx_dma_read_pos;
+    g_rx_stats.dma_write_pos = write_pos;
+    g_rx_stats.dma_buffer_size = g_rx_dma_buffer.size();
+    if (g_rx_dma_read_pos == write_pos) {
+        return 0U;
+    }
+
+    const auto available = (g_rx_dma_read_pos < write_pos)
+                               ? (write_pos - g_rx_dma_read_pos)
+                               : (kRxDmaBufferSize - g_rx_dma_read_pos);
+    const auto count = std::min<std::uint32_t>(available, static_cast<std::uint32_t>(bytes.size()));
+    invalidate_rx_cache_range(g_rx_dma_read_pos, count);
+    std::memcpy(bytes.data(), g_rx_dma_buffer.data() + g_rx_dma_read_pos, count);
+    g_rx_dma_read_pos = (g_rx_dma_read_pos + count) % g_rx_dma_buffer.size();
+    g_rx_stats.bytes += count;
+    g_rx_stats.dma_bytes += count;
+    g_rx_stats.last_byte = bytes[count - 1U];
+    g_rx_stats.dma_read_pos = g_rx_dma_read_pos;
+    return count;
+}
+
+bool poll_fallback_byte(std::uint8_t& byte) {
+    auto* uart = h747::port::uart1_handle();
+    if ((uart == nullptr) || (uart->Instance == nullptr)) {
+        return false;
+    }
+
+    clear_uart_overrun(uart);
+    if ((uart->Instance->ISR & UART_FLAG_RXNE) == 0U) {
+        return false;
+    }
+
+    byte = static_cast<std::uint8_t>(uart->Instance->RDR);
+    ++g_rx_stats.bytes;
+    ++g_rx_stats.fallback_bytes;
+    g_rx_stats.last_byte = byte;
+    return true;
+}
 
 void write_hex_n(std::uint32_t value, const int nibbles) {
     constexpr char kHex[] = "0123456789ABCDEF";
@@ -77,20 +252,13 @@ void write_hex32(const std::uint32_t value) {
 }
 
 bool poll_line(char* buffer, const std::uint32_t capacity, std::uint32_t& length) {
-    auto* uart = h747::port::uart1_handle();
-    if ((buffer == nullptr) || (capacity == 0U) || (uart == nullptr) || (uart->Instance == nullptr)) {
+    if ((buffer == nullptr) || (capacity == 0U)) {
         return false;
     }
 
-    if ((uart->Instance->ISR & USART_ISR_ORE) != 0U) {
-        uart->Instance->ICR = USART_ICR_ORECF;
-        ++g_rx_stats.overrun_clears;
-    }
-
-    while ((uart->Instance->ISR & UART_FLAG_RXNE) != 0U) {
-        const char c = static_cast<char>(uart->Instance->RDR);
-        ++g_rx_stats.bytes;
-        g_rx_stats.last_byte = static_cast<std::uint8_t>(c);
+    std::uint8_t raw = 0;
+    while (poll_byte(raw)) {
+        const char c = static_cast<char>(raw);
         if ((c == '\r') || (c == '\n')) {
             buffer[length] = '\0';
             write_char('\r');
@@ -125,7 +293,35 @@ bool poll_line(char* buffer, const std::uint32_t capacity, std::uint32_t& length
     return false;
 }
 
+bool poll_byte(std::uint8_t& byte) {
+    if (poll_dma_byte(byte)) {
+        return true;
+    }
+    if (g_rx_dma_active) {
+        return false;
+    }
+    return poll_fallback_byte(byte);
+}
+
+std::uint32_t poll_bytes(std::span<std::uint8_t> bytes) {
+    const auto count = poll_dma_bytes(bytes);
+    if (count != 0U || g_rx_dma_active || bytes.empty()) {
+        return count;
+    }
+
+    std::uint8_t byte = 0;
+    if (!poll_fallback_byte(byte)) {
+        return 0U;
+    }
+    bytes[0] = byte;
+    return 1U;
+}
+
 RxStats rx_stats() {
+    try_start_rx_dma();
+    g_rx_stats.dma_read_pos = g_rx_dma_read_pos;
+    g_rx_stats.dma_write_pos = rx_dma_write_pos();
+    g_rx_stats.dma_buffer_size = g_rx_dma_buffer.size();
     return g_rx_stats;
 }
 

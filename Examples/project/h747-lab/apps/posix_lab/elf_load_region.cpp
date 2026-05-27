@@ -23,11 +23,13 @@ constexpr std::uint32_t cache_aligned_length(const std::uintptr_t address,
 
 void prepare_elf_load_region() noexcept {
 #if defined(__DCACHE_PRESENT) && (__DCACHE_PRESENT == 1U)
-    const auto addr = reinterpret_cast<std::uintptr_t>(elf_load_region_base());
-    auto* aligned = reinterpret_cast<std::uint32_t*>(cache_align_down(addr));
-    const auto bytes = cache_aligned_length(addr, static_cast<std::uint32_t>(elf_load_region_capacity()));
-    SCB_CleanDCache_by_Addr(aligned, static_cast<std::int32_t>(bytes));
-    SCB_InvalidateDCache_by_Addr(aligned, static_cast<std::int32_t>(bytes));
+    if ((SCB->CCR & SCB_CCR_DC_Msk) != 0U) {
+        const auto addr = reinterpret_cast<std::uintptr_t>(elf_load_region_base());
+        auto* aligned = reinterpret_cast<std::uint32_t*>(cache_align_down(addr));
+        const auto bytes = cache_aligned_length(addr, static_cast<std::uint32_t>(elf_load_region_capacity()));
+        SCB_CleanDCache_by_Addr(aligned, static_cast<std::int32_t>(bytes));
+        SCB_InvalidateDCache_by_Addr(aligned, static_cast<std::int32_t>(bytes));
+    }
 #endif
 #if defined(__ICACHE_PRESENT) && (__ICACHE_PRESENT == 1U)
     SCB_InvalidateICache();

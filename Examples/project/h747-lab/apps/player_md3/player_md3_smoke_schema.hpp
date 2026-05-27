@@ -39,6 +39,18 @@ enum class PlayerMd3SmokeField : std::uint8_t {
     Input,
     Touch,
     Events,
+    InputRoute,
+    InputSmoke,
+    Storage,
+    StorageDetail,
+    StorageBus,
+    Audio,
+    Fs,
+    Font,
+    Cover,
+    Media,
+    Playback,
+    PlaybackSmoke,
     Content,
     PresentSource,
     PresentDestination,
@@ -110,6 +122,30 @@ enum class PlayerMd3SmokeField : std::uint8_t {
         return "t";
     case PlayerMd3SmokeField::Events:
         return "e";
+    case PlayerMd3SmokeField::InputRoute:
+        return "input_route";
+    case PlayerMd3SmokeField::InputSmoke:
+        return "input_smoke";
+    case PlayerMd3SmokeField::Storage:
+        return "storage";
+    case PlayerMd3SmokeField::StorageDetail:
+        return "storage_detail";
+    case PlayerMd3SmokeField::StorageBus:
+        return "storage_bus";
+    case PlayerMd3SmokeField::Audio:
+        return "audio";
+    case PlayerMd3SmokeField::Fs:
+        return "fs";
+    case PlayerMd3SmokeField::Font:
+        return "font";
+    case PlayerMd3SmokeField::Cover:
+        return "cover";
+    case PlayerMd3SmokeField::Media:
+        return "media";
+    case PlayerMd3SmokeField::Playback:
+        return "playback";
+    case PlayerMd3SmokeField::PlaybackSmoke:
+        return "playback_smoke";
     case PlayerMd3SmokeField::Content:
         return "content";
     case PlayerMd3SmokeField::PresentSource:

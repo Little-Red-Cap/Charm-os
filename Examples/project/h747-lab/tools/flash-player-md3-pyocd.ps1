@@ -1,31 +1,33 @@
 param(
-    [string]$Elf = "",
+    [string]$Image = "",
     [string]$Probe = "0001",
     [string]$Target = "stm32h747xihx",
-    [string]$Frequency = "1000k"
+    [string]$Frequency = "1000k",
+    [string]$Address = "0x08000000"
 )
 
 $ErrorActionPreference = "Stop"
 
 $ProjectRoot = Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")
 
-if ([string]::IsNullOrWhiteSpace($Elf)) {
-    $Elf = Join-Path $ProjectRoot "cmake-build-h747-lab-debug\h747_lab_player_md3.elf"
+if ([string]::IsNullOrWhiteSpace($Image)) {
+    $Image = Join-Path $ProjectRoot "cmake-build-h747-lab-debug\h747_lab_player_md3.bin"
 }
 
-if (-not (Test-Path -LiteralPath $Elf)) {
-    throw "ELF not found: $Elf"
+if (-not (Test-Path -LiteralPath $Image)) {
+    throw "Image not found: $Image"
 }
 
 $PyOcd = Get-Command pyocd -ErrorAction Stop
-$ResolvedElf = (Resolve-Path -LiteralPath $Elf).Path
+$ResolvedImage = (Resolve-Path -LiteralPath $Image).Path
 
 Write-Host "Flashing H747 Lab Player MD3"
 Write-Host "  pyocd:     $($PyOcd.Source)"
 Write-Host "  probe:     $Probe"
 Write-Host "  target:    $Target"
 Write-Host "  frequency: $Frequency"
-Write-Host "  elf:       $ResolvedElf"
+Write-Host "  address:   $Address"
+Write-Host "  image:     $ResolvedImage"
 Write-Host ""
 Write-Host "Note: pyOCD may print 'Exception reading AP#2 IDR: Memory transfer fault' on this board."
 Write-Host "Treat the flash as successful when pyOCD exits with 0 and prints the final erase/program summary."
@@ -35,8 +37,11 @@ Write-Host ""
     -u $Probe `
     -t $Target `
     -f $Frequency `
-    --format elf `
-    $ResolvedElf
+    --connect halt `
+    --erase sector `
+    --format bin `
+    -a $Address `
+    $ResolvedImage
 
 if ($LASTEXITCODE -ne 0) {
     throw "pyocd load failed with exit code $LASTEXITCODE"

@@ -1,8 +1,8 @@
-#include "console.h"
-#include "player_md3_diag.hpp"
-
 #include <cstddef>
 #include <cstdint>
+
+#include "console.h"
+#include "player_md3_diag.hpp"
 
 import charm.core.handle;
 

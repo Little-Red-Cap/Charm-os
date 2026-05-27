@@ -1,7 +1,7 @@
 #include <cstdio>
 #include <cstdint>
 
-import charm.foundation;
+import charm.core;
 
 int main() {
     service::Fifo<int, 4> fifo{};

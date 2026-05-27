@@ -1,6 +1,6 @@
 #include <cstdio>
 
-import charm.foundation;
+import charm.core;
 import charm.core.event;
 import charm.widgets.button;
 import charm.widgets.list;

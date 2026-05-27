@@ -2,10 +2,17 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <span>
 #include <string_view>
 
-import charm.foundation;
-import charm.runtime;
+import charm.core;
+import fs_block;
+import fs_block_file;
+import fs_core;
+import fs_errno;
+import fs_fatfs;
+import fs_stream;
+import fs_vfs;
 
 namespace {
     struct MbrPartition {

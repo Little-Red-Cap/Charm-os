@@ -3,7 +3,7 @@
 #include <cstdio>
 #include <span>
 
-import charm.foundation;
+import charm.core;
 
 static void on_msg(const service::BusMessage& msg) noexcept {
     std::printf("[distbus] id=%u size=%zu kind=%u\n", msg.id, msg.size, static_cast<unsigned>(msg.kind));

@@ -5,8 +5,11 @@
 #include <thread>
 #include <chrono>
 
-import charm.foundation;
-import charm.runtime;
+import charm.core;
+import hal_core;
+import hal_gpio;
+import hal_timer;
+import hal_uart;
 
 struct WinDelay {
     static void delay_ms(hal::tick_t ms) noexcept {
@@ -22,11 +25,13 @@ struct WinGpio {
 
 struct WinUart {
     static hal::Result init(hal::UartHandle, hal::UartConfig) noexcept { return hal::ok(); }
-    static hal::Result write(hal::UartHandle, std::span<const util::u8> tx) noexcept {
-        std::fwrite(tx.data(), 1, tx.size(), stdout);
+    static hal::Result enable(hal::UartHandle) noexcept { return hal::ok(); }
+    static hal::Result disable(hal::UartHandle) noexcept { return hal::ok(); }
+    static hal::Result try_write(hal::UartHandle, util::u8 tx) noexcept {
+        std::fputc(static_cast<int>(tx), stdout);
         return hal::ok();
     }
-    static hal::Result read(hal::UartHandle, std::span<util::u8>) noexcept {
+    static hal::Result try_read(hal::UartHandle, util::u8&) noexcept {
         return hal::err(hal::Status::unsupported);
     }
 };
@@ -53,7 +58,11 @@ int main() {
     (void)WinUart::init(uart, uc);
     const char* msg = "[hal_demo] ok\n";
     auto bytes = std::span<const util::u8>(reinterpret_cast<const util::u8*>(msg), std::strlen(msg));
-    (void)WinUart::write(uart, bytes);
+    (void)WinUart::enable(uart);
+    for (const auto byte : bytes) {
+        (void)WinUart::try_write(uart, byte);
+    }
+    (void)WinUart::disable(uart);
 
     WinDelay::delay_ms(1);
     return 0;

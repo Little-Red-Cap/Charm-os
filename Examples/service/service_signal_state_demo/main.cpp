@@ -1,7 +1,7 @@
 #include <cstddef>
 #include <cstdio>
 
-import charm.foundation;
+import charm.core;
 import kernel.eda;
 import kernel.evt;
 import kernel.event_token;

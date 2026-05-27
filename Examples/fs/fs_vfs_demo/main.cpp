@@ -5,8 +5,10 @@
 #include <span>
 #include <string_view>
 
-import charm.foundation;
-import charm.runtime;
+import charm.core;
+import fs_core;
+import fs_ramfs;
+import fs_vfs;
 
 static void write_and_read(std::string_view path, const char* msg) {
     fs::File f{};
@@ -33,10 +35,10 @@ int main() {
     static fs::RamFs<64, 4, 16> data_fs;
     static fs::RamFs<64, 4, 16> logs_fs;
 
-    static fs::MountOps root_ops{ .open = +[](fs::Mount*, std::string_view path, fs::File& f) noexcept { return root_fs.open(path, f); } };
-    static fs::MountOps tmp_ops{ .open = +[](fs::Mount*, std::string_view path, fs::File& f) noexcept { return tmp_fs.open(path, f); } };
-    static fs::MountOps data_ops{ .open = +[](fs::Mount*, std::string_view path, fs::File& f) noexcept { return data_fs.open(path, f); } };
-    static fs::MountOps logs_ops{ .open = +[](fs::Mount*, std::string_view path, fs::File& f) noexcept { return logs_fs.open(path, f); } };
+    static fs::MountOps root_ops{ .open = +[](fs::Mount*, std::string_view path, fs::File& f, fs::OpenFlags flags) noexcept { return root_fs.open(path, f, flags); } };
+    static fs::MountOps tmp_ops{ .open = +[](fs::Mount*, std::string_view path, fs::File& f, fs::OpenFlags flags) noexcept { return tmp_fs.open(path, f, flags); } };
+    static fs::MountOps data_ops{ .open = +[](fs::Mount*, std::string_view path, fs::File& f, fs::OpenFlags flags) noexcept { return data_fs.open(path, f, flags); } };
+    static fs::MountOps logs_ops{ .open = +[](fs::Mount*, std::string_view path, fs::File& f, fs::OpenFlags flags) noexcept { return logs_fs.open(path, f, flags); } };
 
     static fs::Mount root_mount{ &root_ops, &root_fs };
     static fs::Mount tmp_mount{ &tmp_ops, &tmp_fs };

@@ -4,8 +4,14 @@
 #include <cstdio>
 #include <span>
 
-import charm.foundation;
-import charm.runtime;
+import charm.core;
+import shell_cmd;
+import shell_core;
+import shell_stream;
+import service_ring_buffer;
+import service_stream;
+import service_trace;
+import service_json;
 
 struct TestStream {
     std::array<char, 64> buf{};

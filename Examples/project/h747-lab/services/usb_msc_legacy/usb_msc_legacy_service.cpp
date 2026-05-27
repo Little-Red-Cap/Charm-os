@@ -5,6 +5,7 @@
 #include "usb_device.h"
 #include "usbd_conf.h"
 #include "usbd_core.h"
+#include "usbd_msc_scsi.h"
 #include "usbd_storage_if.h"
 
 #include <cstring>
@@ -45,6 +46,24 @@ std::uint32_t nvic_pending(const IRQn_Type irq) noexcept {
 
 std::uint32_t nvic_active(const IRQn_Type irq) noexcept {
     return ((NVIC->IABR[nvic_word_for_irq(irq)] & nvic_mask_for_irq(irq)) != 0U) ? 1U : 0U;
+}
+
+std::uint32_t known_scsi_command_count() noexcept {
+    return usb_legacy_scsi_opcode_count(SCSI_TEST_UNIT_READY)
+         + usb_legacy_scsi_opcode_count(SCSI_REQUEST_SENSE)
+         + usb_legacy_scsi_opcode_count(SCSI_INQUIRY)
+         + usb_legacy_scsi_opcode_count(SCSI_START_STOP_UNIT)
+         + usb_legacy_scsi_opcode_count(SCSI_ALLOW_MEDIUM_REMOVAL)
+         + usb_legacy_scsi_opcode_count(SCSI_MODE_SENSE6)
+         + usb_legacy_scsi_opcode_count(SCSI_MODE_SENSE10)
+         + usb_legacy_scsi_opcode_count(SCSI_READ_FORMAT_CAPACITIES)
+         + usb_legacy_scsi_opcode_count(SCSI_READ_CAPACITY10)
+         + usb_legacy_scsi_opcode_count(SCSI_READ_CAPACITY16)
+         + usb_legacy_scsi_opcode_count(SCSI_READ10)
+         + usb_legacy_scsi_opcode_count(SCSI_READ12)
+         + usb_legacy_scsi_opcode_count(SCSI_WRITE10)
+         + usb_legacy_scsi_opcode_count(SCSI_WRITE12)
+         + usb_legacy_scsi_opcode_count(SCSI_VERIFY10);
 }
 
 } // namespace
@@ -124,6 +143,76 @@ State state() noexcept {
         .disconnect_count = usb_legacy_disconnect_count(),
         .out_ep0_hits = usb_legacy_out_ep_hits(0U),
         .in_ep0_hits = usb_legacy_in_ep_hits(0U),
+        .out_ep1_hits = usb_legacy_out_ep_hits(1U),
+        .in_ep1_hits = usb_legacy_in_ep_hits(1U),
+        .stall_ep1_out_hits = usb_legacy_stall_ep_hits(MSC_EPOUT_ADDR),
+        .stall_ep1_in_hits = usb_legacy_stall_ep_hits(MSC_EPIN_ADDR),
+        .clear_stall_ep1_out_hits = usb_legacy_clear_stall_ep_hits(MSC_EPOUT_ADDR),
+        .clear_stall_ep1_in_hits = usb_legacy_clear_stall_ep_hits(MSC_EPIN_ADDR),
+        .open_ep_count = usb_legacy_open_ep_count(),
+        .close_ep_count = usb_legacy_close_ep_count(),
+        .set_address_count = usb_legacy_set_address_count(),
+        .setup_std_get_status = usb_legacy_setup_std_get_status_count(),
+        .setup_std_clear_feature = usb_legacy_setup_std_clear_feature_count(),
+        .setup_std_set_feature = usb_legacy_setup_std_set_feature_count(),
+        .setup_std_set_address = usb_legacy_setup_std_set_address_count(),
+        .setup_std_get_descriptor_device = usb_legacy_setup_std_get_descriptor_device_count(),
+        .setup_std_get_descriptor_config = usb_legacy_setup_std_get_descriptor_config_count(),
+        .setup_std_get_descriptor_string = usb_legacy_setup_std_get_descriptor_string_count(),
+        .setup_std_get_descriptor_qualifier = usb_legacy_setup_std_get_descriptor_qualifier_count(),
+        .setup_std_get_descriptor_other = usb_legacy_setup_std_get_descriptor_other_count(),
+        .setup_std_get_configuration = usb_legacy_setup_std_get_configuration_count(),
+        .setup_std_set_configuration = usb_legacy_setup_std_set_configuration_count(),
+        .setup_std_get_interface = usb_legacy_setup_std_get_interface_count(),
+        .setup_std_set_interface = usb_legacy_setup_std_set_interface_count(),
+        .setup_std_other = usb_legacy_setup_std_other_count(),
+        .setup_class_get_max_lun = usb_legacy_setup_class_get_max_lun_count(),
+        .setup_class_bot_reset = usb_legacy_setup_class_bot_reset_count(),
+        .setup_class_other = usb_legacy_setup_class_other_count(),
+        .setup_vendor = usb_legacy_setup_vendor_count(),
+        .setup_type_other = usb_legacy_setup_type_other_count(),
+        .scsi_cbw_count = usb_legacy_scsi_cbw_count(),
+        .scsi_bad_cbw_count = usb_legacy_scsi_bad_cbw_count(),
+        .scsi_test_unit_ready_count = usb_legacy_scsi_opcode_count(SCSI_TEST_UNIT_READY),
+        .scsi_request_sense_count = usb_legacy_scsi_opcode_count(SCSI_REQUEST_SENSE),
+        .scsi_inquiry_count = usb_legacy_scsi_opcode_count(SCSI_INQUIRY),
+        .scsi_start_stop_count = usb_legacy_scsi_opcode_count(SCSI_START_STOP_UNIT),
+        .scsi_allow_removal_count = usb_legacy_scsi_opcode_count(SCSI_ALLOW_MEDIUM_REMOVAL),
+        .scsi_mode_sense6_count = usb_legacy_scsi_opcode_count(SCSI_MODE_SENSE6),
+        .scsi_mode_sense10_count = usb_legacy_scsi_opcode_count(SCSI_MODE_SENSE10),
+        .scsi_read_format_capacity_count = usb_legacy_scsi_opcode_count(SCSI_READ_FORMAT_CAPACITIES),
+        .scsi_read_capacity10_count = usb_legacy_scsi_opcode_count(SCSI_READ_CAPACITY10),
+        .scsi_read_capacity16_count = usb_legacy_scsi_opcode_count(SCSI_READ_CAPACITY16),
+        .scsi_read10_count = usb_legacy_scsi_opcode_count(SCSI_READ10),
+        .scsi_read12_count = usb_legacy_scsi_opcode_count(SCSI_READ12),
+        .scsi_write10_count = usb_legacy_scsi_opcode_count(SCSI_WRITE10),
+        .scsi_write12_count = usb_legacy_scsi_opcode_count(SCSI_WRITE12),
+        .scsi_verify10_count = usb_legacy_scsi_opcode_count(SCSI_VERIFY10),
+        .scsi_other_count = usb_legacy_scsi_cbw_count() - known_scsi_command_count(),
+        .scsi_last_tag = usb_legacy_scsi_last_tag(),
+        .scsi_last_data_len = usb_legacy_scsi_last_data_len(),
+        .scsi_last_lba = usb_legacy_scsi_last_lba(),
+        .scsi_last_blocks = usb_legacy_scsi_last_blocks(),
+        .scsi_last_opcode = usb_legacy_scsi_last_opcode(),
+        .scsi_last_lun = usb_legacy_scsi_last_lun(),
+        .scsi_last_cb_len = usb_legacy_scsi_last_cb_len(),
+        .scsi_last_flags = usb_legacy_scsi_last_flags(),
+        .scsi_last_valid = usb_legacy_scsi_last_valid(),
+        .dev_config = hUsbDeviceFS.dev_config,
+        .dev_default_config = hUsbDeviceFS.dev_default_config,
+        .dev_config_status = hUsbDeviceFS.dev_config_status,
+        .ep0_state = hUsbDeviceFS.ep0_state,
+        .ep0_data_len = hUsbDeviceFS.ep0_data_len,
+        .class_id = hUsbDeviceFS.classId,
+        .num_classes = hUsbDeviceFS.NumClasses,
+        .dev_state = hUsbDeviceFS.dev_state,
+        .dev_old_state = hUsbDeviceFS.dev_old_state,
+        .dev_address = hUsbDeviceFS.dev_address,
+        .dev_connection_status = hUsbDeviceFS.dev_connection_status,
+        .dev_speed = static_cast<std::uint8_t>(hUsbDeviceFS.dev_speed),
+        .conf_idx = hUsbDeviceFS.ConfIdx,
+        .ep1_out_used = static_cast<std::uint8_t>(hUsbDeviceFS.ep_out[MSC_EPOUT_ADDR & 0x0FU].is_used),
+        .ep1_in_used = static_cast<std::uint8_t>(hUsbDeviceFS.ep_in[MSC_EPIN_ADDR & 0x0FU].is_used),
         .gusbcfg = static_cast<std::uint32_t>(usb->GUSBCFG),
         .gahbcfg = static_cast<std::uint32_t>(usb->GAHBCFG),
         .gintsts = static_cast<std::uint32_t>(usb->GINTSTS),
@@ -157,6 +246,8 @@ State state() noexcept {
         .register_storage_status = device.register_storage_status,
         .usbd_start_status = device.usbd_start_status,
         .last_setup = {0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U},
+        .setup_history_count = 0U,
+        .setup_history = {{0U}},
         .dev_desc_len = 0U,
         .cfg_desc_len = 0U,
         .dev_desc_prefix_len = 0U,
@@ -166,6 +257,10 @@ State state() noexcept {
     };
 
     usb_legacy_copy_last_setup(result.last_setup);
+    result.setup_history_count = usb_legacy_setup_history_count();
+    for (std::uint8_t slot = 0U; slot < result.setup_history_count && slot < 4U; ++slot) {
+        usb_legacy_copy_setup_history(slot, result.setup_history[slot]);
+    }
 
     if ((hUsbDeviceFS.pDesc != nullptr) && (hUsbDeviceFS.pDesc->GetDeviceDescriptor != nullptr)) {
         uint16_t len = 0U;

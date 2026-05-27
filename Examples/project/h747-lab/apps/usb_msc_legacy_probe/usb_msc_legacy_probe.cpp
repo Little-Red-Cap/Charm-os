@@ -97,6 +97,10 @@ void emit_hex_bytes(const char* label, const std::uint8_t* bytes, const std::siz
     emit_text("\n");
 }
 
+void emit_setup_packet(const char* label, const std::uint8_t* bytes) noexcept {
+    emit_hex_bytes(label, bytes, 8U);
+}
+
 std::uint16_t u16le(const std::uint8_t* p) noexcept {
     return static_cast<std::uint16_t>(p[0])
          | static_cast<std::uint16_t>(static_cast<std::uint16_t>(p[1]) << 8U);
@@ -175,12 +179,22 @@ void print_storage_status() {
 
 void print_usb_link_summary() {
     const auto usb = h747::usb_msc_legacy::state();
-    emit<"usb_link: start={} setup={} reset={} reads={} writes={} dm={} dp={} dctl=0x{:08X} dsts=0x{:08X} sdis={}/{} pkt={} ra={} window={}/{}\n">(
+    emit<"usb_link: start={} dev={}/{} addr={} cfg={} conf={} setup={} reset={} reads={} writes={} scsi={} bad_cbw={} last_op=0x{:02X} lba={} blocks={} dm={} dp={} dctl=0x{:08X} dsts=0x{:08X} sdis={}/{} pkt={} ra={} window={}/{} ep1={}/{} stall={}/{} clr={}/{} open={} close={} addr_set={} setcfg={} getlun={} botreset={}\n">(
         usb.started,
+        static_cast<unsigned>(usb.dev_state),
+        static_cast<unsigned>(usb.dev_old_state),
+        static_cast<unsigned>(usb.dev_address),
+        usb.dev_config,
+        static_cast<unsigned>(usb.conf_idx),
         usb.setup_count,
         usb.reset_count,
         usb.read_calls,
         usb.write_calls,
+        usb.scsi_cbw_count,
+        usb.scsi_bad_cbw_count,
+        static_cast<unsigned>(usb.scsi_last_opcode),
+        usb.scsi_last_lba,
+        usb.scsi_last_blocks,
         usb.gpio_dm,
         usb.gpio_dp,
         usb.dctl,
@@ -190,7 +204,19 @@ void print_usb_link_summary() {
         usb.packet_bytes,
         usb.read_ahead_blocks,
         usb.cache_window_lba,
-        usb.cache_window_blocks);
+        usb.cache_window_blocks,
+        usb.out_ep1_hits,
+        usb.in_ep1_hits,
+        usb.stall_ep1_out_hits,
+        usb.stall_ep1_in_hits,
+        usb.clear_stall_ep1_out_hits,
+        usb.clear_stall_ep1_in_hits,
+        usb.open_ep_count,
+        usb.close_ep_count,
+        usb.set_address_count,
+        usb.setup_std_set_configuration,
+        usb.setup_class_get_max_lun,
+        usb.setup_class_bot_reset);
 }
 
 void run_usb_attach_window() {
@@ -201,18 +227,53 @@ void run_usb_attach_window() {
         HAL_Delay(5000U);
         const auto storage = h747_storage_state();
         const auto usb = h747::usb_msc_legacy::state();
-        emit<"usb_attach_window: sample={} setup={} reset={} reads={} writes={} rfails={} wfails={} pkt={} ra={} window={}/{}\n">(
+        emit<"usb_attach_window: sample={} dev={}/{} addr={} cfg={} conf={} setup={} reset={} conn={}/{} sus={}/{} reads={} writes={} rfails={} wfails={} scsi={} bad_cbw={} tur={} inq={} cap={} read10={} reqsense={} modes6={} modes10={} write10={} other={} last_op=0x{:02X} lba={} blocks={} pkt={} ra={} window={}/{} ep1={}/{} stall={}/{} clr={}/{} open={} close={} addr_set={} setcfg={} getlun={} botreset={}\n">(
             i + 1U,
+            static_cast<unsigned>(usb.dev_state),
+            static_cast<unsigned>(usb.dev_old_state),
+            static_cast<unsigned>(usb.dev_address),
+            usb.dev_config,
+            static_cast<unsigned>(usb.conf_idx),
             usb.setup_count,
             usb.reset_count,
+            usb.connect_count,
+            usb.disconnect_count,
+            usb.suspend_count,
+            usb.resume_count,
             usb.read_calls,
             usb.write_calls,
             storage.read_fail_count,
             storage.write_fail_count,
+            usb.scsi_cbw_count,
+            usb.scsi_bad_cbw_count,
+            usb.scsi_test_unit_ready_count,
+            usb.scsi_inquiry_count,
+            usb.scsi_read_capacity10_count,
+            usb.scsi_read10_count,
+            usb.scsi_request_sense_count,
+            usb.scsi_mode_sense6_count,
+            usb.scsi_mode_sense10_count,
+            usb.scsi_write10_count,
+            usb.scsi_other_count,
+            static_cast<unsigned>(usb.scsi_last_opcode),
+            usb.scsi_last_lba,
+            usb.scsi_last_blocks,
             usb.packet_bytes,
             usb.read_ahead_blocks,
             usb.cache_window_lba,
-            usb.cache_window_blocks);
+            usb.cache_window_blocks,
+            usb.out_ep1_hits,
+            usb.in_ep1_hits,
+            usb.stall_ep1_out_hits,
+            usb.stall_ep1_in_hits,
+            usb.clear_stall_ep1_out_hits,
+            usb.clear_stall_ep1_in_hits,
+            usb.open_ep_count,
+            usb.close_ep_count,
+            usb.set_address_count,
+            usb.setup_std_set_configuration,
+            usb.setup_class_get_max_lun,
+            usb.setup_class_bot_reset);
     }
     h747::usb_msc_legacy::detach();
     emit<"usb_attach_window: detached=1\n">();
@@ -267,7 +328,23 @@ void print_status() {
         usb.vbus_detector_enabled,
         usb.soft_disconnect_before_start,
         usb.soft_disconnect_after_start);
-    emit<"legacy_usb_events: setup={} reset={} connect={} disconnect={} suspend={} resume={} ep0_out={} ep0_in={} last_setup={}\n">(
+    emit<"legacy_usb_state: dev={}/{} addr={} conn={} speed={} cfg={}/{} cfg_status={} conf_idx={} ep0={}/{} class={}/{} ep1_used={}/{}\n">(
+        static_cast<unsigned>(usb.dev_state),
+        static_cast<unsigned>(usb.dev_old_state),
+        static_cast<unsigned>(usb.dev_address),
+        static_cast<unsigned>(usb.dev_connection_status),
+        static_cast<unsigned>(usb.dev_speed),
+        usb.dev_config,
+        usb.dev_default_config,
+        usb.dev_config_status,
+        static_cast<unsigned>(usb.conf_idx),
+        usb.ep0_state,
+        usb.ep0_data_len,
+        usb.class_id,
+        usb.num_classes,
+        static_cast<unsigned>(usb.ep1_out_used),
+        static_cast<unsigned>(usb.ep1_in_used));
+    emit<"legacy_usb_events: setup={} reset={} connect={} disconnect={} suspend={} resume={} ep0={}/{} ep1={}/{} stall={}/{} clr={}/{} open={} close={} addr={} last_setup={}\n">(
         usb.setup_count,
         usb.reset_count,
         usb.connect_count,
@@ -276,7 +353,64 @@ void print_status() {
         usb.resume_count,
         usb.out_ep0_hits,
         usb.in_ep0_hits,
+        usb.out_ep1_hits,
+        usb.in_ep1_hits,
+        usb.stall_ep1_out_hits,
+        usb.stall_ep1_in_hits,
+        usb.clear_stall_ep1_out_hits,
+        usb.clear_stall_ep1_in_hits,
+        usb.open_ep_count,
+        usb.close_ep_count,
+        usb.set_address_count,
         usb.last_setup_valid);
+    emit<"legacy_usb_setup_counts: std_status={} clrfeat={} setfeat={} setaddr={} getdesc={}/{}/{}/{}/{} getcfg={} setcfg={} getitf={} setitf={} std_other={} getlun={} botreset={} class_other={} vendor={} type_other={}\n">(
+        usb.setup_std_get_status,
+        usb.setup_std_clear_feature,
+        usb.setup_std_set_feature,
+        usb.setup_std_set_address,
+        usb.setup_std_get_descriptor_device,
+        usb.setup_std_get_descriptor_config,
+        usb.setup_std_get_descriptor_string,
+        usb.setup_std_get_descriptor_qualifier,
+        usb.setup_std_get_descriptor_other,
+        usb.setup_std_get_configuration,
+        usb.setup_std_set_configuration,
+        usb.setup_std_get_interface,
+        usb.setup_std_set_interface,
+        usb.setup_std_other,
+        usb.setup_class_get_max_lun,
+        usb.setup_class_bot_reset,
+        usb.setup_class_other,
+        usb.setup_vendor,
+        usb.setup_type_other);
+    emit<"legacy_usb_scsi: cbw={} bad={} tur={} sense={} inquiry={} startstop={} allow={} modes6={} modes10={} fmtcap={} cap10={} cap16={} read10={} read12={} write10={} write12={} verify10={} other={} last={}/0x{:02X}/lun{}/cb{}/flags0x{:02X}/tag{}/len{}/lba{}/blocks{}\n">(
+        usb.scsi_cbw_count,
+        usb.scsi_bad_cbw_count,
+        usb.scsi_test_unit_ready_count,
+        usb.scsi_request_sense_count,
+        usb.scsi_inquiry_count,
+        usb.scsi_start_stop_count,
+        usb.scsi_allow_removal_count,
+        usb.scsi_mode_sense6_count,
+        usb.scsi_mode_sense10_count,
+        usb.scsi_read_format_capacity_count,
+        usb.scsi_read_capacity10_count,
+        usb.scsi_read_capacity16_count,
+        usb.scsi_read10_count,
+        usb.scsi_read12_count,
+        usb.scsi_write10_count,
+        usb.scsi_write12_count,
+        usb.scsi_verify10_count,
+        usb.scsi_other_count,
+        usb.scsi_last_valid,
+        static_cast<unsigned>(usb.scsi_last_opcode),
+        static_cast<unsigned>(usb.scsi_last_lun),
+        static_cast<unsigned>(usb.scsi_last_cb_len),
+        static_cast<unsigned>(usb.scsi_last_flags),
+        usb.scsi_last_tag,
+        usb.scsi_last_data_len,
+        usb.scsi_last_lba,
+        usb.scsi_last_blocks);
     emit<"legacy_usb_regs: gusbcfg=0x{:08X} gahbcfg=0x{:08X} gintsts=0x{:08X} gintmsk=0x{:08X} masked=0x{:08X} gotgint=0x{:08X} dctl=0x{:08X} dsts=0x{:08X} gotgctl=0x{:08X} gccfg=0x{:08X}\n">(
         usb.gusbcfg,
         usb.gahbcfg,
@@ -311,6 +445,9 @@ void print_status() {
         usb.nvic_active_otg_fs);
     if (usb.last_setup_valid != 0U) {
         emit_hex_bytes("legacy_usb_setup:", usb.last_setup, sizeof(usb.last_setup));
+    }
+    for (std::uint8_t slot = 0U; slot < usb.setup_history_count && slot < 4U; ++slot) {
+        emit_setup_packet("legacy_usb_setup_hist:", usb.setup_history[slot]);
     }
     emit<"legacy_usb_desc: dev_len={} cfg_len={} dev_prefix={} cfg_prefix={}\n">(
         usb.dev_desc_len,

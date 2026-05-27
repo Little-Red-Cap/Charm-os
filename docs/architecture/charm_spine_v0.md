@@ -100,7 +100,11 @@ v0 至少承认以下投影：
 
 - init projection：投影到 `init::Node` / `init::Graph`。
 - context projection：投影到 app 可见的 `ContextView`。
-- evidence projection：投影到结构化事实帧。
+- evidence projection：投影到结构化事实帧；它是只读 side-channel，
+  不参与 init ordering、runtime scheduling 或 provider log 输出。
+- explain projection：投影到只读 report / explain surface，用于解释 profile
+  binding、provider identity 与 fact 差异；它不读取 runtime provider 实例，
+  也不是 artifact schema 或 system compiler 平台本体。
 - host projection：投影到 PC/mock backend。
 - board projection：投影到真实板级 provider。
 - ABI projection：未来投影到 hostcall / capability table。
@@ -181,7 +185,10 @@ Charm 公共契约。
 - `rte_component_context_smoke`
 - `rte_init_projection_smoke`
 - `rte_profile_materialization_smoke`
+- `rte_explain_projection_smoke`
 - `charm_spine_smoke`
+- `charm_spine_evidence_projection_smoke`
+- `charm_spine_reflected_profile_smoke`
 
 这些 smoke 可以先验证语义，再决定是否提升为公共模块。
 

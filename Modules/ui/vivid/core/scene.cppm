@@ -4,7 +4,6 @@ module;
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
 
 export module charm.ui.scene;
 
@@ -18,7 +17,6 @@ export import charm.ui.scene.pill_surface;
 export import charm.ui.scene.layer_runtime;
 export import charm.ui.scene.builder_support;
 export import charm.ui.scene.layer_support;
-import :render_detail;
 import charm.core.soa_factory;
 import charm.core.soa_gui;
 import charm.core.soa_kernel;
@@ -29,7 +27,8 @@ export import charm.gfx.image;
 import charm.gfx.pixel_ops;
 export import charm.gfx.render_style;
 export import charm.gfx.text_box;
-import charm.gfx.draw_cmd;
+export import charm.gfx.draw_cmd;
+import :render_detail;
 
 export using ::ScrollBarOrientation;
 export using ::SemanticAction;
@@ -90,11 +89,11 @@ export namespace ui::scene {
             buf_.stroke_round_rect(rect, radius, color);
         }
         void fill_circle(const Rect& rect, const rgba& color) noexcept {
-            const int radius = std::max(0, std::min(rect.w, rect.h) / 2);
+            const int radius = std::max<int>(0, static_cast<int>(std::min(rect.w, rect.h)) / 2);
             buf_.fill_circle(rect.x + rect.w / 2, rect.y + rect.h / 2, radius, color);
         }
         void stroke_circle(const Rect& rect, const rgba& color) noexcept {
-            const int radius = std::max(0, std::min(rect.w, rect.h) / 2);
+            const int radius = std::max<int>(0, static_cast<int>(std::min(rect.w, rect.h)) / 2);
             buf_.stroke_circle(rect.x + rect.w / 2, rect.y + rect.h / 2, radius, color);
         }
 
@@ -497,7 +496,7 @@ export namespace ui::scene {
 
     class PageLayer {
     public:
-        PageLayer() noexcept = default;
+        constexpr PageLayer() noexcept {}
         explicit PageLayer(WidgetHandle root) noexcept : root_(root) {}
 
         void set_root(WidgetHandle root) noexcept {

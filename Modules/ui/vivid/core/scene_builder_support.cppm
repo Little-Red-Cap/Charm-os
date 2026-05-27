@@ -103,7 +103,7 @@ export namespace ui::scene {
 
     class SceneAccess {
     public:
-        SceneAccess() noexcept = default;
+        constexpr SceneAccess() noexcept {}
         explicit SceneAccess(SoaKernel& kernel) noexcept : kernel_(&kernel) {}
 
         bool valid() const noexcept { return kernel_ != nullptr; }
@@ -344,6 +344,7 @@ export namespace ui::scene {
         WidgetHandle create_container() noexcept { return factory_.create_container(); }
         WidgetHandle create_scroll_container() noexcept { return factory_.create_scroll_container(); }
         WidgetHandle create_image() noexcept { return factory_.create_image(); }
+        WidgetHandle create_label(const char* text) noexcept { return factory_.create_label(text); }
         WidgetHandle create_label_static(const char* text) noexcept { return factory_.create_label_static(text); }
         WidgetHandle create_checkbox(const char* text) noexcept { return factory_.create_checkbox(text); }
         WidgetHandle create_radio(const char* text) noexcept { return factory_.create_radio(text); }

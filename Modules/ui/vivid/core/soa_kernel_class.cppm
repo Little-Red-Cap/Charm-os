@@ -4,6 +4,10 @@ module;
 #include <cstddef>
 #include <cstdint>
 
+#if defined(CHARM_VIVID_UNSUPPORTED_WIDGET_DIAG)
+extern "C" void charm_vivid_soa_unsupported_widget_kind(unsigned kind, unsigned caller) noexcept;
+#endif
+
 export module charm.core.soa_kernel:kernel_class;
 
 import :types;
@@ -792,6 +796,11 @@ public:
 #endif
 
     static void unsupported_kind(WidgetKind kind) noexcept {
+#if defined(CHARM_VIVID_UNSUPPORTED_WIDGET_DIAG)
+        charm_vivid_soa_unsupported_widget_kind(
+            static_cast<unsigned>(kind),
+            static_cast<unsigned>(reinterpret_cast<std::uintptr_t>(__builtin_return_address(0))));
+#endif
 #ifndef NDEBUG
         assert(false && "SoaKernel unsupported WidgetKind");
 #else

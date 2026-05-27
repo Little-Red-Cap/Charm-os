@@ -6,6 +6,7 @@ module;
 #include <cstring>
 #include <string_view>
 #include <utility>
+#include "vivid_features.generated.hpp"
 
 export module charm.core.soa_gui.feedback_recorders;
 
@@ -17,12 +18,42 @@ import charm.core.style_sheet;
 import charm.core.soa_gui.style_support;
 import charm.gfx.draw_cmd;
 import charm.gfx.text_box;
+#if !defined(CHARM_VIVID_FEATURESET_MCU_MIN)
 import charm.widgets.perf_overlay;
+#endif
 import out.core;
 import out.format;
 import util.expected;
 
 export namespace ui::soa_gui_detail {
+#if defined(CHARM_VIVID_FEATURESET_MCU_MIN)
+    struct PerfOverlayStatsSnapshot {
+        std::uint32_t dispatch_groups{0};
+        std::uint32_t batch_flushes{0};
+        std::uint32_t failed_cmds{0};
+        std::uint32_t group_rect{0};
+        std::uint32_t group_text{0};
+        std::uint32_t group_image{0};
+        std::uint32_t group_line{0};
+        std::uint32_t group_path{0};
+        std::uint32_t group_other{0};
+        std::uint32_t cmd_rect{0};
+        std::uint32_t cmd_text{0};
+        std::uint32_t cmd_image{0};
+        std::uint32_t cmd_line{0};
+        std::uint32_t cmd_path{0};
+        std::uint32_t cmd_other{0};
+    };
+
+    inline bool perf_overlay_stats_valid() noexcept {
+        return false;
+    }
+
+    inline PerfOverlayStatsSnapshot perf_overlay_stats() noexcept {
+        return {};
+    }
+#endif
+
     constexpr int kWheelLutSize = 72;
     struct WheelQ15Point {
         std::int16_t x{};

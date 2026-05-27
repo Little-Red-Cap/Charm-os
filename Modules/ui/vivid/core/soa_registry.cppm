@@ -106,7 +106,7 @@ export namespace soa_detail {
 }
 
 namespace {
-    std::array<SoaBehavior, widget_kind_count> build_behavior_table() noexcept {
+    constexpr std::array<SoaBehavior, widget_kind_count> build_behavior_table() noexcept {
         std::array<SoaBehavior, widget_kind_count> table{};
         for (auto& entry : table) {
             entry = SoaBehavior{};
@@ -165,9 +165,9 @@ namespace {
         return table;
     }
 
-    const auto kBehaviorTable = build_behavior_table();
+    constexpr auto kBehaviorTable = build_behavior_table();
 
-    std::array<SoaDefaults, widget_kind_count> build_default_table() noexcept {
+    constexpr std::array<SoaDefaults, widget_kind_count> build_default_table() noexcept {
         std::array<SoaDefaults, widget_kind_count> table{};
         for (auto& entry : table) {
             entry = SoaDefaults{};
@@ -203,9 +203,9 @@ namespace {
         return table;
     }
 
-    const auto kDefaultTable = build_default_table();
+    constexpr auto kDefaultTable = build_default_table();
 
-    std::array<soa_detail::PayloadKind, widget_kind_count> build_payload_table() noexcept {
+    constexpr std::array<soa_detail::PayloadKind, widget_kind_count> build_payload_table() noexcept {
         std::array<soa_detail::PayloadKind, widget_kind_count> table{};
         for (auto& entry : table) {
             entry = soa_detail::PayloadKind::None;
@@ -219,7 +219,7 @@ namespace {
         return table;
     }
 
-    const auto kPayloadTable = build_payload_table();
+    constexpr auto kPayloadTable = build_payload_table();
 }
 
 export

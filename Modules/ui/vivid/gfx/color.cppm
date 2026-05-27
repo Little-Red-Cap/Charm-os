@@ -17,7 +17,7 @@ struct rgb {
 };
 
 export
-struct rgba {
+struct alignas(4) rgba {
     uint8_t r, g, b, a;
 
     constexpr rgba(const uint8_t rr = 0, const uint8_t gg = 0, const uint8_t bb = 0, const uint8_t aa = 255)
@@ -37,6 +37,9 @@ struct rgba {
         };
     }
 };
+
+static_assert(sizeof(rgba) == 4);
+static_assert(alignof(rgba) == 4);
 
 // Color space conversion example (RGB -> HSV).
 export

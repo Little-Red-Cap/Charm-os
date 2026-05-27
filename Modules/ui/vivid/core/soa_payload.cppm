@@ -442,7 +442,7 @@ export namespace soa_detail {
 #endif
 
         void reset() noexcept {
-            free_head = 0;
+            free_head = (N > 0) ? 0 : kInvalidPayloadSlot;
 #if defined(VIVID_SOA_TRACE_INPUT)
             used = 0;
             peak = 0;
@@ -450,7 +450,8 @@ export namespace soa_detail {
 #endif
             for (std::uint16_t i = 0; i < N; ++i) {
                 generation[i] = 1;
-                free_next[i] = (i + 1 < N) ? static_cast<std::uint16_t>(i + 1) : kInvalidPayloadSlot;
+                const auto next = static_cast<std::size_t>(i) + 1u;
+                free_next[i] = (next < N) ? static_cast<std::uint16_t>(next) : kInvalidPayloadSlot;
                 items[i] = T{};
 #ifndef NDEBUG
                 owner[i] = kInvalidPayloadSlot;
@@ -460,6 +461,14 @@ export namespace soa_detail {
         }
 
         PayloadHandle alloc(std::uint16_t owner_idx, WidgetKind kind) noexcept {
+            if constexpr (N == 0) {
+#if defined(VIVID_SOA_TRACE_INPUT)
+                alloc_fail += 1;
+#endif
+                (void)owner_idx;
+                (void)kind;
+                return invalid_payload_handle();
+            }
             if (free_head == kInvalidPayloadSlot) {
 #if defined(VIVID_SOA_TRACE_INPUT)
                 alloc_fail += 1;

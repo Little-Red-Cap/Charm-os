@@ -20,21 +20,30 @@ export namespace power::trace {
         clock_domain_remove = 7
     };
 
-    inline Sink& sink() noexcept {
-        static Sink s{};
-        return s;
+    Sink& sink() noexcept;
+    void set_sink(Sink s) noexcept;
+    void record(EventId id,
+                util::u64 payload = 0,
+                ::trace::TraceKind kind = ::trace::TraceKind::event) noexcept;
+}
+
+namespace power::trace::detail {
+    Sink g_sink{};
+}
+
+namespace power::trace {
+    Sink& sink() noexcept {
+        return detail::g_sink;
     }
 
-    inline void set_sink(Sink s) noexcept {
+    void set_sink(Sink s) noexcept {
         sink() = s;
     }
 
-    inline void record(EventId id,
-                       util::u64 payload = 0,
-                       ::trace::TraceKind kind = ::trace::TraceKind::event) noexcept {
-        auto& s = sink();
-        if (s.emit) {
-            s.emit(s.ctx, kind, static_cast<util::u32>(id), payload);
+    void record(EventId id, util::u64 payload, ::trace::TraceKind kind) noexcept {
+        auto& target = sink();
+        if (target.emit) {
+            target.emit(target.ctx, kind, static_cast<util::u32>(id), payload);
         }
     }
 }

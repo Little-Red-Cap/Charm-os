@@ -11,8 +11,19 @@ module;
 export module audio.decode_pipe;
 
 import audio.channel.convert;
+#ifndef CHARM_AUDIO_ENABLE_FLAC
+#define CHARM_AUDIO_ENABLE_FLAC 1
+#endif
+#ifndef CHARM_AUDIO_ENABLE_MP3
+#define CHARM_AUDIO_ENABLE_MP3 1
+#endif
+
+#if CHARM_AUDIO_ENABLE_FLAC
 import audio.decoder.flac;
+#endif
+#if CHARM_AUDIO_ENABLE_MP3
 import audio.decoder.mp3;
+#endif
 import audio.decoder.wav;
 import audio.eq;
 import audio.format;
@@ -78,6 +89,7 @@ export namespace audio {
             total_frames_ = 0;
 
             if (kind_ == SourceKind::flac) {
+#if CHARM_AUDIO_ENABLE_FLAC
                 const auto info = flac_filter_.open(src_);
                 if (!info) return unexpected(info.error());
                 const auto fmt = flac_filter_.format();
@@ -86,7 +98,11 @@ export namespace audio {
                 input_fmt_.sample_type = SampleType::s16;
                 has_more_data_ = true;
                 total_frames_ = flac_filter_.total_frames();
+#else
+                return unexpected(Errc::not_supported);
+#endif
             } else if (kind_ == SourceKind::mp3) {
+#if CHARM_AUDIO_ENABLE_MP3
                 const auto info = mp3_filter_.open(src_);
                 if (!info) return unexpected(info.error());
                 const auto fmt = mp3_filter_.format();
@@ -95,6 +111,9 @@ export namespace audio {
                 input_fmt_.sample_type = SampleType::s16;
                 has_more_data_ = true;
                 total_frames_ = mp3_filter_.total_frames();
+#else
+                return unexpected(Errc::not_supported);
+#endif
             } else {
                 const auto info = wav_filter_.open(src_);
                 if (!info) return unexpected(info.error());
@@ -117,8 +136,12 @@ export namespace audio {
         }
 
         void close() noexcept {
+#if CHARM_AUDIO_ENABLE_FLAC
             flac_filter_.close();
+#endif
+#if CHARM_AUDIO_ENABLE_MP3
             mp3_filter_.close();
+#endif
             wav_filter_.close();
             src_ = {};
             kind_ = SourceKind::wav;
@@ -145,13 +168,21 @@ export namespace audio {
                 auto res = src_.seek(static_cast<std::int64_t>(data_offset_ + clamped), media::SeekWhence::set);
                 if (!res) return unexpected(res.error());
             } else if (kind_ == SourceKind::flac) {
+#if CHARM_AUDIO_ENABLE_FLAC
                 auto res = flac_filter_.seek_pcm_frame(clamped_frames);
                 if (!res) return unexpected(res.error());
                 has_more_data_ = true;
+#else
+                return unexpected(Errc::not_supported);
+#endif
             } else if (kind_ == SourceKind::mp3) {
+#if CHARM_AUDIO_ENABLE_MP3
                 auto res = mp3_filter_.seek_pcm_frame(clamped_frames);
                 if (!res) return unexpected(res.error());
                 has_more_data_ = true;
+#else
+                return unexpected(Errc::not_supported);
+#endif
             } else {
                 return unexpected(Errc::not_supported);
             }
@@ -246,9 +277,19 @@ export namespace audio {
             std::size_t decoded_frames = 0;
 
             if (kind_ == SourceKind::flac) {
+#if CHARM_AUDIO_ENABLE_FLAC
                 decoded_frames = read_flac(input_target);
+#else
+                has_more_data_ = false;
+                return 0;
+#endif
             } else if (kind_ == SourceKind::mp3) {
+#if CHARM_AUDIO_ENABLE_MP3
                 decoded_frames = read_mp3(input_target);
+#else
+                has_more_data_ = false;
+                return 0;
+#endif
             } else {
                 decoded_frames = read_wav(input_target);
             }
@@ -322,6 +363,7 @@ export namespace audio {
             }
         };
 
+#if CHARM_AUDIO_ENABLE_FLAC
         std::size_t read_flac(std::size_t frames) {
             if (frames == 0) return 0;
             const std::size_t frame_bytes = input_fmt_.channels * sizeof(std::int32_t);
@@ -334,6 +376,7 @@ export namespace audio {
             const std::size_t produced = res->produced - (res->produced % frame_bytes);
             return produced / frame_bytes;
         }
+#endif
 
         std::size_t read_wav(std::size_t frames) {
             if (frames == 0) return 0;
@@ -362,6 +405,7 @@ export namespace audio {
             return samples / input_fmt_.channels;
         }
 
+#if CHARM_AUDIO_ENABLE_MP3
         std::size_t read_mp3(std::size_t frames) {
             if (frames == 0) return 0;
             const std::size_t frame_bytes = input_fmt_.channels * sizeof(std::int16_t);
@@ -381,6 +425,7 @@ export namespace audio {
             }
             return produced / frame_bytes;
         }
+#endif
 
         std::size_t convert_channels(std::size_t frames) {
             if (frames == 0) return 0;
@@ -521,8 +566,12 @@ export namespace audio {
 
         media::StreamSourceRef src_{};
         SourceKind kind_{SourceKind::wav};
+#if CHARM_AUDIO_ENABLE_FLAC
         FlacFilter flac_filter_{};
+#endif
+#if CHARM_AUDIO_ENABLE_MP3
         Mp3Filter mp3_filter_{};
+#endif
         WavFilter wav_filter_{};
 
         AudioFormat input_fmt_{};

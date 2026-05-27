@@ -31,7 +31,6 @@ export namespace audio {
         static_cast<std::size_t>(CHARM_AUDIO_MAX_CHANNELS) *
         sizeof(std::int16_t) * 2;
 
-    using FillCallback = media::FillCallback;
     using SinkConfig = media::SinkConfig;
 
     struct CallbackStats {

@@ -1,5 +1,7 @@
 if (NOT DEFINED CHARM_FATFS_ROOT)
-    set(CHARM_FATFS_ROOT "${CMAKE_SOURCE_DIR}/Modules/thirdparty/fatfs")
+    get_filename_component(CHARM_FATFS_ROOT
+        "${CMAKE_CURRENT_LIST_DIR}/../Modules/thirdparty/fatfs"
+        ABSOLUTE)
 endif()
 
 function(charm_find_fatfs out_include out_sources)
@@ -37,11 +39,10 @@ function(charm_link_fatfs target)
     if (EXISTS "${CHARM_FATFS_INCLUDE}/ffsystem.c")
         list(APPEND _fatfs_sources "${CHARM_FATFS_INCLUDE}/ffsystem.c")
     endif()
-    if (EXISTS "${CHARM_FATFS_INCLUDE}/option/unicode.c")
-        list(APPEND _fatfs_sources "${CHARM_FATFS_INCLUDE}/option/unicode.c")
-    endif()
     if (EXISTS "${CHARM_FATFS_INCLUDE}/option/cc936.c")
         list(APPEND _fatfs_sources "${CHARM_FATFS_INCLUDE}/option/cc936.c")
+    elseif (EXISTS "${CHARM_FATFS_INCLUDE}/option/unicode.c")
+        list(APPEND _fatfs_sources "${CHARM_FATFS_INCLUDE}/option/unicode.c")
     endif()
     target_sources(${target} PRIVATE ${_fatfs_sources})
     target_include_directories(${target} PRIVATE "${CHARM_FATFS_INCLUDE}")

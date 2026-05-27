@@ -15,6 +15,12 @@ import media.stream.sink;
 export namespace audio {
     using FillCallback = media::FillCallback;
 
+#if defined(CHARM_PLAYER_MCU)
+    using AudioPumpAtomicCounter = std::uint32_t;
+#else
+    using AudioPumpAtomicCounter = std::uint64_t;
+#endif
+
     struct PumpStats {
         std::uint64_t callback_count{0};
         std::uint64_t underrun_count{0};
@@ -108,8 +114,8 @@ export namespace audio {
         PcmFifo* fifo_{nullptr};
         std::size_t frame_size_{0};
 
-        std::atomic<std::uint64_t> callback_count_{0};
-        std::atomic<std::uint64_t> underrun_count_{0};
+        std::atomic<AudioPumpAtomicCounter> callback_count_{0};
+        std::atomic<AudioPumpAtomicCounter> underrun_count_{0};
         std::atomic<std::size_t> last_request_bytes_{0};
         std::atomic<std::size_t> water_min_{0};
         std::atomic<std::size_t> water_max_{0};

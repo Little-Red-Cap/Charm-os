@@ -265,10 +265,10 @@ export namespace posix {
         util::usize exec_path_capacity() const noexcept { return MaxPathLen; }
         util::u8* elf_image_buffer() noexcept { return elf_image_.data(); }
         util::usize elf_image_capacity() const noexcept { return elf_image_.size(); }
-        void* elf_load_base_ptr() noexcept { return elf_load_base(); }
-        util::usize elf_load_capacity() const noexcept { return elf_load_size(); }
+        virtual void* elf_load_base_ptr() noexcept { return elf_load_base(); }
+        virtual util::usize elf_load_capacity() const noexcept { return elf_load_size(); }
         ImageEntry elf_exec_stub_entry() const noexcept { return elf_exec_stub_; }
-        util::Result<void> apply_elf_hostcalls() noexcept { return install_elf_hostcalls(); }
+        virtual util::Result<void> apply_elf_hostcalls() noexcept { return install_elf_hostcalls(); }
         util::Result<FdEntry> open_exec_file(std::string_view path, int flags, int mode = 0) noexcept {
             if (!file_service_) {
                 return util::unexpected(util::Errc::bad_state);
@@ -673,7 +673,7 @@ export namespace posix {
         bool elf_exec_enabled_{false};
         ImageEntry elf_exec_stub_{nullptr};
         bool elf_hostcalls_enabled_{false};
-        ElfMemRegistry<8> elf_mem_registry_{};
+        ElfMemRegistry<MaxExecs> elf_mem_registry_{};
     };
 
     template <util::usize MaxProcs,

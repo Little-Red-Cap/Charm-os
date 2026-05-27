@@ -6,6 +6,7 @@ export module charm.system.app_host;
 
 import charm.system.caps;
 import charm.system.reactor_pump;
+import charm.system.schedule_ref;
 import input.pump;
 import kernel.config;
 import kernel.eda;
@@ -57,11 +58,6 @@ export namespace charm::system {
             return Registry::template id_of<Task>();
         }
 
-        PostFn post_fn() noexcept { return &charm::system::scheduler_post<Scheduler>; }
-        PostFn post_io_ready_fn() noexcept { return &charm::system::scheduler_post_io_ready<Scheduler>; }
-        PostFn post_demand_fn() noexcept { return &charm::system::scheduler_post_demand<Scheduler>; }
-        void* post_ctx() noexcept { return &scheduler_; }
-
         [[nodiscard]] auto posters(kernel::TaskId task) noexcept {
             return kernel::make_poster_set(scheduler_, task);
         }
@@ -76,6 +72,25 @@ export namespace charm::system {
 
         [[nodiscard]] auto demand_poster(kernel::TaskId task) noexcept {
             return posters(task).demand;
+        }
+
+        [[nodiscard]] PostRef post_ref() noexcept {
+            return PostRef::raw(&charm::system::scheduler_post<Scheduler>, &scheduler_);
+        }
+
+        [[nodiscard]] PostRef post_io_ready_ref() noexcept {
+            return PostRef::raw(&charm::system::scheduler_post_io_ready<Scheduler>, &scheduler_);
+        }
+
+        [[nodiscard]] PostRef post_demand_ref() noexcept {
+            return PostRef::raw(&charm::system::scheduler_post_demand<Scheduler>, &scheduler_);
+        }
+
+        [[nodiscard]] ReactorPumpPosts reactor_pump_posts() noexcept {
+            return ReactorPumpPosts{
+                .wake = post_io_ready_ref(),
+                .more = post_demand_ref(),
+            };
         }
 
         template <typename Task>
@@ -98,10 +113,16 @@ export namespace charm::system {
             return posters<Task>().demand;
         }
 
-        input::ScheduleFn schedule_fn() noexcept {
-            return &input::scheduler_schedule_at<Scheduler>;
+        [[nodiscard]] ScheduleRef schedule_ref() noexcept {
+            return ScheduleRef::raw(&charm::system::scheduler_schedule_at<Scheduler>, &scheduler_);
         }
-        void* schedule_ctx() noexcept { return &scheduler_; }
+
+        [[nodiscard]] input::InputPumpPorts input_pump_ports() noexcept {
+            return input::InputPumpPorts{
+                .schedule = schedule_ref(),
+                .post_more = post_demand_ref(),
+            };
+        }
 
         std::size_t dispatch_batch(std::size_t budget) noexcept { return scheduler_.dispatch_batch(budget); }
         bool run_once() noexcept { return scheduler_.run_once(); }

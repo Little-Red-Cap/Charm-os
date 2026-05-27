@@ -34,16 +34,12 @@ namespace {
             return pump_task;
         }
 
-        charm::system::PostFn post_io_ready_fn() noexcept {
-            return &noop_post;
-        }
-
-        charm::system::PostFn post_demand_fn() noexcept {
-            return &noop_post;
-        }
-
-        void* post_ctx() noexcept {
-            return nullptr;
+        charm::system::ReactorPumpPosts reactor_pump_posts() noexcept {
+            const auto post = charm::system::PostRef::raw(&noop_post, nullptr);
+            return charm::system::ReactorPumpPosts{
+                .wake = post,
+                .more = post,
+            };
         }
 
         static constexpr kernel::TaskId pump_id() noexcept {

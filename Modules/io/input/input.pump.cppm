@@ -8,6 +8,7 @@
 export module input.pump;
 
 import charm.system.clock;
+import charm.system.schedule_ref;
 import init.binding;
 import input.raw_event;
 import input.raw_sink;
@@ -20,12 +21,13 @@ import util.core;
 import util.error;
 
 export namespace input {
-    using ScheduleFn = bool (*)(void* ctx,
-                                kernel::TaskId task,
-                                kernel::Event evt,
-                                charm::system::ClockTick due) noexcept;
-
     using PostFn = kernel::PostFn;
+    using ScheduleFn = charm::system::ScheduleFn;
+
+    struct InputPumpPorts {
+        charm::system::ScheduleRef schedule{};
+        kernel::PostRef post_more{};
+    };
 
     struct InputPumpTask {
         static constexpr kernel::Priority priority{0};
@@ -140,27 +142,12 @@ export namespace input {
         }
     };
 
-    template <typename Scheduler>
-    inline bool scheduler_schedule_at(void* ctx,
-                                      kernel::TaskId task,
-                                      kernel::Event evt,
-                                      charm::system::ClockTick due) noexcept {
-        auto* scheduler = static_cast<Scheduler*>(ctx);
-        if (!scheduler) {
-            return false;
-        }
-        return scheduler->schedule_at(due, task, evt);
-    }
-
     struct InputPumpBinding {
         InputPumpTask* pump{nullptr};
         InputService* service{nullptr};
         charm::system::Clock* clock{nullptr};
         RawSinkRef sink{};
-        ScheduleFn schedule{nullptr};
-        void* schedule_ctx{nullptr};
-        PostFn post_more{nullptr};
-        void* post_ctx{nullptr};
+        InputPumpPorts ports{};
         kernel::TaskId self{};
         charm::system::ClockTick period_ms{16};
         util::usize budget{8};
@@ -175,10 +162,7 @@ export namespace input {
         InputPumpBinding(InputPumpTask& task,
                          InputService& service_in,
                          charm::system::Clock& clock_in,
-                         ScheduleFn schedule_fn,
-                         void* schedule_ctx_in,
-                         PostFn post_more_fn,
-                         void* post_ctx_in,
+                         InputPumpPorts ports_in,
                          kernel::TaskId task_id,
                          RawSinkRef sink_ref = {},
                          charm::system::ClockTick period_ms_in = 16,
@@ -194,10 +178,7 @@ export namespace input {
               service(&service_in),
               clock(&clock_in),
               sink(sink_ref),
-              schedule(schedule_fn),
-              schedule_ctx(schedule_ctx_in),
-              post_more(post_more_fn),
-              post_ctx(post_ctx_in),
+              ports(ports_in),
               self(task_id),
               period_ms((period_ms_in == 0) ? 1 : period_ms_in),
               budget((budget_in == 0) ? 1 : budget_in),
@@ -240,10 +221,10 @@ export namespace input {
                              *self->clock,
                              self->sink.fn(),
                              self->sink.ctx(),
-                             self->schedule,
-                             self->schedule_ctx,
-                             self->post_more,
-                             self->post_ctx,
+                             self->ports.schedule.fn(),
+                             self->ports.schedule.ctx(),
+                             self->ports.post_more.fn(),
+                             self->ports.post_more.ctx(),
                              self->self,
                              self->period_ms,
                              self->budget);

@@ -8,6 +8,7 @@
 export module canopen.pump;
 
 import charm.system.clock;
+import charm.system.schedule_ref;
 import init.binding;
 import canopen.sdo_service;
 import canopen.nmt_service;
@@ -19,11 +20,13 @@ import util.core;
 import util.error;
 
 export namespace canopen {
-    using ScheduleFn = bool (*)(void* ctx,
-                                kernel::TaskId task,
-                                kernel::Event evt,
-                                charm::system::ClockTick due) noexcept;
+    using ScheduleFn = charm::system::ScheduleFn;
     using PostFn = kernel::PostFn;
+
+    struct CanopenPumpPorts {
+        charm::system::ScheduleRef schedule{};
+        kernel::PostRef post_more{};
+    };
 
     struct CanopenPumpTask {
         static constexpr kernel::Priority priority{0};
@@ -119,15 +122,11 @@ export namespace canopen {
     };
 
     template <typename Scheduler>
-    inline bool scheduler_schedule_at(void* ctx,
-                                      kernel::TaskId task,
-                                      kernel::Event evt,
-                                      charm::system::ClockTick due) noexcept {
-        auto* scheduler = static_cast<Scheduler*>(ctx);
-        if (!scheduler) {
-            return false;
-        }
-        return scheduler->schedule_at(due, task, evt);
+    [[nodiscard]] inline CanopenPumpPorts pump_ports_from_scheduler(Scheduler& scheduler) noexcept {
+        return CanopenPumpPorts{
+            .schedule = charm::system::ScheduleRef::raw(&charm::system::scheduler_schedule_at<Scheduler>, &scheduler),
+            .post_more = kernel::PostRef::raw(&kernel::scheduler_post_demand<Scheduler>, &scheduler),
+        };
     }
 
     struct CanopenPumpBinding {
@@ -135,10 +134,7 @@ export namespace canopen {
         SdoService* sdo{nullptr};
         NmtService* nmt{nullptr};
         charm::system::Clock* clock{nullptr};
-        ScheduleFn schedule{nullptr};
-        void* schedule_ctx{nullptr};
-        PostFn post_more{nullptr};
-        void* post_ctx{nullptr};
+        CanopenPumpPorts ports{};
         kernel::TaskId self{};
         charm::system::ClockTick period_ms{10};
         const char* eda_cap_name{"kernel.eda"};
@@ -152,10 +148,7 @@ export namespace canopen {
 
         CanopenPumpBinding(CanopenPumpTask& task,
                            charm::system::Clock& clock_in,
-                           ScheduleFn schedule_fn,
-                           void* schedule_ctx_in,
-                           PostFn post_more_fn,
-                           void* post_ctx_in,
+                           CanopenPumpPorts ports_in,
                            kernel::TaskId task_id,
                            SdoService* sdo_in = nullptr,
                            NmtService* nmt_in = nullptr,
@@ -171,10 +164,7 @@ export namespace canopen {
               sdo(sdo_in),
               nmt(nmt_in),
               clock(&clock_in),
-              schedule(schedule_fn),
-              schedule_ctx(schedule_ctx_in),
-              post_more(post_more_fn),
-              post_ctx(post_ctx_in),
+              ports(ports_in),
               self(task_id),
               period_ms((period_ms_in == 0) ? 1 : period_ms_in),
               eda_cap_name(eda_cap_name),
@@ -231,10 +221,10 @@ export namespace canopen {
             self->pump->bind(self->sdo,
                              self->nmt,
                              *self->clock,
-                             self->schedule,
-                             self->schedule_ctx,
-                             self->post_more,
-                             self->post_ctx,
+                             self->ports.schedule.fn(),
+                             self->ports.schedule.ctx(),
+                             self->ports.post_more.fn(),
+                             self->ports.post_more.ctx(),
                              self->self,
                              self->period_ms);
             self->pump->start();

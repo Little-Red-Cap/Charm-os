@@ -14,7 +14,6 @@ import canopen.nmt_service;
 import canopen.pump;
 import charm.system.clock;
 import kernel.eda;
-import kernel.poster;
 import util.core;
 
 export namespace charm::system {
@@ -33,7 +32,7 @@ export namespace charm::system {
         charm::system::ClockTick period_ms{10};
     };
 
-    template <typename RegistryT, typename Scheduler, util::usize RxBufSize = 44>
+    template <typename RegistryT, util::usize RxBufSize = 44>
     struct CanopenInitChain {
         canopen::ChannelTransportBinding<RegistryT, RxBufSize> transport_binding;
         canopen::SdoService sdo_service;
@@ -46,7 +45,7 @@ export namespace charm::system {
                          canopen::SdoServer& sdo_server,
                          canopen::NmtNode& nmt_node,
                          charm::system::Clock& clock,
-                         Scheduler& scheduler,
+                         canopen::CanopenPumpPorts pump_ports,
                          canopen::CanopenPumpTask& pump_task,
                          kernel::TaskId pump_id,
                          canopen::SdoServiceConfig sdo_cfg = {},
@@ -62,10 +61,7 @@ export namespace charm::system {
               nmt_binding(nmt_service, caps.nmt_cap, caps.transport_cap, phase, runlevel_mask),
               pump_binding(pump_task,
                            clock,
-                           &canopen::scheduler_schedule_at<Scheduler>,
-                           &scheduler,
-                           &kernel::scheduler_post_demand<Scheduler>,
-                           &scheduler,
+                           pump_ports,
                            pump_id,
                            &sdo_service,
                            &nmt_service,

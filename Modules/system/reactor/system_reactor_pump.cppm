@@ -18,6 +18,12 @@ import util.error;
 
 export namespace charm::system {
     using PostFn = kernel::PostFn;
+    using PostRef = kernel::PostRef;
+
+    struct ReactorPumpPosts {
+        PostRef wake{};
+        PostRef more{};
+    };
 
     struct ReactorPumpTask {
         static constexpr kernel::Priority priority{0};
@@ -103,9 +109,7 @@ export namespace charm::system {
     struct ReactorPumpBinding {
         ReactorPumpTask* pump{nullptr};
         io::Reactor* reactor{nullptr};
-        PostFn post{nullptr};
-        PostFn post_more{nullptr};
-        void* post_ctx{nullptr};
+        ReactorPumpPosts posts{};
         kernel::TaskId self{};
         util::usize budget{8};
         const char* eda_cap_name{"kernel.eda"};
@@ -127,9 +131,7 @@ export namespace charm::system {
 
         ReactorPumpBinding(ReactorPumpTask& task,
                            io::Reactor& reactor_in,
-                           PostFn post_fn,
-                           PostFn post_more_fn,
-                           void* post_ctx_in,
+                           ReactorPumpPosts posts_in,
                            kernel::TaskId self_id,
                            util::usize budget_in = 8,
                            const char* cap_name = "system.reactor_pump",
@@ -139,9 +141,10 @@ export namespace charm::system {
                            util::u32 runlevel_mask = static_cast<util::u32>(init::Runlevel::all)) noexcept
             : pump(&task),
               reactor(&reactor_in),
-              post(post_fn),
-              post_more(post_more_fn ? post_more_fn : post_fn),
-              post_ctx(post_ctx_in),
+              posts{
+                  posts_in.wake,
+                  posts_in.more ? posts_in.more : posts_in.wake
+              },
               self(self_id),
               budget((budget_in == 0) ? 1 : budget_in),
               eda_cap_name(eda_cap_name),
@@ -170,10 +173,18 @@ export namespace charm::system {
 
         static util::Result<void> init_trampoline(void* ctx) noexcept {
             auto* self = static_cast<ReactorPumpBinding*>(ctx);
-            if (!self || !self->pump || !self->reactor || !self->post) {
+            if (!self || !self->pump || !self->reactor || !self->posts.wake) {
                 return util::unexpected(util::Errc::invalid_arg);
             }
-            self->pump->bind(*self->reactor, self->post, self->post_more, self->post_ctx, self->self, self->budget);
+            if (self->posts.more.ctx() != self->posts.wake.ctx()) {
+                return util::unexpected(util::Errc::invalid_arg);
+            }
+            self->pump->bind(*self->reactor,
+                             self->posts.wake.fn(),
+                             self->posts.more.fn(),
+                             self->posts.wake.ctx(),
+                             self->self,
+                             self->budget);
             self->waker.pump = self->pump;
             self->reactor->set_waker(&ReactorWaker::wake, &self->waker);
             return {};

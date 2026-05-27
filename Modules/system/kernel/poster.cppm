@@ -11,6 +11,39 @@ import kernel.event_token;
 export namespace kernel {
     using PostFn = bool (*)(void* ctx, TaskId task, Event evt) noexcept;
 
+    class PostRef {
+    public:
+        constexpr PostRef() noexcept = default;
+
+        static constexpr PostRef raw(PostFn fn, void* ctx) noexcept {
+            return PostRef{fn, ctx};
+        }
+
+        [[nodiscard]] constexpr explicit operator bool() const noexcept {
+            return fn_ != nullptr;
+        }
+
+        [[nodiscard]] constexpr PostFn fn() const noexcept {
+            return fn_;
+        }
+
+        [[nodiscard]] constexpr void* ctx() const noexcept {
+            return ctx_;
+        }
+
+        [[nodiscard]] constexpr bool post(TaskId task, Event evt) const noexcept {
+            return fn_ && fn_(ctx_, task, evt);
+        }
+
+    private:
+        constexpr PostRef(PostFn fn, void* ctx) noexcept
+            : fn_(fn),
+              ctx_(ctx) {}
+
+        PostFn fn_{nullptr};
+        void* ctx_{nullptr};
+    };
+
     template <typename Scheduler>
     struct event_poster {
         Scheduler* scheduler{nullptr};

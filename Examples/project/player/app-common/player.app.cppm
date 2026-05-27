@@ -7,21 +7,24 @@ export module player.app;
 import audio.player;
 import audio.result;
 import charm.system.clock;
+import player.cover;
 import player.fixed_string;
 import player.input;
 import player.product_config;
 import player.storage;
 import player.ui;
 import player.ui_builder;
+export import player.ui_policy;
 import charm.core.event;
+import charm.gfx.draw_cmd;
 import charm.ui.scene;
 import input.raw_event;
 import ui.input_adapter;
 
 export namespace player {
     struct FontResourceConfig {
-        FixedString<260> primary_path{};
-        FixedString<260> fallback_path{};
+        FixedString<product_config::path_text_capacity> primary_path{};
+        FixedString<product_config::path_text_capacity> fallback_path{};
         int small_px{product_config::default_font_small_px};
         int normal_px{product_config::default_font_normal_px};
         int large_px{product_config::default_font_large_px};
@@ -32,9 +35,16 @@ export namespace player {
         }
     };
 
+    struct PlayerUiResources {
+        FontResourceConfig font{};
+        CoverResourceProviderFn cover_resource_provider{nullptr};
+        player::ui::PlayerIconPixelArena icon_pixel_arena{};
+    };
+
     struct AppConfig {
         audio::PlayerConfig player_config{};
-        FontResourceConfig font_resources{};
+        PlayerUiPolicy ui_policy{};
+        PlayerUiResources ui_resources{};
     };
 
     class App {
@@ -108,8 +118,13 @@ export namespace player {
 
         template <typename Controller>
         void bind_ui(::ui::scene::SceneBuilder& builder, Controller& controller) {
-            const auto& font = config_.font_resources;
-            if (font.has_file_resource()) {
+            if constexpr (requires { controller.apply_ui_policy(config_.ui_policy); }) {
+                controller.apply_ui_policy(config_.ui_policy);
+            }
+            set_cover_resource_provider(config_.ui_resources.cover_resource_provider);
+            const auto& font = config_.ui_resources.font;
+            if (config_.ui_policy.font_mode == PlayerUiFontMode::FileFontsIfAvailable
+                && font.has_file_resource()) {
                 if constexpr (requires {
                                   controller.set_font_config(font.primary_path.view(),
                                                              font.fallback_path.view(),
@@ -135,7 +150,7 @@ export namespace player {
                 }
             }
             player::ui::apply_player_theme();
-            controller.icons = player::ui::register_player_icons();
+            controller.icons = player::ui::register_player_icons(config_.ui_resources.icon_pixel_arena);
             controller.handles = player::build_ui(builder, controller, controller.icons);
             controller.init_text_slots();
             controller.init_pages();

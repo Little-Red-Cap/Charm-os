@@ -4,11 +4,16 @@ module;
 #include <cstddef>
 #include <utility>
 
+#ifndef CHARM_PLAYER_LAYERED_TRANSITIONS
+#define CHARM_PLAYER_LAYERED_TRANSITIONS 1
+#endif
+
 export module player.platform;
 
 import charm.core.config;
 import charm.gfx.canvas;
 import charm.gfx.color;
+import charm.gfx.draw_cmd;
 import charm.gfx.framebuffer;
 import charm.ui.scene;
 import player.display;
@@ -97,6 +102,7 @@ export namespace player {
         platform.clear(frame.clear_color);
         platform.begin_frame();
         platform.scene_ref().set_overlay(overlay_fn, overlay_ctx);
+#if CHARM_PLAYER_LAYERED_TRANSITIONS
         if (controller.transition_needs_destination_snapshot()) {
             controller.prepare_transition_destination_snapshot_scene();
             platform.render();
@@ -106,6 +112,9 @@ export namespace player {
             platform.scene_ref().set_overlay(overlay_fn, overlay_ctx);
         }
         controller.compose_now_playing_transition_pixel_layer();
+#else
+        (void)controller;
+#endif
         platform.render();
         platform.end_frame();
         if (frame.display_sink) {

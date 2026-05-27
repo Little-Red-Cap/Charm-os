@@ -101,7 +101,10 @@
             if (!access.valid()) return 0;
             const Rect r = access.world_rect(handles.progress);
             if (r.w <= 1) return 0;
-            const int dx = std::clamp(x - r.x, 0, r.w);
+            const int dx = std::clamp<int>(
+                static_cast<int>(x - r.x),
+                0,
+                static_cast<int>(r.w));
             return (dx * 100) / r.w;
         }
 
@@ -424,7 +427,9 @@
 
         void process_input_events() {
             if (!access.valid()) return;
+#if CHARM_PLAYER_LAYERED_TRANSITIONS
             if (now_playing_transition.active) return;
+#endif
             PendingActions actions{};
             const std::size_t count = access.input_event_count();
             for (std::size_t i = 0; i < count; ++i) {

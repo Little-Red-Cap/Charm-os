@@ -113,7 +113,7 @@
         };
         const Rect right_cover_rect{
             home_layout.collage_w - right_orbit_size - 8,
-            std::max(8, big_cover_rect.y + 18),
+            std::max<int>(8, static_cast<int>(big_cover_rect.y + 18)),
             right_orbit_size,
             right_orbit_size,
         };

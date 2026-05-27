@@ -78,20 +78,25 @@
         }
 
         void sync_now_playing_transition_overlay() {
+#if CHARM_PLAYER_LAYERED_TRANSITIONS
             if (!access.valid() || !handles.transition_root) return;
             set_label(handles.transition_title, title_text.c_str());
             set_label(handles.transition_subtitle, subtitle_text.c_str());
             const bool has_cover = has_cover_image();
             if (handles.transition_cover && access.kind(handles.transition_cover) == WidgetKind::Image) {
                 if (has_cover) {
-                    show_now_playing_transition_cover(cover_image.image_id);
+                    show_now_playing_transition_cover(current_cover.image_id);
                 } else {
                     hide_now_playing_transition_cover();
                 }
             }
             access.set_button_icon(handles.transition_play, playback.playing() ? icons.pause : icons.play);
+#else
+            (void)this;
+#endif
         }
 
+#if CHARM_PLAYER_LAYERED_TRANSITIONS
         struct NowPlayingOverlayGeometry {
             Rect shell{};
             Rect cover{};
@@ -497,15 +502,15 @@
         }
 
         static int mini_transition_shell_corner_radius(const Rect& rect) noexcept {
-            return std::min(rect.h / 2, 30);
+            return std::min<int>(static_cast<int>(rect.h / 2), 30);
         }
 
         static int mini_transition_cover_corner_radius(const Rect& rect) noexcept {
-            return std::min(rect.w / 3, 18);
+            return std::min<int>(static_cast<int>(rect.w / 3), 18);
         }
 
         static int mini_transition_play_corner_radius(const Rect& rect) noexcept {
-            return std::max(rect.h / 2, 18);
+            return std::max<int>(static_cast<int>(rect.h / 2), 18);
         }
 
         static bool can_begin_now_playing_transition(PlayerPage current_page,
@@ -630,7 +635,7 @@
                 mini_transition_play_corner_radius(now_playing_transition.play_from),
                 mini_transition_play_corner_radius(now_playing_transition.play_to));
             patch.has_padding = true;
-            patch.padding = std::max(0, (geometry.play.w - 32) / 2);
+            patch.padding = std::max<int>(0, static_cast<int>((geometry.play.w - 32) / 2));
             patch.has_shadow_enabled = true;
             patch.shadow_enabled = false;
             patch.has_inner_stroke_enabled = true;
@@ -1091,6 +1096,7 @@
             ++layer_transition_abort_count;
             set_page_transition_state(PageTransitionState::Idle);
         }
+#endif
 
         void set_now_playing_group_visibility(bool top_bar,
                                               bool cover_plate,
@@ -1132,6 +1138,7 @@
             set_bottom_bar_content_visibility(true, true, true, true);
         }
 
+#if CHARM_PLAYER_LAYERED_TRANSITIONS
         void restore_now_playing_group_layout() noexcept {
             set_rect_if_valid(handles.now_top_bar, now_playing_transition.now_top_bar_rect);
             set_rect_if_valid(handles.now_progress_group, now_playing_transition.now_progress_rect);
@@ -1299,6 +1306,23 @@
                 set_page(return_page);
             }
         }
+#else
+        void set_now_playing_transition_root_visible(bool visible) noexcept {
+            set_handle_visible(handles.transition_root, visible);
+        }
+
+        void abort_now_playing_transition(PlayerPage fallback_page) noexcept {
+            (void)fallback_page;
+        }
+
+        void open_now_playing_page() noexcept {
+            set_page(PlayerPage::NowPlaying);
+        }
+
+        void close_now_playing_page() noexcept {
+            set_page(return_page);
+        }
+#endif
 
         void set_play_button_text(bool playing_now) {
             if (!access.valid()) return;
@@ -1310,9 +1334,11 @@
             if (handles.bottom_play) {
                 access.set_button_icon(handles.bottom_play, playing_now ? icons.pause : icons.play);
             }
+#if CHARM_PLAYER_LAYERED_TRANSITIONS
             if (handles.transition_play) {
                 access.set_button_icon(handles.transition_play, playing_now ? icons.pause : icons.play);
             }
+#endif
         }
 
         void set_time_label(int elapsed_sec) {

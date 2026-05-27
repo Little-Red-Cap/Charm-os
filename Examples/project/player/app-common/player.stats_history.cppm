@@ -14,6 +14,7 @@ import service.fixed_vector;
 import fs_core;
 import fs_errno;
 import fs_vfs;
+import player.product_config;
 import util.core;
 
 export namespace player {
@@ -23,16 +24,20 @@ export namespace player {
         int total_plays{0};
     };
 
-    using ListeningStatsWeekList = service::FixedVector<ListeningStatsWeekRecord, 12>;
+    using ListeningStatsWeekList =
+        service::FixedVector<ListeningStatsWeekRecord,
+                             product_config::listening_stats_history_weeks>;
 
     struct ListeningStatsHistory {
         ListeningStatsWeekList weeks{};
     };
 
-    inline constexpr std::string_view kListeningStatsHistoryPath{"/player_weekly_stats.txt"};
+    inline constexpr std::string_view listening_stats_history_path() noexcept {
+        return "/player_weekly_stats.txt";
+    }
 
     namespace detail {
-        constexpr std::size_t kHistoryIoBytes = 2048;
+        constexpr std::size_t kHistoryIoBytes = product_config::listening_stats_io_bytes;
 
         inline bool match_token(const char*& p, const char* token) noexcept {
             while (*p == ' ' || *p == '\t') ++p;
@@ -143,7 +148,7 @@ export namespace player {
         detail::sort_history_desc(history);
     }
 
-    inline ListeningStatsHistory load_listening_stats_history(std::string_view path = kListeningStatsHistoryPath) noexcept {
+    inline ListeningStatsHistory load_listening_stats_history(std::string_view path) noexcept {
         ListeningStatsHistory history{};
         fs::File f{};
         const auto open_st = fs::vfs_open(path, f);
@@ -174,7 +179,7 @@ export namespace player {
                 --line_len;
             }
             if (line_len != 0) {
-                std::array<char, 192> line_buf{};
+                std::array<char, product_config::listening_stats_line_bytes> line_buf{};
                 const std::size_t copy_len = std::min<std::size_t>(line_len, line_buf.size() - 1);
                 std::memcpy(line_buf.data(), text + cursor, copy_len);
                 line_buf[copy_len] = 0;
@@ -190,8 +195,12 @@ export namespace player {
         return history;
     }
 
+    inline ListeningStatsHistory load_listening_stats_history() noexcept {
+        return load_listening_stats_history(listening_stats_history_path());
+    }
+
     inline bool save_listening_stats_history(const ListeningStatsHistory& history,
-                                             std::string_view path = kListeningStatsHistoryPath) noexcept {
+                                             std::string_view path) noexcept {
         std::array<char, detail::kHistoryIoBytes> out{};
         int used = std::snprintf(out.data(), out.size(), "v1\n");
         if (used < 0 || static_cast<std::size_t>(used) >= out.size()) {
@@ -230,5 +239,9 @@ export namespace player {
             std::span<const util::u8>{reinterpret_cast<const util::u8*>(out.data()), static_cast<std::size_t>(used)});
         (void)fs::vfs_close(f);
         return static_cast<bool>(write_st);
+    }
+
+    inline bool save_listening_stats_history(const ListeningStatsHistory& history) noexcept {
+        return save_listening_stats_history(history, listening_stats_history_path());
     }
 }

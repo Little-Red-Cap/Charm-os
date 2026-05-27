@@ -1,4 +1,5 @@
 set(PLAYER_MAIN_VIVID main.cpp)
+set(PLAYER_MAIN_VIVID_MD3 main_md3.cpp)
 set(PLAYER_MAIN_INK main_ink.cpp)
 set(PLAYER_TARGET_VIVID charm-player-win-vivid)
 set(PLAYER_TARGET_INK charm-player-win-ink)

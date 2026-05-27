@@ -136,13 +136,23 @@
             set_label_slot(handles.subtitle, text_slots.subtitle, subtitle_text.c_str());
             set_label_slot(handles.bottom_title, text_slots.bottom_title, title_text.c_str());
             set_label_slot(handles.bottom_subtitle, text_slots.bottom_subtitle, subtitle_text.c_str());
+#if CHARM_PLAYER_LAYERED_TRANSITIONS
             set_label(handles.transition_title, title_text.c_str());
             set_label(handles.transition_subtitle, subtitle_text.c_str());
+#endif
         }
 
         void update_track_cover_source(std::string_view vfs_path, bool track_ready) {
             cover_failed_embedded_path.clear();
             cover_failed_folder_path.clear();
+            if (!covers_enabled()) {
+                cover_ready = false;
+                cover_path.clear();
+                cover_embedded_path.clear();
+                cover_folder_path.clear();
+                update_cover_image();
+                return;
+            }
             if (track_ready) {
                 cover_embedded_path.assign(vfs_path);
                 cover_folder_path.clear();

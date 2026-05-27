@@ -15,7 +15,7 @@
 
         h.list_scroll = builder.create_scrollbar_for(h.list);
         anchor_rect(builder, h.list_scroll, {0, 0, 0, 0});
-        builder.set_scrollbar_orientation(h.list_scroll, ScrollBarOrientation::Vertical);
+        builder.set_scrollbar_orientation(h.list_scroll, ::ui::scene::ScrollBarOrientation::Vertical);
 
         h.list_hint = builder.create_label_static("");
         anchor_rect(builder, h.list_hint, {0, 0, 0, 0});
@@ -567,7 +567,7 @@
         const WidgetHandle list_scroll_rail = builder.create_container();
         anchor_rect(builder, list_scroll_rail,
                     {list_scroll_rect.x + 1, list_scroll_rect.y - 2,
-                     std::max(2, list_scroll_rect.w - 2), list_scroll_rect.h + 4});
+                     std::max<int>(2, static_cast<int>(list_scroll_rect.w - 2)), list_scroll_rect.h + 4});
         {
             StylePatch patch = ::ui::scene::make_clean_surface_patch({
                 .apply_bg_color = true,
@@ -581,22 +581,6 @@
             builder.set_hit_testable(list_scroll_rail, false);
         }
         anchor_rect(builder, h.list_scroll, list_scroll_rect);
-        const WidgetHandle list_hint_plate = builder.create_container();
-        anchor_rect(builder, list_hint_plate,
-                    {list_header_layout.hint_rect.x - 4, list_header_layout.hint_rect.y - 4,
-                     list_header_layout.hint_rect.w + 8, list_header_layout.hint_rect.h + 8});
-        {
-            StylePatch patch = ::ui::scene::make_clean_surface_patch({
-                .apply_bg_color = true,
-                .apply_border_color = true,
-                .apply_corner_radius = true,
-                .bg_color = {kUiLibraryPathIdle.r, kUiLibraryPathIdle.g, kUiLibraryPathIdle.b, 188},
-                .border_color = {0, 0, 0, 0},
-                .corner_radius = 13,
-            });
-            builder.set_style_override(list_hint_plate, patch);
-            builder.set_hit_testable(list_hint_plate, false);
-        }
         anchor_rect(builder, h.list_hint, list_header_layout.hint_rect);
         apply_player_text_style(builder, h.list_hint, PlayerTextRole::MetaText, kUiSubtitle);
         builder.set_label_align(h.list_hint, ::ui::scene::TextAlignH::Left, ::ui::scene::TextAlignV::Center);
@@ -608,7 +592,6 @@
         builder.link(list_card_root, h.list_title);
         builder.link(list_card_root, h.list_path_bg);
         builder.link(list_card_root, h.list_path);
-        builder.link(list_card_root, list_hint_plate);
         builder.link(list_card_root, h.list_hint);
         builder.link(list_card_root, list_path_icon);
         builder.link(list_card_root, h.list_path_hit);

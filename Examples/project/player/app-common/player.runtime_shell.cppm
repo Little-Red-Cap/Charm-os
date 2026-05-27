@@ -6,6 +6,7 @@ export module player.runtime_shell;
 
 import player.app;
 import charm.system.clock;
+import charm.gfx.draw_cmd;
 import charm.ui.scene;
 import player.display;
 import player.input;

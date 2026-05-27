@@ -24,14 +24,20 @@ add_executable(${PLAYER_TARGET_INK}
     ${PLAYER_MAIN_INK}
 )
 add_executable(${PLAYER_TARGET_VIVID_MD3}
-    ${PLAYER_MAIN_VIVID}
+    ${PLAYER_MAIN_VIVID_MD3}
+    "${CMAKE_CURRENT_SOURCE_DIR}/main_md3_host.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/main_md3_host_sdl.cpp"
 )
 
 foreach(_target IN ITEMS ${PLAYER_TARGET_VIVID} ${PLAYER_TARGET_INK} ${PLAYER_TARGET_VIVID_MD3})
     target_compile_definitions(${_target} PRIVATE
         OUT_ENABLE_FLOAT
         CHARM_AUDIO_USE_VFS=1
+        CHARM_PLAYER_HOST_UI=1
+        CHARM_PLAYER_HOST_COVER_DECODE=1
+        CHARM_PLAYER_HOST_FILE_FONTS=1
         CHARM_PLAYER_PC_FONT_CACHE=1
+        CHARM_PLAYER_LAYERED_TRANSITIONS=1
         CHARM_PLAYER_PRODUCT="${PLAYER_PRODUCT}"
         CHARM_PLAYER_PLATFORM="${PLAYER_PLATFORM}"
         CHARM_PLAYER_BOARD="${PLAYER_BOARD}"
@@ -43,6 +49,11 @@ foreach(_target IN ITEMS ${PLAYER_TARGET_VIVID} ${PLAYER_TARGET_INK} ${PLAYER_TA
     endif()
     if (CHARM_PLAYER_COVER_DEBUG)
         target_compile_definitions(${_target} PRIVATE CHARM_PLAYER_COVER_DEBUG=1)
+    endif()
+    if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        target_compile_options(${_target} PRIVATE
+            $<$<COMPILE_LANGUAGE:CXX>:-fno-module-lazy>
+        )
     endif()
 endforeach()
 
@@ -90,6 +101,28 @@ set(CHARM_PLAYER_EXCLUDE_REGEX_VIVID "${CHARM_PLAYER_EXCLUDE_REGEX_BASE}|/app-in
 set(CHARM_PLAYER_EXCLUDE_REGEX_INK "${CHARM_PLAYER_EXCLUDE_REGEX_BASE}|/app-vivid/")
 set(CHARM_PLAYER_EXCLUDE_REGEX_MD3 "${CHARM_PLAYER_EXCLUDE_REGEX_BASE}|/app-ink/|/app-vivid/")
 
+set(CHARM_PLAYER_MD3_APP_COMMON_MODULES
+    "${CHARM_ROOT}/Examples/project/player/app-common/player.app.cppm"
+    "${CHARM_ROOT}/Examples/project/player/app-common/player.display.cppm"
+    "${CHARM_ROOT}/Examples/project/player/app-common/player.fixed_string.cppm"
+    "${CHARM_ROOT}/Examples/project/player/app-common/player.font_cache.cppm"
+    "${CHARM_ROOT}/Examples/project/player/app-common/player.fs_utils.cppm"
+    "${CHARM_ROOT}/Examples/project/player/app-common/player.host_features.cppm"
+    "${CHARM_ROOT}/Examples/project/player/app-common/player.input.cppm"
+    "${CHARM_ROOT}/Examples/project/player/app-common/player.mcu_policy.cppm"
+    "${CHARM_ROOT}/Examples/project/player/app-common/player.media_scan.cppm"
+    "${CHARM_ROOT}/Examples/project/player/app-common/player.platform.cppm"
+    "${CHARM_ROOT}/Examples/project/player/app-common/player.playback.cppm"
+    "${CHARM_ROOT}/Examples/project/player/app-common/player.product_config.cppm"
+    "${CHARM_ROOT}/Examples/project/player/app-common/player.runtime.cppm"
+    "${CHARM_ROOT}/Examples/project/player/app-common/player.runtime_shell.cppm"
+    "${CHARM_ROOT}/Examples/project/player/app-common/player.stats_history.cppm"
+    "${CHARM_ROOT}/Examples/project/player/app-common/player.storage.cppm"
+    "${CHARM_ROOT}/Examples/project/player/app-common/player.time_utils.cppm"
+    "${CHARM_ROOT}/Examples/project/player/app-common/player.track_probe.cppm"
+    "${CHARM_ROOT}/Examples/project/player/app-common/player.ui_policy.cppm"
+)
+
 set(CHARM_PLAYER_WIN_CONFIG_TARGETS)
 if (CHARM_PLAYER_SOA_TRACE)
     charm_add_config_interface(charm_cfg_player_win_trace
@@ -114,10 +147,16 @@ charm_example_sources_filtered(${PLAYER_TARGET_INK}
     "${CHARM_ROOT}/Examples/project/player/app-common/*.cppm"
     "${CHARM_ROOT}/Examples/project/player/app-ink/**/*.cppm"
 )
+target_sources(${PLAYER_TARGET_VIVID_MD3}
+    PRIVATE
+    FILE_SET modules TYPE CXX_MODULES
+    BASE_DIRS "${CHARM_ROOT}"
+    FILES
+        ${CHARM_PLAYER_MD3_APP_COMMON_MODULES}
+)
 charm_example_sources_filtered(${PLAYER_TARGET_VIVID_MD3}
     "${CHARM_ROOT}"
     "${CHARM_PLAYER_EXCLUDE_REGEX_MD3}"
-    "${CHARM_ROOT}/Examples/project/player/app-common/*.cppm"
     "${CHARM_ROOT}/Examples/project/player/app-vivid-MaterialDesign3/*.cppm"
 )
 target_sources(${PLAYER_TARGET_VIVID_MD3} PRIVATE
@@ -128,6 +167,25 @@ charm_example_sources(${PLAYER_TARGET_INK} "${CHARM_ROOT}"
     "${CHARM_ROOT}/Examples/common/sdl3/sdl3.input.cppm"
     "${CHARM_ROOT}/Examples/common/pc/*.cppm"
 )
+
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    set_source_files_properties(
+        "${CMAKE_CURRENT_SOURCE_DIR}/${PLAYER_MAIN_VIVID}"
+        PROPERTIES COMPILE_OPTIONS "-g0"
+    )
+    set_source_files_properties(
+        "${CMAKE_CURRENT_SOURCE_DIR}/${PLAYER_MAIN_VIVID_MD3}"
+        PROPERTIES COMPILE_OPTIONS "-g0"
+    )
+    set_source_files_properties(
+        "${CMAKE_CURRENT_SOURCE_DIR}/main_md3_host.cpp"
+        PROPERTIES COMPILE_OPTIONS "-g0"
+    )
+    set_source_files_properties(
+        "${CMAKE_CURRENT_SOURCE_DIR}/main_md3_host_sdl.cpp"
+        PROPERTIES COMPILE_OPTIONS "-g0"
+    )
+endif()
 
 charm_example_link_charm(${PLAYER_TARGET_VIVID} "${CHARM_ROOT}" ${CHARM_PLAYER_WIN_CONFIG_TARGETS})
 target_link_libraries(${PLAYER_TARGET_INK} PRIVATE Charm-os)

@@ -57,8 +57,8 @@
         void rebind_player_fonts() noexcept {
             if (font_ttf_path.empty()) return;
             reset_player_font_package_cache();
-            bind_player_freetype_font(font_ttf_path,
-                                     font_fallback_ttf_path,
+            bind_player_freetype_font(font_ttf_path.view(),
+                                     font_fallback_ttf_path.view(),
                                      font_small_px,
                                      font_normal_px,
                                      font_large_px);
@@ -75,8 +75,8 @@
                              int small_px,
                              int normal_px,
                              int large_px) {
-            font_ttf_path.assign(path.begin(), path.end());
-            font_fallback_ttf_path.assign(fallback_path.begin(), fallback_path.end());
+            font_ttf_path.assign(path);
+            font_fallback_ttf_path.assign(fallback_path);
             font_small_px = small_px;
             font_normal_px = normal_px;
             font_large_px = large_px;

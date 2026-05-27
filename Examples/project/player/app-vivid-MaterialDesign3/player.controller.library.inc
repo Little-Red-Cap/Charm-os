@@ -39,6 +39,11 @@
         static constexpr LibraryCoverMode kLibraryCoverMode =
             LibraryCoverMode::FocusedPreviewOnly;
 
+        using LibraryPathSegmentList =
+            service::FixedVector<std::string_view, kPlayerLibrarySegmentCapacity>;
+        using LibraryUniqueAlbumList =
+            service::FixedVector<FixedString<96>, kPlayerLibraryUniqueAlbumCapacity>;
+
         static void format_bytes_compact(std::uint64_t bytes,
                                          char* out,
                                          std::size_t out_size) noexcept {
@@ -124,11 +129,17 @@
             return 1;
         }
 
-        static std::string utf8_truncate_with_ellipsis(std::string_view value,
-                                                       std::size_t max_codepoints) {
+        template <std::size_t Capacity>
+        static void utf8_truncate_with_ellipsis_into(std::string_view value,
+                                                     std::size_t max_codepoints,
+                                                     FixedString<Capacity>& out) noexcept {
+            out.clear();
             value = library_trim_space(value);
-            if (value.empty()) return {};
-            if (max_codepoints == 0) return std::string{value};
+            if (value.empty()) return;
+            if (max_codepoints == 0) {
+                out.assign(value);
+                return;
+            }
 
             std::size_t offset = 0;
             std::size_t codepoints = 0;
@@ -137,49 +148,60 @@
                 ++codepoints;
             }
             if (offset >= value.size()) {
-                return std::string{value};
+                out.assign(value);
+                return;
             }
 
-            std::string out{};
-            out.reserve(offset + 3);
-            out.append(value.substr(0, offset));
-            out += "...";
+            out.assign(value.substr(0, offset));
+            (void)out.append("...");
+        }
+
+        template <std::size_t Capacity>
+        static FixedString<Capacity> utf8_truncate_with_ellipsis_fixed(
+            std::string_view value,
+            std::size_t max_codepoints) noexcept {
+            FixedString<Capacity> out{};
+            utf8_truncate_with_ellipsis_into(value, max_codepoints, out);
             return out;
         }
 
-        static void append_library_preview_part(std::string& out,
+        template <std::size_t Capacity>
+        static void append_library_preview_part(FixedString<Capacity>& out,
                                                 std::string_view value,
-                                                std::size_t max_codepoints = 0) {
+                                                std::size_t max_codepoints = 0) noexcept {
             value = library_trim_space(value);
             if (value.empty()) return;
-            std::string compact = utf8_truncate_with_ellipsis(value, max_codepoints);
+            FixedString<Capacity> compact =
+                utf8_truncate_with_ellipsis_fixed<Capacity>(value, max_codepoints);
             if (compact.empty()) return;
             if (!out.empty()) {
-                out += " · ";
+                (void)out.append(" · ");
             }
-            out += compact;
+            (void)out.append(compact.view());
         }
 
-        static std::string library_preview_compact_summary(std::string_view value,
-                                                           std::size_t max_codepoints) {
+        template <std::size_t Capacity>
+        static void library_preview_compact_summary_into(std::string_view value,
+                                                         std::size_t max_codepoints,
+                                                         FixedString<Capacity>& out) noexcept {
+            out.clear();
             value = library_trim_space(value);
-            if (value.empty()) return {};
+            if (value.empty()) return;
 
-            std::string compact{};
-            compact.reserve(value.size());
+            FixedString<Capacity> compact{};
             for (std::size_t i = 0; i < value.size();) {
                 if (i + 2 < value.size()
                     && value[i] == ' '
                     && (value[i + 1] == '|' || value[i + 1] == '/')
                     && value[i + 2] == ' ') {
-                    compact += " · ";
+                    (void)compact.append(" · ");
                     i += 3;
                     continue;
                 }
-                compact.push_back(value[i]);
+                (void)compact.append(std::string_view{value.data() + i, 1});
                 ++i;
             }
-            return utf8_truncate_with_ellipsis(compact, max_codepoints);
+            utf8_truncate_with_ellipsis_into(compact.view(), max_codepoints, out);
         }
 
         static bool library_tail_looks_like_duration(std::string_view tail) noexcept {
@@ -189,16 +211,19 @@
                    }) != tail.end();
         }
 
-        static std::string library_compact_popup_directory(std::string_view path,
-                                                           std::size_t keep_segments = 4,
-                                                           std::size_t max_codepoints = 52) {
+        template <std::size_t Capacity>
+        static void library_compact_popup_directory_into(std::string_view path,
+                                                         std::size_t keep_segments,
+                                                         std::size_t max_codepoints,
+                                                         FixedString<Capacity>& out) noexcept {
+            out.clear();
             path = library_trim_space(path);
             if (path.empty()) {
-                return "Library root";
+                out.assign("Library root");
+                return;
             }
 
-            std::vector<std::string_view> segments{};
-            segments.reserve(8);
+            LibraryPathSegmentList segments{};
             std::size_t start = 0;
             while (start < path.size()) {
                 while (start < path.size() && (path[start] == '/' || path[start] == '\\')) {
@@ -209,28 +234,31 @@
                 while (end < path.size() && path[end] != '/' && path[end] != '\\') {
                     ++end;
                 }
-                segments.push_back(path.substr(start, end - start));
+                if (!segments.push_back(path.substr(start, end - start))) {
+                    break;
+                }
                 start = end;
             }
 
             if (segments.empty()) {
-                return utf8_truncate_with_ellipsis(path, max_codepoints);
+                utf8_truncate_with_ellipsis_into(path, max_codepoints, out);
+                return;
             }
 
             const std::size_t begin =
                 (segments.size() > keep_segments) ? (segments.size() - keep_segments) : 0;
-            std::string out{};
+            FixedString<Capacity> compact{};
             if (begin > 0) {
-                out = "...";
+                compact.assign("...");
             }
             for (std::size_t i = begin; i < segments.size(); ++i) {
                 const auto label = library_popup_directory_segment_label(segments[i]);
-                if (!out.empty()) {
-                    out += " / ";
+                if (!compact.empty()) {
+                    (void)compact.append(" / ");
                 }
-                out.append(label.begin(), label.end());
+                (void)compact.append(label);
             }
-            return utf8_truncate_with_ellipsis(out, max_codepoints);
+            utf8_truncate_with_ellipsis_into(compact.view(), max_codepoints, out);
         }
 
         static const char* library_popup_eyebrow(LibraryTab tab,
@@ -422,7 +450,12 @@
             const auto* tracks = storage.tracks;
             const std::size_t count = tracks ? tracks->size() : 0;
             if (track_duration_cache_sec.size() != count) {
-                track_duration_cache_sec.assign(count, kTrackDurationUnknown);
+                if (!track_duration_cache_sec.resize(count)) {
+                    (void)track_duration_cache_sec.resize(track_duration_cache_sec.capacity());
+                }
+                for (std::size_t i = 0; i < track_duration_cache_sec.size(); ++i) {
+                    track_duration_cache_sec[i] = kTrackDurationUnknown;
+                }
                 list_duration_probe_cursor = 0;
                 last_list_duration_probe_ms = 0;
             }
@@ -535,7 +568,7 @@
         void rebuild_list_display_tails() {
             const std::size_t count = list_order.size();
             if (list_rows.size() != count) {
-                list_rows.resize(count);
+                (void)list_rows.resize(count);
             }
             for (std::size_t i = 0; i < count; ++i) {
                 refresh_list_row_tail(list_rows[i], list_order[i]);
@@ -795,9 +828,9 @@
             int total_sec = 0;
             bool duration_complete = true;
             int album_count = 0;
-            std::string primary_artist{};
+            FixedString<96> primary_artist{};
             bool multiple_artists = false;
-            std::vector<std::string> unique_albums{};
+            LibraryUniqueAlbumList unique_albums{};
 
             for (std::size_t i = 0; i < tracks->size(); ++i) {
                 if (compare_ci(library_group_title_for_track(static_cast<int>(i)), key) != 0) {
@@ -817,21 +850,23 @@
                     const auto stem = library_track_stem(path);
                     const auto artist = library_artist_label(library_artist_from_stem(stem));
                     if (primary_artist.empty()) {
-                        primary_artist.assign(artist.begin(), artist.end());
-                    } else if (compare_ci(primary_artist, artist) != 0) {
+                        primary_artist.assign(artist);
+                    } else if (compare_ci(primary_artist.view(), artist) != 0) {
                         multiple_artists = true;
                     }
                 } else if (library_tab == LibraryTab::Artists) {
                     const auto album = library_album_label(library_parent_folder(path));
                     bool exists = false;
                     for (const auto& existing : unique_albums) {
-                        if (compare_ci(existing, album) == 0) {
+                        if (compare_ci(existing.view(), album) == 0) {
                             exists = true;
                             break;
                         }
                     }
                     if (!exists) {
-                        unique_albums.emplace_back(album.begin(), album.end());
+                        FixedString<96> compact_album{};
+                        compact_album.assign(album);
+                        (void)unique_albums.push_back(compact_album);
                     }
                 }
             }
@@ -912,13 +947,13 @@
             }
             if (primary.empty()) return false;
 
-            const std::string title_text = utf8_truncate_with_ellipsis(
+            const FixedString<128> title_text = utf8_truncate_with_ellipsis_fixed<128>(
                 primary, row.group_row ? 24u : 28u);
             std::snprintf(title_buf, title_size, "%s", title_text.c_str());
 
-            std::string subtitle_text{};
+            FixedString<160> subtitle_text{};
             if (row.group_row) {
-                subtitle_text = library_preview_compact_summary(secondary, 40);
+                library_preview_compact_summary_into(secondary, 40, subtitle_text);
                 if (row.current_row) {
                     append_library_preview_part(
                         subtitle_text,
@@ -960,7 +995,7 @@
                 }
 
                 if (subtitle_text.empty()) {
-                    subtitle_text = library_preview_compact_summary(secondary, 36);
+                    library_preview_compact_summary_into(secondary, 36, subtitle_text);
                 }
 
                 const auto tail = row.tail();
@@ -1614,13 +1649,17 @@
                 append_meta_part(size_buf);
             }
 
-            const std::string file_line = utf8_truncate_with_ellipsis(
-                library_file_name(path), 46);
-            const std::string directory_line = library_compact_popup_directory(
-                library_directory_path(path), 4, 58);
-            const std::string popup_title = utf8_truncate_with_ellipsis(title.view(), 28);
-            const std::string popup_subtitle = utf8_truncate_with_ellipsis(subtitle_line.view(), 24);
-            const std::string popup_meta = utf8_truncate_with_ellipsis(meta_line.view(), 42);
+            const FixedString<160> file_line =
+                utf8_truncate_with_ellipsis_fixed<160>(library_file_name(path), 46);
+            FixedString<160> directory_line{};
+            library_compact_popup_directory_into(
+                library_directory_path(path), 4, 58, directory_line);
+            const FixedString<128> popup_title =
+                utf8_truncate_with_ellipsis_fixed<128>(title.view(), 28);
+            const FixedString<128> popup_subtitle =
+                utf8_truncate_with_ellipsis_fixed<128>(subtitle_line.view(), 24);
+            const FixedString<160> popup_meta =
+                utf8_truncate_with_ellipsis_fixed<160>(meta_line.view(), 42);
 
             set_label(handles.list_info_eyebrow,
                       library_popup_eyebrow(library_tab, library_has_context(), list_shuffle_enabled));
@@ -2087,7 +2126,7 @@
                 access.set_button_icon(handles.list_sort, list_shuffle_enabled ? icons.shuffle : icons.down);
             }
             if (handles.list_tab_indicator) {
-                const int indicator_w = std::max(36, active_rect.w / 4);
+                const int indicator_w = std::max<int>(36, static_cast<int>(active_rect.w / 4));
                 access.set_style_override(handles.list_tab_indicator, ::ui::scene::make_clean_surface_patch({
                     .apply_bg_color = true,
                     .apply_border_color = true,
@@ -2209,7 +2248,7 @@
             list_rows.clear();
 
             const std::size_t count = list_order.size();
-            list_rows.resize(count);
+            (void)list_rows.resize(count);
             for (std::size_t i = 0; i < count; ++i) {
                 auto& row = list_rows[i];
                 row.title.clear();
@@ -2405,9 +2444,7 @@
 
         void clear_list_cover_cache() {
             for (auto& entry : list_cover_cache) {
-                if (::ui::scene::image_id_valid(entry.image.image_id)) {
-                    release_cover_image(entry.image);
-                }
+                release_resolved_cover(entry.image);
                 entry.path.clear();
                 entry.missing = false;
             }
@@ -2445,17 +2482,21 @@
             const auto* tracks = storage.tracks;
             if (!tracks) return;
             const std::size_t count = tracks->size();
-            list_cover_paths.reserve(count);
             for (std::size_t i = 0; i < count; ++i) {
                 FixedString<260> cover_path;
                 const auto& track_path = (*tracks)[i];
                 cover_path.assign(track_path.view());
-                list_cover_paths.push_back(cover_path);
+                if (!list_cover_paths.push_back(cover_path)) {
+                    break;
+                }
             }
         }
 
         ::ui::scene::ImageId resolve_list_cover_icon(std::string_view track_path,
                                                      std::string_view cover_path_view) {
+            if (!covers_enabled() || list_cover_cache_entries == 0) {
+                return ::ui::scene::invalid_image_id();
+            }
             FixedString<260> cover_path;
             if (!cover_path_view.empty()) {
                 cover_path.assign(cover_path_view);
@@ -2467,9 +2508,9 @@
             if (!library_allows_cover_request(track_path, cover_path.view())) {
                 return ::ui::scene::invalid_image_id();
             }
-            if (cover_image.path == cover_path.view()
-                && ::ui::scene::image_id_valid(cover_image.image_id)) {
-                return cover_image.image_id;
+            if (current_cover.key.view() == cover_path.view()
+                && ::ui::scene::image_id_valid(current_cover.image_id)) {
+                return current_cover.image_id;
             }
             for (auto& entry : list_cover_cache) {
                 if (entry.path.view() != cover_path.view()) continue;
@@ -2479,14 +2520,18 @@
             if (::ui::gfx::image_registry_locked()) {
                 return ::ui::scene::invalid_image_id();
             }
-            auto& slot = list_cover_cache[list_cover_next % kListCoverCache];
+            auto& slot = list_cover_cache[list_cover_next % list_cover_cache_entries];
             list_cover_next += 1;
-            if (::ui::scene::image_id_valid(slot.image.image_id)) {
-                release_cover_image(slot.image);
-            }
+            release_resolved_cover(slot.image);
             slot.path.assign(cover_path.view());
             slot.missing = false;
-            if (load_cover_image(cover_path.view(), slot.image)) {
+            if (resolve_cover(CoverResourceRequest{
+                                  .path = cover_path.view(),
+                                  .kind = CoverResourceKind::Unknown,
+                                  .fallback_variant = DefaultCoverVariant::HomeHeroPill,
+                              },
+                              slot.image,
+                              cover_load_mode())) {
                 return slot.image.image_id;
             }
             slot.missing = true;
@@ -2506,7 +2551,6 @@
             const auto* tracks = storage.tracks;
             if (!tracks) return;
             const std::size_t count = tracks->size();
-            list_order.reserve(count);
             if (library_shows_group_rows()) {
                 for (std::size_t i = 0; i < count; ++i) {
                     const auto key = library_group_title_for_track(static_cast<int>(i));
@@ -2518,13 +2562,17 @@
                         }
                     }
                     if (!exists) {
-                        list_order.push_back(static_cast<int>(i));
+                        if (!list_order.push_back(static_cast<int>(i))) {
+                            break;
+                        }
                     }
                 }
             } else {
                 for (std::size_t i = 0; i < count; ++i) {
                     if (library_context_matches_track(static_cast<int>(i))) {
-                        list_order.push_back(static_cast<int>(i));
+                        if (!list_order.push_back(static_cast<int>(i))) {
+                            break;
+                        }
                     }
                 }
             }
@@ -2908,6 +2956,10 @@
                 && !library_has_context()
                 && library_tab == LibraryTab::Songs;
             const bool show = show_empty || show_group_hint || show_context_hint || show_tracks_hint;
+            const auto soften_hint_color = [](rgba color) noexcept -> rgba {
+                return rgba{color.r, color.g, color.b,
+                            static_cast<std::uint8_t>(std::min<int>(color.a, 168))};
+            };
             const auto apply_hint_style = [&](rgba color,
                                               FontWeight weight,
                                               int px) noexcept {
@@ -2915,13 +2967,13 @@
                 patch.has_font = true;
                 patch.font = &get_player_font_px(px, weight);
                 patch.has_font_color = true;
-                patch.font_color = color;
+                patch.font_color = soften_hint_color(color);
                 access.set_style_override(handles.list_hint, patch);
             };
             access.set_visible(handles.list_hint, show);
             if (!show) return;
             if (show_empty && !mount_status.empty()) {
-                apply_hint_style(roles.hint_default, FontWeight::Medium, 14);
+                apply_hint_style(roles.hint_default, FontWeight::Medium, 13);
                 if (last_list_hint_text.view() == mount_status.view()) return;
                 last_list_hint_text.assign(mount_status.view());
                 set_label_slot(handles.list_hint, text_slots.list_hint, mount_status.c_str());
@@ -2930,56 +2982,49 @@
             const char* hint = "";
             char buf[160]{};
             if (show_group_hint) {
-                apply_hint_style(roles.hint_accent, FontWeight::Medium, 14);
+                apply_hint_style(roles.hint_accent, FontWeight::Medium, 13);
                 const char* label = (library_tab == LibraryTab::Albums)
                     ? ((count == 1) ? "album" : "albums")
                     : ((count == 1) ? "artist" : "artists");
-                std::snprintf(buf, sizeof(buf), "%d %s available | Select an %s to browse tracks",
-                              count, label, library_group_object_label());
-                char path_hint_buf[80]{};
-                if (format_library_path_bar_hint(path_hint_buf, sizeof(path_hint_buf))) {
-                    append_library_status_suffix(buf, sizeof(buf), path_hint_buf);
-                }
+                std::snprintf(buf, sizeof(buf), "%d %s | Select to browse",
+                              count, label);
                 if (list_shuffle_enabled) {
                     append_library_status_suffix(buf, sizeof(buf), "Shuffled");
                 }
                 hint = buf;
             } else if (show_context_hint) {
-                char summary_buf[96]{};
+                const FixedString<128> summary_text =
+                    utf8_truncate_with_ellipsis_fixed<128>(library_context_key.view(), 28);
                 char path_hint_buf[80]{};
-                format_library_group_summary(
-                    library_context_key.view(),
-                    library_context_is_current_group(),
-                    summary_buf,
-                    sizeof(summary_buf));
                 const bool has_path_hint = format_library_path_bar_hint(path_hint_buf, sizeof(path_hint_buf));
-                if (summary_buf[0] != '\0') {
-                    apply_hint_style(roles.hint_context, FontWeight::Medium, 14);
+                if (!summary_text.empty()) {
+                    apply_hint_style(roles.hint_context, FontWeight::Medium, 13);
                     if (has_path_hint) {
-                        std::snprintf(buf, sizeof(buf), "%s | %s", summary_buf, path_hint_buf);
+                        std::snprintf(buf, sizeof(buf), "%s | %s",
+                                      summary_text.c_str(), path_hint_buf);
                         hint = buf;
                     } else {
-                        hint = summary_buf;
+                        hint = summary_text.c_str();
                     }
                 } else if (has_path_hint) {
-                    apply_hint_style(roles.hint_accent, FontWeight::Medium, 14);
+                    apply_hint_style(roles.hint_accent, FontWeight::Medium, 13);
                     hint = path_hint_buf;
                 }
             } else if (show_tracks_hint) {
-                apply_hint_style(roles.hint_default, FontWeight::Medium, 14);
+                apply_hint_style(roles.hint_default, FontWeight::Medium, 13);
                 const char* track_label = (count == 1) ? "track" : "tracks";
                 if (list_shuffle_enabled) {
-                    std::snprintf(buf, sizeof(buf), "%d %s available | Shuffled",
+                    std::snprintf(buf, sizeof(buf), "%d %s | Shuffled",
                                   count, track_label);
                 } else {
-                    std::snprintf(buf, sizeof(buf), "%d %s available",
+                    std::snprintf(buf, sizeof(buf), "%d %s",
                                   count, track_label);
                 }
                 hint = buf;
             } else {
                 apply_hint_style(roles.hint_default,
                                  !fs_ready ? FontWeight::Medium : FontWeight::Regular,
-                                 14);
+                                 13);
                 if (!fs_ready) {
                     hint = "FS not ready";
                 } else {

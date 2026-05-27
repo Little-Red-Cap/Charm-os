@@ -7,6 +7,30 @@ module;
 #include <string>
 #include <string_view>
 #include <cstdio>
+#include <new>
+
+#if __has_include("vivid_features.generated.hpp")
+#include "vivid_features.generated.hpp"
+#endif
+
+#ifndef VIVID_WIDGET_DEFAULT
+#define VIVID_WIDGET_DEFAULT 1
+#endif
+#ifndef CHARM_VIVID_ENABLE_WIDGET_BatteryGasGauge
+#define CHARM_VIVID_ENABLE_WIDGET_BatteryGasGauge VIVID_WIDGET_DEFAULT
+#endif
+
+#if defined(CHARM_PLAYER_FILE_FONTS) && CHARM_PLAYER_FILE_FONTS
+#define CHARM_PLAYER_USE_FILE_FONTS 1
+#elif defined(CHARM_PLAYER_HOST_UI) && CHARM_PLAYER_HOST_UI && \
+    defined(CHARM_PLAYER_HOST_FILE_FONTS) && CHARM_PLAYER_HOST_FILE_FONTS
+#define CHARM_PLAYER_USE_FILE_FONTS 1
+#else
+#define CHARM_PLAYER_USE_FILE_FONTS 0
+#endif
+#ifndef CHARM_PLAYER_MCU_STRICT
+#define CHARM_PLAYER_MCU_STRICT 0
+#endif
 
 export module player.ui;
 
@@ -21,8 +45,10 @@ import charm.font.font_noto_ascii_16;
 import charm.font.font_noto_ascii_12;
 import charm.font.font_noto_sc_16;
 import charm.ui.scene.pill_surface;
+#if CHARM_PLAYER_USE_FILE_FONTS
 import charm.ui.vivid.font_package;
 import charm.font.provider_freetype;
+#endif
 import player.font_cache;
 import charm.widgets.button;
 import charm.widgets.chart;
@@ -42,7 +68,9 @@ import charm.widgets.label;
 import charm.widgets.meter_pointer;
 import charm.widgets.list_view;
 import charm.widgets.progress;
+#if CHARM_VIVID_ENABLE_WIDGET_BatteryGasGauge
 import charm.widgets.battery_gasgauge;
+#endif
 import charm.widgets.progress_bar_drill;
 import charm.widgets.progress_bar_simple;
 import charm.widgets.scrollbar;
@@ -208,9 +236,25 @@ export namespace player::ui {
         ::ui::gfx::ImageId folder_active{};
     };
 
+    inline constexpr int kPlayerIconSizePx = 48;
+    inline constexpr int kPlayerIconStrideBytes = kPlayerIconSizePx * 4;
+    inline constexpr std::size_t kPlayerIconCount = 17;
+    inline constexpr std::size_t kPlayerIconBytes =
+        static_cast<std::size_t>(kPlayerIconStrideBytes) * static_cast<std::size_t>(kPlayerIconSizePx);
+    inline constexpr std::size_t kPlayerIconArenaBytes = kPlayerIconCount * kPlayerIconBytes;
+
+    struct PlayerIconPixelArena {
+        std::byte* data{nullptr};
+        std::size_t bytes{0};
+
+        constexpr bool valid() const noexcept {
+            return data != nullptr && bytes >= kPlayerIconArenaBytes;
+        }
+    };
+
     namespace detail {
-        constexpr int kIconSize = 48;
-        constexpr int kIconStride = kIconSize * 4;
+        constexpr int kIconSize = kPlayerIconSizePx;
+        constexpr int kIconStride = kPlayerIconStrideBytes;
         using IconBuffer = std::array<std::byte, kIconSize * kIconSize * 4>;
         constexpr ::ui::gfx::svg::ViewBox kIconView{24.0f, 24.0f};
         constexpr ::ui::gfx::svg::ViewBox kLegacyIconView{960.0f, 960.0f};
@@ -371,6 +415,7 @@ export namespace player::ui {
         // TODO(player/ui): Make exact font cache size product-configurable after host-side typography tuning stabilizes.
         inline constexpr std::size_t kPlayerExactFontCacheSlots = 24;
 
+#if CHARM_PLAYER_USE_FILE_FONTS
         struct FontPackageState {
             charm::font::VfsFontPackage package{};
             bool bound{false};
@@ -417,11 +462,6 @@ export namespace player::ui {
             return state;
         }
 
-        bool& system_font_fallback_enabled_state() noexcept {
-            static bool enabled = true;
-            return enabled;
-        }
-
         void reset_exact_font_cache(FreetypeLoaderState& state) noexcept {
             const auto api = state.loader.vfs_api();
             for (auto& slot : state.exact_fonts) {
@@ -444,6 +484,57 @@ export namespace player::ui {
             if (px <= 14) return get_font_weighted(FontId::Small, weight);
             return get_font_weighted(FontId::Normal, weight);
         }
+#else
+        const Font& fallback_font_for_px(int px, FontWeight weight) noexcept {
+            if (px >= 48) return get_font_weighted(FontId::Large, weight);
+            if (px <= 14) return get_font_weighted(FontId::Small, weight);
+            return get_font_weighted(FontId::Normal, weight);
+        }
+#endif
+
+        bool& system_font_fallback_enabled_state() noexcept {
+            static bool enabled = true;
+            return enabled;
+        }
+
+        using IconBuildFn = void (*)(IconBuffer&, const rgba&);
+
+        ImageView icon_view_from_buffer(const IconBuffer& buf) noexcept {
+            return make_image_view(PixelFormat::ARGB8888,
+                                   kIconSize,
+                                   kIconSize,
+                                   kIconStride,
+                                   buf.data(),
+                                   false,
+                                   false);
+        }
+
+        ImageView icon_view_from_arena(PlayerIconPixelArena arena, std::size_t index) noexcept {
+            if (!arena.valid() || index >= kPlayerIconCount) return {};
+            return make_image_view(PixelFormat::ARGB8888,
+                                   kIconSize,
+                                   kIconSize,
+                                   kIconStride,
+                                   arena.data + index * kPlayerIconBytes,
+                                   false,
+                                   false);
+        }
+
+        bool build_icon_in_arena(PlayerIconPixelArena arena,
+                                 std::size_t index,
+                                 IconBuildFn build,
+                                 const rgba& color) noexcept {
+            if (!arena.valid() || index >= kPlayerIconCount || build == nullptr) return false;
+            auto* bytes = arena.data + index * kPlayerIconBytes;
+            auto& buf = *::new (static_cast<void*>(bytes)) IconBuffer{};
+            build(buf, color);
+            return true;
+        }
+
+        ::ui::gfx::ImageId register_icon_view(const ImageView& view) noexcept {
+            const auto res = ::ui::gfx::register_image_dedup(view);
+            return res.ok() ? res.id : ::ui::gfx::invalid_image_id();
+        }
     }
 
     inline ImageView icon_prev() noexcept {
@@ -453,13 +544,7 @@ export namespace player::ui {
             detail::build_prev_icon(buf, kUiListFont);
             init = true;
         }
-        return make_image_view(PixelFormat::ARGB8888,
-                               detail::kIconSize,
-                               detail::kIconSize,
-                               detail::kIconStride,
-                               buf.data(),
-                               false,
-                               false);
+        return detail::icon_view_from_buffer(buf);
     }
 
     inline ImageView icon_play() noexcept {
@@ -469,13 +554,7 @@ export namespace player::ui {
             detail::build_play_icon(buf, kUiListFont);
             init = true;
         }
-        return make_image_view(PixelFormat::ARGB8888,
-                               detail::kIconSize,
-                               detail::kIconSize,
-                               detail::kIconStride,
-                               buf.data(),
-                               false,
-                               false);
+        return detail::icon_view_from_buffer(buf);
     }
 
     inline ImageView icon_pause() noexcept {
@@ -485,13 +564,7 @@ export namespace player::ui {
             detail::build_pause_icon(buf, kUiListFont);
             init = true;
         }
-        return make_image_view(PixelFormat::ARGB8888,
-                               detail::kIconSize,
-                               detail::kIconSize,
-                               detail::kIconStride,
-                               buf.data(),
-                               false,
-                               false);
+        return detail::icon_view_from_buffer(buf);
     }
 
     inline ImageView icon_loop() noexcept {
@@ -501,13 +574,7 @@ export namespace player::ui {
             detail::build_loop_icon(buf, kUiListFont);
             init = true;
         }
-        return make_image_view(PixelFormat::ARGB8888,
-                               detail::kIconSize,
-                               detail::kIconSize,
-                               detail::kIconStride,
-                               buf.data(),
-                               false,
-                               false);
+        return detail::icon_view_from_buffer(buf);
     }
 
     inline ImageView icon_single() noexcept {
@@ -517,13 +584,7 @@ export namespace player::ui {
             detail::build_single_icon(buf, kUiListFont);
             init = true;
         }
-        return make_image_view(PixelFormat::ARGB8888,
-                               detail::kIconSize,
-                               detail::kIconSize,
-                               detail::kIconStride,
-                               buf.data(),
-                               false,
-                               false);
+        return detail::icon_view_from_buffer(buf);
     }
 
     inline ImageView icon_shuffle() noexcept {
@@ -533,13 +594,7 @@ export namespace player::ui {
             detail::build_shuffle_icon(buf, kUiListFont);
             init = true;
         }
-        return make_image_view(PixelFormat::ARGB8888,
-                               detail::kIconSize,
-                               detail::kIconSize,
-                               detail::kIconStride,
-                               buf.data(),
-                               false,
-                               false);
+        return detail::icon_view_from_buffer(buf);
     }
 
     inline ImageView icon_next() noexcept {
@@ -549,13 +604,7 @@ export namespace player::ui {
             detail::build_next_icon(buf, kUiListFont);
             init = true;
         }
-        return make_image_view(PixelFormat::ARGB8888,
-                               detail::kIconSize,
-                               detail::kIconSize,
-                               detail::kIconStride,
-                               buf.data(),
-                               false,
-                               false);
+        return detail::icon_view_from_buffer(buf);
     }
 
     inline ImageView icon_chevron_right() noexcept {
@@ -565,13 +614,7 @@ export namespace player::ui {
             detail::build_chevron_right_icon(buf, kUiListFont);
             init = true;
         }
-        return make_image_view(PixelFormat::ARGB8888,
-                               detail::kIconSize,
-                               detail::kIconSize,
-                               detail::kIconStride,
-                               buf.data(),
-                               false,
-                               false);
+        return detail::icon_view_from_buffer(buf);
     }
 
     inline ImageView icon_folder() noexcept {
@@ -581,13 +624,7 @@ export namespace player::ui {
             detail::build_folder_icon(buf, kUiListFont);
             init = true;
         }
-        return make_image_view(PixelFormat::ARGB8888,
-                               detail::kIconSize,
-                               detail::kIconSize,
-                               detail::kIconStride,
-                               buf.data(),
-                               false,
-                               false);
+        return detail::icon_view_from_buffer(buf);
     }
 
     inline ImageView icon_home() noexcept {
@@ -597,13 +634,7 @@ export namespace player::ui {
             detail::build_home_icon(buf, kUiListFont);
             init = true;
         }
-        return make_image_view(PixelFormat::ARGB8888,
-                               detail::kIconSize,
-                               detail::kIconSize,
-                               detail::kIconStride,
-                               buf.data(),
-                               false,
-                               false);
+        return detail::icon_view_from_buffer(buf);
     }
 
     inline ImageView icon_home_active() noexcept {
@@ -613,13 +644,7 @@ export namespace player::ui {
             detail::build_home_icon(buf, kUiOk);
             init = true;
         }
-        return make_image_view(PixelFormat::ARGB8888,
-                               detail::kIconSize,
-                               detail::kIconSize,
-                               detail::kIconStride,
-                               buf.data(),
-                               false,
-                               false);
+        return detail::icon_view_from_buffer(buf);
     }
 
     inline ImageView icon_search() noexcept {
@@ -629,13 +654,7 @@ export namespace player::ui {
             detail::build_search_icon(buf, kUiListFont);
             init = true;
         }
-        return make_image_view(PixelFormat::ARGB8888,
-                               detail::kIconSize,
-                               detail::kIconSize,
-                               detail::kIconStride,
-                               buf.data(),
-                               false,
-                               false);
+        return detail::icon_view_from_buffer(buf);
     }
 
     inline ImageView icon_search_active() noexcept {
@@ -645,13 +664,7 @@ export namespace player::ui {
             detail::build_search_icon(buf, kUiOk);
             init = true;
         }
-        return make_image_view(PixelFormat::ARGB8888,
-                               detail::kIconSize,
-                               detail::kIconSize,
-                               detail::kIconStride,
-                               buf.data(),
-                               false,
-                               false);
+        return detail::icon_view_from_buffer(buf);
     }
 
     inline ImageView icon_settings() noexcept {
@@ -661,13 +674,7 @@ export namespace player::ui {
             detail::build_settings_icon(buf, kUiListFont);
             init = true;
         }
-        return make_image_view(PixelFormat::ARGB8888,
-                               detail::kIconSize,
-                               detail::kIconSize,
-                               detail::kIconStride,
-                               buf.data(),
-                               false,
-                               false);
+        return detail::icon_view_from_buffer(buf);
     }
 
     inline ImageView icon_down() noexcept {
@@ -677,13 +684,7 @@ export namespace player::ui {
             detail::build_down_icon(buf, kUiListFont);
             init = true;
         }
-        return make_image_view(PixelFormat::ARGB8888,
-                               detail::kIconSize,
-                               detail::kIconSize,
-                               detail::kIconStride,
-                               buf.data(),
-                               false,
-                               false);
+        return detail::icon_view_from_buffer(buf);
     }
 
     inline ImageView icon_more() noexcept {
@@ -693,13 +694,7 @@ export namespace player::ui {
             detail::build_more_icon(buf, kUiListFont);
             init = true;
         }
-        return make_image_view(PixelFormat::ARGB8888,
-                               detail::kIconSize,
-                               detail::kIconSize,
-                               detail::kIconStride,
-                               buf.data(),
-                               false,
-                               false);
+        return detail::icon_view_from_buffer(buf);
     }
 
     inline ImageView icon_folder_active() noexcept {
@@ -709,38 +704,64 @@ export namespace player::ui {
             detail::build_folder_icon(buf, kUiOk);
             init = true;
         }
-        return make_image_view(PixelFormat::ARGB8888,
-                               detail::kIconSize,
-                               detail::kIconSize,
-                               detail::kIconStride,
-                               buf.data(),
-                               false,
-                               false);
+        return detail::icon_view_from_buffer(buf);
     }
 
     inline PlayerIconIds register_player_icons() noexcept {
         PlayerIconIds out{};
-        auto reg = [](const ImageView& view) noexcept {
-            const auto res = ::ui::gfx::register_image_dedup(view);
-            return res.ok() ? res.id : ::ui::gfx::invalid_image_id();
+        out.prev = detail::register_icon_view(icon_prev());
+        out.play = detail::register_icon_view(icon_play());
+        out.pause = detail::register_icon_view(icon_pause());
+        out.next = detail::register_icon_view(icon_next());
+        out.chevron_right = detail::register_icon_view(icon_chevron_right());
+        out.loop = detail::register_icon_view(icon_loop());
+        out.single = detail::register_icon_view(icon_single());
+        out.shuffle = detail::register_icon_view(icon_shuffle());
+        out.folder = detail::register_icon_view(icon_folder());
+        out.home = detail::register_icon_view(icon_home());
+        out.home_active = detail::register_icon_view(icon_home_active());
+        out.search = detail::register_icon_view(icon_search());
+        out.search_active = detail::register_icon_view(icon_search_active());
+        out.settings = detail::register_icon_view(icon_settings());
+        out.down = detail::register_icon_view(icon_down());
+        out.more = detail::register_icon_view(icon_more());
+        out.folder_active = detail::register_icon_view(icon_folder_active());
+        return out;
+    }
+
+    inline PlayerIconIds register_player_icons(PlayerIconPixelArena arena) noexcept {
+#if CHARM_PLAYER_MCU_STRICT
+        if (!arena.valid()) return {};
+#else
+        if (!arena.valid()) return register_player_icons();
+#endif
+
+        PlayerIconIds out{};
+        std::size_t slot = 0;
+        auto reg = [&](detail::IconBuildFn build, const rgba& color) noexcept {
+            const std::size_t index = slot++;
+            if (!detail::build_icon_in_arena(arena, index, build, color)) {
+                return ::ui::gfx::invalid_image_id();
+            }
+            return detail::register_icon_view(detail::icon_view_from_arena(arena, index));
         };
-        out.prev = reg(icon_prev());
-        out.play = reg(icon_play());
-        out.pause = reg(icon_pause());
-        out.next = reg(icon_next());
-        out.chevron_right = reg(icon_chevron_right());
-        out.loop = reg(icon_loop());
-        out.single = reg(icon_single());
-        out.shuffle = reg(icon_shuffle());
-        out.folder = reg(icon_folder());
-        out.home = reg(icon_home());
-        out.home_active = reg(icon_home_active());
-        out.search = reg(icon_search());
-        out.search_active = reg(icon_search_active());
-        out.settings = reg(icon_settings());
-        out.down = reg(icon_down());
-        out.more = reg(icon_more());
-        out.folder_active = reg(icon_folder_active());
+        out.prev = reg(detail::build_prev_icon, kUiListFont);
+        out.play = reg(detail::build_play_icon, kUiListFont);
+        out.pause = reg(detail::build_pause_icon, kUiListFont);
+        out.next = reg(detail::build_next_icon, kUiListFont);
+        out.chevron_right = reg(detail::build_chevron_right_icon, kUiListFont);
+        out.loop = reg(detail::build_loop_icon, kUiListFont);
+        out.single = reg(detail::build_single_icon, kUiListFont);
+        out.shuffle = reg(detail::build_shuffle_icon, kUiListFont);
+        out.folder = reg(detail::build_folder_icon, kUiListFont);
+        out.home = reg(detail::build_home_icon, kUiListFont);
+        out.home_active = reg(detail::build_home_icon, kUiOk);
+        out.search = reg(detail::build_search_icon, kUiListFont);
+        out.search_active = reg(detail::build_search_icon, kUiOk);
+        out.settings = reg(detail::build_settings_icon, kUiListFont);
+        out.down = reg(detail::build_down_icon, kUiListFont);
+        out.more = reg(detail::build_more_icon, kUiListFont);
+        out.folder_active = reg(detail::build_folder_icon, kUiOk);
         return out;
     }
 
@@ -757,16 +778,23 @@ export namespace player::ui {
     }
 
     bool font_package_bound() noexcept {
+#if CHARM_PLAYER_USE_FILE_FONTS
         return detail::font_package_state().bound;
+#else
+        return false;
+#endif
     }
 
     void reset_player_font_package_cache() noexcept {
+#if CHARM_PLAYER_USE_FILE_FONTS
         auto& state = detail::font_package_state();
         state.package.reset_cache();
         state.bound = false;
         detail::reset_exact_font_cache(detail::freetype_state());
+#endif
     }
 
+#if CHARM_PLAYER_USE_FILE_FONTS
     namespace detail {
         std::string make_exact_font_path(std::string_view base_path,
                                          int px,
@@ -959,6 +987,23 @@ export namespace player::ui {
         const auto path = detail::make_exact_font_path(state.ttf_path, px, weight, variation_tokens);
         return detail::load_player_exact_font(path, px, weight);
     }
+#else
+    void bind_player_freetype_font(std::string_view,
+                                   std::string_view,
+                                   int,
+                                   int,
+                                   int) noexcept {}
+
+    const Font& get_player_font_px(int px, FontWeight weight) noexcept {
+        return detail::fallback_font_for_px(px, weight);
+    }
+
+    const Font& get_player_font_px_variant(int px,
+                                           FontWeight weight,
+                                           std::string_view) noexcept {
+        return get_player_font_px(px, weight);
+    }
+#endif
 
     inline void apply_player_theme() {
         set_default_font(FontId::Small, &font_noto_ascii_12);
@@ -1249,12 +1294,14 @@ export namespace player::ui {
         spectrum_view.colors.border_focus = kUiOk;
         set_base(WidgetKind::SpectrumView, spectrum_view);
 
+#if CHARM_VIVID_ENABLE_WIDGET_BatteryGasGauge
         Style battery_gasgauge = theme.get<BatteryGasGauge>();
         battery_gasgauge.colors.bg_color = kUiListBg;
         battery_gasgauge.colors.border_color = kUiListBorder;
         battery_gasgauge.metrics.corner_radius = 12;
         battery_gasgauge.metrics.padding = 6;
         set_base(WidgetKind::BatteryGasGauge, battery_gasgauge);
+#endif
 
         Style histogram = theme.get<Histogram>();
         histogram.colors.bg_color = kUiListBg;

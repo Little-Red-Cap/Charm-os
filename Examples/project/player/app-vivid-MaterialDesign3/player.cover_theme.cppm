@@ -5,16 +5,23 @@ module;
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <vector>
+#include <cstring>
+#include <span>
 
 export module player.cover_theme;
 
 import alg_color_extract;
 import charm.gfx.color;
+import charm.gfx.image;
 import player.cover;
 import player.ui;
 
 export namespace player::cover_theme {
+    inline constexpr int kCoverThemeSampleMaxSide = 128;
+    inline constexpr std::size_t kCoverThemeSampleCapacity =
+        static_cast<std::size_t>(kCoverThemeSampleMaxSide)
+        * static_cast<std::size_t>(kCoverThemeSampleMaxSide);
+
     enum class CoverThemeMode : std::uint8_t {
         primary_container,
         surface_container_high,
@@ -24,7 +31,7 @@ export namespace player::cover_theme {
     struct CoverThemeConfig {
         CoverThemeMode mode{CoverThemeMode::primary_container};
         bool is_dark{true};
-        int downscale_max{128};
+        int downscale_max{kCoverThemeSampleMaxSide};
         alg::PaletteStyle palette_style{alg::PaletteStyle::tonal_spot};
         rgba fallback{player::ui::kUiBackdropBase};
     };
@@ -169,28 +176,76 @@ export namespace player::cover_theme {
         };
     }
 
-    inline std::uint32_t sample_argb(const CoverImage& img, int x, int y) noexcept {
-        const int w = img.width;
-        const int h = img.height;
+    inline CoverTheme fallback_cover_theme(const CoverThemeConfig& cfg) noexcept {
+        CoverTheme fallback{};
+        fallback.backdrop = cfg.fallback;
+        fallback.on_backdrop = player::ui::kUiTitle;
+        fallback.primary = player::ui::kUiSwitchOn;
+        fallback.on_primary = player::ui::kUiListFont;
+        fallback.primary_container = player::ui::kUiButtonBg;
+        fallback.secondary_container = player::ui::kUiButtonBg;
+        fallback.on_secondary_container = player::ui::kUiListFont;
+        fallback.surface_low = player::ui::kUiButtonBg;
+        fallback.surface = player::ui::kUiButtonBg;
+        fallback.surface_high = player::ui::kUiButtonBg;
+        fallback.on_surface = player::ui::kUiListFont;
+        fallback.on_surface_variant = player::ui::kUiSubtitle;
+        fallback.outline_variant = player::ui::kUiButtonBorder;
+        fallback.neutral = true;
+        return fallback;
+    }
+
+    inline std::uint32_t sample_argb(const ImageView& img, int x, int y) noexcept {
+        const int w = img.w;
+        const int h = img.h;
         if (w <= 0 || h <= 0) return 0;
         if (x < 0) x = 0;
         if (y < 0) y = 0;
         if (x >= w) x = w - 1;
         if (y >= h) y = h - 1;
-        const std::uint32_t stored = img.argb[static_cast<std::size_t>(y * w + x)];
-        const std::uint32_t a = stored & 0xFFu;
-        const std::uint32_t r = (stored >> 8) & 0xFFu;
-        const std::uint32_t g = (stored >> 16) & 0xFFu;
-        const std::uint32_t b = (stored >> 24) & 0xFFu;
-        return (a << 24) | (r << 16) | (g << 8) | b;
+        if (!img.data || img.stride_bytes <= 0) return 0;
+        const auto* row = img.data + static_cast<std::ptrdiff_t>(y) * img.stride_bytes;
+        switch (img.format) {
+        case PixelFormat::ARGB8888: {
+            const auto* p = row + static_cast<std::ptrdiff_t>(x) * 4;
+            const std::uint32_t a = img.force_opaque ? 255u : static_cast<std::uint8_t>(p[0]);
+            const std::uint32_t r = static_cast<std::uint8_t>(p[1]);
+            const std::uint32_t g = static_cast<std::uint8_t>(p[2]);
+            const std::uint32_t b = static_cast<std::uint8_t>(p[3]);
+            return (a << 24) | (r << 16) | (g << 8) | b;
+        }
+        case PixelFormat::RGB888: {
+            const auto* p = row + static_cast<std::ptrdiff_t>(x) * 3;
+            const std::uint32_t r = static_cast<std::uint8_t>(p[0]);
+            const std::uint32_t g = static_cast<std::uint8_t>(p[1]);
+            const std::uint32_t b = static_cast<std::uint8_t>(p[2]);
+            return 0xFF000000u | (r << 16) | (g << 8) | b;
+        }
+        case PixelFormat::RGB565: {
+            const auto* p = row + static_cast<std::ptrdiff_t>(x) * 2;
+            std::uint16_t packed = 0;
+            std::memcpy(&packed, p, sizeof(packed));
+            const std::uint32_t r5 = (packed >> 11) & 0x1Fu;
+            const std::uint32_t g6 = (packed >> 5) & 0x3Fu;
+            const std::uint32_t b5 = packed & 0x1Fu;
+            const std::uint32_t r = (r5 << 3) | (r5 >> 2);
+            const std::uint32_t g = (g6 << 2) | (g6 >> 4);
+            const std::uint32_t b = (b5 << 3) | (b5 >> 2);
+            return 0xFF000000u | (r << 16) | (g << 8) | b;
+        }
+        }
+        return 0;
     }
 
-    inline std::vector<std::uint32_t> resize_argb_bilinear(const CoverImage& img, int out_w, int out_h) {
-        if (out_w <= 0 || out_h <= 0 || img.width <= 0 || img.height <= 0) return {};
-        std::vector<std::uint32_t> out;
-        out.reserve(static_cast<std::size_t>(out_w * out_h));
-        const int in_w = img.width;
-        const int in_h = img.height;
+    inline std::size_t resize_argb_bilinear(const ImageView& img,
+                                            int out_w,
+                                            int out_h,
+                                            std::span<std::uint32_t> out) noexcept {
+        if (out_w <= 0 || out_h <= 0 || img.w <= 0 || img.h <= 0) return 0;
+        const auto count = static_cast<std::size_t>(out_w) * static_cast<std::size_t>(out_h);
+        if (count > out.size()) return 0;
+        const int in_w = img.w;
+        const int in_h = img.h;
         const float scale_x = static_cast<float>(in_w) / static_cast<float>(out_w);
         const float scale_y = static_cast<float>(in_h) / static_cast<float>(out_h);
         for (int y = 0; y < out_h; ++y) {
@@ -239,10 +294,12 @@ export namespace player::cover_theme {
                 const std::uint32_t ri = static_cast<std::uint32_t>(std::clamp(r, 0.0f, 255.0f));
                 const std::uint32_t gi = static_cast<std::uint32_t>(std::clamp(g, 0.0f, 255.0f));
                 const std::uint32_t bi = static_cast<std::uint32_t>(std::clamp(b, 0.0f, 255.0f));
-                out.push_back((ai << 24) | (ri << 16) | (gi << 8) | bi);
+                out[static_cast<std::size_t>(y) * static_cast<std::size_t>(out_w)
+                    + static_cast<std::size_t>(x)] =
+                    (ai << 24) | (ri << 16) | (gi << 8) | bi;
             }
         }
-        return out;
+        return count;
     }
 
     inline rgba with_alpha(const rgba& color, std::uint8_t alpha) noexcept {
@@ -879,32 +936,29 @@ export namespace player::cover_theme {
         };
     }
 
-    CoverTheme compute_cover_theme(const CoverImage& img, const CoverThemeConfig& cfg) noexcept {
-        if (img.argb.empty() || img.width <= 0 || img.height <= 0) {
-            CoverTheme fallback{};
-            fallback.backdrop = cfg.fallback;
-            fallback.on_backdrop = player::ui::kUiTitle;
-            fallback.primary = player::ui::kUiSwitchOn;
-            fallback.on_primary = player::ui::kUiListFont;
-            fallback.secondary_container = player::ui::kUiButtonBg;
-            fallback.on_secondary_container = player::ui::kUiListFont;
-            fallback.surface_low = player::ui::kUiButtonBg;
-            fallback.surface = player::ui::kUiButtonBg;
-            fallback.surface_high = player::ui::kUiButtonBg;
-            fallback.on_surface = player::ui::kUiListFont;
-            fallback.on_surface_variant = player::ui::kUiSubtitle;
-            fallback.outline_variant = player::ui::kUiButtonBorder;
-            return fallback;
+    CoverTheme compute_cover_theme_from_view(const ImageView& img, const CoverThemeConfig& cfg) noexcept {
+#if defined(CHARM_PLAYER_MCU)
+        (void)img;
+        return fallback_cover_theme(cfg);
+#else
+        if (!img || img.stride_bytes <= 0) {
+            return fallback_cover_theme(cfg);
         }
 
-        const int w = img.width;
-        const int h = img.height;
+        const int w = img.w;
+        const int h = img.h;
         const int max_side = std::max(w, h);
-        const int target = std::max(1, cfg.downscale_max);
+        const int target = std::clamp(cfg.downscale_max, 1, kCoverThemeSampleMaxSide);
         const int scaled_w = (max_side > target) ? std::max(1, (w * target) / max_side) : w;
         const int scaled_h = (max_side > target) ? std::max(1, (h * target) / max_side) : h;
 
-        std::vector<std::uint32_t> samples = resize_argb_bilinear(img, scaled_w, scaled_h);
+        std::array<std::uint32_t, kCoverThemeSampleCapacity> sample_storage{};
+        const std::size_t sample_count = resize_argb_bilinear(
+            img,
+            scaled_w,
+            scaled_h,
+            std::span<std::uint32_t>(sample_storage.data(), sample_storage.size()));
+        const std::span<const std::uint32_t> samples{sample_storage.data(), sample_count};
         std::uint64_t sum_r = 0;
         std::uint64_t sum_g = 0;
         std::uint64_t sum_b = 0;
@@ -1005,5 +1059,18 @@ export namespace player::cover_theme {
 #endif
         (void)avg_argb;
         return out;
+#endif
+    }
+
+    CoverTheme compute_cover_theme_from_resolved(const ResolvedCover& cover,
+                                                 const CoverThemeConfig& cfg) noexcept {
+        if (cover.fallback || !::ui::gfx::image_id_valid(cover.image_id)) {
+            return fallback_cover_theme(cfg);
+        }
+        const auto* image = ::ui::gfx::resolve_image(cover.image_id);
+        if (!image) {
+            return fallback_cover_theme(cfg);
+        }
+        return compute_cover_theme_from_view(*image, cfg);
     }
 }  // namespace player::cover_theme

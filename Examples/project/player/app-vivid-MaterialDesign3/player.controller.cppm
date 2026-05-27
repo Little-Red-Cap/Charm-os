@@ -4,16 +4,23 @@ module;
 #include <cctype>
 #include <cstdint>
 #include <cstdio>
-#include <ctime>
 #include <cmath>
 #include <string>
 #include <string_view>
-#include <vector>
+#include <utility>
+
+#ifndef CHARM_PLAYER_LAYERED_TRANSITIONS
+#define CHARM_PLAYER_LAYERED_TRANSITIONS 1
+#endif
+#ifndef CHARM_PLAYER_MCU_STRICT
+#define CHARM_PLAYER_MCU_STRICT 0
+#endif
 
 export module player.controller;
 
 import player.fixed_string;
 import player.mcu_policy;
+import player.ui_policy;
 import audio.eq;
 import audio.player;
 import audio.result;
@@ -22,6 +29,7 @@ import charm.core.event;
 import charm.core.geometry;
 import charm.core.handle;
 import charm.gfx.color;
+import charm.gfx.draw_cmd;
 import charm.gfx.image;
 import charm.ui.scene;
 import charm.ui.scene.text_style;
@@ -32,8 +40,11 @@ import charm.system.clock;
 import player.playback;
 import player.input;
 import player.fs_utils;
+import player.media_scan;
+import player.product_config;
 import player.stats_history;
 import player.storage;
+import player.time_utils;
 import player.track_probe;
 import player.ui;
 import player.cover;
@@ -41,14 +52,12 @@ import player.cover_theme;
 import player.font_cache;
 import charm.widgets.perf_overlay;
 import charm.core.style_sheet;
+import service.fixed_vector;
 #if defined(CHARM_AUDIO_USE_VFS)
 import audio.source.fs;
 #else
 import audio.source.file;
 #endif
-
-inline constexpr bool kPlayerControllerMcuGuard =
-    (player::mcu_policy::guard("player.controller uses std::string/std::vector; port before MCU build."), true);
 
 export namespace player {
     using namespace player::fs_utils;
@@ -89,6 +98,10 @@ export namespace player {
         NameAsc,
         NameDesc,
     };
+
+    inline constexpr std::size_t kPlayerLibrarySegmentCapacity =
+        product_config::library_segment_capacity;
+    inline constexpr std::size_t kPlayerLibraryUniqueAlbumCapacity = kMaxTracks;
 
     struct UiHandles {
         WidgetHandle page_probe{};
@@ -254,9 +267,9 @@ export namespace player {
 
     struct PlayerController {
         struct LibraryRowModel {
-            FixedString<192> title{};
-            FixedString<128> subtitle{};
-            FixedString<32> tail{};
+            FixedString<product_config::library_row_title_capacity> title{};
+            FixedString<product_config::library_row_subtitle_capacity> subtitle{};
+            FixedString<product_config::library_row_tail_capacity> tail{};
             bool group_row{false};
         };
 
@@ -311,26 +324,26 @@ export namespace player {
         int last_time_sec{-1};
         StorageView storage{};
         int track_index{0};
-        FixedString<192> title_text{};
-        FixedString<64> subtitle_text{};
-        FixedString<260> cover_path{};
-        FixedString<260> cover_embedded_path{};
-        FixedString<260> cover_folder_path{};
-        FixedString<260> cover_failed_embedded_path{};
-        FixedString<260> cover_failed_folder_path{};
-        FixedString<260> cover_tint_path{};
-        FixedString<12> track_format_text{};
-        FixedString<128> last_status_text{};
-        FixedString<48> last_mode_text{};
-        FixedString<192> last_list_title_text{};
-        FixedString<128> last_list_hint_text{};
-        FixedString<128> last_debug_text{};
-        FixedString<96> last_info_text{};
-        FixedString<32> last_home_stats_total_text{};
-        FixedString<16> last_home_stats_plays_text{};
-        FixedString<32> last_home_stats_avg_text{};
+        FixedString<product_config::primary_title_text_capacity> title_text{};
+        FixedString<product_config::primary_subtitle_text_capacity> subtitle_text{};
+        FixedString<product_config::path_text_capacity> cover_path{};
+        FixedString<product_config::path_text_capacity> cover_embedded_path{};
+        FixedString<product_config::path_text_capacity> cover_folder_path{};
+        FixedString<product_config::path_text_capacity> cover_failed_embedded_path{};
+        FixedString<product_config::path_text_capacity> cover_failed_folder_path{};
+        FixedString<product_config::path_text_capacity> cover_tint_path{};
+        FixedString<product_config::track_format_text_capacity> track_format_text{};
+        FixedString<product_config::status_text_capacity> last_status_text{};
+        FixedString<product_config::mode_text_capacity> last_mode_text{};
+        FixedString<product_config::primary_title_text_capacity> last_list_title_text{};
+        FixedString<product_config::list_hint_text_capacity> last_list_hint_text{};
+        FixedString<product_config::debug_text_capacity> last_debug_text{};
+        FixedString<product_config::info_text_capacity> last_info_text{};
+        FixedString<product_config::home_stats_total_text_capacity> last_home_stats_total_text{};
+        FixedString<product_config::home_stats_plays_text_capacity> last_home_stats_plays_text{};
+        FixedString<product_config::home_stats_average_text_capacity> last_home_stats_avg_text{};
         std::uint64_t track_size_bytes{0};
-        CoverImage cover_image{};
+        ResolvedCover current_cover{};
         cover_theme::CoverTheme cover_theme{};
         cover_theme::NowPlayingColorRoles now_playing_roles{
             cover_theme::derive_now_playing_color_roles(cover_theme::CoverTheme{})
@@ -350,7 +363,7 @@ export namespace player {
         int list_action_menu_index{-1};
         int list_info_popup_track_index{-1};
         LibraryTab library_tab{LibraryTab::Songs};
-        FixedString<192> library_context_key{};
+        FixedString<product_config::library_context_key_capacity> library_context_key{};
         ListSort list_sort{ListSort::NameAsc};
         bool list_shuffle_enabled{false};
         std::uint32_t list_shuffle_seed{0};
@@ -365,20 +378,21 @@ export namespace player {
             bool valid{false};
         } library_visual_state{};
         std::uint32_t library_visual_generation{1};
-        std::vector<int> list_order{};
-        std::vector<LibraryRowModel> list_rows{};
-        std::vector<int> track_duration_cache_sec{};
+        service::FixedVector<int, kMaxTracks> list_order{};
+        service::FixedVector<LibraryRowModel, kMaxTracks> list_rows{};
+        service::FixedVector<int, kMaxTracks> track_duration_cache_sec{};
         std::size_t list_duration_probe_cursor{0};
         std::uint64_t last_list_duration_probe_ms{0};
-        std::vector<FixedString<260>> list_cover_paths{};
+        service::FixedVector<FixedString<product_config::path_text_capacity>, kMaxTracks> list_cover_paths{};
         struct ListCoverCacheEntry {
-            FixedString<260> path{};
-            CoverImage image{};
+            FixedString<product_config::path_text_capacity> path{};
+            ResolvedCover image{};
             bool missing{false};
         };
-        static constexpr std::size_t kHomeCollageSlots = 6;
-        static constexpr std::size_t kListCoverCache = 12;
-        std::array<ListCoverCacheEntry, kListCoverCache> list_cover_cache{};
+        static constexpr std::size_t kHomeCollageSlots = product_config::home_collage_slots;
+        static constexpr std::size_t kListCoverCacheMax = product_config::list_cover_cache_entries_max;
+        std::array<ListCoverCacheEntry, kListCoverCacheMax> list_cover_cache{};
+        std::uint16_t list_cover_cache_entries{kListCoverCacheMax};
         std::size_t list_cover_next{0};
         std::array<int, kHomeCollageSlots> last_home_collage_track_indices{{-2, -2, -2, -2, -2, -2}};
         bool progress_dragging{false};
@@ -395,12 +409,20 @@ export namespace player {
             bool persist_dirty{true};
         } weekly_listening_stats{};
         ListeningStatsHistory weekly_listening_history{};
-        std::string font_ttf_path{};
-        std::string font_fallback_ttf_path{};
+        FixedString<product_config::path_text_capacity> font_ttf_path{};
+        FixedString<product_config::path_text_capacity> font_fallback_ttf_path{};
         int font_small_px{0};
         int font_normal_px{0};
         int font_large_px{0};
         bool font_retry_done{false};
+        PlayerUiPolicy ui_policy{};
+#if CHARM_PLAYER_LAYERED_TRANSITIONS
+        PlayerUiTransitionMode transition_mode{PlayerUiTransitionMode::AutoLayered};
+#else
+        PlayerUiTransitionMode transition_mode{PlayerUiTransitionMode::StaticCut};
+#endif
+        PlayerUiCoverMode cover_mode{PlayerUiCoverMode::DecodeIfAvailable};
+        bool perf_overlay_enabled{true};
 
         static bool is_audio_extension(std::string_view ext) noexcept {
             if (ext.empty()) return false;
@@ -433,13 +455,13 @@ export namespace player {
             text.assign(v.substr(0, dot));
         }
 
-        cover_theme::CoverTheme derive_cover_theme(const CoverImage& img) noexcept {
+        cover_theme::CoverTheme derive_cover_theme(const ResolvedCover& cover) noexcept {
             cover_theme::CoverThemeConfig config{};
             config.mode = cover_theme_mode;
             config.is_dark = true;
             config.palette_style = cover_palette_style;
             config.fallback = kUiBackdropBase;
-            return cover_theme::compute_cover_theme(img, config);
+            return cover_theme::compute_cover_theme_from_resolved(cover, config);
         }
 
         void sync_now_playing_color_roles() noexcept {
@@ -465,10 +487,57 @@ export namespace player {
             return !path.empty() && cover_tint_path.view() == path;
         }
 
-        void apply_cover_theme_from_current_image(std::string_view tint_path = {}) noexcept {
-            cover_theme = derive_cover_theme(cover_image);
+        [[nodiscard]] CoverLoadMode cover_load_mode() const noexcept {
+            return cover_mode == PlayerUiCoverMode::DecodeIfAvailable
+                ? CoverLoadMode::ResourceThenDecode
+                : CoverLoadMode::ResourceOnly;
+        }
+
+        [[nodiscard]] bool covers_enabled() const noexcept {
+            return cover_mode != PlayerUiCoverMode::PlaceholderOnly;
+        }
+
+        void apply_cover_theme_from_current_cover(std::string_view tint_path = {}) noexcept {
+            cover_theme = derive_cover_theme(current_cover);
             set_cover_theme_tint_source(tint_path);
             refresh_cover_theme_dependent_visuals();
+        }
+
+        void apply_ui_policy(const PlayerUiPolicy& policy) noexcept {
+            ui_policy = policy;
+#if CHARM_PLAYER_LAYERED_TRANSITIONS
+            transition_mode = policy.transition_mode;
+#else
+            transition_mode = PlayerUiTransitionMode::StaticCut;
+#endif
+            cover_mode = policy.cover_mode;
+            perf_overlay_enabled = policy.enable_perf_overlay;
+            list_cover_cache_entries = policy.list_cover_cache_entries;
+            if (list_cover_cache_entries > kListCoverCacheMax) {
+                list_cover_cache_entries = kListCoverCacheMax;
+            }
+            if (cover_mode == PlayerUiCoverMode::PlaceholderOnly
+                || list_cover_cache_entries == 0) {
+                clear_list_cover_cache();
+            }
+            switch (cover_mode) {
+            case PlayerUiCoverMode::PlaceholderOnly:
+                cover_strategy = CoverStrategy::folder_only;
+                break;
+            case PlayerUiCoverMode::ResourceProviderOnly:
+                cover_strategy = CoverStrategy::folder_first;
+                break;
+            case PlayerUiCoverMode::DecodeIfAvailable:
+            default:
+                cover_strategy = CoverStrategy::embedded_first;
+                break;
+            }
+#if CHARM_PLAYER_LAYERED_TRANSITIONS
+            requested_layer_profile = transition_mode == PlayerUiTransitionMode::StaticCut
+                ? ::ui::scene::LayerProfile::Static
+                : ::ui::scene::LayerProfile::Rich;
+            effective_layer_profile = requested_layer_profile;
+#endif
         }
 
         static const char* palette_style_name(alg::PaletteStyle style) noexcept {
@@ -500,6 +569,7 @@ export namespace player {
         }
 
         void update_cover_debug_label() {
+            if (!perf_overlay_enabled) return;
             if (!access.valid()) return;
             if (dbg_color_avg == static_cast<std::size_t>(-1)) {
                 dbg_color_avg = perf_overlay_debug_channel("color.avg");
@@ -552,8 +622,8 @@ export namespace player {
                 cover_theme_mode = cover_theme::CoverThemeMode::primary_container;
                 break;
             }
-            if (!cover_image.path.empty()) {
-                apply_cover_theme_from_current_image(cover_image.path);
+            if (!current_cover.key.empty()) {
+                apply_cover_theme_from_current_cover(current_cover.key.view());
             }
         }
 
@@ -573,8 +643,8 @@ export namespace player {
                 cover_palette_style = alg::PaletteStyle::tonal_spot;
                 break;
             }
-            if (!cover_image.path.empty()) {
-                apply_cover_theme_from_current_image(cover_image.path);
+            if (!current_cover.key.empty()) {
+                apply_cover_theme_from_current_cover(current_cover.key.view());
             }
 #if defined(CHARM_PLAYER_COVER_DEBUG)
             std::printf("[cover] palette=%s\n", palette_style_name(cover_palette_style));
@@ -612,6 +682,7 @@ export namespace player {
         PageRefreshHookContext page_home_show_ctx{};
         PageRefreshHookContext page_now_show_ctx{};
         PageRefreshHookContext page_library_show_ctx{};
+#if CHARM_PLAYER_LAYERED_TRANSITIONS
         static constexpr std::uint64_t kNowPlayingExpandDurationMs = 360;
         enum class NowPlayingTransitionDirection : std::uint8_t {
             Expand,
@@ -653,6 +724,7 @@ export namespace player {
             Rect now_controls_rect{};
             Rect now_aux_rect{};
         } now_playing_transition{};
+#endif
         audio::EqConfig eq_config{};
         std::array<int, kEqBands> eq_values{};
         std::array<int, kEqBands> last_eq_values{};
@@ -691,6 +763,7 @@ export namespace player {
             ::ui::scene::TextSlotId home_stats_plays{::ui::scene::kInvalidTextSlot};
             ::ui::scene::TextSlotId home_stats_avg{::ui::scene::kInvalidTextSlot};
         } text_slots{};
+#if CHARM_PLAYER_LAYERED_TRANSITIONS
         std::uint32_t layer_transition_capture_count{0};
         std::uint32_t layer_transition_release_count{0};
         std::uint32_t layer_transition_capture_fail_count{0};
@@ -725,7 +798,8 @@ export namespace player {
         bool layer_transition_last_budget_ok{true};
         ::ui::scene::LayerCaptureStatus last_layer_transition_capture_status{
             ::ui::scene::LayerCaptureStatus::Ok};
-        FixedString<128> mount_status{};
+#endif
+        FixedString<product_config::mount_status_text_capacity> mount_status{};
         std::uint32_t rng_state{0};
         std::uint64_t last_debug_tick_ms{0};
         bool last_running{false};
@@ -800,6 +874,12 @@ export namespace player {
         void bind_scene(::ui::scene::Scene& scene_ref) {
             scene = &scene_ref;
             access = scene_ref.access();
+#if CHARM_PLAYER_LAYERED_TRANSITIONS
+            requested_layer_profile = transition_mode == PlayerUiTransitionMode::StaticCut
+                ? ::ui::scene::LayerProfile::Static
+                : ::ui::scene::LayerProfile::Rich;
+            effective_layer_profile = requested_layer_profile;
+#endif
         }
 
         void bind_player(audio::AudioPlayer& p) {
@@ -1070,7 +1150,7 @@ export namespace player {
             }
         }
 
-        bool has_cover_image() const noexcept { return ::ui::scene::image_id_valid(cover_image.image_id); }
+        bool has_cover_image() const noexcept { return ::ui::scene::image_id_valid(current_cover.image_id); }
         void sync_now_cover_plate_surface() noexcept {
             if (!access.valid() || !handles.now_cover_plate) return;
             const bool has_cover = has_cover_image();
@@ -1157,6 +1237,14 @@ export namespace player {
             }
         }
 
+        void show_default_current_cover() noexcept {
+            release_resolved_cover(current_cover);
+            set_image_slot_range(
+                current_track_cover_slots(),
+                default_cover_image_id(DefaultCoverVariant::HomeHeroPill),
+                false);
+        }
+
         void reset_cover_image() noexcept {
             cover_ready = false;
             cover_path.clear();
@@ -1164,16 +1252,23 @@ export namespace player {
             cover_folder_path.clear();
             cover_failed_embedded_path.clear();
             cover_failed_folder_path.clear();
-            release_cover_image(cover_image);
+            release_resolved_cover(current_cover);
             clear_image_slot_range(current_track_cover_slots(), false);
         }
 
         void update_cover_image() {
             if (!access.valid()) return;
+            if (!covers_enabled()) {
+                show_default_current_cover();
+                apply_cover_theme_from_current_cover();
+                restore_now_playing_group_visibility();
+                restore_bottom_bar_content_visibility();
+                sync_now_playing_transition_overlay();
+                return;
+            }
             if (!cover_ready || (cover_embedded_path.empty() && cover_folder_path.empty())) {
-                release_cover_image(cover_image);
-                apply_cover_theme_from_current_image();
-                clear_image_slot_range(current_track_cover_slots(), false);
+                show_default_current_cover();
+                apply_cover_theme_from_current_cover();
                 restore_now_playing_group_visibility();
                 restore_bottom_bar_content_visibility();
                 sync_now_playing_transition_overlay();
@@ -1190,31 +1285,40 @@ export namespace player {
                     || (folder_candidate && cover_failed_folder_path.view() == candidate)) {
                     return false;
                 }
-                if (cover_image.path == candidate && ::ui::scene::image_id_valid(cover_image.image_id)) {
-                    set_image_slot_range(current_track_cover_slots(), cover_image.image_id, false);
+                if (cover_path.view() == candidate && ::ui::scene::image_id_valid(current_cover.image_id)) {
+                    set_image_slot_range(current_track_cover_slots(), current_cover.image_id, false);
                     cover_path.assign(candidate);
                     restore_now_playing_group_visibility();
                     restore_bottom_bar_content_visibility();
                     sync_now_playing_transition_overlay();
-                    if (!cover_theme_tint_source_matches(cover_image.path)) {
-                        apply_cover_theme_from_current_image(cover_image.path);
+                    const auto tint_source = current_cover.key.empty()
+                        ? candidate
+                        : current_cover.key.view();
+                    if (!cover_theme_tint_source_matches(tint_source)) {
+                        apply_cover_theme_from_current_cover(tint_source);
 #if defined(CHARM_PLAYER_COVER_DEBUG)
-                        debug_cover_theme(cover_theme, cover_image.path);
+                        debug_cover_theme(cover_theme, tint_source);
 #endif
                     }
                     if (embedded_candidate) cover_failed_embedded_path.clear();
                     if (folder_candidate) cover_failed_folder_path.clear();
                     return true;
                 }
-                if (load_cover_image(candidate, cover_image)) {
-                    set_image_slot_range(current_track_cover_slots(), cover_image.image_id, false);
+                CoverResourceRequest request{};
+                request.path = candidate;
+                request.kind = embedded_candidate
+                    ? CoverResourceKind::EmbeddedTrack
+                    : (folder_candidate ? CoverResourceKind::FolderFile : CoverResourceKind::Unknown);
+                request.fallback_variant = DefaultCoverVariant::HomeHeroPill;
+                if (resolve_cover(request, current_cover, cover_load_mode())) {
+                    set_image_slot_range(current_track_cover_slots(), current_cover.image_id, false);
                     cover_path.assign(candidate);
                     restore_now_playing_group_visibility();
                     restore_bottom_bar_content_visibility();
                     sync_now_playing_transition_overlay();
-                    apply_cover_theme_from_current_image(cover_image.path);
+                    apply_cover_theme_from_current_cover(current_cover.key.view());
 #if defined(CHARM_PLAYER_COVER_DEBUG)
-                    debug_cover_theme(cover_theme, cover_image.path);
+                    debug_cover_theme(cover_theme, current_cover.key.view());
 #endif
                     if (embedded_candidate) cover_failed_embedded_path.clear();
                     if (folder_candidate) cover_failed_folder_path.clear();
@@ -1245,8 +1349,8 @@ export namespace player {
             }
 
             if (loaded) return;
-            clear_image_slot_range(current_track_cover_slots(), false);
-            apply_cover_theme_from_current_image();
+            show_default_current_cover();
+            apply_cover_theme_from_current_cover();
             restore_now_playing_group_visibility();
             restore_bottom_bar_content_visibility();
             sync_now_playing_transition_overlay();
@@ -1299,10 +1403,12 @@ export namespace player {
                 on_player_error(buf);
             }
             tick_weekly_listening_stats();
+#if CHARM_PLAYER_LAYERED_TRANSITIONS
             if (now_playing_transition.active) {
                 tick_now_playing_transition(charm::system::ClockCaps::TimeSource::now());
                 return;
             }
+#endif
             refresh_page(current_page);
         }
 
@@ -1445,4 +1551,139 @@ export namespace player {
             return static_cast<int>(next_rng() % static_cast<std::uint32_t>(max));
         }
     };
+
+    struct PlayerControllerMemoryProfile {
+        std::size_t controller_size_bytes{0};
+        std::size_t track_capacity{0};
+        std::size_t library_row_model_size_bytes{0};
+        std::size_t list_order_bytes{0};
+        std::size_t list_rows_bytes{0};
+        std::size_t duration_cache_bytes{0};
+        std::size_t list_cover_paths_bytes{0};
+        std::size_t list_cover_cache_capacity{0};
+        std::size_t list_cover_cache_bytes{0};
+        std::size_t current_cover_bytes{0};
+        std::size_t cover_theme_bytes{0};
+        std::size_t now_playing_roles_bytes{0};
+        std::size_t text_state_bytes{0};
+        std::size_t cover_path_state_bytes{0};
+        std::size_t font_path_state_bytes{0};
+        std::size_t weekly_stats_bytes{0};
+        std::size_t weekly_history_bytes{0};
+        std::size_t ui_handles_bytes{0};
+        std::size_t icon_ids_bytes{0};
+        std::size_t playback_engine_bytes{0};
+    };
+
+    inline constexpr PlayerControllerMemoryProfile player_controller_memory_profile() noexcept {
+        return PlayerControllerMemoryProfile{
+            sizeof(PlayerController),
+            kMaxTracks,
+            sizeof(PlayerController::LibraryRowModel),
+            sizeof(std::declval<PlayerController>().list_order),
+            sizeof(std::declval<PlayerController>().list_rows),
+            sizeof(std::declval<PlayerController>().track_duration_cache_sec),
+            sizeof(std::declval<PlayerController>().list_cover_paths),
+            PlayerController::kListCoverCacheMax,
+            sizeof(std::declval<PlayerController>().list_cover_cache),
+            sizeof(std::declval<PlayerController>().current_cover),
+            sizeof(std::declval<PlayerController>().cover_theme),
+            sizeof(std::declval<PlayerController>().now_playing_roles),
+            sizeof(std::declval<PlayerController>().title_text)
+                + sizeof(std::declval<PlayerController>().subtitle_text)
+                + sizeof(std::declval<PlayerController>().track_format_text)
+                + sizeof(std::declval<PlayerController>().last_status_text)
+                + sizeof(std::declval<PlayerController>().last_mode_text)
+                + sizeof(std::declval<PlayerController>().last_list_title_text)
+                + sizeof(std::declval<PlayerController>().last_list_hint_text)
+                + sizeof(std::declval<PlayerController>().last_debug_text)
+                + sizeof(std::declval<PlayerController>().last_info_text)
+                + sizeof(std::declval<PlayerController>().last_home_stats_total_text)
+                + sizeof(std::declval<PlayerController>().last_home_stats_plays_text)
+                + sizeof(std::declval<PlayerController>().last_home_stats_avg_text)
+                + sizeof(std::declval<PlayerController>().library_context_key)
+                + sizeof(std::declval<PlayerController>().mount_status),
+            sizeof(std::declval<PlayerController>().cover_path)
+                + sizeof(std::declval<PlayerController>().cover_embedded_path)
+                + sizeof(std::declval<PlayerController>().cover_folder_path)
+                + sizeof(std::declval<PlayerController>().cover_failed_embedded_path)
+                + sizeof(std::declval<PlayerController>().cover_failed_folder_path)
+                + sizeof(std::declval<PlayerController>().cover_tint_path),
+            sizeof(std::declval<PlayerController>().font_ttf_path)
+                + sizeof(std::declval<PlayerController>().font_fallback_ttf_path),
+            sizeof(std::declval<PlayerController>().weekly_listening_stats),
+            sizeof(std::declval<PlayerController>().weekly_listening_history),
+            sizeof(std::declval<PlayerController>().handles),
+            sizeof(std::declval<PlayerController>().icons),
+            sizeof(std::declval<PlayerController>().playback),
+        };
+    }
+
+#if CHARM_PLAYER_MCU_STRICT && defined(__GNUC__)
+    extern "C" [[gnu::used]] void charm_player_controller_memory_profile_symbols() noexcept {
+        constexpr auto profile = player_controller_memory_profile();
+        asm volatile(
+            ".global charm_player_controller_profile_controller_size_bytes\n"
+            ".set charm_player_controller_profile_controller_size_bytes, %c0\n"
+            ".global charm_player_controller_profile_track_capacity\n"
+            ".set charm_player_controller_profile_track_capacity, %c1\n"
+            ".global charm_player_controller_profile_library_row_model_size_bytes\n"
+            ".set charm_player_controller_profile_library_row_model_size_bytes, %c2\n"
+            ".global charm_player_controller_profile_list_order_bytes\n"
+            ".set charm_player_controller_profile_list_order_bytes, %c3\n"
+            ".global charm_player_controller_profile_list_rows_bytes\n"
+            ".set charm_player_controller_profile_list_rows_bytes, %c4\n"
+            ".global charm_player_controller_profile_duration_cache_bytes\n"
+            ".set charm_player_controller_profile_duration_cache_bytes, %c5\n"
+            ".global charm_player_controller_profile_list_cover_paths_bytes\n"
+            ".set charm_player_controller_profile_list_cover_paths_bytes, %c6\n"
+            ".global charm_player_controller_profile_list_cover_cache_capacity\n"
+            ".set charm_player_controller_profile_list_cover_cache_capacity, %c7\n"
+            ".global charm_player_controller_profile_list_cover_cache_bytes\n"
+            ".set charm_player_controller_profile_list_cover_cache_bytes, %c8\n"
+            ".global charm_player_controller_profile_current_cover_bytes\n"
+            ".set charm_player_controller_profile_current_cover_bytes, %c9\n"
+            ".global charm_player_controller_profile_cover_theme_bytes\n"
+            ".set charm_player_controller_profile_cover_theme_bytes, %c10\n"
+            ".global charm_player_controller_profile_now_playing_roles_bytes\n"
+            ".set charm_player_controller_profile_now_playing_roles_bytes, %c11\n"
+            ".global charm_player_controller_profile_text_state_bytes\n"
+            ".set charm_player_controller_profile_text_state_bytes, %c12\n"
+            ".global charm_player_controller_profile_cover_path_state_bytes\n"
+            ".set charm_player_controller_profile_cover_path_state_bytes, %c13\n"
+            ".global charm_player_controller_profile_font_path_state_bytes\n"
+            ".set charm_player_controller_profile_font_path_state_bytes, %c14\n"
+            ".global charm_player_controller_profile_weekly_stats_bytes\n"
+            ".set charm_player_controller_profile_weekly_stats_bytes, %c15\n"
+            ".global charm_player_controller_profile_weekly_history_bytes\n"
+            ".set charm_player_controller_profile_weekly_history_bytes, %c16\n"
+            ".global charm_player_controller_profile_ui_handles_bytes\n"
+            ".set charm_player_controller_profile_ui_handles_bytes, %c17\n"
+            ".global charm_player_controller_profile_icon_ids_bytes\n"
+            ".set charm_player_controller_profile_icon_ids_bytes, %c18\n"
+            ".global charm_player_controller_profile_playback_engine_bytes\n"
+            ".set charm_player_controller_profile_playback_engine_bytes, %c19\n"
+            :
+            : "i"(profile.controller_size_bytes),
+              "i"(profile.track_capacity),
+              "i"(profile.library_row_model_size_bytes),
+              "i"(profile.list_order_bytes),
+              "i"(profile.list_rows_bytes),
+              "i"(profile.duration_cache_bytes),
+              "i"(profile.list_cover_paths_bytes),
+              "i"(profile.list_cover_cache_capacity),
+              "i"(profile.list_cover_cache_bytes),
+              "i"(profile.current_cover_bytes),
+              "i"(profile.cover_theme_bytes),
+              "i"(profile.now_playing_roles_bytes),
+              "i"(profile.text_state_bytes),
+              "i"(profile.cover_path_state_bytes),
+              "i"(profile.font_path_state_bytes),
+              "i"(profile.weekly_stats_bytes),
+              "i"(profile.weekly_history_bytes),
+              "i"(profile.ui_handles_bytes),
+              "i"(profile.icon_ids_bytes),
+              "i"(profile.playback_engine_bytes));
+    }
+#endif
 }

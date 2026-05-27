@@ -6,31 +6,38 @@ module;
 #include <cstdio>
 #include <cctype>
 #include <span>
-#include <string>
 #include <string_view>
-#include <vector>
 
+#if defined(CHARM_PLAYER_COVER_DECODE) && CHARM_PLAYER_COVER_DECODE
+#define CHARM_PLAYER_USE_COVER_DECODE 1
+#elif defined(CHARM_PLAYER_HOST_UI) && CHARM_PLAYER_HOST_UI && \
+    defined(CHARM_PLAYER_HOST_COVER_DECODE) && CHARM_PLAYER_HOST_COVER_DECODE
+#define CHARM_PLAYER_USE_COVER_DECODE 1
+#else
+#define CHARM_PLAYER_USE_COVER_DECODE 0
+#endif
+
+#if CHARM_PLAYER_USE_COVER_DECODE
+#include <string>
+#include <vector>
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_NO_STDIO
+#define STBI_NO_THREAD_LOCALS
 #include <stb_image.h>
 #include <dr_flac.h>
+#endif
 
 export module player.cover;
 
 import charm.gfx.image;
+import player.fixed_string;
+#if CHARM_PLAYER_USE_COVER_DECODE
 import fs_core;
 import fs_vfs;
 import util.core;
+#endif
 
 export namespace player {
-    struct CoverImage {
-        std::string path{};
-        std::vector<std::uint32_t> argb{};
-        ui::gfx::ImageId image_id{ui::gfx::invalid_image_id()};
-        int width{0};
-        int height{0};
-    };
-
     enum class DefaultCoverVariant : std::uint8_t {
         HomeHeroPill = 0,
         HomeOrbitDisc,
@@ -40,9 +47,65 @@ export namespace player {
         HomeBottomCut,
     };
 
+    enum class CoverResourceKind : std::uint8_t {
+        Unknown = 0,
+        EmbeddedTrack,
+        FolderFile,
+    };
+
+    struct CoverResourceRequest {
+        std::string_view path{};
+        CoverResourceKind kind{CoverResourceKind::Unknown};
+        DefaultCoverVariant fallback_variant{DefaultCoverVariant::HomeHeroPill};
+    };
+
+    struct CoverResourceView {
+        std::string_view key{};
+        std::span<const std::uint32_t> argb{};
+        int width{0};
+        int height{0};
+    };
+
+    enum class CoverLoadMode : std::uint8_t {
+        ResourceThenDecode = 0,
+        ResourceOnly,
+    };
+
+    struct ResolvedCover {
+        FixedString<260> key{};
+        ui::gfx::ImageId image_id{ui::gfx::invalid_image_id()};
+        int width{0};
+        int height{0};
+        bool fallback{true};
+    };
+
     ui::gfx::ImageId default_cover_image_id() noexcept;
     ui::gfx::ImageId default_cover_image_id(DefaultCoverVariant variant) noexcept;
     ui::gfx::ImageId default_cover_image_id(std::size_t variant) noexcept;
+    using CoverResourceProviderFn = bool (*)(const CoverResourceRequest& request, CoverResourceView& out) noexcept;
+    void set_cover_resource_provider(CoverResourceProviderFn provider) noexcept;
+    CoverResourceProviderFn cover_resource_provider() noexcept;
+    void release_resolved_cover(ResolvedCover& cover) noexcept;
+    bool resolve_cover(const CoverResourceRequest& request,
+                       ResolvedCover& out,
+                       CoverLoadMode mode = CoverLoadMode::ResourceThenDecode) noexcept;
+    bool resolve_cover(std::string_view path,
+                       ResolvedCover& out,
+                       CoverLoadMode mode = CoverLoadMode::ResourceThenDecode) noexcept;
+}
+
+namespace player {
+#if CHARM_PLAYER_USE_COVER_DECODE
+    struct CoverImage {
+        std::string path{};
+        std::vector<std::uint32_t> argb{};
+        ui::gfx::ImageId image_id{ui::gfx::invalid_image_id()};
+        int width{0};
+        int height{0};
+    };
+
+    using CoverProviderFn = bool (*)(std::string_view path, CoverImage& out) noexcept;
+#endif
 
     namespace detail {
         constexpr std::size_t kPlaceholderCoverVariantCount = 6;
@@ -57,76 +120,6 @@ export namespace player {
 
         inline std::uint32_t with_alpha(std::uint32_t pixel, std::uint8_t alpha) noexcept {
             return (pixel & 0x00FFFFFFu) | (static_cast<std::uint32_t>(alpha) << 24);
-        }
-
-        void normalize_cover_edge_ring(CoverImage& img) {
-            if (img.width < 3 || img.height < 3 || img.argb.empty()) return;
-            constexpr int kOpaqueThreshold = 250;
-            constexpr int kCleanupRings = 2;
-            const auto src = img.argb;
-            auto index_of = [&](int x, int y) noexcept -> std::size_t {
-                return static_cast<std::size_t>(y) * static_cast<std::size_t>(img.width)
-                    + static_cast<std::size_t>(x);
-            };
-            auto pixel_at = [&](int x, int y) noexcept -> std::uint32_t {
-                return src[index_of(x, y)];
-            };
-            auto set_from = [&](int dst_x, int dst_y, int src_x, int src_y, bool force) noexcept {
-                const auto dst_pixel = pixel_at(dst_x, dst_y);
-                if (!force && alpha_of(dst_pixel) >= kOpaqueThreshold) return;
-                auto sample = pixel_at(src_x, src_y);
-                sample = with_alpha(sample, 255);
-                img.argb[index_of(dst_x, dst_y)] = sample;
-            };
-
-            // Keep opaque cover borders untouched. We only repair transparent edge pixels so
-            // album art doesn't pick up an artificial inner frame.
-            for (int ring = 0; ring < kCleanupRings; ++ring) {
-                const int top_y = ring;
-                const int bottom_y = img.height - 1 - ring;
-                const int left_x = ring;
-                const int right_x = img.width - 1 - ring;
-                if (top_y >= bottom_y || left_x >= right_x) break;
-
-                for (int x = left_x; x <= right_x; ++x) {
-                    int top_src_y = top_y + 1;
-                    while (top_src_y < img.height && alpha_of(pixel_at(x, top_src_y)) < kOpaqueThreshold) {
-                        ++top_src_y;
-                    }
-                    if (top_src_y >= img.height) top_src_y = top_y + 1;
-                    set_from(x, top_y, x, top_src_y, false);
-
-                    int bottom_src_y = bottom_y - 1;
-                    while (bottom_src_y >= 0 && alpha_of(pixel_at(x, bottom_src_y)) < kOpaqueThreshold) {
-                        --bottom_src_y;
-                    }
-                    if (bottom_src_y < 0) bottom_src_y = bottom_y - 1;
-                    set_from(x, bottom_y, x, bottom_src_y, false);
-                }
-
-                for (int y = top_y + 1; y < bottom_y; ++y) {
-                    int left_src_x = left_x + 1;
-                    while (left_src_x < img.width && alpha_of(pixel_at(left_src_x, y)) < kOpaqueThreshold) {
-                        ++left_src_x;
-                    }
-                    if (left_src_x >= img.width) left_src_x = left_x + 1;
-                    set_from(left_x, y, left_src_x, y, false);
-
-                    int right_src_x = right_x - 1;
-                    while (right_src_x >= 0 && alpha_of(pixel_at(right_src_x, y)) < kOpaqueThreshold) {
-                        --right_src_x;
-                    }
-                    if (right_src_x < 0) right_src_x = right_x - 1;
-                    set_from(right_x, y, right_src_x, y, false);
-                }
-            }
-        }
-
-        bool is_fully_opaque(const CoverImage& img) noexcept {
-            for (const auto px : img.argb) {
-                if ((px >> 24) != 0xFFu) return false;
-            }
-            return true;
         }
 
         std::uint8_t cover_sample_inset_px(int w, int h) noexcept {
@@ -514,6 +507,51 @@ export namespace player {
                 0);
             const auto res = ui::gfx::register_image_dedup(view);
             return res.ok() ? res.id : ui::gfx::invalid_image_id();
+        }
+
+        bool resolve_cover_resource_view(const CoverResourceRequest& request,
+                                         const CoverResourceView& resource,
+                                         ResolvedCover& out) noexcept {
+            if (resource.width <= 0 || resource.height <= 0) return false;
+            const auto pixel_count =
+                static_cast<std::size_t>(resource.width) * static_cast<std::size_t>(resource.height);
+            if (pixel_count == 0 || resource.argb.size() < pixel_count) return false;
+
+            bool fully_opaque = true;
+            for (std::size_t i = 0; i < pixel_count; ++i) {
+                if (alpha_of(resource.argb[i]) != 0xFFu) {
+                    fully_opaque = false;
+                    break;
+                }
+            }
+            const auto sample_inset = cover_sample_inset_px(resource.width, resource.height);
+            const auto view = make_image_view(
+                PixelFormat::ARGB8888,
+                resource.width,
+                resource.height,
+                resource.width * 4,
+                reinterpret_cast<const std::byte*>(resource.argb.data()),
+                false,
+                fully_opaque,
+                sample_inset);
+            const auto res = ui::gfx::register_image(view);
+            if (!res.ok()) return false;
+
+            const auto key = resource.key.empty() ? request.path : resource.key;
+            out.key.assign(key);
+            out.image_id = res.id;
+            out.width = resource.width;
+            out.height = resource.height;
+            out.fallback = false;
+            return true;
+        }
+
+#if CHARM_PLAYER_USE_COVER_DECODE
+        bool is_fully_opaque(const CoverImage& img) noexcept {
+            for (const auto px : img.argb) {
+                if ((px >> 24) != 0xFFu) return false;
+            }
+            return true;
         }
 
         bool is_flac_path(std::string_view path) noexcept {
@@ -1221,17 +1259,12 @@ export namespace player {
 #endif
             return false;
         }
+#endif
     } // namespace detail
 
-    void release_cover_image(CoverImage& img) {
-        if (ui::gfx::image_id_valid(img.image_id)) {
-            ui::gfx::unregister_image(img.image_id);
-        }
-        img = {};
-    }
-
-    bool load_cover_image(std::string_view path, CoverImage& out) {
-        release_cover_image(out);
+#if CHARM_PLAYER_USE_COVER_DECODE
+    namespace detail {
+        bool load_host_cover_image(std::string_view path, CoverImage& out) noexcept {
         if (path.empty()) return false;
         if (detail::is_flac_path(path)) {
             return detail::load_flac_cover(path, out);
@@ -1267,14 +1300,14 @@ export namespace player {
             const auto before = f.node.offset;
             const auto st_read = fs::read(f, std::span<util::u8>(
                 reinterpret_cast<util::u8*>(buffer.data() + offset), chunk));
-        if (!st_read) {
-            (void)fs::vfs_close(f);
+            if (!st_read) {
+                (void)fs::vfs_close(f);
 #if defined(CHARM_PLAYER_COVER_DEBUG)
-            std::printf("[cover] read failed: %.*s\n",
-                        static_cast<int>(path.size()), path.data());
+                std::printf("[cover] read failed: %.*s\n",
+                            static_cast<int>(path.size()), path.data());
 #endif
-            return false;
-        }
+                return false;
+            }
             const auto after = f.node.offset;
             if (after <= before) break;
             const std::size_t read = static_cast<std::size_t>(after - before);
@@ -1302,6 +1335,137 @@ export namespace player {
                     out.image_id.slot, out.image_id.generation);
 #endif
         return true;
+    }
+    }
+#endif
+
+    namespace detail {
+        CoverResourceProviderFn& active_cover_resource_provider() noexcept {
+            static CoverResourceProviderFn provider = nullptr;
+            return provider;
+        }
+
+#if CHARM_PLAYER_USE_COVER_DECODE
+        bool default_cover_provider(std::string_view path, CoverImage& out) noexcept {
+            return load_host_cover_image(path, out);
+        }
+
+        CoverProviderFn& active_cover_provider() noexcept {
+            static CoverProviderFn provider = &default_cover_provider;
+            return provider;
+        }
+#endif
+    }
+
+    export void set_cover_resource_provider(CoverResourceProviderFn provider) noexcept {
+        detail::active_cover_resource_provider() = provider;
+    }
+
+    export CoverResourceProviderFn cover_resource_provider() noexcept {
+        return detail::active_cover_resource_provider();
+    }
+
+#if CHARM_PLAYER_USE_COVER_DECODE
+    void release_cover_image(CoverImage& img) {
+        if (ui::gfx::image_id_valid(img.image_id)) {
+            ui::gfx::unregister_image(img.image_id);
+        }
+        img = {};
+    }
+
+    void set_cover_provider(CoverProviderFn provider) noexcept {
+        detail::active_cover_provider() = provider ? provider : &detail::default_cover_provider;
+    }
+
+    CoverProviderFn cover_provider() noexcept {
+        return detail::active_cover_provider();
+    }
+
+    bool load_cover_image(const CoverResourceRequest& request, CoverImage& out, CoverLoadMode mode) {
+        release_cover_image(out);
+        if (request.path.empty()) return false;
+        if (mode == CoverLoadMode::ResourceOnly) {
+            return false;
+        }
+        const auto provider = detail::active_cover_provider();
+        return provider ? provider(request.path, out) : false;
+    }
+
+    bool load_cover_image(const CoverResourceRequest& request, CoverImage& out) {
+        return load_cover_image(request, out, CoverLoadMode::ResourceThenDecode);
+    }
+
+    bool load_cover_image(std::string_view path, CoverImage& out) {
+        CoverResourceRequest request{};
+        request.path = path;
+        return load_cover_image(request, out);
+    }
+#endif
+
+    void release_resolved_cover(ResolvedCover& cover) noexcept {
+        if (!cover.fallback && ui::gfx::image_id_valid(cover.image_id)) {
+            ui::gfx::unregister_image(cover.image_id);
+        }
+        cover = {};
+    }
+
+    bool resolve_cover(const CoverResourceRequest& request,
+                       ResolvedCover& out,
+                       CoverLoadMode mode) noexcept {
+        release_resolved_cover(out);
+        if (request.path.empty()) {
+            out.key.clear();
+            out.image_id = default_cover_image_id(request.fallback_variant);
+            out.fallback = true;
+            return false;
+        }
+
+        if (const auto resource_provider = detail::active_cover_resource_provider()) {
+            CoverResourceView resource{};
+            if (resource_provider(request, resource)
+                && detail::resolve_cover_resource_view(request, resource, out)) {
+                return true;
+            }
+            release_resolved_cover(out);
+        }
+        if (mode == CoverLoadMode::ResourceOnly) {
+            out.key.assign(request.path);
+            out.image_id = default_cover_image_id(request.fallback_variant);
+            out.fallback = true;
+            return false;
+        }
+
+#if CHARM_PLAYER_USE_COVER_DECODE
+        CoverImage image{};
+        if (!load_cover_image(request, image, mode)) {
+            out.key.assign(request.path);
+            out.image_id = default_cover_image_id(request.fallback_variant);
+            out.fallback = true;
+            return false;
+        }
+
+        out.key.assign(image.path);
+        out.image_id = image.image_id;
+        out.width = image.width;
+        out.height = image.height;
+        out.fallback = false;
+        image.image_id = ui::gfx::invalid_image_id();
+        release_cover_image(image);
+        return true;
+#else
+        out.key.assign(request.path);
+        out.image_id = default_cover_image_id(request.fallback_variant);
+        out.fallback = true;
+        return false;
+#endif
+    }
+
+    bool resolve_cover(std::string_view path,
+                       ResolvedCover& out,
+                       CoverLoadMode mode) noexcept {
+        CoverResourceRequest request{};
+        request.path = path;
+        return resolve_cover(request, out, mode);
     }
 
     ui::gfx::ImageId default_cover_image_id() noexcept {

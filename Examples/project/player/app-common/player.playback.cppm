@@ -15,6 +15,7 @@ import audio.result;
 import charm.system.clock;
 import player.fixed_string;
 import player.host_features;
+import player.product_config;
 
 namespace {
     void dump_path_escaped(const char* path) {
@@ -165,7 +166,8 @@ export namespace player {
             return st == audio::PlayerState::playing || st == audio::PlayerState::buffering;
         }
 
-        bool request_seek(int target_sec, FixedString<128>& out_status) {
+        bool request_seek(int target_sec,
+                          FixedString<product_config::status_text_capacity>& out_status) {
             if (!player_ || target_sec < 0) return false;
             const auto res = player_->seek_ms(static_cast<std::uint64_t>(target_sec) * 1000);
             if (!res) {
@@ -175,7 +177,8 @@ export namespace player {
             return true;
         }
 
-        bool set_volume(int percent, FixedString<128>& out_status) {
+        bool set_volume(int percent,
+                        FixedString<product_config::status_text_capacity>& out_status) {
             if (!player_) {
                 out_status.assign("No player");
                 return false;
@@ -192,7 +195,8 @@ export namespace player {
             return true;
         }
 
-        bool set_eq(const audio::EqConfig& eq, FixedString<128>& out_status) {
+        bool set_eq(const audio::EqConfig& eq,
+                    FixedString<product_config::status_text_capacity>& out_status) {
             if (!player_) {
                 out_status.assign("No player");
                 return false;
@@ -207,7 +211,8 @@ export namespace player {
             return true;
         }
 
-        bool set_dc_block(bool enabled, FixedString<128>& out_status) {
+        bool set_dc_block(bool enabled,
+                          FixedString<product_config::status_text_capacity>& out_status) {
             if (!player_) {
                 out_status.assign("No player");
                 return false;
@@ -222,7 +227,9 @@ export namespace player {
             return true;
         }
 
-        bool set_soft_clip(bool enabled, int threshold_percent, FixedString<128>& out_status) {
+        bool set_soft_clip(bool enabled,
+                           int threshold_percent,
+                           FixedString<product_config::status_text_capacity>& out_status) {
             if (!player_) {
                 out_status.assign("No player");
                 return false;
@@ -239,7 +246,9 @@ export namespace player {
             return true;
         }
 
-        bool apply_action(PlaybackAction action, int seek_sec, FixedString<128>& out_status) {
+        bool apply_action(PlaybackAction action,
+                          int seek_sec,
+                          FixedString<product_config::status_text_capacity>& out_status) {
             switch (action) {
             case PlaybackAction::toggle:
                 if (playing_) {
@@ -276,7 +285,7 @@ export namespace player {
             return false;
         }
 
-        bool start_playback(FixedString<128>& out_status) {
+        bool start_playback(FixedString<product_config::status_text_capacity>& out_status) {
             if (!player_) {
                 out_status.assign("No player");
                 return false;
@@ -320,7 +329,7 @@ export namespace player {
             return true;
         }
 
-        bool pause_playback(FixedString<128>& out_status) {
+        bool pause_playback(FixedString<product_config::status_text_capacity>& out_status) {
             if (!player_ || !playing_) return false;
             auto res = player_->pause();
             if (!res) {
@@ -335,7 +344,7 @@ export namespace player {
             return true;
         }
 
-        bool resume_playback(FixedString<128>& out_status) {
+        bool resume_playback(FixedString<product_config::status_text_capacity>& out_status) {
             if (!player_ || !paused_) return false;
             auto res = player_->resume();
             if (!res) {

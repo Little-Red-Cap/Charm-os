@@ -13,6 +13,7 @@ import fs_errno;
 import fs_stream;
 import player.fs_utils;
 import player.host_features;
+import player.product_config;
 
 export namespace player {
     using MountFn = fs::Status (*)(const char* path);
@@ -21,20 +22,22 @@ export namespace player {
 #define CHARM_PLAYER_MAX_TRACKS 256
 #endif
 #ifndef CHARM_PLAYER_MAX_SCAN_DIRS
-#define CHARM_PLAYER_MAX_SCAN_DIRS 64
+#define CHARM_PLAYER_MAX_SCAN_DIRS 0
 #endif
 
     constexpr std::size_t kMaxTracks = CHARM_PLAYER_MAX_TRACKS;
-    constexpr std::size_t kMaxScanDirs = CHARM_PLAYER_MAX_SCAN_DIRS;
-    using TrackPath = FixedString<260>;
+    constexpr std::size_t kMaxScanDirs = CHARM_PLAYER_MAX_SCAN_DIRS == 0
+        ? product_config::max_scan_dirs
+        : CHARM_PLAYER_MAX_SCAN_DIRS;
+    using TrackPath = FixedString<product_config::path_text_capacity>;
     using TrackList = service::FixedVector<TrackPath, kMaxTracks>;
     using DirList = service::FixedVector<TrackPath, kMaxScanDirs>;
 
     struct TrackScanResult {
         bool fs_ready{false};
         bool has_tracks{false};
-        FixedString<128> status{};
-        FixedString<128> mount_status{};
+        FixedString<product_config::scan_status_text_capacity> status{};
+        FixedString<product_config::scan_status_text_capacity> mount_status{};
         TrackList tracks{};
     };
 

@@ -23,9 +23,9 @@ import player.media_scan;
 import player.product_config;
 
 export namespace player {
-    using TrackLabel = FixedString<192>;
-    using TrackTitle = FixedString<192>;
-    using TrackSubtitle = FixedString<32>;
+    using TrackLabel = FixedString<product_config::track_label_text_capacity>;
+    using TrackTitle = FixedString<product_config::track_title_text_capacity>;
+    using TrackSubtitle = FixedString<product_config::track_subtitle_text_capacity>;
     using TrackLabelList = service::FixedVector<TrackLabel, kMaxTracks>;
     using TrackTitleList = service::FixedVector<TrackTitle, kMaxTracks>;
     using TrackSubtitleList = service::FixedVector<TrackSubtitle, kMaxTracks>;
@@ -38,8 +38,8 @@ export namespace player {
     struct StorageState {
         bool fs_ready{false};
         bool has_tracks{false};
-        FixedString<128> status{};
-        FixedString<128> mount_status{};
+        FixedString<product_config::scan_status_text_capacity> status{};
+        FixedString<product_config::scan_status_text_capacity> mount_status{};
         TrackList tracks{};
         TrackLabelList track_labels{};
         TrackTitleList track_titles{};
@@ -193,7 +193,9 @@ export namespace player {
         detail::g_storage_config = StorageConfig{&detail::mount_fatfs_from_sd, nullptr};
     }
 
-    bool check_track_ready(std::string_view vfs_path, FixedString<128>& out_status) {
+    bool check_track_ready(
+        std::string_view vfs_path,
+        FixedString<product_config::status_text_capacity>& out_status) {
         fs::File f{};
         auto st = fs::vfs_open(vfs_path, f);
         if (st) {

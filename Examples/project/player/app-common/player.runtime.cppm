@@ -8,6 +8,7 @@ export module player.runtime;
 
 import audio.player;
 import charm.gfx.color;
+import charm.gfx.draw_cmd;
 import charm.system.clock;
 import charm.ui.scene;
 import player.app;

@@ -7,6 +7,7 @@ import player.host_features;
 import player.platform;
 import player.storage;
 import player.product_config;
+import player.app;
 import player.runtime;
 import player.runtime_shell;
 import player.ui;
@@ -18,16 +19,6 @@ import charm.system.clock;
 import charm.system.run_loop;
 import util.core;
 import platform.win.time_source;
-
-#if defined(_WIN32)
-#define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
-#endif
-#include <SDL3/SDL.h>
-#if defined(_WIN32)
-#undef NOMINMAX
-#undef WIN32_LEAN_AND_MEAN
-#endif
 
 #include <algorithm>
 #include <array>
@@ -41,6 +32,10 @@ import platform.win.time_source;
 #include <string_view>
 #include <vector>
 
+#include "main_md3_host_sdl.hpp"
+
+namespace host_sdl = ::player_win_md3_host_sdl;
+
 namespace {
     using namespace player::fs_utils;
     using namespace player::ui;
@@ -49,10 +44,121 @@ namespace {
         return platform::win::SteadyClock::now();
     }
 
+    host_sdl::DisplayPixelFormat to_host_display_pixel_format(
+        player::PlayerDisplayPixelFormat format) noexcept {
+        switch (format) {
+        case player::PlayerDisplayPixelFormat::RGB565:
+            return host_sdl::DisplayPixelFormat::RGB565;
+        case player::PlayerDisplayPixelFormat::RGB888:
+            return host_sdl::DisplayPixelFormat::RGB888;
+        case player::PlayerDisplayPixelFormat::ARGB8888:
+            return host_sdl::DisplayPixelFormat::ARGB8888;
+        }
+        return host_sdl::DisplayPixelFormat::RGB888;
+    }
+
+    player::PlayerPointerAction to_player_pointer_action(host_sdl::PointerAction action) noexcept {
+        switch (action) {
+        case host_sdl::PointerAction::Down:
+            return player::PlayerPointerAction::Down;
+        case host_sdl::PointerAction::Move:
+            return player::PlayerPointerAction::Move;
+        case host_sdl::PointerAction::Up:
+            return player::PlayerPointerAction::Up;
+        case host_sdl::PointerAction::Cancel:
+            return player::PlayerPointerAction::Cancel;
+        }
+        return player::PlayerPointerAction::Move;
+    }
+
+    player::PlayerInputCommand to_player_input_command(host_sdl::InputCommand command) noexcept {
+        switch (command) {
+        case host_sdl::InputCommand::Up:
+            return player::PlayerInputCommand::Up;
+        case host_sdl::InputCommand::Down:
+            return player::PlayerInputCommand::Down;
+        case host_sdl::InputCommand::Left:
+            return player::PlayerInputCommand::Left;
+        case host_sdl::InputCommand::Enter:
+            return player::PlayerInputCommand::Enter;
+        case host_sdl::InputCommand::Back:
+            return player::PlayerInputCommand::Back;
+        case host_sdl::InputCommand::PlayToggle:
+            return player::PlayerInputCommand::PlayToggle;
+        case host_sdl::InputCommand::Next:
+            return player::PlayerInputCommand::Next;
+        case host_sdl::InputCommand::Prev:
+            return player::PlayerInputCommand::Prev;
+        case host_sdl::InputCommand::Mode:
+            return player::PlayerInputCommand::Mode;
+        }
+        return player::PlayerInputCommand::Enter;
+    }
+
+    player::PlayerInputEvent to_player_input_event(const host_sdl::InputEvent& event) noexcept {
+        switch (event.kind) {
+        case host_sdl::InputEventKind::Pointer:
+            return player::PlayerInputEvent::make_pointer(
+                event.ms,
+                to_player_pointer_action(event.pointer_action),
+                player::PlayerPointerSample{
+                    event.pointer.down,
+                    event.pointer.x,
+                    event.pointer.y,
+                    event.pointer.id,
+                });
+        case host_sdl::InputEventKind::Wheel:
+            return player::PlayerInputEvent::make_wheel(
+                event.ms,
+                event.pointer.x,
+                event.pointer.y,
+                event.wheel_y);
+        case host_sdl::InputEventKind::Button:
+            return player::PlayerInputEvent::make_button(
+                event.ms,
+                to_player_input_command(event.command),
+                event.button_pressed);
+        case host_sdl::InputEventKind::Command:
+            return player::PlayerInputEvent::make_command(
+                event.ms,
+                to_player_input_command(event.command));
+        }
+        return {};
+    }
+
+    player::PlayerDisplaySink make_sdl_display_sink(host_sdl::SdlHost& sdl_host) noexcept {
+        return player::PlayerDisplaySink{
+            &sdl_host,
+            [](void* ctx,
+               const player::PlayerDisplaySurface& surface,
+               player::PlayerDirtyRegion dirty) noexcept {
+                auto* host = static_cast<host_sdl::SdlHost*>(ctx);
+                if (!host || !surface.valid()) {
+                    return false;
+                }
+                return host->present(
+                    host_sdl::DisplaySurface{
+                        .pixels = surface.pixels,
+                        .width = surface.width,
+                        .height = surface.height,
+                        .stride_bytes = static_cast<unsigned long long>(surface.stride_bytes),
+                        .pixel_format = to_host_display_pixel_format(surface.pixel_format),
+                    },
+                    host_sdl::DirtyRegion{
+                        .x = dirty.x,
+                        .y = dirty.y,
+                        .w = dirty.w,
+                        .h = dirty.h,
+                    });
+            }};
+    }
+
     using PlayerUiContext = player::PlayerController;
-    using PlayerRuntime = player::PlayerRuntime<PlayerUiContext, player::PlayerPage>;
-    using PlayerRuntimeShell = player::PlayerRuntimeShell<PlayerUiContext, player::PlayerPage>;
+    using PlayerRuntimeHooks = player::PlayerRuntimeHooks;
     using PlayerRuntimeConfig = player::PlayerRuntimeConfig<player::PlayerPage>;
+    using PlayerRuntime = player::PlayerRuntime<PlayerUiContext, player::PlayerPage>;
+    using PlayerRuntimeShellConfig = player::PlayerRuntimeShellConfig;
+    using PlayerRuntimeShell = player::PlayerRuntimeShell<PlayerUiContext, player::PlayerPage>;
 
     struct HostRuntimeState {
         player::PlayerOwnedDisplayBuffer display_buffer{};
@@ -105,9 +211,6 @@ namespace {
 #include "main.overlay_fx.inc"
 
 #include "main.font_probe.inc"
-
-#include "main.display_sdl.inc"
-#include "main.input_sdl.inc"
 
     void host_tick_visual(void*, float t_sec, bool active) noexcept {
         update_spectrum(t_sec, active);
@@ -186,9 +289,9 @@ namespace {
                                     PlayerRuntimeConfig runtime_config,
                                     player::PlayerDisplaySink* display_sink) {
         host.runtime.emplace(host.clock, host.platform, host.ctx, std::move(runtime_config));
-        player::PlayerRuntimeShellConfig shell_cfg{};
+        PlayerRuntimeShellConfig shell_cfg{};
         shell_cfg.display_sink = display_sink;
-        shell_cfg.hooks = player::PlayerRuntimeHooks{
+        shell_cfg.hooks = PlayerRuntimeHooks{
             .tick_visual_ctx = &host,
             .tick_visual = &host_tick_visual,
         };
@@ -199,6 +302,7 @@ namespace {
 
     struct PlayerLoopState {
         HostRuntimeState* host{nullptr};
+        void* host_sdl{nullptr};
         bool* running{nullptr};
         int* win_w{nullptr};
         int* win_h{nullptr};
@@ -320,7 +424,7 @@ namespace {
         auto wait_for_page = [&](player::PlayerPage expected_page, int max_frames = 36) {
             if (ctx.current_page == expected_page) return true;
             for (int i = 0; i < max_frames; ++i) {
-                SDL_Delay(16);
+                host_sdl::SdlHost::delay_ms(16);
                 pump_frame();
                 if (ctx.current_page == expected_page) {
                     return true;
@@ -1163,23 +1267,27 @@ namespace {
         if (!state || !state->running || !shell) {
             return;
         }
-        SDL_Event evt{};
-        while (SDL_PollEvent(&evt)) {
-            if (evt.type == SDL_EVENT_QUIT) {
-                *state->running = false;
-                break;
-            }
-            if (evt.type == SDL_EVENT_WINDOW_RESIZED) {
-                if (state->win_w) {
-                    *state->win_w = static_cast<int>(evt.window.data1);
+        auto* sdl = static_cast<host_sdl::SdlHost*>(state->host_sdl);
+        if (!sdl) {
+            return;
+        }
+        const auto result = sdl->pump_events(
+            shell,
+            [](void* ctx, const host_sdl::InputEvent& ev) noexcept {
+                auto* active_shell = static_cast<PlayerRuntimeShell*>(ctx);
+                if (active_shell) {
+                    active_shell->dispatch_input(to_player_input_event(ev));
                 }
-                if (state->win_h) {
-                    *state->win_h = static_cast<int>(evt.window.data2);
-                }
+            });
+        if (result.quit) {
+            *state->running = false;
+        }
+        if (result.resized) {
+            if (state->win_w) {
+                *state->win_w = result.width;
             }
-            const auto input_batch = translate_sdl_player_input(evt);
-            for (std::size_t i = 0; i < input_batch.count; ++i) {
-                shell->dispatch_input(input_batch.events[i]);
+            if (state->win_h) {
+                *state->win_h = result.height;
             }
         }
     }
@@ -1325,45 +1433,19 @@ int main(int argc, char** argv) {
         start_page = player::PlayerPage::NowPlaying;
     }
 
-    if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO)) {
-        std::fprintf(stderr, "[player-win] SDL_Init failed: %s\n", SDL_GetError());
+    host_sdl::SdlHost sdl_host{};
+    const char* sdl_error = nullptr;
+    if (!sdl_host.init("Charm Player",
+                       to_host_display_pixel_format(g_host.platform.surface_ref().pixel_format),
+                       screen_width,
+                       screen_height,
+                       sdl_error)) {
+        std::fprintf(stderr, "[player-win] SDL init failed: %s\n", sdl_error ? sdl_error : "unknown");
         return 1;
     }
-
-    SDL_Window* window = SDL_CreateWindow("Charm Player", screen_width, screen_height, SDL_WINDOW_RESIZABLE);
-    if (!window) {
-        std::fprintf(stderr, "[player-win] SDL_CreateWindow failed: %s\n", SDL_GetError());
-        SDL_Quit();
-        return 1;
-    }
-
-    SDL_Renderer* renderer = SDL_CreateRenderer(window, nullptr);
-    if (!renderer) {
-        std::fprintf(stderr, "[player-win] SDL_CreateRenderer failed: %s\n", SDL_GetError());
-        SDL_DestroyWindow(window);
-        SDL_Quit();
-        return 1;
-    }
-
-    SDL_Texture* texture = SDL_CreateTexture(renderer,
-                                             sdl_pixel_format(g_host.platform.surface_ref().pixel_format),
-                                             SDL_TEXTUREACCESS_STREAMING,
-                                             screen_width, screen_height);
-    if (!texture) {
-        std::fprintf(stderr, "[player-win] SDL_CreateTexture failed: %s\n", SDL_GetError());
-        SDL_DestroyRenderer(renderer);
-        SDL_DestroyWindow(window);
-        SDL_Quit();
-        return 1;
-    }
-    SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_NEAREST);
 
     player::ui::set_player_system_font_fallback_enabled(!disable_system_font_fallback);
-    SdlDisplaySinkState display_sink_state{
-        .renderer = renderer,
-        .texture = texture,
-    };
-    player::PlayerDisplaySink display_sink = make_sdl_display_sink(display_sink_state);
+    player::PlayerDisplaySink display_sink = make_sdl_display_sink(sdl_host);
 
     auto runtime_config = build_runtime_config(start_page,
                                                track_index_override,
@@ -1378,10 +1460,7 @@ int main(int argc, char** argv) {
         if (auto* shell = g_host.shell_ref()) {
             shell->shutdown();
         }
-        SDL_DestroyTexture(texture);
-        SDL_DestroyRenderer(renderer);
-        SDL_DestroyWindow(window);
-        SDL_Quit();
+        sdl_host.shutdown();
         return code;
     };
 
@@ -1488,6 +1567,7 @@ int main(int argc, char** argv) {
     bool running = true;
     PlayerLoopState loop_state{
         .host = &g_host,
+        .host_sdl = &sdl_host,
         .running = &running,
         .win_w = &win_w,
         .win_h = &win_h,
@@ -1515,4 +1595,3 @@ int main(int argc, char** argv) {
 
     return cleanup_and_exit(0);
 }
-

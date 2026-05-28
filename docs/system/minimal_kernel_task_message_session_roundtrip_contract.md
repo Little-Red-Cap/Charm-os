@@ -23,6 +23,9 @@
 - `Modules/system/kernel/task_message_session_roundtrip.cppm`
 - `TaskMessageSessionRoundtripWitness`
 - `task_message_session_roundtrip_witness(...)`
+- `Modules/system/kernel/task_message_session_completion_corridor.cppm`
+- `TaskMessageSessionCompletionCorridorWitness`
+- `task_message_session_completion_corridor_witness(...)`
 
 ## 一句话版本
 
@@ -64,6 +67,10 @@
    - dispatch / acceptor / protocol / service / pump 五段 witness 必须同时 standing
    - handoff target 必须可用
    - request path 的 `service_id / session_handle / operation / payload / reply_value / channel_slot` 必须一致
+7. completion continuity seam
+   - `open / request / close / unsupported open` 四个 client completion 已经不再只靠 example-local 判词
+   - `TaskMessageSessionApiWitness` 先承接 completion facts
+   - `TaskMessageSessionCompletionCorridorWitness` 再把 action / phase / identity / token-sequence / payload / lifecycle continuity 收成 standing witness
 
 ## 当前组合路径
 

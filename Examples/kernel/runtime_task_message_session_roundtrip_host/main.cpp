@@ -13,8 +13,10 @@ import kernel.scheduler;
 import kernel.task_message_runtime_service;
 import kernel.task_message_service_pump;
 import kernel.task_message_session_api;
+import kernel.task_message_session_completion_corridor;
 import kernel.task_message_session_dispatch;
 import kernel.task_message_session_endpoint;
+import kernel.task_message_session_ownership_corridor;
 import kernel.task_message_session_protocol_schema;
 import kernel.task_message_session_roundtrip;
 import kernel.task_message_session_service;
@@ -155,34 +157,6 @@ namespace demo {
         bool writeback_seen{false};
     };
 
-    struct ClientCompletionRecord {
-        kernel::TaskMessageSessionActionKind action{
-            kernel::TaskMessageSessionActionKind::none};
-        kernel::TaskMessageSessionPhase phase_before{
-            kernel::TaskMessageSessionPhase::idle};
-        kernel::TaskMessageSessionPhase phase_after{
-            kernel::TaskMessageSessionPhase::idle};
-        bool timeout{false};
-        bool session_opened{false};
-        bool session_closed{false};
-        bool session_faulted{false};
-        kernel::TaskId owner{};
-        kernel::TaskId reply_from{};
-        kernel::TaskId reply_to{};
-        std::uint64_t token{0};
-        std::uint64_t request_sequence{0};
-        std::uint64_t service_id{0};
-        std::uint64_t session_handle{0};
-        std::uint64_t operation{0};
-        std::uint64_t payload{0};
-        std::uint64_t reply_value{0};
-        kernel::TrapResult trap{
-            .disposition = kernel::TrapDisposition::rejected,
-            .error = kernel::TrapError::none,
-            .value = 0,
-        };
-    };
-
     struct SharedState {
         bool mailbox_valid{false};
         bool message_dispatcher_valid{false};
@@ -215,7 +189,8 @@ namespace demo {
         std::size_t wait_arm_index{0};
         std::size_t wait_arm_successes{0};
         std::uint64_t active_session_handle{0};
-        std::array<ClientCompletionRecord, kCompletionCount> completions{};
+        std::array<kernel::TaskMessageSessionApiWitness, kCompletionCount>
+            completions{};
     };
 
     struct EchoSessionProtocolState {
@@ -604,6 +579,27 @@ namespace demo {
         ++shared.wait_arm_index;
     }
 
+    [[nodiscard]] kernel::TaskMessageSyscallApiWitness
+    make_session_syscall_witness(
+        const ClientSession::completion_type& completion) noexcept
+    {
+        return kernel::TaskMessageSyscallApiWitness{
+            .ready = true,
+            .kind = completion.timeout
+                        ? kernel::TaskMessageSyscallApiWitnessKind::timeout
+                        : kernel::TaskMessageSyscallApiWitnessKind::reply,
+            .owner = completion.raw.owner,
+            .token = completion.raw.token,
+            .request_sequence = completion.raw.request_sequence,
+            .completion_ready = true,
+            .completion_pushed = true,
+            .timeout = completion.timeout,
+            .reply_value = completion.reply_value,
+            .disposition = completion.trap.disposition,
+            .error = completion.trap.error,
+        };
+    }
+
     void store_completion(
         SharedState& shared,
         const ClientSession::completion_type& completion) noexcept
@@ -614,26 +610,9 @@ namespace demo {
         }
 
         auto& record = shared.completions[shared.completions_received++];
-        record = ClientCompletionRecord{
-            .action = completion.action,
-            .phase_before = completion.phase_before,
-            .phase_after = completion.phase_after,
-            .timeout = completion.timeout,
-            .session_opened = completion.session_opened,
-            .session_closed = completion.session_closed,
-            .session_faulted = completion.session_faulted,
-            .owner = completion.raw.owner,
-            .reply_from = completion.raw.reply.from,
-            .reply_to = completion.raw.reply.to,
-            .token = completion.raw.token,
-            .request_sequence = completion.raw.request_sequence,
-            .service_id = completion.service_id,
-            .session_handle = completion.session_handle,
-            .operation = completion.operation,
-            .payload = completion.payload,
-            .reply_value = completion.reply_value,
-            .trap = completion.trap,
-        };
+        record = kernel::task_message_session_api_witness(
+            completion,
+            make_session_syscall_witness(completion));
     }
 
     [[nodiscard]] bool issue_open(SharedState& shared) noexcept
@@ -1231,6 +1210,43 @@ namespace demo {
             summary.request_path ? 1 : 0);
         return summary;
     }
+
+    [[nodiscard]] kernel::TaskMessageSessionCompletionCorridorWitness
+    inspect_completion_corridor_witness(
+        const SharedState& shared,
+        kernel::TaskMessageSessionOwnershipCorridorWitness ownership_corridor)
+        noexcept
+    {
+        if (shared.completions_received < kCompletionCount) {
+            return {};
+        }
+
+        auto summary = kernel::task_message_session_completion_corridor_witness(
+            shared.completions[0],
+            shared.completions[1],
+            shared.completions[2],
+            shared.completions[3],
+            ownership_corridor);
+        std::printf(
+            "[runtime-task-message-session-completion-corridor-witness] ok=%d verdict=%s domain=%s open=%s request=%s close=%s ghost=%s summary=%s handoff=%d action=%d phase=%d branch=%d identity=%d token=%d payload=%d lifecycle=%d\n",
+            summary.ok() ? 1 : 0,
+            semantic::verdict_name(summary.verdict()),
+            semantic::failure_domain_name(summary.failure_domain()),
+            semantic::verdict_name(summary.open.verdict()),
+            semantic::verdict_name(summary.request.verdict()),
+            semantic::verdict_name(summary.close.verdict()),
+            semantic::verdict_name(summary.ghost_open.verdict()),
+            summary.summary_path().data(),
+            summary.handoff_ready ? 1 : 0,
+            summary.action_path ? 1 : 0,
+            summary.phase_path ? 1 : 0,
+            summary.completion_branch_path ? 1 : 0,
+            summary.identity_path ? 1 : 0,
+            summary.token_sequence_path ? 1 : 0,
+            summary.request_payload_path ? 1 : 0,
+            summary.lifecycle_path ? 1 : 0);
+        return summary;
+    }
 }
 
 int main()
@@ -1450,6 +1466,18 @@ int main()
                                         service_trace,
                                         pump_trace);
     const bool roundtrip_witness_ok = roundtrip_witness.ok();
+    const auto service_loop_witness =
+        kernel::task_message_session_service_loop_witness(session_trace,
+                                                          acceptor_trace,
+                                                          protocol_traces[0],
+                                                          service_trace,
+                                                          pump_trace);
+    const auto ownership_corridor_witness =
+        kernel::task_message_session_ownership_corridor_witness(
+            service_loop_witness);
+    const auto completion_corridor_witness =
+        demo::inspect_completion_corridor_witness(shared,
+                                                  ownership_corridor_witness);
     const auto session_slot = session_service.session(0u);
     const auto lookup =
         session_service.lookup_session(demo::kBaseSessionHandle);
@@ -1460,102 +1488,7 @@ int main()
 
     const bool completion_ok =
         shared.completions_received == demo::kCompletionCount &&
-        shared.completions[0].action == demo::kExpectedActions[0] &&
-        shared.completions[1].action == demo::kExpectedActions[1] &&
-        shared.completions[2].action == demo::kExpectedActions[2] &&
-        shared.completions[3].action == demo::kExpectedActions[3] &&
-        shared.completions[0].phase_before ==
-            kernel::TaskMessageSessionPhase::opening &&
-        shared.completions[0].phase_after ==
-            kernel::TaskMessageSessionPhase::open &&
-        shared.completions[1].phase_before ==
-            kernel::TaskMessageSessionPhase::requesting &&
-        shared.completions[1].phase_after ==
-            kernel::TaskMessageSessionPhase::open &&
-        shared.completions[2].phase_before ==
-            kernel::TaskMessageSessionPhase::closing &&
-        shared.completions[2].phase_after ==
-            kernel::TaskMessageSessionPhase::idle &&
-        shared.completions[3].phase_before ==
-            kernel::TaskMessageSessionPhase::opening &&
-        shared.completions[3].phase_after ==
-            kernel::TaskMessageSessionPhase::idle &&
-        !shared.completions[0].timeout &&
-        !shared.completions[1].timeout &&
-        !shared.completions[2].timeout &&
-        !shared.completions[3].timeout &&
-        shared.completions[0].session_opened &&
-        !shared.completions[0].session_closed &&
-        !shared.completions[1].session_opened &&
-        !shared.completions[1].session_closed &&
-        shared.completions[2].session_closed &&
-        !shared.completions[2].session_faulted &&
-        !shared.completions[3].session_opened &&
-        !shared.completions[3].session_closed &&
-        !shared.completions[3].session_faulted &&
-        shared.completions[0].owner == demo::kClientId &&
-        shared.completions[1].owner == demo::kClientId &&
-        shared.completions[2].owner == demo::kClientId &&
-        shared.completions[3].owner == demo::kClientId &&
-        shared.completions[0].reply_from == demo::kServerId &&
-        shared.completions[1].reply_from == demo::kServerId &&
-        shared.completions[2].reply_from == demo::kServerId &&
-        shared.completions[3].reply_from == demo::kServerId &&
-        shared.completions[0].reply_to == demo::kClientId &&
-        shared.completions[1].reply_to == demo::kClientId &&
-        shared.completions[2].reply_to == demo::kClientId &&
-        shared.completions[3].reply_to == demo::kClientId &&
-        shared.completions[0].token == demo::kExpectedTokens[0] &&
-        shared.completions[1].token == demo::kExpectedTokens[1] &&
-        shared.completions[2].token == demo::kExpectedTokens[2] &&
-        shared.completions[3].token == demo::kExpectedTokens[3] &&
-        shared.completions[0].request_sequence ==
-            demo::kExpectedSequences[0] &&
-        shared.completions[1].request_sequence ==
-            demo::kExpectedSequences[1] &&
-        shared.completions[2].request_sequence ==
-            demo::kExpectedSequences[2] &&
-        shared.completions[3].request_sequence ==
-            demo::kExpectedSequences[3] &&
-        shared.completions[0].service_id == demo::kServiceId &&
-        shared.completions[1].service_id == demo::kServiceId &&
-        shared.completions[2].service_id == demo::kServiceId &&
-        shared.completions[3].service_id == demo::kGhostServiceId &&
-        shared.completions[0].session_handle == demo::kBaseSessionHandle &&
-        shared.completions[1].session_handle == demo::kBaseSessionHandle &&
-        shared.completions[2].session_handle == demo::kBaseSessionHandle &&
-        shared.completions[3].session_handle == 0u &&
-        shared.completions[0].operation ==
-            kernel::task_message_session_open_operation &&
-        shared.completions[1].operation == demo::kRequestOperation &&
-        shared.completions[2].operation ==
-            kernel::task_message_session_close_operation &&
-        shared.completions[3].operation ==
-            kernel::task_message_session_open_operation &&
-        shared.completions[0].payload == demo::kOpenPayload &&
-        shared.completions[1].payload == demo::kRequestPayload &&
-        shared.completions[2].payload == demo::kCloseReason &&
-        shared.completions[3].payload == demo::kGhostOpenPayload &&
-        shared.completions[0].reply_value == demo::kExpectedReplyValues[0] &&
-        shared.completions[1].reply_value == demo::kExpectedReplyValues[1] &&
-        shared.completions[2].reply_value == demo::kExpectedReplyValues[2] &&
-        shared.completions[3].reply_value == demo::kExpectedReplyValues[3] &&
-        demo::trap_result_matches(shared.completions[0].trap,
-                                  demo::kExpectedDispositions[0],
-                                  demo::kExpectedErrors[0],
-                                  demo::kExpectedReplyValues[0]) &&
-        demo::trap_result_matches(shared.completions[1].trap,
-                                  demo::kExpectedDispositions[1],
-                                  demo::kExpectedErrors[1],
-                                  demo::kExpectedReplyValues[1]) &&
-        demo::trap_result_matches(shared.completions[2].trap,
-                                  demo::kExpectedDispositions[2],
-                                  demo::kExpectedErrors[2],
-                                  demo::kExpectedReplyValues[2]) &&
-        demo::trap_result_matches(shared.completions[3].trap,
-                                  demo::kExpectedDispositions[3],
-                                  demo::kExpectedErrors[3],
-                                  demo::kExpectedReplyValues[3]);
+        completion_corridor_witness.ok();
     const bool service_ok =
         acceptor_state.accept_calls == 1u &&
         acceptor_state.last_service_id == demo::kServiceId &&
@@ -1671,7 +1604,7 @@ int main()
         static_cast<unsigned long long>(demo::kExpectedReplyValues[0]),
         static_cast<unsigned long long>(demo::kExpectedReplyValues[1]),
         static_cast<unsigned long long>(demo::kExpectedReplyValues[2]),
-        kernel::trap_error_name(shared.completions[3].trap.error),
+        kernel::trap_error_name(shared.completions[3].error),
         static_cast<unsigned long long>(demo::kExpectedTokens[0]),
         static_cast<unsigned long long>(demo::kExpectedTokens[1]),
         static_cast<unsigned long long>(demo::kExpectedTokens[2]),

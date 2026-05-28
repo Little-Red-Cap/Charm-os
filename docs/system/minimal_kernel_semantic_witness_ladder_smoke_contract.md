@@ -51,10 +51,27 @@
 - `protocol=standing`
 - `service=standing`
 - `pump=standing`
+- `completion-corridor=standing`
 - `handoff=1`
 - `request=1`
 
 这表示最终 seam 没有只靠 completion 值通过，而是同时消费了已有 semantic witness carrier 与 handoff target。
+
+其中 completion corridor 额外要求：
+
+- `open=standing`
+- `request=standing`
+- `close=standing`
+- `ghost=standing`
+- `action=1`
+- `phase=1`
+- `branch=1`
+- `identity=1`
+- `token=1`
+- `payload=1`
+- `lifecycle=1`
+
+这表示 client `open / request / close / unsupported open` 四个 completion 的连续性判词，已经从 host example 内联布尔链上抬为源码级 witness carrier。
 
 其中 service-loop case 额外要求：
 

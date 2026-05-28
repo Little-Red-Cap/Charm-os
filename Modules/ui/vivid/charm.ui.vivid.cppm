@@ -44,4 +44,6 @@ export import charm.ui.scene.text_style;
 export import charm.font;
 export import charm.font.typography;
 export import charm.ui.vivid.font_package;
+#if defined(CHARM_ENABLE_FREETYPE)
 export import charm.font.provider_freetype;
+#endif

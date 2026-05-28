@@ -78,6 +78,7 @@ Read first:
 25. [`vivid_semantic_action_state_transition_law_v0.md`](vivid_semantic_action_state_transition_law_v0.md)
 26. [`vivid_semantic_action_state_transition_evidence_v0.md`](vivid_semantic_action_state_transition_evidence_v0.md)
 27. [`vivid_page_layer_style_patch.md`](vivid_page_layer_style_patch.md)
+28. [`vivid_widget_spec_reflection_v0.md`](vivid_widget_spec_reflection_v0.md)
 
 Semantic Tree Artifact v0 runtime sample:
 

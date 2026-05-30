@@ -47,6 +47,33 @@ constexpr std::uint32_t kPacketMaxPayloadSize = 256U;
 constexpr std::uint32_t kQspiStoreBaseOffset = 0U;
 constexpr std::string_view kDefaultReceivedAppName = "received_app"sv;
 
+enum class UsbExitReason : std::uint8_t {
+    idle,
+    active,
+    launch_ready,
+    packet_error,
+    transport_error,
+    abort,
+};
+
+constexpr std::string_view usb_exit_reason_name(const UsbExitReason reason) noexcept {
+    switch (reason) {
+        case UsbExitReason::idle:
+            return "idle"sv;
+        case UsbExitReason::active:
+            return "active"sv;
+        case UsbExitReason::launch_ready:
+            return "launch_ready"sv;
+        case UsbExitReason::packet_error:
+            return "packet_error"sv;
+        case UsbExitReason::transport_error:
+            return "transport_error"sv;
+        case UsbExitReason::abort:
+            return "abort"sv;
+    }
+    return "unknown"sv;
+}
+
 struct AppRunLoadRegion {
     std::string_view name{};
     std::uintptr_t base{0};
@@ -160,6 +187,7 @@ struct Runtime {
     bool usb_active{false};
     std::uint32_t usb_bytes{0};
     loader::ByteTransportResult usb_last{};
+    UsbExitReason usb_exit_reason{UsbExitReason::idle};
     bool qspi_ready{false};
     app_abi::AppStoreInstallCode store_install_code{app_abi::AppStoreInstallCode::invalid_argument};
     loader::ReceivedImageReadCode store_receive_code{loader::ReceivedImageReadCode::not_launch_ready};
@@ -533,8 +561,9 @@ void print_raw_status(const Runtime& rt) noexcept {
 
 void print_usb_status(const Runtime& rt) noexcept {
     const auto usb = h747::usb_dev_loader::status();
-    emit<"dev: usb active={} bytes={} init={} started={} cdc_ready={} pcd_ready={} pcd={} usbd={} class={} iface={} start={}\n">(
+    emit<"dev: usb active={} exit={} bytes={} init={} started={} cdc_ready={} pcd_ready={} pcd={} usbd={} class={} iface={} start={}\n">(
         rt.usb_active ? 1U : 0U,
+        usb_exit_reason_name(rt.usb_exit_reason),
         rt.usb_bytes,
         usb.init_called,
         usb.started,
@@ -877,6 +906,7 @@ void handle_usb_command(std::string_view line) noexcept {
         rt.usb_active = true;
         rt.usb_bytes = 0;
         rt.usb_last = rt.packet_transport.status();
+        rt.usb_exit_reason = UsbExitReason::active;
         const auto usb = h747::usb_dev_loader::status();
         emit<"dev: usb ready started={} cdc_ready={} pcd={} usbd={} class={} iface={} start={}\n">(
             usb.started,
@@ -895,6 +925,7 @@ void handle_usb_command(std::string_view line) noexcept {
     }
     if (line == "dev usb abort") {
         rt.usb_active = false;
+        rt.usb_exit_reason = UsbExitReason::abort;
         h747::usb_dev_loader::stop();
         rt.packet_transport.reset_session();
         rt.usb_last = rt.packet_transport.status();
@@ -1370,8 +1401,16 @@ void pump_usb(Runtime& rt) noexcept {
     if (rt.usb_last.code != loader::ByteTransportCode::ok ||
         rt.usb_last.packet.kind == loader::PacketKind::abort ||
         rt.usb_last.packet.receive.stage == loader::Stage::launch_ready) {
+        if (rt.usb_last.code != loader::ByteTransportCode::ok) {
+            rt.usb_exit_reason = rt.usb_last.code == loader::ByteTransportCode::packet_failed
+                                     ? UsbExitReason::packet_error
+                                     : UsbExitReason::transport_error;
+        } else if (rt.usb_last.packet.kind == loader::PacketKind::abort) {
+            rt.usb_exit_reason = UsbExitReason::abort;
+        } else {
+            rt.usb_exit_reason = UsbExitReason::launch_ready;
+        }
         rt.usb_active = false;
-        h747::usb_dev_loader::stop();
         emit<"\n">();
         print_usb_status(rt);
         rt.prompt_needed = true;

@@ -218,6 +218,25 @@ function Read-UntilQuiet {
     }
 }
 
+function Request-UsbStatusSnapshot {
+    param(
+        [System.IO.Ports.SerialPort]$Serial,
+        [string]$Reason
+    )
+
+    if (($null -eq $Serial) -or (-not $Serial.IsOpen)) {
+        return
+    }
+
+    try {
+        $Serial.WriteLine("dev usb status")
+        Write-CaptureText "`n[sender] sent: dev usb status ($Reason)`n"
+        Read-UntilQuiet -Serial $Serial -QuietMilliseconds 250 -MaxMilliseconds 3000
+    } catch {
+        Write-CaptureText "`n[sender] failed to query dev usb status ($Reason): $($_.Exception.Message)`n"
+    }
+}
+
 try {
     $LogWriter = [System.IO.StreamWriter]::new([System.IO.Path]::GetFullPath($Log), $false, $Utf8NoBom)
     Write-CaptureText "H747 Dev Loader USB CDC packetstream sender`n"
@@ -264,20 +283,24 @@ try {
 
     $Start = [DateTime]::UtcNow
     $Offset = 0
-    while ($Offset -lt $PacketBytes.Length) {
-        $Count = [Math]::Min($WriteChunkSize, $PacketBytes.Length - $Offset)
-        $UsbSerial.BaseStream.Write($PacketBytes, $Offset, $Count)
-        $Offset += $Count
-        if (($InterChunkDelayMs -gt 0) -and ($Offset -lt $PacketBytes.Length)) {
-            Start-Sleep -Milliseconds $InterChunkDelayMs
+    try {
+        while ($Offset -lt $PacketBytes.Length) {
+            $Count = [Math]::Min($WriteChunkSize, $PacketBytes.Length - $Offset)
+            $UsbSerial.BaseStream.Write($PacketBytes, $Offset, $Count)
+            $Offset += $Count
+            if (($InterChunkDelayMs -gt 0) -and ($Offset -lt $PacketBytes.Length)) {
+                Start-Sleep -Milliseconds $InterChunkDelayMs
+            }
         }
+        $UsbSerial.BaseStream.Flush()
+    } catch {
+        Request-UsbStatusSnapshot -Serial $ControlSerial -Reason "usb-write-failed"
+        throw
     }
-    $UsbSerial.BaseStream.Flush()
     Write-CaptureText "`n[sender] wrote usb bytes=$($PacketBytes.Length)`n"
 
     if (-not (Wait-ForToken -Serial $ControlSerial -Token "dev: stage=launch_ready code=ok" -Deadline $Deadline)) {
-        $ControlSerial.WriteLine("dev usb status")
-        [void](Wait-ForToken -Serial $ControlSerial -Token "dev: usb" -Deadline ([DateTime]::UtcNow.AddSeconds(2)))
+        Request-UsbStatusSnapshot -Serial $ControlSerial -Reason "launch-ready-timeout"
         throw "Timed out waiting for launch_ready."
     }
     $LaunchReadyElapsed = [DateTime]::UtcNow - $Start

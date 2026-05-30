@@ -134,10 +134,11 @@ function(_h747_mem_run_evidence)
     set(_controller_profile_fields
         controller_size_bytes
         track_capacity
-        library_row_model_size_bytes
         list_order_bytes
+        list_rows_bytes
         row_scratch_bytes
         duration_cache_bytes
+        list_cover_paths_bytes
         cover_path_scratch_bytes
         list_cover_cache_capacity
         list_cover_cache_bytes

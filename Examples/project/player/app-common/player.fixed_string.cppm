@@ -56,6 +56,19 @@ export namespace player {
             return count == value.size();
         }
 
+        bool operator+=(std::string_view value) noexcept {
+            return append(value);
+        }
+
+        bool operator+=(const char* value) noexcept {
+            return append(value ? std::string_view(value) : std::string_view{});
+        }
+
+        template <std::size_t OtherCapacity>
+        bool operator+=(const FixedString<OtherCapacity>& value) noexcept {
+            return append(value.view());
+        }
+
     private:
         std::array<char, Capacity> buffer_{};
         std::size_t size_{0};

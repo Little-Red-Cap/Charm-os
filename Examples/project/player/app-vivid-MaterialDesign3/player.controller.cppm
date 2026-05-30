@@ -34,6 +34,7 @@ import player.playback;
 import player.input;
 import player.fs_utils;
 import player.media_scan;
+import player.product_config;
 import player.stats_history;
 import player.storage;
 import player.time_utils;
@@ -44,14 +45,12 @@ import player.cover_theme;
 import player.font_cache;
 import charm.widgets.perf_overlay;
 import charm.core.style_sheet;
+import service.fixed_vector;
 #if defined(CHARM_AUDIO_USE_VFS)
 import audio.source.fs;
 #else
 import audio.source.file;
 #endif
-
-inline constexpr bool kPlayerControllerMcuGuard =
-    (player::mcu_policy::guard("player.controller uses std::string/std::vector; port before MCU build."), true);
 
 export namespace player {
     using namespace player::fs_utils;
@@ -256,22 +255,21 @@ export namespace player {
     };
 
     struct PlayerController {
-        struct LibraryRowModel {
-            FixedString<192> title{};
-            FixedString<128> subtitle{};
-            FixedString<32> tail{};
-            bool group_row{false};
-        };
-
         struct LibraryRowRecipe {
-            const LibraryRowModel* model{};
             int row_index{-1};
             int track_index{-1};
             bool group_row{false};
             bool current_row{false};
             bool selected_row{false};
             bool show_tail_action{false};
+            bool text_resolved{false};
             const char* menu_title_cstr{"Track"};
+            std::string_view title_text{};
+            std::string_view subtitle_text{};
+            std::string_view tail_text{};
+            const char* title_cstr{""};
+            const char* subtitle_cstr{""};
+            const char* tail_cstr{""};
             std::string_view detail_primary{};
             std::string_view detail_secondary{};
             std::string_view track_path{};
@@ -282,27 +280,27 @@ export namespace player {
             bool prefer_cover{false};
 
             std::string_view title() const noexcept {
-                return model ? model->title.view() : std::string_view{};
+                return title_text;
             }
 
             std::string_view subtitle() const noexcept {
-                return model ? model->subtitle.view() : std::string_view{};
+                return subtitle_text;
             }
 
             std::string_view tail() const noexcept {
-                return model ? model->tail.view() : std::string_view{};
+                return tail_text;
             }
 
             const char* title_c_str() const noexcept {
-                return model ? model->title.c_str() : "";
+                return title_cstr ? title_cstr : "";
             }
 
             const char* subtitle_c_str() const noexcept {
-                return model ? model->subtitle.c_str() : "";
+                return subtitle_cstr ? subtitle_cstr : "";
             }
 
             const char* tail_c_str() const noexcept {
-                return model ? model->tail.c_str() : "";
+                return tail_cstr ? tail_cstr : "";
             }
         };
 
@@ -368,12 +366,14 @@ export namespace player {
             bool valid{false};
         } library_visual_state{};
         std::uint32_t library_visual_generation{1};
-        std::vector<int> list_order{};
-        std::vector<LibraryRowModel> list_rows{};
-        std::vector<int> track_duration_cache_sec{};
+        service::FixedVector<int, kMaxTracks> list_order{};
+        service::FixedVector<int, kMaxTracks> track_duration_cache_sec{};
         std::size_t list_duration_probe_cursor{0};
         std::uint64_t last_list_duration_probe_ms{0};
-        std::vector<FixedString<260>> list_cover_paths{};
+        mutable FixedString<product_config::library_row_title_capacity> list_row_title_scratch{};
+        mutable FixedString<product_config::library_row_subtitle_capacity> list_row_subtitle_scratch{};
+        mutable FixedString<product_config::library_row_tail_capacity> list_row_tail_scratch{};
+        mutable FixedString<product_config::path_text_capacity> list_cover_path_scratch{};
         struct ListCoverCacheEntry {
             FixedString<260> path{};
             CoverImage image{};
@@ -398,8 +398,8 @@ export namespace player {
             bool persist_dirty{true};
         } weekly_listening_stats{};
         ListeningStatsHistory weekly_listening_history{};
-        std::string font_ttf_path{};
-        std::string font_fallback_ttf_path{};
+        FixedString<260> font_ttf_path{};
+        FixedString<260> font_fallback_ttf_path{};
         int font_small_px{0};
         int font_normal_px{0};
         int font_large_px{0};
@@ -1467,10 +1467,11 @@ export namespace player {
     struct PlayerControllerMemoryProfile {
         std::size_t controller_size_bytes{0};
         std::size_t track_capacity{0};
-        std::size_t library_row_model_size_bytes{0};
         std::size_t list_order_bytes{0};
+        std::size_t list_rows_bytes{0};
         std::size_t row_scratch_bytes{0};
         std::size_t duration_cache_bytes{0};
+        std::size_t list_cover_paths_bytes{0};
         std::size_t cover_path_scratch_bytes{0};
         std::size_t list_cover_cache_capacity{0};
         std::size_t list_cover_cache_bytes{0};
@@ -1491,11 +1492,14 @@ export namespace player {
         return PlayerControllerMemoryProfile{
             sizeof(PlayerController),
             kMaxTracks,
-            sizeof(PlayerController::LibraryRowModel),
             sizeof(std::declval<PlayerController>().list_order),
-            sizeof(std::declval<PlayerController>().list_rows),
+            0,
+            sizeof(std::declval<PlayerController>().list_row_title_scratch)
+                + sizeof(std::declval<PlayerController>().list_row_subtitle_scratch)
+                + sizeof(std::declval<PlayerController>().list_row_tail_scratch),
             sizeof(std::declval<PlayerController>().track_duration_cache_sec),
-            sizeof(std::declval<PlayerController>().list_cover_paths),
+            0,
+            sizeof(std::declval<PlayerController>().list_cover_path_scratch),
             PlayerController::kListCoverCache,
             sizeof(std::declval<PlayerController>().list_cover_cache),
             sizeof(std::declval<PlayerController>().cover_image),
@@ -1539,49 +1543,52 @@ export namespace player {
             ".set charm_player_controller_profile_controller_size_bytes, %c0\n"
             ".global charm_player_controller_profile_track_capacity\n"
             ".set charm_player_controller_profile_track_capacity, %c1\n"
-            ".global charm_player_controller_profile_library_row_model_size_bytes\n"
-            ".set charm_player_controller_profile_library_row_model_size_bytes, %c2\n"
             ".global charm_player_controller_profile_list_order_bytes\n"
-            ".set charm_player_controller_profile_list_order_bytes, %c3\n"
+            ".set charm_player_controller_profile_list_order_bytes, %c2\n"
+            ".global charm_player_controller_profile_list_rows_bytes\n"
+            ".set charm_player_controller_profile_list_rows_bytes, %c3\n"
             ".global charm_player_controller_profile_row_scratch_bytes\n"
             ".set charm_player_controller_profile_row_scratch_bytes, %c4\n"
             ".global charm_player_controller_profile_duration_cache_bytes\n"
             ".set charm_player_controller_profile_duration_cache_bytes, %c5\n"
+            ".global charm_player_controller_profile_list_cover_paths_bytes\n"
+            ".set charm_player_controller_profile_list_cover_paths_bytes, %c6\n"
             ".global charm_player_controller_profile_cover_path_scratch_bytes\n"
-            ".set charm_player_controller_profile_cover_path_scratch_bytes, %c6\n"
+            ".set charm_player_controller_profile_cover_path_scratch_bytes, %c7\n"
             ".global charm_player_controller_profile_list_cover_cache_capacity\n"
-            ".set charm_player_controller_profile_list_cover_cache_capacity, %c7\n"
+            ".set charm_player_controller_profile_list_cover_cache_capacity, %c8\n"
             ".global charm_player_controller_profile_list_cover_cache_bytes\n"
-            ".set charm_player_controller_profile_list_cover_cache_bytes, %c8\n"
+            ".set charm_player_controller_profile_list_cover_cache_bytes, %c9\n"
             ".global charm_player_controller_profile_current_cover_bytes\n"
-            ".set charm_player_controller_profile_current_cover_bytes, %c9\n"
+            ".set charm_player_controller_profile_current_cover_bytes, %c10\n"
             ".global charm_player_controller_profile_cover_theme_bytes\n"
-            ".set charm_player_controller_profile_cover_theme_bytes, %c10\n"
+            ".set charm_player_controller_profile_cover_theme_bytes, %c11\n"
             ".global charm_player_controller_profile_now_playing_roles_bytes\n"
-            ".set charm_player_controller_profile_now_playing_roles_bytes, %c11\n"
+            ".set charm_player_controller_profile_now_playing_roles_bytes, %c12\n"
             ".global charm_player_controller_profile_text_state_bytes\n"
-            ".set charm_player_controller_profile_text_state_bytes, %c12\n"
+            ".set charm_player_controller_profile_text_state_bytes, %c13\n"
             ".global charm_player_controller_profile_cover_path_state_bytes\n"
-            ".set charm_player_controller_profile_cover_path_state_bytes, %c13\n"
+            ".set charm_player_controller_profile_cover_path_state_bytes, %c14\n"
             ".global charm_player_controller_profile_font_path_state_bytes\n"
-            ".set charm_player_controller_profile_font_path_state_bytes, %c14\n"
+            ".set charm_player_controller_profile_font_path_state_bytes, %c15\n"
             ".global charm_player_controller_profile_weekly_stats_bytes\n"
-            ".set charm_player_controller_profile_weekly_stats_bytes, %c15\n"
+            ".set charm_player_controller_profile_weekly_stats_bytes, %c16\n"
             ".global charm_player_controller_profile_weekly_history_bytes\n"
-            ".set charm_player_controller_profile_weekly_history_bytes, %c16\n"
+            ".set charm_player_controller_profile_weekly_history_bytes, %c17\n"
             ".global charm_player_controller_profile_ui_handles_bytes\n"
-            ".set charm_player_controller_profile_ui_handles_bytes, %c17\n"
+            ".set charm_player_controller_profile_ui_handles_bytes, %c18\n"
             ".global charm_player_controller_profile_icon_ids_bytes\n"
-            ".set charm_player_controller_profile_icon_ids_bytes, %c18\n"
+            ".set charm_player_controller_profile_icon_ids_bytes, %c19\n"
             ".global charm_player_controller_profile_playback_engine_bytes\n"
-            ".set charm_player_controller_profile_playback_engine_bytes, %c19\n"
+            ".set charm_player_controller_profile_playback_engine_bytes, %c20\n"
             :
             : "i"(profile.controller_size_bytes),
               "i"(profile.track_capacity),
-              "i"(profile.library_row_model_size_bytes),
               "i"(profile.list_order_bytes),
+              "i"(profile.list_rows_bytes),
               "i"(profile.row_scratch_bytes),
               "i"(profile.duration_cache_bytes),
+              "i"(profile.list_cover_paths_bytes),
               "i"(profile.cover_path_scratch_bytes),
               "i"(profile.list_cover_cache_capacity),
               "i"(profile.list_cover_cache_bytes),

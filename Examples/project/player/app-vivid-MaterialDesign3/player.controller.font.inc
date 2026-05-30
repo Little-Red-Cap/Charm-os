@@ -66,8 +66,8 @@
         void rebind_player_fonts() noexcept {
             if (font_ttf_path.empty()) return;
             reset_player_font_package_cache();
-            bind_player_freetype_font(std::string_view{font_ttf_path},
-                                     std::string_view{font_fallback_ttf_path},
+            bind_player_freetype_font(font_ttf_path.view(),
+                                     font_fallback_ttf_path.view(),
                                      font_small_px,
                                      font_normal_px,
                                      font_large_px);
@@ -80,8 +80,8 @@
                 return;
             }
             reset_player_font_package_cache();
-            bind_player_freetype_font(std::string_view{font_ttf_path},
-                                     std::string_view{font_fallback_ttf_path},
+            bind_player_freetype_font(font_ttf_path.view(),
+                                     font_fallback_ttf_path.view(),
                                      font_small_px,
                                      font_normal_px,
                                      font_large_px);

@@ -61,6 +61,13 @@ staging helper turns `AppStoreReader + name/raw range + cache buffer` into an
 and test fixtures on one program-store shape without adding CRC, signatures, or
 slot policy yet.
 
+The resident platform boundary is now shared by both development downloads and
+external stores: USB/UART packetstream receive produces verified bytes, QSPI or
+future eMMC store readers produce named byte ranges, and both must converge on
+`AppImage -> staged AppImageSource -> AppRuntime`. Store v1 remains only
+`header + entries + payload`; it is not a filesystem or product update slot
+format.
+
 `elf_samples/build_app_store.ps1` builds the current sample App ELFs and packs
 them into a development `.appstore.bin` file. That file is the host/QSPI/eMMC
 preparation artifact for this prototype stage; it is not a final product update
@@ -69,7 +76,9 @@ bundle.
 `charm_app_store_install.hpp` defines the board-free install semantics for
 flash-like media. It models erase/write/read/capacity/alignment and verifies a
 written `.appstore.bin` by readback. The host smoke uses a memory NOR simulator;
-H747 QSPI program/erase is intentionally not wired yet.
+H747 `dev_loader` now binds the same installer contract to QSPI NOR for the
+resident development platform. Future eMMC support must implement the same
+reader/media contracts instead of defining a second App Store protocol.
 
 `charm_app_received_image.hpp` defines the first received-image staging boundary
 between Dev Loader downloads and `AppRuntime`. It turns verified image bytes
@@ -90,6 +99,7 @@ Current store validation entry points:
 - `Examples/system/app_abi_store_file_smoke`
 - `Examples/system/app_abi_store_install_smoke`
 - `Examples/system/dev_loader_store_receive_smoke`
+- `Examples/system/dev_loader_store_install_handoff_smoke`
 - `Examples/system/dev_loader_app_handoff_smoke`
 - `Examples/system/dev_loader_received_elf_smoke`
 - `Examples/system/app_abi_modulex_smoke`

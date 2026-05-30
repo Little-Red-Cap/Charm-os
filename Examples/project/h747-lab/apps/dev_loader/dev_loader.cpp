@@ -2,15 +2,19 @@
 
 #include "charm_app_elf_probe.hpp"
 #include "charm_app_received_image.hpp"
+#include "charm_app_store.hpp"
+#include "charm_app_store_install.hpp"
 #include "charm_dev_loader_byte_transport.hpp"
 #include "charm_dev_loader_commands.hpp"
 #include "charm_dev_loader_hex.hpp"
 #include "charm_dev_loader.hpp"
 #include "charm_dev_loader_received_image.hpp"
+#include "charm_dev_loader_store_handoff.hpp"
 #include "charm_app_staged_runtime.hpp"
 #include "console.h"
 #include "console_service.hpp"
 #include "port.h"
+#include "qspi_nor.h"
 #include "usb_dev_loader_service.hpp"
 
 #include <array>
@@ -31,6 +35,8 @@ using namespace std::literals::string_view_literals;
 namespace app_abi = charm::app_abi;
 namespace loader = charm::dev_loader;
 
+struct Runtime;
+
 constexpr std::uint32_t kDevRamBase = 0x24040000U;
 constexpr std::uint32_t kDevRamCapacity = 256U * 1024U;
 constexpr std::uint32_t kStageProbeScratchSize = 128U * 1024U;
@@ -38,6 +44,7 @@ constexpr std::uint32_t kElfProbeLoadBufferSize = 64U * 1024U;
 constexpr std::uint32_t kPacketBufferCapacity = 512U;
 constexpr std::uint32_t kPacketHexDecodeCapacity = 48U;
 constexpr std::uint32_t kPacketMaxPayloadSize = 256U;
+constexpr std::uint32_t kQspiStoreBaseOffset = 0U;
 constexpr std::string_view kDefaultReceivedAppName = "received_app"sv;
 
 struct AppRunLoadRegion {
@@ -46,6 +53,18 @@ struct AppRunLoadRegion {
     std::uint32_t size{0};
     std::uint32_t align{0};
     std::uintptr_t linked_elf_base{0};
+};
+
+struct ImageStageArena {
+    std::string_view name{};
+    std::uint32_t size{0};
+    std::uint32_t align{0};
+};
+
+constexpr ImageStageArena kImageStageArena{
+    .name = "ram_d1_stage_cache"sv,
+    .size = kStageProbeScratchSize,
+    .align = 32U,
 };
 
 constexpr AppRunLoadRegion kAppRunLoadRegion{
@@ -60,6 +79,7 @@ static_assert(kAppRunLoadRegion.base == kAppRunLoadRegion.linked_elf_base,
               "dev_loader run region must match Examples/app_abi/elf_samples/app_elf.ld ELF_BASE");
 
 loader::Storage ram_storage() noexcept;
+app_abi::AppImage stage_qspi_app(Runtime& rt, std::string_view command, std::string_view spec) noexcept;
 
 template <charm::cap::ByteSink Sink>
 class OutSinkAdapter {
@@ -140,6 +160,16 @@ struct Runtime {
     bool usb_active{false};
     std::uint32_t usb_bytes{0};
     loader::ByteTransportResult usb_last{};
+    bool qspi_ready{false};
+    app_abi::AppStoreInstallCode store_install_code{app_abi::AppStoreInstallCode::invalid_argument};
+    loader::ReceivedImageReadCode store_receive_code{loader::ReceivedImageReadCode::not_launch_ready};
+    app_abi::AppStoreReadCode store_read_code{app_abi::AppStoreReadCode::invalid_argument};
+    std::uint32_t store_install_target{kQspiStoreBaseOffset};
+    std::uint32_t store_install_written{0};
+    std::uint32_t store_install_erased{0};
+    std::uint32_t store_receive_bytes{0};
+    app_abi::AppStoreHeader store_header{};
+    app_abi::AppStoreLookupResult store_lookup{};
     loader::ReceivedImageReadCode app_read_code{loader::ReceivedImageReadCode::not_launch_ready};
     app_abi::AppReceivedImageStageCode app_stage_code{app_abi::AppReceivedImageStageCode::not_verified};
     app_abi::AppElfProbeResult app_probe{};
@@ -235,6 +265,42 @@ loader::Storage ram_storage() noexcept {
         .capacity_bytes = kDevRamCapacity,
         .write = storage_write,
         .read = storage_read,
+    };
+}
+
+app_abi::AppStoreWritableMedia qspi_store_media() noexcept {
+    return app_abi::AppStoreWritableMedia{
+        .ctx = nullptr,
+        .capacity = h747_qspi_nor_capacity(),
+        .erase_block_size = h747_qspi_nor_erase_block_size(),
+        .write_align = h747_qspi_nor_write_align(),
+        .erase = [](void*, std::uint32_t offset, std::uint32_t size) noexcept -> bool {
+            return h747_qspi_nor_erase(offset, size) != 0U;
+        },
+        .write = [](void*, std::uint32_t offset, std::span<const std::byte> bytes) noexcept -> bool {
+            return h747_qspi_nor_write(
+                       offset,
+                       reinterpret_cast<const std::uint8_t*>(bytes.data()),
+                       static_cast<std::uint32_t>(bytes.size())) != 0U;
+        },
+        .read = [](void*, std::uint32_t offset, std::span<std::byte> bytes) noexcept -> bool {
+            return h747_qspi_nor_read(
+                       offset,
+                       reinterpret_cast<std::uint8_t*>(bytes.data()),
+                       static_cast<std::uint32_t>(bytes.size())) != 0U;
+        },
+    };
+}
+
+app_abi::AppStoreReader qspi_store_reader() noexcept {
+    return app_abi::AppStoreReader{
+        .ctx = nullptr,
+        .read = [](void*, std::uint32_t offset, std::span<std::byte> bytes) noexcept -> bool {
+            return h747_qspi_nor_read(
+                       kQspiStoreBaseOffset + offset,
+                       reinterpret_cast<std::uint8_t*>(bytes.data()),
+                       static_cast<std::uint32_t>(bytes.size())) != 0U;
+        },
     };
 }
 
@@ -531,9 +597,95 @@ void print_usb_status(const Runtime& rt) noexcept {
     print_packet_result(rt.usb_last);
 }
 
+void print_store_status(Runtime& rt) noexcept {
+    const auto qspi = h747_qspi_nor_state();
+    rt.qspi_ready = qspi.ready != 0U;
+    emit<"dev: store qspi ready={} power={} jedec_ok={} jedec=0x{:08x} capacity={} erase_block={} write_align={}\n">(
+        qspi.ready,
+        qspi.power_ok,
+        qspi.jedec_ok,
+        qspi.jedec_id,
+        qspi.capacity_bytes,
+        h747_qspi_nor_erase_block_size(),
+        h747_qspi_nor_write_align());
+    emit<"dev: store qspi reads={}/{} writes={}/{} erases={}/{} last=0x{:08x}:{} hal={} err={}\n">(
+        qspi.read_count,
+        qspi.read_fail_count,
+        qspi.write_count,
+        qspi.write_fail_count,
+        qspi.erase_count,
+        qspi.erase_fail_count,
+        qspi.last_offset,
+        qspi.last_bytes,
+        qspi.last_hal_status,
+        qspi.last_error);
+    emit<"dev: store install receive={} recv_bytes={} code={} target=0x{:08x} written={} erased={}\n">(
+        loader::received_image_read_code_name(rt.store_receive_code),
+        rt.store_receive_bytes,
+        app_abi::app_store_install_code_name(rt.store_install_code),
+        rt.store_install_target,
+        rt.store_install_written,
+        rt.store_install_erased);
+
+    app_abi::AppStoreHeader header{};
+    const auto header_code = app_abi::app_store_read_header(qspi_store_reader(), header);
+    rt.store_read_code = header_code;
+    rt.store_header = header;
+    if (header_code != app_abi::AppStoreReadCode::ok) {
+        emit<"dev: store header code={} readable=0 valid=0\n">(
+            app_abi::app_store_read_code_name(header_code));
+        return;
+    }
+    emit<"dev: store header code={} readable=1 valid={} magic=0x{:08x} version={} entries={} header_size={} entry_size={}\n">(
+        app_abi::app_store_read_code_name(header_code),
+        app_abi::app_store_header_valid(header) ? 1U : 0U,
+        header.magic,
+        static_cast<unsigned>(header.version),
+        header.entry_count,
+        header.header_size,
+        header.entry_size);
+}
+
+void list_qspi_store(Runtime& rt) noexcept {
+    app_abi::AppStoreHeader header{};
+    const auto header_code = app_abi::app_store_read_header(qspi_store_reader(), header);
+    rt.store_read_code = header_code;
+    rt.store_header = header;
+    if (header_code != app_abi::AppStoreReadCode::ok) {
+        emit<"dev: store list code={} entries=0\n">(
+            app_abi::app_store_read_code_name(header_code));
+        return;
+    }
+
+    emit<"dev: store entries={}\n">(header.entry_count);
+    for (std::uint32_t i = 0; i < header.entry_count; ++i) {
+        app_abi::AppStoreEntry entry{};
+        const auto entry_code = app_abi::app_store_read_entry(qspi_store_reader(), header, i, entry);
+        if (entry_code != app_abi::AppStoreReadCode::ok) {
+            rt.store_read_code = entry_code;
+            emit<"  [{}] read_failed offset=0x{:08x} code={}\n">(
+                i,
+                app_abi::app_store_entry_offset(header, i),
+                app_abi::app_store_read_code_name(entry_code));
+            return;
+        }
+        emit<"  [{}] name={} offset=0x{:08x} size={} flags=0x{:08x} runnable={}\n">(
+            i,
+            app_abi::app_store_entry_name(entry),
+            entry.offset,
+            entry.size,
+            entry.flags,
+            app_abi::app_store_entry_runnable(entry) ? 1U : 0U);
+    }
+}
+
 void print_app_status(const Runtime& rt) noexcept {
     const auto run_state = (rt.app_last_command == "run"sv) ? "enabled"sv : "disabled"sv;
     emit<"dev: app command={} name={} run={}\n">(rt.app_last_command, rt.app_name, run_state);
+    emit<"dev: app stage-arena name={} size={} align={}\n">(
+        kImageStageArena.name,
+        kImageStageArena.size,
+        kImageStageArena.align);
     emit<"dev: app run-region name={} base=0x{:08x} size={} align={} linked_elf_base=0x{:08x}\n">(
         kAppRunLoadRegion.name,
         static_cast<std::uint32_t>(kAppRunLoadRegion.base),
@@ -546,6 +698,11 @@ void print_app_status(const Runtime& rt) noexcept {
     emit<"dev: app stage={} bytes={}\n">(
         app_abi::app_received_image_stage_code_name(rt.app_stage_code),
         rt.app_stage_bytes);
+    emit<"dev: app store code={} lookup={} offset=0x{:08x} size={}\n">(
+        app_abi::app_store_read_code_name(rt.store_read_code),
+        app_abi::app_store_read_code_name(rt.store_lookup.code),
+        rt.store_lookup.entry.offset,
+        rt.store_lookup.entry.size);
     emit<"dev: app probe={} entry_off=0x{:08x} span={} segments={} runnable={}\n">(
         app_abi::app_elf_probe_code_name(rt.app_probe.code),
         rt.app_probe.entry_offset,
@@ -606,10 +763,14 @@ void print_help() noexcept {
     emit<"  dev usb begin              - Enter exclusive USB CDC packetstream receive mode\n">();
     emit<"  dev usb status             - Show USB packetstream receive state\n">();
     emit<"  dev usb abort              - Stop USB receive mode and disconnect USB\n">();
+    emit<"  dev store status           - Show QSPI App Store diagnostics\n">();
+    emit<"  dev store install qspi     - Install launch_ready .appstore.bin to QSPI\n">();
+    emit<"  dev store list qspi        - List QSPI App Store entries\n">();
+    emit<"  dev store stage qspi:<name> - Stage named QSPI App ELF without running\n">();
     emit<"  dev app stage <name>       - Stage launch_ready payload as App ELF\n">();
     emit<"  dev app probe <name>       - Stage and ELF-probe payload without running\n">();
     emit<"  dev app prepare <name> [args...] - Prepare AppRuntime argv/ABI without running\n">();
-    emit<"  dev app run <name> [args...] - Explicitly call charm_app_main from loaded ELF\n">();
+    emit<"  dev app run <name>|qspi:<name> [args...] - Explicitly call charm_app_main from loaded ELF\n">();
     emit<"  dev app status             - Show received App stage/probe diagnostics\n">();
 }
 
@@ -744,6 +905,77 @@ void handle_usb_command(std::string_view line) noexcept {
     emit<"dev: use 'dev usb begin', 'dev usb status', or 'dev usb abort'\n">();
 }
 
+void handle_store_command(std::string_view line) noexcept {
+    auto& rt = runtime();
+    if (line == "dev store status") {
+        print_store_status(rt);
+        return;
+    }
+    if (line == "dev store install qspi") {
+        const auto qspi = h747_qspi_nor_state();
+        rt.qspi_ready = qspi.ready != 0U;
+        rt.store_install_code = app_abi::AppStoreInstallCode::invalid_argument;
+        rt.store_receive_code = loader::ReceivedImageReadCode::not_launch_ready;
+        rt.store_read_code = app_abi::AppStoreReadCode::invalid_argument;
+        rt.store_install_target = kQspiStoreBaseOffset;
+        rt.store_install_written = 0;
+        rt.store_install_erased = 0;
+        rt.store_receive_bytes = 0;
+        if (!rt.qspi_ready) {
+            emit<"dev: store install backend=qspi ready=0 code={}\n">(
+                app_abi::app_store_install_code_name(rt.store_install_code));
+            print_store_status(rt);
+            return;
+        }
+        auto& scratch = stage_probe_scratch();
+        const auto installed = loader::store_install_received_image(loader::StoreInstallReceivedConfig{
+            .received = loader::ReceivedImageReadConfig{
+                .status = rt.packet_transport.status().packet.receive,
+                .manifest = rt.packet_transport.status().packet.manifest,
+                .storage = ram_storage(),
+                .output = scratch,
+            },
+            .media = qspi_store_media(),
+            .target_offset = kQspiStoreBaseOffset,
+        });
+        rt.store_receive_code = installed.received.code;
+        rt.store_receive_bytes = installed.received.bytes_read;
+        rt.store_read_code = installed.store_code;
+        rt.store_header = installed.header;
+        rt.store_install_code = installed.install.code;
+        rt.store_install_target = installed.install.target_offset;
+        rt.store_install_written = installed.install.bytes_written;
+        rt.store_install_erased = installed.install.bytes_erased;
+        emit<"dev: store install qspi receive={} recv_bytes={} store={} code={} target=0x{:08x} written={} erased={}\n">(
+            loader::received_image_read_code_name(rt.store_receive_code),
+            rt.store_receive_bytes,
+            app_abi::app_store_read_code_name(rt.store_read_code),
+            app_abi::app_store_install_code_name(rt.store_install_code),
+            rt.store_install_target,
+            rt.store_install_written,
+            rt.store_install_erased);
+        return;
+    }
+    if (line == "dev store list qspi") {
+        list_qspi_store(rt);
+        return;
+    }
+    if (line.starts_with("dev store stage ")) {
+        auto spec = trim_left(line.substr(16));
+        const auto image = stage_qspi_app(rt, "stage"sv, spec);
+        if (rt.store_read_code == app_abi::AppStoreReadCode::ok) {
+            emit<"dev: store stage spec={} image={} bytes={}\n">(
+                spec,
+                image.name,
+                static_cast<std::uint32_t>(image.image_size));
+        }
+        print_app_status(rt);
+        return;
+    }
+    emit<"dev: store usage error\n">();
+    emit<"dev: use 'dev store status', 'dev store install qspi', 'dev store list qspi', or 'dev store stage qspi:<name>'\n">();
+}
+
 bool set_app_name(Runtime& rt, std::string_view name) noexcept {
     name = name.empty() ? kDefaultReceivedAppName : name;
     rt.app_name_storage.fill('\0');
@@ -789,11 +1021,21 @@ bool reset_app_diagnostics(Runtime& rt, std::string_view command, std::string_vi
     rt.app_input_poll_count = 0;
     rt.app_read_bytes = 0;
     rt.app_stage_bytes = 0;
+    rt.store_read_code = app_abi::AppStoreReadCode::invalid_argument;
+    rt.store_lookup = {};
     if (!name_ok) {
         rt.app_read_code = loader::ReceivedImageReadCode::invalid_argument;
         rt.app_stage_code = app_abi::AppReceivedImageStageCode::name_too_long;
     }
     return name_ok;
+}
+
+bool parse_qspi_app_name(std::string_view spec, std::string_view& name) noexcept {
+    if (!spec.starts_with("qspi:"sv)) {
+        return false;
+    }
+    name = spec.substr(5U);
+    return !name.empty() && !name.starts_with("@"sv);
 }
 
 app_abi::AppImage stage_received_app(Runtime& rt, std::string_view command, std::string_view name) noexcept {
@@ -831,6 +1073,47 @@ app_abi::AppImage stage_received_app(Runtime& rt, std::string_view command, std:
     if (staged.code != app_abi::AppReceivedImageStageCode::ok) {
         return {};
     }
+    return staged.image;
+}
+
+app_abi::AppImage stage_qspi_app(Runtime& rt, std::string_view command, std::string_view spec) noexcept {
+    std::string_view name{};
+    if (!parse_qspi_app_name(spec, name) || !reset_app_diagnostics(rt, command, spec)) {
+        rt.store_read_code = app_abi::AppStoreReadCode::invalid_argument;
+        rt.app_run_code = app_abi::AppRunCode::invalid_argument;
+        return {};
+    }
+
+    const auto qspi = h747_qspi_nor_state();
+    rt.qspi_ready = qspi.ready != 0U;
+    if (!rt.qspi_ready) {
+        rt.store_read_code = app_abi::AppStoreReadCode::header_unreadable;
+        rt.app_run_code = app_abi::AppRunCode::image_not_found;
+        return {};
+    }
+
+    auto& scratch = stage_probe_scratch();
+    const auto staged = loader::store_stage_named_app_image(loader::StoreStageNamedConfig{
+        .reader = qspi_store_reader(),
+        .name = name,
+        .cache = scratch,
+        .format = app_abi::AppImageFormat::elf,
+    });
+    rt.store_read_code = staged.code;
+    rt.store_lookup = staged.lookup;
+    if (staged.code != app_abi::AppStoreReadCode::ok) {
+        rt.app_run_code = (staged.code == app_abi::AppStoreReadCode::image_not_found ||
+                           staged.code == app_abi::AppStoreReadCode::header_unreadable ||
+                           staged.code == app_abi::AppStoreReadCode::header_invalid ||
+                           staged.code == app_abi::AppStoreReadCode::entry_read_failed)
+            ? app_abi::AppRunCode::image_not_found
+            : app_abi::AppRunCode::load_failed;
+        return {};
+    }
+    rt.app_read_code = loader::ReceivedImageReadCode::ok;
+    rt.app_stage_code = app_abi::AppReceivedImageStageCode::ok;
+    rt.app_read_bytes = staged.lookup.entry.size;
+    rt.app_stage_bytes = staged.lookup.entry.size;
     return staged.image;
 }
 
@@ -874,12 +1157,23 @@ void prepare_received_app(Runtime& rt, std::string_view name, std::string_view a
     rt.app_prepare_ready = prepared.ready;
 }
 
-void run_received_app(Runtime& rt, std::string_view name, std::string_view args) noexcept {
-    const auto image = stage_received_app(rt, "run"sv, name);
-    if (rt.app_stage_code != app_abi::AppReceivedImageStageCode::ok) {
-        return;
-    }
+void probe_staged_app(Runtime& rt, const app_abi::AppImage& image) noexcept {
+    auto& load = elf_probe_load_buffer();
+    const auto loaded = app_abi::app_elf_load_image(&rt.app_elf_backend,
+                                                    image,
+                                                    app_abi::AppLoadBuffer{
+                                                        .base = load.data(),
+                                                        .size = load.size(),
+                                                        .align = 16,
+                                                    });
+    rt.app_probe = rt.app_elf_backend.last.plan.probe;
+    rt.app_plan_code = loaded.code;
+    rt.app_plan_backend_error = loaded.backend_error;
+    rt.app_plan_load_base = rt.app_elf_backend.last.plan.load_base;
+    rt.app_plan_entry = rt.app_elf_backend.last.plan.entry_address;
+}
 
+void run_staged_app(Runtime& rt, const app_abi::AppImage& image, std::string_view args) noexcept {
     const auto load = app_run_load_buffer();
     app_abi::StagedAppImageSource source_ctx{
         .image = image,
@@ -899,7 +1193,7 @@ void run_received_app(Runtime& rt, std::string_view name, std::string_view args)
             .prepare_ctx = &rt.app_elf_backend,
         },
         .api = &api,
-        .name = rt.app_name,
+        .name = image.name,
         .arg_text = args,
     });
 
@@ -921,6 +1215,23 @@ void run_received_app(Runtime& rt, std::string_view name, std::string_view args)
     rt.app_run_backend_error = result.backend_error;
     rt.app_run_exit_code = result.exit_code;
     rt.app_run_exited = result.exited;
+}
+
+void run_received_app(Runtime& rt, std::string_view name, std::string_view args) noexcept {
+    const auto image = stage_received_app(rt, "run"sv, name);
+    if (rt.app_stage_code != app_abi::AppReceivedImageStageCode::ok) {
+        return;
+    }
+
+    run_staged_app(rt, image, args);
+}
+
+void run_qspi_app(Runtime& rt, std::string_view spec, std::string_view args) noexcept {
+    const auto image = stage_qspi_app(rt, "run"sv, spec);
+    if (rt.store_read_code != app_abi::AppStoreReadCode::ok) {
+        return;
+    }
+    run_staged_app(rt, image, args);
 }
 
 void handle_app_command(std::string_view line) noexcept {
@@ -945,19 +1256,7 @@ void handle_app_command(std::string_view line) noexcept {
         }
         const auto image = stage_received_app(rt, "probe"sv, name);
         if (rt.app_stage_code == app_abi::AppReceivedImageStageCode::ok) {
-            auto& load = elf_probe_load_buffer();
-            const auto loaded = app_abi::app_elf_load_image(&rt.app_elf_backend,
-                                                            image,
-                                                            app_abi::AppLoadBuffer{
-                                                                .base = load.data(),
-                                                                .size = load.size(),
-                                                                .align = 16,
-                                                            });
-            rt.app_probe = rt.app_elf_backend.last.plan.probe;
-            rt.app_plan_code = loaded.code;
-            rt.app_plan_backend_error = loaded.backend_error;
-            rt.app_plan_load_base = rt.app_elf_backend.last.plan.load_base;
-            rt.app_plan_entry = rt.app_elf_backend.last.plan.entry_address;
+            probe_staged_app(rt, image);
         }
         print_app_status(rt);
         return;
@@ -976,7 +1275,11 @@ void handle_app_command(std::string_view line) noexcept {
         if (name.empty()) {
             name = kDefaultReceivedAppName;
         }
-        run_received_app(rt, name, args);
+        if (name.starts_with("qspi:"sv)) {
+            run_qspi_app(rt, name, args);
+        } else {
+            run_received_app(rt, name, args);
+        }
         print_app_status(rt);
         return;
     }
@@ -987,6 +1290,10 @@ void handle_app_command(std::string_view line) noexcept {
 void handle_command(std::string_view line) noexcept {
     if (line.starts_with("dev app")) {
         handle_app_command(line);
+        return;
+    }
+    if (line.starts_with("dev store")) {
+        handle_store_command(line);
         return;
     }
     if (line.starts_with("dev usb")) {
@@ -1074,10 +1381,13 @@ void pump_usb(Runtime& rt) noexcept {
 } // namespace
 
 void init() {
+    h747_qspi_nor_init();
+    runtime().qspi_ready = h747_qspi_nor_state().ready != 0U;
     emit<"dev_loader: resident RAM dev-loader skeleton ready\n">();
-    emit<"dev_loader: transport=console-test/raw-uart/usb-cdc launch=app-run-explicit\n">();
+    emit<"dev_loader: transport=console-test/raw-uart/usb-cdc store=qspi launch=app-run-explicit\n">();
     print_help();
     print_status(runtime().commands.status());
+    print_store_status(runtime());
 }
 
 void loop_once() noexcept {

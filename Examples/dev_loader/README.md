@@ -23,6 +23,12 @@ The first-generation contract is intentionally small:
   H747 `dev_loader`.
 - `received_image_read` exposes a read-only view of a `launch_ready` received
   image for AppRuntime handoff experiments.
+- `store_install_received_image` installs a `launch_ready` received
+  `.appstore.bin` into a caller-provided flash-like medium using the same
+  `AppStoreWritableMedia` contract as the App ABI store installer.
+- `store_stage_named_app_image` stages a named store payload as an `AppImage`,
+  keeping QSPI/eMMC store reads and received-image downloads on the same
+  `AppImage -> staged AppImageSource -> AppRuntime` boundary.
 - H747 `dev app stage/probe/prepare/run` consumes that received-image view and
   the App ABI ELF load/AppRuntime helper chain.
 - `dev launch dry-run` remains the transport-neutral receive-session marker;
@@ -54,6 +60,7 @@ Board-free validation entry points:
 - `Examples/system/dev_loader_byte_transport_smoke`
 - `Examples/system/dev_loader_hex_ingest_smoke`
 - `Examples/system/dev_loader_store_receive_smoke`
+- `Examples/system/dev_loader_store_install_handoff_smoke`
 - `Examples/system/dev_loader_app_handoff_smoke`
 - `Examples/system/dev_loader_received_elf_smoke`
 - `Examples/system/dev_loader_stage_probe_smoke`
@@ -63,6 +70,20 @@ v1 install/staging and the transport-neutral receive path. It does not add a
 product manifest, USB transfer, or real jump; it proves that bytes installed to
 a flash-like medium and staged from the same external program-store shape can be
 fed into the RAM receive state machine.
+
+`dev_loader_store_install_handoff_smoke` closes the board-free resident platform
+path before QSPI board validation:
+
+```text
+packetstream .appstore.bin -> launch_ready received image
+  -> AppStoreWritableMedia install/readback
+  -> AppStoreReader list/find/stage
+  -> staged AppImageSource
+  -> AppRuntime::run()
+```
+
+It still uses memory NOR and a fake loader on host. It does not change Store v1,
+packet v0, `CharmAppApi v1`, or add product slot/manifest policy.
 
 `dev_loader_packet_smoke` freezes the command-independent packet semantics for
 future USB/serial/host transports. It does not define a USB framing layer,

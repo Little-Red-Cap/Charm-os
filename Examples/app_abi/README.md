@@ -34,6 +34,16 @@ future hot-loaded apps should target this capability-table semantic model first;
 ELF is the first image format, and ModuleX must later reuse the same entry and
 capability table rather than defining a second program model.
 
+`charm_app_modulex_loader.hpp` is the first host-only ModuleX App loader
+prototype. It treats ModuleX as a second `AppImage` format, resolves
+`charm_app_main` from the ModuleX symbol table, and materializes the result as
+the same `CharmAppMainFn` consumed by `AppRuntime`. It deliberately does not
+reuse the POSIX ModuleX `main(argc, argv, envp)` ABI. Because current GCC
+modules and libstdc++ text headers are sensitive to include/import order,
+callers include the normal App ABI headers and standard library headers first,
+then import `module_core/module_view/module_loader/module_link`, then include
+`charm_app_modulex_loader.hpp`.
+
 `player_min_core.h` holds the first shared Player-mini app core used by both the
 host smoke and the embedded App ELF sample. It is deliberately small: query the
 display, poll input, get time, submit one bounded ARGB8888 raster payload, and
@@ -82,3 +92,4 @@ Current store validation entry points:
 - `Examples/system/dev_loader_store_receive_smoke`
 - `Examples/system/dev_loader_app_handoff_smoke`
 - `Examples/system/dev_loader_received_elf_smoke`
+- `Examples/system/app_abi_modulex_smoke`

@@ -7,6 +7,7 @@
 #include "charm_dev_loader_hex.hpp"
 #include "charm_dev_loader.hpp"
 #include "charm_dev_loader_received_image.hpp"
+#include "charm_app_staged_runtime.hpp"
 #include "console.h"
 #include "console_service.hpp"
 #include "port.h"
@@ -237,27 +238,14 @@ loader::Storage ram_storage() noexcept {
     };
 }
 
-struct RuntimeElfSource {
-    app_abi::AppImage image{};
-    app_abi::AppElfLoadBackend* backend{nullptr};
-};
-
-const app_abi::AppImage* find_runtime_elf(void* ctx, std::string_view name) noexcept {
-    auto* source = static_cast<RuntimeElfSource*>(ctx);
-    if (source == nullptr || source->image.name != name) {
-        return nullptr;
-    }
-    return &source->image;
-}
-
 app_abi::AppLoadResult load_runtime_elf(void* ctx,
                                         const app_abi::AppImage& image,
                                         const app_abi::AppLoadBuffer& buffer) noexcept {
-    auto* source = static_cast<RuntimeElfSource*>(ctx);
-    if (source == nullptr || source->backend == nullptr || &source->image != &image) {
+    auto* backend = static_cast<app_abi::AppElfLoadBackend*>(ctx);
+    if (backend == nullptr) {
         return {.code = app_abi::AppRunCode::image_not_found};
     }
-    return app_abi::app_elf_load_image(source->backend, image, buffer);
+    return app_abi::app_elf_load_image(backend, image, buffer);
 }
 
 CharmAppApi make_prepare_api() noexcept {
@@ -853,15 +841,12 @@ void prepare_received_app(Runtime& rt, std::string_view name, std::string_view a
     }
 
     auto& load = elf_probe_load_buffer();
-    RuntimeElfSource source_ctx{
+    app_abi::StagedAppImageSource source_ctx{
         .image = image,
-        .backend = &rt.app_elf_backend,
-    };
-    app_abi::AppImageSource source{
-        .ctx = &source_ctx,
-        .find = find_runtime_elf,
+        .load_ctx = &rt.app_elf_backend,
         .load = load_runtime_elf,
     };
+    auto source = app_abi::make_staged_app_image_source(source_ctx);
     CharmAppApi api = make_prepare_api();
     app_abi::AppRuntime<> app_runtime{};
     const auto prepared = app_runtime.prepare(app_abi::AppRunConfig{
@@ -896,15 +881,12 @@ void run_received_app(Runtime& rt, std::string_view name, std::string_view args)
     }
 
     const auto load = app_run_load_buffer();
-    RuntimeElfSource source_ctx{
+    app_abi::StagedAppImageSource source_ctx{
         .image = image,
-        .backend = &rt.app_elf_backend,
-    };
-    app_abi::AppImageSource source{
-        .ctx = &source_ctx,
-        .find = find_runtime_elf,
+        .load_ctx = &rt.app_elf_backend,
         .load = load_runtime_elf,
     };
+    auto source = app_abi::make_staged_app_image_source(source_ctx);
     CharmAppApi api = make_run_api();
     app_abi::AppRuntime<> app_runtime{};
     const auto result = app_runtime.run(app_abi::AppRunConfig{

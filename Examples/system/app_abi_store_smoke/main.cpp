@@ -1,14 +1,60 @@
 #include "charm_app_store.hpp"
+#include "charm_app_staged_runtime.hpp"
 
 #include <array>
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
 #include <span>
+#include <string_view>
 
 namespace {
 
 namespace app_abi = charm::app_abi;
+
+struct HostState {
+    int argc_seen{0};
+    bool entered{false};
+};
+
+HostState* g_host = nullptr;
+
+extern "C" int staged_store_app_main(const CharmAppApi*, int argc, char** argv) {
+    if (g_host == nullptr || argv == nullptr || argc < 2) {
+        return 90;
+    }
+    if (std::string_view{argv[0]} != "hello_app" || std::string_view{argv[1]} != "store_arg") {
+        return 91;
+    }
+    g_host->argc_seen = argc;
+    g_host->entered = true;
+    return 23;
+}
+
+CharmAppApi make_api() {
+    CharmAppApi api{};
+    api.magic = CHARM_APP_API_MAGIC;
+    api.version = CHARM_APP_API_VERSION;
+    api.size = sizeof(CharmAppApi);
+    return api;
+}
+
+struct StagedLoadCtx {
+    CharmAppMainFn entry{staged_store_app_main};
+};
+
+app_abi::AppLoadResult load_staged_store_image(void* ctx,
+                                               const app_abi::AppImage& image,
+                                               const app_abi::AppLoadBuffer&) noexcept {
+    auto* load = static_cast<StagedLoadCtx*>(ctx);
+    if (load == nullptr) {
+        return {.code = app_abi::AppRunCode::image_not_found};
+    }
+    return app_abi::AppLoadResult{
+        .code = app_abi::AppRunCode::ok,
+        .image = app_abi::LoadedAppImage::from_entry(image.name, image.format, load->entry),
+    };
+}
 
 bool expect(const bool condition, const char* message) {
     if (!condition) {
@@ -176,6 +222,33 @@ int main() {
                 "staging returns AppImage view") && ok;
     ok = expect(stage_cache[0] == std::byte{0xCA} && stage_cache[3] == std::byte{0xBE},
                 "staging copies payload") && ok;
+
+    HostState host{};
+    g_host = &host;
+    StagedLoadCtx load_ctx{};
+    auto staged_for_runtime = staged.image;
+    staged_for_runtime.format = app_abi::AppImageFormat::function;
+    app_abi::StagedAppImageSource staged_source_ctx{
+        .image = staged_for_runtime,
+        .load_ctx = &load_ctx,
+        .load = load_staged_store_image,
+    };
+    auto staged_source = app_abi::make_staged_app_image_source(staged_source_ctx);
+    CharmAppApi api = make_api();
+    app_abi::AppRuntime<> runtime{};
+    const auto run = runtime.run(app_abi::AppRunConfig{
+        .source = &staged_source,
+        .api = &api,
+        .name = "hello_app",
+        .arg_text = "store_arg",
+    });
+    ok = expect(run.stage == app_abi::AppRunStage::exit &&
+                    run.code == app_abi::AppRunCode::ok &&
+                    run.exited &&
+                    run.exit_code == 23,
+                "store staged AppImage runs through staged runtime adapter") && ok;
+    ok = expect(host.entered && host.argc_seen == 2,
+                "store staged AppImage receives argv through AppRuntime") && ok;
 
     const auto staged_missing = app_abi::app_store_stage_named_image(reader, "missing", stage_cache);
     ok = expect(staged_missing.code == app_abi::AppStoreReadCode::image_not_found,

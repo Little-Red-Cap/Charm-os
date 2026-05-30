@@ -55,6 +55,10 @@ int charm_app_main(const CharmAppApi* api, int argc, char** argv);
   and staging prototype. H747 only provides the QSPI `read(offset, bytes)`
   backend and a RAM cache; lookup/read/cache-to-`AppImage` behavior stays in
   the shared App ABI helper.
+- Store-backed App images enter the same shared staged-image runtime adapter as
+  Dev Loader received images: `AppImage -> staged AppImageSource -> AppRuntime`.
+  `app_lab` still owns the H747 ELF loader, load buffer, and capabilities; the
+  adapter only removes monitor-local single-image source glue.
 - `app status` is the official diagnostics-first report for this target.
   Its stable fields are:
   `last_request`, `last_app`, `last_source`, `last_stage`, `last_code`,

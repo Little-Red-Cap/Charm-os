@@ -151,8 +151,9 @@ prints `ready`, `argc`, and the would-be entry address. These commands print
 `dev app run <name> [args...]` is the first explicit execution command. The
 current payload format is App ELF. The packetstream receiver stores bytes in
 the RAM receive buffer, `dev app run` reads the verified payload back into a
-staging cache, stages it as `AppImage(format=elf)`, loads it into the fixed App
-execution region, cleans DCache, invalidates ICache, and calls
+staging cache, stages it as `AppImage(format=elf)`, wraps it with the shared
+staged-image runtime adapter, loads it into the fixed App execution region,
+cleans DCache, invalidates ICache, and calls
 `charm_app_main(api, argc, argv)`.
 
 The first App execution region is fixed to
@@ -243,8 +244,8 @@ Latest board facts:
 
 The current handoff target after `launch_ready` is now explicit:
 `dev app stage/probe/prepare/run` must continue to reuse the shared received
-image, App ABI staging, ELF load, and AppRuntime boundaries. Do not add a direct
-raw jump path in this monitor.
+image, App ABI staging, staged-image source adapter, ELF load, and AppRuntime
+boundaries. Do not add a direct raw jump path in this monitor.
 
 The received ELF load semantics are covered off-board by
 `dev_loader_received_elf_smoke`: real App ELF bytes are received and load-probed

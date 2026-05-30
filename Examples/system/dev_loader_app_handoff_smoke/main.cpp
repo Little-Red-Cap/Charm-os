@@ -1,6 +1,7 @@
 #include "charm_app_api.h"
 #include "charm_app_received_image.hpp"
 #include "charm_app_runtime.hpp"
+#include "charm_app_staged_runtime.hpp"
 #include "charm_dev_loader_byte_transport.hpp"
 #include "charm_dev_loader_received_image.hpp"
 
@@ -160,26 +161,17 @@ loader::Storage make_storage(MemoryStorage& memory) {
     };
 }
 
-struct SourceCtx {
-    app_abi::AppImage image{};
+struct StagedLoadCtx {
     CharmAppMainFn entry{fake_charm_app_main};
     app_abi::AppRunCode load_code{app_abi::AppRunCode::ok};
     int backend_error{0};
 };
 
-const app_abi::AppImage* find_image(void* ctx, std::string_view name) noexcept {
-    auto* source = static_cast<SourceCtx*>(ctx);
-    if (source == nullptr || source->image.name != name) {
-        return nullptr;
-    }
-    return &source->image;
-}
-
 app_abi::AppLoadResult load_image(void* ctx,
                                   const app_abi::AppImage& image,
                                   const app_abi::AppLoadBuffer&) noexcept {
-    auto* source = static_cast<SourceCtx*>(ctx);
-    if (source == nullptr || &source->image != &image) {
+    auto* source = static_cast<StagedLoadCtx*>(ctx);
+    if (source == nullptr) {
         return {.code = app_abi::AppRunCode::image_not_found};
     }
     if (source->load_code != app_abi::AppRunCode::ok) {
@@ -303,8 +295,13 @@ bool expect_app_run_from_payload() {
         return false;
     }
 
-    SourceCtx source_ctx{.image = staged.image};
-    app_abi::AppImageSource source{.ctx = &source_ctx, .find = find_image, .load = load_image};
+    StagedLoadCtx source_ctx{};
+    app_abi::StagedAppImageSource staged_source_ctx{
+        .image = staged.image,
+        .load_ctx = &source_ctx,
+        .load = load_image,
+    };
+    auto source = app_abi::make_staged_app_image_source(staged_source_ctx);
     HostState host{};
     g_host = &host;
     CharmAppApi api = make_api();
@@ -413,21 +410,21 @@ int main() {
     ok = expect(staged.code == app_abi::AppReceivedImageStageCode::name_too_long,
                 "long app image name is rejected") && ok;
 
-    SourceCtx failing_source_ctx{
+    StagedLoadCtx failing_load_ctx{
+        .load_code = app_abi::AppRunCode::load_failed,
+        .backend_error = 123,
+    };
+    app_abi::StagedAppImageSource failing_source_ctx{
         .image = app_abi::AppImage{
             .name = "received_app",
             .format = app_abi::AppImageFormat::function,
             .image_base = image.data(),
             .image_size = image.size(),
         },
-        .load_code = app_abi::AppRunCode::load_failed,
-        .backend_error = 123,
-    };
-    app_abi::AppImageSource failing_source{
-        .ctx = &failing_source_ctx,
-        .find = find_image,
+        .load_ctx = &failing_load_ctx,
         .load = load_image,
     };
+    auto failing_source = app_abi::make_staged_app_image_source(failing_source_ctx);
     HostState host{};
     g_host = &host;
     CharmAppApi api = make_api();

@@ -1,5 +1,6 @@
 #include "charm_app_api.h"
 #include "charm_app_runtime.hpp"
+#include "charm_app_staged_runtime.hpp"
 
 #include <array>
 #include <cstddef>
@@ -183,6 +184,31 @@ app_abi::AppLoadResult load_image(void* ctx,
         };
     }
     return app_abi::AppLoadResult{.code = app_abi::AppRunCode::image_not_found};
+}
+
+struct StagedLoadCtx {
+    CharmAppMainFn entry{nullptr};
+    app_abi::AppRunCode load_code{app_abi::AppRunCode::ok};
+    int backend_error{0};
+};
+
+app_abi::AppLoadResult load_staged_function(void* ctx,
+                                            const app_abi::AppImage& image,
+                                            const app_abi::AppLoadBuffer&) noexcept {
+    auto* staged = static_cast<StagedLoadCtx*>(ctx);
+    if (staged == nullptr) {
+        return {.code = app_abi::AppRunCode::image_not_found};
+    }
+    if (staged->load_code != app_abi::AppRunCode::ok) {
+        return {
+            .code = staged->load_code,
+            .backend_error = staged->backend_error,
+        };
+    }
+    return app_abi::AppLoadResult{
+        .code = app_abi::AppRunCode::ok,
+        .image = app_abi::LoadedAppImage::from_entry(image.name, image.format, staged->entry),
+    };
 }
 
 bool contains(const HostRuntime& runtime, const std::string_view needle) {
@@ -436,6 +462,79 @@ int main() {
     ok = expect_result(name_too_long, app_abi::AppRunStage::argv,
                        app_abi::AppRunCode::argv_name_too_long,
                        "too long image name fails at argv stage") && ok;
+
+    app_abi::StagedAppImageSource staged_source_ctx{
+        .image = app_abi::AppImage{.name = "staged_app", .format = app_abi::AppImageFormat::function},
+        .load_ctx = nullptr,
+        .load = load_staged_function,
+    };
+    auto staged_source = app_abi::make_staged_app_image_source(staged_source_ctx);
+    const auto staged_mismatch = app_runtime.run(app_abi::AppRunConfig{
+        .source = &staged_source,
+        .api = &api,
+        .name = "other_app",
+    });
+    ok = expect_result(staged_mismatch, app_abi::AppRunStage::lookup,
+                       app_abi::AppRunCode::image_not_found,
+                       "staged source rejects name mismatch") && ok;
+
+    auto staged_loader_missing = staged_source_ctx;
+    staged_loader_missing.load = nullptr;
+    auto staged_missing_source = app_abi::make_staged_app_image_source(staged_loader_missing);
+    const auto staged_missing_entry = app_runtime.run(app_abi::AppRunConfig{
+        .source = &staged_missing_source,
+        .api = &api,
+        .name = "staged_app",
+    });
+    ok = expect_result(staged_missing_entry, app_abi::AppRunStage::load,
+                       app_abi::AppRunCode::image_not_found,
+                       "staged source reports missing loader") && ok;
+
+    StagedLoadCtx staged_function_ctx{.entry = hello_app_main};
+    app_abi::StagedAppImageSource staged_success_ctx{
+        .image = app_abi::AppImage{.name = "staged_app", .format = app_abi::AppImageFormat::function},
+        .load_ctx = &staged_function_ctx,
+        .load = load_staged_function,
+    };
+    auto staged_success_source = app_abi::make_staged_app_image_source(staged_success_ctx);
+    const auto staged_success = app_runtime.run(app_abi::AppRunConfig{
+        .source = &staged_success_source,
+        .api = &api,
+        .name = "staged_app",
+        .arg_text = "via_adapter",
+    });
+    ok = expect(staged_success.exited && staged_success.exit_code == 0,
+                "staged source runs through AppRuntime") && ok;
+    ok = expect_result(staged_success, app_abi::AppRunStage::exit,
+                       app_abi::AppRunCode::ok,
+                       "staged source reaches exit") && ok;
+    ok = expect(contains(runtime, "hello_app: argv1=via_adapter"),
+                "staged source passes argv through adapter") && ok;
+
+    staged_function_ctx.load_code = app_abi::AppRunCode::load_failed;
+    staged_function_ctx.backend_error = 321;
+    const auto staged_load_failed = app_runtime.run(app_abi::AppRunConfig{
+        .source = &staged_success_source,
+        .api = &api,
+        .name = "staged_app",
+    });
+    ok = expect_result(staged_load_failed, app_abi::AppRunStage::load,
+                       app_abi::AppRunCode::load_failed,
+                       "staged source propagates loader failure") && ok;
+    ok = expect(staged_load_failed.backend_error == 321,
+                "staged source propagates backend error") && ok;
+
+    staged_function_ctx.load_code = app_abi::AppRunCode::ok;
+    staged_function_ctx.backend_error = 0;
+    staged_function_ctx.entry = nullptr;
+    const auto staged_missing_entry_result = app_runtime.run(app_abi::AppRunConfig{
+        .source = &staged_success_source,
+        .api = &api,
+        .name = "staged_app",
+    });
+    ok = expect_result(staged_missing_entry_result, app_abi::AppRunStage::abi,
+                       app_abi::AppRunCode::abi_missing,
+                       "staged source reports missing entry") && ok;
 
     if (!ok) {
         return 1;

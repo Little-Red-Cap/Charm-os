@@ -23,6 +23,12 @@ plus argv without calling target code; `run()` is the explicit execution path.
 It intentionally remains under
 `Examples/app_abi` until the shape has survived H747, host, and ModuleX pressure.
 
+`charm_app_staged_runtime.hpp` is the shared adapter for already-staged images.
+QSPI/eMMC App Store paths and Dev Loader received-image paths both converge on
+`AppImage -> staged AppImageSource -> AppRuntime`; the adapter only wraps one
+`AppImage` plus the caller-provided loader callback and does not define a new
+image format, entry point, or capability table.
+
 POSIX remains a compatibility layer for C/POSIX programs. Player, Scope, and
 future hot-loaded apps should target this capability-table semantic model first;
 ELF is the first image format, and ModuleX must later reuse the same entry and

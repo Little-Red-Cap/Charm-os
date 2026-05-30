@@ -3,6 +3,7 @@
 
 #include "charm_app_api.h"
 #include "charm_app_runtime.hpp"
+#include "charm_app_staged_runtime.hpp"
 #include "charm_app_store.hpp"
 #include "charm_app_store_install.hpp"
 #include "console.h"
@@ -600,44 +601,34 @@ app_abi::AppLoadResult load_cached_app_image(void*, const app_abi::AppImage& app
     return load_app_image(nullptr, app, buffer);
 }
 
-app_abi::AppImageSource single_cached_image_source(app_abi::AppImage& image) noexcept {
-    return app_abi::AppImageSource{
-        .ctx = &image,
-        .find = [](void* ctx, std::string_view name) noexcept -> const app_abi::AppImage* {
-            auto* image = static_cast<app_abi::AppImage*>(ctx);
-            if (image == nullptr || image->name != name) {
-                return nullptr;
-            }
-            return image;
-        },
-        .load = load_cached_app_image,
-    };
-}
-
 std::optional<int> run_staged(RuntimeState& runtime,
                               const app_abi::AppImage& image,
                               std::string_view arg_text) noexcept {
-    auto staged = image;
-    auto source = single_cached_image_source(staged);
+    app_abi::StagedAppImageSource staged{
+        .image = image,
+        .load_ctx = nullptr,
+        .load = load_cached_app_image,
+    };
+    auto source = app_abi::make_staged_app_image_source(staged);
     CharmAppApi api = make_api();
     app_abi::AppRuntime<> app_runtime{};
     const auto result = app_runtime.run(app_abi::AppRunConfig{
         .source = &source,
         .load_buffer = app_load_buffer(),
         .api = &api,
-        .name = staged.name,
+        .name = staged.image.name,
         .arg_text = arg_text,
     });
     record_result(runtime, result);
     if (result.code != app_abi::AppRunCode::ok || !result.exited) {
         emit<"app: failed name={} stage={} code={} backend={}\n">(
-            staged.name,
+            staged.image.name,
             app_abi::stage_name(result.stage),
             app_abi::code_name(result.code),
             result.backend_error);
         return std::nullopt;
     }
-    emit<"app: exit name={} code={}\n">(staged.name, result.exit_code);
+    emit<"app: exit name={} code={}\n">(staged.image.name, result.exit_code);
     return result.exit_code;
 }
 

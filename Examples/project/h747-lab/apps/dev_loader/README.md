@@ -118,18 +118,24 @@ own and initialize its own USB backend.
 USB CDC board validation status:
 
 - `dev usb begin` reaches `USBD_Init`, class/interface registration, PCD start,
-  and soft-disconnect release successfully.
+  soft-disconnect release, Windows CDC enumeration, and `cdc_ready=1` when the
+  board USB device cable is connected.
 - `dev usb status` prints OTG core/device registers, EP0 event counters, the
   last setup packet if present, and device/config descriptor prefixes.
-- Current board evidence shows `setup=0 reset=0 connect=0 disconnect=0` before
-  the packet layer, while `dev_desc` and `cfg_desc` are valid in firmware.
-- A `storage_firmware_runtime` USB MSC control test on the same board/host path
-  produced the same no-reset/no-setup signature, so the current blocker is
-  classified as an enumeration-before-class issue, not a CDC packetstream or App
-  runtime issue.
-- Next USB work should first validate the physical host/device path, VBUS/ID
-  wiring, cable/port state, and OTG FS peripheral attach behavior before
-  changing packet v0 or AppRuntime semantics.
+- If the USB device cable is not connected, both CDC and the USB MSC comparison
+  firmware show `setup=0 reset=0 connect=0 disconnect=0`; classify that as a
+  physical host/device path issue before changing packet v0 or AppRuntime.
+- With the cable connected, current board evidence shows `setup>0`, `reset>0`,
+  `cdc_ready=1`, and a Windows CDC port such as `COM27`.
+- `hello_app.elf.packetstream` over USB CDC reached `launch_ready`, then
+  `dev app run hello_app alpha beta` entered `charm_app_main()` and returned
+  `exit=0`.
+- `player_min.elf.packetstream` over USB CDC reached `launch_ready`, then
+  `dev app run player_min` presented one stub frame, polled input once, and
+  returned `exit=0`.
+- The first measured USB CDC packetstream path is about `50 KiB/s` to
+  `launch_ready` for the small App ELF samples, already materially faster than
+  the current pyOCD internal Flash path.
 
 After a packetstream reaches `launch_ready`, `dev app stage <name>` reads the
 verified payload back from the RAM receive buffer into a 128 KiB staging scratch
@@ -220,6 +226,10 @@ Latest board facts:
   expected argv output, and returned exit code `0`.
 - `dev app run player_min` called the same App ABI path, presented one stub
   frame, polled input once, and returned exit code `0`.
+- USB CDC packetstream download now reaches `launch_ready` for real
+  `hello_app.elf` and `player_min.elf` payloads when the board USB device cable
+  is connected. `player_min.elf.packetstream` measured about `50 KiB/s` to
+  `launch_ready` on the first successful run.
 - `flash-dev-loader-pyocd.ps1` previously used `100k` SWD and took about 513s
   for a 94 KiB image. The default is now `1000k`; lower it explicitly only when
   probe stability requires it.

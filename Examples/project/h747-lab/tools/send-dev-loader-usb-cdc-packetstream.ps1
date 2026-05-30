@@ -195,6 +195,29 @@ function Wait-ForToken {
     return $false
 }
 
+function Read-UntilQuiet {
+    param(
+        [System.IO.Ports.SerialPort]$Serial,
+        [int]$QuietMilliseconds,
+        [int]$MaxMilliseconds
+    )
+
+    $LastRead = [DateTime]::UtcNow
+    $Deadline = [DateTime]::UtcNow.AddMilliseconds($MaxMilliseconds)
+    while ([DateTime]::UtcNow -lt $Deadline) {
+        $Chunk = $Serial.ReadExisting()
+        if ($Chunk.Length -gt 0) {
+            [void]$script:Capture.Append($Chunk)
+            Write-CaptureText $Chunk
+            $LastRead = [DateTime]::UtcNow
+        }
+        if ((([DateTime]::UtcNow - $LastRead).TotalMilliseconds -ge $QuietMilliseconds)) {
+            return
+        }
+        Start-Sleep -Milliseconds 20
+    }
+}
+
 try {
     $LogWriter = [System.IO.StreamWriter]::new([System.IO.Path]::GetFullPath($Log), $false, $Utf8NoBom)
     Write-CaptureText "H747 Dev Loader USB CDC packetstream sender`n"
@@ -258,6 +281,14 @@ try {
         throw "Timed out waiting for launch_ready."
     }
     $LaunchReadyElapsed = [DateTime]::UtcNow - $Start
+
+    # The automatic status emitted when raw USB mode exits can be interleaved
+    # with UART output. Query once more from command mode so validation uses a
+    # complete, stable diagnostic frame.
+    $ControlSerial.WriteLine("dev usb status")
+    Write-CaptureText "`n[sender] sent: dev usb status`n"
+    Read-UntilQuiet -Serial $ControlSerial -QuietMilliseconds 200 -MaxMilliseconds 2000
+
     $Captured = $Capture.ToString()
     $ExpectedReceived = "received=$($PacketInfo.PayloadSize)"
     if ($Captured.IndexOf($ExpectedReceived, [System.StringComparison]::Ordinal) -lt 0) {

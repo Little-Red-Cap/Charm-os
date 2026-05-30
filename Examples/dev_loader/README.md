@@ -23,9 +23,10 @@ The first-generation contract is intentionally small:
   H747 `dev_loader`.
 - `received_image_read` exposes a read-only view of a `launch_ready` received
   image for AppRuntime handoff experiments.
-- H747 `dev app stage/probe` consumes that received-image view and the App ABI
-  ELF probe/load-plan helper, but still does not run the received program.
-- Launch remains dry-run until a real RAM-run handoff is validated.
+- H747 `dev app stage/probe/prepare/run` consumes that received-image view and
+  the App ABI ELF load/AppRuntime helper chain.
+- `dev launch dry-run` remains the transport-neutral receive-session marker;
+  App execution is an explicit monitor command, not a raw jump.
 
 Supported command-layer verbs:
 
@@ -36,8 +37,8 @@ Supported command-layer verbs:
 - `dev launch dry-run`
 - `dev abort`
 
-The prototype does not implement USB transport, board reset, a real jump into
-downloaded code, or product bootloader policy. H747 frontends should keep
+The prototype does not implement USB transport, board reset, a product
+bootloader jump path, or product update policy. H747 frontends should keep
 console/UART/USB parsing thin and reuse this command/session path instead of
 creating a second download model.
 
@@ -117,3 +118,19 @@ read the `launch_ready` payload, stage it as `AppImage(format=elf)`, call the
 ELF dry load path, and materialize the would-be `LoadedAppImage` entry address
 for diagnostics only. It deliberately stops before `AppRuntime` or
 `charm_app_main`.
+
+The H747 `dev app run` frontend is the board-side closure of the same chain:
+
+```text
+packetstream/raw UART -> launch_ready payload
+  -> received_image_read
+  -> app_received_image_stage(format=elf)
+  -> app_elf_load_image
+  -> AppRuntime::run()
+  -> charm_app_main(api, argc, argv)
+```
+
+The current H747 App ELF samples are linked for `ELF_BASE = 0x24070000`; the
+resident monitor therefore loads executable App ELF bytes into
+`0x24070000..0x24080000`. Future USB, QSPI/eMMC, or ModuleX work must preserve
+the same `AppImage + AppRuntime + CharmAppApi` handoff shape.

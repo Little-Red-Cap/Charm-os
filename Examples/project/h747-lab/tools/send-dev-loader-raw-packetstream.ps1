@@ -8,6 +8,7 @@ param(
     [string]$Log = "",
     [switch]$DryRun,
     [switch]$NoBegin,
+    [switch]$WaitPrompt,
     [switch]$SelfTest
 )
 
@@ -206,6 +207,28 @@ function Wait-ForToken {
     return $false
 }
 
+function Drain-SerialText {
+    param(
+        [System.IO.Ports.SerialPort]$Serial,
+        [int]$QuietMilliseconds = 120,
+        [int]$MaxMilliseconds = 1000
+    )
+
+    $Deadline = [DateTime]::UtcNow.AddMilliseconds($MaxMilliseconds)
+    $QuietDeadline = [DateTime]::UtcNow.AddMilliseconds($QuietMilliseconds)
+    while ([DateTime]::UtcNow -lt $Deadline) {
+        $Chunk = $Serial.ReadExisting()
+        if ($Chunk.Length -gt 0) {
+            [void]$script:RawCapture.Append($Chunk)
+            Write-CaptureText $Chunk
+            $QuietDeadline = [DateTime]::UtcNow.AddMilliseconds($QuietMilliseconds)
+        } elseif ([DateTime]::UtcNow -ge $QuietDeadline) {
+            return
+        }
+        Start-Sleep -Milliseconds 20
+    }
+}
+
 try {
     $LogWriter = [System.IO.StreamWriter]::new([System.IO.Path]::GetFullPath($Log), $false, $Utf8NoBom)
     Write-CaptureText "H747 Dev Loader raw packetstream sender`n"
@@ -264,6 +287,7 @@ try {
         [void](Wait-ForToken -Serial $Serial -Token "dev: raw" -Deadline ([DateTime]::UtcNow.AddSeconds(2)))
         throw "Timed out waiting for launch_ready."
     }
+    $LaunchReadyElapsed = [DateTime]::UtcNow - $Start
     $Captured = $RawCapture.ToString()
     $ExpectedReceived = "received=$($PacketInfo.PayloadSize)"
     if ($Captured.IndexOf($ExpectedReceived, [System.StringComparison]::Ordinal) -lt 0) {
@@ -275,11 +299,16 @@ try {
             throw "launch_ready was seen, but expected CRC token was missing: $ExpectedCrc"
         }
     }
+    if ($WaitPrompt) {
+        [void](Wait-ForToken -Serial $Serial -Token "dev-loader>" -Deadline ([DateTime]::UtcNow.AddSeconds(2)))
+    }
+    Drain-SerialText -Serial $Serial
 
     $TotalElapsed = [DateTime]::UtcNow - $Start
-    $KibPerSecond = ($PacketBytes.Length / 1024.0) / [Math]::Max($TotalElapsed.TotalSeconds, 0.001)
+    $KibPerSecond = ($PacketBytes.Length / 1024.0) / [Math]::Max($LaunchReadyElapsed.TotalSeconds, 0.001)
     Write-CaptureText "`nRaw packetstream transfer passed.`n"
-    Write-CaptureText ("throughput: {0:n2} KiB/s`n" -f $KibPerSecond)
+    Write-CaptureText ("throughput: {0:n2} KiB/s to launch_ready`n" -f $KibPerSecond)
+    Write-CaptureText ("settled elapsed: {0:n3}s`n" -f $TotalElapsed.TotalSeconds)
     exit 0
 } finally {
     if (($null -ne $Serial) -and $Serial.IsOpen) {

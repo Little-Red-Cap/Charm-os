@@ -26,7 +26,8 @@ Current first cut:
 - routes console commands through the reusable
   `Examples/dev_loader/charm_dev_loader_commands.hpp` command runtime;
 - exposes console commands to exercise begin/write/verify/launch-ready stages;
-- keeps launch as dry-run, so it does not jump into downloaded code yet;
+- keeps `dev launch dry-run` as the generic receive-session marker, while
+  explicit App execution is owned by `dev app run`;
 - leaves USB bulk/CDC receive as the next transport adapter.
 
 Commands:
@@ -44,7 +45,8 @@ transport frontends should feed the same command/runtime and
 
 Current non-goals for this stage:
 
-- no real jump into downloaded code
+- no product bootloader jump path; received App ELF execution is only exposed
+  through the explicit `dev app run` development command
 - no USB requirement
 - no USB packet transport yet; UART raw packetstream is only a development
   frontend for the existing packet v0 byte stream
@@ -63,6 +65,7 @@ Packet frontend commands:
 - `dev app stage <name>`
 - `dev app probe <name>`
 - `dev app prepare <name> [args...]`
+- `dev app run <name> [args...]`
 - `dev app status`
 
 `dev packet ingest` accepts continuous hex pairs or space-separated hex pairs.
@@ -110,11 +113,33 @@ validate the C ABI header and build argv; it stops at the `start` stage and
 prints `ready`, `argc`, and the would-be entry address. These commands print
 `run=disabled`; they do not call `charm_app_main` and do not jump.
 
-Current board-free hardening note: this target is build-verified only in the
-current round. The latest board pass validates both the text command receive
-path and the console-friendly packet hex ingest path on H747. The raw UART DMA
-RX path is wired but still needs the next board pass. It still does not
-implement USB receive or real launch.
+`dev app run <name> [args...]` is the first explicit execution command. The
+current payload format is App ELF. The packetstream receiver stores bytes in
+the RAM receive buffer, `dev app run` reads the verified payload back into a
+staging cache, stages it as `AppImage(format=elf)`, loads it into the fixed App
+execution region, cleans DCache, invalidates ICache, and calls
+`charm_app_main(api, argc, argv)`.
+
+The first App execution region is fixed to
+`0x24070000..0x24080000` (`64 KiB`). This must match
+`Examples/app_abi/elf_samples/app_elf.ld` where `ELF_BASE = 0x24070000`.
+`dev app status` prints the region descriptor as:
+
+```text
+dev: app run-region name=ram_d1_app_elf base=0x24070000 size=65536 align=16 linked_elf_base=0x24070000
+```
+
+The first capability table is minimal and diagnostic-first: console and time
+are real, display/input are small in-memory stubs that record present/poll
+counters, and storage/AFE remain unsupported. This is a development execution
+path, not a product app launcher or a real display/touch backend.
+
+Current board facts: raw UART DMA RX has been validated with real App ELF
+payloads. `hello_app.elf` and `player_min.elf` reached `launch_ready`,
+`dev app probe`, `dev app prepare`, and `dev app run`, and both returned exit
+code `0`. The measured raw UART path is roughly `10 KiB/s` at `115200 8N1`;
+pyOCD internal Flash programming remains much slower on the current CMSIS-DAP
+path. USB receive is still reserved for a later byte-source adapter.
 
 Board validation helpers:
 
@@ -132,6 +157,8 @@ Board validation helpers:
   `powershell -ExecutionPolicy Bypass -File tools/capture-dev-loader-packet-smoke.ps1 -Commands output.commands`
 - Send a raw UART packetstream:
   `powershell -ExecutionPolicy Bypass -File tools/send-dev-loader-raw-packetstream.ps1 -PacketStream output.packetstream`
+- Capture a received App ELF run smoke:
+  `powershell -ExecutionPolicy Bypass -File tools/capture-dev-loader-app-run-smoke.ps1 -PacketStream output.packetstream -AppName hello_app -AppArgs "alpha beta" -Expect "hello_app: charm_app_main entered","hello_app: argv1=alpha"`
 - If raw UART loses bytes, keep the same packetstream and slow only the sender:
   `powershell -ExecutionPolicy Bypass -File tools/send-dev-loader-raw-packetstream.ps1 -PacketStream output.packetstream -WriteChunkSize 64 -InterChunkDelayMs 1`
 - Before judging raw packet semantics, run `dev packet status` or
@@ -155,14 +182,20 @@ Latest board facts:
   RAM receive session.
 - `capture-dev-loader-packet-smoke.ps1` reached `stage=launch_ready` with a
   64-byte packetstream delivered as `dev packet ingest <hex>` lines.
+- raw UART packetstream download reached `launch_ready` for real
+  `hello_app.elf` and `player_min.elf` payloads.
+- `dev app run hello_app alpha beta` called `charm_app_main`, printed the
+  expected argv output, and returned exit code `0`.
+- `dev app run player_min` called the same App ABI path, presented one stub
+  frame, polled input once, and returned exit code `0`.
 - `flash-dev-loader-pyocd.ps1` previously used `100k` SWD and took about 513s
   for a 94 KiB image. The default is now `1000k`; lower it explicitly only when
   probe stability requires it.
 
-The next handoff target after `launch_ready` is the shared
-`dev_loader_app_handoff_smoke` path: read the verified payload back as a received
-image, stage it as an App ABI `AppImage`, and let `AppRuntime` own loading and
-entry invocation. Do not add a direct raw jump path in this monitor.
+The current handoff target after `launch_ready` is now explicit:
+`dev app stage/probe/prepare/run` must continue to reuse the shared received
+image, App ABI staging, ELF load, and AppRuntime boundaries. Do not add a direct
+raw jump path in this monitor.
 
 The received ELF load semantics are covered off-board by
 `dev_loader_received_elf_smoke`: real App ELF bytes are received and load-probed

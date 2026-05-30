@@ -9,6 +9,7 @@
 #include "charm_dev_loader_received_image.hpp"
 #include "console.h"
 #include "console_service.hpp"
+#include "port.h"
 
 #include <array>
 #include <cstddef>
@@ -36,6 +37,25 @@ constexpr std::uint32_t kPacketBufferCapacity = 512U;
 constexpr std::uint32_t kPacketHexDecodeCapacity = 48U;
 constexpr std::uint32_t kPacketMaxPayloadSize = 256U;
 constexpr std::string_view kDefaultReceivedAppName = "received_app"sv;
+
+struct AppRunLoadRegion {
+    std::string_view name{};
+    std::uintptr_t base{0};
+    std::uint32_t size{0};
+    std::uint32_t align{0};
+    std::uintptr_t linked_elf_base{0};
+};
+
+constexpr AppRunLoadRegion kAppRunLoadRegion{
+    .name = "ram_d1_app_elf"sv,
+    .base = 0x24070000U,
+    .size = 64U * 1024U,
+    .align = 16U,
+    .linked_elf_base = 0x24070000U,
+};
+
+static_assert(kAppRunLoadRegion.base == kAppRunLoadRegion.linked_elf_base,
+              "dev_loader run region must match Examples/app_abi/elf_samples/app_elf.ld ELF_BASE");
 
 loader::Storage ram_storage() noexcept;
 
@@ -108,6 +128,18 @@ struct Runtime {
     std::uintptr_t app_prepare_entry{0};
     int app_prepare_argc{0};
     bool app_prepare_ready{false};
+    app_abi::AppRunStage app_run_stage{app_abi::AppRunStage::idle};
+    app_abi::AppRunCode app_run_code{app_abi::AppRunCode::load_failed};
+    int app_run_backend_error{0};
+    int app_run_exit_code{0};
+    bool app_run_exited{false};
+    bool app_exit_requested{false};
+    int app_exit_code{0};
+    std::uint32_t app_console_bytes{0};
+    std::uint32_t app_display_present_count{0};
+    std::uint32_t app_display_last_bytes{0};
+    std::uint32_t app_display_sample0{0};
+    std::uint32_t app_input_poll_count{0};
     std::uint32_t app_read_bytes{0};
     std::uint32_t app_stage_bytes{0};
     std::array<char, app_abi::kAppReceivedImageMaxName> app_name_storage{};
@@ -133,6 +165,13 @@ std::array<std::byte, kStageProbeScratchSize>& stage_probe_scratch() noexcept {
 std::array<std::byte, kElfProbeLoadBufferSize>& elf_probe_load_buffer() noexcept {
     alignas(32) static std::array<std::byte, kElfProbeLoadBufferSize> buffer{};
     return buffer;
+}
+
+std::span<std::byte> app_run_load_buffer() noexcept {
+    return {
+        reinterpret_cast<std::byte*>(kAppRunLoadRegion.base),
+        kAppRunLoadRegion.size,
+    };
 }
 
 std::span<const std::byte> received_payload_view(const loader::ImageManifest& manifest) noexcept {
@@ -204,6 +243,151 @@ CharmAppApi make_prepare_api() noexcept {
     return api;
 }
 
+constexpr std::uintptr_t cache_align_down(const std::uintptr_t address) noexcept {
+    return address & ~static_cast<std::uintptr_t>(31U);
+}
+
+constexpr std::uintptr_t cache_align_up(const std::uintptr_t address) noexcept {
+    return (address + 31U) & ~static_cast<std::uintptr_t>(31U);
+}
+
+void prepare_loaded_app_buffer(void* ctx) noexcept {
+    auto* backend = static_cast<app_abi::AppElfLoadBackend*>(ctx);
+    if (backend == nullptr || backend->last.plan.probe.code != app_abi::AppElfProbeCode::ok ||
+        backend->last.plan.load_base == 0U || backend->last.plan.probe.load_span == 0U) {
+        return;
+    }
+
+    const auto start = backend->last.plan.load_base;
+    const auto end = start + backend->last.plan.probe.load_span;
+    const auto aligned_start = cache_align_down(start);
+    const auto aligned_end = cache_align_up(end);
+#if defined(__DCACHE_PRESENT) && (__DCACHE_PRESENT == 1U)
+    if ((SCB->CCR & SCB_CCR_DC_Msk) != 0U) {
+        SCB_CleanDCache_by_Addr(reinterpret_cast<std::uint32_t*>(aligned_start),
+                                static_cast<std::int32_t>(aligned_end - aligned_start));
+    }
+#endif
+#if defined(__ICACHE_PRESENT) && (__ICACHE_PRESENT == 1U)
+    if ((SCB->CCR & SCB_CCR_IC_Msk) != 0U) {
+        SCB_InvalidateICache();
+    }
+#endif
+    __DSB();
+    __ISB();
+}
+
+int app_api_console_write(const char* text, const std::size_t len) {
+    if (text == nullptr) {
+        return -1;
+    }
+    runtime().app_console_bytes += static_cast<std::uint32_t>(len);
+    for (std::size_t i = 0; i < len; ++i) {
+        h747::console::write_char(text[i]);
+    }
+    return static_cast<int>(len);
+}
+
+std::uint32_t app_api_now_ms() {
+    return h747::port::tick_ms();
+}
+
+int app_api_display_describe(CharmAppDisplayMode* out_mode) {
+    if (out_mode == nullptr) {
+        return CHARM_APP_STATUS_INVALID_ARGUMENT;
+    }
+    *out_mode = CharmAppDisplayMode{
+        .width = 16U,
+        .height = 16U,
+        .stride_bytes = 16U * 4U,
+        .format = CHARM_APP_PIXEL_FORMAT_ARGB8888,
+    };
+    return CHARM_APP_STATUS_OK;
+}
+
+int app_api_display_present(const void* pixels, const std::uint32_t bytes) {
+    if (pixels == nullptr || bytes == 0U) {
+        return CHARM_APP_STATUS_INVALID_ARGUMENT;
+    }
+    auto& rt = runtime();
+    ++rt.app_display_present_count;
+    rt.app_display_last_bytes = bytes;
+    if (bytes >= sizeof(std::uint32_t)) {
+        std::uint32_t sample = 0;
+        std::memcpy(&sample, pixels, sizeof(sample));
+        rt.app_display_sample0 = sample;
+    }
+    return CHARM_APP_STATUS_OK;
+}
+
+int app_api_input_poll(CharmAppInputState* out_state) {
+    if (out_state == nullptr) {
+        return CHARM_APP_STATUS_INVALID_ARGUMENT;
+    }
+    ++runtime().app_input_poll_count;
+    *out_state = CharmAppInputState{
+        .encoder1_delta = 0,
+        .encoder2_delta = 0,
+        .encoder1_pressed = 0,
+        .encoder2_pressed = 0,
+        .pointer_detected = 0,
+        .pointer_down = 0,
+        .pointer_x = 0,
+        .pointer_y = 0,
+        .pointer_max_x = 16,
+        .pointer_max_y = 16,
+    };
+    return CHARM_APP_STATUS_OK;
+}
+
+int app_api_storage_open(const char*, int, int) {
+    return -1;
+}
+
+int app_api_storage_read(int, void*, std::size_t) {
+    return -1;
+}
+
+int app_api_storage_write(int, const void*, std::size_t) {
+    return -1;
+}
+
+int app_api_storage_close(int) {
+    return -1;
+}
+
+int app_api_afe_configure(std::uint32_t, std::uint32_t) {
+    return CHARM_APP_STATUS_UNSUPPORTED;
+}
+
+int app_api_afe_read(void*, std::size_t) {
+    return CHARM_APP_STATUS_UNSUPPORTED;
+}
+
+void app_api_exit(int code) {
+    auto& rt = runtime();
+    rt.app_exit_requested = true;
+    rt.app_exit_code = code;
+}
+
+CharmAppApi make_run_api() noexcept {
+    CharmAppApi api = make_prepare_api();
+    api.flags = 0;
+    api.console = CharmAppConsoleApi{.write = app_api_console_write};
+    api.time = CharmAppTimeApi{.now_ms = app_api_now_ms};
+    api.display = CharmAppDisplayApi{.describe = app_api_display_describe, .present = app_api_display_present};
+    api.input = CharmAppInputApi{.poll = app_api_input_poll};
+    api.storage = CharmAppStorageApi{
+        .open = app_api_storage_open,
+        .read = app_api_storage_read,
+        .write = app_api_storage_write,
+        .close = app_api_storage_close,
+    };
+    api.afe = CharmAppAfeApi{.configure = app_api_afe_configure, .read = app_api_afe_read};
+    api.app = CharmAppControlApi{.exit = app_api_exit};
+    return api;
+}
+
 void print_result(loader::Result result) noexcept {
     emit<"dev: stage={} code={} received={} crc=0x{:08x}/0x{:08x}\n">(
         loader::stage_name(result.stage),
@@ -269,7 +453,14 @@ void print_raw_status(const Runtime& rt) noexcept {
 }
 
 void print_app_status(const Runtime& rt) noexcept {
-    emit<"dev: app command={} name={} run=disabled\n">(rt.app_last_command, rt.app_name);
+    const auto run_state = (rt.app_last_command == "run"sv) ? "enabled"sv : "disabled"sv;
+    emit<"dev: app command={} name={} run={}\n">(rt.app_last_command, rt.app_name, run_state);
+    emit<"dev: app run-region name={} base=0x{:08x} size={} align={} linked_elf_base=0x{:08x}\n">(
+        kAppRunLoadRegion.name,
+        static_cast<std::uint32_t>(kAppRunLoadRegion.base),
+        kAppRunLoadRegion.size,
+        kAppRunLoadRegion.align,
+        static_cast<std::uint32_t>(kAppRunLoadRegion.linked_elf_base));
     emit<"dev: app read={} bytes={}\n">(
         loader::received_image_read_code_name(rt.app_read_code),
         rt.app_read_bytes);
@@ -282,11 +473,14 @@ void print_app_status(const Runtime& rt) noexcept {
         rt.app_probe.load_span,
         rt.app_probe.segment_count,
         rt.app_probe.runnable ? 1U : 0U);
-    emit<"dev: app plan={} backend={} load=0x{:08x} entry=0x{:08x} run=disabled\n">(
+    emit<"dev: app plan={} backend={} load=0x{:08x} entry=0x{:08x} span={} segments={} runnable={} run=disabled\n">(
         app_abi::code_name(rt.app_plan_code),
         rt.app_plan_backend_error,
         static_cast<std::uint32_t>(rt.app_plan_load_base),
-        static_cast<std::uint32_t>(rt.app_plan_entry));
+        static_cast<std::uint32_t>(rt.app_plan_entry),
+        rt.app_probe.load_span,
+        rt.app_probe.segment_count,
+        rt.app_probe.runnable ? 1U : 0U);
     emit<"dev: app prepare={} code={} backend={} argc={} ready={} entry=0x{:08x} run=disabled\n">(
         app_abi::stage_name(rt.app_prepare_stage),
         app_abi::code_name(rt.app_prepare_code),
@@ -294,6 +488,24 @@ void print_app_status(const Runtime& rt) noexcept {
         rt.app_prepare_argc,
         rt.app_prepare_ready ? 1U : 0U,
         static_cast<std::uint32_t>(rt.app_prepare_entry));
+    emit<"dev: app run stage={} code={} backend={} load=0x{:08x} entry=0x{:08x} span={} segments={} exited={} exit={} app_exit={} app_exit_code={}\n">(
+        app_abi::stage_name(rt.app_run_stage),
+        app_abi::code_name(rt.app_run_code),
+        rt.app_run_backend_error,
+        static_cast<std::uint32_t>(rt.app_plan_load_base),
+        static_cast<std::uint32_t>(rt.app_plan_entry),
+        rt.app_probe.load_span,
+        rt.app_probe.segment_count,
+        rt.app_run_exited ? 1U : 0U,
+        rt.app_run_exit_code,
+        rt.app_exit_requested ? 1U : 0U,
+        rt.app_exit_code);
+    emit<"dev: app caps console_bytes={} present_count={} present_bytes={} sample0=0x{:08x} input_polls={}\n">(
+        rt.app_console_bytes,
+        rt.app_display_present_count,
+        rt.app_display_last_bytes,
+        rt.app_display_sample0,
+        rt.app_input_poll_count);
 }
 
 void print_help() noexcept {
@@ -315,6 +527,7 @@ void print_help() noexcept {
     emit<"  dev app stage <name>       - Stage launch_ready payload as App ELF\n">();
     emit<"  dev app probe <name>       - Stage and ELF-probe payload without running\n">();
     emit<"  dev app prepare <name> [args...] - Prepare AppRuntime argv/ABI without running\n">();
+    emit<"  dev app run <name> [args...] - Explicitly call charm_app_main from loaded ELF\n">();
     emit<"  dev app status             - Show received App stage/probe diagnostics\n">();
 }
 
@@ -336,6 +549,20 @@ constexpr std::pair<std::string_view, std::string_view> split_first_word(std::st
         return {sv, {}};
     }
     return {sv.substr(0, pos), trim_left(sv.substr(pos + 1U))};
+}
+
+std::uint32_t count_app_argv(std::string_view arg_text) noexcept {
+    std::uint32_t argc = 1U; // argv[0] is the App image name.
+    auto remaining = trim_left(arg_text);
+    while (!remaining.empty()) {
+        auto [token, rest] = split_first_word(remaining);
+        if (token.empty()) {
+            break;
+        }
+        ++argc;
+        remaining = rest;
+    }
+    return argc;
 }
 
 void handle_packet_command(std::string_view line) noexcept {
@@ -430,6 +657,18 @@ bool reset_app_diagnostics(Runtime& rt, std::string_view command, std::string_vi
     rt.app_prepare_entry = 0;
     rt.app_prepare_argc = 0;
     rt.app_prepare_ready = false;
+    rt.app_run_stage = app_abi::AppRunStage::idle;
+    rt.app_run_code = app_abi::AppRunCode::load_failed;
+    rt.app_run_backend_error = 0;
+    rt.app_run_exit_code = 0;
+    rt.app_run_exited = false;
+    rt.app_exit_requested = false;
+    rt.app_exit_code = 0;
+    rt.app_console_bytes = 0;
+    rt.app_display_present_count = 0;
+    rt.app_display_last_bytes = 0;
+    rt.app_display_sample0 = 0;
+    rt.app_input_poll_count = 0;
     rt.app_read_bytes = 0;
     rt.app_stage_bytes = 0;
     if (!name_ok) {
@@ -520,6 +759,58 @@ void prepare_received_app(Runtime& rt, std::string_view name, std::string_view a
     rt.app_prepare_ready = prepared.ready;
 }
 
+void run_received_app(Runtime& rt, std::string_view name, std::string_view args) noexcept {
+    const auto image = stage_received_app(rt, "run"sv, name);
+    if (rt.app_stage_code != app_abi::AppReceivedImageStageCode::ok) {
+        return;
+    }
+
+    const auto load = app_run_load_buffer();
+    RuntimeElfSource source_ctx{
+        .image = image,
+        .backend = &rt.app_elf_backend,
+    };
+    app_abi::AppImageSource source{
+        .ctx = &source_ctx,
+        .find = find_runtime_elf,
+        .load = load_runtime_elf,
+    };
+    CharmAppApi api = make_run_api();
+    app_abi::AppRuntime<> app_runtime{};
+    const auto result = app_runtime.run(app_abi::AppRunConfig{
+        .source = &source,
+        .load_buffer = app_abi::AppLoadBuffer{
+            .base = load.data(),
+            .size = load.size(),
+            .align = kAppRunLoadRegion.align,
+            .prepare = prepare_loaded_app_buffer,
+            .prepare_ctx = &rt.app_elf_backend,
+        },
+        .api = &api,
+        .name = rt.app_name,
+        .arg_text = args,
+    });
+
+    rt.app_probe = rt.app_elf_backend.last.plan.probe;
+    rt.app_plan_code = rt.app_elf_backend.last.code;
+    rt.app_plan_backend_error = rt.app_elf_backend.last.backend_error;
+    rt.app_plan_load_base = rt.app_elf_backend.last.plan.load_base;
+    rt.app_plan_entry = rt.app_elf_backend.last.plan.entry_address;
+    if (result.stage == app_abi::AppRunStage::exit || result.stage == app_abi::AppRunStage::start) {
+        rt.app_prepare_stage = app_abi::AppRunStage::start;
+        rt.app_prepare_code = app_abi::AppRunCode::ok;
+        rt.app_prepare_backend_error = 0;
+        rt.app_prepare_entry = rt.app_plan_entry;
+        rt.app_prepare_argc = static_cast<int>(count_app_argv(args));
+        rt.app_prepare_ready = true;
+    }
+    rt.app_run_stage = result.stage;
+    rt.app_run_code = result.code;
+    rt.app_run_backend_error = result.backend_error;
+    rt.app_run_exit_code = result.exit_code;
+    rt.app_run_exited = result.exited;
+}
+
 void handle_app_command(std::string_view line) noexcept {
     auto& rt = runtime();
     if (line == "dev app status") {
@@ -568,8 +859,17 @@ void handle_app_command(std::string_view line) noexcept {
         print_app_status(rt);
         return;
     }
+    if (line.starts_with("dev app run")) {
+        auto [name, args] = split_first_word(line.substr(11));
+        if (name.empty()) {
+            name = kDefaultReceivedAppName;
+        }
+        run_received_app(rt, name, args);
+        print_app_status(rt);
+        return;
+    }
     emit<"dev: app usage error\n">();
-    emit<"dev: use 'dev app stage <name>', 'dev app probe <name>', 'dev app prepare <name> [args...]', or 'dev app status'\n">();
+    emit<"dev: use 'dev app stage <name>', 'dev app probe <name>', 'dev app prepare <name> [args...]', 'dev app run <name> [args...]', or 'dev app status'\n">();
 }
 
 void handle_command(std::string_view line) noexcept {

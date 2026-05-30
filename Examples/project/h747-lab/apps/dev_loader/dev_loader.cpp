@@ -10,6 +10,7 @@
 #include "console.h"
 #include "console_service.hpp"
 #include "port.h"
+#include "usb_dev_loader_service.hpp"
 
 #include <array>
 #include <cstddef>
@@ -114,6 +115,9 @@ struct Runtime {
     bool raw_active{false};
     std::uint32_t raw_bytes{0};
     loader::ByteTransportResult raw_last{};
+    bool usb_active{false};
+    std::uint32_t usb_bytes{0};
+    loader::ByteTransportResult usb_last{};
     loader::ReceivedImageReadCode app_read_code{loader::ReceivedImageReadCode::not_launch_ready};
     app_abi::AppReceivedImageStageCode app_stage_code{app_abi::AppReceivedImageStageCode::not_verified};
     app_abi::AppElfProbeResult app_probe{};
@@ -452,6 +456,40 @@ void print_raw_status(const Runtime& rt) noexcept {
     print_packet_result(rt.raw_last);
 }
 
+void print_usb_status(const Runtime& rt) noexcept {
+    const auto usb = h747::usb_dev_loader::status();
+    emit<"dev: usb active={} bytes={} init={} started={} cdc_ready={} pcd={} usbd={} class={} iface={} start={}\n">(
+        rt.usb_active ? 1U : 0U,
+        rt.usb_bytes,
+        usb.init_called,
+        usb.started,
+        usb.cdc_ready,
+        usb.pcd_init_status,
+        usb.usbd_init_status,
+        usb.register_class_status,
+        usb.register_interface_status,
+        usb.usbd_start_status);
+    emit<"dev: usb rx packets={} bytes={} read={} dropped={} overflow={} ctrl={} last_ctrl={}/{}\n">(
+        usb.rx_packets,
+        usb.rx_bytes,
+        usb.bytes_read,
+        usb.rx_dropped_bytes,
+        usb.rx_overflow_count,
+        usb.control_requests,
+        usb.last_control_cmd,
+        usb.last_control_length);
+    emit<"dev: usb bus setup={} reset={} suspend={} resume={} connect={} disconnect={} out_ep1={} in_ep1={}\n">(
+        usb.setup_count,
+        usb.reset_count,
+        usb.suspend_count,
+        usb.resume_count,
+        usb.connect_count,
+        usb.disconnect_count,
+        usb.out_ep1_hits,
+        usb.in_ep1_hits);
+    print_packet_result(rt.usb_last);
+}
+
 void print_app_status(const Runtime& rt) noexcept {
     const auto run_state = (rt.app_last_command == "run"sv) ? "enabled"sv : "disabled"sv;
     emit<"dev: app command={} name={} run={}\n">(rt.app_last_command, rt.app_name, run_state);
@@ -524,6 +562,9 @@ void print_help() noexcept {
     emit<"  dev raw begin              - Enter raw packetstream receive mode\n">();
     emit<"  dev raw status             - Show raw packetstream receive state\n">();
     emit<"  dev raw abort              - Leave raw receive mode\n">();
+    emit<"  dev usb begin              - Enter exclusive USB CDC packetstream receive mode\n">();
+    emit<"  dev usb status             - Show USB packetstream receive state\n">();
+    emit<"  dev usb abort              - Stop USB receive mode and disconnect USB\n">();
     emit<"  dev app stage <name>       - Stage launch_ready payload as App ELF\n">();
     emit<"  dev app probe <name>       - Stage and ELF-probe payload without running\n">();
     emit<"  dev app prepare <name> [args...] - Prepare AppRuntime argv/ABI without running\n">();
@@ -624,6 +665,42 @@ void handle_raw_command(std::string_view line) noexcept {
     }
     emit<"dev: raw usage error\n">();
     emit<"dev: use 'dev raw begin', 'dev raw status', or 'dev raw abort'\n">();
+}
+
+void handle_usb_command(std::string_view line) noexcept {
+    auto& rt = runtime();
+    if (line == "dev usb begin") {
+        rt.packet_transport.reset_session();
+        h747::usb_dev_loader::init();
+        rt.usb_active = true;
+        rt.usb_bytes = 0;
+        rt.usb_last = rt.packet_transport.status();
+        const auto usb = h747::usb_dev_loader::status();
+        emit<"dev: usb ready started={} cdc_ready={} pcd={} usbd={} class={} iface={} start={}\n">(
+            usb.started,
+            usb.cdc_ready,
+            usb.pcd_init_status,
+            usb.usbd_init_status,
+            usb.register_class_status,
+            usb.register_interface_status,
+            usb.usbd_start_status);
+        return;
+    }
+    if (line == "dev usb status") {
+        rt.usb_last = rt.packet_transport.status();
+        print_usb_status(rt);
+        return;
+    }
+    if (line == "dev usb abort") {
+        rt.usb_active = false;
+        h747::usb_dev_loader::stop();
+        rt.packet_transport.reset_session();
+        rt.usb_last = rt.packet_transport.status();
+        print_usb_status(rt);
+        return;
+    }
+    emit<"dev: usb usage error\n">();
+    emit<"dev: use 'dev usb begin', 'dev usb status', or 'dev usb abort'\n">();
 }
 
 bool set_app_name(Runtime& rt, std::string_view name) noexcept {
@@ -877,6 +954,10 @@ void handle_command(std::string_view line) noexcept {
         handle_app_command(line);
         return;
     }
+    if (line.starts_with("dev usb")) {
+        handle_usb_command(line);
+        return;
+    }
     if (line.starts_with("dev raw")) {
         handle_raw_command(line);
         return;
@@ -933,11 +1014,33 @@ void pump_raw_uart(Runtime& rt) noexcept {
     }
 }
 
+void pump_usb(Runtime& rt) noexcept {
+    h747::usb_dev_loader::poll_irq();
+    std::array<std::uint8_t, 256> raw{};
+    const auto count = h747::usb_dev_loader::read(raw);
+    if (count == 0U) {
+        return;
+    }
+
+    rt.usb_bytes += static_cast<std::uint32_t>(count);
+    rt.usb_last = rt.packet_transport.ingest(
+        std::as_bytes(std::span<const std::uint8_t>{raw.data(), count}));
+    if (rt.usb_last.code != loader::ByteTransportCode::ok ||
+        rt.usb_last.packet.kind == loader::PacketKind::abort ||
+        rt.usb_last.packet.receive.stage == loader::Stage::launch_ready) {
+        rt.usb_active = false;
+        h747::usb_dev_loader::stop();
+        emit<"\n">();
+        print_usb_status(rt);
+        rt.prompt_needed = true;
+    }
+}
+
 } // namespace
 
 void init() {
     emit<"dev_loader: resident RAM dev-loader skeleton ready\n">();
-    emit<"dev_loader: transport=console-test usb=reserved launch=dry-run\n">();
+    emit<"dev_loader: transport=console-test/raw-uart/usb-cdc launch=app-run-explicit\n">();
     print_help();
     print_status(runtime().commands.status());
 }
@@ -946,6 +1049,10 @@ void loop_once() noexcept {
     auto& rt = runtime();
     if (rt.raw_active) {
         pump_raw_uart(rt);
+        return;
+    }
+    if (rt.usb_active) {
+        pump_usb(rt);
         return;
     }
     if (rt.prompt_needed) {

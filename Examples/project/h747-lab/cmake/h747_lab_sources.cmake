@@ -207,6 +207,23 @@ set(H747_LAB_SERVICE_usb_msc_INCLUDE_DIRS
     "${H747_LAB_USB_DEVICE_ROOT}/Class/MSC/Inc"
 )
 
+set(H747_LAB_SERVICE_usb_dev_loader_SOURCES
+    "${H747_LAB_ROOT}/services/usb_dev_loader/usb_pcd.c"
+    "${H747_LAB_ROOT}/services/usb_dev_loader/usb_irq.c"
+    "${H747_LAB_ROOT}/services/usb_dev_loader/usb_device.c"
+    "${H747_LAB_ROOT}/services/usb_dev_loader/usbd_desc.c"
+    "${H747_LAB_ROOT}/services/usb_dev_loader/usbd_conf.c"
+    "${H747_LAB_USB_DEVICE_ROOT}/Core/Src/usbd_core.c"
+    "${H747_LAB_USB_DEVICE_ROOT}/Core/Src/usbd_ctlreq.c"
+    "${H747_LAB_USB_DEVICE_ROOT}/Core/Src/usbd_ioreq.c"
+    "${H747_LAB_USB_DEVICE_ROOT}/Class/CDC/Src/usbd_cdc.c"
+)
+set(H747_LAB_SERVICE_usb_dev_loader_INCLUDE_DIRS
+    "${H747_LAB_ROOT}/services/usb_dev_loader"
+    "${H747_LAB_USB_DEVICE_ROOT}/Core/Inc"
+    "${H747_LAB_USB_DEVICE_ROOT}/Class/CDC/Inc"
+)
+
 set(H747_LAB_SERVICE_usb_msc_legacy_SOURCES
     "${H747_LAB_ROOT}/services/usb_msc_legacy/usb_device.c"
     "${H747_LAB_ROOT}/services/usb_msc_legacy/usb_irq.c"

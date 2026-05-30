@@ -37,10 +37,10 @@ Supported command-layer verbs:
 - `dev launch dry-run`
 - `dev abort`
 
-The prototype does not implement USB transport, board reset, a product
-bootloader jump path, or product update policy. H747 frontends should keep
-console/UART/USB parsing thin and reuse this command/session path instead of
-creating a second download model.
+The prototype does not implement board reset, a product bootloader jump path,
+or product update policy. H747 frontends should keep console/UART/USB parsing
+thin and reuse this command/session path instead of creating a second download
+model.
 
 Board-free validation entry points:
 
@@ -100,6 +100,12 @@ opening a serial port. It simulates `dev raw begin`, arbitrary raw byte chunks,
 automatic exit at `launch_ready`, packet failure exit, packet v0 `abort`, and a
 second download that restarts from packet sequence 0. USB CDC or USB bulk should
 reuse this same byte-ingest boundary.
+
+The H747 `dev usb begin` frontend is the first USB byte-source adapter for that
+same boundary. It is intentionally mode-exclusive: the resident monitor owns USB
+only while receiving packetstream bytes, stops/disconnects the USB device after
+`launch_ready` or abort, and does not promise to restore a previous USB
+function. Apps that need USB later must initialize their own backend.
 
 `dev_loader_app_handoff_smoke` is the first received-image to AppRuntime bridge.
 It reads a `launch_ready` payload back from storage, stages it as an `AppImage`,

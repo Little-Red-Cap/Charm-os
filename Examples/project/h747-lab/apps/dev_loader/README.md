@@ -28,7 +28,8 @@ Current first cut:
 - exposes console commands to exercise begin/write/verify/launch-ready stages;
 - keeps `dev launch dry-run` as the generic receive-session marker, while
   explicit App execution is owned by `dev app run`;
-- leaves USB bulk/CDC receive as the next transport adapter.
+- adds a first USB CDC packetstream byte-source frontend for development
+  downloads.
 
 Commands:
 
@@ -47,9 +48,8 @@ Current non-goals for this stage:
 
 - no product bootloader jump path; received App ELF execution is only exposed
   through the explicit `dev app run` development command
-- no USB requirement
-- no USB packet transport yet; UART raw packetstream is only a development
-  frontend for the existing packet v0 byte stream
+- no composite USB device or shared USB ownership
+- no promise to restore the previous USB state after download mode
 - no `app_lab` image handoff requirement
 - no promotion to product bootloader/runtime policy
 
@@ -62,6 +62,9 @@ Packet frontend commands:
 - `dev raw begin`
 - `dev raw status`
 - `dev raw abort`
+- `dev usb begin`
+- `dev usb status`
+- `dev usb abort`
 - `dev app stage <name>`
 - `dev app probe <name>`
 - `dev app prepare <name> [args...]`
@@ -102,6 +105,16 @@ USB CDC or USB bulk should reuse the same frontend boundary: transport code
 only supplies byte chunks to `ByteTransportRuntime::ingest()`. It must not
 define a second begin/data/verify/launch protocol.
 
+`dev usb begin` switches the monitor into an exclusive USB CDC packetstream
+receive mode. The existing UART console stays as the control channel, while the
+newly enumerated USB CDC COM port is treated as a binary-transparent download
+pipe. USB bytes are read from the `usb_dev_loader` service and fed into the same
+`ByteTransportRuntime -> PacketRuntime -> BinaryReceiveRuntime` path used by
+UART raw mode. The mode automatically exits after `launch_ready`, packet
+failure, or `dev usb abort`; it stops/disconnects the USB device instead of
+trying to restore any previous USB function. A later App that needs USB must
+own and initialize its own USB backend.
+
 After a packetstream reaches `launch_ready`, `dev app stage <name>` reads the
 verified payload back from the RAM receive buffer into a 128 KiB staging scratch
 buffer and stages it as `AppImage(format=elf)`. `dev app probe <name>`
@@ -139,7 +152,8 @@ payloads. `hello_app.elf` and `player_min.elf` reached `launch_ready`,
 `dev app probe`, `dev app prepare`, and `dev app run`, and both returned exit
 code `0`. The measured raw UART path is roughly `10 KiB/s` at `115200 8N1`;
 pyOCD internal Flash programming remains much slower on the current CMSIS-DAP
-path. USB receive is still reserved for a later byte-source adapter.
+path. USB CDC receive is build-wired as the next faster byte-source adapter and
+still needs board validation.
 
 Board validation helpers:
 
@@ -157,6 +171,8 @@ Board validation helpers:
   `powershell -ExecutionPolicy Bypass -File tools/capture-dev-loader-packet-smoke.ps1 -Commands output.commands`
 - Send a raw UART packetstream:
   `powershell -ExecutionPolicy Bypass -File tools/send-dev-loader-raw-packetstream.ps1 -PacketStream output.packetstream`
+- Send a USB CDC packetstream after `dev usb begin`:
+  `powershell -ExecutionPolicy Bypass -File tools/send-dev-loader-usb-cdc-packetstream.ps1 -PacketStream output.packetstream -UsbPort COMxx`
 - Capture a received App ELF run smoke:
   `powershell -ExecutionPolicy Bypass -File tools/capture-dev-loader-app-run-smoke.ps1 -PacketStream output.packetstream -AppName hello_app -AppArgs "alpha beta" -Expect "hello_app: charm_app_main entered","hello_app: argv1=alpha"`
 - If raw UART loses bytes, keep the same packetstream and slow only the sender:

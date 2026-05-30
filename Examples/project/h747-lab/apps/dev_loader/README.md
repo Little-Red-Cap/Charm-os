@@ -197,6 +197,8 @@ Board validation helpers:
   `powershell -ExecutionPolicy Bypass -File tools/send-dev-loader-usb-cdc-packetstream.ps1 -PacketStream output.packetstream -UsbPort COMxx`
 - Capture a received App ELF run smoke:
   `powershell -ExecutionPolicy Bypass -File tools/capture-dev-loader-app-run-smoke.ps1 -PacketStream output.packetstream -AppName hello_app -AppArgs "alpha beta" -Expect "hello_app: charm_app_main entered","hello_app: argv1=alpha"`
+- Capture a USB CDC received App ELF run smoke:
+  `powershell -ExecutionPolicy Bypass -File tools/capture-dev-loader-usb-cdc-app-run-smoke.ps1 -PacketStream output.packetstream -AppName hello_app -AppArgs "alpha beta" -UsbPort COMxx -Expect "hello_app: charm_app_main entered","hello_app: argv1=alpha"`
 - If raw UART loses bytes, keep the same packetstream and slow only the sender:
   `powershell -ExecutionPolicy Bypass -File tools/send-dev-loader-raw-packetstream.ps1 -PacketStream output.packetstream -WriteChunkSize 64 -InterChunkDelayMs 1`
 - Before judging raw packet semantics, run `dev packet status` or
@@ -230,6 +232,11 @@ Latest board facts:
   `hello_app.elf` and `player_min.elf` payloads when the board USB device cable
   is connected. `player_min.elf.packetstream` measured about `50 KiB/s` to
   `launch_ready` on the first successful run.
+- `capture-dev-loader-usb-cdc-app-run-smoke.ps1` is the current preferred
+  repeatable USB App board smoke. It drives the UART control channel through
+  `dev packet reset-session`, `dev usb begin`, USB CDC packetstream transfer,
+  and `dev app probe/prepare/run/status`, then validates the same
+  `lookup/load/abi/argv/start/exit` tokens used by the raw UART App smoke.
 - `flash-dev-loader-pyocd.ps1` previously used `100k` SWD and took about 513s
   for a 94 KiB image. The default is now `1000k`; lower it explicitly only when
   probe stability requires it.

@@ -264,6 +264,26 @@ Latest board facts:
   `hello_app.elf` and `player_min.elf` payloads when the board USB device cable
   is connected. `player_min.elf.packetstream` measured about `50 KiB/s` to
   `launch_ready` on the first successful run.
+- Resident App Store v1 has reached the first QSPI NOR board closure. A
+  generated `.appstore.bin` containing `hello_app` and `player_min` was received
+  as a packetstream payload, installed to QSPI offset `0`, enumerated by
+  `dev store list qspi`, staged by name, and executed with
+  `dev app run qspi:<name>`.
+- The validated App Store payload was `10,416` bytes, carried by an `11,648`
+  byte packetstream with CRC `0x73de4894`. USB CDC was not used as the final
+  evidence for this larger store transfer because the device COM port became
+  unstable during the run; raw UART delivered the same packetstream to
+  `launch_ready` at about `7.66 KiB/s`.
+- QSPI NOR reported `ready=1`, JEDEC `0x00ef4019`, capacity `32 MiB`,
+  erase block `4096`, and write alignment `1`. Store install reported
+  `receive=ok`, `store=ok`, `code=ok`, `written=10416`, and `erased=12288`.
+- `dev store list qspi` reported two runnable entries:
+  `hello_app` at offset `0x70`, size `5132`; `player_min` at offset `0x1480`,
+  size `5168`.
+- `dev app run qspi:hello_app alpha beta` entered `charm_app_main`, printed the
+  expected argv token, loaded at `0x24070000`, and exited with code `0`.
+- `dev app run qspi:player_min` loaded from QSPI, presented one stub frame,
+  polled input once, and exited with code `0`.
 - `capture-dev-loader-usb-cdc-app-run-smoke.ps1` is the current preferred
   repeatable USB App board smoke. It drives the UART control channel through
   `dev packet reset-session`, `dev usb begin`, USB CDC packetstream transfer,

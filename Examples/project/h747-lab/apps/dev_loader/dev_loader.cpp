@@ -1053,7 +1053,6 @@ void loop_once() noexcept {
     }
     if (rt.usb_active) {
         pump_usb(rt);
-        return;
     }
     if (rt.prompt_needed) {
         prompt();

@@ -119,6 +119,13 @@ passes the loaded ELF image through `AppRuntime::prepare()` so the
 `lookup/load/abi/argv/start` chain is covered without executing Arm code on
 host.
 
+`dev_loader_received_modulex_smoke` proves the equivalent received-image bridge
+for ModuleX. It receives ModuleX bytes through the same packetstream and
+`ByteTransportRuntime`, stages them as `AppImage(format=modulex)`, then uses
+the App ABI ModuleX loader plus staged runtime adapter to call
+`charm_app_main(api, argc, argv)` on host. It does not add a second App ABI or
+packet protocol.
+
 `dev_loader_stage_probe_smoke` matches the H747 `dev app stage/probe` frontend:
 read the `launch_ready` payload, stage it as `AppImage(format=elf)`, call the
 ELF dry load path, and materialize the would-be `LoadedAppImage` entry address

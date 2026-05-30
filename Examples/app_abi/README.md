@@ -93,3 +93,4 @@ Current store validation entry points:
 - `Examples/system/dev_loader_app_handoff_smoke`
 - `Examples/system/dev_loader_received_elf_smoke`
 - `Examples/system/app_abi_modulex_smoke`
+- `Examples/system/dev_loader_received_modulex_smoke`

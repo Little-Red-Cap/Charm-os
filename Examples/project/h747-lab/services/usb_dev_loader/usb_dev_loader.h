@@ -13,6 +13,12 @@ typedef struct h747_usb_dev_loader_status_t {
     uint8_t started;
     uint8_t cdc_ready;
     uint8_t vbus_detector_enabled;
+    uint8_t pcd_ready;
+    uint8_t last_setup_valid;
+    uint8_t dev_desc_len;
+    uint8_t cfg_desc_len;
+    uint8_t dev_desc_prefix_len;
+    uint8_t cfg_desc_prefix_len;
     int32_t pcd_init_status;
     int32_t usbd_init_status;
     int32_t register_class_status;
@@ -32,8 +38,25 @@ typedef struct h747_usb_dev_loader_status_t {
     uint32_t resume_count;
     uint32_t connect_count;
     uint32_t disconnect_count;
+    uint32_t out_ep0_hits;
+    uint32_t in_ep0_hits;
     uint32_t out_ep1_hits;
     uint32_t in_ep1_hits;
+    uint32_t gusbcfg;
+    uint32_t gahbcfg;
+    uint32_t gintsts;
+    uint32_t gintmsk;
+    uint32_t dctl;
+    uint32_t dsts;
+    uint32_t gotgctl;
+    uint32_t gccfg;
+    uint32_t diepctl0;
+    uint32_t diepint0;
+    uint32_t doepctl0;
+    uint32_t doepint0;
+    uint8_t last_setup[8];
+    uint8_t dev_desc_prefix[18];
+    uint8_t cfg_desc_prefix[32];
 } h747_usb_dev_loader_status_t;
 
 void h747_usb_dev_loader_init(void);

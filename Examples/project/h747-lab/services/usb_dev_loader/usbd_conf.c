@@ -20,6 +20,8 @@ static volatile uint32_t g_usb_connect_count = 0U;
 static volatile uint32_t g_usb_disconnect_count = 0U;
 static volatile uint32_t g_usb_out_ep_hits[8] = {0U};
 static volatile uint32_t g_usb_in_ep_hits[8] = {0U};
+static volatile uint8_t g_usb_last_setup[8] = {0U};
+static volatile uint8_t g_usb_last_setup_valid = 0U;
 
 uint32_t usb_setup_count(void) {
     return g_usb_setup_count;
@@ -57,6 +59,19 @@ uint32_t usb_in_ep_hits(uint8_t epnum) {
         return 0U;
     }
     return g_usb_in_ep_hits[epnum];
+}
+
+uint8_t usb_last_setup_valid(void) {
+    return g_usb_last_setup_valid;
+}
+
+void usb_copy_last_setup(uint8_t out[8]) {
+    if (out == NULL) {
+        return;
+    }
+    for (uint32_t i = 0U; i < 8U; ++i) {
+        out[i] = g_usb_last_setup[i];
+    }
 }
 
 void HAL_PCD_MspInit(PCD_HandleTypeDef* pcdHandle) {
@@ -110,6 +125,10 @@ void HAL_PCD_MspDeInit(PCD_HandleTypeDef* pcdHandle) {
 
 void HAL_PCD_SetupStageCallback(PCD_HandleTypeDef* hpcd) {
     ++g_usb_setup_count;
+    for (uint32_t i = 0U; i < 8U; ++i) {
+        g_usb_last_setup[i] = hpcd->Setup[i];
+    }
+    g_usb_last_setup_valid = 1U;
     USBD_LL_SetupStage((USBD_HandleTypeDef*)hpcd->pData, (uint8_t*)hpcd->Setup);
 }
 
@@ -133,7 +152,11 @@ void HAL_PCD_SOFCallback(PCD_HandleTypeDef* hpcd) {
 
 void HAL_PCD_ResetCallback(PCD_HandleTypeDef* hpcd) {
     ++g_usb_reset_count;
-    USBD_LL_SetSpeed((USBD_HandleTypeDef*)hpcd->pData, USBD_SPEED_FULL);
+    USBD_SpeedTypeDef speed = USBD_SPEED_FULL;
+    if (hpcd->Init.speed == PCD_SPEED_HIGH) {
+        speed = USBD_SPEED_HIGH;
+    }
+    USBD_LL_SetSpeed((USBD_HandleTypeDef*)hpcd->pData, speed);
     USBD_LL_Reset((USBD_HandleTypeDef*)hpcd->pData);
 }
 

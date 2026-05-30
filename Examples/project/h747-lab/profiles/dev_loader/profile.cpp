@@ -1,6 +1,7 @@
 #include "profile.h"
 
 #include "dev_loader.h"
+#include "power.h"
 
 import init.node;
 import util.core;
@@ -21,6 +22,12 @@ constexpr init::CapId kAppProvides[] = {kAppCap};
 constexpr init::CapId kAppRequires[] = {kConsoleCap, kPowerCap, kMemoryCap};
 
 util::Result<void> init_noop(void*) noexcept {
+    return {};
+}
+
+util::Result<void> init_power(void*) noexcept {
+    power_init();
+    (void)power_pmic_probe();
     return {};
 }
 
@@ -46,7 +53,7 @@ const init::Node kPowerNode{
     static_cast<util::u32>(init::Runlevel::all),
     std::span<const init::CapId>(kPowerProvides, 1),
     {},
-    init_noop,
+    init_power,
     nullptr,
     nullptr,
 };

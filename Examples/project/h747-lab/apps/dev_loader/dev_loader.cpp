@@ -99,6 +99,27 @@ void emit(Args&&... args) noexcept {
     out::discard(out::vprint<Fmt>(out_sink(), std::forward<Args>(args)...));
 }
 
+void emit_text(const char* text) noexcept {
+    if (text == nullptr) {
+        return;
+    }
+    (void)console_stream().write(std::string_view{text});
+}
+
+void emit_hex_bytes(const char* label, const std::uint8_t* bytes, const std::size_t len) noexcept {
+    if (label != nullptr) {
+        emit_text(label);
+    }
+    static constexpr char kHex[] = "0123456789ABCDEF";
+    char buf[4] = {' ', '0', '0', '\0'};
+    for (std::size_t i = 0; i < len; ++i) {
+        buf[1] = kHex[(bytes[i] >> 4U) & 0x0FU];
+        buf[2] = kHex[bytes[i] & 0x0FU];
+        emit_text(buf);
+    }
+    emit_text("\n");
+}
+
 struct Runtime {
     h747::console::ConsoleLineSource line_source{};
     loader::CommandRuntime commands{ram_storage()};
@@ -458,12 +479,13 @@ void print_raw_status(const Runtime& rt) noexcept {
 
 void print_usb_status(const Runtime& rt) noexcept {
     const auto usb = h747::usb_dev_loader::status();
-    emit<"dev: usb active={} bytes={} init={} started={} cdc_ready={} pcd={} usbd={} class={} iface={} start={}\n">(
+    emit<"dev: usb active={} bytes={} init={} started={} cdc_ready={} pcd_ready={} pcd={} usbd={} class={} iface={} start={}\n">(
         rt.usb_active ? 1U : 0U,
         rt.usb_bytes,
         usb.init_called,
         usb.started,
         usb.cdc_ready,
+        usb.pcd_ready,
         usb.pcd_init_status,
         usb.usbd_init_status,
         usb.register_class_status,
@@ -478,15 +500,46 @@ void print_usb_status(const Runtime& rt) noexcept {
         usb.control_requests,
         usb.last_control_cmd,
         usb.last_control_length);
-    emit<"dev: usb bus setup={} reset={} suspend={} resume={} connect={} disconnect={} out_ep1={} in_ep1={}\n">(
+    emit<"dev: usb bus setup={} reset={} suspend={} resume={} connect={} disconnect={} ep0_out={} ep0_in={} ep1_out={} ep1_in={} last_setup={}\n">(
         usb.setup_count,
         usb.reset_count,
         usb.suspend_count,
         usb.resume_count,
         usb.connect_count,
         usb.disconnect_count,
+        usb.out_ep0_hits,
+        usb.in_ep0_hits,
         usb.out_ep1_hits,
-        usb.in_ep1_hits);
+        usb.in_ep1_hits,
+        usb.last_setup_valid);
+    emit<"dev: usb regs gusbcfg=0x{:08x} gahbcfg=0x{:08x} gintsts=0x{:08x} gintmsk=0x{:08x} dctl=0x{:08x} dsts=0x{:08x} gotgctl=0x{:08x} gccfg=0x{:08x}\n">(
+        usb.gusbcfg,
+        usb.gahbcfg,
+        usb.gintsts,
+        usb.gintmsk,
+        usb.dctl,
+        usb.dsts,
+        usb.gotgctl,
+        usb.gccfg);
+    emit<"dev: usb ep0 diepctl=0x{:08x} diepint=0x{:08x} doepctl=0x{:08x} doepint=0x{:08x}\n">(
+        usb.diepctl0,
+        usb.diepint0,
+        usb.doepctl0,
+        usb.doepint0);
+    if (usb.last_setup_valid != 0U) {
+        emit_hex_bytes("dev: usb setup", usb.last_setup, sizeof(usb.last_setup));
+    }
+    emit<"dev: usb desc dev_len={} cfg_len={} dev_prefix={} cfg_prefix={}\n">(
+        usb.dev_desc_len,
+        usb.cfg_desc_len,
+        usb.dev_desc_prefix_len,
+        usb.cfg_desc_prefix_len);
+    if (usb.dev_desc_prefix_len != 0U) {
+        emit_hex_bytes("dev: usb dev-desc", usb.dev_desc_prefix, usb.dev_desc_prefix_len);
+    }
+    if (usb.cfg_desc_prefix_len != 0U) {
+        emit_hex_bytes("dev: usb cfg-desc", usb.cfg_desc_prefix, usb.cfg_desc_prefix_len);
+    }
     print_packet_result(rt.usb_last);
 }
 

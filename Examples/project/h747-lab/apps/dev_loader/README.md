@@ -115,6 +115,22 @@ failure, or `dev usb abort`; it stops/disconnects the USB device instead of
 trying to restore any previous USB function. A later App that needs USB must
 own and initialize its own USB backend.
 
+USB CDC board validation status:
+
+- `dev usb begin` reaches `USBD_Init`, class/interface registration, PCD start,
+  and soft-disconnect release successfully.
+- `dev usb status` prints OTG core/device registers, EP0 event counters, the
+  last setup packet if present, and device/config descriptor prefixes.
+- Current board evidence shows `setup=0 reset=0 connect=0 disconnect=0` before
+  the packet layer, while `dev_desc` and `cfg_desc` are valid in firmware.
+- A `storage_firmware_runtime` USB MSC control test on the same board/host path
+  produced the same no-reset/no-setup signature, so the current blocker is
+  classified as an enumeration-before-class issue, not a CDC packetstream or App
+  runtime issue.
+- Next USB work should first validate the physical host/device path, VBUS/ID
+  wiring, cable/port state, and OTG FS peripheral attach behavior before
+  changing packet v0 or AppRuntime semantics.
+
 After a packetstream reaches `launch_ready`, `dev app stage <name>` reads the
 verified payload back from the RAM receive buffer into a 128 KiB staging scratch
 buffer and stages it as `AppImage(format=elf)`. `dev app probe <name>`

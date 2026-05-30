@@ -4,4 +4,5 @@ set(H747_LAB_PROFILE_RUNTIME foundation)
 set(H747_LAB_PROFILE_APP dev_loader)
 set(H747_LAB_PROFILE_SERVICES
     console
+    power
     usb_dev_loader)

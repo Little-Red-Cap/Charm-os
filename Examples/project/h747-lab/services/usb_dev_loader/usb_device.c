@@ -27,6 +27,9 @@ static int8_t cdc_control(uint8_t cmd, uint8_t* pbuf, uint16_t length);
 static int8_t cdc_receive(uint8_t* Buf, uint32_t* Len);
 static int8_t cdc_transmit_complete(uint8_t* Buf, uint32_t* Len, uint8_t epnum);
 static void usb_device_soft_disconnect(uint8_t disconnected);
+static void copy_prefix(uint8_t* dst, uint8_t* dst_len, uint32_t dst_capacity, const uint8_t* src, uint16_t src_len);
+extern uint8_t usb_last_setup_valid(void);
+extern void usb_copy_last_setup(uint8_t out[8]);
 
 static USBD_CDC_ItfTypeDef g_cdc_interface = {
     cdc_init,
@@ -108,6 +111,7 @@ void h747_usb_dev_loader_stop(void) {
     usb_device_soft_disconnect(1U);
     (void)USBD_Stop(&hUsbDeviceFS);
     (void)USBD_DeInit(&hUsbDeviceFS);
+    usb_otg_fs_pcd_mark_stopped();
     g_status.started = 0U;
     g_status.cdc_ready = 0U;
 }
@@ -126,16 +130,70 @@ size_t h747_usb_dev_loader_read(uint8_t* output, size_t capacity) {
 
 h747_usb_dev_loader_status_t h747_usb_dev_loader_status(void) {
     h747_usb_dev_loader_status_t status = g_status;
+
     status.pcd_init_status = usb_otg_fs_pcd_init_status();
+    status.pcd_ready = usb_otg_fs_pcd_ready();
     status.setup_count = usb_setup_count();
     status.reset_count = usb_reset_count();
     status.suspend_count = usb_suspend_count();
     status.resume_count = usb_resume_count();
     status.connect_count = usb_connect_count();
     status.disconnect_count = usb_disconnect_count();
+    status.out_ep0_hits = usb_out_ep_hits(0U);
+    status.in_ep0_hits = usb_in_ep_hits(0U);
     status.out_ep1_hits = usb_out_ep_hits(1U);
     status.in_ep1_hits = usb_in_ep_hits(1U);
+    status.last_setup_valid = usb_last_setup_valid();
+    usb_copy_last_setup(status.last_setup);
+
+    if (status.pcd_ready != 0U && hpcd_USB_OTG_FS.Instance != NULL) {
+        const USB_OTG_GlobalTypeDef* usb = USB_OTG_FS;
+        const USB_OTG_DeviceTypeDef* usb_dev =
+            (const USB_OTG_DeviceTypeDef*)(USB_OTG_FS_PERIPH_BASE + USB_OTG_DEVICE_BASE);
+        const USB_OTG_INEndpointTypeDef* in0 =
+            (const USB_OTG_INEndpointTypeDef*)(USB_OTG_FS_PERIPH_BASE + USB_OTG_IN_ENDPOINT_BASE);
+        const USB_OTG_OUTEndpointTypeDef* out0 =
+            (const USB_OTG_OUTEndpointTypeDef*)(USB_OTG_FS_PERIPH_BASE + USB_OTG_OUT_ENDPOINT_BASE);
+        status.gusbcfg = (uint32_t)usb->GUSBCFG;
+        status.gahbcfg = (uint32_t)usb->GAHBCFG;
+        status.gintsts = (uint32_t)usb->GINTSTS;
+        status.gintmsk = (uint32_t)usb->GINTMSK;
+        status.dctl = (uint32_t)usb_dev->DCTL;
+        status.dsts = (uint32_t)usb_dev->DSTS;
+        status.gotgctl = (uint32_t)usb->GOTGCTL;
+        status.gccfg = (uint32_t)usb->GCCFG;
+        status.diepctl0 = (uint32_t)in0->DIEPCTL;
+        status.diepint0 = (uint32_t)in0->DIEPINT;
+        status.doepctl0 = (uint32_t)out0->DOEPCTL;
+        status.doepint0 = (uint32_t)out0->DOEPINT;
+    }
+
+    if ((hUsbDeviceFS.pDesc != NULL) && (hUsbDeviceFS.pDesc->GetDeviceDescriptor != NULL)) {
+        uint16_t len = 0U;
+        const uint8_t* desc = hUsbDeviceFS.pDesc->GetDeviceDescriptor(hUsbDeviceFS.dev_speed, &len);
+        status.dev_desc_len = (uint8_t)((len > 255U) ? 255U : len);
+        copy_prefix(status.dev_desc_prefix, &status.dev_desc_prefix_len, sizeof(status.dev_desc_prefix), desc, len);
+    }
+
+    if ((hUsbDeviceFS.pClass[0] != NULL) && (hUsbDeviceFS.pClass[0]->GetFSConfigDescriptor != NULL)) {
+        uint16_t len = 0U;
+        const uint8_t* desc = hUsbDeviceFS.pClass[0]->GetFSConfigDescriptor(&len);
+        status.cfg_desc_len = (uint8_t)((len > 255U) ? 255U : len);
+        copy_prefix(status.cfg_desc_prefix, &status.cfg_desc_prefix_len, sizeof(status.cfg_desc_prefix), desc, len);
+    }
     return status;
+}
+
+static void copy_prefix(uint8_t* dst, uint8_t* dst_len, uint32_t dst_capacity, const uint8_t* src, uint16_t src_len) {
+    if (dst == NULL || dst_len == NULL || src == NULL || src_len == 0U || dst_capacity == 0U) {
+        if (dst_len != NULL) {
+            *dst_len = 0U;
+        }
+        return;
+    }
+    const uint32_t copy_len = (src_len < dst_capacity) ? src_len : dst_capacity;
+    memcpy(dst, src, copy_len);
+    *dst_len = (uint8_t)copy_len;
 }
 
 static int8_t cdc_init(void) {

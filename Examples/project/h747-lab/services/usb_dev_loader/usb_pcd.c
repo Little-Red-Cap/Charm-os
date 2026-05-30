@@ -12,6 +12,10 @@ uint8_t usb_otg_fs_pcd_ready(void) {
     return g_usb_pcd_ready;
 }
 
+void usb_otg_fs_pcd_mark_stopped(void) {
+    g_usb_pcd_ready = 0U;
+}
+
 void MX_USB_OTG_FS_PCD_Init(void) {
     g_usb_pcd_init_status = (int32_t)HAL_OK;
     g_usb_pcd_ready = 0U;
@@ -21,7 +25,7 @@ void MX_USB_OTG_FS_PCD_Init(void) {
     hpcd_USB_OTG_FS.Init.dma_enable = DISABLE;
     hpcd_USB_OTG_FS.Init.phy_itface = PCD_PHY_EMBEDDED;
     hpcd_USB_OTG_FS.Init.ep0_mps = EP_MPS_64;
-    hpcd_USB_OTG_FS.Init.Sof_enable = DISABLE;
+    hpcd_USB_OTG_FS.Init.Sof_enable = ENABLE;
     hpcd_USB_OTG_FS.Init.low_power_enable = DISABLE;
     hpcd_USB_OTG_FS.Init.lpm_enable = DISABLE;
     hpcd_USB_OTG_FS.Init.battery_charging_enable = DISABLE;

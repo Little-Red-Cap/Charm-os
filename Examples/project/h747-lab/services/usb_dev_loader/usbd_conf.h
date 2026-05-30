@@ -56,6 +56,7 @@ void USBD_static_free(void* p);
 
 int32_t usb_otg_fs_pcd_init_status(void);
 uint8_t usb_otg_fs_pcd_ready(void);
+void usb_otg_fs_pcd_mark_stopped(void);
 uint32_t usb_setup_count(void);
 uint32_t usb_reset_count(void);
 uint32_t usb_suspend_count(void);

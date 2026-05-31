@@ -10,6 +10,8 @@ param(
     [int]$WriteChunkSize = 256,
     [int]$InterChunkDelayMs = 1,
     [int]$Repeat = 1,
+    [ValidateSet("qspi", "emmc")]
+    [string]$Media = "qspi",
     [string]$Log = "",
     [string]$ValidateLog = "",
     [switch]$DryRun,
@@ -98,25 +100,27 @@ function Get-PacketStreamBeginInfo {
 function Get-RequiredTokens {
     param(
         [int]$PayloadSize,
-        [uint32]$Crc32
+        [uint32]$Crc32,
+        [string]$Media
     )
 
+    $ListToken = if ($Media -eq "emmc") { "dev: store emmc entries=2" } else { "dev: store entries=2" }
     return @(
         "USB CDC packetstream transfer passed.",
         "dev: usb active=0 exit=launch_ready",
         "dev: stage=launch_ready code=ok received=$PayloadSize",
         ("crc=0x{0:x8}/0x{0:x8}" -f $Crc32),
         "dropped=0 overflow=0",
-        "dev: store install qspi receive=ok",
+        "dev: store install $Media receive=ok",
         "store=ok code=ok",
-        "dev: store entries=2",
+        $ListToken,
         "name=hello_app",
         "name=player_min",
         "hello_app: charm_app_main entered",
         "hello_app: argv1=alpha",
-        "dev: app command=run name=qspi:hello_app run=enabled",
+        "dev: app command=run name=${Media}:hello_app run=enabled",
         "player_min: presented one frame",
-        "dev: app command=run name=qspi:player_min run=enabled",
+        "dev: app command=run name=${Media}:player_min run=enabled",
         "dev: app stage-arena name=sdram2_stage_cache addr=0xd0040000 expected=0xd0040000",
         "dev: app sdram2 ready=1 init=1 smoke=1 base=0xd0000000",
         "present_count=1",
@@ -125,14 +129,19 @@ function Get-RequiredTokens {
 }
 
 function Get-RequiredCounts {
-    param([int]$Repeat = 1)
+    param(
+        [int]$Repeat = 1,
+        [string]$Media
+    )
+
+    $ListToken = if ($Media -eq "emmc") { "dev: store emmc entries=2" } else { "dev: store entries=2" }
 
     return @(
         @{ Token = "USB CDC packetstream transfer passed."; Count = $Repeat },
-        @{ Token = "dev: store install qspi receive=ok"; Count = $Repeat },
-        @{ Token = "dev: store entries=2"; Count = $Repeat },
-        @{ Token = "dev: app command=run name=qspi:hello_app run=enabled"; Count = $Repeat },
-        @{ Token = "dev: app command=run name=qspi:player_min run=enabled"; Count = $Repeat },
+        @{ Token = "dev: store install $Media receive=ok"; Count = $Repeat },
+        @{ Token = $ListToken; Count = $Repeat },
+        @{ Token = "dev: app command=run name=${Media}:hello_app run=enabled"; Count = $Repeat },
+        @{ Token = "dev: app command=run name=${Media}:player_min run=enabled"; Count = $Repeat },
         @{ Token = "dev: app run stage=exit code=ok"; Count = 2 * $Repeat },
         @{ Token = "exited=1 exit=0"; Count = 2 * $Repeat },
         @{ Token = "present_count=1"; Count = $Repeat },
@@ -207,23 +216,26 @@ function Validate-LogFile {
 }
 
 function Get-SyntheticPassingLog {
+    param([string]$Media)
+
+    $ListLine = if ($Media -eq "emmc") { "dev: store emmc entries=2" } else { "dev: store entries=2" }
     return @"
 USB CDC packetstream transfer passed.
 dev: usb active=0 exit=launch_ready bytes=11648
 dev: usb rx packets=182 bytes=11648 read=11648 dropped=0 overflow=0 ctrl=28 last_ctrl=33/7
 dev: stage=launch_ready code=ok received=10416 crc=0x73de4894/0x73de4894
-dev: store install qspi receive=ok recv_bytes=10416 store=ok code=ok target=0x00000000 written=10416 erased=12288
-dev: store entries=2
+dev: store install $Media receive=ok recv_bytes=10416 store=ok code=ok target=0x00000000 written=10416 erased=12288
+$ListLine
   [0] name=hello_app offset=0x00000070 size=5132 flags=0x00000000 runnable=1
   [1] name=player_min offset=0x00001480 size=5168 flags=0x00000000 runnable=1
 hello_app: charm_app_main entered
 hello_app: argv1=alpha
-dev: app command=run name=qspi:hello_app run=enabled
+dev: app command=run name=${Media}:hello_app run=enabled
 dev: app stage-arena name=sdram2_stage_cache addr=0xd0040000 expected=0xd0040000 size=131072 align=32
 dev: app sdram2 ready=1 init=1 smoke=1 base=0xd0000000 size=33554432
 dev: app run stage=exit code=ok backend=0 load=0x24070000 entry=0x24070021 span=270 segments=2 exited=1 exit=0 app_exit=0 app_exit_code=0
 player_min: presented one frame
-dev: app command=run name=qspi:player_min run=enabled
+dev: app command=run name=${Media}:player_min run=enabled
 dev: app stage-arena name=sdram2_stage_cache addr=0xd0040000 expected=0xd0040000 size=131072 align=32
 dev: app sdram2 ready=1 init=1 smoke=1 base=0xd0000000 size=33554432
 dev: app run stage=exit code=ok backend=0 load=0x24070000 entry=0x24070001 span=1280 segments=3 exited=1 exit=0 app_exit=0 app_exit_code=0
@@ -233,25 +245,27 @@ platform repeat 1/1 passed
 }
 
 function Invoke-SelfTest {
-    $Tokens = Get-RequiredTokens -PayloadSize 10416 -Crc32 0x73de4894
-    $Counts = Get-RequiredCounts
-    $Missing = Get-MissingEvidence -Text (Get-SyntheticPassingLog) -Tokens $Tokens -Counts $Counts
-    if ($Missing.Count -ne 0) {
-        Write-Host "Self-test failed: synthetic passing log missed tokens."
-        foreach ($Token in $Missing) {
-            Write-Host "  - $Token"
+    foreach ($TestMedia in @("qspi", "emmc")) {
+        $Tokens = Get-RequiredTokens -PayloadSize 10416 -Crc32 0x73de4894 -Media $TestMedia
+        $Counts = Get-RequiredCounts -Media $TestMedia
+        $Missing = Get-MissingEvidence -Text (Get-SyntheticPassingLog -Media $TestMedia) -Tokens $Tokens -Counts $Counts
+        if ($Missing.Count -ne 0) {
+            Write-Host "Self-test failed: synthetic passing log missed tokens for media=$TestMedia."
+            foreach ($Token in $Missing) {
+                Write-Host "  - $Token"
+            }
+            return 1
         }
-        return 1
-    }
 
-    $FailingLog = (Get-SyntheticPassingLog).Replace("player_min: presented one frame", "player_min: failed")
-    $FailingMissing = Get-MissingEvidence -Text $FailingLog -Tokens $Tokens -Counts $Counts
-    if ($FailingMissing.Count -ne 1 -or $FailingMissing[0] -ne "player_min: presented one frame") {
-        Write-Host "Self-test failed: synthetic missing-token log was not classified as expected."
-        foreach ($Token in $FailingMissing) {
-            Write-Host "  - $Token"
+        $FailingLog = (Get-SyntheticPassingLog -Media $TestMedia).Replace("player_min: presented one frame", "player_min: failed")
+        $FailingMissing = Get-MissingEvidence -Text $FailingLog -Tokens $Tokens -Counts $Counts
+        if ($FailingMissing.Count -ne 1 -or $FailingMissing[0] -ne "player_min: presented one frame") {
+            Write-Host "Self-test failed: synthetic missing-token log was not classified as expected for media=$TestMedia."
+            foreach ($Token in $FailingMissing) {
+                Write-Host "  - $Token"
+            }
+            return 1
         }
-        return 1
     }
 
     Write-Host "Dev Loader USB CDC App Store platform smoke self-test passed."
@@ -332,10 +346,10 @@ function Invoke-StoreAndRun {
         $Serial = Open-ControlSerial
         Start-Sleep -Milliseconds 300
         [void]$Serial.ReadExisting()
-        [void](Send-ControlCommand -Serial $Serial -Command "dev store install qspi" -Phase "store_install" -Timeout 45)
-        [void](Send-ControlCommand -Serial $Serial -Command "dev store list qspi" -Phase "store_list" -Timeout 10)
-        [void](Send-ControlCommand -Serial $Serial -Command "dev app run qspi:hello_app alpha beta" -Phase "hello_run" -Timeout 15)
-        [void](Send-ControlCommand -Serial $Serial -Command "dev app run qspi:player_min" -Phase "player_min_run" -Timeout 15)
+        [void](Send-ControlCommand -Serial $Serial -Command "dev store install $Media" -Phase "store_install" -Timeout 45)
+        [void](Send-ControlCommand -Serial $Serial -Command "dev store list $Media" -Phase "store_list" -Timeout 10)
+        [void](Send-ControlCommand -Serial $Serial -Command "dev app run ${Media}:hello_app alpha beta" -Phase "hello_run" -Timeout 15)
+        [void](Send-ControlCommand -Serial $Serial -Command "dev app run ${Media}:player_min" -Phase "player_min_run" -Timeout 15)
         [void](Send-ControlCommand -Serial $Serial -Command "dev app status" -Phase "app_status" -Timeout 10)
     } finally {
         if (($null -ne $Serial) -and $Serial.IsOpen) {
@@ -381,7 +395,12 @@ if (-not (Test-Path -LiteralPath $PacketStream)) {
     throw "PacketStream not found: $PacketStream"
 }
 if ([string]::IsNullOrWhiteSpace($Log)) {
-    $Log = Join-Path $ProjectRoot "cmake-build-h747-lab-debug\h747_lab_dev_loader_usb_cdc_appstore_platform_smoke.log"
+    $LogName = if ($Media -eq "qspi") {
+        "h747_lab_dev_loader_usb_cdc_appstore_platform_smoke.log"
+    } else {
+        "h747_lab_dev_loader_usb_cdc_appstore_${Media}_platform_smoke.log"
+    }
+    $Log = Join-Path $ProjectRoot "cmake-build-h747-lab-debug\$LogName"
 }
 
 $TransferSmoke = Join-Path $PSScriptRoot "capture-dev-loader-usb-cdc-appstore-transfer-smoke.ps1"
@@ -392,9 +411,9 @@ if (-not (Test-Path -LiteralPath $TransferSmoke)) {
 $ResolvedPacketStream = (Resolve-Path -LiteralPath $PacketStream).Path
 $PacketBytes = [System.IO.File]::ReadAllBytes($ResolvedPacketStream)
 $PacketInfo = Get-PacketStreamBeginInfo -Bytes $PacketBytes
-$RequiredTokens = Get-RequiredTokens -PayloadSize $PacketInfo.PayloadSize -Crc32 $PacketInfo.Crc32
-$RequiredCounts = Get-RequiredCounts -Repeat $Repeat
-$PerRepeatCounts = Get-RequiredCounts -Repeat 1
+$RequiredTokens = Get-RequiredTokens -PayloadSize $PacketInfo.PayloadSize -Crc32 $PacketInfo.Crc32 -Media $Media
+$RequiredCounts = Get-RequiredCounts -Repeat $Repeat -Media $Media
+$PerRepeatCounts = Get-RequiredCounts -Repeat 1 -Media $Media
 
 if (-not [string]::IsNullOrWhiteSpace($ValidateLog)) {
     exit (Validate-LogFile -Path $ValidateLog -Tokens $RequiredTokens -Counts $RequiredCounts -Repeat $Repeat)
@@ -410,9 +429,10 @@ if ($DryRun) {
     Write-Host "  payload:      $($PacketInfo.PayloadSize)"
     Write-Host ("  expected crc: 0x{0:x8}" -f $PacketInfo.Crc32)
     Write-Host "  repeat:       $Repeat"
+    Write-Host "  media:        $Media"
     Write-Host "  write chunk:  $WriteChunkSize"
     Write-Host "  chunk delay:  ${InterChunkDelayMs}ms"
-    Write-Host "  commands:     dev store install qspi; dev store list qspi; dev app run qspi:hello_app alpha beta; dev app run qspi:player_min; dev app status"
+    Write-Host "  commands:     dev store install $Media; dev store list $Media; dev app run ${Media}:hello_app alpha beta; dev app run ${Media}:player_min; dev app status"
     Write-Host "  log:          $ResolvedLog"
     exit 0
 }
@@ -437,6 +457,7 @@ try {
     Write-CaptureText "  payload:      $($PacketInfo.PayloadSize)`n"
     Write-CaptureText ("  expected crc: 0x{0:x8}`n" -f $PacketInfo.Crc32)
     Write-CaptureText "  repeat:       $Repeat`n"
+    Write-CaptureText "  media:        $Media`n"
     Write-CaptureText "  write chunk:  $WriteChunkSize`n"
     Write-CaptureText "  chunk delay:  ${InterChunkDelayMs}ms`n"
     Write-CaptureText "  log:          $ResolvedLog`n`n"

@@ -145,19 +145,27 @@ try {
         $LogWriter.WriteLine($Header)
         $LogWriter.Flush()
 
-        & powershell -NoProfile -ExecutionPolicy Bypass -File $TransferSmoke `
-            -PacketStream $ResolvedPacketStream `
-            -ControlPort $ControlPort `
-            -UsbPort $UsbPort `
-            -ControlBaudRate $ControlBaudRate `
-            -UsbBaudRate $UsbBaudRate `
-            -TimeoutSeconds $TimeoutSeconds `
-            -UsbEnumerateTimeoutSeconds $UsbEnumerateTimeoutSeconds `
-            -UsbSettleMilliseconds $UsbSettleMilliseconds `
-            -WriteChunkSize $ChunkSize `
-            -InterChunkDelayMs 0 `
-            -Repeat $Repeat `
-            -Log $ChunkLog
+        $TransferArgs = @(
+            "-NoProfile",
+            "-ExecutionPolicy", "Bypass",
+            "-File", $TransferSmoke,
+            "-PacketStream", $ResolvedPacketStream,
+            "-ControlPort", $ControlPort,
+            "-ControlBaudRate", $ControlBaudRate,
+            "-UsbBaudRate", $UsbBaudRate,
+            "-TimeoutSeconds", $TimeoutSeconds,
+            "-UsbEnumerateTimeoutSeconds", $UsbEnumerateTimeoutSeconds,
+            "-UsbSettleMilliseconds", $UsbSettleMilliseconds,
+            "-WriteChunkSize", $ChunkSize,
+            "-InterChunkDelayMs", 0,
+            "-Repeat", $Repeat,
+            "-Log", $ChunkLog
+        )
+        if (-not [string]::IsNullOrWhiteSpace($UsbPort)) {
+            $TransferArgs += @("-UsbPort", $UsbPort)
+        }
+
+        & powershell @TransferArgs
         if ($LASTEXITCODE -ne 0) {
             $LogWriter.WriteLine("chunk $ChunkSize failed")
             $LogWriter.WriteLine("log: $ChunkLog")

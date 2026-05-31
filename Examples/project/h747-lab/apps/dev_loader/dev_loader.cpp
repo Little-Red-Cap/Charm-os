@@ -13,6 +13,7 @@
 #include "charm_app_staged_runtime.hpp"
 #include "console.h"
 #include "console_service.hpp"
+#include "memory_probe.h"
 #include "port.h"
 #include "qspi_nor.h"
 #include "usb_dev_loader_service.hpp"
@@ -47,6 +48,7 @@ constexpr std::uint32_t kPacketMaxPayloadSize = 256U;
 constexpr std::uint32_t kUsbReadChunkSize = 512U;
 constexpr std::uint32_t kUsbDrainLimitBytes = 4096U;
 constexpr std::uint32_t kQspiStoreBaseOffset = 0U;
+constexpr std::uintptr_t kSdram2ArenaBase = 0xD0000000U;
 constexpr std::string_view kDefaultReceivedAppName = "received_app"sv;
 
 enum class UsbExitReason : std::uint8_t {
@@ -86,13 +88,22 @@ struct AppRunLoadRegion {
 
 struct ImageStageArena {
     std::string_view name{};
+    std::uintptr_t base{0};
     std::uint32_t size{0};
     std::uint32_t align{0};
 };
 
 constexpr ImageStageArena kImageStageArena{
-    .name = "ram_d1_stage_cache"sv,
+    .name = "sdram2_stage_cache"sv,
+    .base = kSdram2ArenaBase + kDevRamCapacity,
     .size = kStageProbeScratchSize,
+    .align = 32U,
+};
+
+constexpr ImageStageArena kReceiveArena{
+    .name = "sdram2_receive_buffer"sv,
+    .base = kSdram2ArenaBase,
+    .size = kDevRamCapacity,
     .align = 32U,
 };
 
@@ -239,12 +250,16 @@ Runtime& runtime() noexcept {
 }
 
 std::array<std::byte, kDevRamCapacity>& dev_ram() noexcept {
-    alignas(32) static std::array<std::byte, kDevRamCapacity> ram{};
+    // .sdram is NOLOAD; keep this as explicitly written scratch storage only.
+    alignas(32) __attribute__((section(".sdram.dev_loader_receive")))
+    static std::array<std::byte, kDevRamCapacity> ram;
     return ram;
 }
 
 std::array<std::byte, kStageProbeScratchSize>& stage_probe_scratch() noexcept {
-    alignas(32) static std::array<std::byte, kStageProbeScratchSize> cache{};
+    // SDRAM smoke may touch this arena before commands run; never store static state here.
+    alignas(32) __attribute__((section(".sdram.dev_loader_stage")))
+    static std::array<std::byte, kStageProbeScratchSize> cache;
     return cache;
 }
 
@@ -507,10 +522,23 @@ void print_result(loader::Result result) noexcept {
 }
 
 void print_status(const loader::CommandResult& command) noexcept {
+    const auto memory = memory_probe_storage_state();
     emit<"dev: ram base=0x{:08x} capacity={} cursor={}\n">(
         kDevRamBase,
         kDevRamCapacity,
         command.cursor);
+    emit<"dev: receive-arena name={} addr=0x{:08x} expected=0x{:08x} size={} align={}\n">(
+        kReceiveArena.name,
+        static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(dev_ram().data())),
+        static_cast<std::uint32_t>(kReceiveArena.base),
+        kReceiveArena.size,
+        kReceiveArena.align);
+    emit<"dev: sdram2 ready={} init={} smoke={} base=0x{:08x} size={}\n">(
+        memory.sdram2_ready,
+        memory.sdram2_init_ok,
+        memory.sdram2_smoke_ok,
+        memory.sdram2_base,
+        memory.sdram2_size_bytes);
     print_result(command.session);
     if (command.active) {
         const auto& manifest = command.manifest;
@@ -717,11 +745,20 @@ void list_qspi_store(Runtime& rt) noexcept {
 
 void print_app_status(const Runtime& rt) noexcept {
     const auto run_state = (rt.app_last_command == "run"sv) ? "enabled"sv : "disabled"sv;
+    const auto memory = memory_probe_storage_state();
     emit<"dev: app command={} name={} run={}\n">(rt.app_last_command, rt.app_name, run_state);
-    emit<"dev: app stage-arena name={} size={} align={}\n">(
+    emit<"dev: app stage-arena name={} addr=0x{:08x} expected=0x{:08x} size={} align={}\n">(
         kImageStageArena.name,
+        static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(stage_probe_scratch().data())),
+        static_cast<std::uint32_t>(kImageStageArena.base),
         kImageStageArena.size,
         kImageStageArena.align);
+    emit<"dev: app sdram2 ready={} init={} smoke={} base=0x{:08x} size={}\n">(
+        memory.sdram2_ready,
+        memory.sdram2_init_ok,
+        memory.sdram2_smoke_ok,
+        memory.sdram2_base,
+        memory.sdram2_size_bytes);
     emit<"dev: app run-region name={} base=0x{:08x} size={} align={} linked_elf_base=0x{:08x}\n">(
         kAppRunLoadRegion.name,
         static_cast<std::uint32_t>(kAppRunLoadRegion.base),

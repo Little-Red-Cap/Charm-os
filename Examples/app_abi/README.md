@@ -66,7 +66,10 @@ external stores: USB/UART packetstream receive produces verified bytes, QSPI or
 future eMMC store readers produce named byte ranges, and both must converge on
 `AppImage -> staged AppImageSource -> AppRuntime`. Store v1 remains only
 `header + entries + payload`; it is not a filesystem or product update slot
-format.
+format. On H747, large receive/stage caches may live in SDRAM, but executable
+App ELF loading still uses the board-owned execution region selected by the
+runtime backend; cache placement must not change the `AppImage` or AppRuntime
+contract.
 
 `elf_samples/build_app_store.ps1` builds the current sample App ELFs and packs
 them into a development `.appstore.bin` file. That file is the host/QSPI/eMMC

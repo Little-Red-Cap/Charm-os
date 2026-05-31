@@ -33,6 +33,10 @@ The first-generation contract is intentionally small:
   the App ABI ELF load/AppRuntime helper chain.
 - `dev launch dry-run` remains the transport-neutral receive-session marker;
   App execution is an explicit monitor command, not a raw jump.
+- The current H747 `dev_loader` binding stores large receive/stage scratch
+  buffers in SDRAM2 `.sdram` storage. This changes only the backing arena; the
+  `Session` logical load address, packet v0 stream, Store v1 image, and
+  AppRuntime handoff semantics stay unchanged.
 
 Supported command-layer verbs:
 
@@ -167,4 +171,5 @@ packetstream/raw UART -> launch_ready payload
 The current H747 App ELF samples are linked for `ELF_BASE = 0x24070000`; the
 resident monitor therefore loads executable App ELF bytes into
 `0x24070000..0x24080000`. Future USB, QSPI/eMMC, or ModuleX work must preserve
-the same `AppImage + AppRuntime + CharmAppApi` handoff shape.
+the same `AppImage + AppRuntime + CharmAppApi` handoff shape. SDRAM is used as
+receive/stage storage only; it is not the first-generation ELF execute region.

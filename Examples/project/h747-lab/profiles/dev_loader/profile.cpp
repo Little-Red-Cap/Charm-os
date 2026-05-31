@@ -1,6 +1,7 @@
 #include "profile.h"
 
 #include "dev_loader.h"
+#include "memory_probe.h"
 #include "power.h"
 
 import init.node;
@@ -28,6 +29,15 @@ util::Result<void> init_noop(void*) noexcept {
 util::Result<void> init_power(void*) noexcept {
     power_init();
     (void)power_pmic_probe();
+    return {};
+}
+
+util::Result<void> init_memory(void*) noexcept {
+    memory_probe_storage_init();
+    (void)memory_probe_configure_sdram_mpu_normal();
+    if (memory_probe_sdram2_smoke() == 0U) {
+        return util::unexpected(util::Errc::io);
+    }
     return {};
 }
 
@@ -64,7 +74,7 @@ const init::Node kMemoryNode{
     static_cast<util::u32>(init::Runlevel::all),
     std::span<const init::CapId>(kMemoryProvides, 1),
     std::span<const init::CapId>(kMemoryRequires, 1),
-    init_noop,
+    init_memory,
     nullptr,
     nullptr,
 };

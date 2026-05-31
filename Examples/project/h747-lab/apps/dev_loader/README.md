@@ -231,6 +231,8 @@ USB CDC board validation status:
   recommended resident platform regression entry. It runs the existing USB
   App Store platform smoke for both QSPI and eMMC, preserving the same download,
   install, list, and AppRuntime run semantics while producing one matrix log.
+  Matrix validation also requires the SDRAM2 stage cache token and the fixed
+  D1 App ELF run-region token, so a media pass cannot hide an arena regression.
   Use `capture-dev-loader-usb-cdc-appstore-platform-smoke.ps1 -Media qspi|emmc`
   when only one Store media needs to be checked.
 - The first matrix board run passed for both media with the safe USB defaults:

@@ -116,6 +116,9 @@ function Get-RequiredCounts {
     [void]$Counts.Add(@{ Token = "store=ok code=ok"; Count = $TotalRepeats })
     [void]$Counts.Add(@{ Token = "hello_app: charm_app_main entered"; Count = $TotalRepeats })
     [void]$Counts.Add(@{ Token = "player_min: presented one frame"; Count = $TotalRepeats })
+    [void]$Counts.Add(@{ Token = "dev: app stage-arena name=sdram2_stage_cache addr=0xd0040000 expected=0xd0040000"; Count = $TotalRepeats })
+    [void]$Counts.Add(@{ Token = "dev: app sdram2 ready=1 init=1 smoke=1 base=0xd0000000"; Count = $TotalRepeats })
+    [void]$Counts.Add(@{ Token = "dev: app run-region name=ram_d1_app_elf base=0x24070000 size=65536 align=16 linked_elf_base=0x24070000"; Count = $TotalRepeats })
     [void]$Counts.Add(@{ Token = "hello_app exit=0"; Count = $MediaList.Count })
     [void]$Counts.Add(@{ Token = "player_min exit=0"; Count = $MediaList.Count })
     return ,$Counts.ToArray()
@@ -158,6 +161,9 @@ $ListLine
 hello_app: charm_app_main entered
 hello_app: argv1=alpha
 dev: app command=run name=${Name}:hello_app run=enabled
+dev: app stage-arena name=sdram2_stage_cache addr=0xd0040000 expected=0xd0040000 size=131072 align=32
+dev: app sdram2 ready=1 init=1 smoke=1 base=0xd0000000 size=33554432
+dev: app run-region name=ram_d1_app_elf base=0x24070000 size=65536 align=16 linked_elf_base=0x24070000
 dev: app run stage=exit code=ok backend=0 exited=1 exit=0
 player_min: presented one frame
 dev: app command=run name=${Name}:player_min run=enabled

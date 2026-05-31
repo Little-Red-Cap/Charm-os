@@ -5,6 +5,7 @@
 #include "player_md3_diag.hpp"
 
 import charm.core.handle;
+import charm.core.style_sheet;
 
 namespace {
 
@@ -33,6 +34,11 @@ void sample_scene_stats() noexcept {
         st.scene_exec_cmd_image = 0U;
         st.scene_exec_fail_text = 0U;
         st.scene_exec_fail_image = 0U;
+        st.style_rule_count = 0U;
+        st.style_rule_capacity = 0U;
+        st.style_metrics_used = 0U;
+        st.style_metrics_capacity = 0U;
+        st.style_metrics_overflowed = 0U;
         return;
     }
 
@@ -51,6 +57,13 @@ void sample_scene_stats() noexcept {
     st.scene_exec_cmd_image = clamp_size_to_u32(exec.cmd_image);
     st.scene_exec_fail_text = clamp_size_to_u32(exec.fail_text);
     st.scene_exec_fail_image = clamp_size_to_u32(exec.fail_image);
+
+    const auto style = style_sheet_runtime_profile();
+    st.style_rule_count = clamp_size_to_u32(style.style_rule_count);
+    st.style_rule_capacity = clamp_size_to_u32(style.style_rule_capacity);
+    st.style_metrics_used = clamp_size_to_u32(style.metrics_pool_used);
+    st.style_metrics_capacity = clamp_size_to_u32(style.metrics_pool_capacity);
+    st.style_metrics_overflowed = style.metrics_overflowed ? 1U : 0U;
 }
 
 } // namespace h747::apps::player_md3

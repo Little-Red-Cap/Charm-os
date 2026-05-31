@@ -55,13 +55,14 @@
         }
         {
             auto& layer = ctx.page_home_layer;
+            auto& scene_runtime = ctx.scene_runtime;
             ctx.set_page(player::PlayerPage::Home);
             pump_frame();
             const ::ui::scene::SnapshotSpec spec{
                 .bounds = Rect{0, 0, 24, 24},
                 .preferred_kind = ::ui::scene::SnapshotKind::PixelSurface,
             };
-            const auto freeze = layer.freeze(scene, scene.access(), spec, true);
+            const auto freeze = layer.freeze(scene_runtime, scene_runtime.access, spec, true);
             const bool frozen = freeze.ok()
                 && freeze.handle
                 && layer.snapshot() == freeze.handle
@@ -70,7 +71,7 @@
             layer.mark_transitioning();
             const bool transitioning = frozen
                 && layer.state() == ::ui::scene::PageLayerState::Transitioning;
-            layer.thaw(scene, scene.access(), true);
+            layer.thaw(scene_runtime, scene_runtime.access, true);
             const bool thawed = transitioning
                 && layer.live()
                 && layer.visible()
@@ -81,7 +82,7 @@
             } else {
                 ui_ci_emit("page_layer_freeze_thaw", false, "page_layer_freeze_thaw");
                 if (layer.snapshot()) {
-                    (void)layer.release_snapshot(scene);
+                    (void)layer.release_snapshot(scene_runtime);
                 }
                 res.ok = false;
                 res.failed++;

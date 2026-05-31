@@ -104,11 +104,10 @@
             && presented.valid()
             && presented.pixels == board_buffer.data()
             && board_runtime_storage.display_sink_state.present_count == 1
-            && ::ui::gfx::image_id_valid(board_ctx.cover_image.image_id)
-            && board_ctx.cover_image.width == 2
-            && board_ctx.cover_image.height == 2
-            && board_ctx.cover_image.argb.size() == 4
-            && board_ctx.cover_image.path == "/ui-ci/static-cover-resource";
+            && ::ui::gfx::image_id_valid(board_ctx.current_cover.image_id)
+            && board_ctx.current_cover.width == 2
+            && board_ctx.current_cover.height == 2
+            && board_ctx.current_cover.key.view() == "/ui-ci/static-cover-resource";
         board_runtime_storage.reset();
 
         return bindings.valid()

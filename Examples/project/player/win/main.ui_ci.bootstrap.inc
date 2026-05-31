@@ -53,20 +53,19 @@
         const auto table = ui_ci_static_cover_record_table();
         player::set_cover_resource_provider_binding(player::make_cover_resource_record_table_binding(table));
 
-        player::CoverImage image{};
+        player::ResolvedCover image{};
         player::CoverResourceRequest request{};
         request.path = "/ui-ci/static-cover";
         request.kind = player::CoverResourceKind::EmbeddedTrack;
         request.fallback_variant = player::DefaultCoverVariant::HomeHeroPill;
-        const bool loaded = player::load_cover_image(request, image);
+        const bool loaded = player::resolve_cover(request, image);
         const bool ok = loaded
             && ::ui::gfx::image_id_valid(image.image_id)
             && image.width == 2
             && image.height == 2
-            && image.argb.size() == 4
-            && image.path == "/ui-ci/static-cover-resource";
+            && image.key.view() == "/ui-ci/static-cover-resource";
 
-        player::release_cover_image(image);
+        player::release_resolved_cover(image);
         player::set_cover_resource_provider_binding(previous);
         return ok;
     }
@@ -111,11 +110,10 @@
         controller->update_cover_image();
         pump_frame();
 
-        const bool provider_used = ::ui::gfx::image_id_valid(controller->cover_image.image_id)
-            && controller->cover_image.width == 2
-            && controller->cover_image.height == 2
-            && controller->cover_image.argb.size() == 4
-            && controller->cover_image.path == "/ui-ci/static-cover-resource";
+        const bool provider_used = ::ui::gfx::image_id_valid(controller->current_cover.image_id)
+            && controller->current_cover.width == 2
+            && controller->current_cover.height == 2
+            && controller->current_cover.key.view() == "/ui-ci/static-cover-resource";
 
         player::set_cover_resource_provider_binding(previous_binding);
         const auto active_binding = player::cover_resource_provider_binding();
@@ -153,13 +151,26 @@
         }
         if constexpr (player::host_features::host_file_fonts) {
             const bool expects_runtime_bind = controller->fs_ready;
-            return !controller->font_ttf_path.empty()
+            const bool ok = !controller->font_ttf_path.empty()
                 && controller->font_small_px == player::product_config::default_font_small_px
                 && controller->font_normal_px == player::product_config::default_font_normal_px
                 && controller->font_large_px == player::product_config::default_font_large_px
                 && controller->font_retry_done == expects_runtime_bind
                 && player::ui::font_package_bound() == expects_runtime_bind
                 && font_provider_bound() == expects_runtime_bind;
+            if (!ok) {
+                std::printf("[ui-ci] font-runtime fs_ready=%d retry=%d package=%d provider=%d path_empty=%d px=%d/%d/%d expected=%d\n",
+                            controller->fs_ready ? 1 : 0,
+                            controller->font_retry_done ? 1 : 0,
+                            player::ui::font_package_bound() ? 1 : 0,
+                            font_provider_bound() ? 1 : 0,
+                            controller->font_ttf_path.empty() ? 1 : 0,
+                            controller->font_small_px,
+                            controller->font_normal_px,
+                            controller->font_large_px,
+                            expects_runtime_bind ? 1 : 0);
+            }
+            return ok;
         } else {
             return controller->font_ttf_path.empty()
                 && controller->font_fallback_ttf_path.empty()
@@ -184,6 +195,22 @@
                                          WaitForPageFn& wait_for_page,
                                          SettleNowPlayingTransitionFn& settle_now_playing_transition,
                                          PumpFrameFn& pump_frame) {
+        if (run_font_resource_config_ci()) {
+            ui_ci_emit("font_resource_config_profile_mode", true, nullptr);
+        } else {
+            ui_ci_emit("font_resource_config_profile_mode", false, "font_resource_config");
+            res.ok = false;
+            res.failed++;
+        }
+
+        if (run_font_resource_runtime_apply_ci(runtime)) {
+            ui_ci_emit("font_resource_runtime_apply_mode", true, nullptr);
+        } else {
+            ui_ci_emit("font_resource_runtime_apply_mode", false, "font_resource_runtime");
+            res.ok = false;
+            res.failed++;
+        }
+
         if (run_memory_display_sink_probe().ok) {
             ui_ci_emit("memory_display_sink_player_ui_external_surface", true, nullptr);
         } else {
@@ -227,22 +254,6 @@
             ui_ci_emit("cover_resource_provider_runtime_binding", true, nullptr);
         } else {
             ui_ci_emit("cover_resource_provider_runtime_binding", false, "runtime_binding");
-            res.ok = false;
-            res.failed++;
-        }
-
-        if (run_font_resource_config_ci()) {
-            ui_ci_emit("font_resource_config_profile_mode", true, nullptr);
-        } else {
-            ui_ci_emit("font_resource_config_profile_mode", false, "font_resource_config");
-            res.ok = false;
-            res.failed++;
-        }
-
-        if (run_font_resource_runtime_apply_ci(runtime)) {
-            ui_ci_emit("font_resource_runtime_apply_mode", true, nullptr);
-        } else {
-            ui_ci_emit("font_resource_runtime_apply_mode", false, "font_resource_runtime");
             res.ok = false;
             res.failed++;
         }

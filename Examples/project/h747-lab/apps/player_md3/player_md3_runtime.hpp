@@ -45,6 +45,11 @@ struct PlayerMd3State {
     std::uint32_t scene_exec_cmd_image{0};
     std::uint32_t scene_exec_fail_text{0};
     std::uint32_t scene_exec_fail_image{0};
+    std::uint32_t style_rule_count{0};
+    std::uint32_t style_rule_capacity{0};
+    std::uint32_t style_metrics_used{0};
+    std::uint32_t style_metrics_capacity{0};
+    std::uint32_t style_metrics_overflowed{0};
     std::uint32_t smoke_ok{0};
     std::uint32_t smoke_mock_path{0};
     std::uint32_t smoke_boot_ok{0};

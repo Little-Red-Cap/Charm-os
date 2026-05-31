@@ -1,27 +1,12 @@
-    struct UiCiResult {
-        bool ok{true};
-        int failed{0};
-    };
-
     constexpr std::size_t kUiCmdBudget = 1200;
     constexpr std::uint64_t kUiAlphaBlendBudget = 1000000;
     constexpr std::uint32_t kUiLayerBytesBudget = 0;
-
-    void ui_ci_emit(const char* name, bool ok, const char* reason) {
-        if (ok) {
-            std::printf("[ui-ci] case=%s ok=1\n", name);
-        } else {
-            std::printf("[ui-ci] case=%s ok=0 reason=%s\n", name, reason ? reason : "unknown");
-        }
-    }
 
     const std::array<std::uint32_t, 4>& ui_ci_static_cover_pixels() noexcept;
     player::PlayerCoverResourceRecordTableView ui_ci_static_cover_record_table() noexcept;
     bool ui_ci_static_cover_provider(void*,
                                      const player::CoverResourceRequest& request,
                                      player::CoverResourceView& out) noexcept;
-
-    #include "main.ui_ci.object_tree.inc"
 
     #include "main.ui_ci.portability.inc"
 

@@ -139,6 +139,16 @@ void print_status(const char* prefix) {
     out.dec(st.scene_text_capacity);
     out.field(PlayerMd3SmokeField::TextOverflow);
     out.dec(st.scene_text_overflowed);
+    out.field(PlayerMd3SmokeField::Style);
+    out.dec(st.style_rule_count);
+    out.slash();
+    out.dec(st.style_rule_capacity);
+    out.slash();
+    out.dec(st.style_metrics_used);
+    out.slash();
+    out.dec(st.style_metrics_capacity);
+    out.slash();
+    out.dec(st.style_metrics_overflowed);
     out.field(PlayerMd3SmokeField::ExecFailed);
     out.dec(st.scene_exec_failed);
     out.field(PlayerMd3SmokeField::ExecCounts);

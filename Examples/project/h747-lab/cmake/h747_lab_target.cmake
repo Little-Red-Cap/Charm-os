@@ -153,7 +153,8 @@ function(h747_lab_write_player_md3_vivid_product_modules target_name)
         "# This is the H747 Player MD3 Vivid PRODUCT module evidence.\n"
         "target=${target_name}\n"
         "featureset=${CHARM_VIVID_FEATURESET}\n"
-        "layered_transitions=${CHARM_PLAYER_LAYERED_TRANSITIONS}\n")
+        "layered_transitions=${CHARM_PLAYER_LAYERED_TRANSITIONS}\n"
+        "cover_theme_extract=${CHARM_PLAYER_COVER_THEME_EXTRACT}\n")
     file(APPEND "${_artifact}" "\n[core]\n")
     foreach(_module IN LISTS _core_modules)
         file(APPEND "${_artifact}" "${_module}\n")
@@ -203,6 +204,95 @@ function(h747_lab_check_player_md3_host_only_boundary target_name)
             message(FATAL_ERROR
                 "${target_name}: layered transition module '${_module_norm}' entered the default StaticCut firmware. "
                 "Enable CHARM_PLAYER_LAYERED_TRANSITIONS explicitly before admitting layered transition modules.")
+        endif()
+        if(NOT CHARM_PLAYER_COVER_THEME_EXTRACT
+           AND _module_norm MATCHES "/Modules/core/alg/alg_color_extract\\.cppm$")
+            message(FATAL_ERROR
+                "${target_name}: dynamic cover theme extractor '${_module_norm}' entered the default H747 Player MD3 firmware. "
+                "Enable CHARM_PLAYER_COVER_THEME_EXTRACT explicitly before admitting Material color extraction.")
+        endif()
+    endforeach()
+endfunction()
+
+function(h747_lab_check_player_md3_target_sources target_name)
+    if(NOT target_name STREQUAL "h747_lab_player_md3")
+        return()
+    endif()
+
+    foreach(_source IN LISTS ARGN)
+        cmake_path(NORMAL_PATH _source OUTPUT_VARIABLE _source_norm)
+        if(NOT CHARM_PLAYER_COVER_THEME_EXTRACT
+           AND (_source_norm MATCHES "/Modules/core/alg/alg_color_extract\\.cppm$"
+                OR _source_norm MATCHES "/Modules/thirdparty/material_color_utils/"))
+            message(FATAL_ERROR
+                "${target_name}: dynamic cover theme source '${_source_norm}' entered the default H747 Player MD3 target. "
+                "Enable CHARM_PLAYER_COVER_THEME_EXTRACT explicitly before admitting Material color extraction.")
+        endif()
+        if(NOT CHARM_PLAYER_FILE_FONTS
+           AND (_source_norm MATCHES "/Modules/gfx/font/font_provider_freetype\\.cppm$"
+                OR _source_norm MATCHES "/Modules/gfx/font/font_provider_vfs\\.cppm$"
+                OR _source_norm MATCHES "/Modules/ui/vivid/font/font_package\\.cppm$"))
+            message(FATAL_ERROR
+                "${target_name}: file-font source '${_source_norm}' entered the default H747 Player MD3 target. "
+                "Enable CHARM_PLAYER_FILE_FONTS explicitly before admitting file-font backend sources.")
+        endif()
+        if(NOT CHARM_PLAYER_DEBUG_UI
+           AND _source_norm MATCHES "/Examples/project/player/app-vivid-MaterialDesign3/player\\.ui_debug\\.cppm$")
+            message(FATAL_ERROR
+                "${target_name}: debug UI source '${_source_norm}' entered the default H747 Player MD3 target. "
+                "Enable CHARM_PLAYER_DEBUG_UI explicitly before admitting debug UI sources.")
+        endif()
+        if(NOT CHARM_PLAYER_LAYERED_TRANSITIONS
+           AND (_source_norm MATCHES "/Modules/ui/vivid/core/motion_[^/]+\\.cppm$"
+                OR _source_norm MATCHES "/Modules/ui/vivid/core/page_transition\\.cppm$"
+                OR _source_norm MATCHES "/Modules/ui/vivid/gfx/snapshot\\.cppm$"))
+            message(FATAL_ERROR
+                "${target_name}: layered transition source '${_source_norm}' entered the default StaticCut target. "
+                "Enable CHARM_PLAYER_LAYERED_TRANSITIONS explicitly before admitting layered transition sources.")
+        endif()
+    endforeach()
+endfunction()
+
+function(h747_lab_check_player_md3_controller_cover_boundary target_name)
+    if(NOT target_name STREQUAL "h747_lab_player_md3")
+        return()
+    endif()
+    if(NOT CHARM_PLAYER_MCU_STRICT)
+        return()
+    endif()
+    if(NOT DEFINED CHARM_PLAYER_LIST_COVER_CACHE_ENTRIES
+        OR NOT CHARM_PLAYER_LIST_COVER_CACHE_ENTRIES STREQUAL "0")
+        message(FATAL_ERROR
+            "${target_name}: default H747 Player MD3 must explicitly keep "
+            "CHARM_PLAYER_LIST_COVER_CACHE_ENTRIES=0. "
+            "Enable a dedicated product profile before admitting list cover cache slots.")
+    endif()
+
+    file(GLOB _controller_files
+        "${CHARM_ROOT}/Examples/project/player/app-vivid-MaterialDesign3/player.controller.cppm"
+        "${CHARM_ROOT}/Examples/project/player/app-vivid-MaterialDesign3/player.controller.*.inc")
+    foreach(_controller_file IN LISTS _controller_files)
+        if(NOT EXISTS "${_controller_file}")
+            continue()
+        endif()
+        file(READ "${_controller_file}" _controller_text)
+        set(_hits)
+        if(_controller_text MATCHES "(^|[^A-Za-z0-9_])CoverImage([^A-Za-z0-9_]|$)")
+            list(APPEND _hits "CoverImage")
+        endif()
+        if(_controller_text MATCHES "(^|[^A-Za-z0-9_])load_cover_image[ \t\r\n]*\\(")
+            list(APPEND _hits "load_cover_image")
+        endif()
+        if(_controller_text MATCHES "(^|[^A-Za-z0-9_])release_cover_image[ \t\r\n]*\\(")
+            list(APPEND _hits "release_cover_image")
+        endif()
+        if(_hits)
+            list(REMOVE_DUPLICATES _hits)
+            string(REPLACE ";" ", " _hit_text "${_hits}")
+            message(FATAL_ERROR
+                "${target_name}: shared PlayerController cover path contains old dynamic cover API token(s): "
+                "${_hit_text} in ${_controller_file}. Controller must keep only ResolvedCover metadata; "
+                "host decode buffers belong inside player.cover.")
         endif()
     endforeach()
 endfunction()
@@ -275,6 +365,21 @@ function(h747_lab_check_player_md3_vivid_capacity_profile target_name)
     if(NOT _caps_text MATCHES "constexpr std::size_t kPoolCapListView = ${CHARM_VIVID_PAYLOAD_CAP_LIST_VIEW};")
         message(FATAL_ERROR "${target_name}: generated ListView payload cap does not match PRODUCT profile")
     endif()
+
+    set(_config_file "${CMAKE_CURRENT_BINARY_DIR}/generated/vivid/config.generated.cppm")
+    if(NOT EXISTS "${_config_file}")
+        message(FATAL_ERROR
+            "${target_name}: missing generated Vivid config artifact: ${_config_file}")
+    endif()
+    file(READ "${_config_file}" _config_text)
+    if(NOT _config_text MATCHES "StyleConfig\\{[ \t\r\n]*${CHARM_VIVID_STYLE_CLASS_MAX},[ \t\r\n]*${CHARM_VIVID_STYLE_RULE_CAP},[ \t\r\n]*${CHARM_VIVID_STYLE_METRICS_POOL_CAP}[ \t\r\n]*\\}")
+        message(FATAL_ERROR
+            "${target_name}: generated Vivid style profile does not match "
+            "CHARM_VIVID_STYLE_CLASS_MAX=${CHARM_VIVID_STYLE_CLASS_MAX}, "
+            "CHARM_VIVID_STYLE_RULE_CAP=${CHARM_VIVID_STYLE_RULE_CAP}, "
+            "CHARM_VIVID_STYLE_METRICS_POOL_CAP=${CHARM_VIVID_STYLE_METRICS_POOL_CAP}. "
+            "Check ${_config_file}")
+    endif()
 endfunction()
 
 function(h747_lab_collect_vivid_mcu_modules target_name out_modules out_base_dirs)
@@ -339,7 +444,6 @@ function(h747_lab_collect_vivid_mcu_modules target_name out_modules out_base_dir
         "${CHARM_ROOT}/Modules/ui/vivid/gfx/text_box.cppm"
         "${CHARM_ROOT}/Modules/core/alg/alg_arc.cppm"
         "${CHARM_ROOT}/Modules/core/alg/alg_circle.cppm"
-        "${CHARM_ROOT}/Modules/core/alg/alg_color_extract.cppm"
         "${CHARM_ROOT}/Modules/core/alg/alg_list_scroll.cppm"
         "${CHARM_ROOT}/Modules/core/alg/alg_round_rect.cppm"
         "${CHARM_ROOT}/Modules/core/alg/alg_scroll.cppm"
@@ -357,6 +461,11 @@ function(h747_lab_collect_vivid_mcu_modules target_name out_modules out_base_dir
         "${CHARM_ROOT}/Modules/core/util/delegate.cppm"
         "${CHARM_ROOT}/Modules/ui/common/charm.core.event.cppm"
         "${CHARM_ROOT}/Modules/ui/common/ui.render_backend.cppm")
+
+    if(NOT target_name STREQUAL "h747_lab_player_md3" OR CHARM_PLAYER_COVER_THEME_EXTRACT)
+        list(APPEND _modules
+            "${CHARM_ROOT}/Modules/core/alg/alg_color_extract.cppm")
+    endif()
 
     if(CHARM_VIVID_FEATURESET STREQUAL "FULL")
         file(GLOB_RECURSE _full_vivid_modules
@@ -636,32 +745,36 @@ function(h747_lab_add_firmware)
 
     if(H747_LAB_FW_TARGET STREQUAL "h747_lab_player_md3")
         set(CHARM_DR_LIBS_DIR "${CHARM_ROOT}/Modules/thirdparty/dr_libs" CACHE PATH "" FORCE)
-        set(CHARM_MATERIAL_COLOR_UTILS_DIR "${CHARM_ROOT}/Modules/thirdparty/material_color_utils" CACHE PATH "" FORCE)
         include("${CHARM_ROOT}/cmake/FatFs.cmake")
         include("${CHARM_ROOT}/cmake/DRLibs.cmake")
         charm_link_fatfs(${H747_LAB_FW_TARGET})
         charm_link_dr_libs(${H747_LAB_FW_TARGET})
-        target_sources(${H747_LAB_FW_TARGET} PRIVATE
-            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/utils/utils.cc"
-            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/cam/cam.cc"
-            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/cam/hct.cc"
-            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/cam/hct_solver.cc"
-            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/cam/viewing_conditions.cc"
-            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/contrast/contrast.cc"
-            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/dislike/dislike.cc"
-            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/dynamiccolor/dynamic_color.cc"
-            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/dynamiccolor/dynamic_scheme.cc"
-            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/dynamiccolor/material_dynamic_colors.cc"
-            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/palettes/tones.cc"
-            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/quantize/celebi.cc"
-            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/quantize/lab.cc"
-            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/quantize/wsmeans.cc"
-            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/quantize/wu.cc"
-            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/score/score.cc"
-            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/scheme/scheme_expressive.cc"
-            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/scheme/scheme_fruit_salad.cc"
-            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/scheme/scheme_tonal_spot.cc"
-            "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/scheme/scheme_vibrant.cc")
+        if(CHARM_PLAYER_COVER_THEME_EXTRACT)
+            set(CHARM_MATERIAL_COLOR_UTILS_DIR "${CHARM_ROOT}/Modules/thirdparty/material_color_utils" CACHE PATH "" FORCE)
+            target_sources(${H747_LAB_FW_TARGET} PRIVATE
+                "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/utils/utils.cc"
+                "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/cam/cam.cc"
+                "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/cam/hct.cc"
+                "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/cam/hct_solver.cc"
+                "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/cam/viewing_conditions.cc"
+                "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/contrast/contrast.cc"
+                "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/dislike/dislike.cc"
+                "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/dynamiccolor/dynamic_color.cc"
+                "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/dynamiccolor/dynamic_scheme.cc"
+                "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/dynamiccolor/material_dynamic_colors.cc"
+                "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/palettes/tones.cc"
+                "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/quantize/celebi.cc"
+                "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/quantize/lab.cc"
+                "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/quantize/wsmeans.cc"
+                "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/quantize/wu.cc"
+                "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/score/score.cc"
+                "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/scheme/scheme_expressive.cc"
+                "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/scheme/scheme_fruit_salad.cc"
+                "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/scheme/scheme_tonal_spot.cc"
+                "${CHARM_MATERIAL_COLOR_UTILS_DIR}/cpp/scheme/scheme_vibrant.cc")
+            target_include_directories(${H747_LAB_FW_TARGET} PRIVATE
+                "${CHARM_MATERIAL_COLOR_UTILS_DIR}")
+        endif()
         if(CHARM_PLAYER_FILE_FONTS)
             include("${CHARM_ROOT}/cmake/FreeType.cmake")
             if((NOT DEFINED CHARM_FREETYPE_DIR OR CHARM_FREETYPE_DIR STREQUAL "")
@@ -701,11 +814,15 @@ function(h747_lab_add_firmware)
                 ${H747_LAB_FW_APP_MODULE_SOURCES}
     )
 
+    h747_lab_check_player_md3_target_sources(
+        "${H747_LAB_FW_TARGET}"
+        ${H747_LAB_FW_APP_MODULE_SOURCES})
+    h747_lab_check_player_md3_controller_cover_boundary("${H747_LAB_FW_TARGET}")
+
     target_include_directories(${H747_LAB_FW_TARGET} PRIVATE
         ${H747_LAB_COMMON_INCLUDE_DIRS}
         ${_service_include_dirs}
         ${H747_LAB_FW_APP_INCLUDE_DIRS}
-        "${CHARM_ROOT}/Modules/thirdparty/material_color_utils"
         "${CHARM_ROOT}/Modules/io/out"
     )
 

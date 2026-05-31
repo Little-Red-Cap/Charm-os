@@ -78,6 +78,25 @@ export namespace player::ui {
         LibraryListCard = 11,
     };
 
+    inline constexpr StyleClassId kPlayerStyleClassMaxId =
+        static_cast<StyleClassId>(PlayerStyleClass::LibraryListCard);
+    inline constexpr std::size_t kPlayerStyleRuleUseCount = 3;
+    static_assert(kPlayerStyleClassMaxId < kStyleClassMax);
+    static_assert(kPlayerStyleRuleUseCount <= style_rule_cap);
+
+#if CHARM_VIVID_MEMORY_PROFILE_SYMBOLS && defined(__GNUC__)
+    extern "C" [[gnu::used]] void charm_player_ui_style_profile_symbols() noexcept {
+        asm volatile(
+            ".global charm_player_ui_style_profile_max_class_id\n"
+            ".set charm_player_ui_style_profile_max_class_id, %c0\n"
+            ".global charm_player_ui_style_profile_rule_use_count\n"
+            ".set charm_player_ui_style_profile_rule_use_count, %c1\n"
+            :
+            : "i"(kPlayerStyleClassMaxId),
+              "i"(kPlayerStyleRuleUseCount));
+    }
+#endif
+
     inline constexpr int kUiPadding = 18;
     inline constexpr int kCoverSize = 360;
     inline constexpr int kDemoGap = 16;

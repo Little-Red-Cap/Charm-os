@@ -16,6 +16,7 @@ import player.cover_resource;
 import player.display;
 import player.input;
 import player.platform;
+import player.scene_runtime;
 import player.storage;
 
 export namespace player {
@@ -74,7 +75,11 @@ export namespace player {
             app_.emplace(config_.app_config, *clock_);
             init_storage(config_.storage_config);
             app_->bind_player(*controller_);
-            controller_->bind_scene(platform_->scene_ref());
+            if constexpr (requires { controller_->bind_scene_runtime(make_player_scene_runtime(platform_->scene_ref())); }) {
+                controller_->bind_scene_runtime(make_player_scene_runtime(platform_->scene_ref()));
+            } else {
+                controller_->bind_scene(platform_->scene_ref());
+            }
             if constexpr (requires { controller_->set_start_page(config_.start_page); }) {
                 controller_->set_start_page(config_.start_page);
             }
@@ -138,6 +143,51 @@ export namespace player {
         }
 
     private:
+        static PlayerSceneRuntime make_player_scene_runtime(::ui::scene::Scene& scene) noexcept {
+            return PlayerSceneRuntime{
+                .ctx = &scene,
+                .access = scene.access(),
+                .release_snapshot_fn = [](void* ctx, ::ui::scene::SnapshotHandle handle) noexcept -> bool {
+                    return ctx && static_cast<::ui::scene::Scene*>(ctx)->release_snapshot(handle);
+                },
+                .mark_snapshot_stale_fn = [](void* ctx, ::ui::scene::SnapshotHandle handle) noexcept -> bool {
+                    return ctx && static_cast<::ui::scene::Scene*>(ctx)->mark_snapshot_stale(handle);
+                },
+                .layer_stats_fn = [](void* ctx) noexcept -> ::ui::scene::LayerStats {
+                    return ctx ? static_cast<::ui::scene::Scene*>(ctx)->layer_stats() : ::ui::scene::LayerStats{};
+                },
+                .capture_snapshot_fn =
+                    [](void* ctx, const ::ui::scene::SnapshotSpec& spec) noexcept -> PlayerLayerCaptureResult {
+                        if (!ctx) return {};
+                        const auto capture = (spec.preferred_kind == ::ui::scene::SnapshotKind::PixelSurface)
+                            ? static_cast<::ui::scene::Scene*>(ctx)->capture_pixel_snapshot_result(spec)
+                            : static_cast<::ui::scene::Scene*>(ctx)->capture_command_snapshot_result(spec);
+                        return PlayerLayerCaptureResult{capture.status, capture.handle};
+                    },
+                .make_compose_plan_fn =
+                    [](void* ctx, const ::ui::scene::LayerComposeSpec& spec) noexcept
+                        -> ::ui::scene::LayerComposePlan {
+                        return ctx
+                            ? static_cast<::ui::scene::Scene*>(ctx)->make_snapshot_compose_plan(spec)
+                            : ::ui::scene::LayerComposePlan{};
+                    },
+                .compose_pixel_snapshot_fn =
+                    [](void* ctx, const ::ui::scene::LayerComposePlan& plan) noexcept
+                        -> PlayerLayerReplayResult {
+                        if (!ctx) return {};
+                        const auto replay =
+                            static_cast<::ui::scene::Scene*>(ctx)->compose_pixel_snapshot(plan);
+                        return PlayerLayerReplayResult{
+                            .status = replay.status,
+                            .source = replay.source,
+                            .kind = replay.kind,
+                            .target_bounds = replay.target_bounds,
+                            .alpha_blend_count = replay.stats.alpha_blend_count,
+                        };
+                    },
+            };
+        }
+
         void install_cover_resource_provider_binding() noexcept {
             if (cover_resource_provider_installed_) {
                 return;

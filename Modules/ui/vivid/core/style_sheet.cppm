@@ -12,6 +12,7 @@ module;
 
 export module charm.core.style_sheet;
 
+export import charm.core.config;
 export import charm.core.style;
 export import charm.core.handle;
 export import charm.core.widget_registry;
@@ -115,7 +116,11 @@ inline constexpr std::uint8_t kInvalidKindIndex = invalid_widget_kind_index;
 inline constexpr std::uint8_t kMaxStyleVariants = 4;
 inline constexpr std::uint8_t kMaxStyleStateBits = 4;
 inline constexpr std::uint8_t kMaxStyleStateCount = static_cast<std::uint8_t>(1u << kMaxStyleStateBits);
-inline constexpr std::uint8_t kMaxMetricsPool = 64;
+inline constexpr std::uint16_t kStyleRuleCapacity = static_cast<std::uint16_t>(style_rule_cap);
+inline constexpr std::uint8_t kMaxMetricsPool = static_cast<std::uint8_t>(style_metrics_pool_cap);
+static_assert(kStyleRuleCapacity > 0);
+static_assert(kStyleRuleCapacity <= std::numeric_limits<std::uint16_t>::max());
+static_assert(kMaxMetricsPool > 0);
 inline constexpr std::uint8_t kStyleStateMaskAll =
     static_cast<std::uint8_t>(StyleStateFlag::Hovered)
     | static_cast<std::uint8_t>(StyleStateFlag::Pressed)
@@ -324,6 +329,15 @@ struct StyleSheetMemoryProfile {
     std::size_t stylesheet_size_bytes{0};
 };
 
+export
+struct StyleSheetRuntimeProfile {
+    std::size_t style_rule_count{0};
+    std::size_t style_rule_capacity{0};
+    std::size_t metrics_pool_used{0};
+    std::size_t metrics_pool_capacity{0};
+    bool metrics_overflowed{false};
+};
+
 #if defined(VIVID_SOA_TRACE_INPUT)
 export
 struct StyleStats {
@@ -358,6 +372,15 @@ static_assert(sizeof(ResolvedMetrics) <= 32);
 static_assert(sizeof(ResolvedDecoration) <= 32);
 static_assert(sizeof(ResolvedStyleView) <= 32);
 static_assert(kMaxStyleStateBits <= 6);
+
+[[noreturn]] inline void style_capacity_hard_fail() noexcept {
+#if defined(__GNUC__) || defined(__clang__)
+    __builtin_trap();
+#else
+    for (;;) {
+    }
+#endif
+}
 
 struct StyleTable {
     std::array<ResolvedColors, kTotalStyleSlots> colors{};
@@ -649,7 +672,9 @@ public:
     }
 
     bool add_rule(const StyleSelector& sel, const StylePatch& patch) noexcept {
-        if (count_ >= rules_.size()) return false;
+        if (count_ >= rules_.size()) {
+            style_capacity_hard_fail();
+        }
         StyleRuleEntry entry{};
         entry.selector = sel;
         entry.kind = StyleRuleKind::Patch;
@@ -662,7 +687,9 @@ public:
     }
 
     bool add_role_rule(const StyleSelector& sel, const StyleRolePatch& patch) noexcept {
-        if (count_ >= rules_.size()) return false;
+        if (count_ >= rules_.size()) {
+            style_capacity_hard_fail();
+        }
         StyleRuleEntry entry{};
         entry.selector = sel;
         entry.kind = StyleRuleKind::RolePatch;
@@ -794,6 +821,17 @@ public:
 #if defined(VIVID_SOA_TRACE_INPUT)
         style_table_compile_count_ += 1u;
 #endif
+    }
+
+    StyleSheetRuntimeProfile runtime_profile() noexcept {
+        rebuild_if_needed();
+        return StyleSheetRuntimeProfile{
+            count_,
+            kStyleRuleCapacity,
+            style_table_.metrics_count,
+            kMaxMetricsPool,
+            style_table_.metrics_overflowed,
+        };
     }
 
 #if defined(VIVID_SOA_TRACE_INPUT)
@@ -947,7 +985,7 @@ private:
                         assert(false && "StyleSheet metrics pool overflow");
 #endif
                         style_table_.metrics_overflowed = true;
-                        metrics_slot = 0;
+                        style_capacity_hard_fail();
                     }
                 }
                 style_table_.metrics_id[metrics_entry] = metrics_slot;
@@ -1080,7 +1118,7 @@ private:
         return true;
     }
 
-    std::array<StyleRuleEntry, 32> rules_{};
+    std::array<StyleRuleEntry, kStyleRuleCapacity> rules_{};
     std::size_t count_{0};
     std::uint16_t order_{0};
     mutable ResolvedTheme resolved_{};
@@ -1105,7 +1143,7 @@ inline constexpr StyleSheetMemoryProfile style_sheet_memory_profile() noexcept {
         kTotalStyleSlots,
         kTotalVariantSlots,
         kMaxMetricsPool,
-        32,
+        kStyleRuleCapacity,
         kTotalStyleSlots * sizeof(ResolvedColors),
         kTotalStyleSlots * sizeof(ResolvedDecoration),
         kMaxMetricsPool * sizeof(ResolvedMetrics),
@@ -1115,7 +1153,7 @@ inline constexpr StyleSheetMemoryProfile style_sheet_memory_profile() noexcept {
         sizeof(StyleTable),
         kWidgetKindCount * sizeof(Style),
         kWidgetKindCount * sizeof(std::uint8_t),
-        32 * sizeof(StyleRuleEntry),
+        kStyleRuleCapacity * sizeof(StyleRuleEntry),
         sizeof(StyleSheet),
     };
 }
@@ -1210,4 +1248,8 @@ export inline std::uint8_t style_kind_state_count(WidgetKind kind) noexcept {
 
 export inline std::uint16_t style_kind_state_offset(WidgetKind kind) noexcept {
     return StyleSheet::instance().kind_state_offset(kind);
+}
+
+export inline StyleSheetRuntimeProfile style_sheet_runtime_profile() noexcept {
+    return StyleSheet::instance().runtime_profile();
 }

@@ -25,6 +25,19 @@ export namespace player::product_config {
     inline constexpr std::size_t library_segment_capacity = 8;
     inline constexpr std::size_t home_collage_slots = 6;
     inline constexpr std::size_t list_cover_cache_entries_max = 12;
+#if defined(CHARM_PLAYER_LIST_COVER_CACHE_ENTRIES)
+    inline constexpr int list_cover_cache_entries_config =
+        CHARM_PLAYER_LIST_COVER_CACHE_ENTRIES;
+    static_assert(list_cover_cache_entries_config >= 0,
+                  "CHARM_PLAYER_LIST_COVER_CACHE_ENTRIES must not be negative");
+    static_assert(static_cast<std::size_t>(list_cover_cache_entries_config)
+                      <= list_cover_cache_entries_max,
+                  "CHARM_PLAYER_LIST_COVER_CACHE_ENTRIES exceeds product max");
+    inline constexpr std::size_t list_cover_cache_entries =
+        static_cast<std::size_t>(list_cover_cache_entries_config);
+#else
+    inline constexpr std::size_t list_cover_cache_entries = list_cover_cache_entries_max;
+#endif
     inline constexpr std::size_t listening_stats_history_weeks = 12;
     inline constexpr std::size_t listening_stats_io_bytes = 2048;
     inline constexpr std::size_t listening_stats_line_bytes = 192;

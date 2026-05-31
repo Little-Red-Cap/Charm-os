@@ -2400,8 +2400,8 @@
 
         void clear_list_cover_cache() {
             for (auto& entry : list_cover_cache) {
-                if (::ui::scene::image_id_valid(entry.image.image_id)) {
-                    release_cover_image(entry.image);
+                if (::ui::scene::image_id_valid(entry.cover.image_id)) {
+                    release_resolved_cover(entry.cover);
                 }
                 entry.path.clear();
                 entry.missing = false;
@@ -2448,30 +2448,34 @@
             if (!library_allows_cover_request(track_path, cover_path.view())) {
                 return ::ui::scene::invalid_image_id();
             }
-            if (cover_image.path == cover_path.view()
-                && ::ui::scene::image_id_valid(cover_image.image_id)) {
-                return cover_image.image_id;
+            if (current_cover.key.view() == cover_path.view()
+                && ::ui::scene::image_id_valid(current_cover.image_id)) {
+                return current_cover.image_id;
             }
             for (auto& entry : list_cover_cache) {
                 if (entry.path.view() != cover_path.view()) continue;
                 if (entry.missing) return ::ui::scene::invalid_image_id();
-                if (::ui::scene::image_id_valid(entry.image.image_id)) return entry.image.image_id;
+                if (::ui::scene::image_id_valid(entry.cover.image_id)) return entry.cover.image_id;
             }
             if (::ui::gfx::image_registry_locked()) {
                 return ::ui::scene::invalid_image_id();
             }
-            auto& slot = list_cover_cache[list_cover_next % kListCoverCache];
-            list_cover_next += 1;
-            if (::ui::scene::image_id_valid(slot.image.image_id)) {
-                release_cover_image(slot.image);
+            if constexpr (kListCoverCache == 0) {
+                return ::ui::scene::invalid_image_id();
+            } else {
+                auto& slot = list_cover_cache[list_cover_next % kListCoverCache];
+                list_cover_next += 1;
+                if (::ui::scene::image_id_valid(slot.cover.image_id)) {
+                    release_resolved_cover(slot.cover);
+                }
+                slot.path.assign(cover_path.view());
+                slot.missing = false;
+                if (resolve_cover(cover_path.view(), slot.cover)) {
+                    return slot.cover.image_id;
+                }
+                slot.missing = true;
+                return ::ui::scene::invalid_image_id();
             }
-            slot.path.assign(cover_path.view());
-            slot.missing = false;
-            if (load_cover_image(cover_path.view(), slot.image)) {
-                return slot.image.image_id;
-            }
-            slot.missing = true;
-            return ::ui::scene::invalid_image_id();
         }
 
         void refresh_track_labels() {

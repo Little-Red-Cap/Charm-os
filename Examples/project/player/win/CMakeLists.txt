@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 4.0)
 project(charm-player-win)
 set(CMAKE_CXX_STANDARD 26)
+set(CHARM_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../../..")
 
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/product_player_identity.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/product_player_host_profiles.cmake")
@@ -32,11 +33,26 @@ add_executable(${PLAYER_TARGET_VIVID_MD3}
     ${PLAYER_MAIN_VIVID}
 )
 
+foreach(_target IN ITEMS ${PLAYER_TARGET_VIVID} ${PLAYER_TARGET_VIVID_MD3})
+    target_sources(${_target}
+        PRIVATE
+            "${CMAKE_CURRENT_SOURCE_DIR}/main.ui_ci.object_tree.cpp"
+        PRIVATE
+        FILE_SET modules TYPE CXX_MODULES
+        BASE_DIRS
+            "${CHARM_ROOT}"
+        FILES
+            "${CMAKE_CURRENT_SOURCE_DIR}/main.host_module.cppm"
+    )
+endforeach()
+
 foreach(_target IN ITEMS ${PLAYER_TARGET_VIVID} ${PLAYER_TARGET_INK} ${PLAYER_TARGET_VIVID_MD3})
     target_compile_definitions(${_target} PRIVATE
         OUT_ENABLE_FLOAT
         CHARM_AUDIO_USE_VFS=1
         CHARM_PLAYER_HOST_UI=1
+        CHARM_PLAYER_COVER_THEME_EXTRACT=1
+        CHARM_PLAYER_LAYERED_TRANSITIONS=1
         CHARM_PLAYER_PC_FONT_CACHE=1
         CHARM_PLAYER_PRODUCT="${PLAYER_PRODUCT}"
         CHARM_PLAYER_PLATFORM="${PLAYER_PLATFORM}"
@@ -47,6 +63,7 @@ foreach(_target IN ITEMS ${PLAYER_TARGET_VIVID} ${PLAYER_TARGET_INK} ${PLAYER_TA
         CHARM_PLAYER_RESOURCE_FONT_NORMAL_PX=${PLAYER_RESOURCE_FONT_NORMAL_PX}
         CHARM_PLAYER_RESOURCE_FONT_LARGE_PX=${PLAYER_RESOURCE_FONT_LARGE_PX}
         CHARM_PLAYER_HOST_STORAGE_VHD_PATH="${PLAYER_HOST_STORAGE_VHD_PATH}"
+        CHARM_PLAYER_LIST_COVER_CACHE_ENTRIES=12
     )
     if (CHARM_PLAYER_HOST_STORAGE)
         target_compile_definitions(${_target} PRIVATE CHARM_PLAYER_HOST_STORAGE=1)
@@ -83,7 +100,6 @@ target_compile_definitions(${PLAYER_TARGET_INK} PRIVATE
 )
 
 
-set(CHARM_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../../..")
 include("${CHARM_ROOT}/Examples/cmake/ExampleTemplate.cmake")
 include("${CHARM_ROOT}/cmake/CharmTargetConfig.cmake")
 
@@ -121,6 +137,13 @@ set(CHARM_PLAYER_EXCLUDE_REGEX_BASE "/stm32f407/|/stn32h747[^/]*/|/stn32common/"
 set(CHARM_PLAYER_EXCLUDE_REGEX_VIVID "${CHARM_PLAYER_EXCLUDE_REGEX_BASE}|/app-ink/")
 set(CHARM_PLAYER_EXCLUDE_REGEX_INK "${CHARM_PLAYER_EXCLUDE_REGEX_BASE}|/app-vivid/|/player\\.runtime(_probe)?\\.cppm$")
 set(CHARM_PLAYER_EXCLUDE_REGEX_MD3 "${CHARM_PLAYER_EXCLUDE_REGEX_BASE}|/app-ink/|/app-vivid/")
+
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    set_source_files_properties(
+        "${CHARM_ROOT}/Examples/project/player/app-common/player.platform.cppm"
+        PROPERTIES COMPILE_OPTIONS "-fno-module-lazy"
+    )
+endif()
 
 set(CHARM_PLAYER_WIN_CONFIG_TARGETS)
 if (CHARM_PLAYER_SOA_TRACE)
@@ -164,6 +187,11 @@ charm_example_sources(${PLAYER_TARGET_INK} "${CHARM_ROOT}"
 charm_example_link_charm(${PLAYER_TARGET_VIVID} "${CHARM_ROOT}" ${CHARM_PLAYER_WIN_CONFIG_TARGETS})
 target_link_libraries(${PLAYER_TARGET_INK} PRIVATE Charm-os)
 target_link_libraries(${PLAYER_TARGET_VIVID_MD3} PRIVATE Charm-os)
+if (WIN32)
+    foreach(_target IN ITEMS ${PLAYER_TARGET_VIVID} ${PLAYER_TARGET_INK} ${PLAYER_TARGET_VIVID_MD3})
+        target_link_libraries(${_target} PRIVATE gdi32)
+    endforeach()
+endif()
 
 if (CHARM_PLAYER_SOA_TRACE)
     charm_apply_config_targets(${PLAYER_TARGET_VIVID_MD3} charm_cfg_player_win_trace)

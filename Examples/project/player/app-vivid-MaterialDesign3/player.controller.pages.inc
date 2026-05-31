@@ -72,7 +72,7 @@
             hook->self->refresh_page(hook->page);
         }
 
-        void init_page_layer(::ui::scene::PageLayer& layer,
+        void init_page_layer(PlayerPageLayer& layer,
                              WidgetHandle root,
                              void (*on_show)(::ui::scene::SceneAccess&, WidgetHandle, void*) noexcept = nullptr,
                              void* hook_ctx = nullptr) noexcept {

@@ -65,6 +65,7 @@ function(h747_lab_collect_player_md3_modules out_modules out_base_dirs)
         "${CHARM_ROOT}/Examples/project/player/app-common/player.product_config.cppm"
         "${CHARM_ROOT}/Examples/project/player/app-common/player.runtime.cppm"
         "${CHARM_ROOT}/Examples/project/player/app-common/player.runtime_shell.cppm"
+        "${CHARM_ROOT}/Examples/project/player/app-common/player.scene_runtime.cppm"
         "${CHARM_ROOT}/Examples/project/player/app-common/player.stats_history.cppm"
         "${CHARM_ROOT}/Examples/project/player/app-common/player.storage.cppm"
         "${CHARM_ROOT}/Examples/project/player/app-common/player.time_utils.cppm"

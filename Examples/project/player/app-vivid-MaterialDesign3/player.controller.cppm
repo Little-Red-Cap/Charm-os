@@ -18,13 +18,11 @@ import player.app_config;
 import audio.eq;
 import audio.player;
 import audio.result;
-import alg_color_extract;
 import charm.core.event;
 import charm.core.geometry;
 import charm.core.handle;
 import charm.gfx.color;
 import charm.gfx.image;
-import charm.ui.scene;
 import charm.ui.scene.text_style;
 import charm.ui.scene.anchored_menu;
 import charm.ui.scene.pill_surface;
@@ -35,6 +33,7 @@ import player.input;
 import player.fs_utils;
 import player.media_scan;
 import player.product_config;
+import player.scene_runtime;
 import player.stats_history;
 import player.storage;
 import player.time_utils;
@@ -305,7 +304,7 @@ export namespace player {
         };
 
         PlaybackEngine playback{};
-        ::ui::scene::Scene* scene{nullptr};
+        PlayerSceneRuntime scene_runtime{};
         ::ui::scene::SceneAccess access{};
         UiHandles handles{};
         PlayerIconIds icons{};
@@ -331,7 +330,7 @@ export namespace player {
         FixedString<16> last_home_stats_plays_text{};
         FixedString<32> last_home_stats_avg_text{};
         std::uint64_t track_size_bytes{0};
-        CoverImage cover_image{};
+        ResolvedCover current_cover{};
         cover_theme::CoverTheme cover_theme{};
         cover_theme::NowPlayingColorRoles now_playing_roles{
             cover_theme::derive_now_playing_color_roles(cover_theme::CoverTheme{})
@@ -339,7 +338,9 @@ export namespace player {
         bool cover_ready{false};
         CoverStrategy cover_strategy{CoverStrategy::embedded_first};
         cover_theme::CoverThemeMode cover_theme_mode{cover_theme::CoverThemeMode::primary_container};
-        alg::PaletteStyle cover_palette_style{alg::PaletteStyle::tonal_spot};
+        cover_theme::CoverThemePaletteStyle cover_palette_style{
+            cover_theme::CoverThemePaletteStyle::tonal_spot
+        };
         bool fs_ready{false};
         bool track_preloaded{false};
         int preloaded_duration_sec{0};
@@ -375,12 +376,13 @@ export namespace player {
         mutable FixedString<product_config::library_row_tail_capacity> list_row_tail_scratch{};
         mutable FixedString<product_config::path_text_capacity> list_cover_path_scratch{};
         struct ListCoverCacheEntry {
-            FixedString<260> path{};
-            CoverImage image{};
+            FixedString<product_config::path_text_capacity> path{};
+            ResolvedCover cover{};
             bool missing{false};
         };
         static constexpr std::size_t kHomeCollageSlots = 6;
-        static constexpr std::size_t kListCoverCache = 12;
+        static constexpr std::size_t kListCoverCache =
+            product_config::list_cover_cache_entries;
         std::array<ListCoverCacheEntry, kListCoverCache> list_cover_cache{};
         std::size_t list_cover_next{0};
         std::array<int, kHomeCollageSlots> last_home_collage_track_indices{{-2, -2, -2, -2, -2, -2}};
@@ -436,13 +438,13 @@ export namespace player {
             text.assign(v.substr(0, dot));
         }
 
-        cover_theme::CoverTheme derive_cover_theme(const CoverImage& img) noexcept {
+        cover_theme::CoverTheme derive_cover_theme(const ResolvedCover& cover) noexcept {
             cover_theme::CoverThemeConfig config{};
             config.mode = cover_theme_mode;
             config.is_dark = true;
             config.palette_style = cover_palette_style;
             config.fallback = kUiBackdropBase;
-            return cover_theme::compute_cover_theme(img, config);
+            return cover_theme::compute_cover_theme_from_resolved(cover, config);
         }
 
         void sync_now_playing_color_roles() noexcept {
@@ -469,17 +471,17 @@ export namespace player {
         }
 
         void apply_cover_theme_from_current_image(std::string_view tint_path = {}) noexcept {
-            cover_theme = derive_cover_theme(cover_image);
+            cover_theme = derive_cover_theme(current_cover);
             set_cover_theme_tint_source(tint_path);
             refresh_cover_theme_dependent_visuals();
         }
 
-        static const char* palette_style_name(alg::PaletteStyle style) noexcept {
+        static const char* palette_style_name(cover_theme::CoverThemePaletteStyle style) noexcept {
             switch (style) {
-            case alg::PaletteStyle::vibrant: return "vibrant";
-            case alg::PaletteStyle::expressive: return "expressive";
-            case alg::PaletteStyle::fruit_salad: return "fruit_salad";
-            case alg::PaletteStyle::tonal_spot:
+            case cover_theme::CoverThemePaletteStyle::vibrant: return "vibrant";
+            case cover_theme::CoverThemePaletteStyle::expressive: return "expressive";
+            case cover_theme::CoverThemePaletteStyle::fruit_salad: return "fruit_salad";
+            case cover_theme::CoverThemePaletteStyle::tonal_spot:
             default:
                 return "tonal_spot";
             }
@@ -555,29 +557,29 @@ export namespace player {
                 cover_theme_mode = cover_theme::CoverThemeMode::primary_container;
                 break;
             }
-            if (!cover_image.path.empty()) {
-                apply_cover_theme_from_current_image(cover_image.path);
+            if (!current_cover.key.empty()) {
+                apply_cover_theme_from_current_image(current_cover.key.view());
             }
         }
 
         void cycle_palette_style() noexcept {
             switch (cover_palette_style) {
-            case alg::PaletteStyle::tonal_spot:
-                cover_palette_style = alg::PaletteStyle::vibrant;
+            case cover_theme::CoverThemePaletteStyle::tonal_spot:
+                cover_palette_style = cover_theme::CoverThemePaletteStyle::vibrant;
                 break;
-            case alg::PaletteStyle::vibrant:
-                cover_palette_style = alg::PaletteStyle::expressive;
+            case cover_theme::CoverThemePaletteStyle::vibrant:
+                cover_palette_style = cover_theme::CoverThemePaletteStyle::expressive;
                 break;
-            case alg::PaletteStyle::expressive:
-                cover_palette_style = alg::PaletteStyle::fruit_salad;
+            case cover_theme::CoverThemePaletteStyle::expressive:
+                cover_palette_style = cover_theme::CoverThemePaletteStyle::fruit_salad;
                 break;
-            case alg::PaletteStyle::fruit_salad:
+            case cover_theme::CoverThemePaletteStyle::fruit_salad:
             default:
-                cover_palette_style = alg::PaletteStyle::tonal_spot;
+                cover_palette_style = cover_theme::CoverThemePaletteStyle::tonal_spot;
                 break;
             }
-            if (!cover_image.path.empty()) {
-                apply_cover_theme_from_current_image(cover_image.path);
+            if (!current_cover.key.empty()) {
+                apply_cover_theme_from_current_image(current_cover.key.view());
             }
 #if defined(CHARM_PLAYER_COVER_DEBUG)
             std::printf("[cover] palette=%s\n", palette_style_name(cover_palette_style));
@@ -600,7 +602,7 @@ export namespace player {
         };
         struct PageBinding {
             PlayerPage page{PlayerPage::Probe};
-            ::ui::scene::PageLayer* layer{};
+            PlayerPageLayer* layer{};
             WidgetHandle* root{};
             PageRefreshHookContext* show_ctx{};
 
@@ -608,10 +610,10 @@ export namespace player {
                 return root ? *root : WidgetHandle{};
             }
         };
-        ::ui::scene::PageLayer page_probe_layer{};
-        ::ui::scene::PageLayer page_now_layer{};
-        ::ui::scene::PageLayer page_library_layer{};
-        ::ui::scene::PageLayer page_home_layer{};
+        PlayerPageLayer page_probe_layer{};
+        PlayerPageLayer page_now_layer{};
+        PlayerPageLayer page_library_layer{};
+        PlayerPageLayer page_home_layer{};
         PageRefreshHookContext page_home_show_ctx{};
         PageRefreshHookContext page_now_show_ctx{};
         PageRefreshHookContext page_library_show_ctx{};
@@ -800,9 +802,9 @@ export namespace player {
             return static_cast<std::uint64_t>(*size);
         }
 
-        void bind_scene(::ui::scene::Scene& scene_ref) {
-            scene = &scene_ref;
-            access = scene_ref.access();
+        void bind_scene_runtime(PlayerSceneRuntime runtime) noexcept {
+            scene_runtime = runtime;
+            access = runtime.access;
         }
 
         void bind_player(audio::AudioPlayer& p) {
@@ -1073,7 +1075,7 @@ export namespace player {
             }
         }
 
-        bool has_cover_image() const noexcept { return ::ui::scene::image_id_valid(cover_image.image_id); }
+        bool has_cover_image() const noexcept { return ::ui::scene::image_id_valid(current_cover.image_id); }
         void sync_now_cover_plate_surface() noexcept {
             if (!access.valid() || !handles.now_cover_plate) return;
             const bool has_cover = has_cover_image();
@@ -1161,7 +1163,7 @@ export namespace player {
         }
 
         void show_default_current_cover() noexcept {
-            release_cover_image(cover_image);
+            release_resolved_cover(current_cover);
             set_image_slot_range(
                 current_track_cover_slots(),
                 default_cover_image_id(DefaultCoverVariant::HomeHeroPill),
@@ -1175,7 +1177,7 @@ export namespace player {
             cover_folder_path.clear();
             cover_failed_embedded_path.clear();
             cover_failed_folder_path.clear();
-            release_cover_image(cover_image);
+            release_resolved_cover(current_cover);
             clear_image_slot_range(current_track_cover_slots(), false);
         }
 
@@ -1200,16 +1202,16 @@ export namespace player {
                     || (folder_candidate && cover_failed_folder_path.view() == candidate)) {
                     return false;
                 }
-                if (cover_image.path == candidate && ::ui::scene::image_id_valid(cover_image.image_id)) {
-                    set_image_slot_range(current_track_cover_slots(), cover_image.image_id, false);
+                if (current_cover.key.view() == candidate && ::ui::scene::image_id_valid(current_cover.image_id)) {
+                    set_image_slot_range(current_track_cover_slots(), current_cover.image_id, false);
                     cover_path.assign(candidate);
                     restore_now_playing_group_visibility();
                     restore_bottom_bar_content_visibility();
                     sync_now_playing_transition_overlay();
-                    if (!cover_theme_tint_source_matches(cover_image.path)) {
-                        apply_cover_theme_from_current_image(cover_image.path);
+                    if (!cover_theme_tint_source_matches(current_cover.key.view())) {
+                        apply_cover_theme_from_current_image(current_cover.key.view());
 #if defined(CHARM_PLAYER_COVER_DEBUG)
-                        debug_cover_theme(cover_theme, cover_image.path);
+                        debug_cover_theme(cover_theme, current_cover.key.view());
 #endif
                     }
                     if (embedded_candidate) cover_failed_embedded_path.clear();
@@ -1222,15 +1224,15 @@ export namespace player {
                     ? CoverResourceKind::EmbeddedTrack
                     : (folder_candidate ? CoverResourceKind::FolderFile : CoverResourceKind::Unknown);
                 request.fallback_variant = DefaultCoverVariant::HomeHeroPill;
-                if (load_cover_image(request, cover_image)) {
-                    set_image_slot_range(current_track_cover_slots(), cover_image.image_id, false);
+                if (resolve_cover(request, current_cover)) {
+                    set_image_slot_range(current_track_cover_slots(), current_cover.image_id, false);
                     cover_path.assign(candidate);
                     restore_now_playing_group_visibility();
                     restore_bottom_bar_content_visibility();
                     sync_now_playing_transition_overlay();
-                    apply_cover_theme_from_current_image(cover_image.path);
+                    apply_cover_theme_from_current_image(current_cover.key.view());
 #if defined(CHARM_PLAYER_COVER_DEBUG)
-                    debug_cover_theme(cover_theme, cover_image.path);
+                    debug_cover_theme(cover_theme, current_cover.key.view());
 #endif
                     if (embedded_candidate) cover_failed_embedded_path.clear();
                     if (folder_candidate) cover_failed_folder_path.clear();
@@ -1501,8 +1503,9 @@ export namespace player {
             0,
             sizeof(std::declval<PlayerController>().list_cover_path_scratch),
             PlayerController::kListCoverCache,
-            sizeof(std::declval<PlayerController>().list_cover_cache),
-            sizeof(std::declval<PlayerController>().cover_image),
+            PlayerController::kListCoverCache
+                * sizeof(PlayerController::ListCoverCacheEntry),
+            sizeof(std::declval<PlayerController>().current_cover),
             sizeof(std::declval<PlayerController>().cover_theme),
             sizeof(std::declval<PlayerController>().now_playing_roles),
             sizeof(std::declval<PlayerController>().title_text)

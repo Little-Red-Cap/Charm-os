@@ -33,6 +33,7 @@ enum class PlayerMd3SmokeField : std::uint8_t {
     CommandOverflow,
     TextBuffer,
     TextOverflow,
+    Style,
     ExecFailed,
     ExecCounts,
     FailTextImage,
@@ -110,6 +111,8 @@ enum class PlayerMd3SmokeField : std::uint8_t {
         return "text";
     case PlayerMd3SmokeField::TextOverflow:
         return "to";
+    case PlayerMd3SmokeField::Style:
+        return "style";
     case PlayerMd3SmokeField::ExecFailed:
         return "exec_fail";
     case PlayerMd3SmokeField::ExecCounts:

@@ -7,6 +7,7 @@ module;
 #include <array>
 #include <span>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #if defined(CHARM_PLAYER_HOST_UI) && CHARM_PLAYER_HOST_UI && \
@@ -17,10 +18,6 @@ module;
 #define CHARM_PLAYER_USE_WIN32_FONT_CACHE 0
 #endif
 
-#if CHARM_PLAYER_USE_WIN32_FONT_CACHE
-#include <windows.h>
-#endif
-
 export module player.font_cache;
 
 import charm.font;
@@ -29,10 +26,147 @@ import charm.font.typography;
 export namespace player::font_cache {
 namespace detail {
 #if CHARM_PLAYER_USE_WIN32_FONT_CACHE
+    namespace win32 {
+#if defined(_MSC_VER)
+#define CHARM_PLAYER_WIN32_DLLIMPORT __declspec(dllimport)
+#define CHARM_PLAYER_WIN32_CALL __stdcall
+#elif defined(__GNUC__)
+#define CHARM_PLAYER_WIN32_DLLIMPORT __attribute__((dllimport))
+#if defined(__i386__)
+#define CHARM_PLAYER_WIN32_CALL __attribute__((stdcall))
+#else
+#define CHARM_PLAYER_WIN32_CALL
+#endif
+#else
+#define CHARM_PLAYER_WIN32_DLLIMPORT
+#define CHARM_PLAYER_WIN32_CALL
+#endif
+
+        using Bool = int;
+        using Byte = unsigned char;
+        using Dword = unsigned long;
+        using Uint = unsigned int;
+        using Word = unsigned short;
+        using Long = long;
+        using Handle = void*;
+        using Hdc = Handle;
+        using Hfont = Handle;
+        using HgdiObj = Handle;
+
+        struct TextMetricW {
+            Long height;
+            Long ascent;
+            Long descent;
+            Long internal_leading;
+            Long external_leading;
+            Long ave_char_width;
+            Long max_char_width;
+            Long weight;
+            Long overhang;
+            Long digitized_aspect_x;
+            Long digitized_aspect_y;
+            wchar_t first_char;
+            wchar_t last_char;
+            wchar_t default_char;
+            wchar_t break_char;
+            Byte italic;
+            Byte underlined;
+            Byte struck_out;
+            Byte pitch_and_family;
+            Byte char_set;
+        };
+
+        struct Point {
+            Long x;
+            Long y;
+        };
+
+        struct Fixed {
+            Word fract;
+            short value;
+        };
+
+        struct Mat2 {
+            Fixed eM11;
+            Fixed eM12;
+            Fixed eM21;
+            Fixed eM22;
+        };
+
+        struct GlyphMetrics {
+            Uint black_box_x;
+            Uint black_box_y;
+            Point glyph_origin;
+            short cell_inc_x;
+            short cell_inc_y;
+        };
+
+        struct Abc {
+            int a;
+            Uint b;
+            int c;
+        };
+
+        constexpr int kFwNormal = 400;
+        constexpr Dword kDefaultCharset = 1;
+        constexpr Dword kOutDefaultPrecision = 0;
+        constexpr Dword kClipDefaultPrecision = 0;
+        constexpr Dword kAntialiasedQuality = 4;
+        constexpr Dword kDefaultPitch = 0;
+        constexpr Dword kFfDontCare = 0;
+        constexpr Dword kGgiMarkNonexistingGlyphs = 1;
+        constexpr Dword kGdiError = 0xFFFFFFFFul;
+        constexpr Uint kGgoGray8Bitmap = 6;
+        constexpr Uint kGgoGlyphIndex = 0x0080;
+
+        extern "C" {
+            CHARM_PLAYER_WIN32_DLLIMPORT Hdc CHARM_PLAYER_WIN32_CALL CreateCompatibleDC(Hdc hdc);
+            CHARM_PLAYER_WIN32_DLLIMPORT Hfont CHARM_PLAYER_WIN32_CALL CreateFontW(
+                int height,
+                int width,
+                int escapement,
+                int orientation,
+                int weight,
+                Dword italic,
+                Dword underline,
+                Dword strike_out,
+                Dword charset,
+                Dword out_precision,
+                Dword clip_precision,
+                Dword quality,
+                Dword pitch_and_family,
+                const wchar_t* face_name);
+            CHARM_PLAYER_WIN32_DLLIMPORT HgdiObj CHARM_PLAYER_WIN32_CALL SelectObject(Hdc hdc, HgdiObj object);
+            CHARM_PLAYER_WIN32_DLLIMPORT Bool CHARM_PLAYER_WIN32_CALL GetTextMetricsW(Hdc hdc, TextMetricW* metrics);
+            CHARM_PLAYER_WIN32_DLLIMPORT Dword CHARM_PLAYER_WIN32_CALL GetGlyphIndicesW(
+                Hdc hdc,
+                const wchar_t* text,
+                int count,
+                Word* glyphs,
+                Dword flags);
+            CHARM_PLAYER_WIN32_DLLIMPORT Dword CHARM_PLAYER_WIN32_CALL GetGlyphOutlineW(
+                Hdc hdc,
+                Uint glyph,
+                Uint format,
+                GlyphMetrics* metrics,
+                Dword buffer_size,
+                void* buffer,
+                const Mat2* transform);
+            CHARM_PLAYER_WIN32_DLLIMPORT Bool CHARM_PLAYER_WIN32_CALL GetCharABCWidthsW(
+                Hdc hdc,
+                Uint first,
+                Uint last,
+                Abc* abc);
+        }
+
+#undef CHARM_PLAYER_WIN32_CALL
+#undef CHARM_PLAYER_WIN32_DLLIMPORT
+    } // namespace win32
+
     struct Cache {
-        HDC hdc{nullptr};
-        HFONT font_handle{nullptr};
-        TEXTMETRICW metrics{};
+        win32::Hdc hdc{nullptr};
+        win32::Hfont font_handle{nullptr};
+        win32::TextMetricW metrics{};
         std::vector<Glyph> glyphs{};
         std::vector<std::vector<std::uint8_t>> bitmaps{};
         std::vector<std::uint32_t> sparse_codes{};
@@ -49,27 +183,27 @@ namespace detail {
         return c;
     }
 
-    HFONT create_font() {
-        return CreateFontW(
+    win32::Hfont create_font() {
+        return win32::CreateFontW(
             -16, 0, 0, 0,
-            FW_NORMAL, FALSE, FALSE, FALSE,
-            DEFAULT_CHARSET,
-            OUT_DEFAULT_PRECIS,
-            CLIP_DEFAULT_PRECIS,
-            ANTIALIASED_QUALITY,
-            DEFAULT_PITCH | FF_DONTCARE,
+            win32::kFwNormal, 0, 0, 0,
+            win32::kDefaultCharset,
+            win32::kOutDefaultPrecision,
+            win32::kClipDefaultPrecision,
+            win32::kAntialiasedQuality,
+            win32::kDefaultPitch | win32::kFfDontCare,
             L"Microsoft YaHei UI");
     }
 
     bool init_cache(Cache& c) {
-        c.hdc = CreateCompatibleDC(nullptr);
+        c.hdc = win32::CreateCompatibleDC(nullptr);
         if (!c.hdc) return false;
         c.font_handle = create_font();
         if (!c.font_handle) return false;
-        SelectObject(c.hdc, c.font_handle);
-        GetTextMetricsW(c.hdc, &c.metrics);
-        c.font.line_height = static_cast<int>(c.metrics.tmHeight);
-        c.font.baseline = static_cast<int>(c.metrics.tmAscent);
+        win32::SelectObject(c.hdc, c.font_handle);
+        win32::GetTextMetricsW(c.hdc, &c.metrics);
+        c.font.line_height = static_cast<int>(c.metrics.height);
+        c.font.baseline = static_cast<int>(c.metrics.ascent);
         c.font.fallback_glyph = nullptr;
         c.font.fallback_font = nullptr;
         c.font.ranges = {};
@@ -82,17 +216,22 @@ namespace detail {
             if (c.sparse_codes[i] == cp) return true;
         }
         if (cp > 0xFFFF) return false;
-        const WCHAR ch = static_cast<WCHAR>(cp);
-        GLYPHMETRICS gm{};
-        MAT2 mat{
+        const wchar_t ch = static_cast<wchar_t>(cp);
+        win32::GlyphMetrics gm{};
+        win32::Mat2 mat{
             {0, 1},
             {0, 0},
             {0, 0},
             {0, 1},
         };
 
-        std::array<WORD, 2> glyphs{0, 0};
-        if (GetGlyphIndicesW(c.hdc, &ch, 1, glyphs.data(), GGI_MARK_NONEXISTING_GLYPHS) == GDI_ERROR) {
+        std::array<win32::Word, 2> glyphs{0, 0};
+        if (win32::GetGlyphIndicesW(
+                c.hdc,
+                &ch,
+                1,
+                glyphs.data(),
+                win32::kGgiMarkNonexistingGlyphs) == win32::kGdiError) {
             ++c.glyph_missing;
             return false;
         }
@@ -101,36 +240,36 @@ namespace detail {
             return false;
         }
 
-        const DWORD size = GetGlyphOutlineW(
+        const win32::Dword size = win32::GetGlyphOutlineW(
             c.hdc,
             glyphs[0],
-            GGO_GLYPH_INDEX | GGO_GRAY8_BITMAP,
+            win32::kGgoGlyphIndex | win32::kGgoGray8Bitmap,
             &gm,
             0,
             nullptr,
             &mat);
-        if (size == GDI_ERROR) {
+        if (size == win32::kGdiError) {
             ++c.glyph_missing;
             return false;
         }
         std::vector<std::uint8_t> buffer;
         if (size > 0) {
             buffer.resize(size);
-            if (GetGlyphOutlineW(
+            if (win32::GetGlyphOutlineW(
                     c.hdc,
                     glyphs[0],
-                    GGO_GLYPH_INDEX | GGO_GRAY8_BITMAP,
+                    win32::kGgoGlyphIndex | win32::kGgoGray8Bitmap,
                     &gm,
-                    static_cast<DWORD>(buffer.size()),
+                    static_cast<win32::Dword>(buffer.size()),
                     buffer.data(),
-                    &mat) == GDI_ERROR) {
+                    &mat) == win32::kGdiError) {
                 ++c.glyph_missing;
                 return false;
             }
         }
 
-        const int w = static_cast<int>(gm.gmBlackBoxX);
-        const int h = static_cast<int>(gm.gmBlackBoxY);
+        const int w = static_cast<int>(gm.black_box_x);
+        const int h = static_cast<int>(gm.black_box_y);
         const int stride = ((w + 3) / 4) * 4;
         std::vector<std::uint8_t> bitmap;
         if (w > 0 && h > 0 && !buffer.empty()) {
@@ -148,20 +287,24 @@ namespace detail {
         c.bitmaps.push_back(std::move(bitmap));
         const auto& stored = c.bitmaps.back();
 
-        ABC abc{};
-        if (!GetCharABCWidthsW(c.hdc, ch, ch, &abc)) {
-            abc.abcA = 0;
-            abc.abcB = gm.gmBlackBoxX;
-            abc.abcC = 0;
+        win32::Abc abc{};
+        if (!win32::GetCharABCWidthsW(
+                c.hdc,
+                static_cast<win32::Uint>(ch),
+                static_cast<win32::Uint>(ch),
+                &abc)) {
+            abc.a = 0;
+            abc.b = gm.black_box_x;
+            abc.c = 0;
         }
 
         Glyph g{};
         g.bitmap = stored.empty() ? nullptr : stored.data();
         g.width = w;
         g.height = h;
-        g.x_advance = static_cast<int>(abc.abcA + abc.abcB + abc.abcC);
-        g.x_offset = static_cast<int>(gm.gmptGlyphOrigin.x);
-        g.y_offset = static_cast<int>(gm.gmptGlyphOrigin.y);
+        g.x_advance = static_cast<int>(abc.a + abc.b + abc.c);
+        g.x_offset = static_cast<int>(gm.glyph_origin.x);
+        g.y_offset = static_cast<int>(gm.glyph_origin.y);
         g.bpp = stored.empty() ? 0 : 8;
 
         const std::uint16_t gid = static_cast<std::uint16_t>(c.glyphs.size());

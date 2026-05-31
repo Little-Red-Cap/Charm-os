@@ -1,9 +1,11 @@
 module;
 #include <array>
 #include <cstdint>
+#include <limits>
 #include <type_traits>
 export module charm.core.style;
 
+export import charm.core.config;
 export import charm.gfx.color;
 export import charm.font.typography;
 
@@ -279,7 +281,9 @@ export
 inline constexpr StyleClassId kStyleClassInvalid = 0;
 
 export
-inline constexpr std::size_t kStyleClassMax = 256;
+inline constexpr std::size_t kStyleClassMax = style_class_max;
+static_assert(kStyleClassMax > 0);
+static_assert(kStyleClassMax <= static_cast<std::size_t>(std::numeric_limits<StyleClassId>::max()));
 
 export
 inline void merge_style_patch(StylePatch& dst, const StylePatch& src) noexcept {
@@ -536,3 +540,41 @@ private:
     std::array<std::uint8_t, kStyleClassMax> class_on_{};
     std::uint32_t class_version_{0};
 };
+
+export
+struct ThemeMemoryProfile {
+    std::size_t style_class_max{0};
+    std::size_t class_patch_bytes{0};
+    std::size_t class_on_bytes{0};
+    std::size_t theme_size_bytes{0};
+};
+
+export
+inline constexpr ThemeMemoryProfile theme_memory_profile() noexcept {
+    return ThemeMemoryProfile{
+        kStyleClassMax,
+        kStyleClassMax * sizeof(StylePatch),
+        kStyleClassMax * sizeof(std::uint8_t),
+        sizeof(Theme),
+    };
+}
+
+#if CHARM_VIVID_MEMORY_PROFILE_SYMBOLS && defined(__GNUC__)
+extern "C" [[gnu::used]] void charm_theme_memory_profile_symbols() noexcept {
+    constexpr auto profile = theme_memory_profile();
+    asm volatile(
+        ".global charm_theme_profile_style_class_max\n"
+        ".set charm_theme_profile_style_class_max, %c0\n"
+        ".global charm_theme_profile_class_patch_bytes\n"
+        ".set charm_theme_profile_class_patch_bytes, %c1\n"
+        ".global charm_theme_profile_class_on_bytes\n"
+        ".set charm_theme_profile_class_on_bytes, %c2\n"
+        ".global charm_theme_profile_theme_size_bytes\n"
+        ".set charm_theme_profile_theme_size_bytes, %c3\n"
+        :
+        : "i"(profile.style_class_max),
+          "i"(profile.class_patch_bytes),
+          "i"(profile.class_on_bytes),
+          "i"(profile.theme_size_bytes));
+}
+#endif

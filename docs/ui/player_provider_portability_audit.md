@@ -49,7 +49,7 @@ Current state:
 Dynamic allocation and portability notes:
 
 - Host-side decode and embedded-image extraction still need temporary image buffers.
-- Resource-backed covers still copy into `CoverImage::argb` in v0; fixed-capacity ownership is a later portable-profile concern.
+- Resource-backed covers resolve through `ResolvedCover` metadata; decoded pixel ownership stays inside `player.cover` host-only detail or the active resource provider, not in `PlayerController`.
 - Cover-theme sampling uses a fixed 128x128 working set before palette extraction, which is good because the memory budget is visible.
 - Some theme and transition state remains in the MD3 controller; this is product semantic state, not a host dependency by itself.
 
@@ -270,7 +270,7 @@ Already moving in the portable direction:
 - UI-CI now proves touch-style pointer dispatch and wheel dispatch through the Player input boundary.
 - Explicit host feature gates in `player.host_features`.
 - CMake host profiles that make preview/probe differences visible.
-- `CoverProviderFn` and generated/default cover fallback.
+- `ResolvedCover` metadata seam and generated/default cover fallback.
 
 ## Next Slice Candidates
 

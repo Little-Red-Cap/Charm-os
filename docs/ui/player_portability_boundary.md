@@ -12,7 +12,9 @@ This note tracks the current portability boundary for the Player UI work. The go
 - `CHARM_PLAYER_HOST_STORAGE=1` marks host storage defaults such as the Windows VHD path.
 - `CHARM_PLAYER_PC_FONT_CACHE=1` is only valid for the host shell and must not be treated as a portable font path.
 - `CHARM_PLAYER_PLAYBACK_LOG=1` enables host playback diagnostics.
-- `app-vivid-MaterialDesign3` is still a rich host-side UI variant. It is not yet MCU-strict because it still uses dynamic containers and host asset loading.
+- `app-vivid-MaterialDesign3` is the shared Player MD3 product UI/runtime path. Windows builds it as a rich host preview; H747 `player_md3` builds the same shared runtime/controller with PRODUCT gates and MCU-strict defaults.
+- H747 `player_md3` defaults are `CHARM_VIVID_FEATURESET=PRODUCT`, `CHARM_PLAYER_MCU_STRICT=1`, `CHARM_PLAYER_HOST_COVER_DECODE=0`, `CHARM_PLAYER_COVER_THEME_EXTRACT=0`, `CHARM_PLAYER_FILE_FONTS=0`, `CHARM_PLAYER_DEBUG_UI=0`, `CHARM_PLAYER_LAYERED_TRANSITIONS=0`, and `CHARM_PLAYER_LIST_COVER_CACHE_ENTRIES=0`.
+- Windows MD3 keeps `FULL` preview behavior: SDL shell, file fonts, host cover decode, dynamic cover theme extraction, layered transitions, screenshot/UI-CI, and a fixed 12-entry list cover cache.
 
 ## Layering Direction
 
@@ -59,9 +61,10 @@ For the current ownership map, host shell split, Vivid extraction candidates, an
 - Audio spectrum visualization is routed through `audio.spectrum`; the current `host_fft` backend is gated by `CHARM_AUDIO_SPECTRUM_USE_HOST_FFT`, while no-math targets compile with no spectrum backend and keep playback independent from FFT availability.
 - The Windows host shell prints `[player.features]` at startup so a preview build and a portability-probe build can be distinguished from logs. A probe with `host_cover_decode=0` is expected to skip real cover decoding.
 - `player.cover_resource` now defines the cover resource contract (`CoverResourceRequest`, `CoverResourceView`, `PlayerCoverResourceProviderBinding`, `PlayerCoverResourceRecordTableView`) in app-common, and `player.runtime` installs either an explicit binding or a record-table-derived binding before UI/bootstrap work begins.
-- `player.cover` consumes the active cover resource binding before the legacy `CoverProviderFn` host decoder. Portable targets can return pre-decoded/resource-backed views without changing page controllers; host decode remains gated by `CHARM_PLAYER_HOST_COVER_DECODE`.
+- `player.cover` consumes the active cover resource binding before the host decode detail path. Portable targets return pre-decoded/resource-backed views without changing page controllers; controllers consume only fixed `ResolvedCover` metadata, while host decoded pixels remain gated by `CHARM_PLAYER_HOST_COVER_DECODE`.
 - When no cover can be decoded, Now Playing and the mini bar use generated default cover art instead of leaving image slots empty.
-- Cover-theme sampling is capped at a fixed 128x128 working set before palette extraction, so Player-side theme sampling has an explicit memory budget.
+- Dynamic cover-theme sampling is a Windows/FULL preview capability. H747 PRODUCT defaults keep `CHARM_PLAYER_COVER_THEME_EXTRACT=0` and use the fixed fallback theme unless a future product profile explicitly admits the extractor.
+- If dynamic cover-theme sampling is enabled in a non-host product later, the sampling workspace must remain fixed-budget and evidence-backed before it is admitted.
 - `player.font_resource` now defines small app-common helpers for builtin, file-path, and package-backed font inputs. `player.font_resource_apply` owns the controller/UI application seam for those inputs. FreeType/VFS file font binding is still gated by `CHARM_PLAYER_HOST_FILE_FONTS`; portable targets use `FontResourceKind::Builtin` or provide package bytes through `PlayerFontPackageResourceView`.
 - Playback and filesystem diagnostics are gated by explicit Player feature macros, not `_WIN32`.
 - FreeType file-backed font loading is a host/product resource path until Vivid has a board resource contract.
@@ -104,16 +107,21 @@ The matching input boundary is also small:
 
 This means Win32, Linux, SDL, and STM32 are peers at the adapter layer. None of them should leak into Player page builders or controller semantics.
 
-## Portability Blockers To Retire
+## Current Handoff State
 
-- Dynamic `std::vector` / `std::string` state in the Material Design 3 controller and cover pipeline.
-- Cover extraction and theme sampling allocate temporary buffers for embedded images.
-- Library popup and preview text helpers still build temporary `std::string` values.
-- Page screenshots and UI CI helpers belong to the host shell, not to the portable Player core.
+- H747 `player_md3` currently builds the shared MD3 runtime/controller with PRODUCT Vivid modules and MCU-strict gates.
+- Current H747 memory evidence is generated at `Examples/project/h747-lab/cmake-build-h747-lab-debug/generated/memory/player_md3_memory_evidence.txt`.
+- Current baseline after list-cover-cache removal from the H747 default profile is `RAM_D1 45976 B`, `RAM_D2 4 KB`, and `FLASH 709208 B`.
+- `PlayerController.size_bytes=9520`, `list_cover_cache_capacity=0`, `list_cover_cache_bytes=0`, `PLAYER_ICON.ram_d1_buffer_count=0`.
+- Target-scoped module gates currently keep `alg_color_extract`, `material_color_utils`, FreeType/file-font modules, `player.ui_debug`, `motion_*`, `page_transition`, and `snapshot` out of the default H747 Player MD3 firmware.
+- `CoverImage`-style dynamic decoded image ownership is no longer part of shared controller state. Controllers consume fixed `ResolvedCover` metadata; host decode buffers live inside `player.cover` host-only detail.
+- Windows `charm-player-win-vivid-md3` is still blocked by a known GCC modules issue in `player.platform.cppm`: recursive lazy load while resolving `ui::draw_cmd::DrawCmdBuffer`. This is not a cover/controller portability regression.
 
 ## Next Cleanup Order
 
-1. Add a non-Windows board shell target that calls `make_player_board_runtime()` from board-owned clock/controller/storage/framebuffer. The H747-local `player_ui_port_bridge` is the current seed for that target shape.
-2. Define the concrete board font package binary/layout behind `PlayerBoardFontPackageView`.
-3. Split time/diagnostics providers only where a concrete board target needs them.
-4. Replace controller-owned dynamic track/list caches with fixed-capacity storage where they enter MCU-strict paths.
+1. Fix or route around the Windows GCC modules `recursive lazy load` blocker so `charm-player-win-vivid-md3 --ui-ci` is available again before major visual work.
+2. Treat the current H747 memory evidence as the visual-recovery baseline; every visual iteration should refresh the evidence and keep the default PRODUCT gates green.
+3. Start visual recovery in shared MD3 UI/page-builder/controller code only. Do not add a board-only hand-drawn UI fork.
+4. If a visual change needs a new widget, style slot, payload cap, list/cache slot, or dynamic resource capability, admit it through the PRODUCT profile and update evidence in the same change.
+5. Define concrete board font package and cover resource records behind the existing provider seams when product assets are ready.
+6. Wire SDRAM/LTDC/touch through board-owned runtime resources once the external memory ownership and address profile are finalized.

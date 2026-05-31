@@ -4,9 +4,11 @@ module;
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <new>
 
 export module charm.ui.scene;
 
+import charm.core.config;
 export import charm.core.event;
 export import charm.core.geometry;
 export import charm.core.handle;
@@ -27,7 +29,7 @@ export import charm.gfx.image;
 import charm.gfx.pixel_ops;
 export import charm.gfx.render_style;
 export import charm.gfx.text_box;
-export import charm.gfx.draw_cmd;
+import charm.gfx.draw_cmd;
 import :render_detail;
 
 export using ::ScrollBarOrientation;

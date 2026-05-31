@@ -695,17 +695,17 @@
             };
         }
 
-        ::ui::scene::LayerCaptureResult freeze_transition_page_snapshot(
+        PlayerLayerCaptureResult freeze_transition_page_snapshot(
             PlayerPage page,
             bool hide_live_root) noexcept {
             last_layer_transition_capture_status = ::ui::scene::LayerCaptureStatus::NoSnapshotSlot;
-            if (!scene) return {};
+            if (!scene_runtime.valid()) return {};
             auto binding = page_binding_for(page);
             if (!binding.layer) return {};
             set_page_transition_state(page == now_playing_transition.route.source_page
                 ? PageTransitionState::CapturingSource
                 : PageTransitionState::CapturingDestination);
-            const auto capture = binding.layer->freeze(*scene, make_transition_snapshot_spec());
+            const auto capture = binding.layer->freeze(scene_runtime, make_transition_snapshot_spec());
             last_layer_transition_capture_status = capture.status;
             if (capture.ok()) {
                 binding.layer->mark_transitioning();
@@ -742,12 +742,12 @@
         }
 
         void release_transition_source_snapshot() noexcept {
-            if (!scene || !now_playing_transition.source_snapshot) return;
+            if (!scene_runtime.valid() || !now_playing_transition.source_snapshot) return;
             auto binding = page_binding_for(now_playing_transition.route.source_page);
             const bool released = binding.layer
                 && binding.layer->snapshot() == now_playing_transition.source_snapshot
-                    ? binding.layer->release_snapshot(*scene)
-                    : scene->release_snapshot(now_playing_transition.source_snapshot);
+                    ? binding.layer->release_snapshot(scene_runtime)
+                    : scene_runtime.release_snapshot(now_playing_transition.source_snapshot);
             if (released) {
                 ++layer_transition_release_count;
             }
@@ -755,12 +755,12 @@
         }
 
         void release_transition_destination_snapshot() noexcept {
-            if (!scene || !now_playing_transition.destination_snapshot) return;
+            if (!scene_runtime.valid() || !now_playing_transition.destination_snapshot) return;
             auto binding = page_binding_for(now_playing_transition.route.destination_page);
             const bool released = binding.layer
                 && binding.layer->snapshot() == now_playing_transition.destination_snapshot
-                    ? binding.layer->release_snapshot(*scene)
-                    : scene->release_snapshot(now_playing_transition.destination_snapshot);
+                    ? binding.layer->release_snapshot(scene_runtime)
+                    : scene_runtime.release_snapshot(now_playing_transition.destination_snapshot);
             if (released) {
                 ++layer_transition_release_count;
             }
@@ -843,8 +843,8 @@
             const ::ui::scene::LayerBudget& budget,
             std::uint32_t composite_pixels) const noexcept {
             ::ui::scene::LayerBudgetResult result{};
-            if (!scene) return result;
-            const auto stats = scene->layer_stats();
+            if (!scene_runtime.valid()) return result;
+            const auto stats = scene_runtime.layer_stats();
             if (budget.max_layer_bytes > 0 && stats.layer_bytes > budget.max_layer_bytes) {
                 result.layer_bytes_over = true;
             }
@@ -869,8 +869,8 @@
             if (decision.reason != ::ui::scene::LayerFallbackReason::None) {
                 ++layer_transition_budget_fail_count;
             }
-            if (scene) {
-                layer_transition_last_layer_bytes = scene->layer_stats().layer_bytes;
+            if (scene_runtime.valid()) {
+                layer_transition_last_layer_bytes = scene_runtime.layer_stats().layer_bytes;
             }
             layer_transition_last_layer_bytes_budget = budget_caps.max_layer_bytes;
             layer_transition_last_composite_pixels = composite_pixels;
@@ -908,7 +908,7 @@
             ::ui::scene::SnapshotHandle snapshot,
             float progress,
             bool destination) noexcept {
-            if (!scene || !snapshot) return {};
+            if (!scene_runtime.valid() || !snapshot) return {};
             const auto phase = sample_now_playing_transition_frame_phase(
                 now_playing_transition, progress);
             const int source_slide = now_playing_transition.route.expanding
@@ -921,7 +921,7 @@
             const auto requested_opacity = static_cast<std::uint8_t>(
                 destination ? lerp_u8(160, 255, phase.toward_destination)
                             : lerp_u8(255, 180, phase.toward_destination));
-            return scene->make_snapshot_compose_plan({
+            return scene_runtime.make_snapshot_compose_plan({
                 .source = snapshot,
                 .transform = ::ui::scene::LayerTransform{
                     .x = static_cast<std::int16_t>(
@@ -961,15 +961,15 @@
 
         void compose_transition_pixel_layer(float progress,
                                             bool destination) noexcept {
-            if (!scene || !now_playing_transition.active) return;
+            if (!scene_runtime.valid() || !now_playing_transition.active) return;
             const auto plan = destination
                 ? make_transition_destination_snapshot_plan(progress)
                 : make_transition_source_snapshot_plan(progress);
             if (!plan.valid) return;
-            const auto replay = scene->compose_pixel_snapshot(plan);
+            const auto replay = scene_runtime.compose_pixel_snapshot(plan);
             if (replay.ok()) {
                 layer_transition_alpha_blend_pixels += static_cast<std::uint32_t>(
-                    replay.stats.alpha_blend_count);
+                    replay.alpha_blend_count);
                 layer_transition_last_composite_pixels = plan.composite_pixels;
                 if (destination) {
                     ++layer_transition_destination_compose_count;

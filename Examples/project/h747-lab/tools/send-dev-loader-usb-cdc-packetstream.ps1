@@ -5,8 +5,8 @@ param(
     [int]$ControlBaudRate = 115200,
     [int]$UsbBaudRate = 115200,
     [int]$TimeoutSeconds = 30,
-    [int]$WriteChunkSize = 4096,
-    [int]$InterChunkDelayMs = 0,
+    [int]$WriteChunkSize = 256,
+    [int]$InterChunkDelayMs = 1,
     [string]$Log = "",
     [switch]$DryRun,
     [switch]$NoBegin,
@@ -84,8 +84,8 @@ function Get-PacketStreamBeginInfo {
 }
 
 if ($SelfTest) {
-    $Estimate = Get-TransferEstimate -ByteCount 8192 -WriteChunkSize 4096 -InterChunkDelayMs 1
-    if ($Estimate.ChunkCount -ne 2 -or $Estimate.DelaySeconds -le 0) {
+    $Estimate = Get-TransferEstimate -ByteCount 8192 -WriteChunkSize 256 -InterChunkDelayMs 1
+    if ($Estimate.ChunkCount -ne 32 -or $Estimate.DelaySeconds -le 0) {
         throw "Self-test failed: transfer estimate was invalid."
     }
     [byte[]]$Synthetic = @(

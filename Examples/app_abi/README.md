@@ -80,8 +80,11 @@ bundle.
 flash-like media. It models erase/write/read/capacity/alignment and verifies a
 written `.appstore.bin` by readback. The host smoke uses a memory NOR simulator;
 H747 `dev_loader` now binds the same installer contract to QSPI NOR for the
-resident development platform. Future eMMC support must implement the same
-reader/media contracts instead of defining a second App Store protocol.
+resident development platform, and also binds eMMC as a second raw development
+slot through the same reader/media contracts. The eMMC adapter is block-backed
+internally, but still presents Store v1 as byte ranges to the runtime. It must
+not define a second App Store protocol, filesystem convention, or app entry
+model.
 
 `charm_app_received_image.hpp` defines the first received-image staging boundary
 between Dev Loader downloads and `AppRuntime`. It turns verified image bytes

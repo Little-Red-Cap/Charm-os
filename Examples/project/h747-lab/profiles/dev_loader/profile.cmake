@@ -6,5 +6,6 @@ set(H747_LAB_PROFILE_SERVICES
     console
     power
     memory
+    storage
     qspi_nor
     usb_dev_loader)

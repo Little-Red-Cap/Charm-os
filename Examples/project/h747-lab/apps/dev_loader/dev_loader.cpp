@@ -16,8 +16,10 @@
 #include "memory_probe.h"
 #include "port.h"
 #include "qspi_nor.h"
+#include "storage.h"
 #include "usb_dev_loader_service.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -48,6 +50,9 @@ constexpr std::uint32_t kPacketMaxPayloadSize = 256U;
 constexpr std::uint32_t kUsbReadChunkSize = 512U;
 constexpr std::uint32_t kUsbDrainLimitBytes = 4096U;
 constexpr std::uint32_t kQspiStoreBaseOffset = 0U;
+constexpr std::uint32_t kEmmcStoreTargetOffset = 0U;
+constexpr std::uint32_t kEmmcStoreSlotBytes = 16U * 1024U * 1024U;
+constexpr std::uint32_t kEmmcSupportedBlockSize = 512U;
 constexpr std::uintptr_t kSdram2ArenaBase = 0xD0000000U;
 constexpr std::string_view kDefaultReceivedAppName = "received_app"sv;
 
@@ -93,6 +98,19 @@ struct ImageStageArena {
     std::uint32_t align{0};
 };
 
+struct EmmcStoreLayout {
+    bool ready{false};
+    std::uint32_t block_size{0};
+    std::uint32_t exposed_blocks{0};
+    std::uint32_t slot_lba{0};
+    std::uint32_t slot_blocks{0};
+    std::uint32_t slot_bytes{0};
+};
+
+struct EmmcStoreContext {
+    EmmcStoreLayout layout{};
+};
+
 constexpr ImageStageArena kImageStageArena{
     .name = "sdram2_stage_cache"sv,
     .base = kSdram2ArenaBase + kDevRamCapacity,
@@ -120,6 +138,7 @@ static_assert(kAppRunLoadRegion.base == kAppRunLoadRegion.linked_elf_base,
 
 loader::Storage ram_storage() noexcept;
 app_abi::AppImage stage_qspi_app(Runtime& rt, std::string_view command, std::string_view spec) noexcept;
+app_abi::AppImage stage_emmc_app(Runtime& rt, std::string_view command, std::string_view spec) noexcept;
 
 template <charm::cap::ByteSink Sink>
 class OutSinkAdapter {
@@ -285,6 +304,98 @@ std::span<const std::byte> received_payload_view(const loader::ImageManifest& ma
     return {ram.data() + offset, manifest.size_bytes};
 }
 
+EmmcStoreLayout emmc_store_layout() noexcept {
+    const auto block_size = h747_storage_block_size();
+    const auto blocks = h747_storage_block_count();
+    EmmcStoreLayout layout{
+        .ready = false,
+        .block_size = block_size,
+        .exposed_blocks = blocks,
+    };
+    if (block_size != kEmmcSupportedBlockSize || blocks == 0U) {
+        return layout;
+    }
+
+    const std::uint32_t requested_blocks = kEmmcStoreSlotBytes / block_size;
+    const std::uint32_t slot_blocks = std::min(blocks, requested_blocks);
+    if (slot_blocks == 0U) {
+        return layout;
+    }
+
+    layout.ready = h747_storage_state().ready != 0U;
+    layout.slot_blocks = slot_blocks;
+    layout.slot_lba = blocks - slot_blocks;
+    layout.slot_bytes = slot_blocks * block_size;
+    return layout;
+}
+
+bool emmc_read_slot_bytes(const EmmcStoreLayout& layout,
+                          std::uint32_t offset,
+                          std::span<std::byte> bytes) noexcept {
+    if (!layout.ready || bytes.empty() || offset > layout.slot_bytes ||
+        bytes.size() > (layout.slot_bytes - offset)) {
+        return false;
+    }
+
+    alignas(4) std::array<std::uint8_t, kEmmcSupportedBlockSize> block{};
+    std::uint32_t copied = 0U;
+    while (copied < bytes.size()) {
+        const auto absolute = offset + copied;
+        const auto block_index = absolute / layout.block_size;
+        const auto block_offset = absolute % layout.block_size;
+        const auto chunk = std::min<std::uint32_t>(
+            static_cast<std::uint32_t>(bytes.size() - copied),
+            layout.block_size - block_offset);
+        if (h747_storage_read_blocks(layout.slot_lba + block_index, block.data(), layout.block_size) == 0U) {
+            return false;
+        }
+        std::memcpy(bytes.data() + copied, block.data() + block_offset, chunk);
+        copied += chunk;
+    }
+    return true;
+}
+
+bool emmc_write_slot_bytes(const EmmcStoreLayout& layout,
+                           std::uint32_t offset,
+                           std::span<const std::byte> bytes) noexcept {
+    if (!layout.ready || bytes.empty() || offset > layout.slot_bytes ||
+        bytes.size() > (layout.slot_bytes - offset)) {
+        return false;
+    }
+
+    alignas(4) std::array<std::uint8_t, kEmmcSupportedBlockSize> block{};
+    std::uint32_t copied = 0U;
+    while (copied < bytes.size()) {
+        const auto absolute = offset + copied;
+        const auto block_index = absolute / layout.block_size;
+        const auto block_offset = absolute % layout.block_size;
+        const auto chunk = std::min<std::uint32_t>(
+            static_cast<std::uint32_t>(bytes.size() - copied),
+            layout.block_size - block_offset);
+        if ((block_offset != 0U || chunk != layout.block_size) &&
+            h747_storage_read_blocks(layout.slot_lba + block_index, block.data(), layout.block_size) == 0U) {
+            return false;
+        }
+        if (block_offset == 0U && chunk == layout.block_size) {
+            std::memcpy(block.data(), bytes.data() + copied, chunk);
+        } else {
+            std::memcpy(block.data() + block_offset, bytes.data() + copied, chunk);
+        }
+        if (h747_storage_write_blocks(layout.slot_lba + block_index, block.data(), layout.block_size) == 0U) {
+            return false;
+        }
+        copied += chunk;
+    }
+    return true;
+}
+
+bool emmc_erase_slot_bytes(const EmmcStoreLayout& layout, std::uint32_t offset, std::uint32_t size) noexcept {
+    if (!layout.ready || size == 0U || offset > layout.slot_bytes || size > (layout.slot_bytes - offset)) {
+        return false;
+    }
+    return h747_storage_flush() != 0U;
+}
+
 bool storage_write(void*, std::uint32_t offset, std::span<const std::byte> bytes) noexcept {
     auto& ram = dev_ram();
     if (offset > ram.size() || bytes.size() > (ram.size() - offset)) {
@@ -345,6 +456,45 @@ app_abi::AppStoreReader qspi_store_reader() noexcept {
                        kQspiStoreBaseOffset + offset,
                        reinterpret_cast<std::uint8_t*>(bytes.data()),
                        static_cast<std::uint32_t>(bytes.size())) != 0U;
+        },
+    };
+}
+
+EmmcStoreContext& emmc_store_context() noexcept {
+    static EmmcStoreContext context{};
+    context.layout = emmc_store_layout();
+    return context;
+}
+
+app_abi::AppStoreWritableMedia emmc_store_media() noexcept {
+    auto& context = emmc_store_context();
+    return app_abi::AppStoreWritableMedia{
+        .ctx = &context,
+        .capacity = context.layout.slot_bytes,
+        .erase_block_size = context.layout.block_size,
+        .write_align = 1U,
+        .erase = [](void* ctx, std::uint32_t offset, std::uint32_t size) noexcept -> bool {
+            auto* local = static_cast<EmmcStoreContext*>(ctx);
+            return local != nullptr && emmc_erase_slot_bytes(local->layout, offset, size);
+        },
+        .write = [](void* ctx, std::uint32_t offset, std::span<const std::byte> bytes) noexcept -> bool {
+            auto* local = static_cast<EmmcStoreContext*>(ctx);
+            return local != nullptr && emmc_write_slot_bytes(local->layout, offset, bytes);
+        },
+        .read = [](void* ctx, std::uint32_t offset, std::span<std::byte> bytes) noexcept -> bool {
+            auto* local = static_cast<EmmcStoreContext*>(ctx);
+            return local != nullptr && emmc_read_slot_bytes(local->layout, offset, bytes);
+        },
+    };
+}
+
+app_abi::AppStoreReader emmc_store_reader() noexcept {
+    auto& context = emmc_store_context();
+    return app_abi::AppStoreReader{
+        .ctx = &context,
+        .read = [](void* ctx, std::uint32_t offset, std::span<std::byte> bytes) noexcept -> bool {
+            auto* local = static_cast<EmmcStoreContext*>(ctx);
+            return local != nullptr && emmc_read_slot_bytes(local->layout, offset, bytes);
         },
     };
 }
@@ -663,6 +813,8 @@ void print_usb_status(const Runtime& rt) noexcept {
 
 void print_store_status(Runtime& rt) noexcept {
     const auto qspi = h747_qspi_nor_state();
+    const auto emmc = h747_storage_state();
+    const auto emmc_layout = emmc_store_layout();
     rt.qspi_ready = qspi.ready != 0U;
     emit<"dev: store qspi ready={} power={} jedec_ok={} jedec=0x{:08x} capacity={} erase_block={} write_align={}\n">(
         qspi.ready,
@@ -683,6 +835,28 @@ void print_store_status(Runtime& rt) noexcept {
         qspi.last_bytes,
         qspi.last_hal_status,
         qspi.last_error);
+    emit<"dev: store emmc ready={} init={} block_ready={} block_size={} raw_blocks={} exposed_blocks={} part_lba={} slot_lba={} slot_blocks={} slot_bytes={}\n">(
+        emmc.ready,
+        emmc.initialized,
+        emmc.block_device_ready,
+        emmc.block_size,
+        emmc.block_count,
+        emmc.exposed_block_count,
+        emmc.partition_lba,
+        emmc_layout.slot_lba,
+        emmc_layout.slot_blocks,
+        emmc_layout.slot_bytes);
+    emit<"dev: store emmc reads={}/{} writes={}/{} last_lba={} count={} hal={} err={} card={} bus={}\n">(
+        emmc.read_count,
+        emmc.read_fail_count,
+        emmc.write_count,
+        emmc.write_fail_count,
+        emmc.last_lba,
+        emmc.last_count,
+        emmc.last_hal_status,
+        emmc.last_error,
+        emmc.card_state,
+        emmc.selected_bus_width);
     emit<"dev: store install receive={} recv_bytes={} code={} target=0x{:08x} written={} erased={}\n">(
         loader::received_image_read_code_name(rt.store_receive_code),
         rt.store_receive_bytes,
@@ -698,16 +872,32 @@ void print_store_status(Runtime& rt) noexcept {
     if (header_code != app_abi::AppStoreReadCode::ok) {
         emit<"dev: store header code={} readable=0 valid=0\n">(
             app_abi::app_store_read_code_name(header_code));
-        return;
+    } else {
+        emit<"dev: store header code={} readable=1 valid={} magic=0x{:08x} version={} entries={} header_size={} entry_size={}\n">(
+            app_abi::app_store_read_code_name(header_code),
+            app_abi::app_store_header_valid(header) ? 1U : 0U,
+            header.magic,
+            static_cast<unsigned>(header.version),
+            header.entry_count,
+            header.header_size,
+            header.entry_size);
     }
-    emit<"dev: store header code={} readable=1 valid={} magic=0x{:08x} version={} entries={} header_size={} entry_size={}\n">(
-        app_abi::app_store_read_code_name(header_code),
-        app_abi::app_store_header_valid(header) ? 1U : 0U,
-        header.magic,
-        static_cast<unsigned>(header.version),
-        header.entry_count,
-        header.header_size,
-        header.entry_size);
+
+    app_abi::AppStoreHeader emmc_header{};
+    const auto emmc_header_code = app_abi::app_store_read_header(emmc_store_reader(), emmc_header);
+    if (emmc_header_code != app_abi::AppStoreReadCode::ok) {
+        emit<"dev: store emmc header code={} readable=0 valid=0\n">(
+            app_abi::app_store_read_code_name(emmc_header_code));
+    } else {
+        emit<"dev: store emmc header code={} readable=1 valid={} magic=0x{:08x} version={} entries={} header_size={} entry_size={}\n">(
+            app_abi::app_store_read_code_name(emmc_header_code),
+            app_abi::app_store_header_valid(emmc_header) ? 1U : 0U,
+            emmc_header.magic,
+            static_cast<unsigned>(emmc_header.version),
+            emmc_header.entry_count,
+            emmc_header.header_size,
+            emmc_header.entry_size);
+    }
 }
 
 void list_qspi_store(Runtime& rt) noexcept {
@@ -725,6 +915,39 @@ void list_qspi_store(Runtime& rt) noexcept {
     for (std::uint32_t i = 0; i < header.entry_count; ++i) {
         app_abi::AppStoreEntry entry{};
         const auto entry_code = app_abi::app_store_read_entry(qspi_store_reader(), header, i, entry);
+        if (entry_code != app_abi::AppStoreReadCode::ok) {
+            rt.store_read_code = entry_code;
+            emit<"  [{}] read_failed offset=0x{:08x} code={}\n">(
+                i,
+                app_abi::app_store_entry_offset(header, i),
+                app_abi::app_store_read_code_name(entry_code));
+            return;
+        }
+        emit<"  [{}] name={} offset=0x{:08x} size={} flags=0x{:08x} runnable={}\n">(
+            i,
+            app_abi::app_store_entry_name(entry),
+            entry.offset,
+            entry.size,
+            entry.flags,
+            app_abi::app_store_entry_runnable(entry) ? 1U : 0U);
+    }
+}
+
+void list_emmc_store(Runtime& rt) noexcept {
+    app_abi::AppStoreHeader header{};
+    const auto header_code = app_abi::app_store_read_header(emmc_store_reader(), header);
+    rt.store_read_code = header_code;
+    rt.store_header = header;
+    if (header_code != app_abi::AppStoreReadCode::ok) {
+        emit<"dev: store emmc list code={} entries=0\n">(
+            app_abi::app_store_read_code_name(header_code));
+        return;
+    }
+
+    emit<"dev: store emmc entries={}\n">(header.entry_count);
+    for (std::uint32_t i = 0; i < header.entry_count; ++i) {
+        app_abi::AppStoreEntry entry{};
+        const auto entry_code = app_abi::app_store_read_entry(emmc_store_reader(), header, i, entry);
         if (entry_code != app_abi::AppStoreReadCode::ok) {
             rt.store_read_code = entry_code;
             emit<"  [{}] read_failed offset=0x{:08x} code={}\n">(
@@ -836,14 +1059,17 @@ void print_help() noexcept {
     emit<"  dev usb begin              - Enter exclusive USB CDC packetstream receive mode\n">();
     emit<"  dev usb status             - Show USB packetstream receive state\n">();
     emit<"  dev usb abort              - Stop USB receive mode and disconnect USB\n">();
-    emit<"  dev store status           - Show QSPI App Store diagnostics\n">();
+    emit<"  dev store status           - Show QSPI/eMMC App Store diagnostics\n">();
     emit<"  dev store install qspi     - Install launch_ready .appstore.bin to QSPI\n">();
+    emit<"  dev store install emmc     - Install launch_ready .appstore.bin to eMMC raw slot\n">();
     emit<"  dev store list qspi        - List QSPI App Store entries\n">();
+    emit<"  dev store list emmc        - List eMMC App Store entries\n">();
     emit<"  dev store stage qspi:<name> - Stage named QSPI App ELF without running\n">();
+    emit<"  dev store stage emmc:<name> - Stage named eMMC App ELF without running\n">();
     emit<"  dev app stage <name>       - Stage launch_ready payload as App ELF\n">();
     emit<"  dev app probe <name>       - Stage and ELF-probe payload without running\n">();
     emit<"  dev app prepare <name> [args...] - Prepare AppRuntime argv/ABI without running\n">();
-    emit<"  dev app run <name>|qspi:<name> [args...] - Explicitly call charm_app_main from loaded ELF\n">();
+    emit<"  dev app run <name>|qspi:<name>|emmc:<name> [args...] - Explicitly call charm_app_main from loaded ELF\n">();
     emit<"  dev app status             - Show received App stage/probe diagnostics\n">();
 }
 
@@ -1031,13 +1257,63 @@ void handle_store_command(std::string_view line) noexcept {
             rt.store_install_erased);
         return;
     }
+    if (line == "dev store install emmc") {
+        const auto media = emmc_store_media();
+        rt.store_install_code = app_abi::AppStoreInstallCode::invalid_argument;
+        rt.store_receive_code = loader::ReceivedImageReadCode::not_launch_ready;
+        rt.store_read_code = app_abi::AppStoreReadCode::invalid_argument;
+        rt.store_install_target = kEmmcStoreTargetOffset;
+        rt.store_install_written = 0;
+        rt.store_install_erased = 0;
+        rt.store_receive_bytes = 0;
+        if (media.capacity == 0U) {
+            emit<"dev: store install backend=emmc ready=0 code={}\n">(
+                app_abi::app_store_install_code_name(rt.store_install_code));
+            print_store_status(rt);
+            return;
+        }
+        auto& scratch = stage_probe_scratch();
+        const auto installed = loader::store_install_received_image(loader::StoreInstallReceivedConfig{
+            .received = loader::ReceivedImageReadConfig{
+                .status = rt.packet_transport.status().packet.receive,
+                .manifest = rt.packet_transport.status().packet.manifest,
+                .storage = ram_storage(),
+                .output = scratch,
+            },
+            .media = media,
+            .target_offset = kEmmcStoreTargetOffset,
+        });
+        rt.store_receive_code = installed.received.code;
+        rt.store_receive_bytes = installed.received.bytes_read;
+        rt.store_read_code = installed.store_code;
+        rt.store_header = installed.header;
+        rt.store_install_code = installed.install.code;
+        rt.store_install_target = installed.install.target_offset;
+        rt.store_install_written = installed.install.bytes_written;
+        rt.store_install_erased = installed.install.bytes_erased;
+        emit<"dev: store install emmc receive={} recv_bytes={} store={} code={} target=0x{:08x} written={} erased={}\n">(
+            loader::received_image_read_code_name(rt.store_receive_code),
+            rt.store_receive_bytes,
+            app_abi::app_store_read_code_name(rt.store_read_code),
+            app_abi::app_store_install_code_name(rt.store_install_code),
+            rt.store_install_target,
+            rt.store_install_written,
+            rt.store_install_erased);
+        return;
+    }
     if (line == "dev store list qspi") {
         list_qspi_store(rt);
         return;
     }
+    if (line == "dev store list emmc") {
+        list_emmc_store(rt);
+        return;
+    }
     if (line.starts_with("dev store stage ")) {
         auto spec = trim_left(line.substr(16));
-        const auto image = stage_qspi_app(rt, "stage"sv, spec);
+        const auto image = spec.starts_with("emmc:"sv)
+            ? stage_emmc_app(rt, "stage"sv, spec)
+            : stage_qspi_app(rt, "stage"sv, spec);
         if (rt.store_read_code == app_abi::AppStoreReadCode::ok) {
             emit<"dev: store stage spec={} image={} bytes={}\n">(
                 spec,
@@ -1048,7 +1324,7 @@ void handle_store_command(std::string_view line) noexcept {
         return;
     }
     emit<"dev: store usage error\n">();
-    emit<"dev: use 'dev store status', 'dev store install qspi', 'dev store list qspi', or 'dev store stage qspi:<name>'\n">();
+    emit<"dev: use 'dev store status', 'dev store install qspi|emmc', 'dev store list qspi|emmc', or 'dev store stage qspi:<name>|emmc:<name>'\n">();
 }
 
 bool set_app_name(Runtime& rt, std::string_view name) noexcept {
@@ -1111,6 +1387,23 @@ bool parse_qspi_app_name(std::string_view spec, std::string_view& name) noexcept
     }
     name = spec.substr(5U);
     return !name.empty() && !name.starts_with("@"sv);
+}
+
+bool parse_emmc_app_name(std::string_view spec, std::string_view& name) noexcept {
+    if (!spec.starts_with("emmc:"sv)) {
+        return false;
+    }
+    name = spec.substr(5U);
+    return !name.empty() && !name.starts_with("@"sv);
+}
+
+app_abi::AppRunCode app_run_code_from_store_read(app_abi::AppStoreReadCode code) noexcept {
+    return (code == app_abi::AppStoreReadCode::image_not_found ||
+            code == app_abi::AppStoreReadCode::header_unreadable ||
+            code == app_abi::AppStoreReadCode::header_invalid ||
+            code == app_abi::AppStoreReadCode::entry_read_failed)
+        ? app_abi::AppRunCode::image_not_found
+        : app_abi::AppRunCode::load_failed;
 }
 
 app_abi::AppImage stage_received_app(Runtime& rt, std::string_view command, std::string_view name) noexcept {
@@ -1177,12 +1470,42 @@ app_abi::AppImage stage_qspi_app(Runtime& rt, std::string_view command, std::str
     rt.store_read_code = staged.code;
     rt.store_lookup = staged.lookup;
     if (staged.code != app_abi::AppStoreReadCode::ok) {
-        rt.app_run_code = (staged.code == app_abi::AppStoreReadCode::image_not_found ||
-                           staged.code == app_abi::AppStoreReadCode::header_unreadable ||
-                           staged.code == app_abi::AppStoreReadCode::header_invalid ||
-                           staged.code == app_abi::AppStoreReadCode::entry_read_failed)
-            ? app_abi::AppRunCode::image_not_found
-            : app_abi::AppRunCode::load_failed;
+        rt.app_run_code = app_run_code_from_store_read(staged.code);
+        return {};
+    }
+    rt.app_read_code = loader::ReceivedImageReadCode::ok;
+    rt.app_stage_code = app_abi::AppReceivedImageStageCode::ok;
+    rt.app_read_bytes = staged.lookup.entry.size;
+    rt.app_stage_bytes = staged.lookup.entry.size;
+    return staged.image;
+}
+
+app_abi::AppImage stage_emmc_app(Runtime& rt, std::string_view command, std::string_view spec) noexcept {
+    std::string_view name{};
+    if (!parse_emmc_app_name(spec, name) || !reset_app_diagnostics(rt, command, spec)) {
+        rt.store_read_code = app_abi::AppStoreReadCode::invalid_argument;
+        rt.app_run_code = app_abi::AppRunCode::invalid_argument;
+        return {};
+    }
+
+    const auto layout = emmc_store_layout();
+    if (!layout.ready) {
+        rt.store_read_code = app_abi::AppStoreReadCode::header_unreadable;
+        rt.app_run_code = app_abi::AppRunCode::image_not_found;
+        return {};
+    }
+
+    auto& scratch = stage_probe_scratch();
+    const auto staged = loader::store_stage_named_app_image(loader::StoreStageNamedConfig{
+        .reader = emmc_store_reader(),
+        .name = name,
+        .cache = scratch,
+        .format = app_abi::AppImageFormat::elf,
+    });
+    rt.store_read_code = staged.code;
+    rt.store_lookup = staged.lookup;
+    if (staged.code != app_abi::AppStoreReadCode::ok) {
+        rt.app_run_code = app_run_code_from_store_read(staged.code);
         return {};
     }
     rt.app_read_code = loader::ReceivedImageReadCode::ok;
@@ -1309,6 +1632,14 @@ void run_qspi_app(Runtime& rt, std::string_view spec, std::string_view args) noe
     run_staged_app(rt, image, args);
 }
 
+void run_emmc_app(Runtime& rt, std::string_view spec, std::string_view args) noexcept {
+    const auto image = stage_emmc_app(rt, "run"sv, spec);
+    if (rt.store_read_code != app_abi::AppStoreReadCode::ok) {
+        return;
+    }
+    run_staged_app(rt, image, args);
+}
+
 void handle_app_command(std::string_view line) noexcept {
     auto& rt = runtime();
     if (line == "dev app status") {
@@ -1352,6 +1683,8 @@ void handle_app_command(std::string_view line) noexcept {
         }
         if (name.starts_with("qspi:"sv)) {
             run_qspi_app(rt, name, args);
+        } else if (name.starts_with("emmc:"sv)) {
+            run_emmc_app(rt, name, args);
         } else {
             run_received_app(rt, name, args);
         }
@@ -1359,7 +1692,7 @@ void handle_app_command(std::string_view line) noexcept {
         return;
     }
     emit<"dev: app usage error\n">();
-    emit<"dev: use 'dev app stage <name>', 'dev app probe <name>', 'dev app prepare <name> [args...]', 'dev app run <name> [args...]', or 'dev app status'\n">();
+    emit<"dev: use 'dev app stage <name>', 'dev app probe <name>', 'dev app prepare <name> [args...]', 'dev app run <name>|qspi:<name>|emmc:<name> [args...]', or 'dev app status'\n">();
 }
 
 void handle_command(std::string_view line) noexcept {

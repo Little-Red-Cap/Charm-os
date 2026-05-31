@@ -70,12 +70,15 @@ Packet frontend commands:
 - `dev usb abort`
 - `dev store status`
 - `dev store install qspi`
+- `dev store install emmc`
 - `dev store list qspi`
+- `dev store list emmc`
 - `dev store stage qspi:<name>`
+- `dev store stage emmc:<name>`
 - `dev app stage <name>`
 - `dev app probe <name>`
 - `dev app prepare <name> [args...]`
-- `dev app run <name>|qspi:<name> [args...]`
+- `dev app run <name>|qspi:<name>|emmc:<name> [args...]`
 - `dev app status`
 
 `dev packet ingest` accepts continuous hex pairs or space-separated hex pairs.
@@ -245,6 +248,17 @@ Store v1 header, then calls `app_store_install_image()` through a QSPI-backed
 installer. `dev store stage qspi:<name>` and `dev app run qspi:<name>` use the
 same `AppStoreReader -> app_store_stage_named_image -> staged AppImageSource ->
 AppRuntime` boundary as host smokes and future eMMC must reuse.
+
+The eMMC backend is wired as the second App Store media using the same Store v1
+and AppRuntime boundary. `dev store install emmc` writes the verified
+`.appstore.bin` into a fixed development slot at the tail of the exposed eMMC
+block window, not into a filesystem path. The adapter maps Store byte offsets
+onto 512-byte block reads/writes and performs read-modify-write for unaligned
+Store ranges, so the monitor still consumes the byte-oriented
+`AppStoreReader/AppStoreWritableMedia` contracts. Commands are intentionally
+parallel to QSPI: `dev store list emmc`, `dev store stage emmc:<name>`, and
+`dev app run emmc:<name> [args...]`. This is a development slot, not a product
+partition, manifest, slot manager, or filesystem.
 
 After a packetstream reaches `launch_ready`, `dev app stage <name>` reads the
 verified payload back from the SDRAM2 receive buffer into a 128 KiB SDRAM2

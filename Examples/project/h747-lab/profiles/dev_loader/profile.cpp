@@ -3,6 +3,7 @@
 #include "dev_loader.h"
 #include "memory_probe.h"
 #include "power.h"
+#include "storage.h"
 
 import init.node;
 import util.core;
@@ -13,14 +14,17 @@ namespace {
 constexpr init::CapId kConsoleCap = init::cap_id("h747.console");
 constexpr init::CapId kPowerCap = init::cap_id("h747.power");
 constexpr init::CapId kMemoryCap = init::cap_id("h747.memory");
+constexpr init::CapId kStorageCap = init::cap_id("h747.storage");
 constexpr init::CapId kAppCap = init::cap_id("h747.app.dev_loader");
 
 constexpr init::CapId kConsoleProvides[] = {kConsoleCap};
 constexpr init::CapId kPowerProvides[] = {kPowerCap};
 constexpr init::CapId kMemoryProvides[] = {kMemoryCap};
 constexpr init::CapId kMemoryRequires[] = {kPowerCap};
+constexpr init::CapId kStorageProvides[] = {kStorageCap};
+constexpr init::CapId kStorageRequires[] = {kPowerCap};
 constexpr init::CapId kAppProvides[] = {kAppCap};
-constexpr init::CapId kAppRequires[] = {kConsoleCap, kPowerCap, kMemoryCap};
+constexpr init::CapId kAppRequires[] = {kConsoleCap, kPowerCap, kMemoryCap, kStorageCap};
 
 util::Result<void> init_noop(void*) noexcept {
     return {};
@@ -38,6 +42,11 @@ util::Result<void> init_memory(void*) noexcept {
     if (memory_probe_sdram2_smoke() == 0U) {
         return util::unexpected(util::Errc::io);
     }
+    return {};
+}
+
+util::Result<void> init_storage(void*) noexcept {
+    h747_storage_init();
     return {};
 }
 
@@ -79,12 +88,23 @@ const init::Node kMemoryNode{
     nullptr,
 };
 
+const init::Node kStorageNode{
+    "storage",
+    init::Phase::service,
+    static_cast<util::u32>(init::Runlevel::all),
+    std::span<const init::CapId>(kStorageProvides, 1),
+    std::span<const init::CapId>(kStorageRequires, 1),
+    init_storage,
+    nullptr,
+    nullptr,
+};
+
 const init::Node kAppNode{
     "dev_loader",
     init::Phase::app,
     static_cast<util::u32>(init::Runlevel::all),
     std::span<const init::CapId>(kAppProvides, 1),
-    std::span<const init::CapId>(kAppRequires, 3),
+    std::span<const init::CapId>(kAppRequires, 4),
     init_app,
     nullptr,
     nullptr,
@@ -94,6 +114,7 @@ const init::Node* const kNodes[] = {
     &kConsoleNode,
     &kPowerNode,
     &kMemoryNode,
+    &kStorageNode,
     &kAppNode,
 };
 
@@ -105,7 +126,7 @@ const Profile& active_profile() noexcept {
     static const Profile profile{
         "dev_loader",
         "h747_diy",
-        std::span<const init::Node* const>(kNodes, 4),
+        std::span<const init::Node* const>(kNodes, 5),
         h747::apps::dev_loader::loop_once,
     };
     return profile;

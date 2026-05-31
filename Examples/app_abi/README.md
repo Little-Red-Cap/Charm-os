@@ -48,6 +48,15 @@ ABI headers and standard library headers first, then import
 `module_core/module_view/module_loader/module_link`, then include
 `charm_app_modulex_loader.hpp`.
 
+ModuleX App v1 is intentionally a materialized App image format, not a complete
+module system. The App ABI loader accepts materialized text/ro/data, local/global
+and external symbols, and the current `abs_addr` / `rel32` relocations. It
+rejects non-zero BSS and XIP flags so callers do not mistake this prototype for
+independent BSS allocation, execute-in-place, or the POSIX ModuleX ABI. Loader
+diagnostics record the ModuleX validate error, dependency error/index, entry
+offset, image span, and whether relocation ran; `AppRuntime` still reports loader
+failures through the existing `load` stage.
+
 `player_min_core.h` holds the first shared Player-mini app core used by both the
 host smoke and the embedded App ELF sample. It is deliberately small: query the
 display, poll input, get time, submit one bounded ARGB8888 raster payload, and

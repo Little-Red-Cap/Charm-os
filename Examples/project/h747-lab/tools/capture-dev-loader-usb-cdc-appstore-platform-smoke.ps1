@@ -126,6 +126,8 @@ function Get-RequiredTokens {
         "modulex_hello_app: charm_app_main entered",
         "dev: app command=run name=${Media}:modulex_hello_app run=enabled",
         "dev: app format=modulex modulex=ok",
+        "dev: app modulex diag validate=ok",
+        "relocated=1",
         "dev: app stage-arena name=sdram2_stage_cache addr=0xd0040000 expected=0xd0040000",
         "dev: app sdram2 ready=1 init=1 smoke=1 base=0xd0000000",
         "present_count=1",
@@ -250,7 +252,8 @@ dev: app caps console_bytes=32 present_count=1 present_bytes=1024 sample0=0xff51
 modulex_hello_app: charm_app_main entered
 dev: app command=run name=${Media}:modulex_hello_app run=enabled
 dev: app format=modulex modulex=ok
-dev: app run stage=exit code=ok backend=0 load=0x24070000 entry=0x24070001 span=212 segments=1 exited=1 exit=0 app_exit=1 app_exit_code=0
+dev: app modulex diag validate=ok dep=ok dep_index=0 relocated=1 entry_off=0x00000000 span=268
+dev: app run stage=exit code=ok backend=0 load=0x24070000 entry=0x24070001 span=268 segments=1 exited=1 exit=0 app_exit=1 app_exit_code=0
 platform repeat 1/1 passed
 "@
 }

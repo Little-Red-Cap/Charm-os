@@ -166,6 +166,8 @@ function Get-RequiredCounts {
     [void]$Counts.Add(@{ Token = "player_min: presented one frame"; Count = $TotalRepeats })
     [void]$Counts.Add(@{ Token = "modulex_hello_app: charm_app_main entered"; Count = $TotalRepeats })
     [void]$Counts.Add(@{ Token = "dev: app format=modulex modulex=ok"; Count = $TotalRepeats })
+    [void]$Counts.Add(@{ Token = "dev: app modulex diag validate=ok"; Count = $TotalRepeats })
+    [void]$Counts.Add(@{ Token = "relocated=1"; Count = $TotalRepeats })
     [void]$Counts.Add(@{ Token = "dev: app stage-arena name=sdram2_stage_cache addr=0xd0040000 expected=0xd0040000"; Count = $TotalRepeats })
     [void]$Counts.Add(@{ Token = "dev: app sdram2 ready=1 init=1 smoke=1 base=0xd0000000"; Count = $TotalRepeats })
     [void]$Counts.Add(@{ Token = "dev: app run-region name=ram_d1_app_elf base=0x24070000 size=65536 align=16 linked_elf_base=0x24070000"; Count = $TotalRepeats })
@@ -223,6 +225,7 @@ dev: app run stage=exit code=ok backend=0 exited=1 exit=0
 modulex_hello_app: charm_app_main entered
 dev: app command=run name=${Name}:modulex_hello_app run=enabled
 dev: app format=modulex modulex=ok
+dev: app modulex diag validate=ok dep=ok dep_index=0 relocated=1 entry_off=0x00000000 span=268
 dev: app run stage=exit code=ok backend=0 exited=1 exit=0
 Summary:
   usb throughput: 13.20 KiB/s

@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <limits>
 #include <span>
 #include <string_view>
 
@@ -171,6 +172,14 @@ struct ModuleXFixture {
     std::array<modulex::Dependency, 1> deps{};
 };
 
+struct RelocFixture {
+    modulex::ImageHeader hdr{};
+    std::array<std::byte, sizeof(modulex::Addr)> text{};
+    std::array<modulex::Reloc, 1> relocs{};
+    std::array<modulex::Symbol, 1> syms{};
+    std::array<char, 32> strtab{};
+};
+
 constexpr std::uint32_t offset_of_header() noexcept {
     return 0;
 }
@@ -210,15 +219,53 @@ void init_fixture(ModuleXFixture& image,
     (void)offset_of_header();
 }
 
+void init_reloc_fixture(RelocFixture& image) {
+    image = RelocFixture{};
+    image.hdr.magic = modulex::k_magic;
+    image.hdr.version = modulex::k_version;
+    image.hdr.entry_offset = 0;
+    image.hdr.text_offset = static_cast<std::uint32_t>(offsetof(RelocFixture, text));
+    image.hdr.text_size = static_cast<std::uint32_t>(image.text.size());
+    image.hdr.rel_offset = static_cast<std::uint32_t>(offsetof(RelocFixture, relocs));
+    image.hdr.rel_size = static_cast<std::uint32_t>(sizeof(image.relocs));
+    image.hdr.sym_offset = static_cast<std::uint32_t>(offsetof(RelocFixture, syms));
+    image.hdr.sym_size = static_cast<std::uint32_t>(sizeof(image.syms));
+    image.hdr.str_offset = static_cast<std::uint32_t>(offsetof(RelocFixture, strtab));
+    image.hdr.str_size = static_cast<std::uint32_t>(image.strtab.size());
+    image.hdr.dep_offset = static_cast<std::uint32_t>(sizeof(RelocFixture));
+    image.hdr.dep_size = 0;
+    image.hdr.image_size = static_cast<std::uint32_t>(sizeof(RelocFixture));
+
+    image.relocs[0].offset = image.hdr.text_offset;
+    image.relocs[0].type = modulex::RelocType::abs_addr;
+    image.relocs[0].sym_index = 0;
+    image.relocs[0].addend = 0;
+
+    image.syms[0].name_offset = 0;
+    image.syms[0].value = 0;
+    image.syms[0].size = static_cast<std::uint32_t>(image.text.size());
+    image.syms[0].kind = modulex::SymbolKind::global;
+    image.syms[0].flags = 0;
+    constexpr char strings[] = "charm_app_main\0";
+    std::memcpy(image.strtab.data(), strings, sizeof(strings));
+}
+
+app_abi::AppImage make_raw_image(void* base,
+                                 const std::size_t size,
+                                 const app_abi::AppImageFormat format = app_abi::AppImageFormat::modulex,
+                                 std::string_view name = "modulex_app") {
+    return app_abi::AppImage{
+        .name = name,
+        .format = format,
+        .image_base = base,
+        .image_size = size,
+    };
+}
+
 app_abi::AppImage make_image(ModuleXFixture& fixture,
                              const app_abi::AppImageFormat format = app_abi::AppImageFormat::modulex,
                              const std::size_t size = sizeof(ModuleXFixture)) {
-    return app_abi::AppImage{
-        .name = "modulex_app",
-        .format = format,
-        .image_base = &fixture.hdr,
-        .image_size = size,
-    };
+    return make_raw_image(&fixture.hdr, size, format);
 }
 
 struct ModuleXLoadCtx {
@@ -294,6 +341,19 @@ bool expect_loader_code(ModuleXFixture& fixture,
            expect(loaded.load.backend_error == static_cast<int>(code), message);
 }
 
+bool expect_raw_loader_code(void* base,
+                            const std::size_t size,
+                            const app_abi::AppModuleXLoadConfig& config,
+                            const app_abi::AppModuleXLoadCode code,
+                            const char* message,
+                            const modulex::ImageError validate_error = modulex::ImageError::ok) {
+    auto image = make_raw_image(base, size);
+    const auto loaded = app_abi::app_modulex_load_image(image, config);
+    return expect(loaded.code == code, message) &&
+           expect(loaded.load.backend_error == static_cast<int>(code), message) &&
+           expect(loaded.validate_error == validate_error, message);
+}
+
 bool test_success_path() {
     ModuleXFixture fixture{};
     init_fixture(fixture);
@@ -318,6 +378,53 @@ bool test_success_path() {
                 "ModuleX App receives CharmAppApi console capability") && ok;
     ok = expect(host.now_count == 1U, "ModuleX App receives time capability") && ok;
     ok = expect(host.requested_exit == 17, "ModuleX App receives app.exit capability") && ok;
+
+    const auto loaded = app_abi::app_modulex_load_image(
+        make_image(fixture),
+        load_ctx.config);
+    ok = expect(loaded.code == app_abi::AppModuleXLoadCode::ok,
+                "ModuleX loader reports ok on success") && ok;
+    ok = expect(loaded.validate_error == modulex::ImageError::ok &&
+                    loaded.dependency_error == modulex::DepError::ok &&
+                    loaded.entry_offset == 0xFFFFFFFFU &&
+                    loaded.image_span == sizeof(ModuleXFixture) &&
+                    !loaded.relocated,
+                "ModuleX loader records success diagnostics") && ok;
+    return ok;
+}
+
+bool test_relocation_paths() {
+    bool ok = true;
+
+    RelocFixture reloc{};
+    init_reloc_fixture(reloc);
+    const auto loaded = app_abi::app_modulex_load_image(make_raw_image(&reloc.hdr, sizeof(reloc)));
+    ok = expect(loaded.code == app_abi::AppModuleXLoadCode::ok,
+                "abs_addr relocation fixture loads") && ok;
+    ok = expect(loaded.relocated, "abs_addr relocation is recorded") && ok;
+    ok = expect(loaded.entry_offset == 0U, "local global entry offset is recorded") && ok;
+    ok = expect(loaded.image_span == sizeof(RelocFixture), "ModuleX image span is recorded") && ok;
+    modulex::Addr patched{};
+    std::memcpy(&patched, reloc.text.data(), sizeof(patched));
+    const auto expected = modulex::to_addr(&reloc.hdr) + modulex::layout_text(reloc.hdr);
+    ok = expect(patched == expected, "abs_addr relocation patches text slot") && ok;
+
+    init_reloc_fixture(reloc);
+    reloc.relocs[0].sym_index = 99;
+    ok = expect_raw_loader_code(&reloc.hdr,
+                                sizeof(reloc),
+                                {},
+                                app_abi::AppModuleXLoadCode::load_failed,
+                                "bad relocation symbol is rejected during validation",
+                                modulex::ImageError::bad_sym) && ok;
+
+    init_reloc_fixture(reloc);
+    reloc.relocs[0].type = modulex::RelocType::rel32;
+    reloc.syms[0].value = static_cast<modulex::Addr>(std::numeric_limits<std::uint32_t>::max()) - 16U;
+    const auto rel32 = app_abi::app_modulex_load_image(make_raw_image(&reloc.hdr, sizeof(reloc)));
+    ok = expect(rel32.code == app_abi::AppModuleXLoadCode::entry_missing ||
+                    rel32.code == app_abi::AppModuleXLoadCode::relocate_failed,
+                "rel32 overflow or invalid entry fails before AppRuntime start") && ok;
     return ok;
 }
 
@@ -434,6 +541,39 @@ bool test_failure_paths() {
                             app_abi::AppModuleXLoadCode::entry_missing,
                             "global symbol outside text rejected as missing App ABI entry") && ok;
 
+    init_fixture(fixture);
+    fixture.hdr.bss_size = 4;
+    ok = expect_loader_code(fixture,
+                            good_config,
+                            app_abi::AppModuleXLoadCode::unsupported_bss,
+                            "ModuleX App v1 rejects BSS") && ok;
+
+    init_fixture(fixture);
+    fixture.hdr.flags = static_cast<std::uint16_t>(modulex::ImageFlags::xip_text);
+    ok = expect_loader_code(fixture,
+                            good_config,
+                            app_abi::AppModuleXLoadCode::unsupported_xip,
+                            "ModuleX App v1 rejects XIP flags") && ok;
+
+    init_fixture(fixture);
+    fixture.hdr.sym_size = sizeof(modulex::Symbol) - 1U;
+    const auto bad_layout = app_abi::app_modulex_load_image(make_image(fixture), good_config);
+    ok = expect(bad_layout.code == app_abi::AppModuleXLoadCode::load_failed &&
+                    bad_layout.validate_error == modulex::ImageError::bad_sym,
+                "bad symbol layout keeps validate diagnostic") && ok;
+
+    init_fixture(fixture, true, true);
+    const app_abi::AppModuleXLoadConfig dep_ctx_config{
+        .resolve_external = resolve_entry,
+        .resolve_dependency_ctx =
+            [](void*, std::string_view, std::string_view) noexcept -> bool { return false; },
+    };
+    const auto dep_ctx_loaded = app_abi::app_modulex_load_image(make_image(fixture), dep_ctx_config);
+    ok = expect(dep_ctx_loaded.code == app_abi::AppModuleXLoadCode::dependency_failed &&
+                    dep_ctx_loaded.dependency_error == modulex::DepError::resolve_failed &&
+                    dep_ctx_loaded.dependency_index == 0U,
+                "dependency ctx failure keeps dependency diagnostic") && ok;
+
     return ok;
 }
 
@@ -442,6 +582,7 @@ bool test_failure_paths() {
 int main() {
     bool ok = true;
     ok = test_success_path() && ok;
+    ok = test_relocation_paths() && ok;
     ok = test_failure_paths() && ok;
 
     if (!ok) {

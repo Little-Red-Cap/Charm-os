@@ -248,6 +248,7 @@ struct Runtime {
     app_abi::AppElfProbeResult app_probe{};
     app_abi::AppElfLoadBackend app_elf_backend{};
     app_abi::AppModuleXLoadCode app_modulex_code{app_abi::AppModuleXLoadCode::invalid_argument};
+    app_abi::AppModuleXLoadResult app_modulex_last{};
     app_abi::AppRunCode app_plan_code{app_abi::AppRunCode::load_failed};
     int app_plan_backend_error{0};
     std::uintptr_t app_plan_load_base{0};
@@ -532,6 +533,13 @@ app_abi::AppLoadResult load_runtime_modulex(void* ctx,
         image.image_size == 0U || image.image_size > buffer.size) {
         if (rt != nullptr) {
             rt->app_modulex_code = app_abi::AppModuleXLoadCode::invalid_argument;
+            rt->app_modulex_last = app_abi::AppModuleXLoadResult{
+                .code = rt->app_modulex_code,
+                .load = {
+                    .code = app_abi::AppRunCode::load_failed,
+                    .backend_error = static_cast<int>(rt->app_modulex_code),
+                },
+            };
             rt->app_plan_code = app_abi::AppRunCode::load_failed;
             rt->app_plan_backend_error = static_cast<int>(rt->app_modulex_code);
         }
@@ -544,6 +552,13 @@ app_abi::AppLoadResult load_runtime_modulex(void* ctx,
         (reinterpret_cast<std::uintptr_t>(buffer.base) % buffer.align) != 0U) {
         if (rt != nullptr) {
             rt->app_modulex_code = app_abi::AppModuleXLoadCode::invalid_argument;
+            rt->app_modulex_last = app_abi::AppModuleXLoadResult{
+                .code = rt->app_modulex_code,
+                .load = {
+                    .code = app_abi::AppRunCode::load_failed,
+                    .backend_error = static_cast<int>(rt->app_modulex_code),
+                },
+            };
             rt->app_plan_code = app_abi::AppRunCode::load_failed;
             rt->app_plan_backend_error = static_cast<int>(rt->app_modulex_code);
         }
@@ -563,6 +578,7 @@ app_abi::AppLoadResult load_runtime_modulex(void* ctx,
     const auto loaded = app_abi::app_modulex_load_image(materialized);
     if (rt != nullptr) {
         rt->app_modulex_code = loaded.code;
+        rt->app_modulex_last = loaded;
         rt->app_plan_code = loaded.load.code;
         rt->app_plan_backend_error = loaded.load.backend_error;
         rt->app_plan_load_base = reinterpret_cast<std::uintptr_t>(materialized.image_base);
@@ -1195,6 +1211,13 @@ void print_app_status(const Runtime& rt) noexcept {
     emit<"dev: app format={} modulex={}\n">(
         app_image_format_name(rt.app_image_format),
         app_abi::app_modulex_load_code_name(rt.app_modulex_code));
+    emit<"dev: app modulex diag validate={} dep={} dep_index={} relocated={} entry_off=0x{:08x} span={}\n">(
+        app_abi::app_modulex_image_error_name(rt.app_modulex_last.validate_error),
+        app_abi::app_modulex_dep_error_name(rt.app_modulex_last.dependency_error),
+        rt.app_modulex_last.dependency_index,
+        rt.app_modulex_last.relocated ? 1U : 0U,
+        rt.app_modulex_last.entry_offset,
+        rt.app_modulex_last.image_span);
     emit<"dev: app store code={} lookup={} offset=0x{:08x} size={}\n">(
         app_abi::app_store_read_code_name(rt.store_read_code),
         app_abi::app_store_read_code_name(rt.store_lookup.code),
@@ -1551,6 +1574,10 @@ bool reset_app_diagnostics(Runtime& rt, std::string_view command, std::string_vi
     rt.app_probe = app_abi::AppElfProbeResult{.code = app_abi::AppElfProbeCode::invalid_argument};
     rt.app_elf_backend = {};
     rt.app_modulex_code = app_abi::AppModuleXLoadCode::invalid_argument;
+    rt.app_modulex_last = app_abi::AppModuleXLoadResult{};
+    rt.app_modulex_last.code = rt.app_modulex_code;
+    rt.app_modulex_last.load.code = app_abi::AppRunCode::load_failed;
+    rt.app_modulex_last.load.backend_error = static_cast<int>(rt.app_modulex_code);
     rt.app_plan_code = app_abi::AppRunCode::load_failed;
     rt.app_plan_backend_error = 0;
     rt.app_plan_load_base = 0;

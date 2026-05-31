@@ -59,6 +59,8 @@ function Get-DefaultTokens {
     }
     if ($Format -eq "modulex") {
         [void]$Tokens.Add("dev: app format=modulex modulex=ok")
+        [void]$Tokens.Add("dev: app modulex diag validate=ok")
+        [void]$Tokens.Add("relocated=1")
     } else {
         [void]$Tokens.Add("dev: app probe=ok")
     }
@@ -133,6 +135,7 @@ dev: app run-region name=ram_d1_app_elf base=0x24070000 size=65536 align=16 link
 dev: app read=ok bytes=212
 dev: app stage=ok bytes=212
 dev: app format=modulex modulex=ok
+dev: app modulex diag validate=ok dep=ok dep_index=0 relocated=1 entry_off=0x00000000 span=268
 dev: app probe=invalid_argument entry_off=0x00000000 span=0 segments=0 runnable=0
 dev: app plan=ok backend=0 load=0x24070000 entry=0x24070001 span=0 segments=0 runnable=0 run=disabled
 dev: app prepare=start code=ok backend=0 argc=3 ready=1 entry=0x24070001 run=disabled

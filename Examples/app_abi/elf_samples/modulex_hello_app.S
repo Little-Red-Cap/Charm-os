@@ -24,7 +24,7 @@ charm_app_main:
 
     ldr r3, [r4, #16]
     cbz r3, .Lbad
-    adr r0, message
+    ldr r0, modulex_message_ptr
     movs r1, #message_len
     blx r3
     cmp r0, #0
@@ -44,9 +44,14 @@ charm_app_main:
     pop {r4, r5, r6, pc}
 
     .align 2
-message:
+.global modulex_message_ptr
+modulex_message_ptr:
+    .word 0
+
+.global modulex_message
+modulex_message:
 .ascii "modulex_hello_app: charm_app_main entered\n"
-.set message_len, . - message
+.set message_len, . - modulex_message
 
 .section .rodata.modulex_hello, "a", %progbits
 .byte 0

@@ -153,6 +153,14 @@ same image-format boundary and materializes CM7 ModuleX into the runtime-owned
 execute/load region before setting the Thumb callable bit. It does not add a
 second App ABI or packet protocol.
 
+ModuleX stabilization v1 keeps that boundary narrow. ModuleX App images are
+materialized before execution and may use local/global/external symbols plus
+`abs_addr` / `rel32` relocations. Non-zero BSS and XIP flags are rejected by the
+App ABI ModuleX loader. Received-image and Store-backed paths must surface the
+same loader diagnostics (`validate`, `dep`, `entry_off`, `span`, `relocated`)
+through the normal AppRuntime `load` stage rather than adding ModuleX-specific
+commands or a second entry model.
+
 `dev_loader_stage_probe_smoke` matches the H747 `dev app stage/probe` frontend:
 read the `launch_ready` payload, stage it as `AppImage(format=elf)`, call the
 ELF dry load path, and materialize the would-be `LoadedAppImage` entry address

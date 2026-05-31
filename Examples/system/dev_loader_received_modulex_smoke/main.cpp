@@ -174,7 +174,8 @@ bool fail_resolve_dependency(std::string_view, std::string_view) noexcept {
 
 struct ModuleXFixture {
     modulex::ImageHeader hdr{};
-    std::array<std::byte, 4> text{};
+    std::array<std::byte, sizeof(modulex::Addr)> text{};
+    std::array<modulex::Reloc, 1> relocs{};
     std::array<modulex::Symbol, 1> syms{};
     std::array<char, 24> strtab{};
     std::array<modulex::Dependency, 1> deps{};
@@ -182,13 +183,16 @@ struct ModuleXFixture {
 
 void init_fixture(ModuleXFixture& image,
                   const bool include_symbol = true,
-                  const bool include_dependency = false) {
+                  const bool include_dependency = false,
+                  const bool include_relocation = false) {
     image = ModuleXFixture{};
     image.hdr.magic = modulex::k_magic;
     image.hdr.version = modulex::k_version;
     image.hdr.entry_offset = 0;
     image.hdr.text_offset = static_cast<std::uint32_t>(offsetof(ModuleXFixture, text));
     image.hdr.text_size = static_cast<std::uint32_t>(image.text.size());
+    image.hdr.rel_offset = static_cast<std::uint32_t>(offsetof(ModuleXFixture, relocs));
+    image.hdr.rel_size = include_relocation ? static_cast<std::uint32_t>(sizeof(image.relocs)) : 0U;
     image.hdr.sym_offset = static_cast<std::uint32_t>(offsetof(ModuleXFixture, syms));
     image.hdr.sym_size = include_symbol ? static_cast<std::uint32_t>(sizeof(image.syms)) : 0U;
     image.hdr.str_offset = static_cast<std::uint32_t>(offsetof(ModuleXFixture, strtab));
@@ -202,6 +206,13 @@ void init_fixture(ModuleXFixture& image,
         image.syms[0].value = 0;
         image.syms[0].size = 0;
         image.syms[0].kind = modulex::SymbolKind::external;
+    }
+
+    if (include_relocation) {
+        image.relocs[0].offset = image.hdr.text_offset;
+        image.relocs[0].type = modulex::RelocType::abs_addr;
+        image.relocs[0].sym_index = 0;
+        image.relocs[0].addend = 0;
     }
 
     constexpr char strings[] = "charm_app_main\0host\0v1\0";
@@ -244,15 +255,19 @@ loader::Storage make_storage(MemoryStorage& storage) {
 
 struct ModuleXLoadCtx {
     app_abi::AppModuleXLoadConfig config{};
+    app_abi::AppModuleXLoadResult last{};
 };
 
 app_abi::AppLoadResult load_modulex(void* ctx,
                                     const app_abi::AppImage& image,
                                     const app_abi::AppLoadBuffer&) noexcept {
-    const auto* load_ctx = static_cast<const ModuleXLoadCtx*>(ctx);
+    auto* load_ctx = static_cast<ModuleXLoadCtx*>(ctx);
     const auto loaded = app_abi::app_modulex_load_image(
         image,
         load_ctx != nullptr ? load_ctx->config : app_abi::AppModuleXLoadConfig{});
+    if (load_ctx != nullptr) {
+        load_ctx->last = loaded;
+    }
     return loaded.load;
 }
 
@@ -407,6 +422,62 @@ bool expect_run_received_modulex() {
                   "received byte count matches ModuleX payload");
 }
 
+bool expect_run_received_relocated_modulex() {
+    ModuleXFixture fixture{};
+    init_fixture(fixture, true, false, true);
+
+    std::array<std::byte, 512> received_cache{};
+    std::array<std::byte, 512> app_cache{};
+    app_abi::AppImage image{};
+    loader::ByteTransportResult status{};
+    if (!stage_received_modulex(std::span<const std::byte>{
+                                    reinterpret_cast<const std::byte*>(&fixture),
+                                    sizeof(fixture),
+                                },
+                                received_cache,
+                                app_cache,
+                                image,
+                                status)) {
+        return false;
+    }
+
+    ModuleXLoadCtx load_ctx{
+        .config = app_abi::AppModuleXLoadConfig{
+            .resolve_external = resolve_entry,
+        },
+    };
+    app_abi::StagedAppImageSource staged_source_ctx{
+        .image = image,
+        .load_ctx = &load_ctx,
+        .load = load_modulex,
+    };
+    auto source = app_abi::make_staged_app_image_source(staged_source_ctx);
+
+    HostRuntime host{};
+    g_host = &host;
+    CharmAppApi api = make_api();
+    app_abi::AppRuntime<> runtime{};
+    const auto result = runtime.run(app_abi::AppRunConfig{
+        .source = &source,
+        .api = &api,
+        .name = "received_modulex",
+        .arg_text = "alpha beta",
+    });
+
+    return expect(result.stage == app_abi::AppRunStage::exit &&
+                      result.code == app_abi::AppRunCode::ok &&
+                      result.exited &&
+                      result.exit_code == 11,
+                  "received relocated ModuleX reaches AppRuntime exit stage") &&
+           expect(load_ctx.last.code == app_abi::AppModuleXLoadCode::ok &&
+                      load_ctx.last.relocated,
+                  "received ModuleX relocation runs during loader handoff") &&
+           expect(load_ctx.last.entry_offset == 0xFFFFFFFFU,
+                  "received external ModuleX entry diagnostic is preserved") &&
+           expect(status.packet.receive.received_bytes == sizeof(fixture),
+                  "received relocated byte count matches ModuleX payload");
+}
+
 bool expect_failure_paths() {
     bool ok = true;
     ModuleXFixture fixture{};
@@ -534,6 +605,7 @@ bool expect_failure_paths() {
 int main() {
     bool ok = true;
     ok = expect_run_received_modulex() && ok;
+    ok = expect_run_received_relocated_modulex() && ok;
     ok = expect_failure_paths() && ok;
 
     if (!ok) {

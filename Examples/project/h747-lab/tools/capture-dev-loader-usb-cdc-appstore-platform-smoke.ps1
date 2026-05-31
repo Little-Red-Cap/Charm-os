@@ -515,7 +515,7 @@ try {
         Write-CaptureText "  usb throughput: $($Throughputs -join ', ')`n"
     }
     if ($Install.Success) {
-        Write-CaptureText "  qspi written=$($Install.Groups[1].Value) erased=$($Install.Groups[2].Value)`n"
+        Write-CaptureText "  $Media written=$($Install.Groups[1].Value) erased=$($Install.Groups[2].Value)`n"
     }
     Write-CaptureText "  hello_app exit=0`n"
     Write-CaptureText "  player_min exit=0`n"

@@ -267,6 +267,25 @@ parallel to QSPI: `dev store list emmc`, `dev store stage emmc:<name>`, and
 `dev app run emmc:<name> [args...]`. This is a development slot, not a product
 partition, manifest, slot manager, or filesystem.
 
+eMMC App Store board validation status:
+
+- The eMMC raw development slot is board-validated as the second Store v1
+  media. Current diagnostics report `ready=1`, `init=1`, `block_ready=1`,
+  `block_size=512`, `part_lba=2048`, slot LBA `30500864`, slot blocks `32768`,
+  and slot size `16 MiB`.
+- `capture-dev-loader-usb-cdc-appstore-platform-smoke.ps1 -Media emmc`
+  downloaded the generated `.appstore.bin.packetstream` over USB CDC to
+  `launch_ready`, installed the 10,416-byte Store v1 image to the eMMC raw
+  slot, listed `hello_app` and `player_min`, and ran both through
+  `dev app run emmc:<name>`.
+- The validated eMMC run reported `dev store install emmc receive=ok`,
+  `store=ok`, `code=ok`, `written=10416`, `erased=10752`, and USB throughput
+  about `13.19 KiB/s` with the safe 256-byte write chunk plus 1 ms delay.
+- `dev app run emmc:hello_app alpha beta` and `dev app run emmc:player_min`
+  both loaded from the SDRAM stage cache into the fixed D1 App ELF execution
+  region and exited with code `0`; `player_min` still uses the diagnostic stub
+  display/input capability backend.
+
 QSPI and eMMC are therefore two media backends for the same App Store v1
 contract. Future media such as a filesystem, network fetch, or product slot
 manager must still stage into `AppImage` before entering `AppRuntime`. Future

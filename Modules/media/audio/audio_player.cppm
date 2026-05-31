@@ -818,6 +818,7 @@ export namespace audio {
 
         void handle_seek(std::uint64_t ms) {
             if (state_ == PlayerState::idle) return;
+            const bool was_paused = state_ == PlayerState::paused;
             (void)sink_.stop();
             if (data_plane_.fifo_capacity()) data_plane_.clear_fifo();
             const std::uint64_t frames = (static_cast<std::uint64_t>(input_fmt_.rate) * ms) / 1000;
@@ -835,7 +836,8 @@ export namespace audio {
             stats_.min_water = data_plane_.fifo_capacity();
             stats_.max_water = 0;
             data_plane_.reset_fade(fade_in_total_frames());
-            state_ = PlayerState::buffering;
+            state_ = was_paused ? PlayerState::paused : PlayerState::buffering;
+            running_ = !was_paused;
         }
 
         void handle_pause() {

@@ -42,20 +42,18 @@
             if (progress_dragging) return;
             const int cur = playback.current_sec();
             if (cur > dur) {
-                set_time_label(dur);
+                sync_progress_idle(dur);
                 sync_progress_value(100);
             } else {
-                set_time_label(cur);
+                sync_progress_idle(cur);
             }
-            update_info_label();
         }
 
         bool update_progress() {
             if (!access.valid() || progress_dragging) return false;
             auto upd = playback.update_progress();
             if (!upd.updated) return false;
-            sync_progress_value(upd.value);
-            set_time_label(upd.current_sec);
+            sync_progress_idle(upd.current_sec);
             return true;
         }
 

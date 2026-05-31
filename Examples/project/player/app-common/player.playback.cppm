@@ -33,6 +33,12 @@ namespace {
 }
 
 export namespace player {
+    bool player_state_allows_seek(audio::PlayerState state) noexcept {
+        return state == audio::PlayerState::playing
+            || state == audio::PlayerState::buffering
+            || state == audio::PlayerState::paused;
+    }
+
     const char* audio_err_text(audio::Errc err) {
         switch (err) {
         case audio::Errc::ok: return "ok";
@@ -111,6 +117,7 @@ export namespace player {
 
         bool playing() const noexcept { return playing_; }
         bool paused() const noexcept { return paused_; }
+        bool duration_ready() const noexcept { return duration_ready_; }
         int duration_sec() const noexcept { return duration_sec_; }
         int current_sec() const noexcept { return current_sec_; }
         int volume_percent() const noexcept { return volume_percent_; }
@@ -123,7 +130,7 @@ export namespace player {
 
         void reset_duration() noexcept {
             duration_ready_ = false;
-            duration_sec_ = 180;
+            duration_sec_ = 0;
         }
 
         bool update_duration_from_player() {
@@ -161,8 +168,7 @@ export namespace player {
 
         bool is_seek_ready() const {
             if (!player_) return false;
-            const auto st = player_->state();
-            return st == audio::PlayerState::playing || st == audio::PlayerState::buffering;
+            return player_state_allows_seek(player_->state());
         }
 
         bool request_seek(int target_sec, FixedString<128>& out_status) {
@@ -268,9 +274,11 @@ export namespace player {
                     return false;
                 }
                 current_sec_ = seek_sec;
-                start_ms_ = charm::system::ClockCaps::TimeSource::now()
-                    - static_cast<std::uint64_t>(current_sec_) * 1000;
-                out_status.assign("Playing");
+                if (playing_) {
+                    start_ms_ = charm::system::ClockCaps::TimeSource::now()
+                        - static_cast<std::uint64_t>(current_sec_) * 1000;
+                }
+                out_status.assign(paused_ ? "Paused" : "Playing");
                 return true;
             }
             return false;

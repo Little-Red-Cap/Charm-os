@@ -121,6 +121,8 @@
             title_text.assign((*storage.track_titles)[idx].view());
             subtitle_text.assign((*storage.track_subtitles)[idx].view());
             strip_audio_extension(title_text);
+            title_text.assign(library_trim_space(title_text.view()));
+            subtitle_text.assign(library_trim_space(subtitle_text.view()));
             const std::string_view raw = title_text.view();
             std::string_view parsed_title{};
             std::string_view parsed_artist{};
@@ -129,6 +131,8 @@
                 subtitle_text.assign(parsed_artist);
             }
             strip_audio_extension(title_text);
+            title_text.assign(library_trim_space(title_text.view()));
+            subtitle_text.assign(library_trim_space(subtitle_text.view()));
             if (library_looks_like_format(subtitle_text.view())) {
                 subtitle_text.assign("");
             }
@@ -202,6 +206,7 @@
             preloaded_duration_sec = 0;
             set_play_button_text(false);
             last_time_sec = -1;
+            last_time_total_sec = -1;
             set_time_label(0);
             sync_progress_value(0);
             sync_list_selection();

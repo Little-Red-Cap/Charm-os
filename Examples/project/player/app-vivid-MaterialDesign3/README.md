@@ -29,9 +29,14 @@ The Windows SDL3 shell lives under `Examples/project/player/win` and must remain
 
 ## Portability Boundary
 
-This variant is not MCU-strict yet. It still uses dynamic containers, host-side font/resource loading, and image decoding paths that need cleanup before a board build.
+This variant is now shared by the Windows MD3 preview and the H747
+`player_md3` PRODUCT target. Host-only conveniences such as file fonts,
+dynamic cover decode, screenshots/UI CI, and layered transitions must stay
+behind runtime policy, product profile, or host-only build gates.
 
-Use `docs/ui/player_portability_boundary.md` as the current boundary note for host-only dependencies and cleanup order.
+H747 uses the same controller/pages with capability downgrade: built-in fonts,
+resource/placeholder covers, `StaticCut`, no debug UI, and no host cover-theme
+extraction. New visual work must not introduce a board-only UI fork.
 
 ## Current Focus Files
 
@@ -45,3 +50,27 @@ Use `docs/ui/player_portability_boundary.md` as the current boundary note for ho
 - `design_notes.md`
 
 When changing page visuals, update `design_notes.md` if the requirement or acceptance rule changes.
+
+## Visual Recovery Gate
+
+Now Playing is the first visual recovery slice after the portability pass. Any
+visual change must keep these gates green:
+
+- Windows `charm-player-win-vivid-md3` build and `--ui-ci`
+- H747 `h747_lab_player_md3 -j 1` PRODUCT build and refreshed memory evidence
+- no H747 regression of file-font/debug/FreeType/layered/snapshot/dynamic
+  cover-theme gates
+
+The frozen pre-recovery H747 baseline is `RAM_D1 46008 B`, `FLASH 712440 B`,
+and `PlayerController 9552 B`. The latest Now Playing closure slice refreshed
+the evidence at `RAM_D1 46016 B`, `FLASH 714688 B`, and
+`PlayerController 9560 B`.
+
+Windows `--ui-ci` now includes `now_playing_matrix_*` cases for structure, text
+sync, cover fallback, play/pause, long text, and Library-to-Now-Playing sync.
+It also includes `now_playing_seek_*` cases for progress rect/hitbox, dragging
+preview, seek commit, cancel restore, no-duration fallback, and time-label sync.
+The current main-experience closure cases are `now_playing_closure_*`, covering
+layout stack, cover stage, title block, control hierarchy, and fallback +
+no-duration stability. The Windows screenshot evidence is generated under the
+build directory as `generated/ui-ci/now_playing_closure.ppm`.

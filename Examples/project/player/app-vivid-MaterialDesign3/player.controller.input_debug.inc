@@ -109,7 +109,7 @@
         }
 
         int progress_sec_from_value(int value) const {
-            const int duration_sec = playback.duration_sec();
+            const int duration_sec = resolved_duration_sec();
             if (duration_sec <= 0) return 0;
             const int clamped = std::clamp(value, 0, 100);
             return (clamped * duration_sec) / 100;
@@ -133,6 +133,8 @@
             progress_drag_sec = progress_sec_from_value(progress_drag_value);
             sync_progress_value(progress_drag_value);
             set_time_label(progress_drag_sec);
+            set_progress_interaction_state(ProgressInteractionState::DraggingPreview);
+            set_progress_info_for_state(ProgressInteractionState::DraggingPreview);
         }
 
         void end_progress_drag(bool apply_seek, PendingActions& actions) {
@@ -141,6 +143,17 @@
             if (apply_seek) {
                 actions.seek = true;
                 actions.seek_sec = progress_drag_sec;
+                progress_committed_sec = progress_drag_sec;
+                progress_committed_hold_frames = 1;
+                set_progress_interaction_state(ProgressInteractionState::SeekCommitted);
+                set_progress_info_for_state(ProgressInteractionState::SeekCommitted);
+            } else {
+                progress_committed_sec = 0;
+                progress_committed_hold_frames = 0;
+                set_progress_interaction_state(progress_duration_available()
+                    ? ProgressInteractionState::Idle
+                    : ProgressInteractionState::Unavailable);
+                sync_progress_idle(playback.current_sec());
             }
         }
 
@@ -154,6 +167,10 @@
                                                int pointer_x,
                                                PendingActions& actions) {
             if (target != handles.progress) return false;
+            if (!progress_duration_available()) {
+                sync_progress_unavailable();
+                return true;
+            }
             if (type == Event::Type::MouseDown) {
                 progress_dragging = true;
                 update_progress_drag(pointer_x);

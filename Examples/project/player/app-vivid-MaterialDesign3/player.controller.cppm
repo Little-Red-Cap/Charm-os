@@ -26,6 +26,7 @@ import charm.gfx.image;
 import charm.ui.scene.text_style;
 import charm.ui.scene.anchored_menu;
 import charm.ui.scene.pill_surface;
+import charm.ui.scene.seek_bar_style;
 import charm.font.typography;
 import charm.system.clock;
 import player.playback;
@@ -89,6 +90,13 @@ export namespace player {
     enum class ListSort : std::uint8_t {
         NameAsc,
         NameDesc,
+    };
+
+    enum class ProgressInteractionState : std::uint8_t {
+        Idle,
+        DraggingPreview,
+        SeekCommitted,
+        Unavailable,
     };
 
     struct UiHandles {
@@ -309,6 +317,7 @@ export namespace player {
         UiHandles handles{};
         PlayerIconIds icons{};
         int last_time_sec{-1};
+        int last_time_total_sec{-1};
         StorageView storage{};
         int track_index{0};
         FixedString<192> title_text{};
@@ -389,6 +398,9 @@ export namespace player {
         bool progress_dragging{false};
         int progress_drag_value{0};
         int progress_drag_sec{0};
+        int progress_committed_sec{0};
+        ProgressInteractionState progress_interaction_state{ProgressInteractionState::Unavailable};
+        std::uint8_t progress_committed_hold_frames{0};
         struct WeeklyListeningStats {
             int week_key{0};
             std::array<int, 7> seconds{};
@@ -493,6 +505,54 @@ export namespace player {
 
         static rgba blend_on(const rgba& src, const rgba& bg, std::uint8_t alpha) noexcept {
             return rgba{src.r, src.g, src.b, alpha}.blend_over(bg);
+        }
+
+        static StylePatch make_now_backdrop_patch(const rgba& backdrop, const rgba&) noexcept {
+            StylePatch patch{};
+            patch.has_bg_color = true;
+            patch.bg_color = backdrop;
+            patch.has_border_color = true;
+            patch.border_color = {0, 0, 0, 0};
+            patch.has_border_width = true;
+            patch.border_width = 0;
+            patch.has_corner_radius = true;
+            patch.corner_radius = 0;
+            return patch;
+        }
+
+        static StylePatch make_now_cover_plate_patch(const rgba& bg, int corner_radius, bool has_cover) noexcept {
+            StylePatch patch = ::ui::scene::make_clean_surface_patch({
+                .apply_bg_color = true,
+                .apply_border_color = true,
+                .apply_border_width = true,
+                .apply_corner_radius = true,
+                .bg_color = has_cover ? rgba{bg.r, bg.g, bg.b, 0} : bg,
+                .border_color = has_cover ? rgba{0, 0, 0, 0}
+                                          : rgba{kUiTitle.r, kUiTitle.g, kUiTitle.b, 24},
+                .border_width = has_cover ? 0 : 1,
+                .corner_radius = corner_radius,
+            });
+            return patch;
+        }
+
+        static StylePatch make_now_surface_role_patch(const player::cover_theme::SurfaceRole& role,
+                                                      int corner_radius,
+                                                      int padding,
+                                                      bool prominent) noexcept {
+            StylePatch patch = ::ui::scene::make_surface_recolor_patch({
+                .apply_bg_color = true,
+                .apply_border_color = true,
+                .apply_font_color = true,
+                .bg_color = role.bg,
+                .border_color = role.border,
+                .font_color = role.fg,
+            });
+            patch.has_padding = true;
+            patch.padding = padding;
+            patch.has_corner_radius = true;
+            patch.corner_radius = corner_radius;
+            (void)prominent;
+            return patch;
         }
 
 #if defined(CHARM_PLAYER_COVER_DEBUG)
@@ -639,6 +699,7 @@ export namespace player {
         struct NowPlayingExpandTransition {
             bool active{false};
             bool reveal_started{false};
+            bool destination_refreshed{false};
             NowPlayingTransitionEndpoints route{};
             ::ui::scene::SnapshotHandle source_snapshot{};
             ::ui::scene::SnapshotHandle destination_snapshot{};
@@ -1079,16 +1140,11 @@ export namespace player {
         void sync_now_cover_plate_surface() noexcept {
             if (!access.valid() || !handles.now_cover_plate) return;
             const bool has_cover = has_cover_image();
-            StylePatch patch = ::ui::scene::make_clean_surface_patch({
-                .apply_bg_color = true,
-                .apply_border_color = true,
-                .apply_corner_radius = true,
-                .bg_color = has_cover ? rgba{kUiInfoTagBg.r, kUiInfoTagBg.g, kUiInfoTagBg.b, 0}
-                                      : now_playing_roles.cover_plate.bg,
-                .border_color = {0, 0, 0, 0},
-                .corner_radius = 42,
-            });
-            access.set_style_override(handles.now_cover_plate, patch);
+            const rgba plate_bg = has_cover
+                ? blend_on(now_playing_roles.cover_plate.bg, now_playing_roles.page_backdrop, 34)
+                : now_playing_roles.cover_plate.bg;
+            access.set_style_override(handles.now_cover_plate,
+                                      make_now_cover_plate_patch(plate_bg, 48, has_cover));
         }
 
         void apply_surface_role(WidgetHandle h, const player::cover_theme::SurfaceRole& role) noexcept {

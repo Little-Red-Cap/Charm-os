@@ -27,6 +27,11 @@ export namespace player {
         }
 
         void assign(std::string_view value) noexcept {
+            std::size_t text_size = 0;
+            while (text_size < value.size() && value[text_size] != '\0') {
+                ++text_size;
+            }
+            value = value.substr(0, text_size);
             const std::size_t count = (value.size() < Capacity - 1) ? value.size() : (Capacity - 1);
             for (std::size_t i = 0; i < count; ++i) {
                 buffer_[i] = value[i];

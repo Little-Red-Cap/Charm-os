@@ -130,6 +130,27 @@ compile-time product capacity and the default H747 profile set it to zero:
 - `RAM_D2 4 KB`
 - `FLASH 712440 B`
 
+Latest Now Playing closure slice evidence:
+
+- `RAM_D1 46016 B`
+- `RAM_D2 4 KB`
+- `FLASH 714688 B`
+- `PlayerController 9560 B`
+
+Previous Now Playing seekbar slice evidence:
+
+- `RAM_D1 46016 B`
+- `RAM_D2 4 KB`
+- `FLASH 715536 B`
+- `PlayerController 9560 B`
+
+Previous first Now Playing visual recovery slice evidence:
+
+- `RAM_D1 46008 B`
+- `RAM_D2 4 KB`
+- `FLASH 715064 B`
+- `PlayerController 9552 B`
+
 The default H747 firmware keeps `CHARM_PLAYER_LIST_COVER_CACHE_ENTRIES=0`, so
 Library rows still show the existing fallback/default cover semantics without
 allocating controller cache slots. Windows MD3 keeps a fixed 12-entry cache for
@@ -197,11 +218,10 @@ is initialized. Core state such as `PlayerController`, `Theme`, and
 `StyleSheet` must not be placed in SDRAM because startup code may touch static
 storage before external memory is safe.
 
-Current top RAM_D1 ownership after the Library list cover cache was removed
-from the default H747 profile:
+Current top RAM_D1 ownership after the Now Playing seekbar slice:
 
 - `StyleSheet 11872 B`
-- `PlayerController 9552 B`
+- `PlayerController 9560 B`
 - `FatFs static state 6152 B`
 - `StyleSlot 4704 B`
 - `Theme 3476 B`
@@ -245,8 +265,19 @@ and refresh this H747 memory evidence so RAM/Flash movement remains auditable.
 Current handoff gate:
 
 - Windows `charm-player-win-vivid-md3` builds again.
-- Windows `--ui-ci` is the host visual/runtime regression gate.
+- Windows `--ui-ci` is the host visual/runtime regression gate, including
+  `now_playing_seek_*` coverage for hitbox, drag preview, commit, cancel,
+  no-duration fallback, and time-label sync, plus `now_playing_closure_*`
+  coverage for layout stack, cover stage, title block, control hierarchy, and
+  fallback/no-duration layout stability.
 - H747 `h747_lab_player_md3 -j 1` remains the PRODUCT/StaticCut firmware gate.
+
+Now Playing is the first visual recovery slice after the portability pass. It
+may refine shared layout, surface, typography, and control chrome, but it must
+not add a H747-only page fork or reopen host-only capabilities. If a visual
+change needs a new widget, payload cap, style cap, cover cache, font provider,
+or transition capability, admit it through the PRODUCT profile and regenerate
+this evidence.
 
 Visual recovery handoff rules:
 

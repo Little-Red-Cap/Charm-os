@@ -133,9 +133,9 @@
             && ctx.layer_transition_composite_pixels > compose_pixels_before_back
             && ctx.layer_transition_pixel_compose_count > pixel_composes_before_back
             && ctx.layer_transition_pixel_compose_pixels > pixel_compose_pixels_before_back
-            && ctx.layer_transition_destination_capture_count > destination_captures_before_back
-            && ctx.layer_transition_destination_compose_count > destination_composes_before_back
-            && ctx.layer_transition_destination_compose_pixels > destination_compose_pixels_before_back) {
+            && ctx.layer_transition_destination_capture_count == destination_captures_before_back
+            && ctx.layer_transition_destination_compose_count == destination_composes_before_back
+            && ctx.layer_transition_destination_compose_pixels == destination_compose_pixels_before_back) {
             ui_ci_emit("layer_transition_now_to_home_compose", true, nullptr);
         } else {
             ui_ci_emit("layer_transition_now_to_home_compose", false, "transition_compose");

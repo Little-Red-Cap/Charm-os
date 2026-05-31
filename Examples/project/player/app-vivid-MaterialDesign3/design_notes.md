@@ -615,7 +615,7 @@
 - `TopBar`：负责返回、标题、次级操作，不喧宾夺主
 - `CoverHero`：页面主视觉核心
 - `TitleBlock`：承载标题/作者，必须稳定居中
-- `ProgressSection`：承载拖拽与播放进度表达
+- `ProgressSection`：承载产品级 seekbar 表达，负责播放进度、拖拽预览、提交反馈和不可用降级
 - `MetaInfoRow`：承载左右时间与中心状态标签
 - `PlaybackControls`：承载上一首 / 播放 / 下一首主交互
 - `AuxiliaryPanel`：EQ、音量、Clip 等调试/扩展区域
@@ -624,7 +624,7 @@
 - `TopBar`：左返回 + 标题 + 右操作组
 - `CoverHero`：大尺寸单封面，必要时允许辅封面拼贴，但不抢主封面地位
 - `TitleBlock`：主标题强于副标题，但不进入 Hero 级别
-- `ProgressSection`：应具备独立组件身份
+- `ProgressSection`：当前采用 `progress_visual` 视觉轨道 + `progress` 透明命中区，必须具备稳定 seekbar pattern 身份
 - `MetaInfoRow`：必须被看成一个独立信息带，而不是三个散控件
 - `PlaybackControls`：主播放按钮必须明显强于侧按钮
 
@@ -632,11 +632,14 @@
 - 未播放：时间归零、标签区显示初始状态
 - 播放中：时间递进、标签反映模式或状态
 - 暂停：保留当前信息，不改变整体结构
-- 拖拽中：进度反馈优先，布局不跳动
+- Idle：按当前播放时间和已解析 duration 同步轨道、左右时间和中心信息标签
+- Dragging preview：轨道 fill/thumb、左侧时间和中心 `Seeking...` 反馈必须立即跟随指针，右侧总时长不变
+- Seek committed：提交后至少保留一帧 `Seek queued` 与目标位置反馈，随后回到 idle 同步
+- No duration / unavailable：显示稳定空轨与 `0:00 / 0:00`，中心信息清空，不做错误态闪烁
 
 ### 17.5 行为规格
 - 点击返回：回到主页面，不丢当前播放状态
-- 点击进度条：可跳转或拖拽
+- 点击/拖拽进度条：命中透明 hitbox，视觉轨道不塌缩；取消拖拽必须恢复到当前播放位置
 - 点击控制按钮：立即反映状态变化
 - 点击信息标签：后续可扩展模式切换或提示入口
 
@@ -648,9 +651,22 @@
 ### 17.7 当前达成度
 - 结构：已达成
 - 顶栏：已达成
-- 信息带：部分达成
-- 进度条风格身份：部分达成
-- 控制区主次关系：已达成
+- 封面主视觉：第一轮视觉恢复已推进，封面舞台回到 PixelPlayer 参考的克制表达：大封面优先，fallback cover 有稳定占位，不主动叠加强阴影、渐变或玻璃效果
+- 信息带：第一轮视觉恢复已推进，进度条、左右时间和中心标签现在被更明确地收进同一块播放信息区
+- 进度条风格身份：已从“复用 Slider 视觉壳”推进到产品级 seekbar pattern；当前仍不新增专属 widget，后续再评估是否上收到 Vivid
+- 控制区主次关系：已达成，第一轮视觉恢复进一步强化了主播放按钮与侧按钮的层级差异
+
+### 17.8 视觉恢复第一切片验收矩阵
+- 正常封面：封面本体显示，封面舞台只承担轻量占位和对齐职责，不抢主图，不主观追加重装饰
+- Placeholder / default cover：封面舞台必须可见，承担页面主视觉占位，不允许主视觉塌为空白
+- 长标题 / 长作者：标题块仍居中，不能挤压进度区和控制区
+- 播放 / 暂停：主播放按钮图标立即同步，按钮尺寸和视觉层级不变
+- 无媒体库 / 空资源：时间、标签、封面占位和控制区结构保持稳定
+- Library 选择后同步：标题、副标题、封面、底部 mini-player 和 Now Playing 主屏同步更新
+- Windows host：允许文件字体、动态封面主题和 layered preview 增强观感
+- H747 PRODUCT：保持同一 shared 页面结构，继续使用内建字体、fallback cover theme、StaticCut 和 PRODUCT gate
+- 自动验收：Windows `--ui-ci` 已加入 `now_playing_matrix_*`、`now_playing_seek_*` 与 `now_playing_closure_*` 状态矩阵；H747 closure 切片 evidence 为 `RAM_D1 46016 B`、`FLASH 714688 B`、`PlayerController 9560 B`
+- 视觉证据：Windows 截图产物位于构建目录 `generated/ui-ci/now_playing_closure.ppm`，不默认纳入仓库
 
 ---
 
@@ -733,8 +749,8 @@
 - 必须优先表达“可拖拽、可感知、可反馈”
 - 后续若继续推进，应作为独立风格组件对待
 - 当前已完成第一轮收敛：进度条与时间信息带已被收进独立区块，不再只是“一个滑条 + 一排标签”
-- 当前已继续推进到第二轮：视觉层已增强为更接近播放器 seekbar 的表达，并新增了轻量 `seek_bar_style` helper
-- 当前仍保留的真实缺口：交互层仍通过页面内 hitbox 复用，尚未形成真正独立的 seekbar widget / interaction recipe
+- 当前已继续推进到第三轮：`idle`、`dragging preview`、`seek committed`、`no duration / unavailable` 四态已形成稳定 contract，并由 Windows `now_playing_seek_*` UI CI 覆盖
+- 当前仍保留的真实缺口：交互层仍通过页面内 `Slider + transparent hitbox` 组合承载，尚未形成真正独立的 Vivid `SeekBar` widget
 
 ---
 
@@ -747,8 +763,8 @@
 
 ### 20.2 Now Playing
 - PixelPlayer：主封面、居中文本、强风格进度条、清晰信息带
-- 当前 Player：主结构已具备
-- 目标：继续把当前轻量 seekbar helper 推向更稳定的专属交互组件语义
+- 当前 Player：主结构与产品级 seekbar pattern 已具备
+- 目标：在不破坏 PRODUCT gate 的前提下，后续评估是否把页面内 seekbar pattern 上收为 Vivid 专属组件
 
 ### 20.3 Library
 - PixelPlayer：分类工具区、路径上下文、表达更完整的歌曲条目
@@ -766,7 +782,7 @@
 
 ### 21.2 当前最可能的框架依赖点
 - `ListView` 行样式能力不足
-- `ProgressSection` 已形成页面内独立区块，并已有轻量 `seek_bar_style` helper，但交互与视觉仍未完全合一为专属组件
+- `ProgressSection` 已形成页面内产品级 seekbar pattern，并已有轻量 `seek_bar_style` helper；剩余问题是是否值得上收为专属组件
 - `MetaInfoRow` 已明显收敛，但仍处于页面内模式，尚未上收
 
 ### 21.3 实现策略

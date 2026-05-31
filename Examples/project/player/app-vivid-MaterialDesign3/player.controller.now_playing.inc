@@ -2,16 +2,8 @@
             if (!access.valid() || !handles.now_backdrop) return;
             const auto& roles = now_playing_roles;
 
-            StylePatch patch{};
-            patch.has_bg_color = true;
-            patch.bg_color = roles.page_backdrop;
-            patch.has_border_color = true;
-            patch.border_color = {0, 0, 0, 0};
-            patch.has_border_width = true;
-            patch.border_width = 0;
-            patch.has_corner_radius = true;
-            patch.corner_radius = 0;
-            access.set_style_override(handles.now_backdrop, patch);
+            access.set_style_override(handles.now_backdrop,
+                                      make_now_backdrop_patch(roles.page_backdrop, roles.title));
             sync_now_cover_plate_surface();
 
             access.set_text_color(handles.title, roles.title);
@@ -47,16 +39,7 @@
                                    roles.bottom_primary_button.border,
                                    roles.bottom_primary_button.fg);
             access.recolor_surface(handles.bottom_bar, roles.bottom_bar.bg, roles.bottom_bar.border, roles.bottom_bar.fg);
-            access.recolor_surface(handles.info_tag, roles.info_tag.bg, roles.info_tag.border, roles.info_tag.fg);
-
-            if (handles.progress_visual) {
-                StylePatch prog{};
-                prog.has_border_color = true;
-                prog.border_color = roles.progress.track;
-                prog.has_accent_color = true;
-                prog.accent_color = roles.progress.fill;
-                access.set_style_override(handles.progress_visual, prog);
-            }
+            apply_now_progress_interaction_style();
 
 #if defined(CHARM_PLAYER_COVER_DEBUG)
             update_cover_debug_label();
@@ -686,6 +669,13 @@
             set_page_root_visible(endpoints.source_page, false);
             set_page_root_visible(endpoints.destination_page,
                                   !now_playing_transition.destination_snapshot);
+            if (!now_playing_transition.destination_refreshed) {
+                refresh_page(endpoints.destination_page);
+                now_playing_transition.destination_refreshed = true;
+            }
+            if (!endpoints.expanding) {
+                set_mini_bar_chrome_visible(false);
+            }
         }
 
         static ::ui::scene::SnapshotSpec make_transition_snapshot_spec() noexcept {
@@ -904,6 +894,10 @@
                 || last_layer_admission == ::ui::scene::LayerAdmission::Reject;
         }
 
+        bool transition_uses_destination_snapshot() const noexcept {
+            return now_playing_transition.active && now_playing_transition.route.expanding;
+        }
+
         ::ui::scene::LayerComposePlan make_transition_snapshot_plan(
             ::ui::scene::SnapshotHandle snapshot,
             float progress,
@@ -993,6 +987,7 @@
 
         bool transition_needs_destination_snapshot() const noexcept {
             return now_playing_transition.active
+                && transition_uses_destination_snapshot()
                 && !now_playing_transition.destination_snapshot;
         }
 
@@ -1051,6 +1046,9 @@
             sync_now_playing_transition_overlay();
             if (endpoints.expanding) {
                 set_page_root_visible(endpoints.destination_page, false);
+            } else {
+                set_page_root_visible(endpoints.destination_page, false);
+                set_mini_bar_chrome_visible(false);
             }
             set_now_playing_transition_root_visible(true);
             update_now_playing_transition_group_layout(0.0f);
@@ -1252,10 +1250,12 @@
                 start_now_playing_transition_reveal();
             }
             if (tick.should_refresh_destination) {
-                const bool reveal_hook_already_refreshed = tick.should_start_reveal
-                    && page_has_show_refresh_hook(destination_page);
-                if (!reveal_hook_already_refreshed) {
+                if (!now_playing_transition.destination_refreshed) {
                     refresh_page(destination_page);
+                    now_playing_transition.destination_refreshed = true;
+                    if (!now_playing_transition.route.expanding) {
+                        set_mini_bar_chrome_visible(false);
+                    }
                 }
             }
             update_now_playing_transition_group_layout(tick.progress);
@@ -1341,18 +1341,28 @@
 #endif
         }
 
-        void set_time_label(int elapsed_sec) {
-            if (elapsed_sec == last_time_sec) return;
-            last_time_sec = elapsed_sec;
-            int total = 0;
-            if (track_preloaded) {
-                total = playback.duration_sec();
-                if (preloaded_duration_sec > 0) {
-                    total = std::max(total, preloaded_duration_sec);
-                }
+        int resolved_duration_sec() const noexcept {
+            if (!track_preloaded) return 0;
+            int total = playback.duration_sec();
+            if (preloaded_duration_sec > 0) {
+                total = std::max(total, preloaded_duration_sec);
             }
-            const int cur_m = elapsed_sec / 60;
-            const int cur_s = elapsed_sec % 60;
+            return std::max(total, 0);
+        }
+
+        bool progress_duration_available() const noexcept {
+            return resolved_duration_sec() > 0;
+        }
+
+        void set_time_label(int elapsed_sec) {
+            const int total = resolved_duration_sec();
+            const int max_elapsed = (total > 0) ? total : std::max(elapsed_sec, 0);
+            const int clamped = std::clamp(elapsed_sec, 0, max_elapsed);
+            if (clamped == last_time_sec && total == last_time_total_sec) return;
+            last_time_sec = clamped;
+            last_time_total_sec = total;
+            const int cur_m = clamped / 60;
+            const int cur_s = clamped % 60;
             const int total_m = total / 60;
             const int total_s = total % 60;
             char left[16]{};
@@ -1370,11 +1380,11 @@
 
         void update_info_label() {
             if (!access.valid() || !handles.info_tag) return;
-            int total = playback.duration_sec();
-            if (preloaded_duration_sec > 0) {
-                total = std::max(total, preloaded_duration_sec);
+            const int total = resolved_duration_sec();
+            if (total <= 0) {
+                set_info_label("");
+                return;
             }
-            if (total <= 0) return;
             std::uint32_t rate = 0;
             audio::PlayerSnapshot snap{};
             if (playback.snapshot(snap)) {
@@ -1411,9 +1421,137 @@
             set_info_label(info);
         }
 
+        static const char* progress_interaction_state_text(ProgressInteractionState state) noexcept {
+            switch (state) {
+            case ProgressInteractionState::DraggingPreview: return "Seeking...";
+            case ProgressInteractionState::SeekCommitted: return "Seek queued";
+            case ProgressInteractionState::Unavailable: return "";
+            case ProgressInteractionState::Idle:
+            default:
+                return nullptr;
+            }
+        }
+
+        void set_progress_interaction_state(ProgressInteractionState state) {
+            if (progress_interaction_state == state) return;
+            progress_interaction_state = state;
+            apply_now_progress_interaction_style();
+        }
+
+        ProgressInteractionState resolved_progress_interaction_state() const noexcept {
+            if (!progress_duration_available()) return ProgressInteractionState::Unavailable;
+            return progress_interaction_state == ProgressInteractionState::Unavailable
+                ? ProgressInteractionState::Idle
+                : progress_interaction_state;
+        }
+
+        void apply_now_progress_interaction_style() noexcept {
+            if (!access.valid()) return;
+            const auto& roles = now_playing_roles;
+            const ProgressInteractionState state = resolved_progress_interaction_state();
+            player::cover_theme::SurfaceRole info_role = roles.info_tag;
+            rgba track = roles.progress.track;
+            rgba fill = roles.progress.fill;
+            std::uint8_t bg_alpha = 112;
+
+            if (state == ProgressInteractionState::DraggingPreview) {
+                fill = blend_on(roles.primary_control.bg, roles.progress.fill, 210);
+                track = blend_on(roles.title, roles.progress.track, 92);
+                info_role.bg = blend_on(roles.primary_control.bg, roles.info_tag.bg, 224);
+                info_role.border = with_alpha(roles.primary_control.fg, 82);
+                info_role.fg = roles.primary_control.fg;
+                bg_alpha = 150;
+            } else if (state == ProgressInteractionState::SeekCommitted) {
+                info_role.bg = blend_on(roles.progress.fill, roles.info_tag.bg, 172);
+                info_role.border = with_alpha(roles.progress.fill, 74);
+                info_role.fg = roles.info_tag.fg;
+                bg_alpha = 132;
+            } else if (state == ProgressInteractionState::Unavailable) {
+                track = with_alpha(blend_on(roles.progress.track, roles.page_backdrop, 120), 132);
+                fill = with_alpha(roles.progress.fill, 72);
+                info_role.bg = with_alpha(blend_on(roles.info_tag.bg, roles.page_backdrop, 180), 126);
+                info_role.border = with_alpha(roles.info_tag.border, 32);
+                info_role.fg = with_alpha(roles.info_tag.fg, 156);
+                bg_alpha = 72;
+            }
+
+            if (handles.info_tag) {
+                access.set_style_override(handles.info_tag, make_now_surface_role_patch(info_role, 16, 10, false));
+            }
+
+            if (handles.progress_visual) {
+                StylePatch prog = ::ui::scene::make_seek_bar_style_patch({
+                    .bg_color = blend_on(track, roles.page_backdrop, bg_alpha),
+                    .track_color = track,
+                    .fill_color = fill,
+                    .padding = 4,
+                    .corner_radius = 11,
+                });
+                prog.has_border_color = true;
+                prog.border_color = track;
+                prog.has_accent_color = true;
+                prog.accent_color = fill;
+                access.set_style_override(handles.progress_visual, prog);
+            }
+        }
+
+        void set_progress_info_for_state(ProgressInteractionState state) {
+            if (const char* text = progress_interaction_state_text(state)) {
+                set_info_label(text);
+                return;
+            }
+            update_info_label();
+        }
+
+        void sync_progress_unavailable() {
+            progress_dragging = false;
+            progress_drag_value = 0;
+            progress_drag_sec = 0;
+            progress_committed_sec = 0;
+            progress_committed_hold_frames = 0;
+            set_progress_interaction_state(ProgressInteractionState::Unavailable);
+            sync_progress_value(0);
+            set_time_label(0);
+            set_info_label("");
+        }
+
+        int progress_value_from_sec(int sec) const noexcept {
+            const int duration_sec = resolved_duration_sec();
+            if (duration_sec <= 0) return 0;
+            const int clamped = std::clamp(sec, 0, duration_sec);
+            return static_cast<int>((static_cast<std::int64_t>(clamped) * 100) / duration_sec);
+        }
+
+        void sync_progress_idle(int elapsed_sec) {
+            if (!progress_duration_available()) {
+                sync_progress_unavailable();
+                return;
+            }
+            if (progress_interaction_state == ProgressInteractionState::DraggingPreview) {
+                return;
+            }
+            if (progress_interaction_state == ProgressInteractionState::SeekCommitted
+                && progress_committed_hold_frames > 0) {
+                --progress_committed_hold_frames;
+                const int committed_sec = std::clamp(progress_committed_sec, 0, resolved_duration_sec());
+                sync_progress_value(progress_value_from_sec(committed_sec));
+                set_time_label(committed_sec);
+                set_progress_info_for_state(ProgressInteractionState::SeekCommitted);
+                return;
+            }
+            progress_committed_sec = 0;
+            progress_committed_hold_frames = 0;
+            set_progress_interaction_state(ProgressInteractionState::Idle);
+            sync_progress_value(progress_value_from_sec(elapsed_sec));
+            set_time_label(elapsed_sec);
+            update_info_label();
+        }
+
         void reset_duration() {
             playback.reset_duration();
             last_time_sec = -1;
+            last_time_total_sec = -1;
+            sync_progress_unavailable();
         }
 
         static const char* play_mode_text(int mode) noexcept {
@@ -1427,7 +1565,7 @@
         void refresh_now_playing_runtime_content() {
             update_duration_from_player();
             if (!update_progress()) {
-                set_time_label(playback.current_sec());
+                sync_progress_idle(playback.current_sec());
             }
             update_play_mode_label();
         }

@@ -14,6 +14,8 @@
 
     #include "main.ui_ci.page_flow.inc"
 
+    #include "main.ui_ci.now_playing_matrix.inc"
+
     #include "main.ui_ci.bootstrap.inc"
 
     UiCiResult run_ui_ci(PlayerRuntime& runtime) {
@@ -53,6 +55,9 @@
         run_layer_snapshot_regressions(res, scene, ctx, pump_frame);
 
         run_page_flow_regressions(
+            res, runtime, scene, ctx, wait_for_page, settle_now_playing_transition, pump_frame);
+
+        run_now_playing_state_matrix_regressions(
             res, runtime, scene, ctx, wait_for_page, settle_now_playing_transition, pump_frame);
 
         std::printf("[ui-ci] done ok=%d failed=%d\n", res.ok ? 1 : 0, res.failed);

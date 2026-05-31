@@ -89,7 +89,32 @@
         int time_row_border_alpha{};
         int time_label_inner_pad{};
         int info_tag_radius{};
+        int cover_size{};
+        int cover_top_gap{};
+        int cover_plate_pad{};
         int cover_corner_radius{};
+        int title_h{};
+        int subtitle_h{};
+        int text_gap{};
+        int text_after_cover_gap{};
+        int progress_after_text_gap{};
+        int progress_pad_x_extra{};
+        int progress_pad_y_extra{};
+        int progress_gap_extra{};
+        int time_row_h{};
+        int controls_after_progress_gap{};
+        int control_side_min{};
+        int control_play_min{};
+        int control_size_delta{};
+        int control_gap_delta{};
+        int aux_panel_w{};
+        int aux_panel_h{};
+        int aux_button{};
+        int aux_gap{};
+        int aux_after_controls_gap{};
+        int aux_inner_pad_x{};
+        int aux_inner_pad_top{};
+        int aux_icon_px{};
         int collage_small{};
         int collage_tiny{};
         int collage_left_dx{};
@@ -341,7 +366,32 @@
             .time_row_border_alpha = 0,
             .time_label_inner_pad = 6,
             .info_tag_radius = 14,
+            .cover_size = 392,
+            .cover_top_gap = 34,
+            .cover_plate_pad = 6,
             .cover_corner_radius = 28,
+            .title_h = 46,
+            .subtitle_h = 30,
+            .text_gap = 8,
+            .text_after_cover_gap = 26,
+            .progress_after_text_gap = 26,
+            .progress_pad_x_extra = 0,
+            .progress_pad_y_extra = 0,
+            .progress_gap_extra = 0,
+            .time_row_h = 32,
+            .controls_after_progress_gap = 34,
+            .control_side_min = 78,
+            .control_play_min = 96,
+            .control_size_delta = 0,
+            .control_gap_delta = 0,
+            .aux_panel_w = 208,
+            .aux_panel_h = 60,
+            .aux_button = 44,
+            .aux_gap = 10,
+            .aux_after_controls_gap = 26,
+            .aux_inner_pad_x = 8,
+            .aux_inner_pad_top = 8,
+            .aux_icon_px = 22,
             .collage_small = 64,
             .collage_tiny = 52,
             .collage_left_dx = -18,

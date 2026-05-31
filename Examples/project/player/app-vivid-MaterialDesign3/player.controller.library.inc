@@ -95,13 +95,83 @@
             return (slash == std::string_view::npos) ? std::string_view{} : path.substr(0, slash);
         }
 
-        static std::string_view library_trim_space(std::string_view value) noexcept {
-            while (!value.empty() && std::isspace(static_cast<unsigned char>(value.front()))) {
+        static bool library_starts_with_bytes(std::string_view value,
+                                              unsigned char a,
+                                              unsigned char b) noexcept {
+            return value.size() >= 2
+                && static_cast<unsigned char>(value[0]) == a
+                && static_cast<unsigned char>(value[1]) == b;
+        }
+
+        static bool library_starts_with_bytes(std::string_view value,
+                                              unsigned char a,
+                                              unsigned char b,
+                                              unsigned char c) noexcept {
+            return value.size() >= 3
+                && static_cast<unsigned char>(value[0]) == a
+                && static_cast<unsigned char>(value[1]) == b
+                && static_cast<unsigned char>(value[2]) == c;
+        }
+
+        static bool library_ends_with_bytes(std::string_view value,
+                                            unsigned char a,
+                                            unsigned char b) noexcept {
+            return value.size() >= 2
+                && static_cast<unsigned char>(value[value.size() - 2]) == a
+                && static_cast<unsigned char>(value[value.size() - 1]) == b;
+        }
+
+        static bool library_ends_with_bytes(std::string_view value,
+                                            unsigned char a,
+                                            unsigned char b,
+                                            unsigned char c) noexcept {
+            return value.size() >= 3
+                && static_cast<unsigned char>(value[value.size() - 3]) == a
+                && static_cast<unsigned char>(value[value.size() - 2]) == b
+                && static_cast<unsigned char>(value[value.size() - 1]) == c;
+        }
+
+        static bool library_trim_prefix_once(std::string_view& value) noexcept {
+            if (value.empty()) return false;
+            const unsigned char front = static_cast<unsigned char>(value.front());
+            if (front == 0 || std::isspace(front)) {
                 value.remove_prefix(1);
+                return true;
             }
-            while (!value.empty() && std::isspace(static_cast<unsigned char>(value.back()))) {
+            if (library_starts_with_bytes(value, 0xC2u, 0xA0u)) {
+                value.remove_prefix(2);
+                return true;
+            }
+            if (library_starts_with_bytes(value, 0xE3u, 0x80u, 0x80u)
+                || library_starts_with_bytes(value, 0xEFu, 0xBBu, 0xBFu)) {
+                value.remove_prefix(3);
+                return true;
+            }
+            return false;
+        }
+
+        static bool library_trim_suffix_once(std::string_view& value) noexcept {
+            if (value.empty()) return false;
+            const unsigned char back = static_cast<unsigned char>(value.back());
+            if (back == 0 || std::isspace(back)) {
                 value.remove_suffix(1);
+                return true;
             }
+            if (library_ends_with_bytes(value, 0xC2u, 0xA0u)) {
+                value.remove_suffix(2);
+                return true;
+            }
+            if (library_ends_with_bytes(value, 0xE3u, 0x80u, 0x80u)
+                || library_ends_with_bytes(value, 0xEFu, 0xBBu, 0xBFu)) {
+                value.remove_suffix(3);
+                return true;
+            }
+            return false;
+        }
+
+        static std::string_view library_trim_space(std::string_view value) noexcept {
+            while (library_trim_prefix_once(value)) {}
+            while (library_trim_suffix_once(value)) {}
             return value;
         }
 

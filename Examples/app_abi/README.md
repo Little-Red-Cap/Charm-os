@@ -71,6 +71,21 @@ App ELF loading still uses the board-owned execution region selected by the
 runtime backend; cache placement must not change the `AppImage` or AppRuntime
 contract.
 
+Resident Image Platform v1 names this boundary explicitly:
+`PlatformBoot -> ResidentRuntime -> ImageSource/ImageStore -> AppImage/ProgramImage
+-> Loader -> RuntimeDomain -> AppRuntime -> Capability Table`. Runtime domains
+such as `host`, `h747_cm7`, future `h747_cm4`, Linux core, or a remote proxy are
+platform execution domains, not extra App ABI variants. The App-visible contract
+remains `CharmAppApi`; local backends and future proxy backends must present the
+same capability table shape.
+
+The architecture contract lives at
+`docs/architecture/resident_image_platform_v1_contract.md`. The corresponding
+host semantic proof is `Examples/system/resident_image_platform_smoke`, which
+checks that received bytes and store-backed images both enter the same staged
+runtime adapter and keep unsupported format, missing image, and loader failure
+diagnostics on the existing `lookup/load` AppRuntime stages.
+
 `elf_samples/build_app_store.ps1` builds the current sample App ELFs and packs
 them into a development `.appstore.bin` file. That file is the host/QSPI/eMMC
 preparation artifact for this prototype stage; it is not a final product update
@@ -110,3 +125,4 @@ Current store validation entry points:
 - `Examples/system/dev_loader_received_elf_smoke`
 - `Examples/system/app_abi_modulex_smoke`
 - `Examples/system/dev_loader_received_modulex_smoke`
+- `Examples/system/resident_image_platform_smoke`

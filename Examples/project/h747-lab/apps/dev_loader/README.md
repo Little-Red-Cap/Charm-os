@@ -3,6 +3,13 @@
 `dev_loader` is the first resident development-loader skeleton for H747. It is
 not a product bootloader and does not replace `app_lab`.
 
+In Resident Image Platform v1 terms, `dev_loader` is a resident development
+runtime. Its job is to bind H747 byte transports, QSPI/eMMC App Store media,
+SDRAM staging arenas, the D1 App ELF execution region, and diagnostic monitor
+commands to the shared `ImageSource/ImageStore -> AppImage -> staged
+AppImageSource -> AppRuntime -> CharmAppApi` chain. It must not grow a second
+App entry, Store protocol, or capability table.
+
 In the current H747 dynamic-boundary roadmap it is explicitly post-mainline:
 `app_lab` closes the resident App ABI first, and `dev_loader` stays a
 development acceleration experiment until that path is stable.
@@ -259,6 +266,13 @@ Store ranges, so the monitor still consumes the byte-oriented
 parallel to QSPI: `dev store list emmc`, `dev store stage emmc:<name>`, and
 `dev app run emmc:<name> [args...]`. This is a development slot, not a product
 partition, manifest, slot manager, or filesystem.
+
+QSPI and eMMC are therefore two media backends for the same App Store v1
+contract. Future media such as a filesystem, network fetch, or product slot
+manager must still stage into `AppImage` before entering `AppRuntime`. Future
+M4/Linux/remote execution support must appear as an explicit runtime domain and
+capability proxy boundary; it must not be hidden as a normal thread or leak
+mailbox/RPC details into `CharmAppApi`.
 
 After a packetstream reaches `launch_ready`, `dev app stage <name>` reads the
 verified payload back from the SDRAM2 receive buffer into a 128 KiB SDRAM2

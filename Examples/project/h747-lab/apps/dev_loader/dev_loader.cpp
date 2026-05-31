@@ -41,9 +41,11 @@ constexpr std::uint32_t kDevRamBase = 0x24040000U;
 constexpr std::uint32_t kDevRamCapacity = 256U * 1024U;
 constexpr std::uint32_t kStageProbeScratchSize = 128U * 1024U;
 constexpr std::uint32_t kElfProbeLoadBufferSize = 64U * 1024U;
-constexpr std::uint32_t kPacketBufferCapacity = 512U;
+constexpr std::uint32_t kPacketBufferCapacity = 1024U;
 constexpr std::uint32_t kPacketHexDecodeCapacity = 48U;
 constexpr std::uint32_t kPacketMaxPayloadSize = 256U;
+constexpr std::uint32_t kUsbReadChunkSize = 512U;
+constexpr std::uint32_t kUsbDrainLimitBytes = 4096U;
 constexpr std::uint32_t kQspiStoreBaseOffset = 0U;
 constexpr std::string_view kDefaultReceivedAppName = "received_app"sv;
 
@@ -561,6 +563,11 @@ void print_raw_status(const Runtime& rt) noexcept {
 
 void print_usb_status(const Runtime& rt) noexcept {
     const auto usb = h747::usb_dev_loader::status();
+    emit<"dev: usb frontend packet_buffer={} max_payload={} read_chunk={} drain_limit={}\n">(
+        kPacketBufferCapacity,
+        kPacketMaxPayloadSize,
+        kUsbReadChunkSize,
+        kUsbDrainLimitBytes);
     emit<"dev: usb active={} exit={} bytes={} init={} started={} cdc_ready={} pcd_ready={} pcd={} usbd={} class={} iface={} start={}\n">(
         rt.usb_active ? 1U : 0U,
         usb_exit_reason_name(rt.usb_exit_reason),
@@ -1389,31 +1396,38 @@ void pump_raw_uart(Runtime& rt) noexcept {
 
 void pump_usb(Runtime& rt) noexcept {
     h747::usb_dev_loader::poll_irq();
-    std::array<std::uint8_t, 256> raw{};
-    const auto count = h747::usb_dev_loader::read(raw);
-    if (count == 0U) {
-        return;
-    }
-
-    rt.usb_bytes += static_cast<std::uint32_t>(count);
-    rt.usb_last = rt.packet_transport.ingest(
-        std::as_bytes(std::span<const std::uint8_t>{raw.data(), count}));
-    if (rt.usb_last.code != loader::ByteTransportCode::ok ||
-        rt.usb_last.packet.kind == loader::PacketKind::abort ||
-        rt.usb_last.packet.receive.stage == loader::Stage::launch_ready) {
-        if (rt.usb_last.code != loader::ByteTransportCode::ok) {
-            rt.usb_exit_reason = rt.usb_last.code == loader::ByteTransportCode::packet_failed
-                                     ? UsbExitReason::packet_error
-                                     : UsbExitReason::transport_error;
-        } else if (rt.usb_last.packet.kind == loader::PacketKind::abort) {
-            rt.usb_exit_reason = UsbExitReason::abort;
-        } else {
-            rt.usb_exit_reason = UsbExitReason::launch_ready;
+    std::array<std::uint8_t, kUsbReadChunkSize> raw{};
+    std::uint32_t drained = 0;
+    while (drained < kUsbDrainLimitBytes) {
+        const auto capacity = static_cast<std::size_t>(
+            std::min<std::uint32_t>(kUsbReadChunkSize, kUsbDrainLimitBytes - drained));
+        const auto count = h747::usb_dev_loader::read(std::span<std::uint8_t>{raw.data(), capacity});
+        if (count == 0U) {
+            break;
         }
-        rt.usb_active = false;
-        emit<"\n">();
-        print_usb_status(rt);
-        rt.prompt_needed = true;
+
+        drained += static_cast<std::uint32_t>(count);
+        rt.usb_bytes += static_cast<std::uint32_t>(count);
+        rt.usb_last = rt.packet_transport.ingest(
+            std::as_bytes(std::span<const std::uint8_t>{raw.data(), count}));
+        if (rt.usb_last.code != loader::ByteTransportCode::ok ||
+            rt.usb_last.packet.kind == loader::PacketKind::abort ||
+            rt.usb_last.packet.receive.stage == loader::Stage::launch_ready) {
+            if (rt.usb_last.code != loader::ByteTransportCode::ok) {
+                rt.usb_exit_reason = rt.usb_last.code == loader::ByteTransportCode::packet_failed
+                                         ? UsbExitReason::packet_error
+                                         : UsbExitReason::transport_error;
+            } else if (rt.usb_last.packet.kind == loader::PacketKind::abort) {
+                rt.usb_exit_reason = UsbExitReason::abort;
+            } else {
+                rt.usb_exit_reason = UsbExitReason::launch_ready;
+            }
+            rt.usb_active = false;
+            emit<"\n">();
+            print_usb_status(rt);
+            rt.prompt_needed = true;
+            break;
+        }
     }
 }
 

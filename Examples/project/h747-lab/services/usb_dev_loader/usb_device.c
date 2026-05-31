@@ -108,12 +108,30 @@ void h747_usb_dev_loader_poll_irq(void) {
 }
 
 void h747_usb_dev_loader_stop(void) {
-    usb_device_soft_disconnect(1U);
-    (void)USBD_Stop(&hUsbDeviceFS);
-    (void)USBD_DeInit(&hUsbDeviceFS);
+    const uint8_t pcd_accessible =
+        (usb_otg_fs_pcd_ready() != 0U && hpcd_USB_OTG_FS.Instance != NULL) ? 1U : 0U;
+
+    if (g_status.init_called == 0U) {
+        reset_runtime_state();
+        g_status.started = 0U;
+        g_status.cdc_ready = 0U;
+        return;
+    }
+
+    if (pcd_accessible != 0U) {
+        usb_device_soft_disconnect(1U);
+    }
+    if (g_status.started != 0U && pcd_accessible != 0U) {
+        (void)USBD_Stop(&hUsbDeviceFS);
+    }
+    if (pcd_accessible != 0U) {
+        (void)USBD_DeInit(&hUsbDeviceFS);
+    }
     usb_otg_fs_pcd_mark_stopped();
+    reset_runtime_state();
     g_status.started = 0U;
     g_status.cdc_ready = 0U;
+    g_status.init_called = 0U;
 }
 
 size_t h747_usb_dev_loader_read(uint8_t* output, size_t capacity) {

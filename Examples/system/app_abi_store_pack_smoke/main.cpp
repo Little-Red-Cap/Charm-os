@@ -53,8 +53,16 @@ int main() {
 
     std::array<std::byte, 256> store{};
     const std::array<app_abi::AppStoreBuildEntry, 2> entries{
-        app_abi::AppStoreBuildEntry{.name = "hello_app", .payload = hello, .flags = 0x01},
-        app_abi::AppStoreBuildEntry{.name = "player_min", .payload = player, .flags = 0x02},
+        app_abi::AppStoreBuildEntry{
+            .name = "hello_app",
+            .payload = hello,
+            .flags = app_abi::app_store_format_flags(app_abi::AppImageFormat::elf),
+        },
+        app_abi::AppStoreBuildEntry{
+            .name = "player_min",
+            .payload = player,
+            .flags = app_abi::app_store_format_flags(app_abi::AppImageFormat::modulex),
+        },
     };
 
     const auto built = app_abi::app_store_build_image(entries, store, 16);
@@ -78,6 +86,9 @@ int main() {
     ok = expect(app_abi::app_store_entry_name(first) == "hello_app" &&
                     app_abi::app_store_entry_name(second) == "player_min",
                 "entry names round trip") && ok;
+    ok = expect(app_abi::app_store_entry_format(first) == app_abi::AppImageFormat::elf &&
+                    app_abi::app_store_entry_format(second) == app_abi::AppImageFormat::modulex,
+                "entry format flags round trip") && ok;
     ok = expect(first.offset % 16U == 0U && second.offset % 16U == 0U,
                 "payloads are aligned") && ok;
 

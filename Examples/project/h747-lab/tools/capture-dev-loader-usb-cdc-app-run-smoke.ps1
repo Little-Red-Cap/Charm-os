@@ -10,6 +10,8 @@ param(
     [int]$UsbEnumerateTimeoutSeconds = 10,
     [int]$WriteChunkSize = 256,
     [int]$InterChunkDelayMs = 1,
+    [ValidateSet("elf", "modulex")]
+    [string]$AppFormat = "elf",
     [string]$Log = "",
     [string[]]$Expect = @(),
     [string]$ValidateLog = "",
@@ -33,7 +35,10 @@ function Test-ContainsLiteral {
 }
 
 function Get-DefaultTokens {
-    param([string[]]$ExtraTokens)
+    param(
+        [string]$Format,
+        [string[]]$ExtraTokens
+    )
 
     $Tokens = New-Object System.Collections.Generic.List[string]
     foreach ($Token in @(
@@ -44,7 +49,6 @@ function Get-DefaultTokens {
         "dev: app run-region name=ram_d1_app_elf base=0x24070000 size=65536 align=16 linked_elf_base=0x24070000",
         "dev: app read=ok",
         "dev: app stage=ok",
-        "dev: app probe=ok",
         "dev: app plan=ok",
         "dev: app prepare=start code=ok",
         "dev: app run stage=exit code=ok",
@@ -52,6 +56,11 @@ function Get-DefaultTokens {
         "dev: app caps"
     )) {
         [void]$Tokens.Add($Token)
+    }
+    if ($Format -eq "modulex") {
+        [void]$Tokens.Add("dev: app format=modulex modulex=ok")
+    } else {
+        [void]$Tokens.Add("dev: app probe=ok")
     }
     foreach ($Token in $ExtraTokens) {
         foreach ($SplitToken in ([string]$Token).Split(",")) {
@@ -112,6 +121,27 @@ function Validate-LogFile {
 }
 
 function Get-SyntheticPassingLog {
+    param([string]$Format = "elf")
+
+    if ($Format -eq "modulex") {
+        return @"
+dev: usb ready
+dev: stage=launch_ready code=ok received=212 crc=0x77012eee/0x77012eee
+USB CDC packetstream transfer passed.
+dev: app command=run name=modulex_hello_app run=enabled
+dev: app run-region name=ram_d1_app_elf base=0x24070000 size=65536 align=16 linked_elf_base=0x24070000
+dev: app read=ok bytes=212
+dev: app stage=ok bytes=212
+dev: app format=modulex modulex=ok
+dev: app probe=invalid_argument entry_off=0x00000000 span=0 segments=0 runnable=0
+dev: app plan=ok backend=0 load=0x24070000 entry=0x24070001 span=0 segments=0 runnable=0 run=disabled
+dev: app prepare=start code=ok backend=0 argc=3 ready=1 entry=0x24070001 run=disabled
+modulex_hello_app: charm_app_main entered
+dev: app run stage=exit code=ok backend=0 load=0x24070000 entry=0x24070001 span=0 segments=0 exited=1 exit=0 app_exit=1 app_exit_code=0
+dev: app caps console_bytes=80 present_count=0 present_bytes=0 sample0=0x00000000 input_polls=0
+"@
+    }
+
     return @"
 dev: usb ready
 dev: stage=launch_ready code=ok received=1234 crc=0x00000000/0x00000000
@@ -196,24 +226,27 @@ function Wait-ForUsbPort {
 }
 
 function Invoke-SelfTest {
-    $Tokens = Get-DefaultTokens -ExtraTokens @("present_count=1")
-    $PassingMissing = Get-MissingTokens -Text (Get-SyntheticPassingLog) -Tokens $Tokens
-    if ($PassingMissing.Count -ne 0) {
-        Write-Host "Self-test failed: synthetic passing log missed tokens."
-        foreach ($Token in $PassingMissing) {
-            Write-Host "  - $Token"
+    foreach ($Format in @("elf", "modulex")) {
+        $Extra = if ($Format -eq "modulex") { @("modulex_hello_app: charm_app_main entered") } else { @("present_count=1") }
+        $Tokens = Get-DefaultTokens -Format $Format -ExtraTokens $Extra
+        $PassingMissing = Get-MissingTokens -Text (Get-SyntheticPassingLog -Format $Format) -Tokens $Tokens
+        if ($PassingMissing.Count -ne 0) {
+            Write-Host "Self-test failed: synthetic passing log missed tokens for format=$Format."
+            foreach ($Token in $PassingMissing) {
+                Write-Host "  - $Token"
+            }
+            return 1
         }
-        return 1
-    }
 
-    $FailingLog = (Get-SyntheticPassingLog).Replace("USB CDC packetstream transfer passed.", "USB CDC packetstream transfer failed.")
-    $FailingMissing = Get-MissingTokens -Text $FailingLog -Tokens $Tokens
-    if ($FailingMissing.Count -ne 1 -or $FailingMissing[0] -ne "USB CDC packetstream transfer passed.") {
-        Write-Host "Self-test failed: synthetic missing-token log was not classified as expected."
-        foreach ($Token in $FailingMissing) {
-            Write-Host "  - $Token"
+        $FailingLog = (Get-SyntheticPassingLog -Format $Format).Replace("USB CDC packetstream transfer passed.", "USB CDC packetstream transfer failed.")
+        $FailingMissing = Get-MissingTokens -Text $FailingLog -Tokens $Tokens
+        if ($FailingMissing.Count -ne 1 -or $FailingMissing[0] -ne "USB CDC packetstream transfer passed.") {
+            Write-Host "Self-test failed: synthetic missing-token log was not classified as expected for format=$Format."
+            foreach ($Token in $FailingMissing) {
+                Write-Host "  - $Token"
+            }
+            return 1
         }
-        return 1
     }
 
     $Selected = Select-UsbPortFromSnapshots -Before @("COM16") -After @("COM16", "COM27") -ControlPort "COM16"
@@ -230,7 +263,7 @@ if ($SelfTest) {
     exit (Invoke-SelfTest)
 }
 
-$RequiredTokens = Get-DefaultTokens -ExtraTokens $Expect
+$RequiredTokens = Get-DefaultTokens -Format $AppFormat -ExtraTokens $Expect
 if (-not [string]::IsNullOrWhiteSpace($ValidateLog)) {
     exit (Validate-LogFile -Path $ValidateLog -Tokens $RequiredTokens)
 }
@@ -280,6 +313,7 @@ if ($DryRun) {
     Write-Host "  usb port:     $(if ([string]::IsNullOrWhiteSpace($UsbPort)) { 'auto-discover after dev usb begin' } else { $UsbPort })"
     Write-Host "  packetstream: $ResolvedPacketStream"
     Write-Host "  app:          $AppName"
+    Write-Host "  format:       $AppFormat"
     Write-Host "  args:         $AppArgs"
     Write-Host "  log:          $ResolvedLog"
     Write-Host "  reset session before begin: $(-not $NoResetSession)"
@@ -376,6 +410,7 @@ try {
     Write-CaptureText "  usb port:     $(if ([string]::IsNullOrWhiteSpace($UsbPort)) { 'auto' } else { $UsbPort })`n"
     Write-CaptureText "  packetstream: $ResolvedPacketStream`n"
     Write-CaptureText "  app:          $AppName`n"
+    Write-CaptureText "  format:       $AppFormat`n"
     Write-CaptureText "  args:         $AppArgs`n"
     Write-CaptureText "  log:          $ResolvedLog`n"
     Write-CaptureText "  download log: $DownloadLog`n`n"

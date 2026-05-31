@@ -30,7 +30,7 @@ The first-generation contract is intentionally small:
   keeping QSPI/eMMC store reads and received-image downloads on the same
   `AppImage -> staged AppImageSource -> AppRuntime` boundary.
 - H747 `dev app stage/probe/prepare/run` consumes that received-image view and
-  the App ABI ELF load/AppRuntime helper chain.
+  the App ABI ELF/ModuleX load plus AppRuntime helper chain.
 - `dev launch dry-run` remains the transport-neutral receive-session marker;
   App execution is an explicit monitor command, not a raw jump.
 - The current H747 `dev_loader` binding stores large receive/stage scratch
@@ -148,8 +148,10 @@ host.
 for ModuleX. It receives ModuleX bytes through the same packetstream and
 `ByteTransportRuntime`, stages them as `AppImage(format=modulex)`, then uses
 the App ABI ModuleX loader plus staged runtime adapter to call
-`charm_app_main(api, argc, argv)` on host. It does not add a second App ABI or
-packet protocol.
+`charm_app_main(api, argc, argv)` on host. The H747 resident loader uses the
+same image-format boundary and materializes CM7 ModuleX into the runtime-owned
+execute/load region before setting the Thumb callable bit. It does not add a
+second App ABI or packet protocol.
 
 `dev_loader_stage_probe_smoke` matches the H747 `dev app stage/probe` frontend:
 read the `launch_ready` payload, stage it as `AppImage(format=elf)`, call the
@@ -162,14 +164,16 @@ The H747 `dev app run` frontend is the board-side closure of the same chain:
 ```text
 packetstream/raw UART -> launch_ready payload
   -> received_image_read
-  -> app_received_image_stage(format=elf)
-  -> app_elf_load_image
+  -> app_received_image_stage(format=elf|modulex)
+  -> App image loader
   -> AppRuntime::run()
   -> charm_app_main(api, argc, argv)
 ```
 
 The current H747 App ELF samples are linked for `ELF_BASE = 0x24070000`; the
 resident monitor therefore loads executable App ELF bytes into
-`0x24070000..0x24080000`. Future USB, QSPI/eMMC, or ModuleX work must preserve
-the same `AppImage + AppRuntime + CharmAppApi` handoff shape. SDRAM is used as
-receive/stage storage only; it is not the first-generation ELF execute region.
+`0x24070000..0x24080000`. CM7 ModuleX images use the same execute/load region
+for first-generation board execution. Future USB, QSPI/eMMC, or new image
+formats must preserve the same `AppImage + AppRuntime + CharmAppApi` handoff
+shape. SDRAM is used as receive/stage storage only; it is not the
+first-generation executable App region.

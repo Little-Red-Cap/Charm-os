@@ -104,7 +104,7 @@ function Get-RequiredTokens {
         [string]$Media
     )
 
-    $ListToken = if ($Media -eq "emmc") { "dev: store emmc entries=2" } else { "dev: store entries=2" }
+    $ListToken = if ($Media -eq "emmc") { "dev: store emmc entries=3" } else { "dev: store entries=3" }
     return @(
         "USB CDC packetstream transfer passed.",
         "dev: usb active=0 exit=launch_ready",
@@ -116,11 +116,16 @@ function Get-RequiredTokens {
         $ListToken,
         "name=hello_app",
         "name=player_min",
+        "name=modulex_hello_app",
+        "format=modulex",
         "hello_app: charm_app_main entered",
         "hello_app: argv1=alpha",
         "dev: app command=run name=${Media}:hello_app run=enabled",
         "player_min: presented one frame",
         "dev: app command=run name=${Media}:player_min run=enabled",
+        "modulex_hello_app: charm_app_main entered",
+        "dev: app command=run name=${Media}:modulex_hello_app run=enabled",
+        "dev: app format=modulex modulex=ok",
         "dev: app stage-arena name=sdram2_stage_cache addr=0xd0040000 expected=0xd0040000",
         "dev: app sdram2 ready=1 init=1 smoke=1 base=0xd0000000",
         "present_count=1",
@@ -134,7 +139,7 @@ function Get-RequiredCounts {
         [string]$Media
     )
 
-    $ListToken = if ($Media -eq "emmc") { "dev: store emmc entries=2" } else { "dev: store entries=2" }
+    $ListToken = if ($Media -eq "emmc") { "dev: store emmc entries=3" } else { "dev: store entries=3" }
 
     return @(
         @{ Token = "USB CDC packetstream transfer passed."; Count = $Repeat },
@@ -142,8 +147,9 @@ function Get-RequiredCounts {
         @{ Token = $ListToken; Count = $Repeat },
         @{ Token = "dev: app command=run name=${Media}:hello_app run=enabled"; Count = $Repeat },
         @{ Token = "dev: app command=run name=${Media}:player_min run=enabled"; Count = $Repeat },
-        @{ Token = "dev: app run stage=exit code=ok"; Count = 2 * $Repeat },
-        @{ Token = "exited=1 exit=0"; Count = 2 * $Repeat },
+        @{ Token = "dev: app command=run name=${Media}:modulex_hello_app run=enabled"; Count = $Repeat },
+        @{ Token = "dev: app run stage=exit code=ok"; Count = 3 * $Repeat },
+        @{ Token = "exited=1 exit=0"; Count = 3 * $Repeat },
         @{ Token = "present_count=1"; Count = $Repeat },
         @{ Token = "input_polls=1"; Count = $Repeat }
     )
@@ -218,16 +224,17 @@ function Validate-LogFile {
 function Get-SyntheticPassingLog {
     param([string]$Media)
 
-    $ListLine = if ($Media -eq "emmc") { "dev: store emmc entries=2" } else { "dev: store entries=2" }
+    $ListLine = if ($Media -eq "emmc") { "dev: store emmc entries=3" } else { "dev: store entries=3" }
     return @"
 USB CDC packetstream transfer passed.
 dev: usb active=0 exit=launch_ready bytes=11648
 dev: usb rx packets=182 bytes=11648 read=11648 dropped=0 overflow=0 ctrl=28 last_ctrl=33/7
-dev: stage=launch_ready code=ok received=10416 crc=0x73de4894/0x73de4894
-dev: store install $Media receive=ok recv_bytes=10416 store=ok code=ok target=0x00000000 written=10416 erased=12288
+dev: stage=launch_ready code=ok received=10676 crc=0x647b2090/0x647b2090
+dev: store install $Media receive=ok recv_bytes=10676 store=ok code=ok target=0x00000000 written=10676 erased=12288
 $ListLine
-  [0] name=hello_app offset=0x00000070 size=5132 flags=0x00000000 runnable=1
-  [1] name=player_min offset=0x00001480 size=5168 flags=0x00000000 runnable=1
+  [0] name=hello_app format=elf offset=0x000000a0 size=5132 flags=0x00000000 runnable=1
+  [1] name=player_min format=elf offset=0x000014b0 size=5168 flags=0x00000000 runnable=1
+  [2] name=modulex_hello_app format=modulex offset=0x00002900 size=212 flags=0x00000001 runnable=1
 hello_app: charm_app_main entered
 hello_app: argv1=alpha
 dev: app command=run name=${Media}:hello_app run=enabled
@@ -240,13 +247,17 @@ dev: app stage-arena name=sdram2_stage_cache addr=0xd0040000 expected=0xd0040000
 dev: app sdram2 ready=1 init=1 smoke=1 base=0xd0000000 size=33554432
 dev: app run stage=exit code=ok backend=0 load=0x24070000 entry=0x24070001 span=1280 segments=3 exited=1 exit=0 app_exit=0 app_exit_code=0
 dev: app caps console_bytes=32 present_count=1 present_bytes=1024 sample0=0xff51a851 input_polls=1
+modulex_hello_app: charm_app_main entered
+dev: app command=run name=${Media}:modulex_hello_app run=enabled
+dev: app format=modulex modulex=ok
+dev: app run stage=exit code=ok backend=0 load=0x24070000 entry=0x24070001 span=212 segments=1 exited=1 exit=0 app_exit=1 app_exit_code=0
 platform repeat 1/1 passed
 "@
 }
 
 function Invoke-SelfTest {
     foreach ($TestMedia in @("qspi", "emmc")) {
-        $Tokens = Get-RequiredTokens -PayloadSize 10416 -Crc32 0x73de4894 -Media $TestMedia
+        $Tokens = Get-RequiredTokens -PayloadSize 10676 -Crc32 ([uint32]0x647b2090) -Media $TestMedia
         $Counts = Get-RequiredCounts -Media $TestMedia
         $Missing = Get-MissingEvidence -Text (Get-SyntheticPassingLog -Media $TestMedia) -Tokens $Tokens -Counts $Counts
         if ($Missing.Count -ne 0) {
@@ -257,9 +268,9 @@ function Invoke-SelfTest {
             return 1
         }
 
-        $FailingLog = (Get-SyntheticPassingLog -Media $TestMedia).Replace("player_min: presented one frame", "player_min: failed")
+        $FailingLog = (Get-SyntheticPassingLog -Media $TestMedia).Replace("modulex_hello_app: charm_app_main entered", "modulex_hello_app: failed")
         $FailingMissing = Get-MissingEvidence -Text $FailingLog -Tokens $Tokens -Counts $Counts
-        if ($FailingMissing.Count -ne 1 -or $FailingMissing[0] -ne "player_min: presented one frame") {
+        if ($FailingMissing.Count -ne 1 -or $FailingMissing[0] -ne "modulex_hello_app: charm_app_main entered") {
             Write-Host "Self-test failed: synthetic missing-token log was not classified as expected for media=$TestMedia."
             foreach ($Token in $FailingMissing) {
                 Write-Host "  - $Token"
@@ -350,6 +361,7 @@ function Invoke-StoreAndRun {
         [void](Send-ControlCommand -Serial $Serial -Command "dev store list $Media" -Phase "store_list" -Timeout 10)
         [void](Send-ControlCommand -Serial $Serial -Command "dev app run ${Media}:hello_app alpha beta" -Phase "hello_run" -Timeout 15)
         [void](Send-ControlCommand -Serial $Serial -Command "dev app run ${Media}:player_min" -Phase "player_min_run" -Timeout 15)
+        [void](Send-ControlCommand -Serial $Serial -Command "dev app run ${Media}:modulex_hello_app alpha beta" -Phase "modulex_run" -Timeout 15)
         [void](Send-ControlCommand -Serial $Serial -Command "dev app status" -Phase "app_status" -Timeout 10)
     } finally {
         if (($null -ne $Serial) -and $Serial.IsOpen) {
@@ -432,7 +444,7 @@ if ($DryRun) {
     Write-Host "  media:        $Media"
     Write-Host "  write chunk:  $WriteChunkSize"
     Write-Host "  chunk delay:  ${InterChunkDelayMs}ms"
-    Write-Host "  commands:     dev store install $Media; dev store list $Media; dev app run ${Media}:hello_app alpha beta; dev app run ${Media}:player_min; dev app status"
+    Write-Host "  commands:     dev store install $Media; dev store list $Media; dev app run ${Media}:hello_app alpha beta; dev app run ${Media}:player_min; dev app run ${Media}:modulex_hello_app alpha beta; dev app status"
     Write-Host "  log:          $ResolvedLog"
     exit 0
 }
@@ -519,6 +531,7 @@ try {
     }
     Write-CaptureText "  hello_app exit=0`n"
     Write-CaptureText "  player_min exit=0`n"
+    Write-CaptureText "  modulex_hello_app exit=0`n"
     Write-CaptureText "`nUSB CDC App Store platform smoke passed.`n"
     exit 0
 } catch {

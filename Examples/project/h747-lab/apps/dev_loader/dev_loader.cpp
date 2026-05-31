@@ -30,6 +30,12 @@
 
 import out.core;
 import out.format;
+import module_core;
+import module_link;
+import module_loader;
+import module_view;
+
+#include "charm_app_modulex_loader.hpp"
 
 namespace h747::apps::dev_loader {
 namespace {
@@ -111,6 +117,11 @@ struct EmmcStoreContext {
     EmmcStoreLayout layout{};
 };
 
+struct ModuleXRuntimeLoadContext {
+    Runtime* rt{};
+    app_abi::AppImage materialized{};
+};
+
 constexpr ImageStageArena kImageStageArena{
     .name = "sdram2_stage_cache"sv,
     .base = kSdram2ArenaBase + kDevRamCapacity,
@@ -139,6 +150,7 @@ static_assert(kAppRunLoadRegion.base == kAppRunLoadRegion.linked_elf_base,
 loader::Storage ram_storage() noexcept;
 app_abi::AppImage stage_qspi_app(Runtime& rt, std::string_view command, std::string_view spec) noexcept;
 app_abi::AppImage stage_emmc_app(Runtime& rt, std::string_view command, std::string_view spec) noexcept;
+constexpr std::string_view app_image_format_name(app_abi::AppImageFormat format) noexcept;
 
 template <charm::cap::ByteSink Sink>
 class OutSinkAdapter {
@@ -232,8 +244,10 @@ struct Runtime {
     app_abi::AppStoreLookupResult store_lookup{};
     loader::ReceivedImageReadCode app_read_code{loader::ReceivedImageReadCode::not_launch_ready};
     app_abi::AppReceivedImageStageCode app_stage_code{app_abi::AppReceivedImageStageCode::not_verified};
+    app_abi::AppImageFormat app_image_format{app_abi::AppImageFormat::elf};
     app_abi::AppElfProbeResult app_probe{};
     app_abi::AppElfLoadBackend app_elf_backend{};
+    app_abi::AppModuleXLoadCode app_modulex_code{app_abi::AppModuleXLoadCode::invalid_argument};
     app_abi::AppRunCode app_plan_code{app_abi::AppRunCode::load_failed};
     int app_plan_backend_error{0};
     std::uintptr_t app_plan_load_base{0};
@@ -509,6 +523,79 @@ app_abi::AppLoadResult load_runtime_elf(void* ctx,
     return app_abi::app_elf_load_image(backend, image, buffer);
 }
 
+app_abi::AppLoadResult load_runtime_modulex(void* ctx,
+                                            const app_abi::AppImage& image,
+                                            const app_abi::AppLoadBuffer& buffer) noexcept {
+    auto* load_ctx = static_cast<ModuleXRuntimeLoadContext*>(ctx);
+    auto* rt = load_ctx != nullptr ? load_ctx->rt : nullptr;
+    if (buffer.base == nullptr || buffer.size == 0U || image.image_base == nullptr ||
+        image.image_size == 0U || image.image_size > buffer.size) {
+        if (rt != nullptr) {
+            rt->app_modulex_code = app_abi::AppModuleXLoadCode::invalid_argument;
+            rt->app_plan_code = app_abi::AppRunCode::load_failed;
+            rt->app_plan_backend_error = static_cast<int>(rt->app_modulex_code);
+        }
+        return {
+            .code = app_abi::AppRunCode::load_failed,
+            .backend_error = static_cast<int>(app_abi::AppModuleXLoadCode::invalid_argument),
+        };
+    }
+    if (buffer.align != 0U &&
+        (reinterpret_cast<std::uintptr_t>(buffer.base) % buffer.align) != 0U) {
+        if (rt != nullptr) {
+            rt->app_modulex_code = app_abi::AppModuleXLoadCode::invalid_argument;
+            rt->app_plan_code = app_abi::AppRunCode::load_failed;
+            rt->app_plan_backend_error = static_cast<int>(rt->app_modulex_code);
+        }
+        return {
+            .code = app_abi::AppRunCode::load_failed,
+            .backend_error = static_cast<int>(app_abi::AppModuleXLoadCode::invalid_argument),
+        };
+    }
+
+    std::memcpy(buffer.base, image.image_base, image.image_size);
+    app_abi::AppImage materialized = image;
+    materialized.image_base = buffer.base;
+    if (load_ctx != nullptr) {
+        load_ctx->materialized = materialized;
+    }
+
+    const auto loaded = app_abi::app_modulex_load_image(materialized);
+    if (rt != nullptr) {
+        rt->app_modulex_code = loaded.code;
+        rt->app_plan_code = loaded.load.code;
+        rt->app_plan_backend_error = loaded.load.backend_error;
+        rt->app_plan_load_base = reinterpret_cast<std::uintptr_t>(materialized.image_base);
+        rt->app_plan_entry = 0;
+        rt->app_probe = app_abi::AppElfProbeResult{
+            .code = loaded.load.code == app_abi::AppRunCode::ok
+                ? app_abi::AppElfProbeCode::ok
+                : app_abi::AppElfProbeCode::format_mismatch,
+            .entry_offset = 0,
+            .load_span = static_cast<std::uint32_t>(materialized.image_size),
+            .segment_count = loaded.load.code == app_abi::AppRunCode::ok ? 1U : 0U,
+            .runnable = loaded.load.code == app_abi::AppRunCode::ok,
+        };
+    }
+    if (loaded.load.code != app_abi::AppRunCode::ok) {
+        return loaded.load;
+    }
+    auto result = loaded.load;
+    auto raw = reinterpret_cast<std::uintptr_t>(result.image.entry);
+    if (rt != nullptr) {
+        rt->app_probe.entry_offset =
+            static_cast<std::uint32_t>(raw - reinterpret_cast<std::uintptr_t>(materialized.image_base));
+    }
+    raw |= 1U;
+    result.image.entry = reinterpret_cast<CharmAppMainFn>(raw);
+    if (rt != nullptr) {
+        rt->app_plan_code = result.code;
+        rt->app_plan_backend_error = result.backend_error;
+        rt->app_plan_entry = raw;
+    }
+    return result;
+}
+
 CharmAppApi make_prepare_api() noexcept {
     CharmAppApi api{};
     api.magic = CHARM_APP_API_MAGIC;
@@ -549,6 +636,115 @@ void prepare_loaded_app_buffer(void* ctx) noexcept {
 #endif
     __DSB();
     __ISB();
+}
+
+void prepare_modulex_app_buffer(void* ctx) noexcept {
+    const auto* load_ctx = static_cast<const ModuleXRuntimeLoadContext*>(ctx);
+    const auto* image = load_ctx != nullptr ? &load_ctx->materialized : nullptr;
+    if (image == nullptr || image->image_base == nullptr || image->image_size == 0U) {
+        return;
+    }
+
+    const auto start = reinterpret_cast<std::uintptr_t>(image->image_base);
+    const auto end = start + image->image_size;
+    const auto aligned_start = cache_align_down(start);
+    const auto aligned_end = cache_align_up(end);
+#if defined(__DCACHE_PRESENT) && (__DCACHE_PRESENT == 1U)
+    if ((SCB->CCR & SCB_CCR_DC_Msk) != 0U) {
+        SCB_CleanDCache_by_Addr(reinterpret_cast<std::uint32_t*>(aligned_start),
+                                static_cast<std::int32_t>(aligned_end - aligned_start));
+    }
+#endif
+#if defined(__ICACHE_PRESENT) && (__ICACHE_PRESENT == 1U)
+    if ((SCB->CCR & SCB_CCR_IC_Msk) != 0U) {
+        SCB_InvalidateICache();
+    }
+#endif
+    __DSB();
+    __ISB();
+}
+
+struct RuntimeLoaderBinding {
+    void* load_ctx{nullptr};
+    app_abi::AppLoadResult (*load)(void* ctx,
+                                   const app_abi::AppImage& image,
+                                   const app_abi::AppLoadBuffer& buffer) noexcept{nullptr};
+    app_abi::AppLoadBuffer buffer{};
+};
+
+RuntimeLoaderBinding make_prepare_loader_binding(Runtime& rt,
+                                                 const app_abi::AppImage& image,
+                                                 ModuleXRuntimeLoadContext& modulex_ctx) noexcept {
+    if (image.format == app_abi::AppImageFormat::modulex) {
+        modulex_ctx = ModuleXRuntimeLoadContext{.rt = &rt};
+        auto& load = elf_probe_load_buffer();
+        return RuntimeLoaderBinding{
+            .load_ctx = &modulex_ctx,
+            .load = load_runtime_modulex,
+            .buffer = app_abi::AppLoadBuffer{
+                .base = load.data(),
+                .size = load.size(),
+                .align = 32U,
+                .prepare = prepare_modulex_app_buffer,
+                .prepare_ctx = &modulex_ctx,
+            },
+        };
+    }
+
+    auto& load = elf_probe_load_buffer();
+    return RuntimeLoaderBinding{
+        .load_ctx = &rt.app_elf_backend,
+        .load = load_runtime_elf,
+        .buffer = app_abi::AppLoadBuffer{
+            .base = load.data(),
+            .size = load.size(),
+            .align = 16U,
+        },
+    };
+}
+
+RuntimeLoaderBinding make_run_loader_binding(Runtime& rt,
+                                             const app_abi::AppImage& image,
+                                             ModuleXRuntimeLoadContext& modulex_ctx) noexcept {
+    const auto load = app_run_load_buffer();
+    if (image.format == app_abi::AppImageFormat::modulex) {
+        modulex_ctx = ModuleXRuntimeLoadContext{.rt = &rt};
+        return RuntimeLoaderBinding{
+            .load_ctx = &modulex_ctx,
+            .load = load_runtime_modulex,
+            .buffer = app_abi::AppLoadBuffer{
+                .base = load.data(),
+                .size = load.size(),
+                .align = 32U,
+                .prepare = prepare_modulex_app_buffer,
+                .prepare_ctx = &modulex_ctx,
+            },
+        };
+    }
+
+    return RuntimeLoaderBinding{
+        .load_ctx = &rt.app_elf_backend,
+        .load = load_runtime_elf,
+        .buffer = app_abi::AppLoadBuffer{
+            .base = load.data(),
+            .size = load.size(),
+            .align = kAppRunLoadRegion.align,
+            .prepare = prepare_loaded_app_buffer,
+            .prepare_ctx = &rt.app_elf_backend,
+        },
+    };
+}
+
+void record_loader_plan(Runtime& rt, const app_abi::AppImage& image) noexcept {
+    rt.app_image_format = image.format;
+    if (image.format == app_abi::AppImageFormat::modulex) {
+        return;
+    }
+    rt.app_probe = rt.app_elf_backend.last.plan.probe;
+    rt.app_plan_code = rt.app_elf_backend.last.code;
+    rt.app_plan_backend_error = rt.app_elf_backend.last.backend_error;
+    rt.app_plan_load_base = rt.app_elf_backend.last.plan.load_base;
+    rt.app_plan_entry = rt.app_elf_backend.last.plan.entry_address;
 }
 
 int app_api_console_write(const char* text, const std::size_t len) {
@@ -923,9 +1119,10 @@ void list_qspi_store(Runtime& rt) noexcept {
                 app_abi::app_store_read_code_name(entry_code));
             return;
         }
-        emit<"  [{}] name={} offset=0x{:08x} size={} flags=0x{:08x} runnable={}\n">(
+        emit<"  [{}] name={} format={} offset=0x{:08x} size={} flags=0x{:08x} runnable={}\n">(
             i,
             app_abi::app_store_entry_name(entry),
+            app_image_format_name(app_abi::app_store_entry_format(entry)),
             entry.offset,
             entry.size,
             entry.flags,
@@ -956,9 +1153,10 @@ void list_emmc_store(Runtime& rt) noexcept {
                 app_abi::app_store_read_code_name(entry_code));
             return;
         }
-        emit<"  [{}] name={} offset=0x{:08x} size={} flags=0x{:08x} runnable={}\n">(
+        emit<"  [{}] name={} format={} offset=0x{:08x} size={} flags=0x{:08x} runnable={}\n">(
             i,
             app_abi::app_store_entry_name(entry),
+            app_image_format_name(app_abi::app_store_entry_format(entry)),
             entry.offset,
             entry.size,
             entry.flags,
@@ -994,6 +1192,9 @@ void print_app_status(const Runtime& rt) noexcept {
     emit<"dev: app stage={} bytes={}\n">(
         app_abi::app_received_image_stage_code_name(rt.app_stage_code),
         rt.app_stage_bytes);
+    emit<"dev: app format={} modulex={}\n">(
+        app_image_format_name(rt.app_image_format),
+        app_abi::app_modulex_load_code_name(rt.app_modulex_code));
     emit<"dev: app store code={} lookup={} offset=0x{:08x} size={}\n">(
         app_abi::app_store_read_code_name(rt.store_read_code),
         app_abi::app_store_read_code_name(rt.store_lookup.code),
@@ -1064,12 +1265,12 @@ void print_help() noexcept {
     emit<"  dev store install emmc     - Install launch_ready .appstore.bin to eMMC raw slot\n">();
     emit<"  dev store list qspi        - List QSPI App Store entries\n">();
     emit<"  dev store list emmc        - List eMMC App Store entries\n">();
-    emit<"  dev store stage qspi:<name> - Stage named QSPI App ELF without running\n">();
-    emit<"  dev store stage emmc:<name> - Stage named eMMC App ELF without running\n">();
-    emit<"  dev app stage <name>       - Stage launch_ready payload as App ELF\n">();
-    emit<"  dev app probe <name>       - Stage and ELF-probe payload without running\n">();
+    emit<"  dev store stage qspi:<name> - Stage named QSPI App image without running\n">();
+    emit<"  dev store stage emmc:<name> - Stage named eMMC App image without running\n">();
+    emit<"  dev app stage <name>       - Stage launch_ready payload as App image\n">();
+    emit<"  dev app probe <name>       - Stage and load-probe payload without running\n">();
     emit<"  dev app prepare <name> [args...] - Prepare AppRuntime argv/ABI without running\n">();
-    emit<"  dev app run <name>|qspi:<name>|emmc:<name> [args...] - Explicitly call charm_app_main from loaded ELF\n">();
+    emit<"  dev app run <name>|qspi:<name>|emmc:<name> [args...] - Explicitly call charm_app_main from loaded ELF/ModuleX\n">();
     emit<"  dev app status             - Show received App stage/probe diagnostics\n">();
 }
 
@@ -1346,8 +1547,10 @@ bool reset_app_diagnostics(Runtime& rt, std::string_view command, std::string_vi
     const bool name_ok = set_app_name(rt, name);
     rt.app_read_code = loader::ReceivedImageReadCode::not_launch_ready;
     rt.app_stage_code = app_abi::AppReceivedImageStageCode::not_verified;
+    rt.app_image_format = app_abi::AppImageFormat::elf;
     rt.app_probe = app_abi::AppElfProbeResult{.code = app_abi::AppElfProbeCode::invalid_argument};
     rt.app_elf_backend = {};
+    rt.app_modulex_code = app_abi::AppModuleXLoadCode::invalid_argument;
     rt.app_plan_code = app_abi::AppRunCode::load_failed;
     rt.app_plan_backend_error = 0;
     rt.app_plan_load_base = 0;
@@ -1406,6 +1609,28 @@ app_abi::AppRunCode app_run_code_from_store_read(app_abi::AppStoreReadCode code)
         : app_abi::AppRunCode::load_failed;
 }
 
+constexpr std::string_view app_image_format_name(app_abi::AppImageFormat format) noexcept {
+    switch (format) {
+        case app_abi::AppImageFormat::function:
+            return "function"sv;
+        case app_abi::AppImageFormat::elf:
+            return "elf"sv;
+        case app_abi::AppImageFormat::modulex:
+            return "modulex"sv;
+    }
+    return "unknown"sv;
+}
+
+app_abi::AppImageFormat detect_received_image_format(std::span<const std::byte> payload) noexcept {
+    if (payload.size() >= sizeof(modulex::ImageHeader)) {
+        const auto* header = reinterpret_cast<const modulex::ImageHeader*>(payload.data());
+        if (header->magic == modulex::k_magic && header->version == modulex::k_version) {
+            return app_abi::AppImageFormat::modulex;
+        }
+    }
+    return app_abi::AppImageFormat::elf;
+}
+
 app_abi::AppImage stage_received_app(Runtime& rt, std::string_view command, std::string_view name) noexcept {
     if (!reset_app_diagnostics(rt, command, name)) {
         return {};
@@ -1431,11 +1656,12 @@ app_abi::AppImage stage_received_app(Runtime& rt, std::string_view command, std:
 
     const auto staged = app_abi::app_received_image_stage(app_abi::AppReceivedImageStageConfig{
         .name = rt.app_name,
-        .format = app_abi::AppImageFormat::elf,
+        .format = detect_received_image_format(payload),
         .image = payload,
         .verified = true,
         .cache = scratch,
     });
+    rt.app_image_format = staged.image.format;
     rt.app_stage_code = staged.code;
     rt.app_stage_bytes = staged.bytes_copied;
     if (staged.code != app_abi::AppReceivedImageStageCode::ok) {
@@ -1477,6 +1703,7 @@ app_abi::AppImage stage_qspi_app(Runtime& rt, std::string_view command, std::str
     rt.app_stage_code = app_abi::AppReceivedImageStageCode::ok;
     rt.app_read_bytes = staged.lookup.entry.size;
     rt.app_stage_bytes = staged.lookup.entry.size;
+    rt.app_image_format = staged.image.format;
     return staged.image;
 }
 
@@ -1512,6 +1739,7 @@ app_abi::AppImage stage_emmc_app(Runtime& rt, std::string_view command, std::str
     rt.app_stage_code = app_abi::AppReceivedImageStageCode::ok;
     rt.app_read_bytes = staged.lookup.entry.size;
     rt.app_stage_bytes = staged.lookup.entry.size;
+    rt.app_image_format = staged.image.format;
     return staged.image;
 }
 
@@ -1521,32 +1749,25 @@ void prepare_received_app(Runtime& rt, std::string_view name, std::string_view a
         return;
     }
 
-    auto& load = elf_probe_load_buffer();
+    ModuleXRuntimeLoadContext modulex_ctx{};
+    const auto loader = make_prepare_loader_binding(rt, image, modulex_ctx);
     app_abi::StagedAppImageSource source_ctx{
         .image = image,
-        .load_ctx = &rt.app_elf_backend,
-        .load = load_runtime_elf,
+        .load_ctx = loader.load_ctx,
+        .load = loader.load,
     };
     auto source = app_abi::make_staged_app_image_source(source_ctx);
     CharmAppApi api = make_prepare_api();
     app_abi::AppRuntime<> app_runtime{};
     const auto prepared = app_runtime.prepare(app_abi::AppRunConfig{
         .source = &source,
-        .load_buffer = app_abi::AppLoadBuffer{
-            .base = load.data(),
-            .size = load.size(),
-            .align = 16,
-        },
+        .load_buffer = loader.buffer,
         .api = &api,
         .name = rt.app_name,
         .arg_text = args,
     });
 
-    rt.app_probe = rt.app_elf_backend.last.plan.probe;
-    rt.app_plan_code = rt.app_elf_backend.last.code;
-    rt.app_plan_backend_error = rt.app_elf_backend.last.backend_error;
-    rt.app_plan_load_base = rt.app_elf_backend.last.plan.load_base;
-    rt.app_plan_entry = rt.app_elf_backend.last.plan.entry_address;
+    record_loader_plan(rt, image);
     rt.app_prepare_stage = prepared.result.stage;
     rt.app_prepare_code = prepared.result.code;
     rt.app_prepare_backend_error = prepared.result.backend_error;
@@ -1556,50 +1777,52 @@ void prepare_received_app(Runtime& rt, std::string_view name, std::string_view a
 }
 
 void probe_staged_app(Runtime& rt, const app_abi::AppImage& image) noexcept {
+    if (image.format == app_abi::AppImageFormat::modulex) {
+        ModuleXRuntimeLoadContext modulex_ctx{.rt = &rt};
+        auto& load = elf_probe_load_buffer();
+        (void)load_runtime_modulex(&modulex_ctx,
+                                   image,
+                                   app_abi::AppLoadBuffer{
+                                       .base = load.data(),
+                                       .size = load.size(),
+                                       .align = 32U,
+                                   });
+        return;
+    }
+
     auto& load = elf_probe_load_buffer();
     const auto loaded = app_abi::app_elf_load_image(&rt.app_elf_backend,
                                                     image,
                                                     app_abi::AppLoadBuffer{
                                                         .base = load.data(),
                                                         .size = load.size(),
-                                                        .align = 16,
+                                                        .align = 16U,
                                                     });
-    rt.app_probe = rt.app_elf_backend.last.plan.probe;
+    record_loader_plan(rt, image);
     rt.app_plan_code = loaded.code;
     rt.app_plan_backend_error = loaded.backend_error;
-    rt.app_plan_load_base = rt.app_elf_backend.last.plan.load_base;
-    rt.app_plan_entry = rt.app_elf_backend.last.plan.entry_address;
 }
 
 void run_staged_app(Runtime& rt, const app_abi::AppImage& image, std::string_view args) noexcept {
-    const auto load = app_run_load_buffer();
+    ModuleXRuntimeLoadContext modulex_ctx{};
+    const auto loader = make_run_loader_binding(rt, image, modulex_ctx);
     app_abi::StagedAppImageSource source_ctx{
         .image = image,
-        .load_ctx = &rt.app_elf_backend,
-        .load = load_runtime_elf,
+        .load_ctx = loader.load_ctx,
+        .load = loader.load,
     };
     auto source = app_abi::make_staged_app_image_source(source_ctx);
     CharmAppApi api = make_run_api();
     app_abi::AppRuntime<> app_runtime{};
     const auto result = app_runtime.run(app_abi::AppRunConfig{
         .source = &source,
-        .load_buffer = app_abi::AppLoadBuffer{
-            .base = load.data(),
-            .size = load.size(),
-            .align = kAppRunLoadRegion.align,
-            .prepare = prepare_loaded_app_buffer,
-            .prepare_ctx = &rt.app_elf_backend,
-        },
+        .load_buffer = loader.buffer,
         .api = &api,
         .name = image.name,
         .arg_text = args,
     });
 
-    rt.app_probe = rt.app_elf_backend.last.plan.probe;
-    rt.app_plan_code = rt.app_elf_backend.last.code;
-    rt.app_plan_backend_error = rt.app_elf_backend.last.backend_error;
-    rt.app_plan_load_base = rt.app_elf_backend.last.plan.load_base;
-    rt.app_plan_entry = rt.app_elf_backend.last.plan.entry_address;
+    record_loader_plan(rt, image);
     if (result.stage == app_abi::AppRunStage::exit || result.stage == app_abi::AppRunStage::start) {
         rt.app_prepare_stage = app_abi::AppRunStage::start;
         rt.app_prepare_code = app_abi::AppRunCode::ok;

@@ -30,18 +30,22 @@ QSPI/eMMC App Store paths and Dev Loader received-image paths both converge on
 image format, entry point, or capability table.
 
 POSIX remains a compatibility layer for C/POSIX programs. Player, Scope, and
-future hot-loaded apps should target this capability-table semantic model first;
-ELF is the first image format, and ModuleX must later reuse the same entry and
-capability table rather than defining a second program model.
+future hot-loaded apps should target this capability-table semantic model first.
+ELF is the first image format. ModuleX is now the second App image format and
+must keep reusing the same entry and capability table rather than defining a
+second program model.
 
-`charm_app_modulex_loader.hpp` is the first host-only ModuleX App loader
-prototype. It treats ModuleX as a second `AppImage` format, resolves
-`charm_app_main` from the ModuleX symbol table, and materializes the result as
-the same `CharmAppMainFn` consumed by `AppRuntime`. It deliberately does not
-reuse the POSIX ModuleX `main(argc, argv, envp)` ABI. Because current GCC
-modules and libstdc++ text headers are sensitive to include/import order,
-callers include the normal App ABI headers and standard library headers first,
-then import `module_core/module_view/module_loader/module_link`, then include
+`charm_app_modulex_loader.hpp` is the ModuleX App loader prototype. It treats
+ModuleX as a second `AppImage` format, resolves `charm_app_main` from the
+ModuleX symbol table, and materializes the result as the same `CharmAppMainFn`
+consumed by `AppRuntime`. It deliberately does not reuse the POSIX ModuleX
+`main(argc, argv, envp)` ABI. On H747 CM7 the resident loader copies ModuleX
+bytes into the runtime-owned execute/load region before resolving the callable
+entry and sets the Thumb bit on that final entry address; host smokes do not
+alter host function pointers. Because current GCC modules and libstdc++ text
+headers are sensitive to include/import order, callers include the normal App
+ABI headers and standard library headers first, then import
+`module_core/module_view/module_loader/module_link`, then include
 `charm_app_modulex_loader.hpp`.
 
 `player_min_core.h` holds the first shared Player-mini app core used by both the
@@ -51,8 +55,11 @@ return an exit code.
 
 `charm_app_store.hpp` defines the first read-only program-image store layout for
 external media such as H747 QSPI Nor Flash. The store is intentionally minimal:
-a fixed header plus fixed entries that map an app name to an ELF byte range.
-It is not a filesystem, manifest DSL, or package manager.
+a fixed header plus fixed entries that map an app name to a byte range. Store v1
+does not change layout for format metadata; it uses the low nibble of
+`AppStoreEntry.flags`: `0` means ELF and `1` means ModuleX. Old stores with zero
+flags continue to stage as ELF. It is not a filesystem, manifest DSL, or package
+manager.
 
 The same header also contains the board-free store builder and staging helpers.
 The builder creates an in-memory v1 store image from named payloads, while the

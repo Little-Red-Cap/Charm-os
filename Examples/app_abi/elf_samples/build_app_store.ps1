@@ -24,6 +24,7 @@ cmake --build $packToolBuild
 $packTool = Join-Path $packToolBuild "app-abi-store-pack.exe"
 $hello = Join-Path $OutDir "hello_app.elf"
 $player = Join-Path $OutDir "player_min.elf"
-& $packTool $StorePath "hello_app=$hello" "player_min=$player"
+$modulex = Join-Path $OutDir "modulex_hello_app.modulex"
+& $packTool $StorePath "hello_app=$hello" "player_min=$player" "modulex_hello_app:modulex=$modulex"
 
 Write-Host "[ok] app store built at $StorePath"

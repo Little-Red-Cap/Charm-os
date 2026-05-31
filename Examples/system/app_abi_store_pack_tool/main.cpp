@@ -20,10 +20,14 @@ namespace fs = std::filesystem;
 struct Payload {
     std::string name{};
     std::vector<std::byte> bytes{};
+    std::uint32_t flags{0};
 };
 
 void print_usage(const char* argv0) {
-    std::fprintf(stderr, "usage: %s <output.appstore.bin> <name=payload> [name=payload...]\n", argv0);
+    std::fprintf(stderr,
+                 "usage: %s <output.appstore.bin> <name[(:elf|:modulex)]=payload> "
+                 "[name[(:elf|:modulex)]=payload...]\n",
+                 argv0);
 }
 
 bool read_file(const fs::path& path, std::vector<std::byte>& out) {
@@ -79,7 +83,27 @@ int main(int argc, char** argv) {
         }
 
         Payload payload{};
-        payload.name = spec.substr(0, eq);
+        std::string name_spec = spec.substr(0, eq);
+        const auto colon = name_spec.find(':');
+        std::string format = "elf";
+        if (colon != std::string::npos) {
+            format = name_spec.substr(colon + 1U);
+            name_spec = name_spec.substr(0, colon);
+        }
+        if (name_spec.empty() || format.empty()) {
+            std::fprintf(stderr, "invalid payload spec: %s\n", argv[i]);
+            return 2;
+        }
+        if (format == "elf") {
+            payload.flags = app_abi::app_store_format_flags(app_abi::AppImageFormat::elf);
+        } else if (format == "modulex") {
+            payload.flags = app_abi::app_store_format_flags(app_abi::AppImageFormat::modulex);
+        } else {
+            std::fprintf(stderr, "unsupported payload format: %s\n", format.c_str());
+            return 2;
+        }
+
+        payload.name = std::move(name_spec);
         const fs::path path = spec.substr(eq + 1U);
         if (!read_file(path, payload.bytes)) {
             std::fprintf(stderr, "failed to read payload: %s\n", path.string().c_str());
@@ -94,7 +118,7 @@ int main(int argc, char** argv) {
         entries.push_back(app_abi::AppStoreBuildEntry{
             .name = payload.name,
             .payload = std::span<const std::byte>{payload.bytes.data(), payload.bytes.size()},
-            .flags = 0,
+            .flags = payload.flags,
         });
     }
 

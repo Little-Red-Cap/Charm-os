@@ -49,6 +49,7 @@ struct HostRuntime {
 
 struct StagedLoadCtx {
     CharmAppMainFn entry{nullptr};
+    app_abi::AppImageFormat expected_format{app_abi::AppImageFormat::function};
     app_abi::AppRunCode load_code{app_abi::AppRunCode::ok};
     int backend_error{0};
 };
@@ -151,7 +152,8 @@ extern "C" int fake_charm_app_main(const CharmAppApi* api, int argc, char** argv
     if (api->time.now_ms == nullptr || api->time.now_ms() != 1357U) {
         return 92;
     }
-    if (argc != 3 || std::string_view{argv[0]} != "hello_app" ||
+    const std::string_view app_name{argv[0]};
+    if (argc != 3 || (app_name != "hello_app" && app_name != "modulex_hello_app") ||
         std::string_view{argv[1]} != "alpha" || std::string_view{argv[2]} != "beta") {
         return 93;
     }
@@ -276,6 +278,9 @@ app_abi::AppLoadResult load_staged_function(void* ctx,
     if (load->load_code != app_abi::AppRunCode::ok) {
         return {.code = load->load_code, .backend_error = load->backend_error};
     }
+    if (image.format != load->expected_format) {
+        return {.code = app_abi::AppRunCode::not_supported, .backend_error = 44};
+    }
     return app_abi::AppLoadResult{
         .code = app_abi::AppRunCode::ok,
         .image = app_abi::LoadedAppImage::from_entry(image.name, image.format, load->entry),
@@ -324,9 +329,28 @@ std::span<const std::byte> make_store_image(std::array<std::byte, 512>& store,
         std::byte{0x03},
         std::byte{0x04},
     };
-    const std::array<app_abi::AppStoreBuildEntry, 2> entries{
+    const std::array<std::byte, 12> modulex_payload{
+        std::byte{'C'},
+        std::byte{'H'},
+        std::byte{'M'},
+        std::byte{'M'},
+        std::byte{0x02},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0x00},
+        std::byte{0xAA},
+        std::byte{0xBB},
+        std::byte{0xCC},
+        std::byte{0xDD},
+    };
+    const std::array<app_abi::AppStoreBuildEntry, 3> entries{
         app_abi::AppStoreBuildEntry{.name = "hello_app", .payload = hello_payload},
         app_abi::AppStoreBuildEntry{.name = "player_min", .payload = player_payload},
+        app_abi::AppStoreBuildEntry{
+            .name = "modulex_hello_app",
+            .payload = modulex_payload,
+            .flags = app_abi::app_store_format_flags(app_abi::AppImageFormat::modulex),
+        },
     };
     const auto built = app_abi::app_store_build_image(entries, store);
     if (code != nullptr) {
@@ -414,7 +438,7 @@ bool expect_success_path() {
     const auto reader = make_reader(reader_ctx);
     app_abi::AppStoreHeader header{};
     ok = expect(app_abi::app_store_read_header(reader, header) == app_abi::AppStoreReadCode::ok &&
-                    header.entry_count == 2,
+                    header.entry_count == 3,
                 "installed store header reads back") && ok;
 
     std::array<std::byte, 64> stage_cache{};
@@ -429,7 +453,10 @@ bool expect_success_path() {
                     staged.image.format == app_abi::AppImageFormat::function,
                 "installed store stages named image") && ok;
 
-    StagedLoadCtx load_ctx{.entry = fake_charm_app_main};
+    StagedLoadCtx load_ctx{
+        .entry = fake_charm_app_main,
+        .expected_format = app_abi::AppImageFormat::function,
+    };
     app_abi::StagedAppImageSource source_ctx{
         .image = staged.image,
         .load_ctx = &load_ctx,
@@ -455,6 +482,40 @@ bool expect_success_path() {
                     host.argc_seen == 3 &&
                     contains(host, "store handoff app"),
                 "AppRuntime exposes capabilities and argv for store image") && ok;
+
+    std::array<std::byte, 64> modulex_stage_cache{};
+    const auto staged_modulex = loader::store_stage_named_app_image(loader::StoreStageNamedConfig{
+        .reader = reader,
+        .name = "modulex_hello_app",
+        .cache = modulex_stage_cache,
+    });
+    ok = expect(staged_modulex.code == app_abi::AppStoreReadCode::ok &&
+                    staged_modulex.image.name == "modulex_hello_app" &&
+                    staged_modulex.image.format == app_abi::AppImageFormat::modulex,
+                "installed mixed store stages ModuleX entry by flags") && ok;
+    StagedLoadCtx modulex_load_ctx{
+        .entry = fake_charm_app_main,
+        .expected_format = app_abi::AppImageFormat::modulex,
+    };
+    app_abi::StagedAppImageSource modulex_source_ctx{
+        .image = staged_modulex.image,
+        .load_ctx = &modulex_load_ctx,
+        .load = load_staged_function,
+    };
+    auto modulex_source = app_abi::make_staged_app_image_source(modulex_source_ctx);
+    HostRuntime modulex_host{};
+    g_host = &modulex_host;
+    const auto modulex_run = runtime.run(app_abi::AppRunConfig{
+        .source = &modulex_source,
+        .api = &api,
+        .name = "modulex_hello_app",
+        .arg_text = "alpha beta",
+    });
+    ok = expect(modulex_run.stage == app_abi::AppRunStage::exit &&
+                    modulex_run.code == app_abi::AppRunCode::ok &&
+                    modulex_run.exited &&
+                    modulex_run.exit_code == 12,
+                "store ModuleX entry uses same staged source and AppRuntime") && ok;
 
     return ok;
 }
@@ -653,6 +714,7 @@ bool expect_error_paths() {
                 "run error fixture stages") && ok;
     StagedLoadCtx load_ctx{
         .entry = fake_charm_app_main,
+        .expected_format = app_abi::AppImageFormat::function,
         .load_code = app_abi::AppRunCode::load_failed,
         .backend_error = 77,
     };

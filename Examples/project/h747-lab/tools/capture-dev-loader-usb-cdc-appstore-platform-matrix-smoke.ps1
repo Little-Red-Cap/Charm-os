@@ -79,10 +79,54 @@ function Get-MediaList {
     return ,$Result.ToArray()
 }
 
+function Get-PacketStreamBeginInfo {
+    param([byte[]]$Bytes)
+
+    $HeaderSize = 28
+    if ($Bytes.Length -lt $HeaderSize) {
+        throw "PacketStream is too small to contain a packet header."
+    }
+
+    $Magic = [BitConverter]::ToUInt32($Bytes, 0)
+    $Version = [BitConverter]::ToUInt16($Bytes, 4)
+    $HeaderFieldSize = [BitConverter]::ToUInt16($Bytes, 6)
+    $Kind = [BitConverter]::ToUInt16($Bytes, 8)
+    $Flags = [BitConverter]::ToUInt16($Bytes, 10)
+    $Sequence = [BitConverter]::ToUInt32($Bytes, 12)
+    $Size = [BitConverter]::ToUInt32($Bytes, 20)
+    $Crc32 = [BitConverter]::ToUInt32($Bytes, 24)
+
+    if ($Magic -ne 0x504C5643) {
+        throw ("PacketStream begin packet has bad magic: 0x{0:x8}" -f $Magic)
+    }
+    if ($Version -ne 1) {
+        throw "PacketStream begin packet has unsupported version: $Version"
+    }
+    if ($HeaderFieldSize -ne $HeaderSize) {
+        throw "PacketStream begin packet has unsupported header size: $HeaderFieldSize"
+    }
+    if ($Kind -ne 1) {
+        throw "PacketStream first packet is not begin: kind=$Kind"
+    }
+    if ($Sequence -ne 0) {
+        throw "PacketStream begin packet sequence must be 0, got $Sequence"
+    }
+    if ($Size -eq 0) {
+        throw "PacketStream begin packet payload size must be non-zero."
+    }
+
+    return @{
+        PayloadSize = $Size
+        Crc32 = $Crc32
+        CheckCrc = (($Flags -band 1) -ne 0)
+    }
+}
+
 function Get-RequiredTokens {
     param(
         [string[]]$MediaList,
-        [int]$RepeatPerMedia
+        [int]$RepeatPerMedia,
+        [int]$PayloadSize
     )
 
     $Tokens = New-Object System.Collections.Generic.List[string]
@@ -92,8 +136,10 @@ function Get-RequiredTokens {
         [void]$Tokens.Add("dev: store install $Name receive=ok")
         [void]$Tokens.Add("dev: app command=run name=${Name}:hello_app run=enabled")
         [void]$Tokens.Add("dev: app command=run name=${Name}:player_min run=enabled")
-        [void]$Tokens.Add("$Name written=10416")
+        [void]$Tokens.Add("dev: app command=run name=${Name}:modulex_hello_app run=enabled")
+        [void]$Tokens.Add("$Name written=$PayloadSize")
         [void]$Tokens.Add("  ${Name}:")
+        [void]$Tokens.Add("modulex_hello_app exit=0")
         for ($Index = 1; $Index -le $RepeatPerMedia; ++$Index) {
             [void]$Tokens.Add("platform repeat $Index/$RepeatPerMedia passed")
         }
@@ -105,22 +151,27 @@ function Get-RequiredTokens {
 function Get-RequiredCounts {
     param(
         [string[]]$MediaList,
-        [int]$RepeatPerMedia
+        [int]$RepeatPerMedia,
+        [int]$PayloadSize,
+        [uint32]$Crc32
     )
 
     $Counts = New-Object System.Collections.Generic.List[object]
     $TotalRepeats = $MediaList.Count * $RepeatPerMedia
     [void]$Counts.Add(@{ Token = "USB CDC packetstream transfer passed."; Count = $TotalRepeats })
-    [void]$Counts.Add(@{ Token = "dev: stage=launch_ready code=ok received=10416"; Count = $TotalRepeats })
-    [void]$Counts.Add(@{ Token = "crc=0x73de4894/0x73de4894"; Count = $TotalRepeats })
+    [void]$Counts.Add(@{ Token = "dev: stage=launch_ready code=ok received=$PayloadSize"; Count = $TotalRepeats })
+    [void]$Counts.Add(@{ Token = ("crc=0x{0:x8}/0x{0:x8}" -f $Crc32); Count = $TotalRepeats })
     [void]$Counts.Add(@{ Token = "store=ok code=ok"; Count = $TotalRepeats })
     [void]$Counts.Add(@{ Token = "hello_app: charm_app_main entered"; Count = $TotalRepeats })
     [void]$Counts.Add(@{ Token = "player_min: presented one frame"; Count = $TotalRepeats })
+    [void]$Counts.Add(@{ Token = "modulex_hello_app: charm_app_main entered"; Count = $TotalRepeats })
+    [void]$Counts.Add(@{ Token = "dev: app format=modulex modulex=ok"; Count = $TotalRepeats })
     [void]$Counts.Add(@{ Token = "dev: app stage-arena name=sdram2_stage_cache addr=0xd0040000 expected=0xd0040000"; Count = $TotalRepeats })
     [void]$Counts.Add(@{ Token = "dev: app sdram2 ready=1 init=1 smoke=1 base=0xd0000000"; Count = $TotalRepeats })
     [void]$Counts.Add(@{ Token = "dev: app run-region name=ram_d1_app_elf base=0x24070000 size=65536 align=16 linked_elf_base=0x24070000"; Count = $TotalRepeats })
     [void]$Counts.Add(@{ Token = "hello_app exit=0"; Count = $MediaList.Count })
     [void]$Counts.Add(@{ Token = "player_min exit=0"; Count = $MediaList.Count })
+    [void]$Counts.Add(@{ Token = "modulex_hello_app exit=0"; Count = $MediaList.Count })
     return ,$Counts.ToArray()
 }
 
@@ -149,15 +200,16 @@ function Get-MissingEvidence {
 function Get-SyntheticMediaLog {
     param([string]$Name)
 
-    $ListLine = if ($Name -eq "emmc") { "dev: store emmc entries=2" } else { "dev: store entries=2" }
+    $ListLine = if ($Name -eq "emmc") { "dev: store emmc entries=3" } else { "dev: store entries=3" }
     return @"
 === matrix media $Name ===
 USB CDC packetstream transfer passed.
-dev: stage=launch_ready code=ok received=10416 crc=0x73de4894/0x73de4894
-dev: store install $Name receive=ok recv_bytes=10416 store=ok code=ok target=0x00000000 written=10416 erased=10752
+dev: stage=launch_ready code=ok received=10676 crc=0x647b2090/0x647b2090
+dev: store install $Name receive=ok recv_bytes=10676 store=ok code=ok target=0x00000000 written=10676 erased=10752
 $ListLine
-  [0] name=hello_app offset=0x00000070 size=5132 flags=0x00000000 runnable=1
-  [1] name=player_min offset=0x00001480 size=5168 flags=0x00000000 runnable=1
+  [0] name=hello_app format=elf offset=0x000000a0 size=5132 flags=0x00000000 runnable=1
+  [1] name=player_min format=elf offset=0x000014b0 size=5168 flags=0x00000000 runnable=1
+  [2] name=modulex_hello_app format=modulex offset=0x00002900 size=212 flags=0x00000001 runnable=1
 hello_app: charm_app_main entered
 hello_app: argv1=alpha
 dev: app command=run name=${Name}:hello_app run=enabled
@@ -168,14 +220,19 @@ dev: app run stage=exit code=ok backend=0 exited=1 exit=0
 player_min: presented one frame
 dev: app command=run name=${Name}:player_min run=enabled
 dev: app run stage=exit code=ok backend=0 exited=1 exit=0
+modulex_hello_app: charm_app_main entered
+dev: app command=run name=${Name}:modulex_hello_app run=enabled
+dev: app format=modulex modulex=ok
+dev: app run stage=exit code=ok backend=0 exited=1 exit=0
 Summary:
   usb throughput: 13.20 KiB/s
-  $Name written=10416 erased=10752
+  $Name written=10676 erased=10752
   hello_app exit=0
   player_min exit=0
+  modulex_hello_app exit=0
 platform repeat 1/1 passed
 media $Name passed
-  ${Name}: log=matrix.$Name.log throughput=13.20 KiB/s written=10416 erased=10752 hello_app=0 player_min=0
+  ${Name}: log=matrix.$Name.log throughput=13.20 KiB/s written=10676 erased=10752 hello_app=0 player_min=0 modulex_hello_app=0
 "@
 }
 
@@ -231,8 +288,8 @@ function Validate-LogFile {
 
 function Invoke-SelfTest {
     $MediaList = @("qspi", "emmc")
-    $Tokens = Get-RequiredTokens -MediaList $MediaList -RepeatPerMedia 1
-    $Counts = Get-RequiredCounts -MediaList $MediaList -RepeatPerMedia 1
+    $Tokens = Get-RequiredTokens -MediaList $MediaList -RepeatPerMedia 1 -PayloadSize 10676
+    $Counts = Get-RequiredCounts -MediaList $MediaList -RepeatPerMedia 1 -PayloadSize 10676 -Crc32 ([uint32]0x647b2090)
     $Passing = Get-SyntheticPassingLog -MediaList $MediaList -RepeatPerMedia 1
     $Missing = Get-MissingEvidence -Text $Passing -Tokens $Tokens -Counts $Counts
     if ($Missing.Count -ne 0) {
@@ -267,10 +324,6 @@ if ($RepeatPerMedia -le 0) {
     throw "RepeatPerMedia must be greater than zero."
 }
 
-$MediaList = Get-MediaList -RawMedia $Media
-$RequiredTokens = Get-RequiredTokens -MediaList $MediaList -RepeatPerMedia $RepeatPerMedia
-$RequiredCounts = Get-RequiredCounts -MediaList $MediaList -RepeatPerMedia $RepeatPerMedia
-
 if ($SelfTest) {
     exit (Invoke-SelfTest)
 }
@@ -286,6 +339,18 @@ if ([string]::IsNullOrWhiteSpace($PacketStream)) {
 if (-not (Test-Path -LiteralPath $PacketStream)) {
     throw "PacketStream not found: $PacketStream"
 }
+$PacketBytes = [System.IO.File]::ReadAllBytes((Resolve-Path -LiteralPath $PacketStream).Path)
+$PacketInfo = Get-PacketStreamBeginInfo -Bytes $PacketBytes
+$MediaList = Get-MediaList -RawMedia $Media
+$RequiredTokens = Get-RequiredTokens `
+    -MediaList $MediaList `
+    -RepeatPerMedia $RepeatPerMedia `
+    -PayloadSize $PacketInfo.PayloadSize
+$RequiredCounts = Get-RequiredCounts `
+    -MediaList $MediaList `
+    -RepeatPerMedia $RepeatPerMedia `
+    -PayloadSize $PacketInfo.PayloadSize `
+    -Crc32 $PacketInfo.Crc32
 if ([string]::IsNullOrWhiteSpace($Log)) {
     $Log = Join-Path $ProjectRoot "cmake-build-h747-lab-debug\h747_lab_dev_loader_usb_cdc_appstore_platform_matrix_smoke.log"
 }
@@ -305,6 +370,8 @@ if ($DryRun) {
     Write-Host "  control port: $ControlPort"
     Write-Host "  usb port:     $(if ([string]::IsNullOrWhiteSpace($UsbPort)) { 'auto-discover per media' } else { $UsbPort })"
     Write-Host "  packetstream: $ResolvedPacketStream"
+    Write-Host "  payload:      $($PacketInfo.PayloadSize)"
+    Write-Host ("  expected crc: 0x{0:x8}" -f $PacketInfo.Crc32)
     Write-Host "  write chunk:  $WriteChunkSize"
     Write-Host "  chunk delay:  ${InterChunkDelayMs}ms"
     Write-Host "  log:          $ResolvedLog"
@@ -389,7 +456,7 @@ try {
         $ThroughputText = if ($Throughputs.Count -gt 0) { $Throughputs -join "," } else { "n/a" }
         $WrittenText = if ($Install.Success) { $Install.Groups[1].Value } else { "n/a" }
         $ErasedText = if ($Install.Success) { $Install.Groups[2].Value } else { "n/a" }
-        [void]$Summary.Add("  ${Name}: log=$MediaLog throughput=$ThroughputText written=$WrittenText erased=$ErasedText hello_app=0 player_min=0")
+        [void]$Summary.Add("  ${Name}: log=$MediaLog throughput=$ThroughputText written=$WrittenText erased=$ErasedText hello_app=0 player_min=0 modulex_hello_app=0")
         Write-MatrixText "`nmedia $Name passed`n"
     }
 

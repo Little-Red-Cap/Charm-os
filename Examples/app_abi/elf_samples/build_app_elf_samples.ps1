@@ -83,6 +83,11 @@ foreach ($name in $samples) {
     Write-IncFile -InputPath $elf -OutputPath $inc -Symbol "${name}_elf"
 }
 
+& (Join-Path $PSScriptRoot "build_modulex_sample.ps1") `
+    -Compiler $HostCompiler `
+    -ToolchainPrefix $ToolchainPrefix `
+    -OutDir $OutDir
+
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "../../..")
 $packToolSource = Join-Path $repoRoot "Examples/system/app_abi_store_pack_tool"
 cmake -S $packToolSource -B $PackToolBuildDir -G Ninja -DCMAKE_CXX_COMPILER="$HostCompiler"
@@ -91,7 +96,8 @@ cmake --build $PackToolBuildDir
 $packTool = Join-Path $PackToolBuildDir "app-abi-store-pack.exe"
 $hello = Join-Path $OutDir "hello_app.elf"
 $player = Join-Path $OutDir "player_min.elf"
-& $packTool $StorePath "hello_app=$hello" "player_min=$player"
+$modulex = Join-Path $OutDir "modulex_hello_app.modulex"
+& $packTool $StorePath "hello_app=$hello" "player_min=$player" "modulex_hello_app:modulex=$modulex"
 Write-IncFile -InputPath $StorePath -OutputPath (Join-Path $IncDir "appstore.bin.inc") -Symbol "appstore_bin"
 
 Write-Host "[ok] app elf samples and app store built at $OutDir"

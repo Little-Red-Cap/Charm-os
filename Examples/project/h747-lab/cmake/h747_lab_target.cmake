@@ -720,12 +720,16 @@ function(h747_lab_add_firmware)
                 -StorePath "${_generated_out_dir}/appstore.bin"
             DEPENDS
                 "${_app_elf_samples_dir}/build_app_elf_samples.ps1"
+                "${_app_elf_samples_dir}/build_modulex_sample.ps1"
                 "${_app_elf_samples_dir}/app_elf.ld"
+                "${_app_elf_samples_dir}/modulex_hello_app.S"
                 "${CHARM_ROOT}/Examples/app_abi/charm_app_api.h"
                 "${CHARM_ROOT}/Examples/app_abi/charm_app_store.hpp"
                 "${CHARM_ROOT}/Examples/app_abi/player_min_core.h"
                 "${_app_elf_samples_dir}/hello_app.c"
                 "${_app_elf_samples_dir}/player_min.c"
+                "${CHARM_ROOT}/Examples/system/app_abi_modulex_pack_tool/main.cpp"
+                "${CHARM_ROOT}/Examples/system/app_abi_modulex_pack_tool/CMakeLists.txt"
                 "${CHARM_ROOT}/Examples/system/app_abi_store_pack_tool/main.cpp"
                 "${CHARM_ROOT}/Examples/system/app_abi_store_pack_tool/CMakeLists.txt"
             VERBATIM)

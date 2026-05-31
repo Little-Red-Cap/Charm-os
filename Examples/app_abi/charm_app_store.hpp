@@ -13,6 +13,9 @@ namespace charm::app_abi {
 inline constexpr std::uint32_t kAppStoreMagic = 0x50415043U; // "CPAP", little-endian.
 inline constexpr std::uint16_t kAppStoreVersion = 1U;
 inline constexpr std::uint32_t kAppStoreMaxEntries = 128U;
+inline constexpr std::uint32_t kAppStoreFormatMask = 0x0000000FU;
+inline constexpr std::uint32_t kAppStoreFormatElf = 0x00000000U;
+inline constexpr std::uint32_t kAppStoreFormatModuleX = 0x00000001U;
 
 struct AppStoreHeader {
     std::uint32_t magic{0};
@@ -112,6 +115,27 @@ struct AppStoreStageResult {
 
 [[nodiscard]] constexpr bool app_store_entry_runnable(const AppStoreEntry& entry) noexcept {
     return entry.name[0] != '\0' && entry.size != 0U;
+}
+
+[[nodiscard]] constexpr AppImageFormat app_store_entry_format(const AppStoreEntry& entry) noexcept {
+    switch (entry.flags & kAppStoreFormatMask) {
+        case kAppStoreFormatModuleX:
+            return AppImageFormat::modulex;
+        case kAppStoreFormatElf:
+        default:
+            return AppImageFormat::elf;
+    }
+}
+
+[[nodiscard]] constexpr std::uint32_t app_store_format_flags(AppImageFormat format) noexcept {
+    switch (format) {
+        case AppImageFormat::modulex:
+            return kAppStoreFormatModuleX;
+        case AppImageFormat::function:
+        case AppImageFormat::elf:
+        default:
+            return kAppStoreFormatElf;
+    }
 }
 
 [[nodiscard]] constexpr bool app_store_name_valid(std::string_view name) noexcept {
@@ -353,9 +377,12 @@ struct AppStoreStageResult {
     if (result.code != AppStoreReadCode::ok) {
         return result;
     }
+    const auto image_format = format == AppImageFormat::elf
+        ? app_store_entry_format(result.lookup.entry)
+        : format;
     result.image = AppImage{
         .name = name,
-        .format = format,
+        .format = image_format,
         .image_base = cache.data(),
         .image_size = result.lookup.entry.size,
     };

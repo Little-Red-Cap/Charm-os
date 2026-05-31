@@ -118,9 +118,18 @@ int main() {
     std::memcpy(entry.name, "player_min", sizeof("player_min"));
     entry.offset = 0x1000;
     entry.size = 0x2000;
+    entry.flags = app_abi::app_store_format_flags(app_abi::AppImageFormat::modulex);
     ok = expect(app_abi::app_store_entry_name(entry) == "player_min",
                 "entry name view") && ok;
     ok = expect(app_abi::app_store_entry_runnable(entry), "entry runnable") && ok;
+    ok = expect(app_abi::app_store_entry_format(entry) == app_abi::AppImageFormat::modulex,
+                "store entry flags map to ModuleX format") && ok;
+    ok = expect(app_abi::app_store_format_flags(app_abi::AppImageFormat::elf) ==
+                    app_abi::kAppStoreFormatElf,
+                "ELF format maps to store flags zero") && ok;
+    entry.flags = 0xFFFFFFF0U;
+    ok = expect(app_abi::app_store_entry_format(entry) == app_abi::AppImageFormat::elf,
+                "legacy zero low-nibble flags remain ELF") && ok;
 
     entry.size = 0;
     ok = expect(!app_abi::app_store_entry_runnable(entry),
@@ -148,6 +157,7 @@ int main() {
     std::memcpy(player.name, "player_min", sizeof("player_min"));
     player.offset = 0x90;
     player.size = 8;
+    player.flags = app_abi::app_store_format_flags(app_abi::AppImageFormat::modulex);
     write_bytes(memory, app_abi::app_store_entry_offset(header, 1), &player, sizeof(player));
 
     const std::array<std::byte, 4> image{
@@ -222,6 +232,12 @@ int main() {
                 "staging returns AppImage view") && ok;
     ok = expect(stage_cache[0] == std::byte{0xCA} && stage_cache[3] == std::byte{0xBE},
                 "staging copies payload") && ok;
+
+    const auto staged_modulex = app_abi::app_store_stage_named_image(reader, "player_min", stage_cache);
+    ok = expect(staged_modulex.code == app_abi::AppStoreReadCode::ok &&
+                    staged_modulex.image.name == "player_min" &&
+                    staged_modulex.image.format == app_abi::AppImageFormat::modulex,
+                "staging uses Store flags to produce AppImage(format=modulex)") && ok;
 
     HostState host{};
     g_host = &host;

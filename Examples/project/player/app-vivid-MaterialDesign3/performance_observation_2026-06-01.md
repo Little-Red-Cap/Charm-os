@@ -100,6 +100,17 @@ Now Playing 进入/退出动画使用真实 `bottom_hit` / `now_back` 点击触�
 
 进入 Now 的峰值帧出现在动画中段，`max_frame_us=74320`，但 `total_execute_us=86935`。退出 Now 的 `total_execute_us=176978` 明显更高，且多个中间帧执行 78 条命令，说明退出动画比进入动画更值得优先看 executor / overlay 组合成本。
 
+## Exit Now 双快照收敛验证
+
+`NowPlaying -> Home` collapse 已改为与 expand 一样捕获 destination snapshot。动画中间帧不再提前暴露 live Home；`home.cards` 只在完成后的最终 Home 帧出现，不再与 `now.transition` overlay 同帧叠加。
+
+| 场景 | frames | completed | total_execute_us | max_execute_us | total_alpha | max_alpha_screen_x1000 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| exit_now before | 7 | 1 | 182148 | 34365 | 1582417 | 671 |
+| exit_now after | 7 | 1 | 67067 | 23607 | 782715 | 413 |
+
+after 样本中 `exit_now:frame1` 到 `exit_now:frame5` 只有 `now.transition` scope；`home.cards` 只出现在 `active=0` 的最终 Home 帧。这说明本轮主要降低的是退出动画中段的重复 Home live UI 绘制，而不是改变视觉参数或 DrawCmd executor 算法。
+
 ## H747 样本
 
 当前已烧录固件的 H747 smoke 采集通过：

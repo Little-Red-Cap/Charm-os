@@ -133,9 +133,16 @@
             && ctx.layer_transition_composite_pixels > compose_pixels_before_back
             && ctx.layer_transition_pixel_compose_count > pixel_composes_before_back
             && ctx.layer_transition_pixel_compose_pixels > pixel_compose_pixels_before_back
-            && ctx.layer_transition_destination_capture_count == destination_captures_before_back
-            && ctx.layer_transition_destination_compose_count == destination_composes_before_back
-            && ctx.layer_transition_destination_compose_pixels == destination_compose_pixels_before_back) {
+            && ctx.layer_transition_destination_capture_count > destination_captures_before_back
+            && ctx.layer_transition_destination_compose_count > destination_composes_before_back
+            && ctx.layer_transition_destination_compose_pixels > destination_compose_pixels_before_back
+            && ctx.effective_layer_profile == ::ui::scene::LayerProfile::Rich
+            && ctx.layer_transition_fallback_reason == ::ui::scene::LayerFallbackReason::None
+            && ctx.layer_transition_last_budget_ok
+            && ctx.layer_transition_last_layer_bytes > 0
+            && ctx.layer_transition_last_layer_bytes_budget > 0
+            && ctx.layer_transition_last_composite_pixels > 0
+            && ctx.layer_transition_last_composite_pixels_budget > 0) {
             ui_ci_emit("layer_transition_now_to_home_compose", true, nullptr);
         } else {
             ui_ci_emit("layer_transition_now_to_home_compose", false, "transition_compose");

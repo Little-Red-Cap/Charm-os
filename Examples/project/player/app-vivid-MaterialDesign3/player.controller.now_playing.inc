@@ -895,7 +895,7 @@
         }
 
         bool transition_uses_destination_snapshot() const noexcept {
-            return now_playing_transition.active && now_playing_transition.route.expanding;
+            return now_playing_transition.active;
         }
 
         ::ui::scene::LayerComposePlan make_transition_snapshot_plan(
@@ -1023,8 +1023,7 @@
             } else {
                 note_transition_capture_failure();
                 set_now_playing_transition_root_visible(true);
-                start_now_playing_transition_reveal();
-                set_page_transition_state(PageTransitionState::Composing);
+                finish_now_playing_transition_static_cut();
             }
         }
 

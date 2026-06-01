@@ -15,9 +15,10 @@ The app-local bridge owns only board/runtime assembly:
 - consume typed `input.service` snapshots and translate generic pointer /
   encoder facts into `PlayerInputEvent`;
 - render the real MD3 scene into `PlayerRasterDisplaySink`;
-- keep host-only storage, cover decode, and file fonts disabled.
-- keep FreeType, VFS file-font providers, Vivid font packages, and debug-only
-  UI demo modules out of the default firmware module/link set.
+- keep host-only storage, cover decode, and host file fonts disabled.
+- keep VFS file-font providers available for resource smoke, but do not bind
+  TTF/FreeType into the MCU first-frame render path unless explicitly enabled.
+- keep debug-only UI demo modules out of the default firmware module/link set.
 - keep Now Playing layered transition capture/compose modules out of the
   default firmware; H747 uses `StaticCut` as both runtime policy and compile
   boundary.
@@ -34,15 +35,17 @@ core/gfx/widgets only through the explicit `CHARM_VIVID_PRODUCT_*` whitelists
 in `app.cmake`; host snapshot/GIF/screenshot/display-policy paths stay outside
 this firmware module set.
 
-The default font path is built-in/resource fonts only. `CHARM_PLAYER_FILE_FONTS`
-is intentionally `OFF` for this firmware, so FreeType and Vivid file-font
-modules are not compiled or linked unless that product capability is explicitly
-enabled. When `CHARM_PLAYER_FILE_FONTS=ON`, the H747 runtime binds
-the same product font contract as host preview: `player.product_config`
-`default_font_path`, currently `/font/gflex_variable.ttf`, with an optional
+The product font contract is centralized in `player.product_config`.
+`default_font_path` is currently `/font/gflex_variable.ttf`, with an optional
 fallback only when `CHARM_PLAYER_RESOURCE_FONT_FALLBACK_PATH` is configured.
-The resource smoke expects the primary contract path to open and the runtime
-font cache to bind. `CHARM_PLAYER_DEBUG_UI` is also `OFF` by default, so
+H747 keeps `CHARM_PLAYER_FILE_FONTS=ON` by default so resource smoke can prove
+the file-font/VFS path exists. It also keeps
+`CHARM_PLAYER_MCU_RUNTIME_FILE_FONTS=OFF` by default, so first-frame rendering
+uses the built-in fallback font instead of synchronously binding TTF/FreeType.
+If runtime TTF binding is explicitly enabled, `font=<...>/<runtime_bound>/0`
+is expected to report `runtime_bound=1`; otherwise `font` may report the
+primary file as present while runtime binding remains `0`. `CHARM_PLAYER_DEBUG_UI`
+is also `OFF` by default, so
 `player.ui_debug` and its table/tree demo widgets do not enter the MCU module
 set.
 
@@ -304,8 +307,8 @@ Visual recovery handoff rules:
 - H747 default must keep `CHARM_PLAYER_LIST_COVER_CACHE_ENTRIES=0`,
   `CHARM_PLAYER_COVER_THEME_EXTRACT=0`,
   `CHARM_PLAYER_LAYERED_TRANSITIONS=0`,
-  `CHARM_PLAYER_FILE_FONTS=0`, and `CHARM_PLAYER_DEBUG_UI=0` unless a dedicated
-  product capability is explicitly admitted.
+  `CHARM_PLAYER_MCU_RUNTIME_FILE_FONTS=0`, and `CHARM_PLAYER_DEBUG_UI=0`
+  unless a dedicated product capability is explicitly admitted.
 - Core state such as `PlayerController`, `Theme`, and `StyleSheet` must remain
   in RAM_D1; SDRAM usage must be runtime-carved and address-profiled.
 

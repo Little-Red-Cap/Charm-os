@@ -115,7 +115,7 @@ void probe_fonts(h747::apps::player_md3::PlayerMd3State& st) noexcept {
         ? 0U
         : (open_probe(font.fallback_path.view(), fallback_err) ? 1U : 0U);
     st.font_compat_open = open_first_available(kCompatFontPaths, compat_err) ? 1U : 0U;
-    st.font_cache_ready = ::player::ui::font_package_bound() ? 1U : 0U;
+    st.font_cache_ready = ::player::ui::player_file_font_active() ? 1U : 0U;
     if (font.kind != ::player::FontResourceKind::FilePath) {
         st.font_err = err_code(fs::Errc::notsup);
     } else if (font.primary_path.empty()) {
@@ -124,7 +124,7 @@ void probe_fonts(h747::apps::player_md3::PlayerMd3State& st) noexcept {
         st.font_err = primary_err;
     } else if (!font.fallback_path.empty() && !st.font_fallback_open) {
         st.font_err = fallback_err;
-    } else if (!st.font_cache_ready) {
+    } else if (!st.font_cache_ready && ::player::ui::player_runtime_file_font_binding_enabled()) {
         st.font_err = err_code(fs::Errc::notsup);
     } else {
         st.font_err = 0;
@@ -220,7 +220,7 @@ void run_resource_probe_once() noexcept {
 void refresh_resource_probe_state() noexcept {
     auto& st = state();
     probe_storage_view(st);
-    st.font_cache_ready = ::player::ui::font_package_bound() ? 1U : 0U;
+    st.font_cache_ready = ::player::ui::player_file_font_active() ? 1U : 0U;
 }
 
 } // namespace h747::apps::player_md3

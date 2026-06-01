@@ -558,7 +558,7 @@ void init_runtime() noexcept {
     st.runtime_bootstrapped = g_shell->app() != nullptr;
     h747::console::write_line(st.runtime_bootstrapped ? "player_md3: bootstrap ok"
                                                       : "player_md3: bootstrap failed");
-    run_resource_probe_once();
+    refresh_resource_probe_state();
     (void)render_frame();
     h747::console::write_line(st.last_render_ok ? "player_md3: first render ok"
                                                 : "player_md3: first render failed");

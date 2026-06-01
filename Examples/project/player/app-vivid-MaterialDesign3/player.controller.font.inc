@@ -65,6 +65,16 @@
 
         void rebind_player_fonts() noexcept {
             if (font_ttf_path.empty()) return;
+            if (!player_runtime_file_font_binding_enabled()) {
+                clear_player_font_binding();
+                refresh_font_visual_content();
+                return;
+            }
+            if (!player_font_resource_available(font_ttf_path.view())) {
+                clear_player_font_binding();
+                refresh_font_visual_content();
+                return;
+            }
             reset_player_font_package_cache();
             bind_player_freetype_font(font_ttf_path.view(),
                                      font_fallback_ttf_path.view(),
@@ -77,6 +87,16 @@
         void apply_pending_font_resource_binding() noexcept {
             const bool ui_built = handles.root && handles.home_title_top;
             if (!ui_built || font_ttf_path.empty() || font_retry_done || !fs_ready) {
+                return;
+            }
+            if (!player_runtime_file_font_binding_enabled()) {
+                clear_player_font_binding();
+                font_retry_done = true;
+                return;
+            }
+            if (!player_font_resource_available(font_ttf_path.view())) {
+                clear_player_font_binding();
+                font_retry_done = true;
                 return;
             }
             reset_player_font_package_cache();

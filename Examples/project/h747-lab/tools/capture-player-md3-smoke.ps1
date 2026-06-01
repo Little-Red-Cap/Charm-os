@@ -8,6 +8,7 @@ param(
     [string]$Log = "",
     [switch]$ResourceSmoke,
     [switch]$InputSmoke,
+    [switch]$TouchTrace,
     [switch]$PlaybackSmoke
 )
 
@@ -76,13 +77,17 @@ $Serial = $null
 $MatchedLine = $null
 $ResourceMatchedLine = $null
 $InputMatchedLine = $null
+$TouchMatchedLine = $null
 $PlaybackMatchedLine = $null
 $PlaybackFailedLine = $null
 $FailureReason = $null
 $LastSmokeFailure = $null
 $NeedResourceSmoke = $ResourceSmoke.IsPresent -or $PlaybackSmoke.IsPresent
 $NeedInputSmoke = $InputSmoke.IsPresent
+$NeedTouchTrace = $TouchTrace.IsPresent
 $NeedPlaybackSmoke = $PlaybackSmoke.IsPresent
+$ResourceStatusRequested = $false
+$TouchTracePromptShown = $false
 $PlaybackResourceFailure = $null
 
 function Write-CaptureLine {
@@ -211,9 +216,13 @@ function Get-PlaybackResourceFailureReason {
     $FontFallback = [uint64]$Matches[2]
     $FontRuntimeBound = [uint64]$Matches[3]
     $FontErr = [int64]$Matches[4]
-    if (($FontPrimary -ne 1) -or ($FontRuntimeBound -ne 1) -or ($FontErr -ne 0)) {
+    if (($FontPrimary -ne 1) -or ($FontErr -ne 0)) {
         $FontCfg = if ($Fields.ContainsKey("font_cfg")) { $Fields["font_cfg"] } else { "missing" }
-        return "playback requires font primary open and runtime bound; got font=$Font font_cfg=$FontCfg"
+        return "playback requires font primary open; got font=$Font font_cfg=$FontCfg"
+    }
+    if ($FontRuntimeBound -ne 1) {
+        $FontCfg = if ($Fields.ContainsKey("font_cfg")) { $Fields["font_cfg"] } else { "missing" }
+        Write-CaptureLine "Playback resource note: runtime file-font binding is not active; continuing with built-in UI fonts. font=$Font font_cfg=$FontCfg"
     }
 
     $Media = $Fields["media"]
@@ -300,6 +309,19 @@ function Test-PlaybackSmokeLine {
     $Err = [int64]$Matches[7]
     return (($Ok -eq 1) -and ($After -gt $Before) -and ($Frames -gt 0) -and
         ($SawPlaying -eq 1) -and ($Stage -eq 0) -and ($Err -eq 0))
+}
+
+function Test-TouchTraceLine {
+    param([string]$Line)
+    return $Line -match "^touch action=(down|move|up|cancel) down=([01]) x=([0-9]+) y=([0-9]+) max=([0-9]+)x([0-9]+) id=([0-9]+) contacts=([0-9]+)$"
+}
+
+function Get-TouchTraceSummary {
+    param([string]$Line)
+    if ($Line -notmatch "^touch action=(down|move|up|cancel) down=([01]) x=([0-9]+) y=([0-9]+) max=([0-9]+)x([0-9]+) id=([0-9]+) contacts=([0-9]+)$") {
+        return "touch trace shape invalid: $Line"
+    }
+    return "touch=$($Matches[1]) down=$($Matches[2]) xy=$($Matches[3]),$($Matches[4]) max=$($Matches[5])x$($Matches[6]) id=$($Matches[7]) contacts=$($Matches[8])"
 }
 
 function Test-HasPlaybackSmokeField {
@@ -412,6 +434,8 @@ function Get-ResourceSummary {
     $TrackState = if (($FsTracks -gt 0) -and ($FsHasTracks -eq 1)) { "tracks=$FsTracks" } else { "no-tracks" }
     $FontState = if (($FontPrimary -eq 1) -and ($FontRuntimeBound -eq 1) -and ($FontErr -eq 0)) {
         if ($FontFallback -eq 1) { "font-primary+fallback-bound" } else { "font-primary-bound" }
+    } elseif (($FontPrimary -eq 1) -and ($FontErr -eq 0)) {
+        "font-primary-present-runtime-fallback(font_runtime_bound=$FontRuntimeBound)"
     } elseif ($FontPrimary -eq 1) {
         "font-primary-present-not-bound(err=$FontErr)"
     } else {
@@ -565,6 +589,7 @@ try {
     Write-CaptureLine "  timeout:   ${TimeoutSeconds}s"
     Write-CaptureLine "  resource:  $NeedResourceSmoke"
     Write-CaptureLine "  input:     $NeedInputSmoke"
+    Write-CaptureLine "  touch:     $NeedTouchTrace"
     Write-CaptureLine "  playback:  $NeedPlaybackSmoke"
     Write-CaptureLine "  log:       $ResolvedLog"
     Write-CaptureLine ""
@@ -632,19 +657,30 @@ try {
             }
 
             Write-CaptureLine $Line
+            if ($NeedTouchTrace -and ($null -ne $MatchedLine) -and (Test-TouchTraceLine $Line)) {
+                $TouchMatchedLine = $Line
+                if (((-not $NeedResourceSmoke) -or ($null -ne $ResourceMatchedLine)) -and
+                    ((-not $NeedInputSmoke) -or ($null -ne $InputMatchedLine)) -and
+                    ((-not $NeedPlaybackSmoke) -or ($null -ne $PlaybackMatchedLine))) {
+                    break
+                }
+                continue
+            }
+
             $SmokeFailure = Get-SmokeLineFailureReason -Line $Line
             if ($null -eq $SmokeFailure) {
                 $MatchedLine = $Line
-                if (-not $NeedResourceSmoke -and -not $NeedInputSmoke -and -not $NeedPlaybackSmoke) {
+                if (-not $NeedResourceSmoke -and -not $NeedInputSmoke -and -not $NeedTouchTrace -and -not $NeedPlaybackSmoke) {
                     break
                 }
-                if (Test-ResourceLine $Line) {
+                if ($NeedTouchTrace -and (-not $TouchTracePromptShown)) {
+                    $TouchTracePromptShown = $true
+                    Write-CaptureLine "Touch trace mode: touch the panel now. Waiting for 'touch action=... x=... y=...'..."
+                }
+                if ((-not $NeedResourceSmoke) -and (Test-ResourceLine $Line)) {
                     $ResourceMatchedLine = $Line
                     if ($NeedPlaybackSmoke) {
                         $PlaybackResourceFailure = Get-PlaybackResourceFailureReason -Line $Line
-                    }
-                    if (-not $NeedInputSmoke -and -not $NeedPlaybackSmoke) {
-                        break
                     }
                 }
                 if (Test-InputSmokeLine $Line) {
@@ -661,6 +697,40 @@ try {
                 }
             } elseif ($Line -like "player_md3*") {
                 $LastSmokeFailure = $SmokeFailure
+            }
+
+            if ($NeedResourceSmoke -and ($null -ne $MatchedLine) -and
+                ($null -eq $ResourceMatchedLine) -and (-not $ResourceStatusRequested)) {
+                $ResourceStatusRequested = $true
+                $PromptDeadline = [DateTime]::UtcNow.AddSeconds(5)
+                [void](Drain-SerialUntilPrompt -SerialPort $Serial -Deadline $PromptDeadline)
+                Write-CaptureLine "Injecting resource status command..."
+                Send-SerialLineSlow -SerialPort $Serial -Line "resource status"
+                $ResourceDeadline = [DateTime]::UtcNow.AddSeconds([Math]::Max(30, $TimeoutSeconds))
+                while ([DateTime]::UtcNow -lt $ResourceDeadline) {
+                    try {
+                        $ResourceLine = $Serial.ReadLine().TrimEnd("`r", "`n")
+                    } catch [System.TimeoutException] {
+                        continue
+                    }
+                    if ($ResourceLine.Length -eq 0) {
+                        continue
+                    }
+                    Write-CaptureLine $ResourceLine
+                    if ($null -ne (Get-SmokeLineFailureReason -Line $ResourceLine)) {
+                        continue
+                    }
+                    if (Test-ResourceLine $ResourceLine) {
+                        $ResourceMatchedLine = $ResourceLine
+                        if ($NeedPlaybackSmoke) {
+                            $PlaybackResourceFailure = Get-PlaybackResourceFailureReason -Line $ResourceLine
+                        }
+                        break
+                    }
+                }
+                if (($null -ne $ResourceMatchedLine) -and (-not $NeedInputSmoke) -and (-not $NeedPlaybackSmoke)) {
+                    break
+                }
             }
 
             if ($NeedInputSmoke -and ($null -ne $MatchedLine) -and ($null -eq $InputMatchedLine)) {
@@ -754,6 +824,8 @@ try {
             $FailureReason = "timed out before matching resource smoke fields on a valid strict status line"
         } elseif ($NeedInputSmoke -and ($null -eq $InputMatchedLine)) {
             $FailureReason = "timed out before matching input smoke evidence on a valid strict status line"
+        } elseif ($NeedTouchTrace -and ($null -eq $TouchMatchedLine)) {
+            $FailureReason = "timed out before matching touch trace; touch the panel while -TouchTrace is waiting"
         } elseif ($NeedPlaybackSmoke -and ($null -ne $PlaybackResourceFailure)) {
             $FailureReason = "playback resource precondition failed: $PlaybackResourceFailure"
         } elseif ($NeedPlaybackSmoke -and ($null -eq $PlaybackMatchedLine)) {
@@ -775,6 +847,7 @@ try {
 if (($null -ne $MatchedLine) -and
     ((-not $NeedResourceSmoke) -or ($null -ne $ResourceMatchedLine)) -and
     ((-not $NeedInputSmoke) -or ($null -ne $InputMatchedLine)) -and
+    ((-not $NeedTouchTrace) -or ($null -ne $TouchMatchedLine)) -and
     ((-not $NeedPlaybackSmoke) -or ($null -ne $PlaybackMatchedLine))) {
     Write-Host ""
     Write-Host "Smoke capture passed."
@@ -786,6 +859,10 @@ if (($null -ne $MatchedLine) -and
     if ($NeedInputSmoke) {
         Write-Host "Input line: $InputMatchedLine"
         Write-Host (Get-InputSmokeSummary -Line $InputMatchedLine)
+    }
+    if ($NeedTouchTrace) {
+        Write-Host "Touch line: $TouchMatchedLine"
+        Write-Host (Get-TouchTraceSummary -Line $TouchMatchedLine)
     }
     if ($NeedPlaybackSmoke) {
         Write-Host "Playback line: $PlaybackMatchedLine"

@@ -18,7 +18,10 @@ collector that depends on the old token.
 - Display path: SDRAM render surface -> `PlayerRasterDisplaySink` ->
   `display_raster` service -> LTDC/DSI panel
 - Input path: GT970 touch and dual encoder facts -> `PlayerInputEvent`
-- Host-only features: storage, file fonts, and host cover decode disabled
+- Host-only features: host storage, host file fonts, and host cover decode
+  disabled
+- Resource features: FatFs/VFS storage and file-font probe backend enabled by
+  default; MCU runtime TTF binding disabled by default
 
 ## Collection Steps
 
@@ -98,9 +101,12 @@ Resource evidence is optional and does not change the basic display smoke:
 ```
 
 With `-ResourceSmoke`, the capture also waits for `fs=`, `font=`, `cover=`,
-and `media=` fields. Missing files are accepted as evidence when resources have
-not yet been copied to eMMC; the fields are intended to show which layer is
-missing rather than to fail the first-frame MD3 smoke.
+and `media=` fields. After the basic display smoke is green, the script sends
+`resource status` so the accepted resource line comes from the full app-local
+probe instead of the boot-time lightweight state refresh. Missing files are
+accepted as evidence when resources have not yet been copied to eMMC; the
+fields are intended to show which layer is missing rather than to fail the
+first-frame MD3 smoke.
 
 The console command `resource status` re-runs the same app-local resource probe
 and prints a fresh `player_md3` status line. It is useful after updating eMMC
@@ -129,8 +135,11 @@ With `-PlaybackSmoke`, the capture first requires the basic display smoke and a
 populated resource line. It then sends `playback smoke` over the same serial
 console, and the firmware starts the first scanned track through the existing
 Player input/control path. The command is rejected as a playback gate when the
-resource line does not satisfy `fs=1/<n>/1/0`, primary `font` open with runtime
-binding, and `media=1/*/1/0`.
+resource line does not satisfy `fs=1/<n>/1/0`, primary `font` open, and
+`media=1/*/1/0`. Runtime file-font binding is not required for playback smoke
+unless `CHARM_PLAYER_MCU_RUNTIME_FILE_FONTS=ON`; the default H747 firmware
+continues with built-in UI fonts when the primary font file is present but not
+runtime-bound.
 
 Input smoke is optional and does not require hardware interaction:
 
@@ -143,6 +152,19 @@ sends `input smoke` over the serial console. The firmware injects the fixed
 semantic command sequence `down`, `up`, `mode`, `play`, `next`, `prev`,
 `enter`, and `back` through the same `PlayerInputEvent` boundary used by
 hardware input, renders a few frames, and prints a fresh status line.
+
+Touch trace collection is optional and does require manual interaction:
+
+```powershell
+.\tools\capture-player-md3-smoke.ps1 -TouchTrace
+```
+
+With `-TouchTrace`, the capture first waits for a valid basic smoke line, then
+waits for a live GT970 trace line. Touching the panel should produce a line of
+the form `touch action=<down|move|up|cancel> down=<0|1> x=<n> y=<n> ...`.
+This proves the hardware coordinate stream reached the app-local input bridge;
+route counters in the following status lines prove the same event path reached
+`PlayerRuntimeShell`.
 
 ## Required Status Fields
 
@@ -284,7 +306,9 @@ Resource smoke fields are appended to the normal status line:
   `player.product_config::default_font_path`, currently
   `/font/gflex_variable.ttf`. `fallback_open` is meaningful only when a fallback
   path is configured. `runtime_bound=1` means the MD3 runtime actually bound the
-  file-font package.
+  file-font package. H747 defaults to `CHARM_PLAYER_MCU_RUNTIME_FILE_FONTS=0`,
+  so `font=1/0/0/0` is a valid "primary file exists, rendering uses built-in
+  fallback" state.
 - `font_cfg=<kind>/<primary_configured>/<fallback_configured>/<compat_open>`
   records which font resource mode is active and whether a legacy Noto-style
   compatibility font was also found. `compat_open=1` is diagnostic only and is
@@ -351,10 +375,13 @@ Two acceptance modes are defined:
   present. `fs=0/...`, `font=0/*/...`, `media=0/...`, and `cover=0/0/...` are
   valid as long as the error values explain the missing layer.
 - Populated-resource smoke: after copying the minimal resource layout to eMMC,
-  expect `fs=1/<n>/1/0`, `font=1/*/1/0`, `font_cfg=1/1/*/*`, and
-  `media=1/*/1/0` when the firmware is configured with
-  `CHARM_PLAYER_FILE_FONTS=ON`. If no fallback path is configured,
-  `font=1/0/1/0` is valid. If a folder cover exists, expect
+  expect `fs=1/<n>/1/0`, `font=1/*/<runtime_bound>/0`,
+  `font_cfg=1/1/*/*`, and `media=1/*/1/0` when the firmware is configured with
+  `CHARM_PLAYER_FILE_FONTS=ON`. The default H747 firmware keeps
+  `CHARM_PLAYER_MCU_RUNTIME_FILE_FONTS=OFF`, so `font=1/0/0/0` is valid when
+  no fallback path is configured. If runtime file-font binding is explicitly
+  enabled, expect the runtime-bound field to become `1`. If a folder cover
+  exists, expect
   `cover=1/1/<w>x<h>/0` only when a board cover provider or MCU-safe decoder is
   present. Without that capability, `cover=1/0/0x0/-95` is the expected evidence
   that the file was found but dynamic cover decode is not available on this

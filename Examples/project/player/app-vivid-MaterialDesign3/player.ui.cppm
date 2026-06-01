@@ -16,6 +16,23 @@ module;
 #define CHARM_PLAYER_USE_FILE_FONTS 0
 #endif
 
+#if CHARM_PLAYER_USE_FILE_FONTS && \
+    (!defined(CHARM_PLAYER_MCU) || !CHARM_PLAYER_MCU || \
+     !defined(CHARM_PLAYER_MCU_STRICT) || !CHARM_PLAYER_MCU_STRICT || \
+     (defined(CHARM_PLAYER_MCU_RUNTIME_FILE_FONTS) && CHARM_PLAYER_MCU_RUNTIME_FILE_FONTS))
+#define CHARM_PLAYER_ENABLE_RUNTIME_FILE_FONT_BINDING 1
+#else
+#define CHARM_PLAYER_ENABLE_RUNTIME_FILE_FONT_BINDING 0
+#endif
+
+#if defined(CHARM_PLAYER_MCU) && CHARM_PLAYER_MCU && \
+    defined(CHARM_PLAYER_MCU_STRICT) && CHARM_PLAYER_MCU_STRICT && \
+    (!defined(CHARM_PLAYER_MCU_EXACT_FILE_FONTS) || !CHARM_PLAYER_MCU_EXACT_FILE_FONTS)
+#define CHARM_PLAYER_SKIP_EXACT_FILE_FONT_LOADS 1
+#else
+#define CHARM_PLAYER_SKIP_EXACT_FILE_FONT_LOADS 0
+#endif
+
 export module player.ui;
 
 import charm.core.style;
@@ -32,6 +49,8 @@ import charm.ui.scene.pill_surface;
 #if CHARM_PLAYER_USE_FILE_FONTS
 import charm.ui.vivid.font_package;
 import charm.font.provider_freetype;
+import fs_stream;
+import fs_vfs;
 #endif
 import player.font_cache;
 import charm.widgets.button;
@@ -524,11 +543,21 @@ export namespace player::ui {
             if (px <= 14) return get_font_weighted(FontId::Small, weight);
             return get_font_weighted(FontId::Normal, weight);
         }
+
+        const Font& builtin_fallback_font_for_px(int px) noexcept {
+            if (px <= 14) return font_noto_ascii_12;
+            return font_noto_ascii_16;
+        }
 #else
         const Font& fallback_font_for_px(int px, FontWeight weight) noexcept {
             if (px >= 48) return get_font_weighted(FontId::Large, weight);
             if (px <= 14) return get_font_weighted(FontId::Small, weight);
             return get_font_weighted(FontId::Normal, weight);
+        }
+
+        const Font& builtin_fallback_font_for_px(int px) noexcept {
+            if (px <= 14) return font_noto_ascii_12;
+            return font_noto_ascii_16;
         }
 #endif
 
@@ -790,6 +819,38 @@ export namespace player::ui {
 #endif
     }
 
+    bool player_file_font_active() noexcept {
+#if CHARM_PLAYER_USE_FILE_FONTS
+        const auto& state = detail::freetype_state();
+        return detail::font_package_state().bound && state.ready && !state.ttf_path.empty();
+#else
+        return false;
+#endif
+    }
+
+    bool player_runtime_file_font_binding_enabled() noexcept {
+        return CHARM_PLAYER_ENABLE_RUNTIME_FILE_FONT_BINDING != 0;
+    }
+
+    bool player_font_resource_available(std::string_view ttf_path) noexcept {
+#if CHARM_PLAYER_USE_FILE_FONTS
+        if (ttf_path.empty()) return false;
+#if defined(CHARM_PLAYER_MCU) && CHARM_PLAYER_MCU
+        fs::File file{};
+        const auto st = fs::vfs_open(ttf_path, file);
+        if (!st) return false;
+        (void)fs::vfs_close(file);
+        return true;
+#else
+        // Host preview may resolve /font resources through the FreeType host fallback search.
+        return true;
+#endif
+#else
+        (void)ttf_path;
+        return false;
+#endif
+    }
+
     void clear_player_font_binding() noexcept {
         set_font_provider(FontProvider{});
         set_font_weight_provider(FontWeightProvider{});
@@ -1002,6 +1063,10 @@ export namespace player::ui {
     }
 
     const Font& get_player_font_px(int px, FontWeight weight) noexcept {
+#if CHARM_PLAYER_SKIP_EXACT_FILE_FONT_LOADS
+        (void)weight;
+        return detail::builtin_fallback_font_for_px(px);
+#else
         auto& state = detail::freetype_state();
         if (!state.ready || state.ttf_path.empty()) {
             const auto& fallback = detail::fallback_font_for_px(px, weight);
@@ -1009,17 +1074,23 @@ export namespace player::ui {
         }
         const auto path = detail::make_exact_font_path(state.ttf_path, px, weight);
         return detail::load_player_exact_font(path, px, weight);
+#endif
     }
 
     const Font& get_player_font_px_variant(int px,
                                            FontWeight weight,
                                            std::string_view variation_tokens) noexcept {
+#if CHARM_PLAYER_SKIP_EXACT_FILE_FONT_LOADS
+        (void)variation_tokens;
+        return get_player_font_px(px, weight);
+#else
         auto& state = detail::freetype_state();
         if (!state.ready || state.ttf_path.empty()) {
             return get_player_font_px(px, weight);
         }
         const auto path = detail::make_exact_font_path(state.ttf_path, px, weight, variation_tokens);
         return detail::load_player_exact_font(path, px, weight);
+#endif
     }
 #else
     void bind_player_freetype_font(std::string_view,

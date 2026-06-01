@@ -1,4 +1,7 @@
 module;
+
+#include "vivid_features.generated.hpp"
+
 #include <array>
 #include <cassert>
 #include <cstddef>
@@ -190,11 +193,18 @@ void SoaGui::record_tree(ui::draw_cmd::DefaultDrawCmdBuffer& out) {
         int child_offset_x{0};
         int child_offset_y{0};
         Rect world_rect{};
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+        ui::draw_cmd::DrawScope draw_scope{};
+#endif
     };
     std::array<Frame, 256> stack{};
     std::size_t sp = 0;
     const auto base_clip = canvas_.save_clip();
-    stack[sp++] = Frame{root_, {}, false, base_clip.rect, base_clip.enabled, false, 0, 0, 0, 0, Rect{}};
+    stack[sp++] = Frame{root_, {}, false, base_clip.rect, base_clip.enabled, false, 0, 0, 0, 0, Rect{}
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+        , ui::draw_cmd::draw_scope_default()
+#endif
+    };
 
     while (sp > 0) {
         auto& frame = stack[sp - 1];
@@ -204,6 +214,13 @@ void SoaGui::record_tree(ui::draw_cmd::DefaultDrawCmdBuffer& out) {
                 --sp;
                 continue;
             }
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+            const std::uint16_t node_scope = kernel_.draw_scope(frame.h);
+            if (node_scope != ui::draw_cmd::kDrawScopeDefault) {
+                frame.draw_scope = ui::draw_cmd::DrawScope{node_scope};
+            }
+            out.set_draw_scope(frame.draw_scope);
+#endif
             const Rect local_rect = kernel_.rect(frame.h);
             frame.world_rect = Rect{
                 local_rect.x + frame.offset_x,
@@ -246,6 +263,9 @@ void SoaGui::record_tree(ui::draw_cmd::DefaultDrawCmdBuffer& out) {
                 if (!ok) {
                     frame.child = {};
                 } else {
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                    out.set_draw_scope(frame.draw_scope);
+#endif
                     out.push_clip(clip_rect);
                     frame.clip_pushed = true;
                     frame.clip_rect = clip_rect;
@@ -257,6 +277,9 @@ void SoaGui::record_tree(ui::draw_cmd::DefaultDrawCmdBuffer& out) {
 
         if (!frame.child) {
             if (frame.clip_pushed) {
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                out.set_draw_scope(frame.draw_scope);
+#endif
                 out.pop_clip();
             }
             --sp;
@@ -278,6 +301,9 @@ void SoaGui::record_tree(ui::draw_cmd::DefaultDrawCmdBuffer& out) {
             0,
             0,
             Rect{}
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+            , frame.draw_scope
+#endif
         };
     }
 }

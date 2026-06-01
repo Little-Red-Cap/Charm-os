@@ -1,5 +1,7 @@
 module;
 
+#include "vivid_features.generated.hpp"
+
 #include <algorithm>
 #include <array>
 #include <cstddef>
@@ -255,6 +257,13 @@ export namespace ui::scene {
         CmdStats last_cmd_stats() const noexcept { return last_cmd_stats_; }
         ExecStats last_exec_stats() const noexcept { return last_exec_stats_; }
         SceneRenderTiming last_render_timing() const noexcept { return last_render_timing_; }
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+        ui::draw_cmd::DrawCmdDetailStats last_draw_detail_stats() const noexcept {
+            return cmd_exec_.last_detail_stats();
+        }
+#else
+        ui::draw_cmd::DrawCmdDetailStats last_draw_detail_stats() const noexcept { return {}; }
+#endif
         LayerStats layer_stats() const noexcept { return snapshot_store_.stats(); }
         LayerEpoch current_layer_epoch() const noexcept {
             return make_layer_epoch();

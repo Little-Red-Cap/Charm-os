@@ -1,4 +1,7 @@
 module;
+
+#include "vivid_features.generated.hpp"
+
 #include <array>
 #include <cassert>
 #include <cstddef>
@@ -59,6 +62,9 @@ namespace soa_detail {
         std::array<soa_detail::TextId, N> semantic_id{};
         std::array<soa_detail::TextId, N> semantic_label{};
         std::array<SemanticActionMask, N> semantic_actions{};
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+        std::array<std::uint16_t, N> draw_scope{};
+#endif
     };
 
 }
@@ -594,6 +600,13 @@ public:
     void set_style_class(WidgetHandle h, StyleClassId id) noexcept;
     void clear_style_class(WidgetHandle h) noexcept;
     StyleClassId style_class(WidgetHandle h) const noexcept;
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+    void set_draw_scope(WidgetHandle h, std::uint16_t id) noexcept;
+    std::uint16_t draw_scope(WidgetHandle h) const noexcept;
+#else
+    void set_draw_scope(WidgetHandle, std::uint16_t) noexcept {}
+    std::uint16_t draw_scope(WidgetHandle) const noexcept { return 0; }
+#endif
 
     soa_detail::TextSlotId alloc_text_slot() noexcept;
     void free_text_slot(soa_detail::TextSlotId slot) noexcept;

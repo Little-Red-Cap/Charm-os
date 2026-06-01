@@ -1,5 +1,8 @@
 module;
 
+#include "vivid_features.generated.hpp"
+
+#include <array>
 #include <cstddef>
 #include <cstdint>
 
@@ -91,6 +94,34 @@ export namespace ui::draw_cmd {
         std::uint32_t cmd_path{0};
         std::uint32_t cmd_other{0};
     };
+
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+    struct DrawCmdTypeDetailEvidence {
+        std::uint32_t count{0};
+        std::uint32_t rect_area{0};
+        std::uint32_t actual_alpha_pixels{0};
+        std::uint32_t max_rect_area{0};
+    };
+
+    struct DrawScopeDetailEvidence {
+        std::uint16_t scope_id{kDrawScopeDefault};
+        std::uint16_t active{0};
+        std::uint32_t cmd_count{0};
+        std::uint32_t rect_area{0};
+        std::uint32_t actual_alpha_pixels{0};
+    };
+
+    using DrawCmdTypeDetailEvidenceTable = std::array<DrawCmdTypeDetailEvidence, kCmdTypeCount>;
+    using DrawScopeDetailEvidenceTable = std::array<DrawScopeDetailEvidence, kDrawScopeDetailCapacity>;
+
+    struct DrawCmdDetailEvidence {
+        DrawCmdTypeDetailEvidenceTable types{};
+        DrawScopeDetailEvidenceTable scopes{};
+        std::uint32_t scope_overflow{0};
+    };
+#else
+    struct DrawCmdDetailEvidence {};
+#endif
 
     inline constexpr std::uint32_t clamp_draw_cmd_evidence_u32(std::uint64_t value) noexcept {
         constexpr std::uint64_t max_u32 = 0xFFFFFFFFULL;
@@ -194,4 +225,29 @@ export namespace ui::draw_cmd {
         out.cmd_other = clamp_draw_cmd_evidence_size(stats.cmd_other);
         return out;
     }
+
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+    inline DrawCmdDetailEvidence make_draw_cmd_detail_evidence(const DrawCmdDetailStats& stats) noexcept {
+        DrawCmdDetailEvidence out{};
+        for (std::size_t i = 0; i < out.types.size(); ++i) {
+            out.types[i].count = stats.types[i].count;
+            out.types[i].rect_area = clamp_draw_cmd_evidence_u32(stats.types[i].rect_area);
+            out.types[i].actual_alpha_pixels = clamp_draw_cmd_evidence_u32(stats.types[i].actual_alpha_pixels);
+            out.types[i].max_rect_area = stats.types[i].max_rect_area;
+        }
+        for (std::size_t i = 0; i < out.scopes.size(); ++i) {
+            out.scopes[i].scope_id = stats.scopes[i].scope_id;
+            out.scopes[i].active = stats.scopes[i].active;
+            out.scopes[i].cmd_count = stats.scopes[i].cmd_count;
+            out.scopes[i].rect_area = clamp_draw_cmd_evidence_u32(stats.scopes[i].rect_area);
+            out.scopes[i].actual_alpha_pixels = clamp_draw_cmd_evidence_u32(stats.scopes[i].actual_alpha_pixels);
+        }
+        out.scope_overflow = stats.scope_overflow;
+        return out;
+    }
+#else
+    inline DrawCmdDetailEvidence make_draw_cmd_detail_evidence(const DrawCmdDetailStats&) noexcept {
+        return {};
+    }
+#endif
 }

@@ -3,7 +3,10 @@ module;
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <array>
 #include <type_traits>
+
+#include "vivid_features.generated.hpp"
 
 export module charm.gfx.draw_cmd:schema;
 
@@ -61,6 +64,59 @@ export namespace ui::draw_cmd {
         FocusRingBatch,
     };
 
+    inline constexpr std::size_t kCmdTypeCount =
+        static_cast<std::size_t>(CmdType::FocusRingBatch) + 1;
+
+    inline constexpr std::uint16_t kDrawScopeDefault = 0;
+    inline constexpr std::size_t kDrawScopeDetailCapacity = 32;
+
+    struct DrawScope {
+        std::uint16_t id{kDrawScopeDefault};
+    };
+
+    constexpr DrawScope draw_scope_default() noexcept {
+        return DrawScope{kDrawScopeDefault};
+    }
+
+    constexpr bool draw_scope_equal(DrawScope a, DrawScope b) noexcept {
+        return a.id == b.id;
+    }
+
+    constexpr const char* cmd_type_name(CmdType type) noexcept {
+        switch (type) {
+        case CmdType::PushClip: return "PushClip";
+        case CmdType::PopClip: return "PopClip";
+        case CmdType::DrawLine: return "DrawLine";
+        case CmdType::DrawPath: return "DrawPath";
+        case CmdType::FillRect: return "FillRect";
+        case CmdType::FillLinearGradientRect: return "FillLinearGradientRect";
+        case CmdType::StrokeRect: return "StrokeRect";
+        case CmdType::FillRoundRect: return "FillRoundRect";
+        case CmdType::StrokeRoundRect: return "StrokeRoundRect";
+        case CmdType::FillCircle: return "FillCircle";
+        case CmdType::StrokeCircle: return "StrokeCircle";
+        case CmdType::DrawImage: return "DrawImage";
+        case CmdType::DrawImageRoundRect: return "DrawImageRoundRect";
+        case CmdType::DrawImageNineSlice: return "DrawImageNineSlice";
+        case CmdType::DrawTextBox: return "DrawTextBox";
+        case CmdType::FocusRing: return "FocusRing";
+        case CmdType::FillRectBatch: return "FillRectBatch";
+        case CmdType::StrokeRectBatch: return "StrokeRectBatch";
+        case CmdType::FillRoundRectBatch: return "FillRoundRectBatch";
+        case CmdType::StrokeRoundRectBatch: return "StrokeRoundRectBatch";
+        case CmdType::FillCircleBatch: return "FillCircleBatch";
+        case CmdType::StrokeCircleBatch: return "StrokeCircleBatch";
+        case CmdType::GlyphRun: return "GlyphRun";
+        case CmdType::DrawImageBatch: return "DrawImageBatch";
+        case CmdType::DrawImageRoundRectBatch: return "DrawImageRoundRectBatch";
+        case CmdType::DrawImageNineSliceBatch: return "DrawImageNineSliceBatch";
+        case CmdType::DrawLineBatch: return "DrawLineBatch";
+        case CmdType::DrawPathBatch: return "DrawPathBatch";
+        case CmdType::FocusRingBatch: return "FocusRingBatch";
+        }
+        return "Unknown";
+    }
+
     struct TextSpan {
         std::uint32_t offset{0};
         std::uint16_t length{0};
@@ -104,6 +160,10 @@ export namespace ui::draw_cmd {
         std::uint8_t flags{0};
         std::uint16_t size{0};
         Rect rect{};
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+        std::uint16_t draw_scope{kDrawScopeDefault};
+        std::uint16_t reserved{0};
+#endif
     };
 
     struct CmdColor {
@@ -291,7 +351,20 @@ export namespace ui::draw_cmd {
         TextAlignV align_v{TextAlignV::Top};
         TextWrap wrap{TextWrap::None};
         TextEllipsis ellipsis{TextEllipsis::None};
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+        DrawScope draw_scope{};
+#endif
     };
+
+    constexpr bool draw_cmd_scope_equal(const DrawCmd& a, const DrawCmd& b) noexcept {
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+        return draw_scope_equal(a.draw_scope, b.draw_scope);
+#else
+        (void)a;
+        (void)b;
+        return true;
+#endif
+    }
 
     constexpr std::size_t kCmdAlign = alignof(std::uint32_t);
     static_assert(sizeof(CmdHeader) % kCmdAlign == 0);
@@ -356,6 +429,34 @@ export namespace ui::draw_cmd {
         std::size_t cmd_other{0};
         bool overflowed{false};
     };
+
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+    struct DrawCmdTypeDetail {
+        std::uint32_t count{0};
+        std::uint64_t rect_area{0};
+        std::uint64_t actual_alpha_pixels{0};
+        std::uint32_t max_rect_area{0};
+    };
+
+    struct DrawScopeDetail {
+        std::uint16_t scope_id{kDrawScopeDefault};
+        std::uint16_t active{0};
+        std::uint32_t cmd_count{0};
+        std::uint64_t rect_area{0};
+        std::uint64_t actual_alpha_pixels{0};
+    };
+
+    using DrawCmdTypeDetailTable = std::array<DrawCmdTypeDetail, kCmdTypeCount>;
+    using DrawScopeDetailTable = std::array<DrawScopeDetail, kDrawScopeDetailCapacity>;
+
+    struct DrawCmdDetailStats {
+        DrawCmdTypeDetailTable types{};
+        DrawScopeDetailTable scopes{};
+        std::uint32_t scope_overflow{0};
+    };
+#else
+    struct DrawCmdDetailStats {};
+#endif
 
     struct RectBatchItem {
         Rect rect{};
@@ -449,6 +550,9 @@ export namespace ui::draw_cmd {
         out = DrawCmd{};
         out.type = header->type;
         out.rect = header->rect;
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+        out.draw_scope = DrawScope{header->draw_scope};
+#endif
         switch (header->type) {
         case CmdType::PushClip:
         case CmdType::PopClip:

@@ -33,6 +33,28 @@
         builder.set_rect(h, r);
     }
 
+    enum class PlayerDrawScopeId : std::uint16_t {
+        Default = 0,
+        HomeHero = 1,
+        HomeCards = 2,
+        HomeCollage = 3,
+        NowCover = 4,
+        NowText = 5,
+        NowProgress = 6,
+        NowControls = 7,
+        NowTransition = 8,
+        LibraryChrome = 9,
+        LibraryList = 10,
+        LibraryOverlay = 11,
+        BottomBar = 12,
+    };
+
+    static void mark_draw_scope(::ui::scene::SceneBuilder& builder,
+                                WidgetHandle h,
+                                PlayerDrawScopeId id) noexcept {
+        builder.set_draw_scope(h, ::ui::scene::DrawScope{static_cast<std::uint16_t>(id)});
+    }
+
     static WidgetHandle create_label_text(::ui::scene::SceneBuilder& builder,
                                           std::string_view text) {
         char buffer[192]{};
@@ -1223,6 +1245,7 @@
         ::ui::scene::RowBuilder bottom_row{builder, bottom_bar_rect, bar_gap, bar_pad,
                                            ::ui::scene::LayoutAlign::Center};
         h.bottom_bar = bottom_row.root();
+        mark_draw_scope(builder, h.bottom_bar, PlayerDrawScopeId::BottomBar);
         apply_bottom_bar_style(builder, h.bottom_bar);
         build_bottom_track_tile(builder, bottom_row, h, bottom_bar_rect, play_size, next_size, bar_gap);
         h.bottom_play = add_bottom_transport_button(builder, bottom_row, icons.play, play_size, 24, true);
@@ -1260,6 +1283,7 @@
                                                      UiHandles& h,
                                                      const PlayerIconIds& icons) {
         h.transition_root = builder.create_container();
+        mark_draw_scope(builder, h.transition_root, PlayerDrawScopeId::NowTransition);
         anchor_rect(builder, h.transition_root, {0, 0, screen_width, screen_height});
 
         h.transition_shell = builder.create_container();

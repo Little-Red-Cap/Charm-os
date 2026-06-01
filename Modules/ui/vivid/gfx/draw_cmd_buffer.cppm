@@ -1,5 +1,7 @@
 module;
 
+#include "vivid_features.generated.hpp"
+
 #include <array>
 #include <cassert>
 #include <cstddef>
@@ -104,6 +106,9 @@ export namespace ui::draw_cmd {
             batch_shrink_image_ = 0;
             batch_shrink_focus_ = 0;
             offsets_valid_ = true;
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+            current_draw_scope_ = {};
+#endif
         }
 
         [[nodiscard]] std::size_t size() const noexcept { return count_; }
@@ -119,6 +124,13 @@ export namespace ui::draw_cmd {
         [[nodiscard]] bool overflowed() const noexcept {
             return cmd_overflowed_ || text_overflowed_ || blob_.overflowed();
         }
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+        void set_draw_scope(DrawScope scope) noexcept { current_draw_scope_ = scope; }
+        [[nodiscard]] DrawScope draw_scope() const noexcept { return current_draw_scope_; }
+#else
+        void set_draw_scope(DrawScope) noexcept {}
+        [[nodiscard]] DrawScope draw_scope() const noexcept { return {}; }
+#endif
         [[nodiscard]] const char* text_at(std::uint32_t offset) const noexcept {
             if (offset >= text_used_) return text_.data();
             return text_.data() + offset;
@@ -483,6 +495,7 @@ export namespace ui::draw_cmd {
 
             auto can_merge_text = [](const DrawCmd& a, const DrawCmd& b) noexcept {
                 return rgba_equal(a.color, b.color)
+                    && draw_cmd_scope_equal(a, b)
                     && a.font_ptr == b.font_ptr
                     && a.font == b.font
                     && a.align_h == b.align_h
@@ -511,6 +524,7 @@ export namespace ui::draw_cmd {
                         std::size_t next_stride = 0;
                         if (!read_cmd_at_offset(scan_offset, next, next_stride)) break;
                         if (next.type != CmdType::DrawLine) break;
+                        if (!draw_cmd_scope_equal(cmd, next)) break;
                         if (!rgba_equal(next.color, cmd.color)) break;
                         scan_offset += next_stride;
                         ++run;
@@ -558,6 +572,9 @@ export namespace ui::draw_cmd {
                             if (blob.length != 0) {
                                 DrawCmd batch_cmd{};
                                 batch_cmd.type = CmdType::DrawLineBatch;
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                                batch_cmd.draw_scope = cmd.draw_scope;
+#endif
                                 batch_cmd.rect = bounds;
                                 batch_cmd.color = cmd.color;
                                 batch_cmd.blob = blob;
@@ -583,6 +600,7 @@ export namespace ui::draw_cmd {
                         std::size_t next_stride = 0;
                         if (!read_cmd_at_offset(scan_offset, next, next_stride)) break;
                         if (next.type != CmdType::DrawPath) break;
+                        if (!draw_cmd_scope_equal(cmd, next)) break;
                         if (!rgba_equal(next.color, cmd.color)) break;
                         scan_offset += next_stride;
                         ++run;
@@ -630,6 +648,9 @@ export namespace ui::draw_cmd {
                             if (blob.length != 0) {
                                 DrawCmd batch_cmd{};
                                 batch_cmd.type = CmdType::DrawPathBatch;
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                                batch_cmd.draw_scope = cmd.draw_scope;
+#endif
                                 batch_cmd.rect = bounds;
                                 batch_cmd.color = cmd.color;
                                 batch_cmd.blob = blob;
@@ -655,6 +676,7 @@ export namespace ui::draw_cmd {
                         std::size_t next_stride = 0;
                         if (!read_cmd_at_offset(scan_offset, next, next_stride)) break;
                         if (next.type != cmd.type || !rgba_equal(next.color, cmd.color)) break;
+                        if (!draw_cmd_scope_equal(cmd, next)) break;
                         scan_offset += next_stride;
                         ++run;
                     }
@@ -701,6 +723,9 @@ export namespace ui::draw_cmd {
                                 batch_cmd.type = (cmd.type == CmdType::StrokeRect)
                                     ? CmdType::StrokeRectBatch
                                     : CmdType::FillRectBatch;
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                                batch_cmd.draw_scope = cmd.draw_scope;
+#endif
                                 batch_cmd.rect = bounds;
                                 batch_cmd.color = cmd.color;
                                 batch_cmd.blob = blob;
@@ -730,6 +755,7 @@ export namespace ui::draw_cmd {
                         std::size_t next_stride = 0;
                         if (!read_cmd_at_offset(scan_offset, next, next_stride)) break;
                         if (next.type != cmd.type) break;
+                        if (!draw_cmd_scope_equal(cmd, next)) break;
                         if (!rgba_equal(next.color, cmd.color)) break;
                         if (next.p0 != cmd.p0) break;
                         scan_offset += next_stride;
@@ -792,6 +818,9 @@ export namespace ui::draw_cmd {
                                     batch_cmd.type = CmdType::FillRoundRectBatch;
                                     break;
                                 }
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                                batch_cmd.draw_scope = cmd.draw_scope;
+#endif
                                 batch_cmd.rect = bounds;
                                 batch_cmd.color = cmd.color;
                                 batch_cmd.blob = blob;
@@ -823,6 +852,7 @@ export namespace ui::draw_cmd {
                         std::size_t next_stride = 0;
                         if (!read_cmd_at_offset(scan_offset, next, next_stride)) break;
                         if (next.type != CmdType::DrawTextBox) break;
+                        if (!draw_cmd_scope_equal(cmd, next)) break;
                         if (!can_merge_text(cmd, next)) break;
                         if (!text_span_valid(next.text)) break;
                         scan_offset += next_stride;
@@ -853,6 +883,9 @@ export namespace ui::draw_cmd {
                             if (blob.length != 0) {
                                 DrawCmd batch_cmd{};
                                 batch_cmd.type = CmdType::GlyphRun;
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                                batch_cmd.draw_scope = cmd.draw_scope;
+#endif
                                 batch_cmd.rect = bounds;
                                 batch_cmd.color = cmd.color;
                                 batch_cmd.font_ptr = cmd.font_ptr;
@@ -886,6 +919,7 @@ export namespace ui::draw_cmd {
                         std::size_t next_stride = 0;
                         if (!read_cmd_at_offset(scan_offset, next, next_stride)) break;
                         if (next.type != CmdType::DrawImage) break;
+                        if (!draw_cmd_scope_equal(cmd, next)) break;
                         if (next.image != cmd.image) break;
                         scan_offset += next_stride;
                         ++run;
@@ -931,6 +965,9 @@ export namespace ui::draw_cmd {
                             if (blob.length != 0) {
                                 DrawCmd batch_cmd{};
                                 batch_cmd.type = CmdType::DrawImageBatch;
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                                batch_cmd.draw_scope = cmd.draw_scope;
+#endif
                                 batch_cmd.rect = bounds;
                                 batch_cmd.image = cmd.image;
                                 batch_cmd.blob = blob;
@@ -961,6 +998,7 @@ export namespace ui::draw_cmd {
                         std::size_t next_stride = 0;
                         if (!read_cmd_at_offset(scan_offset, next, next_stride)) break;
                         if (next.type != CmdType::DrawImageRoundRect) break;
+                        if (!draw_cmd_scope_equal(cmd, next)) break;
                         if (next.image != cmd.image) break;
                         if (next.p0 != cmd.p0) break;
                         if (next.p1 != cmd.p1) break;
@@ -1009,6 +1047,9 @@ export namespace ui::draw_cmd {
                             if (blob.length != 0) {
                                 DrawCmd batch_cmd{};
                                 batch_cmd.type = CmdType::DrawImageRoundRectBatch;
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                                batch_cmd.draw_scope = cmd.draw_scope;
+#endif
                                 batch_cmd.rect = bounds;
                                 batch_cmd.image = cmd.image;
                                 batch_cmd.blob = blob;
@@ -1042,6 +1083,7 @@ export namespace ui::draw_cmd {
                         std::size_t next_stride = 0;
                         if (!read_cmd_at_offset(scan_offset, next, next_stride)) break;
                         if (next.type != CmdType::DrawImageNineSlice) break;
+                        if (!draw_cmd_scope_equal(cmd, next)) break;
                         if (next.image != cmd.image) break;
                         if (next.p0 != cmd.p0 || next.p1 != cmd.p1
                             || next.p2 != cmd.p2 || next.p3 != cmd.p3) break;
@@ -1089,6 +1131,9 @@ export namespace ui::draw_cmd {
                             if (blob.length != 0) {
                                 DrawCmd batch_cmd{};
                                 batch_cmd.type = CmdType::DrawImageNineSliceBatch;
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                                batch_cmd.draw_scope = cmd.draw_scope;
+#endif
                                 batch_cmd.rect = bounds;
                                 batch_cmd.image = cmd.image;
                                 batch_cmd.blob = blob;
@@ -1117,6 +1162,7 @@ export namespace ui::draw_cmd {
                         std::size_t next_stride = 0;
                         if (!read_cmd_at_offset(scan_offset, next, next_stride)) break;
                         if (next.type != CmdType::FocusRing) break;
+                        if (!draw_cmd_scope_equal(cmd, next)) break;
                         if (!rgba_equal(next.color, cmd.color)) break;
                         if (next.p0 != cmd.p0 || next.p1 != cmd.p1 || next.p2 != cmd.p2) break;
                         scan_offset += next_stride;
@@ -1163,6 +1209,9 @@ export namespace ui::draw_cmd {
                             if (blob.length != 0) {
                                 DrawCmd batch_cmd{};
                                 batch_cmd.type = CmdType::FocusRingBatch;
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                                batch_cmd.draw_scope = cmd.draw_scope;
+#endif
                                 batch_cmd.rect = bounds;
                                 batch_cmd.color = cmd.color;
                                 batch_cmd.blob = blob;
@@ -1208,6 +1257,9 @@ export namespace ui::draw_cmd {
             DrawCmd cmd{};
             cmd.type = type;
             cmd.rect = rect;
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+            cmd.draw_scope = current_draw_scope_;
+#endif
             return cmd;
         }
 
@@ -1284,6 +1336,9 @@ export namespace ui::draw_cmd {
                               std::uint32_t* offsets,
                               CmdType type,
                               const Rect& rect,
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                              DrawScope draw_scope,
+#endif
                               const void* payload,
                               std::size_t payload_size) noexcept {
             if (out_count >= kMaxCommands) return false;
@@ -1296,6 +1351,9 @@ export namespace ui::draw_cmd {
             header.type = type;
             header.size = static_cast<std::uint16_t>(cmd_size);
             header.rect = rect;
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+            header.draw_scope = draw_scope.id;
+#endif
             std::byte* dst = base + out_bytes;
             std::memcpy(dst, &header, sizeof(CmdHeader));
             if (payload_size > 0 && payload) {
@@ -1316,11 +1374,19 @@ export namespace ui::draw_cmd {
             case CmdType::PushClip:
             case CmdType::PopClip:
                 return write_cmd(base, capacity, out_bytes, out_count, offsets,
-                                 cmd.type, cmd.rect, nullptr, 0);
+                                 cmd.type, cmd.rect,
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                                 cmd.draw_scope,
+#endif
+                                 nullptr, 0);
             case CmdType::DrawLine: {
                 CmdColor payload{cmd.color};
                 return write_cmd(base, capacity, out_bytes, out_count, offsets,
-                                 cmd.type, cmd.rect, &payload, sizeof(payload));
+                                 cmd.type, cmd.rect,
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                                 cmd.draw_scope,
+#endif
+                                 &payload, sizeof(payload));
             }
             case CmdType::DrawPath: {
                 CmdPath payload{};
@@ -1329,13 +1395,21 @@ export namespace ui::draw_cmd {
                 payload.count = cmd.p0;
                 payload.closed = cmd.p1;
                 return write_cmd(base, capacity, out_bytes, out_count, offsets,
-                                 cmd.type, cmd.rect, &payload, sizeof(payload));
+                                 cmd.type, cmd.rect,
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                                 cmd.draw_scope,
+#endif
+                                 &payload, sizeof(payload));
             }
             case CmdType::FillRect:
             case CmdType::StrokeRect: {
                 CmdColor payload{cmd.color};
                 return write_cmd(base, capacity, out_bytes, out_count, offsets,
-                                 cmd.type, cmd.rect, &payload, sizeof(payload));
+                                 cmd.type, cmd.rect,
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                                 cmd.draw_scope,
+#endif
+                                 &payload, sizeof(payload));
             }
             case CmdType::FillLinearGradientRect: {
                 CmdColorP0P1P2P3 payload{};
@@ -1345,7 +1419,11 @@ export namespace ui::draw_cmd {
                 payload.p2 = cmd.p2;
                 payload.p3 = cmd.p3;
                 return write_cmd(base, capacity, out_bytes, out_count, offsets,
-                                 cmd.type, cmd.rect, &payload, sizeof(payload));
+                                 cmd.type, cmd.rect,
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                                 cmd.draw_scope,
+#endif
+                                 &payload, sizeof(payload));
             }
             case CmdType::FillRoundRect:
             case CmdType::StrokeRoundRect:
@@ -1355,12 +1433,20 @@ export namespace ui::draw_cmd {
                 payload.color = cmd.color;
                 payload.p0 = cmd.p0;
                 return write_cmd(base, capacity, out_bytes, out_count, offsets,
-                                 cmd.type, cmd.rect, &payload, sizeof(payload));
+                                 cmd.type, cmd.rect,
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                                 cmd.draw_scope,
+#endif
+                                 &payload, sizeof(payload));
             }
             case CmdType::DrawImage: {
                 CmdImage payload{cmd.image};
                 return write_cmd(base, capacity, out_bytes, out_count, offsets,
-                                 cmd.type, cmd.rect, &payload, sizeof(payload));
+                                 cmd.type, cmd.rect,
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                                 cmd.draw_scope,
+#endif
+                                 &payload, sizeof(payload));
             }
             case CmdType::DrawImageRoundRect: {
                 CmdImageP0P1P2 payload{};
@@ -1369,7 +1455,11 @@ export namespace ui::draw_cmd {
                 payload.p1 = cmd.p1;
                 payload.p2 = cmd.p2;
                 return write_cmd(base, capacity, out_bytes, out_count, offsets,
-                                 cmd.type, cmd.rect, &payload, sizeof(payload));
+                                 cmd.type, cmd.rect,
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                                 cmd.draw_scope,
+#endif
+                                 &payload, sizeof(payload));
             }
             case CmdType::DrawImageNineSlice: {
                 CmdImageP0P1P2P3 payload{};
@@ -1379,7 +1469,11 @@ export namespace ui::draw_cmd {
                 payload.p2 = cmd.p2;
                 payload.p3 = cmd.p3;
                 return write_cmd(base, capacity, out_bytes, out_count, offsets,
-                                 cmd.type, cmd.rect, &payload, sizeof(payload));
+                                 cmd.type, cmd.rect,
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                                 cmd.draw_scope,
+#endif
+                                 &payload, sizeof(payload));
             }
             case CmdType::DrawTextBox: {
                 CmdTextBox payload{};
@@ -1392,7 +1486,11 @@ export namespace ui::draw_cmd {
                 payload.wrap = cmd.wrap;
                 payload.ellipsis = cmd.ellipsis;
                 return write_cmd(base, capacity, out_bytes, out_count, offsets,
-                                 cmd.type, cmd.rect, &payload, sizeof(payload));
+                                 cmd.type, cmd.rect,
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                                 cmd.draw_scope,
+#endif
+                                 &payload, sizeof(payload));
             }
             case CmdType::FocusRing: {
                 CmdColorP0P1P2 payload{};
@@ -1401,7 +1499,11 @@ export namespace ui::draw_cmd {
                 payload.p1 = cmd.p1;
                 payload.p2 = cmd.p2;
                 return write_cmd(base, capacity, out_bytes, out_count, offsets,
-                                 cmd.type, cmd.rect, &payload, sizeof(payload));
+                                 cmd.type, cmd.rect,
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                                 cmd.draw_scope,
+#endif
+                                 &payload, sizeof(payload));
             }
             case CmdType::FillRectBatch:
             case CmdType::StrokeRectBatch: {
@@ -1410,7 +1512,11 @@ export namespace ui::draw_cmd {
                 payload.blob = cmd.blob;
                 payload.count = cmd.p0;
                 return write_cmd(base, capacity, out_bytes, out_count, offsets,
-                                 cmd.type, cmd.rect, &payload, sizeof(payload));
+                                 cmd.type, cmd.rect,
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                                 cmd.draw_scope,
+#endif
+                                 &payload, sizeof(payload));
             }
             case CmdType::DrawLineBatch: {
                 CmdBatchLine payload{};
@@ -1418,7 +1524,11 @@ export namespace ui::draw_cmd {
                 payload.blob = cmd.blob;
                 payload.count = cmd.p0;
                 return write_cmd(base, capacity, out_bytes, out_count, offsets,
-                                 cmd.type, cmd.rect, &payload, sizeof(payload));
+                                 cmd.type, cmd.rect,
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                                 cmd.draw_scope,
+#endif
+                                 &payload, sizeof(payload));
             }
             case CmdType::DrawPathBatch: {
                 CmdBatchPath payload{};
@@ -1426,7 +1536,11 @@ export namespace ui::draw_cmd {
                 payload.blob = cmd.blob;
                 payload.count = cmd.p0;
                 return write_cmd(base, capacity, out_bytes, out_count, offsets,
-                                 cmd.type, cmd.rect, &payload, sizeof(payload));
+                                 cmd.type, cmd.rect,
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                                 cmd.draw_scope,
+#endif
+                                 &payload, sizeof(payload));
             }
             case CmdType::FocusRingBatch: {
                 CmdBatchRectP0P1P2 payload{};
@@ -1437,7 +1551,11 @@ export namespace ui::draw_cmd {
                 payload.p2 = cmd.p2;
                 payload.count = cmd.p3;
                 return write_cmd(base, capacity, out_bytes, out_count, offsets,
-                                 cmd.type, cmd.rect, &payload, sizeof(payload));
+                                 cmd.type, cmd.rect,
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                                 cmd.draw_scope,
+#endif
+                                 &payload, sizeof(payload));
             }
             case CmdType::FillRoundRectBatch:
             case CmdType::StrokeRoundRectBatch:
@@ -1449,7 +1567,11 @@ export namespace ui::draw_cmd {
                 payload.p0 = cmd.p0;
                 payload.count = cmd.p1;
                 return write_cmd(base, capacity, out_bytes, out_count, offsets,
-                                 cmd.type, cmd.rect, &payload, sizeof(payload));
+                                 cmd.type, cmd.rect,
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                                 cmd.draw_scope,
+#endif
+                                 &payload, sizeof(payload));
             }
             case CmdType::GlyphRun: {
                 CmdGlyphRun payload{};
@@ -1463,7 +1585,11 @@ export namespace ui::draw_cmd {
                 payload.ellipsis = cmd.ellipsis;
                 payload.count = static_cast<std::uint16_t>(cmd.p0);
                 return write_cmd(base, capacity, out_bytes, out_count, offsets,
-                                 cmd.type, cmd.rect, &payload, sizeof(payload));
+                                 cmd.type, cmd.rect,
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                                 cmd.draw_scope,
+#endif
+                                 &payload, sizeof(payload));
             }
             case CmdType::DrawImageBatch: {
                 CmdImageBatch payload{};
@@ -1471,7 +1597,11 @@ export namespace ui::draw_cmd {
                 payload.blob = cmd.blob;
                 payload.count = cmd.p0;
                 return write_cmd(base, capacity, out_bytes, out_count, offsets,
-                                 cmd.type, cmd.rect, &payload, sizeof(payload));
+                                 cmd.type, cmd.rect,
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                                 cmd.draw_scope,
+#endif
+                                 &payload, sizeof(payload));
             }
             case CmdType::DrawImageRoundRectBatch: {
                 CmdImageBatchP0P1P2 payload{};
@@ -1482,7 +1612,11 @@ export namespace ui::draw_cmd {
                 payload.p2 = cmd.p2;
                 payload.count = cmd.p3;
                 return write_cmd(base, capacity, out_bytes, out_count, offsets,
-                                 cmd.type, cmd.rect, &payload, sizeof(payload));
+                                 cmd.type, cmd.rect,
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                                 cmd.draw_scope,
+#endif
+                                 &payload, sizeof(payload));
             }
             case CmdType::DrawImageNineSliceBatch: {
                 CmdImageBatchP0P1P2P3 payload{};
@@ -1493,7 +1627,11 @@ export namespace ui::draw_cmd {
                 payload.p2 = cmd.p2;
                 payload.p3 = cmd.p3;
                 return write_cmd(base, capacity, out_bytes, out_count, offsets,
-                                 cmd.type, cmd.rect, &payload, sizeof(payload));
+                                 cmd.type, cmd.rect,
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                                 cmd.draw_scope,
+#endif
+                                 &payload, sizeof(payload));
             }
             default:
                 return false;
@@ -1517,6 +1655,9 @@ export namespace ui::draw_cmd {
         bool cmd_overflowed_{false};
         bool text_overflowed_{false};
         bool offsets_valid_{true};
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+        DrawScope current_draw_scope_{};
+#endif
     };
 
     constexpr std::size_t kDefaultCmdCapacity = 1024;

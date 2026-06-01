@@ -75,6 +75,7 @@
                                    WidgetHandle parent,
                                    const HomeLayout& home_layout) {
         const WidgetHandle collage_root = builder.create_container();
+        mark_draw_scope(builder, collage_root, PlayerDrawScopeId::HomeCollage);
         anchor_rect(builder, collage_root,
                     {home_layout.collage_x,
                      home_layout.collage_y,
@@ -313,6 +314,11 @@
             icons.shuffle,
             home_layout.play_icon_px);
 
+        mark_draw_scope(builder, h.home_title_top, PlayerDrawScopeId::HomeHero);
+        mark_draw_scope(builder, h.home_title_bottom, PlayerDrawScopeId::HomeHero);
+        mark_draw_scope(builder, h.home_subtitle, PlayerDrawScopeId::HomeHero);
+        mark_draw_scope(builder, h.home_play, PlayerDrawScopeId::HomeHero);
+
         builder.link(parent, h.home_title_top);
         builder.link(parent, h.home_title_bottom);
         builder.link(parent, h.home_subtitle);
@@ -345,6 +351,9 @@
         build_home_hero(builder, h, home_content, home_layout, icons);
         build_home_collage(builder, h, home_content, home_layout);
         build_home_cards(builder, h, home_content, home_layout, icons);
+        mark_draw_scope(builder, h.home_daily_mix_card, PlayerDrawScopeId::HomeCards);
+        mark_draw_scope(builder, h.home_recently_played_card, PlayerDrawScopeId::HomeCards);
+        mark_draw_scope(builder, h.home_stats_probe_card, PlayerDrawScopeId::HomeCards);
         build_home_toolbar(builder, home_layers.chrome, layout, home_layout, icons);
 
         builder.link(home_layers.content, home_scroll);

@@ -1,5 +1,7 @@
 module;
 
+#include "vivid_features.generated.hpp"
+
 #include <algorithm>
 #include <array>
 #include <cstddef>
@@ -64,6 +66,12 @@ export namespace ui::draw_cmd {
 
     class DrawCmdExecutor {
     public:
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+        [[nodiscard]] DrawCmdDetailStats last_detail_stats() const noexcept { return last_detail_stats_; }
+#else
+        [[nodiscard]] DrawCmdDetailStats last_detail_stats() const noexcept { return {}; }
+#endif
+
         template <class Buffer>
         DrawCmdExecStats execute(CanvasBase& canvas,
                                  const Buffer& buf,
@@ -72,6 +80,9 @@ export namespace ui::draw_cmd {
             stats.cmd_count = buf.size();
             stats.cmd_bytes = buf.cmd_bytes();
             stats.overflowed = buf.overflowed();
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+            last_detail_stats_ = {};
+#endif
 
             std::array<CanvasBase::ClipState, 64> clip_stack{};
             std::size_t sp = 0;
@@ -109,6 +120,54 @@ export namespace ui::draw_cmd {
                 stats.failed_cmds++;
                 stats.fail_other++;
             };
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+            auto rect_area_u32 = [](const Rect& r) noexcept -> std::uint32_t {
+                const Rect n = rect_normalized(r);
+                if (n.w <= 0 || n.h <= 0) return 0U;
+                const auto area = static_cast<std::uint64_t>(n.w) * static_cast<std::uint64_t>(n.h);
+                return area > 0xFFFFFFFFULL ? 0xFFFFFFFFU : static_cast<std::uint32_t>(area);
+            };
+            auto scope_bucket = [&](DrawScope scope) noexcept -> DrawScopeDetail* {
+                for (auto& bucket : last_detail_stats_.scopes) {
+                    if (bucket.active != 0U && bucket.scope_id == scope.id) return &bucket;
+                }
+                for (auto& bucket : last_detail_stats_.scopes) {
+                    if (bucket.active == 0U) {
+                        bucket = DrawScopeDetail{};
+                        bucket.active = 1U;
+                        bucket.scope_id = scope.id;
+                        return &bucket;
+                    }
+                }
+                ++last_detail_stats_.scope_overflow;
+                return nullptr;
+            };
+            auto note_detail = [&](const DrawCmd& cur, const Rect& rect, std::uint64_t alpha_delta) noexcept {
+                const auto idx = static_cast<std::size_t>(cur.type);
+                if (idx >= last_detail_stats_.types.size()) return;
+                const std::uint32_t area = rect_area_u32(rect);
+                auto& type = last_detail_stats_.types[idx];
+                ++type.count;
+                type.rect_area += area;
+                type.actual_alpha_pixels += alpha_delta;
+                if (area > type.max_rect_area) type.max_rect_area = area;
+                if (auto* scope = scope_bucket(cur.draw_scope)) {
+                    ++scope->cmd_count;
+                    scope->rect_area += area;
+                    scope->actual_alpha_pixels += alpha_delta;
+                }
+            };
+            auto alpha_before = []() noexcept -> std::uint64_t { return alpha_blend_count(); };
+            auto alpha_delta_since = [](std::uint64_t before) noexcept -> std::uint64_t {
+                const std::uint64_t after = alpha_blend_count();
+                return after >= before ? (after - before) : 0ULL;
+            };
+            auto note_failed_detail = [&](const DrawCmd& cur, const Rect& rect) noexcept {
+                note_detail(cur, rect, 0ULL);
+            };
+#else
+            auto note_failed_detail = [](const DrawCmd&, const Rect&) noexcept {};
+#endif
             auto draw_linear_gradient_rect = [&](const DrawCmd& cur, const Rect& rect) noexcept {
                 const int radius = cur.p0;
                 const bool vertical = cur.p1 != 0;
@@ -191,7 +250,13 @@ export namespace ui::draw_cmd {
                 }
             };
             auto exec_rect_like = [&](const DrawCmd& cur) noexcept {
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                const std::uint64_t before = alpha_before();
+#endif
                 draw_rectlike_shape(cur, cur.rect);
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                note_detail(cur, cur.rect, alpha_delta_since(before));
+#endif
             };
             auto rectlike_batchable = [](CmdType type) noexcept {
                 switch (type) {
@@ -229,13 +294,20 @@ export namespace ui::draw_cmd {
                 }
             };
             auto exec_rectlike_item = [&](const DrawCmd& cur, const Rect& rect) noexcept {
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                const std::uint64_t before = alpha_before();
+#endif
                 draw_rectlike_shape(cur, rect);
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                note_detail(cur, rect, alpha_delta_since(before));
+#endif
             };
 
             auto draw_imagelike_shape = [&](const DrawCmd& cur, const Rect& rect) noexcept {
                 const auto* image = resolve_image(cur.image);
                 if (!image || !(*image)) {
                     fail_image();
+                    note_failed_detail(cur, rect);
                     return;
                 }
 
@@ -283,7 +355,13 @@ export namespace ui::draw_cmd {
             };
 
             auto exec_image_like = [&](const DrawCmd& cur) noexcept {
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                const std::uint64_t before = alpha_before();
+#endif
                 draw_imagelike_shape(cur, cur.rect);
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                note_detail(cur, cur.rect, alpha_delta_since(before));
+#endif
             };
             auto imagelike_batchable = [](CmdType type) noexcept {
                 switch (type) {
@@ -310,50 +388,78 @@ export namespace ui::draw_cmd {
                 }
             };
             auto exec_imagelike_item = [&](const DrawCmd& cur, const Rect& rect) noexcept {
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                const std::uint64_t before = alpha_before();
+#endif
                 draw_imagelike_shape(cur, rect);
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                note_detail(cur, rect, alpha_delta_since(before));
+#endif
             };
 
             auto exec_draw_line = [&](const DrawCmd& cur) noexcept {
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                const std::uint64_t before = alpha_before();
+#endif
                 ui::render::draw_line(canvas,
                                       cur.rect.x,
                                       cur.rect.y,
                                       cur.rect.w,
                                       cur.rect.h,
                                       cur.color);
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                note_detail(cur, line_bounds(cur.rect.x, cur.rect.y, cur.rect.w, cur.rect.h), alpha_delta_since(before));
+#endif
             };
 
             auto exec_draw_path = [&](const DrawCmd& cur) noexcept {
                 const int count = cur.p0;
                 if (count < 2) {
                     fail_path();
+                    note_failed_detail(cur, cur.rect);
                     return;
                 }
                 const auto blob = buf.blob_at(cur.blob);
                 const auto points = ui::gfx::path::decode_points(blob, count);
                 if (points.empty()) {
                     fail_path();
+                    note_failed_detail(cur, cur.rect);
                     return;
                 }
                 const bool closed = (cur.p1 != 0);
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                const std::uint64_t before = alpha_before();
+#endif
                 ui::gfx::path::stroke_path(canvas, points, closed, cur.color);
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                note_detail(cur, cur.rect, alpha_delta_since(before));
+#endif
             };
 
             auto exec_line_batch = [&](const DrawCmd& cur) noexcept {
                 const int count = cur.p0;
                 if (count <= 0) {
                     fail_other();
+                    note_failed_detail(cur, cur.rect);
                     return;
                 }
                 const auto blob = buf.blob_at(cur.blob);
                 if (blob.size() < static_cast<std::size_t>(count) * sizeof(LineBatchItem)) {
                     fail_blob();
+                    note_failed_detail(cur, cur.rect);
                     return;
                 }
                 const auto items = std::span<const LineBatchItem>(
                     reinterpret_cast<const LineBatchItem*>(blob.data()), count);
                 for (std::size_t i = 0; i < items.size(); ++i) {
                     const auto& item = items[i];
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                    const std::uint64_t before = alpha_before();
+#endif
                     ui::render::draw_line(canvas, item.x0, item.y0, item.x1, item.y1, cur.color);
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                    note_detail(cur, line_bounds(item.x0, item.y0, item.x1, item.y1), alpha_delta_since(before));
+#endif
                 }
             };
 
@@ -361,11 +467,13 @@ export namespace ui::draw_cmd {
                 const int count = cur.p0;
                 if (count <= 0) {
                     fail_other();
+                    note_failed_detail(cur, cur.rect);
                     return;
                 }
                 const auto blob = buf.blob_at(cur.blob);
                 if (blob.size() < static_cast<std::size_t>(count) * sizeof(PathBatchItem)) {
                     fail_blob();
+                    note_failed_detail(cur, cur.rect);
                     return;
                 }
                 const auto items = std::span<const PathBatchItem>(
@@ -374,16 +482,26 @@ export namespace ui::draw_cmd {
                     const auto& item = items[i];
                     if (item.count < 2) {
                         fail_path();
+                        note_failed_detail(cur, cur.rect);
                         continue;
                     }
                     const auto path_blob = buf.blob_at(item.blob);
                     const auto points = ui::gfx::path::decode_points(path_blob, item.count);
                     if (points.empty()) {
                         fail_path();
+                        note_failed_detail(cur, cur.rect);
                         continue;
                     }
                     const bool closed = (item.closed != 0);
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                    Rect item_bounds{};
+                    (void)ui::gfx::path::compute_bounds(points.data(), item.count, item_bounds);
+                    const std::uint64_t before = alpha_before();
+#endif
                     ui::gfx::path::stroke_path(canvas, points, closed, cur.color);
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                    note_detail(cur, item_bounds, alpha_delta_since(before));
+#endif
                 }
             };
 
@@ -391,21 +509,29 @@ export namespace ui::draw_cmd {
                 const int count = cur.p0;
                 if (count <= 0) {
                     fail_other();
+                    note_failed_detail(cur, cur.rect);
                     return;
                 }
                 const auto blob = buf.blob_at(cur.blob);
                 if (blob.size() < static_cast<std::size_t>(count) * sizeof(RectBatchItem)) {
                     fail_blob();
+                    note_failed_detail(cur, cur.rect);
                     return;
                 }
                 const auto items = std::span<const RectBatchItem>(
                     reinterpret_cast<const RectBatchItem*>(blob.data()), count);
                 for (std::size_t i = 0; i < items.size(); ++i) {
                     const auto& item = items[i];
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                    const std::uint64_t before = alpha_before();
+#endif
                     ui::render::draw_rect(canvas,
                                           item.rect.x, item.rect.y,
                                           item.rect.w, item.rect.h,
                                           cur.color, fill);
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                    note_detail(cur, item.rect, alpha_delta_since(before));
+#endif
                 }
             };
 
@@ -413,23 +539,31 @@ export namespace ui::draw_cmd {
                 const int count = cur.p1;
                 if (count <= 0) {
                     fail_other();
+                    note_failed_detail(cur, cur.rect);
                     return;
                 }
                 const auto blob = buf.blob_at(cur.blob);
                 if (blob.size() < static_cast<std::size_t>(count) * sizeof(RectBatchItem)) {
                     fail_blob();
+                    note_failed_detail(cur, cur.rect);
                     return;
                 }
                 const auto items = std::span<const RectBatchItem>(
                     reinterpret_cast<const RectBatchItem*>(blob.data()), count);
                 for (std::size_t i = 0; i < items.size(); ++i) {
                     const auto& item = items[i];
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                    const std::uint64_t before = alpha_before();
+#endif
                     ui::render::draw_round_rect(canvas,
                                                 item.rect.x, item.rect.y,
                                                 item.rect.w, item.rect.h,
                                                 cur.p0,
                                                 cur.color,
                                                 fill);
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                    note_detail(cur, item.rect, alpha_delta_since(before));
+#endif
                 }
             };
 
@@ -437,11 +571,13 @@ export namespace ui::draw_cmd {
                 const int count = cur.p1;
                 if (count <= 0) {
                     fail_other();
+                    note_failed_detail(cur, cur.rect);
                     return;
                 }
                 const auto blob = buf.blob_at(cur.blob);
                 if (blob.size() < static_cast<std::size_t>(count) * sizeof(RectBatchItem)) {
                     fail_blob();
+                    note_failed_detail(cur, cur.rect);
                     return;
                 }
                 const auto items = std::span<const RectBatchItem>(
@@ -451,7 +587,13 @@ export namespace ui::draw_cmd {
                     const auto& item = items[i];
                     const int cx = item.rect.x + item.rect.w / 2;
                     const int cy = item.rect.y + item.rect.h / 2;
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                    const std::uint64_t before = alpha_before();
+#endif
                     ui::render::draw_circle(canvas, cx, cy, radius, cur.color, fill);
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                    note_detail(cur, item.rect, alpha_delta_since(before));
+#endif
                 }
             };
 
@@ -459,18 +601,26 @@ export namespace ui::draw_cmd {
                 const int count = cur.p3;
                 if (count <= 0) {
                     fail_other();
+                    note_failed_detail(cur, cur.rect);
                     return;
                 }
                 const auto blob = buf.blob_at(cur.blob);
                 if (blob.size() < static_cast<std::size_t>(count) * sizeof(RectBatchItem)) {
                     fail_blob();
+                    note_failed_detail(cur, cur.rect);
                     return;
                 }
                 const auto items = std::span<const RectBatchItem>(
                     reinterpret_cast<const RectBatchItem*>(blob.data()), count);
                 for (std::size_t i = 0; i < items.size(); ++i) {
                     const auto& item = items[i];
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                    const std::uint64_t before = alpha_before();
+#endif
                     ui::render::draw_focus_ring(canvas, item.rect, cur.color, cur.p0, true, cur.p1, cur.p2);
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                    note_detail(cur, item.rect, alpha_delta_since(before));
+#endif
                 }
             };
 
@@ -478,11 +628,13 @@ export namespace ui::draw_cmd {
                 const int count = cur.p0;
                 if (count <= 0) {
                     fail_other();
+                    note_failed_detail(cur, cur.rect);
                     return;
                 }
                 const auto blob = buf.blob_at(cur.blob);
                 if (blob.size() < static_cast<std::size_t>(count) * sizeof(GlyphRunItem)) {
                     fail_blob();
+                    note_failed_detail(cur, cur.rect);
                     return;
                 }
                 const auto items = std::span<const GlyphRunItem>(
@@ -492,11 +644,18 @@ export namespace ui::draw_cmd {
                     const auto& item = items[i];
                     if (!buf.text_span_valid(item.text)) {
                         fail_text();
+                        note_failed_detail(cur, item.rect);
                         continue;
                     }
                     const char* text = buf.text_at(item.text.offset);
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                    const std::uint64_t before = alpha_before();
+#endif
                     draw_text_box(canvas, item.rect, text, cur.color, font,
                                   cur.align_h, cur.align_v, cur.wrap, cur.ellipsis);
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                    note_detail(cur, item.rect, alpha_delta_since(before));
+#endif
                 }
             };
 
@@ -504,28 +663,37 @@ export namespace ui::draw_cmd {
                 const int count = cur.p0;
                 if (count <= 0) {
                     fail_other();
+                    note_failed_detail(cur, cur.rect);
                     return;
                 }
                 const auto* image = resolve_image(cur.image);
                 if (!image || !(*image)) {
                     fail_image();
+                    note_failed_detail(cur, cur.rect);
                     return;
                 }
                 const auto blob = buf.blob_at(cur.blob);
                 if (blob.size() < static_cast<std::size_t>(count) * sizeof(ImageBatchItem)) {
                     fail_blob();
+                    note_failed_detail(cur, cur.rect);
                     return;
                 }
                 const auto items = std::span<const ImageBatchItem>(
                     reinterpret_cast<const ImageBatchItem*>(blob.data()), count);
                 for (std::size_t i = 0; i < items.size(); ++i) {
                     const auto& item = items[i];
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                    const std::uint64_t before = alpha_before();
+#endif
                     if (item.rect.w > 0 && item.rect.h > 0) {
                         ui::render::draw_image_scaled(canvas, item.rect.x, item.rect.y,
                                                       item.rect.w, item.rect.h, *image);
                     } else {
                         ui::render::draw_image(canvas, item.rect.x, item.rect.y, *image);
                     }
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                    note_detail(cur, item.rect, alpha_delta_since(before));
+#endif
                 }
             };
 
@@ -533,22 +701,28 @@ export namespace ui::draw_cmd {
                 const int count = cur.p3;
                 if (count <= 0) {
                     fail_other();
+                    note_failed_detail(cur, cur.rect);
                     return;
                 }
                 const auto* image = resolve_image(cur.image);
                 if (!image || !(*image)) {
                     fail_image();
+                    note_failed_detail(cur, cur.rect);
                     return;
                 }
                 const auto blob = buf.blob_at(cur.blob);
                 if (blob.size() < static_cast<std::size_t>(count) * sizeof(ImageBatchItem)) {
                     fail_blob();
+                    note_failed_detail(cur, cur.rect);
                     return;
                 }
                 const auto items = std::span<const ImageBatchItem>(
                     reinterpret_cast<const ImageBatchItem*>(blob.data()), count);
                 for (std::size_t i = 0; i < items.size(); ++i) {
                     const auto& item = items[i];
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                    const std::uint64_t before = alpha_before();
+#endif
                     if (item.rect.w > 0 && item.rect.h > 0) {
                         ui::render::draw_image_scaled_shaped(
                             canvas,
@@ -570,6 +744,9 @@ export namespace ui::draw_cmd {
                             static_cast<ui::render::ImageShapeKind>(cur.p1),
                             cur.p2);
                     }
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                    note_detail(cur, item.rect, alpha_delta_since(before));
+#endif
                 }
             };
 
@@ -577,12 +754,14 @@ export namespace ui::draw_cmd {
                 const auto* image = resolve_image(cur.image);
                 if (!image || !(*image)) {
                     fail_image();
+                    note_failed_detail(cur, cur.rect);
                     return;
                 }
                 const auto blob = buf.blob_at(cur.blob);
                 if (blob.size() < sizeof(ImageBatchItem)
                     || (blob.size() % sizeof(ImageBatchItem)) != 0) {
                     fail_blob();
+                    note_failed_detail(cur, cur.rect);
                     return;
                 }
                 const auto count = static_cast<int>(blob.size() / sizeof(ImageBatchItem));
@@ -590,11 +769,17 @@ export namespace ui::draw_cmd {
                     reinterpret_cast<const ImageBatchItem*>(blob.data()), count);
                 for (std::size_t i = 0; i < items.size(); ++i) {
                     const auto& item = items[i];
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                    const std::uint64_t before = alpha_before();
+#endif
                     ui::render::draw_image_nine_slice(canvas,
                                                       item.rect.x, item.rect.y,
                                                       item.rect.w, item.rect.h,
                                                       *image,
                                                       cur.p0, cur.p1, cur.p2, cur.p3);
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                    note_detail(cur, item.rect, alpha_delta_since(before));
+#endif
                 }
             };
 
@@ -678,8 +863,17 @@ export namespace ui::draw_cmd {
                         exec_circle_batch(cur, false);
                         break;
                     case CmdType::FocusRing:
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                    {
+                        const std::uint64_t before = alpha_before();
+                        ui::render::draw_focus_ring(canvas, cur.rect, cur.color, cur.p0, true, cur.p1, cur.p2);
+                        note_detail(cur, cur.rect, alpha_delta_since(before));
+                        break;
+                    }
+#else
                         ui::render::draw_focus_ring(canvas, cur.rect, cur.color, cur.p0, true, cur.p1, cur.p2);
                         break;
+#endif
                     case CmdType::FocusRingBatch:
                         exec_focus_batch(cur);
                         break;
@@ -694,12 +888,19 @@ export namespace ui::draw_cmd {
                     }
                     if (!buf.text_span_valid(cur.text)) {
                         fail_text();
+                        note_failed_detail(cur, cur.rect);
                         return;
                     }
                     const char* text = buf.text_at(cur.text.offset);
                     const Font& font = cur.font_ptr ? *cur.font_ptr : get_font(cur.font);
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                    const std::uint64_t before = alpha_before();
+#endif
                     draw_text_box(canvas, cur.rect, text, cur.color, font,
                                   cur.align_h, cur.align_v, cur.wrap, cur.ellipsis);
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                    note_detail(cur, cur.rect, alpha_delta_since(before));
+#endif
                     break;
                 }
                 case GroupKind::ImageLike:
@@ -743,6 +944,9 @@ export namespace ui::draw_cmd {
             };
 
             auto exec_ungrouped_cmd = [&](const DrawCmd& cur) noexcept {
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                note_detail(cur, cur.rect, 0ULL);
+#endif
                 if (cur.type == CmdType::PushClip) {
                     if (cur.rect.w <= 0 || cur.rect.h <= 0) {
                         stats.clip_invalid++;
@@ -820,6 +1024,7 @@ export namespace ui::draw_cmd {
             };
             auto text_params_match = [&](const DrawCmd& a, const DrawCmd& b) noexcept {
                 return rgba_equal(a.color, b.color)
+                    && draw_cmd_scope_equal(a, b)
                     && a.font_ptr == b.font_ptr
                     && a.font == b.font
                     && a.align_h == b.align_h
@@ -858,6 +1063,7 @@ export namespace ui::draw_cmd {
                                         break;
                                     }
                                     if (group_kind(next.type) != kind) break;
+                                    if (!draw_cmd_scope_equal(cur, next)) break;
                                     if (!rectlike_batchable(next.type)) break;
                                     if (!rectlike_params_match(cur, next)) break;
                                     rect_items[run].rect = next.rect;
@@ -903,6 +1109,7 @@ export namespace ui::draw_cmd {
                                         break;
                                     }
                                     if (group_kind(next.type) != kind) break;
+                                    if (!draw_cmd_scope_equal(cur, next)) break;
                                     if (!imagelike_batchable(next.type)) break;
                                     if (!imagelike_params_match(cur, next)) break;
                                     rect_items[run].rect = next.rect;
@@ -954,6 +1161,7 @@ export namespace ui::draw_cmd {
                                             break;
                                         }
                                         if (group_kind(next.type) != kind) break;
+                                        if (!draw_cmd_scope_equal(cur, next)) break;
                                         if (next.type != CmdType::DrawTextBox) break;
                                         if (!buf.text_span_valid(next.text)) break;
                                         if (!text_params_match(cur, next)) break;
@@ -968,16 +1176,23 @@ export namespace ui::draw_cmd {
                                             fail_other();
                                             break;
                                         }
-                                        if (!buf.text_span_valid(item.text)) {
-                                            fail_text();
-                                            item_offset += item_stride;
-                                            continue;
-                                        }
-                                        const char* text = buf.text_at(item.text.offset);
-                                        const Font& font = item.font_ptr ? *item.font_ptr : get_font(item.font);
-                                        draw_text_box(canvas, item.rect, text, item.color, font,
-                                                      item.align_h, item.align_v, item.wrap, item.ellipsis);
-                                        count_cmd(kind);
+                                    if (!buf.text_span_valid(item.text)) {
+                                        fail_text();
+                                        note_failed_detail(item, item.rect);
+                                        item_offset += item_stride;
+                                        continue;
+                                    }
+                                    const char* text = buf.text_at(item.text.offset);
+                                    const Font& font = item.font_ptr ? *item.font_ptr : get_font(item.font);
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                                    const std::uint64_t before = alpha_before();
+#endif
+                                    draw_text_box(canvas, item.rect, text, item.color, font,
+                                                  item.align_h, item.align_v, item.wrap, item.ellipsis);
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+                                    note_detail(item, item.rect, alpha_delta_since(before));
+#endif
+                                    count_cmd(kind);
                                         item_offset += item_stride;
                                     }
                                     offset = scan_offset;
@@ -1020,6 +1235,7 @@ export namespace ui::draw_cmd {
                                         break;
                                     }
                                     if (group_kind(next.type) != kind) break;
+                                    if (!draw_cmd_scope_equal(cur, next)) break;
                                     if (next.type != CmdType::DrawLine) break;
                                     if (!rgba_equal(next.color, cur.color)) break;
                                     line_items[run] = next;
@@ -1069,6 +1285,7 @@ export namespace ui::draw_cmd {
                                         break;
                                     }
                                     if (group_kind(next.type) != kind) break;
+                                    if (!draw_cmd_scope_equal(cur, next)) break;
                                     if (next.type != CmdType::DrawPath) break;
                                     if (!rgba_equal(next.color, cur.color)) break;
                                     path_items[run] = next;
@@ -1108,6 +1325,7 @@ export namespace ui::draw_cmd {
                             break;
                         }
                         if (group_kind(cur.type) != kind) break;
+                        if (!draw_cmd_scope_equal(cmd, cur)) break;
                         exec_group_cmd(cur, kind);
                         count_cmd(kind);
                         offset += cur_stride;
@@ -1326,5 +1544,10 @@ export namespace ui::draw_cmd {
             backend.end_frame();
             return stats;
         }
+
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+    private:
+        DrawCmdDetailStats last_detail_stats_{};
+#endif
     };
 }

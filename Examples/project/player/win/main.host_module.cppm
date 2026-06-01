@@ -24,6 +24,8 @@ module;
 #include <string>
 #include <string_view>
 #include <system_error>
+#include <type_traits>
+#include <utility>
 #include <vector>
 
 #include "main.ui_ci_shared.hpp"
@@ -60,6 +62,7 @@ import ui.input_adapter;
 import charm.gfx.color;
 import charm.gfx.text_box;
 import charm.gfx.image;
+import charm.gfx.draw_cmd;
 import charm.gfx.snapshot;
 import charm.font.typography;
 import charm.font.font_noto_ascii_16;

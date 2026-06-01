@@ -1,5 +1,7 @@
 module;
 
+#include "vivid_features.generated.hpp"
+
 #include <cstddef>
 #include <cstdint>
 
@@ -15,6 +17,7 @@ import charm.core.soa_factory;
 import charm.core.soa_kernel;
 import charm.core.soa_payload;
 import charm.gfx.image;
+import charm.gfx.draw_cmd;
 import charm.gfx.render_style;
 import charm.gfx.text_box;
 
@@ -72,6 +75,7 @@ export namespace ui::scene {
     using TableViewColDividerStyle = ::TableViewColDividerStyle;
     using TextAlignH = ::TextAlignH;
     using TextAlignV = ::TextAlignV;
+    using DrawScope = ui::draw_cmd::DrawScope;
 
     using ListViewTextFn = const char* (*)(const void*, std::uint16_t) noexcept;
     using ListViewSubtitleFn = const char* (*)(const void*, std::uint16_t) noexcept;
@@ -300,6 +304,11 @@ export namespace ui::scene {
         void set_style_class(WidgetHandle h, StyleClassId id) noexcept { kernel_->set_style_class(h, id); }
         void clear_style_class(WidgetHandle h) noexcept { kernel_->clear_style_class(h); }
         void clear_style_patch(WidgetHandle h) noexcept { kernel_->clear_style_patch(h); }
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+        void set_draw_scope(WidgetHandle h, DrawScope scope) noexcept { kernel_->set_draw_scope(h, scope.id); }
+#else
+        void set_draw_scope(WidgetHandle, DrawScope) noexcept {}
+#endif
 
         void set_visible(WidgetHandle h, bool v) noexcept { kernel_->set_visible(h, v); }
         void set_rect(WidgetHandle h, const Rect& r) noexcept { kernel_->set_rect(h, r); }
@@ -453,6 +462,11 @@ export namespace ui::scene {
         void set_style_class(WidgetHandle h, StyleClassId id) noexcept { kernel_.set_style_class(h, id); }
         void clear_style_class(WidgetHandle h) noexcept { kernel_.clear_style_class(h); }
         void clear_style_patch(WidgetHandle h) noexcept { kernel_.clear_style_patch(h); }
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+        void set_draw_scope(WidgetHandle h, DrawScope scope) noexcept { kernel_.set_draw_scope(h, scope.id); }
+#else
+        void set_draw_scope(WidgetHandle, DrawScope) noexcept {}
+#endif
 
     private:
         SoaKernel& kernel_;

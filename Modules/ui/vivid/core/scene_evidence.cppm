@@ -1,5 +1,7 @@
 module;
 
+#include "vivid_features.generated.hpp"
+
 #include <cstddef>
 #include <cstdint>
 
@@ -84,6 +86,9 @@ export namespace ui::scene {
         SceneExecEvidence exec{};
         SceneLayerEvidence layer{};
         SceneTimingEvidence timing{};
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+        ui::draw_cmd::DrawCmdDetailEvidence draw_detail{};
+#endif
     };
 
     inline constexpr std::uint32_t clamp_scene_evidence_u32(std::uint64_t value) noexcept {
@@ -174,6 +179,9 @@ export namespace ui::scene {
         out.timing.record_us = timing.record_us;
         out.timing.execute_us = timing.execute_us;
         out.timing.render_us = timing.render_us;
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+        out.draw_detail = ui::draw_cmd::make_draw_cmd_detail_evidence(scene.last_draw_detail_stats());
+#endif
         return out;
     }
 }

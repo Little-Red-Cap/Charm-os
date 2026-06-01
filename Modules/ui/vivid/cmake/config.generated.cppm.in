@@ -35,6 +35,7 @@ export namespace charm::vivid::config {
         Featureset featureset;
         KernelMode kernel_mode;
         bool enable_float_widgets;
+        bool draw_detail_evidence;
     };
 
     constexpr std::size_t kWidgetFeatureCount =
@@ -78,7 +79,8 @@ export namespace charm::vivid::config {
         FeatureConfig{
             Featureset::@VIVID_FEATURESET_ENUM@,
             KernelMode::soa,
-            @VIVID_ENABLE_FLOAT_WIDGETS@
+            @VIVID_ENABLE_FLOAT_WIDGETS@,
+            @VIVID_DRAW_DETAIL_EVIDENCE@
         },
         SoaConfig{
             @VIVID_SOA_MAX_NODES@
@@ -141,6 +143,7 @@ export inline constexpr int layer_cache_slots = vivid_config.screen.layer_cache_
 export inline constexpr int layer_cache_width = vivid_config.screen.layer_cache_width;
 export inline constexpr int layer_cache_height = vivid_config.screen.layer_cache_height;
 export inline constexpr bool enable_float_widgets = vivid_config.features.enable_float_widgets;
+export inline constexpr bool draw_detail_evidence_enabled = vivid_config.features.draw_detail_evidence;
 export inline constexpr std::size_t soa_max_nodes = vivid_config.soa.max_nodes;
 export inline constexpr std::size_t style_class_max = vivid_config.style.style_class_max;
 export inline constexpr std::size_t style_rule_cap = vivid_config.style.style_rule_cap;

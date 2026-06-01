@@ -1,4 +1,6 @@
 module;
+#include "vivid_features.generated.hpp"
+
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -662,3 +664,16 @@ import alg_list_scroll;
         if (idx == kInvalidIndex) return kStyleClassInvalid;
         return common_.style_class[idx];
     }
+
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+    void SoaKernel::set_draw_scope(WidgetHandle h, std::uint16_t id) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        common_.draw_scope[idx] = id;
+    }
+
+    std::uint16_t SoaKernel::draw_scope(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        return (idx == kInvalidIndex) ? std::uint16_t{0} : common_.draw_scope[idx];
+    }
+#endif

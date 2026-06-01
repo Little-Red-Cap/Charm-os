@@ -41,6 +41,9 @@ import charm.core.soa_registry;
             common_.semantic_id[i] = soa_detail::empty_text_id();
             common_.semantic_label[i] = soa_detail::empty_text_id();
             common_.semantic_actions[i] = 0;
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+            common_.draw_scope[i] = 0;
+#endif
         }
         payloads_.reset();
     }
@@ -87,6 +90,9 @@ import charm.core.soa_registry;
         common_.semantic_id[idx] = soa_detail::empty_text_id();
         common_.semantic_label[idx] = soa_detail::empty_text_id();
         common_.semantic_actions[idx] = 0;
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+        common_.draw_scope[idx] = 0;
+#endif
         const auto payload = payload_alloc(kind, idx);
         if (desc.payload != soa_detail::PayloadKind::None && !soa_detail::payload_valid(payload)) {
             common_.kind[idx] = WidgetKind::None;
@@ -113,6 +119,9 @@ import charm.core.soa_registry;
             common_.semantic_id[idx] = soa_detail::empty_text_id();
             common_.semantic_label[idx] = soa_detail::empty_text_id();
             common_.semantic_actions[idx] = 0;
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+            common_.draw_scope[idx] = 0;
+#endif
             common_.free_next[idx] = free_head_;
             free_head_ = idx;
             return {};
@@ -147,6 +156,9 @@ import charm.core.soa_registry;
         common_.semantic_id[idx] = soa_detail::empty_text_id();
         common_.semantic_label[idx] = soa_detail::empty_text_id();
         common_.semantic_actions[idx] = 0;
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+        common_.draw_scope[idx] = 0;
+#endif
         payload_free(old_kind, common_.payload[idx], idx);
         common_.payload[idx] = soa_detail::invalid_payload_handle();
         mark_layout_dirty();

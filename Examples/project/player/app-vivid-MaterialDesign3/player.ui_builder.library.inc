@@ -109,6 +109,7 @@
         }
 
         const WidgetHandle lib_top = builder.create_container();
+        mark_draw_scope(builder, lib_top, PlayerDrawScopeId::LibraryChrome);
         const Rect top_bar_rect{layout.top_bar_x, library_top_y, layout.top_bar_w, library_top_h};
         const Rect lib_settings_rect{
             top_bar_rect.w - 52,
@@ -171,6 +172,7 @@
         builder.set_button_icon_size(h.list_shuffle, lib_layout.shuffle_icon_px);
 
         const WidgetHandle tabs_plate = builder.create_container();
+        mark_draw_scope(builder, tabs_plate, PlayerDrawScopeId::LibraryChrome);
         anchor_rect(builder, tabs_plate,
                     {library_side_pad - 2, library_tabs_y - 4,
                      screen_width - (library_side_pad - 2) * 2, library_tabs_h + 8});
@@ -200,6 +202,7 @@
                                          library_tabs_gap, lib_layout.tabs_padding,
                                          ::ui::scene::LayoutAlign::Center};
         const WidgetHandle tabs_root = tabs_row.root();
+        mark_draw_scope(builder, tabs_root, PlayerDrawScopeId::LibraryChrome);
         tabs_row.add(h.list_tab_songs, library_tab_w, library_tabs_h);
         tabs_row.add(h.list_tab_albums, library_tab_w, library_tabs_h);
         tabs_row.add(h.list_tab_artist, library_tab_w, library_tabs_h);
@@ -227,8 +230,10 @@
                                             0, lib_layout.shuffle_padding,
                                             ::ui::scene::LayoutAlign::Start};
         const WidgetHandle shuffle_root = shuffle_row.root();
+        mark_draw_scope(builder, shuffle_root, PlayerDrawScopeId::LibraryChrome);
         shuffle_row.add(h.list_shuffle, lib_layout.shuffle_w, library_shuffle_h);
         const WidgetHandle action_row_plate = builder.create_container();
+        mark_draw_scope(builder, action_row_plate, PlayerDrawScopeId::LibraryChrome);
         anchor_rect(builder, action_row_plate,
                     {library_side_pad, library_shuffle_y - 4,
                      screen_width - library_side_pad * 2, library_shuffle_h + 8});
@@ -299,6 +304,7 @@
                                            static_cast<StyleClassId>(PlayerStyleClass::LibraryListCard),
                                            true};
         const WidgetHandle list_card_root = list_card.root();
+        mark_draw_scope(builder, list_card_root, PlayerDrawScopeId::LibraryList);
         const WidgetHandle list_header_plate = builder.create_container();
         anchor_rect(builder, list_header_plate, {14, 14, list_card_rect.w - 28, lib_layout.list_header_h - 14});
         {
@@ -623,6 +629,8 @@
         h.list_action_items[0] = list_action_menu.item(0);
         h.list_action_items[1] = list_action_menu.item(1);
         h.list_action_items[2] = list_action_menu.item(2);
+        mark_draw_scope(builder, h.list_action_scrim, PlayerDrawScopeId::LibraryOverlay);
+        mark_draw_scope(builder, h.list_action_card, PlayerDrawScopeId::LibraryOverlay);
         {
             StylePatch patch = ::ui::scene::make_clean_surface_patch({
                 .apply_bg_color = true,
@@ -750,6 +758,7 @@
         const int info_sheet_close_h = 30;
         const int info_sheet_close_x = info_sheet_local.w - 18 - info_sheet_close_w;
         h.list_info_scrim = builder.create_button_static("");
+        mark_draw_scope(builder, h.list_info_scrim, PlayerDrawScopeId::LibraryOverlay);
         anchor_rect(builder, h.list_info_scrim, {0, 0, screen_width, screen_height});
         {
             StylePatch patch = ::ui::scene::make_clean_surface_patch({
@@ -764,6 +773,7 @@
             builder.set_style_override(h.list_info_scrim, patch);
         }
         h.list_info_card = builder.create_container();
+        mark_draw_scope(builder, h.list_info_card, PlayerDrawScopeId::LibraryOverlay);
         anchor_rect(builder, h.list_info_card, info_sheet_rect);
         {
             StylePatch patch = ::ui::scene::make_clean_surface_patch({

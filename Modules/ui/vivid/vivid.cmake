@@ -207,6 +207,7 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
     vivid_cache_default(CHARM_VIVID_STYLE_CLASS_MAX STRING 256 "Vivid style class capacity")
     vivid_cache_default(CHARM_VIVID_STYLE_RULE_CAP STRING 32 "Vivid stylesheet rule capacity")
     vivid_cache_default(CHARM_VIVID_STYLE_METRICS_POOL_CAP STRING 64 "Vivid stylesheet metrics pool capacity")
+    vivid_cache_default(CHARM_VIVID_DRAW_DETAIL_EVIDENCE BOOL OFF "Enable DrawCmd detail evidence")
     foreach(_vivid_payload_cap IN ITEMS
             LABEL BUTTON IMAGE TEXT_INPUT TEXT_AREA NUMBER_INPUT
             SEGMENTED_CONTROL STEPPER TOGGLE_GROUP CHECKBOX RADIO
@@ -218,6 +219,7 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
 
     target_compile_definitions(${target_name} PRIVATE CHARM_VIVID_SOA_ONLY=1 CHARM_VIVID_KERNEL_SOA=1)
     vivid_bool_literal(_vivid_enable_float_widgets ${CHARM_VIVID_ENABLE_FLOAT_WIDGETS})
+    vivid_bool_literal(_vivid_draw_detail_evidence ${CHARM_VIVID_DRAW_DETAIL_EVIDENCE})
     if (CHARM_VIVID_FEATURESET STREQUAL "MCU_MIN")
         set(VIVID_FEATURESET_ENUM "mcu_min")
         set(VIVID_IS_MCU_MIN 1)
@@ -267,6 +269,7 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
     set(VIVID_STYLE_CLASS_MAX ${CHARM_VIVID_STYLE_CLASS_MAX})
     set(VIVID_STYLE_RULE_CAP ${CHARM_VIVID_STYLE_RULE_CAP})
     set(VIVID_STYLE_METRICS_POOL_CAP ${CHARM_VIVID_STYLE_METRICS_POOL_CAP})
+    set(VIVID_DRAW_DETAIL_EVIDENCE ${_vivid_draw_detail_evidence})
 
     set(SOA_POOL_CAP_DEFAULT "kDefaultPoolCap")
     set(SOA_TEXT_ARENA_BYTES "kDefaultTextArenaBytes")

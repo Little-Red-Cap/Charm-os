@@ -14,17 +14,19 @@
 
 ## Windows 样本
 
-`--ui-ci-perf-only` 已作为日常观测入口，固定采 Home 首帧、Home / Now Playing / Library / Library stress 稳定帧，以及 Home <-> Now Playing 动画过程，并输出三类 record-only 证据：
+`--ui-ci-perf-only` 已作为日常观测入口，固定采 Home 首帧、Home / Now Playing / Library / Library stress 稳定帧，以及 Home <-> Now Playing 动画过程，并输出五类 record-only 证据：
 
 - `[ui-ci.perf]`：原始 workload counters，用于判断画了多少、画了什么。
 - `[ui-ci.perf_time]`：阶段耗时，用于平台代价校准。
 - `[ui-ci.perf_profile]`：派生压力画像，用于横向比较。
+- `[ui-ci.perf_cmd_detail]`：按 DrawCmd 类型聚合 `count/area/alpha/max_area`。
+- `[ui-ci.perf_scope_detail]`：按 Player UI 粗粒度 scope 聚合 `cmd/area/alpha`。
 
 | 场景 | cmd | alpha | groups | flush | frame_us | tick_us | render_us | record_us | execute_us | present_us |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| Home 稳定帧 | 110 | 210058 | 65 | 65 | 27366 | 14 | 27352 | 61 | 23394 | 2577 |
-| Now Playing 稳定帧 | 66 | 74588 | 38 | 38 | 14738 | 8 | 14730 | 47 | 12055 | 1304 |
-| Library 稳定帧 | 136 | 2213412 | 73 | 73 | 83855 | 27 | 83828 | 2969 | 78914 | 583 |
+| Home 稳定帧 | 110 | 210058 | 65 | 65 | 27563 | 127 | 27436 | 99 | 25145 | 826 |
+| Now Playing 稳定帧 | 66 | 74588 | 38 | 38 | 14193 | 40 | 14153 | 53 | 11983 | 800 |
+| Library 稳定帧 | 136 | 2213412 | 73 | 73 | 82109 | 77 | 82032 | 149 | 79760 | 794 |
 
 字段说明：
 
@@ -34,8 +36,7 @@
 - `alpha_screen_x1000` 取自 `[ui-ci.perf_profile]`，表示 alpha blending 覆盖屏幕倍数乘以 1000。
 - `flush_density_x1000` 表示 `batch_flushes / cmd_count * 1000`。
 - `exec_density_x1000` 表示 `exec_cmds / cmd_count * 1000`。
-- 本次 Windows UI CI 已输出上述性能样本，但后续 case 出现挂起，进程已手动终止。因此这些样本可作为观测输入，但不能作为完整 UI CI 通过证据。
-- perf-only 接入后完整 `--ui-ci` 曾通过 `ok=1 failed=0`；后续一次运行再次超时，说明完整 UI CI 仍有偶发挂起风险，但 perf-only 不受阻塞。
+- 本次 Windows `--ui-ci-perf-only` 与完整 `--ui-ci` 均已通过；完整 UI CI 输出 `ok=1 failed=0`。
 
 当前 perf-only 样本摘要：
 
@@ -48,21 +49,54 @@
 
 Library stress 当前采用列表 wheel 后稳定帧。该样本与 Library 稳定帧 workload 相同，说明这次滚动输入后可见绘制压力没有变化；后续如需更强 stress，应加入明确可见区域变化或更深列表滚动状态。
 
+## 绘制细节归因
+
+Windows MD3 现在默认启用 `CHARM_VIVID_DRAW_DETAIL_EVIDENCE=ON`；H747 PRODUCT 默认保持关闭。detail evidence 不改变 DrawCmd executor 策略，只在执行后记录命令类型与 Player scope 聚合结果。
+
+Library 稳定帧 top 命令类型：
+
+| 命令类型 | count | area | alpha | max_area |
+| --- | ---: | ---: | ---: | ---: |
+| FillLinearGradientRect | 9 | 1717600 | 1712380 | 458376 |
+| FillRoundRect | 27 | 682008 | 497900 | 388800 |
+| StrokeRoundRect | 36 | 2399608 | 3132 | 458376 |
+| DrawTextBox | 38 | 287526 | 0 | 42872 |
+
+Library 稳定帧 top scope：
+
+| Scope | cmd | area | alpha |
+| --- | ---: | ---: | ---: |
+| default | 38 | 2715062 | 1253540 |
+| library.list | 57 | 3644440 | 829344 |
+| library.chrome | 23 | 279476 | 92648 |
+| bottom_bar | 16 | 217336 | 37880 |
+
+`exit_now` 峰值附近帧示例：
+
+| 帧 | 命令类型 / scope | count/cmd | area | alpha |
+| --- | --- | ---: | ---: | ---: |
+| frame2 | FillRoundRect | 15 | 1989007 | 461113 |
+| frame2 | now.transition | 12 | 2703335 | 289179 |
+| frame2 | home.cards | 32 | 781924 | 162094 |
+| frame3 | now.transition | 12 | 2342142 | 125066 |
+
+当前细节证据显示：Library 的主要 alpha 来源不是文本或图片，而是大面积 `FillLinearGradientRect` 和 `FillRoundRect`；`exit_now` 的中间帧则同时混入 Home 卡片区域和 `now.transition` overlay。下一轮如果开始优化，应优先讨论“减少重复大面积 alpha 覆盖”或“把 transition overlay 的可见区域/不透明路径切清楚”，而不是先动文本布局或图片缩放。
+
 ## Home 首帧与 Now Playing 动画样本
 
 Home 首帧与稳定帧 workload 相同，但首帧 record 成本明显更高：
 
 | 场景 | frame_us | record_us | execute_us | present_us | alpha_screen_x1000 |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Home first | 37506 | 8463 | 24788 | 2196 | 306 |
-| Home stable | 26394 | 55 | 24062 | 799 | 306 |
+| Home first | 37699 | 8642 | 24699 | 2447 | 306 |
+| Home stable | 27563 | 99 | 25145 | 826 | 306 |
 
 Now Playing 进入/退出动画使用真实 `bottom_hit` / `now_back` 点击触发，按 16ms 间隔采逐帧样本并输出 summary：
 
 | 动画 | frames | completed | total_frame_us | total_execute_us | max_frame_us | max_execute_us | total_alpha | max_alpha_screen_x1000 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| enter_now | 6 | 1 | 278595 | 86935 | 74320 | 22893 | 1697920 | 912 |
-| exit_now | 7 | 1 | 289080 | 176978 | 59669 | 32630 | 1587352 | 671 |
+| enter_now | 6 | 1 | 277640 | 86837 | 73156 | 23074 | 1702193 | 914 |
+| exit_now | 7 | 1 | 296400 | 182148 | 61990 | 34365 | 1582417 | 671 |
 
 进入 Now 的峰值帧出现在动画中段，`max_frame_us=74320`，但 `total_execute_us=86935`。退出 Now 的 `total_execute_us=176978` 明显更高，且多个中间帧执行 78 条命令，说明退出动画比进入动画更值得优先看 executor / overlay 组合成本。
 
@@ -90,11 +124,11 @@ real_md3=1 mock=0 smoke=1/11111 cmd=111/1024 text=241/4096 exec_fail=0 exec=48/3
 
 ## 初步归因
 
-- Library 是当前 Windows 样本中最明显的热点：`frame_us=83855`，其中 `execute_us=78914`，DrawCmd execute 主导整帧耗时。
+- Library 是当前 Windows 样本中最明显的热点：`frame_us=82109`，其中 `execute_us=79760`，DrawCmd execute 主导整帧耗时。
 - Library 的 `alpha=2213412` 明显高于 Home 的 `210058` 和 Now Playing 的 `74588`，大面积 alpha blending 是首要嫌疑。
 - perf-only 派生画像进一步确认 Library `alpha_screen_x1000=3221`，即约 3.221 屏 alpha 覆盖；Home 约 0.306 屏，Now Playing 约 0.109 屏。
-- Library 的 `record_us=2969` 可见，但远小于 `execute_us`，第一优先级不是 controller tick 或 UI tree record。
-- Library 的 `present_us=583` 低于 Home 和 Now Playing，本次样本不支持把 Windows 主要瓶颈归因为 framebuffer present/flush。
+- Library 的 `record_us=149` 远小于 `execute_us`，第一优先级不是 controller tick 或 UI tree record。
+- Library 的 `present_us=794` 低于 Home 首帧、接近其它稳定帧，本次样本不支持把 Windows 主要瓶颈归因为 framebuffer present/flush。
 - `flush_density_x1000` 三页都在 537-591 区间，当前证据不支持把主要差异归因为 batch flush 密度。
 - `exec_density_x1000=1000` 表示 executor 执行命令数与 recorded cmd 数一致，当前没有明显命令扩张。
 - Home 首帧的额外成本主要在 `record_us=8463`，不是 workload 变多；这更像首次字体/文本/scene record 热路径成本。

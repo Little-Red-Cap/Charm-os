@@ -190,6 +190,67 @@
             fail_other_total);
     }
 
+    const char* ui_ci_draw_scope_name(std::uint16_t id) noexcept {
+        switch (id) {
+        case 0: return "default";
+        case 1: return "home.hero";
+        case 2: return "home.cards";
+        case 3: return "home.collage";
+        case 4: return "now.cover";
+        case 5: return "now.text";
+        case 6: return "now.progress";
+        case 7: return "now.controls";
+        case 8: return "now.transition";
+        case 9: return "library.chrome";
+        case 10: return "library.list";
+        case 11: return "library.overlay";
+        case 12: return "bottom_bar";
+        default: return "unknown";
+        }
+    }
+
+    template<typename EvidenceT, typename = void>
+    struct UiCiHasDrawDetail : std::false_type {};
+
+    template<typename EvidenceT>
+    struct UiCiHasDrawDetail<EvidenceT, std::void_t<decltype(std::declval<const EvidenceT&>().draw_detail)>>
+        : std::true_type {};
+
+    void ui_ci_emit_perf_detail_evidence(const char* page,
+                                         const ::ui::scene::SceneEvidence& evidence) {
+        if constexpr (UiCiHasDrawDetail<::ui::scene::SceneEvidence>::value) {
+            for (std::size_t i = 0; i < evidence.draw_detail.types.size(); ++i) {
+                const auto& type = evidence.draw_detail.types[i];
+                if (type.count == 0U) continue;
+                ui_ci_perf_printf(
+                    "[ui-ci.perf_cmd_detail] page=%s type=%s count=%u area=%u alpha=%u max_area=%u\n",
+                    page ? page : "unknown",
+                    ::ui::draw_cmd::cmd_type_name(static_cast<::ui::draw_cmd::CmdType>(i)),
+                    type.count,
+                    type.rect_area,
+                    type.actual_alpha_pixels,
+                    type.max_rect_area);
+            }
+            for (const auto& scope : evidence.draw_detail.scopes) {
+                if (scope.active == 0U || scope.cmd_count == 0U) continue;
+                ui_ci_perf_printf(
+                    "[ui-ci.perf_scope_detail] page=%s scope=%s id=%u cmd=%u area=%u alpha=%u\n",
+                    page ? page : "unknown",
+                    ui_ci_draw_scope_name(scope.scope_id),
+                    scope.scope_id,
+                    scope.cmd_count,
+                    scope.rect_area,
+                    scope.actual_alpha_pixels);
+            }
+            if (evidence.draw_detail.scope_overflow != 0U) {
+                ui_ci_perf_printf(
+                    "[ui-ci.perf_scope_detail] page=%s scope_overflow=%u\n",
+                    page ? page : "unknown",
+                    evidence.draw_detail.scope_overflow);
+            }
+        }
+    }
+
     struct UiCiFrameTiming {
         std::uint32_t available{0};
         std::uint32_t frame_us{0};
@@ -276,6 +337,7 @@
         ui_ci_emit_perf_evidence(page, scene);
         ui_ci_emit_perf_time_evidence(page, timing, evidence);
         ui_ci_emit_perf_profile_evidence(page, evidence);
+        ui_ci_emit_perf_detail_evidence(page, evidence);
     }
 
     const char* ui_ci_page_name(player::PlayerPage page) noexcept {
@@ -406,6 +468,9 @@
             const bool active = ctx.now_playing_transition.active;
             ui_ci_accumulate_transition_summary(summary, timing, evidence);
             ui_ci_emit_transition_frame(name, frame, ctx.current_page, active, timing, evidence);
+            char detail_page[64]{};
+            std::snprintf(detail_page, sizeof(detail_page), "%s:frame%u", name ? name : "transition", frame);
+            ui_ci_emit_perf_detail_evidence(detail_page, evidence);
             if (!active && ctx.current_page == expected_page) {
                 summary.completed = 1U;
                 break;

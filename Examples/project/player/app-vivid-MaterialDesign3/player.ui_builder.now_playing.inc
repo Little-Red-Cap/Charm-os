@@ -112,6 +112,7 @@
                                              UiHandles& h,
                                              const NowPlayingBuildMetrics& metrics) {
         h.now_cover_plate = builder.create_container();
+        mark_draw_scope(builder, h.now_cover_plate, PlayerDrawScopeId::NowCover);
         anchor_rect(builder, h.now_cover_plate, metrics.cover_plate_rect);
         {
             StylePatch patch = ::ui::scene::make_clean_surface_patch({
@@ -130,6 +131,7 @@
         builder.link(now_playing, h.now_cover_plate);
 
         h.cover = builder.create_image();
+        mark_draw_scope(builder, h.cover, PlayerDrawScopeId::NowCover);
         anchor_rect(builder, h.cover, metrics.cover_rect);
         ::ui::scene::configure_image_surface(builder, h.cover, metrics.cover_radius);
         builder.link(now_playing, h.cover);
@@ -169,6 +171,7 @@
         h.now_text_group = title_block.root;
         h.title = title_block.title;
         h.subtitle = title_block.subtitle;
+        mark_draw_scope(builder, h.now_text_group, PlayerDrawScopeId::NowText);
     }
 
     struct NowPlayingProgressHandles {
@@ -210,6 +213,7 @@
 
         h.now_progress_group = builder.create_container();
         out.group = h.now_progress_group;
+        mark_draw_scope(builder, out.group, PlayerDrawScopeId::NowProgress);
         return out;
     }
 
@@ -337,6 +341,7 @@
                                              now_layout.controls_padding,
                                              ::ui::scene::LayoutAlign::Center};
         h.controls = controls_row.root();
+        mark_draw_scope(builder, h.controls, PlayerDrawScopeId::NowControls);
 
         h.btn_prev = add_now_control_side_button(
             builder, controls_row, metrics.small_btn, icons.prev, now_layout.control_side_icon + 2);
@@ -362,6 +367,7 @@
                                            const NowPlayingBuildMetrics& metrics,
                                            const PlayerIconIds& icons) {
         h.now_aux_group = builder.create_container();
+        mark_draw_scope(builder, h.now_aux_group, PlayerDrawScopeId::NowControls);
         anchor_rect(builder, h.now_aux_group, metrics.aux_panel_rect);
         {
             StylePatch patch = ::ui::scene::make_clean_surface_patch({

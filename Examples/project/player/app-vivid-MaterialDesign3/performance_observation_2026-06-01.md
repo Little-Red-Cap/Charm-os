@@ -111,6 +111,10 @@ Now Playing 进入/退出动画使用真实 `bottom_hit` / `now_back` 点击触�
 
 after 样本中 `exit_now:frame1` 到 `exit_now:frame5` 只有 `now.transition` scope；`home.cards` 只出现在 `active=0` 的最终 Home 帧。这说明本轮主要降低的是退出动画中段的重复 Home live UI 绘制，而不是改变视觉参数或 DrawCmd executor 算法。
 
+后续人工观察仍发现进入/退出 Now Playing 时 Home 有轻微抖动。根因定位为整页 snapshot compose 带有水平 slide：进入时 Home source snapshot 从 `x=0` 立即偏到 `x=-18`，退出时 Home destination snapshot 末段偏到 `x=-18` 后最终 live Home 回到 `x=0`。已将整页 snapshot compose 固定在原位，运动只保留在 Now Playing / mini-player transition overlay 上。该修复不改变视觉参数，也不改变 DrawCmd executor。
+
+继续观察退出动画时发现原画面残留感。原因是双快照路径仍每帧叠加 source snapshot，且 source opacity 末段仍接近 `180`。当前已改为 destination snapshot 作为稳定背景，source snapshot 只负责冻结/隐藏 live source，不再参与每帧合成；退出动画中段帧耗时降到约 `6.5-13.5ms` 区间，首帧仍包含 capture/准备成本。
+
 ## H747 样本
 
 当前已烧录固件的 H747 smoke 采集通过：

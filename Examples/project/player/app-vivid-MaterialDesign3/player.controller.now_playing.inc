@@ -905,21 +905,12 @@
             if (!scene_runtime.valid() || !snapshot) return {};
             const auto phase = sample_now_playing_transition_frame_phase(
                 now_playing_transition, progress);
-            const int source_slide = now_playing_transition.route.expanding
-                ? static_cast<int>((1.0f - phase.toward_destination) * -18.0f)
-                : static_cast<int>(phase.toward_destination * 18.0f);
-            const int destination_slide = now_playing_transition.route.expanding
-                ? static_cast<int>((1.0f - phase.toward_destination) * 18.0f)
-                : static_cast<int>(phase.toward_destination * -18.0f);
-            const auto caps = ::ui::scene::layer_profile_caps(effective_layer_profile);
             const auto requested_opacity = static_cast<std::uint8_t>(
-                destination ? lerp_u8(160, 255, phase.toward_destination)
-                            : lerp_u8(255, 180, phase.toward_destination));
+                destination ? 255 : lerp_u8(255, 0, phase.toward_destination));
             return scene_runtime.make_snapshot_compose_plan({
                 .source = snapshot,
                 .transform = ::ui::scene::LayerTransform{
-                    .x = static_cast<std::int16_t>(
-                        caps.allow_slide ? (destination ? destination_slide : source_slide) : 0),
+                    .x = 0,
                     .y = 0,
                     .opacity = ::ui::scene::resolve_layer_opacity(
                         effective_layer_profile, requested_opacity),
@@ -982,7 +973,9 @@
             const auto tick = sample_now_playing_transition_tick_phase(
                 now_playing_transition, now_ms);
             compose_transition_pixel_layer(tick.progress, true);
-            compose_transition_pixel_layer(tick.progress, false);
+            if (!now_playing_transition.destination_snapshot) {
+                compose_transition_pixel_layer(tick.progress, false);
+            }
         }
 
         bool transition_needs_destination_snapshot() const noexcept {

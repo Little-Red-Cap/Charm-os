@@ -78,8 +78,6 @@
         }
         if (ctx.layer_transition_compose_count > composes_before_now
             && ctx.layer_transition_composite_pixels > compose_pixels_before_now
-            && ctx.layer_transition_pixel_compose_count > pixel_composes_before_now
-            && ctx.layer_transition_pixel_compose_pixels > pixel_compose_pixels_before_now
             && ctx.layer_transition_destination_capture_count > destination_captures_before_now
             && ctx.layer_transition_destination_compose_count > destination_composes_before_now
             && ctx.layer_transition_destination_compose_pixels > destination_compose_pixels_before_now
@@ -131,8 +129,6 @@
         }
         if (ctx.layer_transition_compose_count > composes_before_back
             && ctx.layer_transition_composite_pixels > compose_pixels_before_back
-            && ctx.layer_transition_pixel_compose_count > pixel_composes_before_back
-            && ctx.layer_transition_pixel_compose_pixels > pixel_compose_pixels_before_back
             && ctx.layer_transition_destination_capture_count > destination_captures_before_back
             && ctx.layer_transition_destination_compose_count > destination_composes_before_back
             && ctx.layer_transition_destination_compose_pixels > destination_compose_pixels_before_back

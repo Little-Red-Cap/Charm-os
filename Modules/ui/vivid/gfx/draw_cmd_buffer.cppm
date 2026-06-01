@@ -268,6 +268,7 @@ export namespace ui::draw_cmd {
         }
 
         bool fill_rect(const Rect& rect, const rgba& color) noexcept {
+            if (color.a == 0) return true;
             auto cmd = make_cmd(CmdType::FillRect, rect);
             cmd.color = color;
             return push_cmd(cmd);
@@ -278,6 +279,7 @@ export namespace ui::draw_cmd {
                                        const rgba& end,
                                        int radius,
                                        bool vertical) noexcept {
+            if (start.a == 0 && end.a == 0) return true;
             auto cmd = make_cmd(CmdType::FillLinearGradientRect, rect);
             cmd.color = start;
             cmd.p0 = static_cast<std::int16_t>(radius);
@@ -288,12 +290,14 @@ export namespace ui::draw_cmd {
         }
 
         bool stroke_rect(const Rect& rect, const rgba& color) noexcept {
+            if (color.a == 0) return true;
             auto cmd = make_cmd(CmdType::StrokeRect, rect);
             cmd.color = color;
             return push_cmd(cmd);
         }
 
         bool fill_round_rect(const Rect& rect, int radius, const rgba& color) noexcept {
+            if (color.a == 0) return true;
             auto cmd = make_cmd(CmdType::FillRoundRect, rect);
             cmd.color = color;
             cmd.p0 = static_cast<std::int16_t>(radius);
@@ -301,6 +305,7 @@ export namespace ui::draw_cmd {
         }
 
         bool stroke_round_rect(const Rect& rect, int radius, const rgba& color) noexcept {
+            if (color.a == 0) return true;
             auto cmd = make_cmd(CmdType::StrokeRoundRect, rect);
             cmd.color = color;
             cmd.p0 = static_cast<std::int16_t>(radius);

@@ -241,3 +241,20 @@ real_md3=1 mock=0 smoke=1/11111 cmd=111/1024 text=241/4096 exec_fail=0 exec=48/3
 - `cmd_count` 保持 `110`，说明本轮不是减少控件数量，而是降低同等视觉结构下的 alpha blend 面积。
 - Home first 的 record 峰值仍存在；新增 font cache 证据显示首帧 `font_cache_delta=452/65/0`，稳定帧为 `0/0/0`，支持“首次 glyph/cache 热路径”归因。本轮不做字体预热，避免把成本前移到启动阶段。
 - 完整 Windows `--ui-ci` 通过；H747 `h747_lab_player_md3 -j 1` 通过。当前 H747 evidence：`RAM_D1.used_bytes=46256`、`FLASH.bin_bytes=722752`、`PlayerController.size_bytes=9560`、`PLAYER_ICON.ram_d1_buffer_count=0`。
+
+## Library 透明 No-op DrawCommand 收敛
+
+本轮在 Vivid DrawCmd record 层跳过完全透明的 `FillRect`、`FillRoundRect`、`StrokeRect`、`StrokeRoundRect`；`FillLinearGradientRect` 仅在两端 alpha 都为 0 时跳过。语义是“记录成功但不写入无视觉意义命令”，不改 DrawCmd executor、batch 策略、数据结构、Player Library 布局或 PixelPlayer 视觉参数。
+
+| 场景 | cmd_count | flush | execute_us | FillRoundRect.count | FillRoundRect.area | FillRoundRect.alpha | StrokeRoundRect.count | StrokeRoundRect.area | StrokeRoundRect.alpha |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| before library | 136 | 73 | 44141-48151 | 27 | 682008 | 66628 | 36 | 2399608 | 3132 |
+| after library | 93 | 62 | 45389 | 17 | 565736 | 66628 | 4 | 89956 | 3132 |
+| after library_stress | 93 | 62 | 44033 | 17 | 565736 | 66628 | 4 | 89956 | 3132 |
+
+结论：
+
+- Library 透明 no-op 跳过后，稳定帧命令数减少 `43` 条，`StrokeRoundRect` 从 `36` 条降到 `4` 条，stroke 记录面积从 `2399608` 降到 `89956`。
+- `alpha_screen_x1000` 保持 `124`，`FillRoundRect.alpha` 与 `StrokeRoundRect.alpha` 也基本不变，符合本轮目标：减少透明命令的 record/execute 负担，而不是继续压 alpha blending。
+- Windows timing 仍有波动，`execute_us` 本轮不能作为唯一收益判断；workload counters 更能说明本轮收敛已经生效。
+- 完整 Windows `--ui-ci` 通过；H747 `h747_lab_player_md3 -j 1` 通过。当前 H747 evidence：`RAM_D1.used_bytes=46256`、`FLASH.bin_bytes=724000`、`PlayerController.size_bytes=9560`、`PLAYER_ICON.ram_d1_buffer_count=0`，PRODUCT forbidden hits 仍为 0。

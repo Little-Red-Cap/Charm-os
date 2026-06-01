@@ -38,7 +38,7 @@
 - `exec_density_x1000` 表示 `exec_cmds / cmd_count * 1000`。
 - 本次 Windows `--ui-ci-perf-only` 与完整 `--ui-ci` 均已通过；完整 UI CI 输出 `ok=1 failed=0`。
 
-当前 perf-only 样本摘要：
+优化前 perf-only 样本摘要：
 
 | 场景 | alpha_screen_x1000 | cmd_mix rect/text/image/other | group_mix rect/text/image/other | flush_density_x1000 | exec_density_x1000 | text_bytes | blob_bytes |
 | --- | ---: | --- | --- | ---: | ---: | ---: | ---: |
@@ -81,6 +81,25 @@ Library 稳定帧 top scope：
 | frame3 | now.transition | 12 | 2342142 | 125066 |
 
 当前细节证据显示：Library 的主要 alpha 来源不是文本或图片，而是大面积 `FillLinearGradientRect` 和 `FillRoundRect`；`exit_now` 的中间帧则同时混入 Home 卡片区域和 `now.transition` overlay。下一轮如果开始优化，应优先讨论“减少重复大面积 alpha 覆盖”或“把 transition overlay 的可见区域/不透明路径切清楚”，而不是先动文本布局或图片缩放。
+
+## Library Alpha Overdraw 第一轮
+
+本轮只处理 Library 稳定帧中常驻大面积底板的 alpha overdraw：`library_bg_top / library_bg_bottom`、`library_controls`、`LibraryListCard` 父级卡片 surface、`list_header_plate`、`list_body_plate`、`list_context_tray`。做法是在 Player Library builder 内把已知半透明颜色/渐变按近似背景预混合为 `alpha=255`，不改布局、控件树、文案、按钮形状、DrawCmd executor 或 PixelPlayer 参考视觉目标。
+
+优化前基线来自本记录前面的 detail evidence：
+
+| 场景 | execute_us | alpha_screen_x1000 | FillLinearGradientRect.alpha | FillRoundRect.alpha |
+| --- | ---: | ---: | ---: | ---: |
+| Library before | 77050 | 3165 | 1712380 | 460020 |
+
+优化后 Windows `--ui-ci-perf-only` 样本：
+
+| 场景 | execute_us | alpha_screen_x1000 | FillLinearGradientRect.alpha | FillRoundRect.alpha |
+| --- | ---: | ---: | ---: | ---: |
+| Library after | 42639 | 218 | 74724 | 72016 |
+| Library stress after | 43117 | 218 | 74724 | 72016 |
+
+完整 Windows `--ui-ci` 中 Library 样本为 `alpha=149872`、`alpha_screen_x1000=218`、`execute_us=44591`，并且完整 UI CI 输出 `done ok=1 failed=0`。这说明本轮主要降低了稳定帧大面积 alpha blending 工作量；`cmd_count=136` 基本保持不变，优化目标不是减少控件数量。
 
 ## Home 首帧与 Now Playing 动画样本
 

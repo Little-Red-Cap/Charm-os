@@ -1,6 +1,51 @@
+    struct LibraryOpaqueGradient {
+        rgba start{};
+        rgba end{};
+    };
+
+    static rgba library_opaque_over(const rgba& src, const rgba& bg) noexcept {
+        const std::uint16_t alpha = src.a;
+        const std::uint16_t inv = static_cast<std::uint16_t>(255 - alpha);
+        auto blend = [&](std::uint8_t fg, std::uint8_t base) noexcept -> std::uint8_t {
+            return static_cast<std::uint8_t>(
+                (static_cast<std::uint16_t>(fg) * alpha
+                 + static_cast<std::uint16_t>(base) * inv) / 255);
+        };
+        return {blend(src.r, bg.r), blend(src.g, bg.g), blend(src.b, bg.b), 255};
+    }
+
+    static LibraryOpaqueGradient library_opaque_gradient(const rgba& start,
+                                                        const rgba& end,
+                                                        const rgba& bg) noexcept {
+        return {library_opaque_over(start, bg), library_opaque_over(end, bg)};
+    }
+
+    static void apply_library_opaque_gradient(StylePatch& patch,
+                                              const rgba& start,
+                                              const rgba& end,
+                                              const rgba& bg) noexcept {
+        // Performance-only premix: preserve the intended colors while avoiding
+        // large stable Library surfaces paying alpha blending every frame.
+        const LibraryOpaqueGradient gradient = library_opaque_gradient(start, end, bg);
+        patch.has_gradient_enabled = true;
+        patch.gradient_enabled = true;
+        patch.has_gradient_start = true;
+        patch.gradient_start = gradient.start;
+        patch.has_gradient_end = true;
+        patch.gradient_end = gradient.end;
+        patch.has_gradient_direction = true;
+        patch.gradient_direction = 0;
+    }
+
     static void build_library(::ui::scene::SceneBuilder& builder, UiHandles& h,
                               const UiLayout& layout, const PlayerIconIds& icons) {
         const LibraryLayout lib_layout = make_library_layout();
+        const rgba library_backdrop_bottom =
+            library_opaque_over(kUiLibraryHeroBottomEnd, kUiBackground);
+        const rgba library_controls_base =
+            library_opaque_over(kUiLibraryControlsBottom, library_backdrop_bottom);
+        const rgba library_card_base =
+            library_opaque_over(kUiLibraryCardTop, library_controls_base);
         h.list_title = builder.create_label_static("");
         anchor_rect(builder, h.list_title, {0, 0, 0, 0});
         h.list_path = builder.create_label_static("");
@@ -34,14 +79,10 @@
         anchor_rect(builder, library_bg_top, {0, 0, screen_width, screen_height / 2});
         {
             StylePatch patch{};
-            patch.has_gradient_enabled = true;
-            patch.gradient_enabled = true;
-            patch.has_gradient_start = true;
-            patch.gradient_start = kUiLibraryHeroTopStart;
-            patch.has_gradient_end = true;
-            patch.gradient_end = kUiLibraryHeroTopEnd;
-            patch.has_gradient_direction = true;
-            patch.gradient_direction = 0;
+            apply_library_opaque_gradient(patch,
+                                          kUiLibraryHeroTopStart,
+                                          kUiLibraryHeroTopEnd,
+                                          kUiBackground);
             patch.has_border_color = true;
             patch.border_color = {0, 0, 0, 0};
             builder.set_style_patch(library_bg_top, patch);
@@ -52,14 +93,10 @@
         anchor_rect(builder, library_bg_bottom, {0, screen_height / 3, screen_width, screen_height - screen_height / 3});
         {
             StylePatch patch{};
-            patch.has_gradient_enabled = true;
-            patch.gradient_enabled = true;
-            patch.has_gradient_start = true;
-            patch.gradient_start = kUiLibraryHeroBottomStart;
-            patch.has_gradient_end = true;
-            patch.gradient_end = kUiLibraryHeroBottomEnd;
-            patch.has_gradient_direction = true;
-            patch.gradient_direction = 0;
+            apply_library_opaque_gradient(patch,
+                                          kUiLibraryHeroBottomStart,
+                                          kUiLibraryHeroBottomEnd,
+                                          kUiBackground);
             patch.has_border_color = true;
             patch.border_color = {0, 0, 0, 0};
             builder.set_style_patch(library_bg_bottom, patch);
@@ -96,14 +133,10 @@
                 .border_color = {0, 0, 0, 0},
                 .corner_radius = 34,
             });
-            patch.has_gradient_enabled = true;
-            patch.gradient_enabled = true;
-            patch.has_gradient_start = true;
-            patch.gradient_start = kUiLibraryControlsTop;
-            patch.has_gradient_end = true;
-            patch.gradient_end = kUiLibraryControlsBottom;
-            patch.has_gradient_direction = true;
-            patch.gradient_direction = 0;
+            apply_library_opaque_gradient(patch,
+                                          kUiLibraryControlsTop,
+                                          kUiLibraryControlsBottom,
+                                          library_backdrop_bottom);
             builder.set_style_override(library_controls, patch);
             builder.set_hit_testable(library_controls, false);
         }
@@ -305,6 +338,14 @@
                                            true};
         const WidgetHandle list_card_root = list_card.root();
         mark_draw_scope(builder, list_card_root, PlayerDrawScopeId::LibraryList);
+        {
+            StylePatch patch{};
+            patch.has_bg_color = true;
+            patch.bg_color = library_opaque_over(kUiLibraryCardTop, library_controls_base);
+            patch.has_gradient_enabled = true;
+            patch.gradient_enabled = false;
+            builder.set_style_patch(list_card_root, patch);
+        }
         const WidgetHandle list_header_plate = builder.create_container();
         anchor_rect(builder, list_header_plate, {14, 14, list_card_rect.w - 28, lib_layout.list_header_h - 14});
         {
@@ -312,18 +353,16 @@
                 .apply_bg_color = true,
                 .apply_border_color = true,
                 .apply_corner_radius = true,
-                .bg_color = {kUiLibraryHeaderPlate.r, kUiLibraryHeaderPlate.g, kUiLibraryHeaderPlate.b, 214},
+                .bg_color = library_opaque_over({kUiLibraryHeaderPlate.r, kUiLibraryHeaderPlate.g,
+                                                 kUiLibraryHeaderPlate.b, 214},
+                                                library_card_base),
                 .border_color = {0, 0, 0, 0},
                 .corner_radius = 24,
             });
-            patch.has_gradient_enabled = true;
-            patch.gradient_enabled = true;
-            patch.has_gradient_start = true;
-            patch.gradient_start = {42, 50, 69, 222};
-            patch.has_gradient_end = true;
-            patch.gradient_end = {28, 33, 46, 214};
-            patch.has_gradient_direction = true;
-            patch.gradient_direction = 0;
+            apply_library_opaque_gradient(patch,
+                                          {42, 50, 69, 222},
+                                          {28, 33, 46, 214},
+                                          library_card_base);
             builder.set_style_override(list_header_plate, patch);
             builder.set_hit_testable(list_header_plate, false);
         }
@@ -352,18 +391,16 @@
                 .apply_bg_color = true,
                 .apply_border_color = true,
                 .apply_corner_radius = true,
-                .bg_color = {kUiLibraryBodyPlate.r, kUiLibraryBodyPlate.g, kUiLibraryBodyPlate.b, 232},
+                .bg_color = library_opaque_over({kUiLibraryBodyPlate.r, kUiLibraryBodyPlate.g,
+                                                 kUiLibraryBodyPlate.b, 232},
+                                                library_card_base),
                 .border_color = {0, 0, 0, 0},
                 .corner_radius = 22,
             });
-            patch.has_gradient_enabled = true;
-            patch.gradient_enabled = true;
-            patch.has_gradient_start = true;
-            patch.gradient_start = {25, 30, 43, 238};
-            patch.has_gradient_end = true;
-            patch.gradient_end = {15, 19, 28, 232};
-            patch.has_gradient_direction = true;
-            patch.gradient_direction = 0;
+            apply_library_opaque_gradient(patch,
+                                          {25, 30, 43, 238},
+                                          {15, 19, 28, 232},
+                                          library_card_base);
             builder.set_style_override(list_body_plate, patch);
             builder.set_hit_testable(list_body_plate, false);
         }
@@ -381,18 +418,16 @@
                 .apply_bg_color = true,
                 .apply_border_color = true,
                 .apply_corner_radius = true,
-                .bg_color = {kUiLibraryHeaderPlate.r, kUiLibraryHeaderPlate.g, kUiLibraryHeaderPlate.b, 182},
+                .bg_color = library_opaque_over({kUiLibraryHeaderPlate.r, kUiLibraryHeaderPlate.g,
+                                                 kUiLibraryHeaderPlate.b, 182},
+                                                library_card_base),
                 .border_color = {0, 0, 0, 0},
                 .corner_radius = 22,
             });
-            patch.has_gradient_enabled = true;
-            patch.gradient_enabled = true;
-            patch.has_gradient_start = true;
-            patch.gradient_start = {34, 40, 56, 194};
-            patch.has_gradient_end = true;
-            patch.gradient_end = {22, 28, 40, 186};
-            patch.has_gradient_direction = true;
-            patch.gradient_direction = 0;
+            apply_library_opaque_gradient(patch,
+                                          {34, 40, 56, 194},
+                                          {22, 28, 40, 186},
+                                          library_card_base);
             builder.set_style_override(list_context_tray, patch);
             builder.set_hit_testable(list_context_tray, false);
         }

@@ -78,6 +78,35 @@ export using ::TableViewHeaderStyle;
 export using ::TableViewColDividerStyle;
 
 export namespace ui::scene {
+    struct SceneTimingSource {
+        using NowUsFn = std::uint64_t (*)(void* ctx) noexcept;
+
+        void* ctx{nullptr};
+        NowUsFn now_us{nullptr};
+
+        [[nodiscard]] bool available() const noexcept { return now_us != nullptr; }
+        [[nodiscard]] std::uint64_t sample_us() const noexcept {
+            return now_us ? now_us(ctx) : 0ULL;
+        }
+    };
+
+    struct SceneRenderTiming {
+        std::uint32_t available{0};
+        std::uint32_t record_us{0};
+        std::uint32_t execute_us{0};
+        std::uint32_t render_us{0};
+    };
+
+    inline constexpr std::uint32_t clamp_scene_timing_us(std::uint64_t value) noexcept {
+        constexpr std::uint64_t max_u32 = 0xFFFFFFFFULL;
+        return static_cast<std::uint32_t>(value > max_u32 ? max_u32 : value);
+    }
+
+    inline constexpr std::uint32_t scene_timing_delta_us(std::uint64_t start,
+                                                         std::uint64_t end) noexcept {
+        return end >= start ? clamp_scene_timing_us(end - start) : 0U;
+    }
+
     class SceneOverlay {
     public:
         explicit SceneOverlay(ui::draw_cmd::DefaultDrawCmdBuffer& buf) noexcept : buf_(buf) {}
@@ -132,11 +161,30 @@ export namespace ui::scene {
             overlay_ctx_ = ctx;
         }
 
+        void set_timing_source(SceneTimingSource timing_source) noexcept {
+            timing_source_ = timing_source;
+            if (!timing_source_.available()) {
+                last_render_timing_ = {};
+            }
+        }
+
         void render() {
+            const bool timing = timing_source_.available();
+            const std::uint64_t frame_start = timing ? timing_source_.sample_us() : 0ULL;
             record_current_scene();
+            const std::uint64_t record_end = timing ? timing_source_.sample_us() : 0ULL;
             reset_alpha_blend_count();
             last_exec_stats_ = detail::to_scene_stats(cmd_exec_.execute(canvas_, cmd_buf_));
             last_exec_stats_.alpha_blend_count = alpha_blend_count();
+            const std::uint64_t execute_end = timing ? timing_source_.sample_us() : 0ULL;
+            last_render_timing_ = timing
+                ? SceneRenderTiming{
+                    .available = 1U,
+                    .record_us = scene_timing_delta_us(frame_start, record_end),
+                    .execute_us = scene_timing_delta_us(record_end, execute_end),
+                    .render_us = scene_timing_delta_us(frame_start, execute_end),
+                }
+                : SceneRenderTiming{};
         }
 
         template <ui::RenderBackend Backend>
@@ -206,6 +254,7 @@ export namespace ui::scene {
 
         CmdStats last_cmd_stats() const noexcept { return last_cmd_stats_; }
         ExecStats last_exec_stats() const noexcept { return last_exec_stats_; }
+        SceneRenderTiming last_render_timing() const noexcept { return last_render_timing_; }
         LayerStats layer_stats() const noexcept { return snapshot_store_.stats(); }
         LayerEpoch current_layer_epoch() const noexcept {
             return make_layer_epoch();
@@ -491,6 +540,8 @@ export namespace ui::scene {
         ui::draw_cmd::DrawCmdExecutor cmd_exec_{};
         CmdStats last_cmd_stats_{};
         ExecStats last_exec_stats_{};
+        SceneTimingSource timing_source_{};
+        SceneRenderTiming last_render_timing_{};
         DefaultSnapshotStore snapshot_store_{};
         OverlayFn overlay_fn_{nullptr};
         void* overlay_ctx_{nullptr};

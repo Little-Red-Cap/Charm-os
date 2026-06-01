@@ -108,6 +108,12 @@
             .clear_color = kUiBackground,
         };
         g_runtime.emplace(g_clock, g_platform, g_ctx, std::move(runtime_cfg));
+        g_runtime->scene_ref().set_timing_source(::ui::scene::SceneTimingSource{
+            nullptr,
+            [](void*) noexcept -> std::uint64_t {
+                return static_cast<std::uint64_t>(g_clock.now_us());
+            },
+        });
         const bool has_track = g_runtime->bootstrap();
         apply_library_preview_options(options);
         if (has_track && !fs_seek_selftest(g_ctx.track_path())) {

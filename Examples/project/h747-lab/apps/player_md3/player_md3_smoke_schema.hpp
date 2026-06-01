@@ -65,6 +65,7 @@ enum class PlayerMd3SmokeField : std::uint8_t {
     ExecGroups,
     ExecCmdKinds,
     ExecFailDetail,
+    PerfTime,
 };
 
 [[nodiscard]] constexpr const char* smoke_field_token(
@@ -134,6 +135,8 @@ enum class PlayerMd3SmokeField : std::uint8_t {
         return "exec_cmds";
     case PlayerMd3SmokeField::ExecFailDetail:
         return "exec_fail_detail";
+    case PlayerMd3SmokeField::PerfTime:
+        return "perf_time";
     case PlayerMd3SmokeField::Input:
         return "input";
     case PlayerMd3SmokeField::Touch:

@@ -72,10 +72,18 @@ export namespace ui::scene {
         std::uint32_t pixel_blit_pixels{0};
     };
 
+    struct SceneTimingEvidence {
+        std::uint32_t available{0};
+        std::uint32_t record_us{0};
+        std::uint32_t execute_us{0};
+        std::uint32_t render_us{0};
+    };
+
     struct SceneEvidence {
         SceneCmdEvidence cmd{};
         SceneExecEvidence exec{};
         SceneLayerEvidence layer{};
+        SceneTimingEvidence timing{};
     };
 
     inline constexpr std::uint32_t clamp_scene_evidence_u32(std::uint64_t value) noexcept {
@@ -160,6 +168,12 @@ export namespace ui::scene {
         out.layer.composite_pixels = layer.composite_pixels;
         out.layer.pixel_blit_count = layer.pixel_blit_count;
         out.layer.pixel_blit_pixels = layer.pixel_blit_pixels;
+
+        const auto timing = scene.last_render_timing();
+        out.timing.available = timing.available;
+        out.timing.record_us = timing.record_us;
+        out.timing.execute_us = timing.execute_us;
+        out.timing.render_us = timing.render_us;
         return out;
     }
 }

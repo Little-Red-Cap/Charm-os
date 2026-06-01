@@ -60,6 +60,13 @@ struct PlayerMd3State {
     std::uint32_t scene_exec_cmd_other{0};
     std::uint32_t scene_exec_fail_other{0};
     std::uint32_t scene_exec_overflowed{0};
+    std::uint32_t perf_time_available{0};
+    std::uint32_t perf_time_frame_us{0};
+    std::uint32_t perf_time_tick_us{0};
+    std::uint32_t perf_time_render_us{0};
+    std::uint32_t perf_time_record_us{0};
+    std::uint32_t perf_time_execute_us{0};
+    std::uint32_t perf_time_present_us{0};
     std::uint32_t style_rule_count{0};
     std::uint32_t style_rule_capacity{0};
     std::uint32_t style_metrics_used{0};

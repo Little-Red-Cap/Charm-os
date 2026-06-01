@@ -131,7 +131,10 @@ memory ownership.
 Render performance evidence is record-only in this phase. Status lines append
 `cmd_batch`, `exec_batch`, `exec_groups`, `exec_cmds`, and `exec_fail_detail`
 tokens so DrawCmd pressure can be compared across UI changes without turning
-the first baseline into a hard gate.
+the first baseline into a hard gate. Status lines also append
+`perf_time=<available>/<frame>/<tick>/<render>/<record>/<execute>/<present>`.
+Timing values are microseconds sampled from DWT `CYCCNT` when available; they
+remain diagnostics only and do not participate in strict smoke gates.
 
 Current PRODUCT baseline after the Library list cover cache was made a
 compile-time product capacity and the default H747 profile set it to zero:

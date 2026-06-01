@@ -17,6 +17,7 @@
 #include "port.h"
 
 import audio.player;
+import charm.ui.scene;
 import player.input;
 import player.app;
 import player.app_config;
@@ -37,8 +38,72 @@ alignas(h747::apps::player_md3::PlayerRuntimeShell)
 std::byte g_shell_storage[sizeof(h747::apps::player_md3::PlayerRuntimeShell)];
 h747::apps::player_md3::PlayerRuntimeShell* g_shell{nullptr};
 
+constexpr std::uint32_t kDwtCtrlCyccntena = 1UL;
+constexpr std::uint32_t kCoreDebugDemcrTrcena = 1UL << 24U;
+
 charm::system::ClockTick player_md3_now_us(void*) noexcept {
     return static_cast<charm::system::ClockTick>(HAL_GetTick()) * 1000ULL;
+}
+
+std::uint32_t clamp_u64_to_u32(const std::uint64_t value) noexcept {
+    constexpr std::uint64_t max_u32 = 0xFFFFFFFFULL;
+    return static_cast<std::uint32_t>(value > max_u32 ? max_u32 : value);
+}
+
+bool enable_dwt_cycle_counter() noexcept {
+    CoreDebug->DEMCR |= kCoreDebugDemcrTrcena;
+    DWT->CYCCNT = 0U;
+    DWT->CTRL |= kDwtCtrlCyccntena;
+    return (DWT->CTRL & kDwtCtrlCyccntena) != 0U;
+}
+
+bool dwt_cycle_counter_ready() noexcept {
+    return (CoreDebug->DEMCR & kCoreDebugDemcrTrcena) != 0U
+        && (DWT->CTRL & kDwtCtrlCyccntena) != 0U
+        && HAL_RCC_GetHCLKFreq() != 0U;
+}
+
+std::uint64_t dwt_cycles64() noexcept {
+    static std::uint32_t last_cycles{0U};
+    static std::uint64_t high_cycles{0ULL};
+    const std::uint32_t cycles = DWT->CYCCNT;
+    if (cycles < last_cycles) {
+        high_cycles += 0x100000000ULL;
+    }
+    last_cycles = cycles;
+    return high_cycles + static_cast<std::uint64_t>(cycles);
+}
+
+std::uint64_t dwt_now_us() noexcept {
+    const std::uint32_t freq_hz = HAL_RCC_GetHCLKFreq();
+    if (!dwt_cycle_counter_ready() || freq_hz == 0U) {
+        return 0ULL;
+    }
+    return (dwt_cycles64() * 1000000ULL) /
+           static_cast<std::uint64_t>(freq_hz);
+}
+
+std::uint32_t dwt_delta_us(const std::uint64_t start, const std::uint64_t end) noexcept {
+    return end >= start ? clamp_u64_to_u32(end - start) : 0U;
+}
+
+struct TimedDisplaySinkState {
+    ::player::PlayerDisplaySink* inner{nullptr};
+    std::uint32_t present_us{0};
+};
+
+bool timed_display_present(void* ctx,
+                           const ::player::PlayerDisplaySurface& surface,
+                           ::player::PlayerDirtyRegion dirty) noexcept {
+    auto* timed = static_cast<TimedDisplaySinkState*>(ctx);
+    const bool timing_available = dwt_cycle_counter_ready();
+    const std::uint64_t start = timing_available ? dwt_now_us() : 0ULL;
+    const bool ok = timed && timed->inner && timed->inner->present(surface, dirty);
+    const std::uint64_t end = timing_available ? dwt_now_us() : 0ULL;
+    if (timed) {
+        timed->present_us = timing_available ? dwt_delta_us(start, end) : 0U;
+    }
+    return ok;
 }
 
 ::player::StorageConfig empty_storage_config() noexcept {
@@ -414,7 +479,15 @@ bool render_frame() noexcept {
     if (shell == nullptr) {
         return false;
     }
-    const bool ok = shell->frame(clock_ref().now_us());
+    const bool timing_available = dwt_cycle_counter_ready();
+    const std::uint64_t frame_start = timing_available ? dwt_now_us() : 0ULL;
+    const std::uint64_t tick_start = frame_start;
+    shell->step(clock_ref().now_us());
+    const std::uint64_t tick_end = timing_available ? dwt_now_us() : 0ULL;
+    TimedDisplaySinkState timed_sink_state{&sink_ref(), 0U};
+    ::player::PlayerDisplaySink timed_sink{&timed_sink_state, &timed_display_present};
+    const bool ok = shell->runtime() && shell->runtime()->render(&timed_sink);
+    const std::uint64_t render_end = timing_available ? dwt_now_us() : 0ULL;
     refresh_board_resource_state();
     if ((state().frames % 120U) == 0U) {
         refresh_resource_probe_state();
@@ -425,6 +498,17 @@ bool render_frame() noexcept {
         sample_render_content_bounds();
     }
     sample_scene_stats();
+    const auto scene_timing = shell->scene()
+        ? shell->scene()->last_render_timing()
+        : ::ui::scene::SceneRenderTiming{};
+    auto& st = state();
+    st.perf_time_available = timing_available ? 1U : 0U;
+    st.perf_time_frame_us = timing_available ? dwt_delta_us(frame_start, render_end) : 0U;
+    st.perf_time_tick_us = timing_available ? dwt_delta_us(tick_start, tick_end) : 0U;
+    st.perf_time_render_us = timing_available ? dwt_delta_us(tick_end, render_end) : 0U;
+    st.perf_time_record_us = scene_timing.record_us;
+    st.perf_time_execute_us = scene_timing.execute_us;
+    st.perf_time_present_us = timed_sink_state.present_us;
     refresh_playback_probe_state();
     if (ok) {
         ++state().frames;
@@ -458,6 +542,14 @@ void init_runtime() noexcept {
     if (g_shell == nullptr) {
         g_shell = ::new (static_cast<void*>(g_shell_storage)) PlayerRuntimeShell{runtime, shell_cfg};
     }
+    const bool timing_ready = enable_dwt_cycle_counter();
+    g_shell->scene_ref().set_timing_source(::ui::scene::SceneTimingSource{
+        nullptr,
+        [](void*) noexcept -> std::uint64_t {
+            return dwt_now_us();
+        },
+    });
+    st.perf_time_available = timing_ready ? 1U : 0U;
     init_input_bridge();
 
     h747::console::write_line("player_md3: bootstrap begin");

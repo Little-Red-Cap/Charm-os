@@ -219,6 +219,10 @@ The status line also appends record-only Vivid render evidence:
 - `exec_groups=<rect>/<text>/<image>/<other>` records executor dispatch group mix.
 - `exec_cmds=<rect>/<text>/<image>/<line>/<path>/<other>` records command kind mix.
 - `exec_fail_detail=<text>/<image>/<other>` records failure categories.
+- `perf_time=<available>/<frame>/<tick>/<render>/<record>/<execute>/<present>`
+  records microsecond timing sampled from DWT `CYCCNT` when available. `record`
+  is Vivid scene command recording, `execute` is DrawCmd execution, and
+  `present` is the display sink flush/present path.
 
 These fields are diagnostics only. They do not participate in the strict smoke
 gate yet and should be treated as baseline evidence for later render

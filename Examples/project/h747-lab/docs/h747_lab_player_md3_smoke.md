@@ -208,6 +208,22 @@ the board provider is `h747_input_service`, pointer capability is
 `gt9xx_best_effort`, and encoder capability is `dual_encoder`; it does not
 require a human to touch the panel during every CI-style capture.
 
+## Record-Only Render Performance Evidence
+
+The status line also appends record-only Vivid render evidence:
+
+- `cmd_batch=<all>/<rect_like>/<line_path_image>` records command buffer batch
+  shrink pressure.
+- `exec_batch=<dispatch_groups>/<batch_flushes>/<clip_failures>/<overflow>` records
+  executor grouping and clipping pressure.
+- `exec_groups=<rect>/<text>/<image>/<other>` records executor dispatch group mix.
+- `exec_cmds=<rect>/<text>/<image>/<line>/<path>/<other>` records command kind mix.
+- `exec_fail_detail=<text>/<image>/<other>` records failure categories.
+
+These fields are diagnostics only. They do not participate in the strict smoke
+gate yet and should be treated as baseline evidence for later render
+optimization work.
+
 `input_route` is diagnostic evidence only. It lets manual bring-up distinguish
 "hardware sampled but not routed" from "routed into the real Player runtime but
 the UI did not visibly react". It is append-only and must not become a product

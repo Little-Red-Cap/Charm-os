@@ -60,6 +60,11 @@ enum class PlayerMd3SmokeField : std::uint8_t {
     LtdcFramebuffer,
     LtdcControl,
     LtdcPixelFormat,
+    CmdBatch,
+    ExecBatch,
+    ExecGroups,
+    ExecCmdKinds,
+    ExecFailDetail,
 };
 
 [[nodiscard]] constexpr const char* smoke_field_token(
@@ -119,6 +124,16 @@ enum class PlayerMd3SmokeField : std::uint8_t {
         return "exec";
     case PlayerMd3SmokeField::FailTextImage:
         return "fail_ti";
+    case PlayerMd3SmokeField::CmdBatch:
+        return "cmd_batch";
+    case PlayerMd3SmokeField::ExecBatch:
+        return "exec_batch";
+    case PlayerMd3SmokeField::ExecGroups:
+        return "exec_groups";
+    case PlayerMd3SmokeField::ExecCmdKinds:
+        return "exec_cmds";
+    case PlayerMd3SmokeField::ExecFailDetail:
+        return "exec_fail_detail";
     case PlayerMd3SmokeField::Input:
         return "input";
     case PlayerMd3SmokeField::Touch:

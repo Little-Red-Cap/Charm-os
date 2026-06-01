@@ -35,6 +35,21 @@ void sample_scene_stats() noexcept {
         st.scene_exec_cmd_image = 0U;
         st.scene_exec_fail_text = 0U;
         st.scene_exec_fail_image = 0U;
+        st.scene_batch_shrink = 0U;
+        st.scene_batch_shrink_rect = 0U;
+        st.scene_batch_shrink_text_path = 0U;
+        st.scene_exec_clip_failures = 0U;
+        st.scene_exec_batch_flushes = 0U;
+        st.scene_exec_dispatch_groups = 0U;
+        st.scene_exec_group_rect = 0U;
+        st.scene_exec_group_text = 0U;
+        st.scene_exec_group_image = 0U;
+        st.scene_exec_group_other = 0U;
+        st.scene_exec_cmd_line = 0U;
+        st.scene_exec_cmd_path = 0U;
+        st.scene_exec_cmd_other = 0U;
+        st.scene_exec_fail_other = 0U;
+        st.scene_exec_overflowed = 0U;
         st.style_rule_count = 0U;
         st.style_rule_capacity = 0U;
         st.style_metrics_used = 0U;
@@ -56,6 +71,33 @@ void sample_scene_stats() noexcept {
     st.scene_exec_cmd_image = scene.exec.cmd_image;
     st.scene_exec_fail_text = scene.exec.fail_text;
     st.scene_exec_fail_image = scene.exec.fail_image;
+    st.scene_batch_shrink = scene.cmd.batch_shrink;
+    st.scene_batch_shrink_rect = scene.cmd.batch_shrink_rect
+        + scene.cmd.batch_shrink_round
+        + scene.cmd.batch_shrink_focus;
+    st.scene_batch_shrink_text_path = scene.cmd.batch_shrink_line
+        + scene.cmd.batch_shrink_path
+        + scene.cmd.batch_shrink_image;
+    st.scene_exec_clip_failures = scene.exec.clip_push_overflow
+        + scene.exec.clip_pop_underflow
+        + scene.exec.clip_invalid
+        + scene.exec.fail_clip;
+    st.scene_exec_batch_flushes = scene.exec.batch_flushes;
+    st.scene_exec_dispatch_groups = scene.exec.dispatch_groups;
+    st.scene_exec_group_rect = scene.exec.group_rect;
+    st.scene_exec_group_text = scene.exec.group_text;
+    st.scene_exec_group_image = scene.exec.group_image;
+    st.scene_exec_group_other = scene.exec.group_line
+        + scene.exec.group_path
+        + scene.exec.group_other;
+    st.scene_exec_cmd_line = scene.exec.cmd_line;
+    st.scene_exec_cmd_path = scene.exec.cmd_path;
+    st.scene_exec_cmd_other = scene.exec.cmd_other;
+    st.scene_exec_fail_other = scene.exec.fail_blob
+        + scene.exec.fail_path
+        + scene.exec.fail_clip
+        + scene.exec.fail_other;
+    st.scene_exec_overflowed = scene.exec.overflowed;
 
     const auto style = style_sheet_runtime_profile();
     st.style_rule_count = clamp_size_to_u32(style.style_rule_count);

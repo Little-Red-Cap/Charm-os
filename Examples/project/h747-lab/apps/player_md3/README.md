@@ -128,6 +128,10 @@ The serial status schema also emits `style=<rules>/<rule_cap>/<metrics_used>/<me
 after the StyleSheet table is rebuilt; this is the runtime evidence for actual
 rule and metrics pool usage, while the post-link evidence records capacity and
 memory ownership.
+Render performance evidence is record-only in this phase. Status lines append
+`cmd_batch`, `exec_batch`, `exec_groups`, `exec_cmds`, and `exec_fail_detail`
+tokens so DrawCmd pressure can be compared across UI changes without turning
+the first baseline into a hard gate.
 
 Current PRODUCT baseline after the Library list cover cache was made a
 compile-time product capacity and the default H747 profile set it to zero:

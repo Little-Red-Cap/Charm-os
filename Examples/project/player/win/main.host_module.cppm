@@ -52,6 +52,7 @@ import player.cover;
 import charm.core.config;
 import charm.core.event;
 import charm.ui.scene;
+import charm.ui.scene.scene_evidence;
 import ui.input_adapter;
 import charm.gfx.color;
 import charm.gfx.text_box;

@@ -92,6 +92,7 @@ set(CHARM_VIVID_PRODUCT_GFX_MODULES
     color
     draw_cmd
     draw_cmd_buffer
+    draw_cmd_evidence
     draw_cmd_executor
     draw_cmd_schema
     framebuffer

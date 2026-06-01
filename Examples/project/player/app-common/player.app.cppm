@@ -42,8 +42,8 @@ export namespace player {
         audio::AudioPlayer& player() noexcept { return player_; }
         const audio::AudioPlayer& player() const noexcept { return player_; }
 
-        StorageState scan_storage() {
-            last_storage_ = player::scan_storage();
+        const StorageState& scan_storage() {
+            player::scan_storage_into(last_storage_);
             return last_storage_;
         }
 

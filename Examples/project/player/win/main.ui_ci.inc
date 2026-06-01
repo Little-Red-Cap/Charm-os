@@ -278,6 +278,143 @@
         ui_ci_emit_perf_profile_evidence(page, evidence);
     }
 
+    const char* ui_ci_page_name(player::PlayerPage page) noexcept {
+        switch (page) {
+        case player::PlayerPage::Probe:
+            return "probe";
+        case player::PlayerPage::Home:
+            return "home";
+        case player::PlayerPage::NowPlaying:
+            return "now";
+        case player::PlayerPage::Library:
+            return "library";
+        }
+        return "unknown";
+    }
+
+    struct UiCiTransitionPerfSummary {
+        std::uint32_t frames{0};
+        std::uint32_t completed{0};
+        std::uint64_t total_frame_us{0};
+        std::uint64_t total_tick_us{0};
+        std::uint64_t total_render_us{0};
+        std::uint64_t total_record_us{0};
+        std::uint64_t total_execute_us{0};
+        std::uint64_t total_present_us{0};
+        std::uint64_t total_cmds{0};
+        std::uint64_t total_alpha{0};
+        std::uint32_t max_frame_us{0};
+        std::uint32_t max_execute_us{0};
+        std::uint32_t max_present_us{0};
+        std::uint32_t max_cmds{0};
+        std::uint32_t max_alpha{0};
+        std::uint32_t max_alpha_screen_x1000{0};
+    };
+
+    void ui_ci_accumulate_transition_summary(UiCiTransitionPerfSummary& summary,
+                                             const UiCiFrameTiming& timing,
+                                             const ::ui::scene::SceneEvidence& evidence) noexcept {
+        summary.frames++;
+        summary.total_frame_us += timing.frame_us;
+        summary.total_tick_us += timing.tick_us;
+        summary.total_render_us += timing.render_us;
+        summary.total_record_us += timing.record_us;
+        summary.total_execute_us += timing.execute_us;
+        summary.total_present_us += timing.present_us;
+        summary.total_cmds += evidence.exec.cmd_count;
+        summary.total_alpha += evidence.exec.alpha_blend_count;
+        summary.max_frame_us = std::max(summary.max_frame_us, timing.frame_us);
+        summary.max_execute_us = std::max(summary.max_execute_us, timing.execute_us);
+        summary.max_present_us = std::max(summary.max_present_us, timing.present_us);
+        summary.max_cmds = std::max(summary.max_cmds, evidence.exec.cmd_count);
+        summary.max_alpha = std::max(summary.max_alpha, evidence.exec.alpha_blend_count);
+        summary.max_alpha_screen_x1000 = std::max(
+            summary.max_alpha_screen_x1000,
+            ui_ci_ratio_x1000(evidence.exec.alpha_blend_count,
+                              static_cast<std::uint32_t>(screen_width * screen_height)));
+    }
+
+    void ui_ci_emit_transition_frame(const char* name,
+                                     std::uint32_t frame_index,
+                                     player::PlayerPage current_page,
+                                     bool active,
+                                     const UiCiFrameTiming& timing,
+                                     const ::ui::scene::SceneEvidence& evidence) {
+        ui_ci_perf_printf(
+            "[ui-ci.perf_transition] name=%s frame=%u active=%u page=%s "
+            "frame_us=%u tick_us=%u render_us=%u record_us=%u execute_us=%u present_us=%u "
+            "cmd=%u alpha=%u alpha_screen_x1000=%u flush=%u layer_bytes=%u composite_pixels=%u\n",
+            name ? name : "unknown",
+            frame_index,
+            active ? 1U : 0U,
+            ui_ci_page_name(current_page),
+            timing.frame_us,
+            timing.tick_us,
+            timing.render_us,
+            timing.record_us,
+            timing.execute_us,
+            timing.present_us,
+            evidence.exec.cmd_count,
+            evidence.exec.alpha_blend_count,
+            ui_ci_ratio_x1000(evidence.exec.alpha_blend_count,
+                              static_cast<std::uint32_t>(screen_width * screen_height)),
+            evidence.exec.batch_flushes,
+            evidence.layer.layer_bytes,
+            evidence.layer.composite_pixels);
+    }
+
+    void ui_ci_emit_transition_summary(const char* name,
+                                       const UiCiTransitionPerfSummary& summary) {
+        ui_ci_perf_printf(
+            "[ui-ci.perf_transition_summary] name=%s frames=%u completed=%u "
+            "total_frame_us=%llu total_tick_us=%llu total_render_us=%llu "
+            "total_record_us=%llu total_execute_us=%llu total_present_us=%llu "
+            "max_frame_us=%u max_execute_us=%u max_present_us=%u "
+            "total_cmds=%llu max_cmds=%u total_alpha=%llu max_alpha=%u max_alpha_screen_x1000=%u\n",
+            name ? name : "unknown",
+            summary.frames,
+            summary.completed,
+            static_cast<unsigned long long>(summary.total_frame_us),
+            static_cast<unsigned long long>(summary.total_tick_us),
+            static_cast<unsigned long long>(summary.total_render_us),
+            static_cast<unsigned long long>(summary.total_record_us),
+            static_cast<unsigned long long>(summary.total_execute_us),
+            static_cast<unsigned long long>(summary.total_present_us),
+            summary.max_frame_us,
+            summary.max_execute_us,
+            summary.max_present_us,
+            static_cast<unsigned long long>(summary.total_cmds),
+            summary.max_cmds,
+            static_cast<unsigned long long>(summary.total_alpha),
+            summary.max_alpha,
+            summary.max_alpha_screen_x1000);
+    }
+
+    template<typename SceneT, typename ContextT, typename TimedPumpFrameFn>
+    UiCiTransitionPerfSummary ui_ci_capture_transition_perf(const char* name,
+                                                           SceneT& scene,
+                                                           ContextT& ctx,
+                                                           TimedPumpFrameFn& timed_pump_frame,
+                                                           player::PlayerDisplaySink* display_sink,
+                                                           player::PlayerPage expected_page) {
+        UiCiTransitionPerfSummary summary{};
+        constexpr std::uint32_t kMaxTransitionFrames = 48;
+        for (std::uint32_t frame = 0; frame < kMaxTransitionFrames; ++frame) {
+            SDL_Delay(16);
+            const auto timing = timed_pump_frame(display_sink);
+            const auto evidence = ::ui::scene::make_scene_evidence(scene);
+            const bool active = ctx.now_playing_transition.active;
+            ui_ci_accumulate_transition_summary(summary, timing, evidence);
+            ui_ci_emit_transition_frame(name, frame, ctx.current_page, active, timing, evidence);
+            if (!active && ctx.current_page == expected_page) {
+                summary.completed = 1U;
+                break;
+            }
+        }
+        ui_ci_emit_transition_summary(name, summary);
+        return summary;
+    }
+
     template<typename SceneT, typename ContextT, typename PumpFrameFn, typename TimedPumpFrameFn>
     void run_ui_ci_perf_evidence_log(SceneT& scene,
                                      ContextT& ctx,
@@ -318,6 +455,8 @@
         };
 
         ctx.set_page(player::PlayerPage::Home);
+        auto home_first_timing = timed_pump_frame(display_sink);
+        ui_ci_emit_perf_evidence_bundle("home_first", scene, home_first_timing);
         emit_stable("home");
 
         ctx.set_page(player::PlayerPage::NowPlaying);
@@ -335,6 +474,31 @@
                 -4.0f));
         }
         emit_stable("library_stress");
+
+        ctx.set_page(player::PlayerPage::Home);
+        emit_stable("home_before_enter_now");
+        const Rect bottom_rect = scene.world_rect(ctx.handles.bottom_hit);
+        if (bottom_rect.w > 0 && bottom_rect.h > 0) {
+            ui_ci_click(runtime,
+                        bottom_rect.x + bottom_rect.w / 2,
+                        bottom_rect.y + bottom_rect.h / 2);
+            (void)ui_ci_capture_transition_perf(
+                "enter_now", scene, ctx, timed_pump_frame, display_sink, player::PlayerPage::NowPlaying);
+        } else {
+            ui_ci_perf_printf("[ui-ci.perf_transition_summary] name=enter_now frames=0 completed=0 reason=invalid_bottom_hit\n");
+        }
+        emit_stable("now_after_enter");
+
+        const Rect back_rect = scene.world_rect(ctx.handles.now_back);
+        if (back_rect.w > 0 && back_rect.h > 0) {
+            ui_ci_click(runtime,
+                        back_rect.x + back_rect.w / 2,
+                        back_rect.y + back_rect.h / 2);
+            (void)ui_ci_capture_transition_perf(
+                "exit_now", scene, ctx, timed_pump_frame, display_sink, player::PlayerPage::Home);
+        } else {
+            ui_ci_perf_printf("[ui-ci.perf_transition_summary] name=exit_now frames=0 completed=0 reason=invalid_now_back\n");
+        }
 
         ctx.set_page(player::PlayerPage::Home);
         (void)timed_pump_frame(display_sink);

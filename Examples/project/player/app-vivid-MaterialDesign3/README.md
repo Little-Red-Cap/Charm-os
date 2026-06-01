@@ -43,13 +43,19 @@ extraction. New visual work must not introduce a board-only UI fork.
 - `player.ui.cppm`
 - `player.ui_builder.cppm`
 - `player.ui_builder.shared.inc`
+- `player.ui_builder.home_layout.inc`
+- `player.ui_builder.now_playing_layout.inc`
+- `player.ui_builder.library_layout.inc`
 - `player.ui_builder.home.inc`
 - `player.ui_builder.now_playing.inc`
 - `player.ui_builder.library.inc`
 - `player.controller.cppm`
 - `design_notes.md`
+- `maintainability_audit.md`
 
 When changing page visuals, update `design_notes.md` if the requirement or acceptance rule changes.
+When changing code structure or deciding whether a Player pattern should move into Vivid, update
+`maintainability_audit.md`.
 
 ## Visual Recovery Gate
 

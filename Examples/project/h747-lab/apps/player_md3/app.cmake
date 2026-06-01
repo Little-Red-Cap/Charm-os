@@ -50,6 +50,7 @@ set(CHARM_VIVID_PRODUCT_CORE_MODULES
     scene_builder_support
     scene_layer_support
     scene_render_detail
+    scene_evidence
     seek_bar_style
     soa_factory
     soa_gui
@@ -81,6 +82,7 @@ set(CHARM_VIVID_PRODUCT_CORE_MODULES
     style_impact
     style_sheet
     text_style
+    title_block
     theme_preset
     top_bar_layout
     virtual_list

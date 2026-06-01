@@ -20,6 +20,7 @@ import charm.ui.scene.anchored_menu;
 import charm.ui.scene.page_layers;
 import charm.ui.scene.seek_bar_style;
 import charm.ui.scene.text_style;
+import charm.ui.scene.title_block;
 import charm.font.typography;
 import player.controller;
 import player.ui;

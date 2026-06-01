@@ -6,6 +6,7 @@
 
 import charm.core.handle;
 import charm.core.style_sheet;
+import charm.ui.scene.scene_evidence;
 
 namespace {
 
@@ -42,21 +43,19 @@ void sample_scene_stats() noexcept {
         return;
     }
 
-    const auto& scene = *shell->scene();
-    const auto cmd = scene.last_cmd_stats();
-    const auto exec = scene.last_exec_stats();
-    st.scene_cmd_count = clamp_size_to_u32(cmd.cmd_count);
-    st.scene_cmd_capacity = clamp_size_to_u32(cmd.cmd_capacity);
-    st.scene_cmd_overflowed = cmd.cmd_overflowed ? 1U : 0U;
-    st.scene_text_used = clamp_size_to_u32(cmd.text_used);
-    st.scene_text_capacity = clamp_size_to_u32(cmd.text_capacity);
-    st.scene_text_overflowed = cmd.text_overflowed ? 1U : 0U;
-    st.scene_exec_failed = clamp_size_to_u32(exec.failed_cmds);
-    st.scene_exec_cmd_text = clamp_size_to_u32(exec.cmd_text);
-    st.scene_exec_cmd_rect = clamp_size_to_u32(exec.cmd_rect);
-    st.scene_exec_cmd_image = clamp_size_to_u32(exec.cmd_image);
-    st.scene_exec_fail_text = clamp_size_to_u32(exec.fail_text);
-    st.scene_exec_fail_image = clamp_size_to_u32(exec.fail_image);
+    const auto scene = ::ui::scene::make_scene_evidence(*shell->scene());
+    st.scene_cmd_count = scene.cmd.cmd_count;
+    st.scene_cmd_capacity = scene.cmd.cmd_capacity;
+    st.scene_cmd_overflowed = scene.cmd.cmd_overflowed;
+    st.scene_text_used = scene.cmd.text_used;
+    st.scene_text_capacity = scene.cmd.text_capacity;
+    st.scene_text_overflowed = scene.cmd.text_overflowed;
+    st.scene_exec_failed = scene.exec.failed_cmds;
+    st.scene_exec_cmd_text = scene.exec.cmd_text;
+    st.scene_exec_cmd_rect = scene.exec.cmd_rect;
+    st.scene_exec_cmd_image = scene.exec.cmd_image;
+    st.scene_exec_fail_text = scene.exec.fail_text;
+    st.scene_exec_fail_image = scene.exec.fail_image;
 
     const auto style = style_sheet_runtime_profile();
     st.style_rule_count = clamp_size_to_u32(style.style_rule_count);

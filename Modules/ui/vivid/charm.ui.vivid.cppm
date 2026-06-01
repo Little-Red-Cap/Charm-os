@@ -40,6 +40,8 @@ export import charm.ui.scene.page_transition;
 export import charm.ui.scene.focus_scope;
 export import charm.ui.scene.seek_bar_style;
 export import charm.ui.scene.text_style;
+export import charm.ui.scene.title_block;
+export import charm.ui.scene.scene_evidence;
 
 export import charm.font;
 export import charm.font.typography;

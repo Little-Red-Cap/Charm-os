@@ -175,6 +175,8 @@
         return playing && paused;
     }
 
+    // Main-experience closure cases validate stable page composition. They should
+    // not encode PixelPlayer-specific decoration choices such as shadows or glass.
     template<typename SceneT, typename ContextT>
     const char* ui_ci_now_playing_closure_layout_stack_failure(const SceneT& scene,
                                                               const ContextT& ctx) noexcept {
@@ -387,6 +389,8 @@
             && (o.x + o.w) >= (i.x + i.w);
     }
 
+    // ProgressSection seek cases validate the Player contract while the UI is
+    // still implemented as Slider + transparent hitbox rather than a Vivid widget.
     template<typename SceneT, typename ContextT>
     bool ui_ci_now_playing_seek_rect_hitbox_ok(const SceneT& scene, const ContextT& ctx) noexcept {
         const Rect visual = scene.world_rect(ctx.handles.progress_visual);
@@ -766,6 +770,7 @@
         }
         record("now_playing_matrix_enter", true, nullptr);
 
+        // Structure/state matrix: page wiring, text/cover sync, and play state.
         const char* structure_failure = ui_ci_now_playing_structure_failure(scene, ctx);
         record("now_playing_matrix_structure", structure_failure == nullptr, structure_failure);
         record("now_playing_matrix_text_sync",
@@ -786,6 +791,8 @@
         record("now_playing_matrix_library_sync",
                ui_ci_now_playing_library_sync_ok(scene, ctx, pump_frame),
                "library_sync");
+
+        // Main-experience closure: layout stack, cover stage, title block, controls, fallback.
         const char* closure_layout_failure = ui_ci_now_playing_closure_layout_stack_failure(scene, ctx);
         record("now_playing_closure_layout_stack",
                closure_layout_failure == nullptr,
@@ -805,6 +812,8 @@
         record("now_playing_closure_fallback_no_duration",
                ui_ci_now_playing_closure_fallback_no_duration_ok(scene, ctx, pump_frame),
                "fallback_no_duration");
+
+        // ProgressSection seek contract: hitbox, drag preview, commit/cancel, no-duration fallback.
         record("now_playing_seek_rect_hitbox",
                ui_ci_now_playing_seek_rect_hitbox_ok(scene, ctx),
                "seek_rect_hitbox");

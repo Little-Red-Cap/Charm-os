@@ -46,6 +46,14 @@
             library_opaque_over(kUiLibraryControlsBottom, library_backdrop_bottom);
         const rgba library_card_base =
             library_opaque_over(kUiLibraryCardTop, library_controls_base);
+        const rgba library_header_plate_base =
+            library_opaque_over({kUiLibraryHeaderPlate.r, kUiLibraryHeaderPlate.g,
+                                 kUiLibraryHeaderPlate.b, 214},
+                                library_card_base);
+        const rgba library_body_plate_base =
+            library_opaque_over({kUiLibraryBodyPlate.r, kUiLibraryBodyPlate.g,
+                                 kUiLibraryBodyPlate.b, 232},
+                                library_card_base);
         h.list_title = builder.create_label_static("");
         anchor_rect(builder, h.list_title, {0, 0, 0, 0});
         h.list_path = builder.create_label_static("");
@@ -214,18 +222,16 @@
                 .apply_bg_color = true,
                 .apply_border_color = true,
                 .apply_corner_radius = true,
-                .bg_color = {kUiLibraryHeaderPlate.r, kUiLibraryHeaderPlate.g, kUiLibraryHeaderPlate.b, 152},
+                .bg_color = library_opaque_over({kUiLibraryHeaderPlate.r, kUiLibraryHeaderPlate.g,
+                                                 kUiLibraryHeaderPlate.b, 152},
+                                                library_controls_base),
                 .border_color = {0, 0, 0, 0},
                 .corner_radius = 31,
             });
-            patch.has_gradient_enabled = true;
-            patch.gradient_enabled = true;
-            patch.has_gradient_start = true;
-            patch.gradient_start = {42, 51, 72, 166};
-            patch.has_gradient_end = true;
-            patch.gradient_end = {24, 30, 42, 146};
-            patch.has_gradient_direction = true;
-            patch.gradient_direction = 0;
+            apply_library_opaque_gradient(patch,
+                                          {42, 51, 72, 166},
+                                          {24, 30, 42, 146},
+                                          library_controls_base);
             builder.set_style_override(tabs_plate, patch);
             builder.set_hit_testable(tabs_plate, false);
         }
@@ -250,7 +256,9 @@
                 .apply_bg_color = true,
                 .apply_border_color = true,
                 .apply_corner_radius = true,
-                .bg_color = {kUiLibraryTabActive.r, kUiLibraryTabActive.g, kUiLibraryTabActive.b, 164},
+                .bg_color = library_opaque_over({kUiLibraryTabActive.r, kUiLibraryTabActive.g,
+                                                 kUiLibraryTabActive.b, 164},
+                                                library_controls_base),
                 .border_color = {0, 0, 0, 0},
                 .corner_radius = 3,
             });
@@ -275,18 +283,16 @@
                 .apply_bg_color = true,
                 .apply_border_color = true,
                 .apply_corner_radius = true,
-                .bg_color = {kUiLibraryHeaderPlate.r, kUiLibraryHeaderPlate.g, kUiLibraryHeaderPlate.b, 170},
+                .bg_color = library_opaque_over({kUiLibraryHeaderPlate.r, kUiLibraryHeaderPlate.g,
+                                                 kUiLibraryHeaderPlate.b, 170},
+                                                library_controls_base),
                 .border_color = {0, 0, 0, 0},
                 .corner_radius = 26,
             });
-            patch.has_gradient_enabled = true;
-            patch.gradient_enabled = true;
-            patch.has_gradient_start = true;
-            patch.gradient_start = {44, 52, 72, 176};
-            patch.has_gradient_end = true;
-            patch.gradient_end = {28, 33, 46, 170};
-            patch.has_gradient_direction = true;
-            patch.gradient_direction = 0;
+            apply_library_opaque_gradient(patch,
+                                          {44, 52, 72, 176},
+                                          {28, 33, 46, 170},
+                                          library_controls_base);
             builder.set_style_override(action_row_plate, patch);
             builder.set_hit_testable(action_row_plate, false);
         }
@@ -353,9 +359,7 @@
                 .apply_bg_color = true,
                 .apply_border_color = true,
                 .apply_corner_radius = true,
-                .bg_color = library_opaque_over({kUiLibraryHeaderPlate.r, kUiLibraryHeaderPlate.g,
-                                                 kUiLibraryHeaderPlate.b, 214},
-                                                library_card_base),
+                .bg_color = library_header_plate_base,
                 .border_color = {0, 0, 0, 0},
                 .corner_radius = 24,
             });
@@ -391,9 +395,7 @@
                 .apply_bg_color = true,
                 .apply_border_color = true,
                 .apply_corner_radius = true,
-                .bg_color = library_opaque_over({kUiLibraryBodyPlate.r, kUiLibraryBodyPlate.g,
-                                                 kUiLibraryBodyPlate.b, 232},
-                                                library_card_base),
+                .bg_color = library_body_plate_base,
                 .border_color = {0, 0, 0, 0},
                 .corner_radius = 22,
             });
@@ -441,7 +443,9 @@
                 .apply_bg_color = true,
                 .apply_border_color = true,
                 .apply_corner_radius = true,
-                .bg_color = {kUiLibraryChipTextMuted.r, kUiLibraryChipTextMuted.g, kUiLibraryChipTextMuted.b, 52},
+                .bg_color = library_opaque_over({kUiLibraryChipTextMuted.r, kUiLibraryChipTextMuted.g,
+                                                 kUiLibraryChipTextMuted.b, 52},
+                                                library_body_plate_base),
                 .border_color = {0, 0, 0, 0},
                 .corner_radius = 1,
             });
@@ -535,7 +539,7 @@
                 .apply_bg_color = true,
                 .apply_border_color = true,
                 .apply_corner_radius = true,
-                .bg_color = kUiLibraryPathIdle,
+                .bg_color = library_opaque_over(kUiLibraryPathIdle, library_header_plate_base),
                 .border_color = {0, 0, 0, 0},
                 .corner_radius = lib_layout.list_path_bg_radius,
             });
@@ -614,7 +618,9 @@
                 .apply_bg_color = true,
                 .apply_border_color = true,
                 .apply_corner_radius = true,
-                .bg_color = {kUiLibraryChipTextMuted.r, kUiLibraryChipTextMuted.g, kUiLibraryChipTextMuted.b, 44},
+                .bg_color = library_opaque_over({kUiLibraryChipTextMuted.r, kUiLibraryChipTextMuted.g,
+                                                 kUiLibraryChipTextMuted.b, 44},
+                                                library_body_plate_base),
                 .border_color = {0, 0, 0, 0},
                 .corner_radius = 5,
             });

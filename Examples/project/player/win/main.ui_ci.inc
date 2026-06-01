@@ -329,6 +329,50 @@
             scene_evidence.timing.available);
     }
 
+    void ui_ci_emit_record_profile_evidence(const char* page,
+                                            const UiCiFrameTiming& timing,
+                                            const ::ui::scene::SceneEvidence& evidence) {
+        std::uint32_t draw_text_box_count = 0U;
+        std::uint32_t draw_text_box_area = 0U;
+        std::uint32_t glyph_run_count = 0U;
+        std::uint32_t glyph_run_area = 0U;
+        if constexpr (UiCiHasDrawDetail<::ui::scene::SceneEvidence>::value) {
+            const auto text_type =
+                static_cast<std::size_t>(::ui::draw_cmd::CmdType::DrawTextBox);
+            const auto glyph_type =
+                static_cast<std::size_t>(::ui::draw_cmd::CmdType::GlyphRun);
+            if (text_type < evidence.draw_detail.types.size()) {
+                draw_text_box_count = evidence.draw_detail.types[text_type].count;
+                draw_text_box_area = evidence.draw_detail.types[text_type].rect_area;
+            }
+            if (glyph_type < evidence.draw_detail.types.size()) {
+                glyph_run_count = evidence.draw_detail.types[glyph_type].count;
+                glyph_run_area = evidence.draw_detail.types[glyph_type].rect_area;
+            }
+        }
+        ui_ci_perf_printf(
+            "[ui-ci.record_profile] page=%s available=%u record_us=%u "
+            "cmd=%u text_bytes=%u/%u blob_bytes=%u/%u "
+            "cmd_text=%u group_text=%u draw_text_box=%u/%u glyph_run=%u/%u "
+            "text_overflow=%u blob_overflow=%u\n",
+            page ? page : "unknown",
+            timing.available,
+            timing.record_us,
+            evidence.cmd.cmd_count,
+            evidence.cmd.text_used,
+            evidence.cmd.text_capacity,
+            evidence.cmd.blob_used,
+            evidence.cmd.blob_capacity,
+            evidence.exec.cmd_text,
+            evidence.exec.group_text,
+            draw_text_box_count,
+            draw_text_box_area,
+            glyph_run_count,
+            glyph_run_area,
+            evidence.cmd.text_overflowed,
+            evidence.cmd.blob_overflowed);
+    }
+
     template<typename SceneT>
     void ui_ci_emit_perf_evidence_bundle(const char* page,
                                          const SceneT& scene,
@@ -337,6 +381,7 @@
         ui_ci_emit_perf_evidence(page, scene);
         ui_ci_emit_perf_time_evidence(page, timing, evidence);
         ui_ci_emit_perf_profile_evidence(page, evidence);
+        ui_ci_emit_record_profile_evidence(page, timing, evidence);
         ui_ci_emit_perf_detail_evidence(page, evidence);
     }
 

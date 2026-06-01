@@ -101,6 +101,18 @@ Library 稳定帧 top scope：
 
 完整 Windows `--ui-ci` 中 Library 样本为 `alpha=149872`、`alpha_screen_x1000=218`、`execute_us=44591`，并且完整 UI CI 输出 `done ok=1 failed=0`。这说明本轮主要降低了稳定帧大面积 alpha blending 工作量；`cmd_count=136` 基本保持不变，优化目标不是减少控件数量。
 
+## Library Alpha Overdraw 第二轮
+
+第二轮继续只处理 Library 稳定帧中常驻局部底板：`tabs_plate`、`action_row_plate`、`list_tab_indicator`、`list_context_tray_divider`、`list_path_bg`、`list_scroll_rail`。这些 surface 仍使用原有颜色/渐变方向，只按父级近似底色预混合为不透明；overlay popup、action menu、info sheet、scrim 未纳入本轮。
+
+| 场景 | execute_us | alpha_screen_x1000 | FillLinearGradientRect.alpha | FillRoundRect.alpha | library.chrome.alpha | library.list.alpha |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Library after round1 | 42639 | 218 | 74724 | 72016 | 92648 | 53964 |
+| Library after round2 | 43108 | 124 | 15648 | 66628 | 33572 | 48576 |
+| Library stress after round2 | 42595 | 124 | 15648 | 66628 | 33572 | 48576 |
+
+本轮主要收益来自 `library.chrome` 的 tabs/action plate 预混合，`FillLinearGradientRect.alpha` 从 `74724` 降到 `15648`。`FillRoundRect.alpha` 只小幅下降，说明剩余 alpha 主要来自更小的圆角控件或交互状态 surface；如果继续压，需要先做更细的 widget 实例级归因，不能再盲目扩大预混合范围。
+
 ## Home 首帧与 Now Playing 动画样本
 
 Home 首帧与稳定帧 workload 相同，但首帧 record 成本明显更高：
@@ -109,6 +121,15 @@ Home 首帧与稳定帧 workload 相同，但首帧 record 成本明显更高：
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Home first | 37699 | 8642 | 24699 | 2447 | 306 |
 | Home stable | 27563 | 99 | 25145 | 826 | 306 |
+
+新增 `[ui-ci.record_profile]` 后的当前样本显示，Home first 与 Home stable 的 record workload 完全一致：
+
+| 场景 | record_us | cmd | text_bytes | blob_bytes | cmd_text | group_text | DrawTextBox | GlyphRun | overflow |
+| --- | ---: | ---: | --- | --- | ---: | ---: | --- | --- | --- |
+| Home first | 9327 | 110 | 232/4096 | 48/2048 | 29 | 20 | 28/174006 | 2/80224 | 0/0 |
+| Home stable | 106 | 110 | 232/4096 | 48/2048 | 29 | 20 | 28/174006 | 2/80224 | 0/0 |
+
+结论：首帧 `record_us` 峰值不是 UI tree 变大、文本 bytes 变多或 glyph run 数量变化导致；更像首次 record 热路径中的字体/glyph cache、host 字体后端或首次路径初始化成本。下一轮如要优化 Home 首帧，应先做 font/glyph warmup 或更细的字体后端 timing，而不是改 Home 布局或减少控件。
 
 Now Playing 进入/退出动画使用真实 `bottom_hit` / `now_back` 点击触发，按 16ms 间隔采逐帧样本并输出 summary：
 

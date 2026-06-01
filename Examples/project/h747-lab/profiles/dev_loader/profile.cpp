@@ -32,16 +32,14 @@ util::Result<void> init_noop(void*) noexcept {
 
 util::Result<void> init_power(void*) noexcept {
     power_init();
-    (void)power_pmic_probe();
+    (void)power_apply_profile(POWER_PROFILE_STORAGE_STAGE_A);
     return {};
 }
 
 util::Result<void> init_memory(void*) noexcept {
     memory_probe_storage_init();
     (void)memory_probe_configure_sdram_mpu_normal();
-    if (memory_probe_sdram2_smoke() == 0U) {
-        return util::unexpected(util::Errc::io);
-    }
+    (void)memory_probe_sdram2_smoke();
     return {};
 }
 

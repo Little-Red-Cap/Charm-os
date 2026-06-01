@@ -37,7 +37,8 @@ $Commands = @(
 
 $RequiredTokens = @(
     "dev_loader: resident RAM dev-loader skeleton ready",
-    "dev: ram base=0x24040000",
+    "dev: receive-arena name=",
+    "dev: sdram2 ready=",
     "dev: stage=receiving code=ok received=0",
     "dev: stage=complete code=ok received=16",
     "dev: stage=verified code=ok received=16",
@@ -108,7 +109,9 @@ function Validate-LogFile {
 function Get-SyntheticPassingLog {
     return @"
 dev_loader: resident RAM dev-loader skeleton ready
-dev: ram base=0x24040000 capacity=262144 cursor=0
+dev: ram base=0xd0000000 capacity=262144 cursor=0
+dev: receive-arena name=sdram2_receive_buffer addr=0xd0000000 expected=0xd0000000 size=262144 align=32
+dev: sdram2 ready=1 init=1 smoke=1 base=0xd0000000 size=33554432
 dev: stage=receiving code=ok received=0 crc=0x00000000/0x00000000
 dev: stage=complete code=ok received=16 crc=0xc79b40e0/0x00000000
 dev: stage=verified code=ok received=16 crc=0xc79b40e0/0x00000000

@@ -49,6 +49,7 @@ struct Runtime;
 constexpr std::uint32_t kDevRamBase = 0x24040000U;
 constexpr std::uint32_t kDevRamCapacity = 256U * 1024U;
 constexpr std::uint32_t kStageProbeScratchSize = 128U * 1024U;
+constexpr std::uint32_t kD1FallbackCapacity = 128U * 1024U;
 constexpr std::uint32_t kElfProbeLoadBufferSize = 64U * 1024U;
 constexpr std::uint32_t kPacketBufferCapacity = 1024U;
 constexpr std::uint32_t kPacketHexDecodeCapacity = 48U;
@@ -136,6 +137,20 @@ constexpr ImageStageArena kReceiveArena{
     .align = 32U,
 };
 
+constexpr ImageStageArena kD1ReceiveArena{
+    .name = "ram_d1_receive_fallback"sv,
+    .base = kDevRamBase,
+    .size = kD1FallbackCapacity,
+    .align = 32U,
+};
+
+constexpr ImageStageArena kD1StageArena{
+    .name = "ram_d1_stage_fallback"sv,
+    .base = kDevRamBase,
+    .size = kD1FallbackCapacity,
+    .align = 32U,
+};
+
 constexpr AppRunLoadRegion kAppRunLoadRegion{
     .name = "ram_d1_app_elf"sv,
     .base = 0x24070000U,
@@ -151,6 +166,11 @@ loader::Storage ram_storage() noexcept;
 app_abi::AppImage stage_qspi_app(Runtime& rt, std::string_view command, std::string_view spec) noexcept;
 app_abi::AppImage stage_emmc_app(Runtime& rt, std::string_view command, std::string_view spec) noexcept;
 constexpr std::string_view app_image_format_name(app_abi::AppImageFormat format) noexcept;
+std::span<const std::byte> received_payload_view(loader::Storage storage,
+                                                 const loader::ImageManifest& manifest) noexcept;
+std::span<std::byte> stage_scratch() noexcept;
+ImageStageArena receive_arena_descriptor(loader::Storage storage) noexcept;
+ImageStageArena stage_arena_descriptor() noexcept;
 
 template <charm::cap::ByteSink Sink>
 class OutSinkAdapter {
@@ -214,8 +234,9 @@ void emit_hex_bytes(const char* label, const std::uint8_t* bytes, const std::siz
 
 struct Runtime {
     h747::console::ConsoleLineSource line_source{};
-    loader::CommandRuntime commands{ram_storage()};
-    loader::PacketRuntime packets{ram_storage()};
+    loader::Storage receive_storage{ram_storage()};
+    loader::CommandRuntime commands{receive_storage};
+    loader::PacketRuntime packets{receive_storage};
     std::array<std::byte, kPacketBufferCapacity> packet_buffer{};
     loader::ByteTransportRuntime packet_transport{
         packets,
@@ -297,6 +318,16 @@ std::array<std::byte, kStageProbeScratchSize>& stage_probe_scratch() noexcept {
     return cache;
 }
 
+std::array<std::byte, kD1FallbackCapacity>& d1_receive_fallback() noexcept {
+    alignas(32) static std::array<std::byte, kD1FallbackCapacity> ram{};
+    return ram;
+}
+
+std::array<std::byte, kD1FallbackCapacity>& d1_stage_fallback() noexcept {
+    alignas(32) static std::array<std::byte, kD1FallbackCapacity> cache{};
+    return cache;
+}
+
 std::array<std::byte, kElfProbeLoadBufferSize>& elf_probe_load_buffer() noexcept {
     alignas(32) static std::array<std::byte, kElfProbeLoadBufferSize> buffer{};
     return buffer;
@@ -309,14 +340,17 @@ std::span<std::byte> app_run_load_buffer() noexcept {
     };
 }
 
-std::span<const std::byte> received_payload_view(const loader::ImageManifest& manifest) noexcept {
-    auto& ram = dev_ram();
-    if (manifest.load_address < kDevRamBase ||
-        manifest.size_bytes > (ram.size() - (manifest.load_address - kDevRamBase))) {
+std::span<const std::byte> received_payload_view(loader::Storage storage,
+                                                 const loader::ImageManifest& manifest) noexcept {
+    if (manifest.load_address < storage.base_address ||
+        manifest.size_bytes > (storage.capacity_bytes - (manifest.load_address - storage.base_address))) {
         return {};
     }
-    const auto offset = manifest.load_address - kDevRamBase;
-    return {ram.data() + offset, manifest.size_bytes};
+    const auto offset = manifest.load_address - storage.base_address;
+    const auto memory = storage.base_address == kDevRamBase
+        ? std::span<std::byte>{d1_receive_fallback()}
+        : std::span<std::byte>{dev_ram()};
+    return {memory.data() + offset, manifest.size_bytes};
 }
 
 EmmcStoreLayout emmc_store_layout() noexcept {
@@ -411,8 +445,8 @@ bool emmc_erase_slot_bytes(const EmmcStoreLayout& layout, std::uint32_t offset, 
     return h747_storage_flush() != 0U;
 }
 
-bool storage_write(void*, std::uint32_t offset, std::span<const std::byte> bytes) noexcept {
-    auto& ram = dev_ram();
+bool sdram_storage_write(void*, std::uint32_t offset, std::span<const std::byte> bytes) noexcept {
+    auto ram = std::span<std::byte>{dev_ram()};
     if (offset > ram.size() || bytes.size() > (ram.size() - offset)) {
         return false;
     }
@@ -420,8 +454,8 @@ bool storage_write(void*, std::uint32_t offset, std::span<const std::byte> bytes
     return true;
 }
 
-bool storage_read(void*, std::uint32_t offset, std::span<std::byte> bytes) noexcept {
-    auto& ram = dev_ram();
+bool sdram_storage_read(void*, std::uint32_t offset, std::span<std::byte> bytes) noexcept {
+    auto ram = std::span<std::byte>{dev_ram()};
     if (offset > ram.size() || bytes.size() > (ram.size() - offset)) {
         return false;
     }
@@ -429,13 +463,68 @@ bool storage_read(void*, std::uint32_t offset, std::span<std::byte> bytes) noexc
     return true;
 }
 
+bool d1_storage_write(void*, std::uint32_t offset, std::span<const std::byte> bytes) noexcept {
+    auto ram = std::span<std::byte>{d1_receive_fallback()};
+    if (offset > ram.size() || bytes.size() > (ram.size() - offset)) {
+        return false;
+    }
+    std::memcpy(ram.data() + offset, bytes.data(), bytes.size());
+    return true;
+}
+
+bool d1_storage_read(void*, std::uint32_t offset, std::span<std::byte> bytes) noexcept {
+    auto ram = std::span<std::byte>{d1_receive_fallback()};
+    if (offset > ram.size() || bytes.size() > (ram.size() - offset)) {
+        return false;
+    }
+    std::memcpy(bytes.data(), ram.data() + offset, bytes.size());
+    return true;
+}
+
+bool use_sdram_stage_arena() noexcept {
+    return memory_probe_storage_state().sdram2_ready != 0U;
+}
+
+ImageStageArena receive_arena_descriptor(loader::Storage storage) noexcept {
+    if (storage.base_address == kDevRamBase) {
+        auto arena = kD1ReceiveArena;
+        arena.base = reinterpret_cast<std::uintptr_t>(d1_receive_fallback().data());
+        return arena;
+    }
+    return kReceiveArena;
+}
+
+ImageStageArena stage_arena_descriptor() noexcept {
+    if (!use_sdram_stage_arena()) {
+        auto arena = kD1StageArena;
+        arena.base = reinterpret_cast<std::uintptr_t>(d1_stage_fallback().data());
+        return arena;
+    }
+    return kImageStageArena;
+}
+
+std::span<std::byte> stage_scratch() noexcept {
+    return use_sdram_stage_arena()
+        ? std::span<std::byte>{stage_probe_scratch()}
+        : std::span<std::byte>{d1_stage_fallback()};
+}
+
 loader::Storage ram_storage() noexcept {
+    if (!use_sdram_stage_arena()) {
+        return loader::Storage{
+            .ctx = nullptr,
+            .base_address = kDevRamBase,
+            .capacity_bytes = kD1FallbackCapacity,
+            .write = d1_storage_write,
+            .read = d1_storage_read,
+        };
+    }
     return loader::Storage{
         .ctx = nullptr,
-        .base_address = kDevRamBase,
+        .base_address = static_cast<std::uint32_t>(kReceiveArena.base),
         .capacity_bytes = kDevRamCapacity,
-        .write = storage_write,
-        .read = storage_read,
+        .write = sdram_storage_write,
+        .read = sdram_storage_read,
     };
 }
 
@@ -885,16 +974,18 @@ void print_result(loader::Result result) noexcept {
 
 void print_status(const loader::CommandResult& command) noexcept {
     const auto memory = memory_probe_storage_state();
+    const auto receive_storage = runtime().receive_storage;
+    const auto receive_arena = receive_arena_descriptor(receive_storage);
     emit<"dev: ram base=0x{:08x} capacity={} cursor={}\n">(
-        kDevRamBase,
-        kDevRamCapacity,
+        receive_storage.base_address,
+        receive_storage.capacity_bytes,
         command.cursor);
     emit<"dev: receive-arena name={} addr=0x{:08x} expected=0x{:08x} size={} align={}\n">(
-        kReceiveArena.name,
-        static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(dev_ram().data())),
-        static_cast<std::uint32_t>(kReceiveArena.base),
-        kReceiveArena.size,
-        kReceiveArena.align);
+        receive_arena.name,
+        static_cast<std::uint32_t>(receive_arena.base),
+        static_cast<std::uint32_t>(receive_arena.base),
+        receive_arena.size,
+        receive_arena.align);
     emit<"dev: sdram2 ready={} init={} smoke={} base=0x{:08x} size={}\n">(
         memory.sdram2_ready,
         memory.sdram2_init_ok,
@@ -1183,13 +1274,15 @@ void list_emmc_store(Runtime& rt) noexcept {
 void print_app_status(const Runtime& rt) noexcept {
     const auto run_state = (rt.app_last_command == "run"sv) ? "enabled"sv : "disabled"sv;
     const auto memory = memory_probe_storage_state();
+    const auto arena = stage_arena_descriptor();
+    const auto scratch = stage_scratch();
     emit<"dev: app command={} name={} run={}\n">(rt.app_last_command, rt.app_name, run_state);
     emit<"dev: app stage-arena name={} addr=0x{:08x} expected=0x{:08x} size={} align={}\n">(
-        kImageStageArena.name,
-        static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(stage_probe_scratch().data())),
-        static_cast<std::uint32_t>(kImageStageArena.base),
-        kImageStageArena.size,
-        kImageStageArena.align);
+        arena.name,
+        static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(scratch.data())),
+        static_cast<std::uint32_t>(arena.base),
+        arena.size,
+        arena.align);
     emit<"dev: app sdram2 ready={} init={} smoke={} base=0x{:08x} size={}\n">(
         memory.sdram2_ready,
         memory.sdram2_init_ok,
@@ -1452,12 +1545,12 @@ void handle_store_command(std::string_view line) noexcept {
             print_store_status(rt);
             return;
         }
-        auto& scratch = stage_probe_scratch();
+        auto scratch = stage_scratch();
         const auto installed = loader::store_install_received_image(loader::StoreInstallReceivedConfig{
             .received = loader::ReceivedImageReadConfig{
                 .status = rt.packet_transport.status().packet.receive,
                 .manifest = rt.packet_transport.status().packet.manifest,
-                .storage = ram_storage(),
+                .storage = rt.receive_storage,
                 .output = scratch,
             },
             .media = qspi_store_media(),
@@ -1496,12 +1589,12 @@ void handle_store_command(std::string_view line) noexcept {
             print_store_status(rt);
             return;
         }
-        auto& scratch = stage_probe_scratch();
+        auto scratch = stage_scratch();
         const auto installed = loader::store_install_received_image(loader::StoreInstallReceivedConfig{
             .received = loader::ReceivedImageReadConfig{
                 .status = rt.packet_transport.status().packet.receive,
                 .manifest = rt.packet_transport.status().packet.manifest,
-                .storage = ram_storage(),
+                .storage = rt.receive_storage,
                 .output = scratch,
             },
             .media = media,
@@ -1664,12 +1757,12 @@ app_abi::AppImage stage_received_app(Runtime& rt, std::string_view command, std:
     }
 
     const auto status = rt.packet_transport.status();
-    const auto payload = received_payload_view(status.packet.manifest);
-    auto& scratch = stage_probe_scratch();
+    const auto payload = received_payload_view(rt.receive_storage, status.packet.manifest);
+    auto scratch = stage_scratch();
     const auto read = loader::received_image_read(loader::ReceivedImageReadConfig{
         .status = status.packet.receive,
         .manifest = status.packet.manifest,
-        .storage = ram_storage(),
+        .storage = rt.receive_storage,
         .output = scratch,
     });
     rt.app_read_code = read.code;
@@ -1713,7 +1806,7 @@ app_abi::AppImage stage_qspi_app(Runtime& rt, std::string_view command, std::str
         return {};
     }
 
-    auto& scratch = stage_probe_scratch();
+    auto scratch = stage_scratch();
     const auto staged = loader::store_stage_named_app_image(loader::StoreStageNamedConfig{
         .reader = qspi_store_reader(),
         .name = name,
@@ -1749,7 +1842,7 @@ app_abi::AppImage stage_emmc_app(Runtime& rt, std::string_view command, std::str
         return {};
     }
 
-    auto& scratch = stage_probe_scratch();
+    auto scratch = stage_scratch();
     const auto staged = loader::store_stage_named_app_image(loader::StoreStageNamedConfig{
         .reader = emmc_store_reader(),
         .name = name,

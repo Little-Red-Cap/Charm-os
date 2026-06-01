@@ -5,4 +5,5 @@ set(H747_LAB_PROFILE_APP diag_shell)
 set(H747_LAB_PROFILE_SERVICES
     console
     power
-    memory)
+    memory
+    storage)

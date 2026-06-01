@@ -12,6 +12,7 @@
 #include "memory_service.hpp"
 #include "port.h"
 #include "power_service.hpp"
+#include "storage.h"
 
 import out.core;
 import out.format;
@@ -165,6 +166,8 @@ void print_help() {
     emit<"  sdram2 repeat         - Run SDRAM2 repeated-read diag\n">();
     emit<"  sdram2 locate         - Locate where a one-word write lands\n">();
     emit<"  sdram2 timing         - Sweep SDRAM2 CAS/pipe timing presets\n">();
+    emit<"  storage init          - Initialize eMMC storage service\n">();
+    emit<"  storage status        - Print eMMC storage state\n">();
     emit<"  qspi probe            - Run QSPI JEDEC/status/read probe\n">();
     emit<"  qspi probe force      - Run QSPI probe ignoring PMIC gate\n">();
     emit<"  qspi read <addr> [len]\n">();
@@ -553,6 +556,44 @@ void run_sdram_timing_sweep(const memory::SdramBank bank) {
     print_memory_status();
 }
 
+void print_storage_status() {
+    const auto s = h747_storage_state();
+    emit<"storage: attempted={} init={} ready={} block_device={} fat={} part_auto={} init_status={} hal={} err=0x{:08X} card={} block_size={} blocks={} part_lba={} exposed={} rd={} rdfail={} wr={} wrfail={} wait_timeout={} last_lba={} last_count={} clkcr=0x{:08X} sta=0x{:08X} resp1=0x{:08X} bus={} wide8={} wide4={} wide1={}\n">(
+        s.attempted,
+        s.initialized,
+        s.ready,
+        s.block_device_ready,
+        s.fat_probe_ok,
+        s.partition_auto,
+        s.init_status,
+        s.last_hal_status,
+        s.last_error,
+        s.card_state,
+        s.block_size,
+        s.block_count,
+        s.partition_lba,
+        s.exposed_block_count,
+        s.read_count,
+        s.read_fail_count,
+        s.write_count,
+        s.write_fail_count,
+        s.wait_timeout_count,
+        s.last_lba,
+        s.last_count,
+        s.clkcr,
+        s.sta,
+        s.resp1,
+        s.selected_bus_width,
+        s.wide_status_8,
+        s.wide_status_4,
+        s.wide_status_1);
+}
+
+void run_storage_init() {
+    h747_storage_init();
+    print_storage_status();
+}
+
 void run_qspi_probe(const bool force) {
     const bool ok = storage.probe_qspi(force);
     emit<"qspi1: probe {}{}\n">(ok ? "ok" : "failed", force ? " force" : "");
@@ -710,6 +751,10 @@ void handle_command(const std::string_view line) {
         run_sdram_locate_diag(memory::SdramBank::bank2);
     } else if (cmd == "sdram2 timing"sv) {
         run_sdram_timing_sweep(memory::SdramBank::bank2);
+    } else if (cmd == "storage init"sv) {
+        run_storage_init();
+    } else if (cmd == "storage status"sv) {
+        print_storage_status();
     } else if (cmd == "qspi probe"sv) {
         run_qspi_probe(false);
     } else if (cmd == "qspi probe force"sv) {

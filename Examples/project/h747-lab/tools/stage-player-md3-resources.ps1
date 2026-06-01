@@ -30,13 +30,13 @@ function Copy-IfProvided {
 }
 
 $ResolvedOutput = [System.IO.Path]::GetFullPath($Output)
-$FontsDir = Join-Path $ResolvedOutput "fonts"
+$FontDir = Join-Path $ResolvedOutput "font"
 $MusicDir = Join-Path $ResolvedOutput "music"
-New-Item -ItemType Directory -Force -Path $FontsDir | Out-Null
+New-Item -ItemType Directory -Force -Path $FontDir | Out-Null
 New-Item -ItemType Directory -Force -Path $MusicDir | Out-Null
 
-$PrimaryCopied = Copy-IfProvided -Source $PrimaryFont -Destination (Join-Path $FontsDir "NotoSansSC-Regular.ttf")
-$FallbackCopied = Copy-IfProvided -Source $FallbackFont -Destination (Join-Path $FontsDir "NotoSans-Regular.ttf")
+$PrimaryCopied = Copy-IfProvided -Source $PrimaryFont -Destination (Join-Path $FontDir "NotoSansSC-Regular.ttf")
+$FallbackCopied = Copy-IfProvided -Source $FallbackFont -Destination (Join-Path $FontDir "NotoSans-Regular.ttf")
 $TrackCopied = $false
 if (-not [string]::IsNullOrWhiteSpace($Track)) {
     $TrackName = Split-Path -Leaf $Track
@@ -51,14 +51,14 @@ if (-not [string]::IsNullOrWhiteSpace($Cover)) {
 
 Write-Host "H747 Player MD3 resource staging"
 Write-Host "  output:   $ResolvedOutput"
-Write-Host "  primary:  $PrimaryCopied -> /fonts/NotoSansSC-Regular.ttf"
-Write-Host "  fallback: $FallbackCopied -> /fonts/NotoSans-Regular.ttf"
+Write-Host "  primary:  $PrimaryCopied -> /font/NotoSansSC-Regular.ttf"
+Write-Host "  fallback: $FallbackCopied -> /font/NotoSans-Regular.ttf"
 Write-Host "  track:    $TrackCopied -> /music/<track>"
 Write-Host "  cover:    $CoverCopied -> /music/cover.(jpg|png|bmp)"
 Write-Host ""
 Write-Host "Copy this directory's contents to the eMMC FAT root."
 Write-Host "Expected board paths:"
-Write-Host "  /fonts/NotoSansSC-Regular.ttf"
-Write-Host "  /fonts/NotoSans-Regular.ttf"
+Write-Host "  /font/NotoSansSC-Regular.ttf"
+Write-Host "  /font/NotoSans-Regular.ttf"
 Write-Host "  /music/<one mp3/flac/wav>"
 Write-Host "  /music/cover.jpg or /music/folder.jpg"

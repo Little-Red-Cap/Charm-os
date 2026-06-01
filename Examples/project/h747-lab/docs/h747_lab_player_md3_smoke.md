@@ -280,7 +280,7 @@ Resource smoke fields are appended to the normal status line:
 - `fs=<mount_ok>/<tracks>/<has_tracks>/<mount_err>` records Player mount and
   media scan state. `tracks` counts audio files discovered by the current scan.
 - `font=<primary_open>/<fallback_open>/<runtime_bound>/<err>` probes
-  `/fonts/NotoSansSC-Regular.ttf` and `/fonts/NotoSans-Regular.ttf`.
+  `/font/NotoSansSC-Regular.ttf` and `/font/NotoSans-Regular.ttf`.
   `runtime_bound=1` means the MD3 runtime actually bound the file-font package;
   `font=1/1/0/-95` means the files exist but this firmware did not enable or
   bind the file-font backend.
@@ -301,7 +301,7 @@ Resource smoke fields are appended to the normal status line:
 
 Current resource layout:
 
-- Fonts: `/fonts/NotoSansSC-Regular.ttf`, `/fonts/NotoSans-Regular.ttf`
+- Fonts: `/font/NotoSansSC-Regular.ttf`, `/font/NotoSans-Regular.ttf`
 - Music: `/music` first, then `/` and one level of subdirectories
 - Folder covers: `cover.jpg`, `cover.png`, `cover.bmp`, `folder.jpg`,
   `folder.png`, `folder.bmp`
@@ -388,7 +388,7 @@ Two acceptance modes are defined:
 - `storage_bus=1/*`: the card stayed on the conservative 1-bit path. This is
   acceptable for resource bring-up; fix 4-bit/8-bit only after VFS/media smoke
   is otherwise green.
-- `font=0/0/*`: copy the expected font files to `/fonts` or update the profile
+- `font=0/0/*`: copy the expected font files to `/font` or update the profile
   resource config.
 - `media=0/*`: check that audio files are under `/music` or one scanned root
   subdirectory and that VFS paths can be opened.

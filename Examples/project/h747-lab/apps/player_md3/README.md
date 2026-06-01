@@ -38,7 +38,7 @@ The default font path is built-in/resource fonts only. `CHARM_PLAYER_FILE_FONTS`
 is intentionally `OFF` for this firmware, so FreeType and Vivid file-font
 modules are not compiled or linked unless that product capability is explicitly
 enabled. When `CHARM_PLAYER_FILE_FONTS=ON`, the H747 runtime binds
-`/fonts/NotoSansSC-Regular.ttf` with `/fonts/NotoSans-Regular.ttf` fallback and
+`/font/NotoSansSC-Regular.ttf` with `/font/NotoSans-Regular.ttf` fallback and
 the resource smoke expects `font=1/1/1/0`. `CHARM_PLAYER_DEBUG_UI` is also `OFF`
 by default, so
 `player.ui_debug` and its table/tree demo widgets do not enter the MCU module

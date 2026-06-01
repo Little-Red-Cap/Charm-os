@@ -113,8 +113,8 @@ bool timed_display_present(void* ctx,
 ::player::FontResourceConfig board_font_resource_config() noexcept {
 #if defined(CHARM_PLAYER_FILE_FONTS) && CHARM_PLAYER_FILE_FONTS
     return ::player::make_file_font_resource_config(
-        "/fonts/NotoSansSC-Regular.ttf",
-        "/fonts/NotoSans-Regular.ttf");
+        "/font/NotoSansSC-Regular.ttf",
+        "/font/NotoSans-Regular.ttf");
 #else
     return ::player::make_builtin_font_resource_config();
 #endif

@@ -18,12 +18,12 @@ import player.ui;
 namespace {
 
 constexpr const char* kPrimaryFontPaths[] = {
-    "/fonts/NotoSansSC-Regular.ttf",
     "/font/NotoSansSC-Regular.ttf",
+    "/fonts/NotoSansSC-Regular.ttf",
 };
 constexpr const char* kFallbackFontPaths[] = {
-    "/fonts/NotoSans-Regular.ttf",
     "/font/NotoSans-Regular.ttf",
+    "/fonts/NotoSans-Regular.ttf",
 };
 
 std::int32_t err_code(fs::Errc err) noexcept {

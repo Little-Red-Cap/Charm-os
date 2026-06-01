@@ -596,6 +596,13 @@ export namespace player::cover_theme {
                 kTransparent,
             };
         };
+        auto premix_surface = [](SurfaceRole role, const rgba& bg) noexcept {
+            // Performance-only premix: Home cards are stable surfaces over known
+            // parents, so store the equivalent opaque color instead of blending
+            // their alpha every frame.
+            role.bg = role.bg.blend_over(bg);
+            return role;
+        };
         auto soften_text = [&](const rgba& fg, const rgba& bg, std::uint8_t alpha) {
             return blend_on(fg, opaque_rgb(bg), alpha);
         };
@@ -608,12 +615,15 @@ export namespace player::cover_theme {
             52,
             player::ui::kUiBottomPlayFg,
             3.2f);
-        const auto daily_mix_card = make_surface(
-            card_base, now_roles.info_tag.bg, 8, player::ui::kUiTitle);
-        const auto recently_played_card = make_surface(
-            card_base, now_roles.top_button.bg, 6, player::ui::kUiTitle);
-        const auto stats_card = make_surface(
-            stats_base, now_roles.secondary_control.bg, 8, player::ui::kUiTitle);
+        const auto daily_mix_card = premix_surface(
+            make_surface(card_base, now_roles.info_tag.bg, 8, player::ui::kUiTitle),
+            backdrop);
+        const auto recently_played_card = premix_surface(
+            make_surface(card_base, now_roles.top_button.bg, 6, player::ui::kUiTitle),
+            backdrop);
+        const auto stats_card = premix_surface(
+            make_surface(stats_base, now_roles.secondary_control.bg, 8, player::ui::kUiTitle),
+            backdrop);
         const auto daily_mix_band = make_surface(
             band_base, now_roles.primary_control.bg, 14, daily_mix_card.fg, 3.4f);
         const rgba daily_mix_title = pick_contrast_text(
@@ -653,12 +663,14 @@ export namespace player::cover_theme {
             recently_played_title,
             with_alpha(now_roles.secondary_control.bg, 180),
         };
-        const auto stats_band = make_surface(
-            with_alpha(player::ui::kUiButtonBg, 188),
-            now_roles.top_button.bg,
-            12,
-            stats_card.fg,
-            3.0f);
+        const auto stats_band = premix_surface(
+            make_surface(
+                with_alpha(player::ui::kUiButtonBg, 188),
+                now_roles.top_button.bg,
+                12,
+                stats_card.fg,
+                3.0f),
+            stats_card.bg);
         const rgba stats_title = pick_contrast_text(
             player::ui::kUiTitle, stats_card.fg, opaque_rgb(stats_band.bg), 4.5f);
         const rgba stats_subtitle = soften_text(stats_title, stats_band.bg, 214);

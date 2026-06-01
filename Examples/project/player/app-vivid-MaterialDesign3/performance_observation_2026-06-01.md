@@ -224,3 +224,20 @@ real_md3=1 mock=0 smoke=1/11111 cmd=111/1024 text=241/4096 exec_fail=0 exec=48/3
 2. 探针空闲后烧录当前 `h747_lab_player_md3`，采集包含 `perf_time=<available>/<frame>/<tick>/<render>/<record>/<execute>/<present>` 的 status 行。
 3. 增强 Library 高压力样本，让 stress 帧确实改变可见绘制状态，而不是与普通 Library 稳定帧相同。
 4. 若继续追动画卡顿，优先对 `exit_now` 增加更细的 overlay/layer composition 画像，再决定是否优化 alpha blending 或动画状态组织。
+
+## Home Alpha Overdraw 第一轮
+
+本轮只优化 Home 稳定帧的大面积常驻卡片 surface，不改布局、控件树、按钮形状或 PixelPlayer 参考语义。实际 alpha 来源不在 builder 初始样式，而在 `derive_home_color_roles()` 后续对 Home card roles 的动态 recolor，因此最终在 Home roles 阶段把 daily mix / recently played / stats card root 与 stats header band 预混合为不透明色。preview plate、toolbar、hero play、bottom bar、popup/scrim 暂不处理。
+
+| 场景 | alpha_screen_x1000 | execute_us | FillRoundRect.alpha | home.cards.alpha | home_first record_us | font_cache_delta |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| before home | 251 | 23230 | 172178 | 162094 | 9327 | unavailable |
+| after home | 16 | 19163 | 11294 | 1210 | 10347 | 452/65/0 |
+| after home_before_enter_now | 16 | 19069 | 11294 | 1210 | 61 | 0/0/0 |
+
+结论：
+
+- Home stable 的 alpha 覆盖从约 `0.251` 屏降到 `0.016` 屏，`home.cards` 几乎不再是稳定帧 alpha 大户。
+- `cmd_count` 保持 `110`，说明本轮不是减少控件数量，而是降低同等视觉结构下的 alpha blend 面积。
+- Home first 的 record 峰值仍存在；新增 font cache 证据显示首帧 `font_cache_delta=452/65/0`，稳定帧为 `0/0/0`，支持“首次 glyph/cache 热路径”归因。本轮不做字体预热，避免把成本前移到启动阶段。
+- 完整 Windows `--ui-ci` 通过；H747 `h747_lab_player_md3 -j 1` 通过。当前 H747 evidence：`RAM_D1.used_bytes=46256`、`FLASH.bin_bytes=722752`、`PlayerController.size_bytes=9560`、`PLAYER_ICON.ram_d1_buffer_count=0`。

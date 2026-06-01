@@ -432,6 +432,17 @@
         return {color.r, color.g, color.b, alpha};
     }
 
+    static rgba home_opaque_over(const rgba& src, const rgba& bg) noexcept {
+        const std::uint16_t alpha = src.a;
+        const std::uint16_t inv = static_cast<std::uint16_t>(255 - alpha);
+        auto blend = [&](std::uint8_t fg, std::uint8_t base) noexcept -> std::uint8_t {
+            return static_cast<std::uint8_t>(
+                (static_cast<std::uint16_t>(fg) * alpha
+                 + static_cast<std::uint16_t>(base) * inv) / 255);
+        };
+        return {blend(src.r, bg.r), blend(src.g, bg.g), blend(src.b, bg.b), 255};
+    }
+
     static void apply_home_action_button_style(::ui::scene::SceneBuilder& builder,
                                                WidgetHandle h,
                                                int corner_radius = 12) {
@@ -729,12 +740,14 @@
     static void apply_home_card_style(::ui::scene::SceneBuilder& builder,
                                       WidgetHandle h,
                                       int corner_radius) {
+        // Performance-only premix: keep Home's card colors visually equivalent
+        // while avoiding stable-frame alpha blending on large card surfaces.
         StylePatch patch = ::ui::scene::make_clean_surface_patch({
             .apply_bg_color = true,
             .apply_border_color = true,
             .apply_border_width = true,
             .apply_corner_radius = true,
-            .bg_color = alpha_of(kUiListBg, 230),
+            .bg_color = home_opaque_over(alpha_of(kUiListBg, 230), kUiBackdropBase),
             .border_color = {0, 0, 0, 0},
             .border_width = 0,
             .corner_radius = corner_radius,
@@ -745,12 +758,14 @@
     static void apply_home_stats_probe_card_style(::ui::scene::SceneBuilder& builder,
                                                   WidgetHandle h,
                                                   int corner_radius) {
+        // Performance-only premix: this card is a stable Home surface over the
+        // page backdrop, not a translucent overlay needing live blending.
         StylePatch patch = ::ui::scene::make_clean_surface_patch({
             .apply_bg_color = true,
             .apply_border_color = true,
             .apply_border_width = true,
             .apply_corner_radius = true,
-            .bg_color = alpha_of(kUiButtonBg, 198),
+            .bg_color = home_opaque_over(alpha_of(kUiButtonBg, 198), kUiBackdropBase),
             .border_color = {0, 0, 0, 0},
             .border_width = 0,
             .corner_radius = corner_radius,

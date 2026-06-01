@@ -9,6 +9,8 @@
                                      player::CoverResourceView& out) noexcept;
 
     static FILE* g_ui_ci_perf_log{nullptr};
+    static player::font_cache::Stats g_ui_ci_last_font_cache_stats{};
+    static bool g_ui_ci_has_last_font_cache_stats{false};
 
     void ui_ci_perf_printf(const char* fmt, ...) {
         va_list args;
@@ -332,6 +334,21 @@
     void ui_ci_emit_record_profile_evidence(const char* page,
                                             const UiCiFrameTiming& timing,
                                             const ::ui::scene::SceneEvidence& evidence) {
+        const bool font_cache_ready = player::font_cache::ready();
+        const player::font_cache::Stats font_stats =
+            font_cache_ready ? player::font_cache::stats()
+                             : player::font_cache::Stats{};
+        const player::font_cache::Stats font_delta =
+            g_ui_ci_has_last_font_cache_stats
+                ? player::font_cache::Stats{
+                    font_stats.requests - g_ui_ci_last_font_cache_stats.requests,
+                    font_stats.cached - g_ui_ci_last_font_cache_stats.cached,
+                    font_stats.missing - g_ui_ci_last_font_cache_stats.missing,
+                }
+                : font_stats;
+        g_ui_ci_last_font_cache_stats = font_stats;
+        g_ui_ci_has_last_font_cache_stats = true;
+
         std::uint32_t draw_text_box_count = 0U;
         std::uint32_t draw_text_box_area = 0U;
         std::uint32_t glyph_run_count = 0U;
@@ -354,7 +371,8 @@
             "[ui-ci.record_profile] page=%s available=%u record_us=%u "
             "cmd=%u text_bytes=%u/%u blob_bytes=%u/%u "
             "cmd_text=%u group_text=%u draw_text_box=%u/%u glyph_run=%u/%u "
-            "text_overflow=%u blob_overflow=%u\n",
+            "text_overflow=%u blob_overflow=%u "
+            "font_cache_ready=%u font_cache=%u/%u/%u font_cache_delta=%u/%u/%u\n",
             page ? page : "unknown",
             timing.available,
             timing.record_us,
@@ -370,7 +388,14 @@
             glyph_run_count,
             glyph_run_area,
             evidence.cmd.text_overflowed,
-            evidence.cmd.blob_overflowed);
+            evidence.cmd.blob_overflowed,
+            font_cache_ready ? 1U : 0U,
+            font_stats.requests,
+            font_stats.cached,
+            font_stats.missing,
+            font_delta.requests,
+            font_delta.cached,
+            font_delta.missing);
     }
 
     template<typename SceneT>

@@ -10,10 +10,10 @@ import fs_vfs;
 import player.cover;
 import player.cover_resource;
 import player.fixed_string;
-import player.font_cache;
 import player.fs_utils;
 import player.storage;
 import player.track_probe;
+import player.ui;
 
 namespace {
 
@@ -94,8 +94,16 @@ void probe_fonts(h747::apps::player_md3::PlayerMd3State& st) noexcept {
     std::int32_t fallback_err = 0;
     st.font_primary_open = open_first_available(kPrimaryFontPaths, primary_err) ? 1U : 0U;
     st.font_fallback_open = open_first_available(kFallbackFontPaths, fallback_err) ? 1U : 0U;
-    st.font_cache_ready = ::player::font_cache::ready() ? 1U : 0U;
-    st.font_err = st.font_primary_open ? fallback_err : primary_err;
+    st.font_cache_ready = ::player::ui::font_package_bound() ? 1U : 0U;
+    if (!st.font_primary_open) {
+        st.font_err = primary_err;
+    } else if (!st.font_fallback_open) {
+        st.font_err = fallback_err;
+    } else if (!st.font_cache_ready) {
+        st.font_err = err_code(fs::Errc::notsup);
+    } else {
+        st.font_err = 0;
+    }
 }
 
 void probe_media(h747::apps::player_md3::PlayerMd3State& st) noexcept {
@@ -150,12 +158,15 @@ void probe_cover(h747::apps::player_md3::PlayerMd3State& st) noexcept {
                          : ::player::CoverResourceKind::EmbeddedTrack;
     request.fallback_variant = ::player::DefaultCoverVariant::HomeHeroPill;
     ::player::CoverResourceView cover{};
+    const bool provider_available = ::player::cover_resource_provider_binding().valid();
     const bool resolved = ::player::resolve_cover_resource(request, cover);
     st.cover_decode_ok = resolved ? 1U : 0U;
     if (resolved) {
         st.cover_width = static_cast<std::uint32_t>(cover.width > 0 ? cover.width : 0);
         st.cover_height = static_cast<std::uint32_t>(cover.height > 0 ? cover.height : 0);
         st.cover_err = 0;
+    } else if (found && !provider_available) {
+        st.cover_err = err_code(fs::Errc::notsup);
     } else {
         st.cover_err = found ? err_code(fs::Errc::decode_error) : err_code(fs::Errc::noent);
     }
@@ -184,7 +195,7 @@ void run_resource_probe_once() noexcept {
 void refresh_resource_probe_state() noexcept {
     auto& st = state();
     probe_storage_view(st);
-    st.font_cache_ready = ::player::font_cache::ready() ? 1U : 0U;
+    st.font_cache_ready = ::player::ui::font_package_bound() ? 1U : 0U;
 }
 
 } // namespace h747::apps::player_md3

@@ -8,11 +8,12 @@ module;
 #include <string_view>
 #include <cstdio>
 
-#if defined(CHARM_PLAYER_HOST_UI) && CHARM_PLAYER_HOST_UI && \
-    defined(CHARM_PLAYER_HOST_FILE_FONTS) && CHARM_PLAYER_HOST_FILE_FONTS
-#define CHARM_PLAYER_USE_HOST_FILE_FONTS 1
+#if (defined(CHARM_PLAYER_HOST_UI) && CHARM_PLAYER_HOST_UI && \
+     defined(CHARM_PLAYER_HOST_FILE_FONTS) && CHARM_PLAYER_HOST_FILE_FONTS) || \
+    (defined(CHARM_PLAYER_FILE_FONTS) && CHARM_PLAYER_FILE_FONTS)
+#define CHARM_PLAYER_USE_FILE_FONTS 1
 #else
-#define CHARM_PLAYER_USE_HOST_FILE_FONTS 0
+#define CHARM_PLAYER_USE_FILE_FONTS 0
 #endif
 
 export module player.ui;
@@ -28,7 +29,7 @@ import charm.font.font_noto_ascii_16;
 import charm.font.font_noto_ascii_12;
 import charm.font.font_noto_sc_16;
 import charm.ui.scene.pill_surface;
-#if CHARM_PLAYER_USE_HOST_FILE_FONTS
+#if CHARM_PLAYER_USE_FILE_FONTS
 import charm.ui.vivid.font_package;
 import charm.font.provider_freetype;
 #endif
@@ -454,7 +455,7 @@ export namespace player::ui {
         // TODO(player/ui): Make exact font cache size product-configurable after host-side typography tuning stabilizes.
         inline constexpr std::size_t kPlayerExactFontCacheSlots = 24;
 
-#if CHARM_PLAYER_USE_HOST_FILE_FONTS
+#if CHARM_PLAYER_USE_FILE_FONTS
         struct FontPackageState {
             charm::font::VfsFontPackage package{};
             bool bound{false};
@@ -782,7 +783,7 @@ export namespace player::ui {
     }
 
     bool font_package_bound() noexcept {
-#if CHARM_PLAYER_USE_HOST_FILE_FONTS
+#if CHARM_PLAYER_USE_FILE_FONTS
         return detail::font_package_state().bound;
 #else
         return false;
@@ -793,7 +794,7 @@ export namespace player::ui {
         set_font_provider(FontProvider{});
         set_font_weight_provider(FontWeightProvider{});
         set_font_glyph_loader(FontGlyphLoaderApi{}, nullptr);
-#if CHARM_PLAYER_USE_HOST_FILE_FONTS
+#if CHARM_PLAYER_USE_FILE_FONTS
         auto& package_state = detail::font_package_state();
         package_state.package.reset_cache();
         package_state.bound = false;
@@ -819,7 +820,7 @@ export namespace player::ui {
     }
 
     void reset_player_font_package_cache() noexcept {
-#if CHARM_PLAYER_USE_HOST_FILE_FONTS
+#if CHARM_PLAYER_USE_FILE_FONTS
         auto& state = detail::font_package_state();
         state.package.reset_cache();
         state.bound = false;
@@ -827,7 +828,7 @@ export namespace player::ui {
 #endif
     }
 
-#if CHARM_PLAYER_USE_HOST_FILE_FONTS
+#if CHARM_PLAYER_USE_FILE_FONTS
     namespace detail {
         std::string make_exact_font_path(std::string_view base_path,
                                          int px,

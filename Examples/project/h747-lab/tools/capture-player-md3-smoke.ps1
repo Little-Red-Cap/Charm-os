@@ -406,7 +406,9 @@ function Get-ResourceSummary {
     $StorageState = if ($FsMount -eq 1) { "mounted" } else { "not-mounted(err=$FsErr)" }
     $TrackState = if (($FsTracks -gt 0) -and ($FsHasTracks -eq 1)) { "tracks=$FsTracks" } else { "no-tracks" }
     $FontState = if (($FontPrimary -eq 1) -and ($FontFallback -eq 1) -and ($FontErr -eq 0)) {
-        "fonts-present"
+        "fonts-bound"
+    } elseif (($FontPrimary -eq 1) -and ($FontFallback -eq 1)) {
+        "fonts-present-not-bound(err=$FontErr)"
     } else {
         "fonts-missing(err=$FontErr)"
     }
@@ -417,6 +419,8 @@ function Get-ResourceSummary {
     }
     $CoverState = if (($CoverFound -eq 1) -and ($CoverDecoded -eq 1) -and ($CoverW -gt 0) -and ($CoverH -gt 0) -and ($CoverErr -eq 0)) {
         "cover-ready(${CoverW}x${CoverH})"
+    } elseif (($CoverFound -eq 1) -and ($CoverErr -eq -95)) {
+        "cover-found-decoder-unavailable(err=$CoverErr)"
     } elseif ($CoverFound -eq 1) {
         "cover-found-decode-failed(err=$CoverErr)"
     } else {

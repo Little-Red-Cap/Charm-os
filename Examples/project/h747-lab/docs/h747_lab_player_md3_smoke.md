@@ -259,8 +259,11 @@ Resource smoke fields are appended to the normal status line:
   hide a usable 1-bit block device path.
 - `fs=<mount_ok>/<tracks>/<has_tracks>/<mount_err>` records Player mount and
   media scan state. `tracks` counts audio files discovered by the current scan.
-- `font=<primary_open>/<fallback_open>/<cache_ready>/<err>` probes
+- `font=<primary_open>/<fallback_open>/<runtime_bound>/<err>` probes
   `/fonts/NotoSansSC-Regular.ttf` and `/fonts/NotoSans-Regular.ttf`.
+  `runtime_bound=1` means the MD3 runtime actually bound the file-font package;
+  `font=1/1/0/-95` means the files exist but this firmware did not enable or
+  bind the file-font backend.
 - `cover=<folder_found>/<decode_ok>/<w>x<h>/<err>` checks first-track folder
   cover candidates, then falls back to embedded cover decode.
 - `media=<first_open>/<duration_ok>/<track_ready>/<err>` checks first-track VFS
@@ -303,7 +306,8 @@ Copy that directory's contents to the FAT root of eMMC. The helper does not
 write to the board by itself.
 
 Common error values follow the shared `Errc` numeric values: `0` means ok,
-`-2` means not found, `-5` means I/O error, and `1002` means decode failure.
+`-2` means not found, `-5` means I/O error, `-95` means unsupported capability,
+and `1002` means decode failure.
 When eMMC resources are not populated, `font=0/0/...`, `fs=.../0/...`, and
 `cover=0/0/...` are expected and must not invalidate `smoke=1/11111`.
 
@@ -313,9 +317,12 @@ Two acceptance modes are defined:
   present. `fs=0/...`, `font=0/0/...`, `media=0/...`, and `cover=0/0/...` are
   valid as long as the error values explain the missing layer.
 - Populated-resource smoke: after copying the minimal resource layout to eMMC,
-  expect `fs=1/<n>/1/0`, `font=1/1/*/0`, and `media=1/*/1/0`. If a folder cover
-  exists, expect `cover=1/1/<w>x<h>/0`; if no folder cover exists, `cover=0/0/...`
-  is allowed only when the media file has no embedded cover.
+  expect `fs=1/<n>/1/0`, `font=1/1/1/0`, and `media=1/*/1/0` when the firmware is
+  configured with `CHARM_PLAYER_FILE_FONTS=ON`. If a folder cover exists, expect
+  `cover=1/1/<w>x<h>/0` only when a board cover provider or MCU-safe decoder is
+  present. Without that capability, `cover=1/0/0x0/-95` is the expected evidence
+  that the file was found but dynamic cover decode is not available on this
+  firmware.
 - Playback smoke: after populated-resource smoke is green, expect
   `playback_smoke=1/<before>-<after>/<frames>/1/0/0` with `after > before` and
   `frames > 0`. The accepted status line must still include the basic smoke

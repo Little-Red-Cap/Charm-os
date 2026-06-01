@@ -37,7 +37,10 @@ this firmware module set.
 The default font path is built-in/resource fonts only. `CHARM_PLAYER_FILE_FONTS`
 is intentionally `OFF` for this firmware, so FreeType and Vivid file-font
 modules are not compiled or linked unless that product capability is explicitly
-enabled. `CHARM_PLAYER_DEBUG_UI` is also `OFF` by default, so
+enabled. When `CHARM_PLAYER_FILE_FONTS=ON`, the H747 runtime binds
+`/fonts/NotoSansSC-Regular.ttf` with `/fonts/NotoSans-Regular.ttf` fallback and
+the resource smoke expects `font=1/1/1/0`. `CHARM_PLAYER_DEBUG_UI` is also `OFF`
+by default, so
 `player.ui_debug` and its table/tree demo widgets do not enter the MCU module
 set.
 
@@ -59,7 +62,10 @@ release flags). Resource cover views and host decoded pixels are registered by
 `player.cover`; host decode buffers stay in the host-only cover detail path and
 are not owned by `PlayerController`. The H747 default keeps host cover decode
 disabled, so missing resources resolve to the same default/placeholder visible
-semantics instead of pulling dynamic image buffers into firmware.
+semantics instead of pulling dynamic image buffers into firmware. If a folder
+cover file is present but no board cover provider or MCU-safe decoder is linked,
+resource smoke reports `cover=1/0/0x0/-95`; that is an unsupported-capability
+state, not a missing-file state.
 
 ## PRODUCT Capacity Profile
 

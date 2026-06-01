@@ -45,6 +45,16 @@ charm::system::ClockTick player_md3_now_us(void*) noexcept {
     return ::player::StorageConfig{};
 }
 
+::player::FontResourceConfig board_font_resource_config() noexcept {
+#if defined(CHARM_PLAYER_FILE_FONTS) && CHARM_PLAYER_FILE_FONTS
+    return ::player::make_file_font_resource_config(
+        "/fonts/NotoSansSC-Regular.ttf",
+        "/fonts/NotoSans-Regular.ttf");
+#else
+    return ::player::make_builtin_font_resource_config();
+#endif
+}
+
 fs::Status emmc_read(void*, util::u64 lba, std::span<util::u8> data) noexcept {
     if (lba > 0xFFFFFFFFULL || data.empty()) {
         return fs::Status{fs::Errc::inval};
@@ -218,7 +228,7 @@ charm::system::Clock& clock_ref() noexcept {
 
     ::player::AppConfig app_cfg{};
     app_cfg.player_config = audio_cfg;
-    app_cfg.font_resources = ::player::make_builtin_font_resource_config();
+    app_cfg.font_resources = board_font_resource_config();
     app_cfg.icon_pixels = ::player::PixelArenaConfig{
         reinterpret_cast<std::byte*>(state().icon_pixel_arena),
         state().icon_pixel_arena_bytes,

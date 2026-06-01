@@ -78,6 +78,8 @@
 
     #include "main.ui_ci.page_flow.inc"
 
+    #include "main.ui_ci.library.inc"
+
     #include "main.ui_ci.now_playing_matrix.inc"
 
     #include "main.ui_ci.bootstrap.inc"
@@ -701,6 +703,8 @@
 
         run_page_flow_regressions(
             res, runtime, scene, ctx, wait_for_page, settle_now_playing_transition, pump_frame);
+
+        run_library_function_regressions(res, runtime, scene, ctx, pump_frame);
 
         run_now_playing_state_matrix_regressions(
             res, runtime, scene, ctx, wait_for_page, settle_now_playing_transition, pump_frame);

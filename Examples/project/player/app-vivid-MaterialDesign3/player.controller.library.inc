@@ -1444,6 +1444,7 @@
         void close_list_action_menu() {
             sync_list_action_menu_focus_visual(-1);
             list_action_menu_index = -1;
+            list_action_menu_focus_index = -1;
             ::ui::scene::hide_anchored_menu(
                 access, list_action_menu_handles(), library_action_menu_spec());
             if (handles.list) {
@@ -1584,13 +1585,15 @@
         }
 
         int focused_list_action_menu_item() const noexcept {
-            if (!access.valid()) return -1;
-            return ::ui::scene::anchored_menu_focused_index(
+            if (!access.valid()) return list_action_menu_focus_index;
+            const int focused = ::ui::scene::anchored_menu_focused_index(
                 const_cast<::ui::scene::SceneAccess&>(access),
                 list_action_menu_handles());
+            return focused >= 0 ? focused : list_action_menu_focus_index;
         }
 
         void focus_list_action_menu_item(int item_index) {
+            list_action_menu_focus_index = item_index;
             ::ui::scene::set_anchored_menu_focus(access, list_action_menu_handles(), item_index);
             sync_list_action_menu_focus_visual(item_index);
         }
@@ -1861,6 +1864,7 @@
             if (initial_focus >= 0) {
                 focus_list_action_menu_item(initial_focus);
             } else {
+                list_action_menu_focus_index = -1;
                 sync_list_action_menu_focus_visual(-1);
             }
         }

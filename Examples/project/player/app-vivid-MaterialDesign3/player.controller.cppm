@@ -359,6 +359,7 @@ export namespace player {
         bool ignore_list_select{false};
         int last_list_selected{-1};
         int list_action_menu_index{-1};
+        int list_action_menu_focus_index{-1};
         int list_info_popup_track_index{-1};
         LibraryTab library_tab{LibraryTab::Songs};
         FixedString<192> library_context_key{};

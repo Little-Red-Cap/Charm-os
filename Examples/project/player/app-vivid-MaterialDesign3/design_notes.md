@@ -720,6 +720,7 @@
 - 工具区统一性：部分达成
 - 列表项视觉语言：部分达成（已具备双层文本、当前项状态与播放指示）
 - 浏览上下文表达：已达成
+- 基础功能闭环：已达成（Tab、Sort、Shuffle、Path 返回、列表进入 context、track 选择、action menu 与 info popup 已纳入 Windows UI CI）
 
 ---
 

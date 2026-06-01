@@ -1,7 +1,9 @@
 param(
     [string]$Output = "",
     [string]$PrimaryFont = "",
+    [string]$PrimaryFontName = "gflex_variable.ttf",
     [string]$FallbackFont = "",
+    [string]$FallbackFontName = "NotoSans-Regular.ttf",
     [string]$Track = "",
     [string]$Cover = ""
 )
@@ -11,6 +13,12 @@ $ErrorActionPreference = "Stop"
 $ProjectRoot = Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")
 if ([string]::IsNullOrWhiteSpace($Output)) {
     $Output = Join-Path $ProjectRoot "cmake-build-h747-lab-debug\player_md3_resources"
+}
+if ([string]::IsNullOrWhiteSpace($PrimaryFontName)) {
+    throw "PrimaryFontName must not be empty."
+}
+if ([string]::IsNullOrWhiteSpace($FallbackFontName)) {
+    throw "FallbackFontName must not be empty."
 }
 
 function Copy-IfProvided {
@@ -35,8 +43,8 @@ $MusicDir = Join-Path $ResolvedOutput "music"
 New-Item -ItemType Directory -Force -Path $FontDir | Out-Null
 New-Item -ItemType Directory -Force -Path $MusicDir | Out-Null
 
-$PrimaryCopied = Copy-IfProvided -Source $PrimaryFont -Destination (Join-Path $FontDir "NotoSansSC-Regular.ttf")
-$FallbackCopied = Copy-IfProvided -Source $FallbackFont -Destination (Join-Path $FontDir "NotoSans-Regular.ttf")
+$PrimaryCopied = Copy-IfProvided -Source $PrimaryFont -Destination (Join-Path $FontDir $PrimaryFontName)
+$FallbackCopied = Copy-IfProvided -Source $FallbackFont -Destination (Join-Path $FontDir $FallbackFontName)
 $TrackCopied = $false
 if (-not [string]::IsNullOrWhiteSpace($Track)) {
     $TrackName = Split-Path -Leaf $Track
@@ -51,14 +59,14 @@ if (-not [string]::IsNullOrWhiteSpace($Cover)) {
 
 Write-Host "H747 Player MD3 resource staging"
 Write-Host "  output:   $ResolvedOutput"
-Write-Host "  primary:  $PrimaryCopied -> /font/NotoSansSC-Regular.ttf"
-Write-Host "  fallback: $FallbackCopied -> /font/NotoSans-Regular.ttf"
+Write-Host "  primary:  $PrimaryCopied -> /font/$PrimaryFontName"
+Write-Host "  fallback: $FallbackCopied -> /font/$FallbackFontName"
 Write-Host "  track:    $TrackCopied -> /music/<track>"
 Write-Host "  cover:    $CoverCopied -> /music/cover.(jpg|png|bmp)"
 Write-Host ""
 Write-Host "Copy this directory's contents to the eMMC FAT root."
 Write-Host "Expected board paths:"
-Write-Host "  /font/NotoSansSC-Regular.ttf"
-Write-Host "  /font/NotoSans-Regular.ttf"
+Write-Host "  /font/$PrimaryFontName"
+Write-Host "  /font/$FallbackFontName (optional fallback)"
 Write-Host "  /music/<one mp3/flac/wav>"
 Write-Host "  /music/cover.jpg or /music/folder.jpg"

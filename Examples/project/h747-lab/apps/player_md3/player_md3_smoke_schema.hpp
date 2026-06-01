@@ -48,6 +48,7 @@ enum class PlayerMd3SmokeField : std::uint8_t {
     Audio,
     Fs,
     Font,
+    FontConfig,
     Cover,
     Media,
     Playback,
@@ -159,6 +160,8 @@ enum class PlayerMd3SmokeField : std::uint8_t {
         return "fs";
     case PlayerMd3SmokeField::Font:
         return "font";
+    case PlayerMd3SmokeField::FontConfig:
+        return "font_cfg";
     case PlayerMd3SmokeField::Cover:
         return "cover";
     case PlayerMd3SmokeField::Media:

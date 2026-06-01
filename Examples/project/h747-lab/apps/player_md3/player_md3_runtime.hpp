@@ -147,6 +147,10 @@ struct PlayerMd3State {
     std::uint8_t font_primary_open{0};
     std::uint8_t font_fallback_open{0};
     std::uint8_t font_cache_ready{0};
+    std::uint8_t font_config_kind{0};
+    std::uint8_t font_primary_configured{0};
+    std::uint8_t font_fallback_configured{0};
+    std::uint8_t font_compat_open{0};
     std::uint8_t cover_folder_found{0};
     std::uint8_t cover_decode_ok{0};
     std::uint8_t media_first_open{0};

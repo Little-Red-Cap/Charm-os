@@ -53,6 +53,12 @@ export namespace player::product_config {
     inline constexpr const char* default_font_path = "/font/gflex_variable.ttf";
 #endif
 
+#if defined(CHARM_PLAYER_RESOURCE_FONT_FALLBACK_PATH)
+    inline constexpr const char* default_font_fallback_path = CHARM_PLAYER_RESOURCE_FONT_FALLBACK_PATH;
+#else
+    inline constexpr const char* default_font_fallback_path = "";
+#endif
+
 #if defined(CHARM_PLAYER_RESOURCE_FONT_SMALL_PX)
     inline constexpr int default_font_small_px = CHARM_PLAYER_RESOURCE_FONT_SMALL_PX;
 #else

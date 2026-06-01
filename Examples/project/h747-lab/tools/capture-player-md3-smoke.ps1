@@ -209,9 +209,11 @@ function Get-PlaybackResourceFailureReason {
     }
     $FontPrimary = [uint64]$Matches[1]
     $FontFallback = [uint64]$Matches[2]
+    $FontRuntimeBound = [uint64]$Matches[3]
     $FontErr = [int64]$Matches[4]
-    if (($FontPrimary -ne 1) -or ($FontFallback -ne 1) -or ($FontErr -ne 0)) {
-        return "playback requires font=1/1/*/0; got font=$Font"
+    if (($FontPrimary -ne 1) -or ($FontRuntimeBound -ne 1) -or ($FontErr -ne 0)) {
+        $FontCfg = if ($Fields.ContainsKey("font_cfg")) { $Fields["font_cfg"] } else { "missing" }
+        return "playback requires font primary open and runtime bound; got font=$Font font_cfg=$FontCfg"
     }
 
     $Media = $Fields["media"]
@@ -384,7 +386,10 @@ function Get-ResourceSummary {
     }
     $FontPrimary = [uint64]$Matches[1]
     $FontFallback = [uint64]$Matches[2]
+    $FontRuntimeBound = [uint64]$Matches[3]
     $FontErr = [int64]$Matches[4]
+    $FontCfg = if ($Fields.ContainsKey("font_cfg")) { $Fields["font_cfg"] } else { "missing" }
+    $FontCfgSummary = "font_cfg=$FontCfg"
 
     if ($Cover -notmatch "^([0-9]+)/([0-9]+)/([0-9]+)x([0-9]+)/(-?[0-9]+)$") {
         return "resource fields present; cover shape invalid: $Cover"
@@ -405,12 +410,12 @@ function Get-ResourceSummary {
 
     $StorageState = if ($FsMount -eq 1) { "mounted" } else { "not-mounted(err=$FsErr)" }
     $TrackState = if (($FsTracks -gt 0) -and ($FsHasTracks -eq 1)) { "tracks=$FsTracks" } else { "no-tracks" }
-    $FontState = if (($FontPrimary -eq 1) -and ($FontFallback -eq 1) -and ($FontErr -eq 0)) {
-        "fonts-bound"
-    } elseif (($FontPrimary -eq 1) -and ($FontFallback -eq 1)) {
-        "fonts-present-not-bound(err=$FontErr)"
+    $FontState = if (($FontPrimary -eq 1) -and ($FontRuntimeBound -eq 1) -and ($FontErr -eq 0)) {
+        if ($FontFallback -eq 1) { "font-primary+fallback-bound" } else { "font-primary-bound" }
+    } elseif ($FontPrimary -eq 1) {
+        "font-primary-present-not-bound(err=$FontErr)"
     } else {
-        "fonts-missing(err=$FontErr)"
+        "font-primary-missing(err=$FontErr)"
     }
     $MediaState = if (($MediaOpen -eq 1) -and ($MediaReady -eq 1) -and ($MediaErr -eq 0)) {
         if ($MediaDuration -eq 1) { "media-ready+duration" } else { "media-ready(no-duration)" }
@@ -428,10 +433,10 @@ function Get-ResourceSummary {
     }
 
     $Populated = (($FsMount -eq 1) -and ($FsTracks -gt 0) -and ($FsHasTracks -eq 1) -and
-        ($FontPrimary -eq 1) -and ($FontFallback -eq 1) -and
+        ($FontPrimary -eq 1) -and ($FontRuntimeBound -eq 1) -and
         ($MediaOpen -eq 1) -and ($MediaReady -eq 1))
     $Mode = if ($Populated) { "populated" } else { "empty-or-missing" }
-    return "resource=$Mode fs=$StorageState $TrackState font=$FontState media=$MediaState cover=$CoverState"
+    return "resource=$Mode fs=$StorageState $TrackState font=$FontState $FontCfgSummary media=$MediaState cover=$CoverState"
 }
 
 function Get-StatusFields {

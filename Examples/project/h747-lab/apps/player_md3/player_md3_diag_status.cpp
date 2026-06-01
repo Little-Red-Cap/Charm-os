@@ -331,6 +331,14 @@ void print_status(const char* prefix) {
     out.dec(st.font_cache_ready);
     out.slash();
     out.sdec(st.font_err);
+    out.field(PlayerMd3SmokeField::FontConfig);
+    out.dec(st.font_config_kind);
+    out.slash();
+    out.dec(st.font_primary_configured);
+    out.slash();
+    out.dec(st.font_fallback_configured);
+    out.slash();
+    out.dec(st.font_compat_open);
     out.field(PlayerMd3SmokeField::Cover);
     out.dec(st.cover_folder_found);
     out.slash();

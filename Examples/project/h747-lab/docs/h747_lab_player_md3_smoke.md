@@ -129,8 +129,8 @@ With `-PlaybackSmoke`, the capture first requires the basic display smoke and a
 populated resource line. It then sends `playback smoke` over the same serial
 console, and the firmware starts the first scanned track through the existing
 Player input/control path. The command is rejected as a playback gate when the
-resource line does not satisfy `fs=1/<n>/1/0`, `font=1/1/*/0`, and
-`media=1/*/1/0`.
+resource line does not satisfy `fs=1/<n>/1/0`, primary `font` open with runtime
+binding, and `media=1/*/1/0`.
 
 Input smoke is optional and does not require hardware interaction:
 
@@ -279,11 +279,16 @@ Resource smoke fields are appended to the normal status line:
   hide a usable 1-bit block device path.
 - `fs=<mount_ok>/<tracks>/<has_tracks>/<mount_err>` records Player mount and
   media scan state. `tracks` counts audio files discovered by the current scan.
-- `font=<primary_open>/<fallback_open>/<runtime_bound>/<err>` probes
-  `/font/NotoSansSC-Regular.ttf` and `/font/NotoSans-Regular.ttf`.
-  `runtime_bound=1` means the MD3 runtime actually bound the file-font package;
-  `font=1/1/0/-95` means the files exist but this firmware did not enable or
-  bind the file-font backend.
+- `font=<primary_open>/<fallback_open>/<runtime_bound>/<err>` probes the active
+  Player font resource config. The primary path comes from
+  `player.product_config::default_font_path`, currently
+  `/font/gflex_variable.ttf`. `fallback_open` is meaningful only when a fallback
+  path is configured. `runtime_bound=1` means the MD3 runtime actually bound the
+  file-font package.
+- `font_cfg=<kind>/<primary_configured>/<fallback_configured>/<compat_open>`
+  records which font resource mode is active and whether a legacy Noto-style
+  compatibility font was also found. `compat_open=1` is diagnostic only and is
+  not the product contract.
 - `cover=<folder_found>/<decode_ok>/<w>x<h>/<err>` checks first-track folder
   cover candidates, then falls back to embedded cover decode.
 - `media=<first_open>/<duration_ok>/<track_ready>/<err>` checks first-track VFS
@@ -301,7 +306,10 @@ Resource smoke fields are appended to the normal status line:
 
 Current resource layout:
 
-- Fonts: `/font/NotoSansSC-Regular.ttf`, `/font/NotoSans-Regular.ttf`
+- Primary font: `/font/gflex_variable.ttf`
+- Optional fallback font: configured by `CHARM_PLAYER_RESOURCE_FONT_FALLBACK_PATH`
+- Compatibility fonts probed for diagnostics only:
+  `/font/NotoSansSC-Regular.ttf`, `/font/NotoSans-Regular.ttf`
 - Music: `/music` first, then `/` and one level of subdirectories
 - Folder covers: `cover.jpg`, `cover.png`, `cover.bmp`, `folder.jpg`,
   `folder.png`, `folder.bmp`
@@ -310,11 +318,17 @@ The optional staging helper creates the expected directory shape on the host:
 
 ```powershell
 .\tools\stage-player-md3-resources.ps1 `
-  -PrimaryFont <path-to-NotoSansSC-Regular.ttf> `
-  -FallbackFont <path-to-NotoSans-Regular.ttf> `
+  -PrimaryFont <path-to-gflex_variable.ttf> `
+  -PrimaryFontName gflex_variable.ttf `
+  -FallbackFont <path-to-optional-fallback.ttf> `
+  -FallbackFontName NotoSans-Regular.ttf `
   -Track <path-to-one-mp3-flac-or-wav> `
   -Cover <path-to-cover-jpg-png-or-bmp>
 ```
+
+`PrimaryFontName` and `FallbackFontName` control the board-side filenames under
+`/font`; the defaults match the current product primary path and optional Noto
+compatibility fallback.
 
 By default it writes to:
 
@@ -328,17 +342,19 @@ write to the board by itself.
 Common error values follow the shared `Errc` numeric values: `0` means ok,
 `-2` means not found, `-5` means I/O error, `-95` means unsupported capability,
 and `1002` means decode failure.
-When eMMC resources are not populated, `font=0/0/...`, `fs=.../0/...`, and
+When eMMC resources are not populated, `font=0/*/...`, `fs=.../0/...`, and
 `cover=0/0/...` are expected and must not invalidate `smoke=1/11111`.
 
 Two acceptance modes are defined:
 
 - Empty-resource smoke: basic display smoke passes and resource fields are
-  present. `fs=0/...`, `font=0/0/...`, `media=0/...`, and `cover=0/0/...` are
+  present. `fs=0/...`, `font=0/*/...`, `media=0/...`, and `cover=0/0/...` are
   valid as long as the error values explain the missing layer.
 - Populated-resource smoke: after copying the minimal resource layout to eMMC,
-  expect `fs=1/<n>/1/0`, `font=1/1/1/0`, and `media=1/*/1/0` when the firmware is
-  configured with `CHARM_PLAYER_FILE_FONTS=ON`. If a folder cover exists, expect
+  expect `fs=1/<n>/1/0`, `font=1/*/1/0`, `font_cfg=1/1/*/*`, and
+  `media=1/*/1/0` when the firmware is configured with
+  `CHARM_PLAYER_FILE_FONTS=ON`. If no fallback path is configured,
+  `font=1/0/1/0` is valid. If a folder cover exists, expect
   `cover=1/1/<w>x<h>/0` only when a board cover provider or MCU-safe decoder is
   present. Without that capability, `cover=1/0/0x0/-95` is the expected evidence
   that the file was found but dynamic cover decode is not available on this
@@ -388,8 +404,9 @@ Two acceptance modes are defined:
 - `storage_bus=1/*`: the card stayed on the conservative 1-bit path. This is
   acceptable for resource bring-up; fix 4-bit/8-bit only after VFS/media smoke
   is otherwise green.
-- `font=0/0/*`: copy the expected font files to `/font` or update the profile
-  resource config.
+- `font=0/*/*`: copy the configured primary font to `/font` or update
+  `CHARM_PLAYER_RESOURCE_FONT_PATH`. Check `font_cfg` before assuming a Noto
+  file name is required.
 - `media=0/*`: check that audio files are under `/music` or one scanned root
   subdirectory and that VFS paths can be opened.
 - `cover=1/0/*`: a folder cover was found but image decode failed; check image
@@ -446,13 +463,13 @@ The same boot log also printed `player_md3: bootstrap ok`,
   field gate and reported:
 
 ```text
-resource=empty-or-missing fs=not-mounted(err=-2) no-tracks font=fonts-missing(err=-38) media=media-missing(err=-2) cover=cover-missing(err=-2)
+resource=empty-or-missing fs=not-mounted(err=-2) no-tracks font=font-primary-missing(err=-38) font_cfg=1/1/0/0 media=media-missing(err=-2) cover=cover-missing(err=-2)
 ```
 
 The accepted status line included:
 
 ```text
-storage=0/0/0/0@0:0 audio=1/1/0/0 fs=0/0/0/-2 font=0/0/0/-38 cover=0/0/0x0/-2 media=0/0/0/-2
+storage=0/0/0/0@0:0 audio=1/1/0/0 fs=0/0/0/-2 font=0/0/0/-38 font_cfg=1/1/0/0 cover=0/0/0x0/-2 media=0/0/0/-2
 ```
 
 This is the expected empty-resource board state before eMMC is populated. It

@@ -23,6 +23,7 @@ import player.app;
 import player.app_config;
 import player.font_resource;
 import player.platform;
+import player.product_config;
 import player.storage;
 import player.ui;
 import fs_block;
@@ -113,8 +114,8 @@ bool timed_display_present(void* ctx,
 ::player::FontResourceConfig board_font_resource_config() noexcept {
 #if defined(CHARM_PLAYER_FILE_FONTS) && CHARM_PLAYER_FILE_FONTS
     return ::player::make_file_font_resource_config(
-        "/font/NotoSansSC-Regular.ttf",
-        "/font/NotoSans-Regular.ttf");
+        ::player::product_config::default_font_path,
+        ::player::product_config::default_font_fallback_path);
 #else
     return ::player::make_builtin_font_resource_config();
 #endif

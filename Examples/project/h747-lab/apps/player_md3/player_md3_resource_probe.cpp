@@ -7,22 +7,23 @@
 import fs_core;
 import fs_errno;
 import fs_vfs;
+import player.app_config;
 import player.cover;
 import player.cover_resource;
 import player.fixed_string;
 import player.fs_utils;
+import player.font_resource;
+import player.product_config;
 import player.storage;
 import player.track_probe;
 import player.ui;
 
 namespace {
 
-constexpr const char* kPrimaryFontPaths[] = {
+constexpr const char* kCompatFontPaths[] = {
     "/font/NotoSansSC-Regular.ttf",
-    "/fonts/NotoSansSC-Regular.ttf",
-};
-constexpr const char* kFallbackFontPaths[] = {
     "/font/NotoSans-Regular.ttf",
+    "/fonts/NotoSansSC-Regular.ttf",
     "/fonts/NotoSans-Regular.ttf",
 };
 
@@ -61,6 +62,16 @@ bool open_first_available(const char* const (&paths)[N], std::int32_t& out_err) 
     return false;
 }
 
+::player::FontResourceConfig board_probe_font_resource_config() noexcept {
+#if defined(CHARM_PLAYER_FILE_FONTS) && CHARM_PLAYER_FILE_FONTS
+    return ::player::make_file_font_resource_config(
+        ::player::product_config::default_font_path,
+        ::player::product_config::default_font_fallback_path);
+#else
+    return ::player::make_builtin_font_resource_config();
+#endif
+}
+
 void probe_storage_view(h747::apps::player_md3::PlayerMd3State& st) noexcept {
     auto* shell = h747::apps::player_md3::shell_ref();
     auto* app = shell ? shell->app() : nullptr;
@@ -90,14 +101,28 @@ const char* first_track_path() noexcept {
 }
 
 void probe_fonts(h747::apps::player_md3::PlayerMd3State& st) noexcept {
-    std::int32_t primary_err = 0;
-    std::int32_t fallback_err = 0;
-    st.font_primary_open = open_first_available(kPrimaryFontPaths, primary_err) ? 1U : 0U;
-    st.font_fallback_open = open_first_available(kFallbackFontPaths, fallback_err) ? 1U : 0U;
+    const auto font = board_probe_font_resource_config();
+    st.font_config_kind = static_cast<std::uint8_t>(font.kind);
+    st.font_primary_configured = font.primary_path.empty() ? 0U : 1U;
+    st.font_fallback_configured = font.fallback_path.empty() ? 0U : 1U;
+    std::int32_t primary_err = err_code(fs::Errc::ok);
+    std::int32_t fallback_err = err_code(fs::Errc::ok);
+    std::int32_t compat_err = err_code(fs::Errc::ok);
+    st.font_primary_open = font.primary_path.empty()
+        ? 0U
+        : (open_probe(font.primary_path.view(), primary_err) ? 1U : 0U);
+    st.font_fallback_open = font.fallback_path.empty()
+        ? 0U
+        : (open_probe(font.fallback_path.view(), fallback_err) ? 1U : 0U);
+    st.font_compat_open = open_first_available(kCompatFontPaths, compat_err) ? 1U : 0U;
     st.font_cache_ready = ::player::ui::font_package_bound() ? 1U : 0U;
-    if (!st.font_primary_open) {
+    if (font.kind != ::player::FontResourceKind::FilePath) {
+        st.font_err = err_code(fs::Errc::notsup);
+    } else if (font.primary_path.empty()) {
+        st.font_err = err_code(fs::Errc::inval);
+    } else if (!st.font_primary_open) {
         st.font_err = primary_err;
-    } else if (!st.font_fallback_open) {
+    } else if (!font.fallback_path.empty() && !st.font_fallback_open) {
         st.font_err = fallback_err;
     } else if (!st.font_cache_ready) {
         st.font_err = err_code(fs::Errc::notsup);

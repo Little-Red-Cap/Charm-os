@@ -700,6 +700,9 @@ export namespace player {
             bool active{false};
             bool reveal_started{false};
             bool destination_refreshed{false};
+#if CHARM_PLAYER_LAYERED_TRANSITIONS
+            bool destination_capture_ready{false};
+#endif
             NowPlayingTransitionEndpoints route{};
             ::ui::scene::SnapshotHandle source_snapshot{};
             ::ui::scene::SnapshotHandle destination_snapshot{};
@@ -771,8 +774,19 @@ export namespace player {
         std::uint32_t layer_transition_destination_capture_count{0};
         std::uint32_t layer_transition_destination_compose_count{0};
         std::uint32_t layer_transition_destination_compose_pixels{0};
+#if CHARM_PLAYER_LAYERED_TRANSITIONS
+        std::uint32_t layer_transition_capture_source_us{0};
+        std::uint32_t layer_transition_prepare_destination_us{0};
+        std::uint32_t layer_transition_capture_destination_us{0};
+        std::uint32_t layer_transition_first_compose_us{0};
+        std::uint32_t layer_transition_destination_capture_defer_frames{0};
+        std::uint64_t layer_transition_destination_capture_start_us{0};
+#endif
         PageTransitionState page_transition_state{PageTransitionState::Idle};
         std::uint32_t layer_transition_abort_count{0};
+#if CHARM_PLAYER_LAYERED_TRANSITIONS
+        bool layer_transition_first_compose_recorded{false};
+#endif
         bool layer_profile_budget_drill_enabled{false};
         std::uint32_t layer_static_cut_count{0};
         std::uint32_t layer_admission_static_cut_count{0};

@@ -425,6 +425,25 @@
             evidence.layer.composite_pixels);
     }
 
+    template<typename ContextT>
+    void ui_ci_emit_transition_capture(const char* name,
+                                       const ContextT& ctx) {
+        ui_ci_perf_printf(
+            "[ui-ci.perf_transition_capture] name=%s "
+            "capture_source_us=%u prepare_destination_us=%u "
+            "capture_destination_us=%u first_compose_us=%u defer_frames=%u "
+            "destination_capture_count=%u destination_snapshot=%u active=%u\n",
+            name ? name : "unknown",
+            ctx.layer_transition_capture_source_us,
+            ctx.layer_transition_prepare_destination_us,
+            ctx.layer_transition_capture_destination_us,
+            ctx.layer_transition_first_compose_us,
+            ctx.layer_transition_destination_capture_defer_frames,
+            ctx.layer_transition_destination_capture_count,
+            ctx.now_playing_transition.destination_snapshot ? 1U : 0U,
+            ctx.now_playing_transition.active ? 1U : 0U);
+    }
+
     void ui_ci_emit_transition_summary(const char* name,
                                        const UiCiTransitionPerfSummary& summary) {
         ui_ci_perf_printf(
@@ -468,6 +487,7 @@
             const bool active = ctx.now_playing_transition.active;
             ui_ci_accumulate_transition_summary(summary, timing, evidence);
             ui_ci_emit_transition_frame(name, frame, ctx.current_page, active, timing, evidence);
+            ui_ci_emit_transition_capture(name, ctx);
             char detail_page[64]{};
             std::snprintf(detail_page, sizeof(detail_page), "%s:frame%u", name ? name : "transition", frame);
             ui_ci_emit_perf_detail_evidence(detail_page, evidence);

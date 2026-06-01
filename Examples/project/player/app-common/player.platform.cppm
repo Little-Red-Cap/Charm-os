@@ -103,12 +103,16 @@ export namespace player {
         platform.scene_ref().set_overlay(overlay_fn, overlay_ctx);
 #if CHARM_PLAYER_LAYERED_TRANSITIONS
         if (controller.transition_needs_destination_snapshot()) {
-            controller.prepare_transition_destination_snapshot_scene();
-            platform.render();
-            controller.finish_transition_destination_snapshot_capture();
-            platform.clear(frame.clear_color);
-            platform.begin_frame();
-            platform.scene_ref().set_overlay(overlay_fn, overlay_ctx);
+            if (controller.transition_destination_snapshot_ready_to_capture()) {
+                controller.prepare_transition_destination_snapshot_scene();
+                platform.render();
+                controller.finish_transition_destination_snapshot_capture();
+                platform.clear(frame.clear_color);
+                platform.begin_frame();
+                platform.scene_ref().set_overlay(overlay_fn, overlay_ctx);
+            } else {
+                controller.schedule_transition_destination_snapshot_capture();
+            }
         }
         controller.compose_now_playing_transition_pixel_layer();
 #else

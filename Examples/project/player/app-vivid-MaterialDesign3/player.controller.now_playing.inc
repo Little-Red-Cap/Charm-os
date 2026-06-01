@@ -663,6 +663,29 @@
             page_transition_state = state;
         }
 
+        static std::uint32_t transition_timing_delta_us(std::uint64_t start,
+                                                        std::uint64_t end) noexcept {
+            constexpr std::uint64_t kMaxU32 = 0xFFFFFFFFULL;
+            const auto delta = end >= start ? end - start : 0ULL;
+            return end >= start
+                ? static_cast<std::uint32_t>(delta > kMaxU32 ? kMaxU32 : delta)
+                : 0U;
+        }
+
+        static std::uint64_t transition_now_us() noexcept {
+            return charm::system::ClockCaps::TimeSource::now_us();
+        }
+
+        void reset_transition_capture_timing() noexcept {
+            layer_transition_capture_source_us = 0;
+            layer_transition_prepare_destination_us = 0;
+            layer_transition_capture_destination_us = 0;
+            layer_transition_first_compose_us = 0;
+            layer_transition_destination_capture_defer_frames = 0;
+            layer_transition_destination_capture_start_us = 0;
+            layer_transition_first_compose_recorded = false;
+        }
+
         void start_now_playing_transition_reveal() noexcept {
             const auto& endpoints = now_playing_transition.route;
             now_playing_transition.reveal_started = true;
@@ -708,9 +731,12 @@
         }
 
         ::ui::scene::SnapshotHandle capture_transition_source_snapshot() noexcept {
+            const auto start = transition_now_us();
             const auto capture = freeze_transition_page_snapshot(
                 now_playing_transition.route.source_page,
                 true);
+            const auto end = transition_now_us();
+            layer_transition_capture_source_us = transition_timing_delta_us(start, end);
             return capture.handle;
         }
 
@@ -972,9 +998,15 @@
             const auto now_ms = charm::system::ClockCaps::TimeSource::now();
             const auto tick = sample_now_playing_transition_tick_phase(
                 now_playing_transition, now_ms);
+            const auto start = transition_now_us();
             compose_transition_pixel_layer(tick.progress, true);
             if (!now_playing_transition.destination_snapshot) {
                 compose_transition_pixel_layer(tick.progress, false);
+            }
+            const auto end = transition_now_us();
+            if (!layer_transition_first_compose_recorded) {
+                layer_transition_first_compose_us = transition_timing_delta_us(start, end);
+                layer_transition_first_compose_recorded = true;
             }
         }
 
@@ -984,12 +1016,18 @@
                 && !now_playing_transition.destination_snapshot;
         }
 
+        bool transition_destination_snapshot_ready_to_capture() const noexcept {
+            return transition_needs_destination_snapshot()
+                && now_playing_transition.destination_capture_ready;
+        }
+
         PlayerPage transition_destination_page() const noexcept {
             return now_playing_transition.route.destination_page;
         }
 
         void prepare_transition_destination_snapshot_scene() noexcept {
-            if (!transition_needs_destination_snapshot()) return;
+            if (!transition_destination_snapshot_ready_to_capture()) return;
+            const auto start = transition_now_us();
             set_page_transition_state(PageTransitionState::PreparingDestination);
             const auto destination = now_playing_transition.route.destination_page;
             set_page_root_visible(now_playing_transition.route.source_page, false);
@@ -997,12 +1035,23 @@
             sync_page_chrome(destination);
             refresh_page(destination);
             set_now_playing_transition_root_visible(false);
+            const auto end = transition_now_us();
+            layer_transition_prepare_destination_us = transition_timing_delta_us(start, end);
+            layer_transition_destination_capture_start_us = end;
         }
 
         void finish_transition_destination_snapshot_capture() noexcept {
-            if (!transition_needs_destination_snapshot()) return;
+            if (!transition_destination_snapshot_ready_to_capture()) return;
+            const auto start = transition_now_us();
             set_page_transition_state(PageTransitionState::CapturingDestination);
             now_playing_transition.destination_snapshot = capture_transition_pixel_snapshot();
+            const auto end = transition_now_us();
+            layer_transition_capture_destination_us = transition_timing_delta_us(
+                layer_transition_destination_capture_start_us != 0
+                    ? layer_transition_destination_capture_start_us
+                    : start,
+                end);
+            layer_transition_destination_capture_start_us = 0;
             if (now_playing_transition.destination_snapshot) {
                 ++layer_transition_capture_count;
                 ++layer_transition_destination_capture_count;
@@ -1020,12 +1069,22 @@
             }
         }
 
+        void schedule_transition_destination_snapshot_capture() noexcept {
+            if (!transition_needs_destination_snapshot()
+                || now_playing_transition.destination_capture_ready) {
+                return;
+            }
+            ++layer_transition_destination_capture_defer_frames;
+            now_playing_transition.destination_capture_ready = true;
+        }
+
         void set_now_playing_transition_root_visible(bool visible) noexcept {
             set_handle_visible(handles.transition_root, visible);
         }
 
         void begin_now_playing_transition_lifecycle() noexcept {
             const auto& endpoints = now_playing_transition.route;
+            reset_transition_capture_timing();
             set_page_transition_state(PageTransitionState::CapturingSource);
             now_playing_transition.source_snapshot = capture_transition_source_snapshot();
             if (now_playing_transition.source_snapshot) {

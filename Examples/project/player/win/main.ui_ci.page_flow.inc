@@ -76,9 +76,12 @@
             res.ok = false;
             res.failed++;
         }
+        const bool home_to_now_destination_capture_completed =
+            ctx.layer_transition_destination_capture_count > destination_captures_before_now
+            && ctx.layer_transition_destination_capture_defer_frames > 0;
         if (ctx.layer_transition_compose_count > composes_before_now
             && ctx.layer_transition_composite_pixels > compose_pixels_before_now
-            && ctx.layer_transition_destination_capture_count > destination_captures_before_now
+            && home_to_now_destination_capture_completed
             && ctx.layer_transition_destination_compose_count > destination_composes_before_now
             && ctx.layer_transition_destination_compose_pixels > destination_compose_pixels_before_now
             && ctx.effective_layer_profile == ::ui::scene::LayerProfile::Rich
@@ -127,9 +130,12 @@
             res.ok = false;
             res.failed++;
         }
+        const bool now_to_home_destination_capture_completed =
+            ctx.layer_transition_destination_capture_count > destination_captures_before_back
+            && ctx.layer_transition_destination_capture_defer_frames > 0;
         if (ctx.layer_transition_compose_count > composes_before_back
             && ctx.layer_transition_composite_pixels > compose_pixels_before_back
-            && ctx.layer_transition_destination_capture_count > destination_captures_before_back
+            && now_to_home_destination_capture_completed
             && ctx.layer_transition_destination_compose_count > destination_composes_before_back
             && ctx.layer_transition_destination_compose_pixels > destination_compose_pixels_before_back
             && ctx.effective_layer_profile == ::ui::scene::LayerProfile::Rich

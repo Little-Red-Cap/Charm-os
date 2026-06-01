@@ -115,6 +115,34 @@ after 样本中 `exit_now:frame1` 到 `exit_now:frame5` 只有 `now.transition` 
 
 继续观察退出动画时发现原画面残留感。原因是双快照路径仍每帧叠加 source snapshot，且 source opacity 末段仍接近 `180`。当前已改为 destination snapshot 作为稳定背景，source snapshot 只负责冻结/隐藏 live source，不再参与每帧合成；退出动画中段帧耗时降到约 `6.5-13.5ms` 区间，首帧仍包含 capture/准备成本。
 
+## Transition 首帧 Capture / Prewarm 收敛
+
+点击触发 Now Playing 进入/退出后，destination snapshot capture 已从同一 render frame 中拆出：frame0 只完成 source freeze 与 transition overlay compose，frame1 再 prepare/capture destination snapshot。动画中间帧仍使用 destination snapshot，不暴露 live destination，因此不会回到 Home 抖动或 `home.cards + now.transition` 同帧叠绘路径。
+
+新增 record-only 日志：
+
+```text
+[ui-ci.perf_transition_capture] name=... capture_source_us=... prepare_destination_us=... capture_destination_us=... first_compose_us=... defer_frames=...
+```
+
+当前 Windows perf-only 样本：
+
+| 动画 | frame0 frame_us | frame0 execute_us | frame0 alpha_screen_x1000 | frame1 frame_us | capture_source_us | prepare_destination_us | capture_destination_us | first_compose_us | defer_frames |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| enter_now | 8559 | 6360 | 176 | 19290 | 155 | 16 | 5547 | 180 | 1 |
+| exit_now | 13302 | 10978 | 0 | 37772 | 173 | 22 | 23633 | 154 | 1 |
+
+对比上一轮“首帧仍包含 capture/准备成本”的观察，本轮把首帧集中负载拆开：`enter_now frame0` 已低于 9ms，`exit_now frame0` 约 13.3ms；destination capture 仍然是实际成本中心，尤其 `exit_now capture_destination_us=23633`，但它被移到下一帧并可被独立观测。中段帧仍保持上一轮的顺滑路径，`home.cards` 只在最终 live Home 帧出现。
+
+本轮不改变 PixelPlayer 视觉参数、不改 DrawCmd executor。完整 Windows `--ui-ci` 通过；H747 `h747_lab_player_md3 -j 1` 通过，`CHARM_PLAYER_LAYERED_TRANSITIONS=0`，`layered_forbidden_hits=0`。当前 H747 evidence 摘要：
+
+| 指标 | 值 |
+| --- | ---: |
+| RAM_D1.used_bytes | 50376 |
+| FLASH.bin_bytes | 1300512 |
+| PlayerController.size_bytes | 9560 |
+| PLAYER_ICON.ram_d1_buffer_count | 0 |
+
 ## H747 样本
 
 当前已烧录固件的 H747 smoke 采集通过：

@@ -539,10 +539,13 @@ export namespace player::cover_theme {
             .text = roles.time,
         };
 
-        const rgba bottom_bar_bg = blend_on(
-            roles.page_backdrop,
-            player::ui::kUiBottomBarBg,
-            theme.neutral ? 84 : 112);
+        // Keep the previous elevated surface formula for reference. It made the
+        // mini bar visibly darker than Now Playing and caused transition flicker.
+        // const rgba bottom_bar_bg = blend_on(
+        //     roles.page_backdrop,
+        //     player::ui::kUiBottomBarBg,
+        //     theme.neutral ? 84 : 112);
+        const rgba bottom_bar_bg = roles.page_backdrop;
         roles.bottom_bar = {
             bottom_bar_bg,
             pick_contrast_text(player::ui::kUiTitle, roles.title, bottom_bar_bg, 4.5f),

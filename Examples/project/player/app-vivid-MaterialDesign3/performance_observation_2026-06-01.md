@@ -5,12 +5,20 @@
 ## 观测输入
 
 - Windows 目标：`charm-player-win-vivid-md3.exe --ui-ci`
+- Windows perf-only 目标：`charm-player-win-vivid-md3.exe --ui-ci-perf-only`
 - Windows 日志：`Examples/project/player/win/cmake-build-debug/generated/perf/player_md3_ui_ci_perf_observation.log`
+- Windows perf-only 日志：`Examples/project/player/win/cmake-build-debug/generated/perf/player_md3_ui_perf_profile.log`
 - H747 目标：`h747_lab_player_md3`
 - H747 smoke 日志：`Examples/project/h747-lab/cmake-build-h747-lab-debug/generated/perf/player_md3_h747_perf_observation.log`
 - H747 memory evidence：`Examples/project/h747-lab/cmake-build-h747-lab-debug/generated/memory/player_md3_memory_evidence.txt`
 
 ## Windows 样本
+
+`--ui-ci-perf-only` 已作为日常观测入口，固定采 Home / Now Playing / Library / Library stress 的稳定帧，并输出三类 record-only 证据：
+
+- `[ui-ci.perf]`：原始 workload counters，用于判断画了多少、画了什么。
+- `[ui-ci.perf_time]`：阶段耗时，用于平台代价校准。
+- `[ui-ci.perf_profile]`：派生压力画像，用于横向比较。
 
 | 场景 | cmd | alpha | groups | flush | frame_us | tick_us | render_us | record_us | execute_us | present_us |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -23,7 +31,22 @@
 - `groups` 取自 `[ui-ci.perf]` 的 `rect + text + image + other`。
 - `flush` 取自 `[ui-ci.perf]` 的 `batch_flushes`。
 - `frame_us/tick_us/render_us/record_us/execute_us/present_us` 取自 `[ui-ci.perf_time]`。
+- `alpha_screen_x1000` 取自 `[ui-ci.perf_profile]`，表示 alpha blending 覆盖屏幕倍数乘以 1000。
+- `flush_density_x1000` 表示 `batch_flushes / cmd_count * 1000`。
+- `exec_density_x1000` 表示 `exec_cmds / cmd_count * 1000`。
 - 本次 Windows UI CI 已输出上述性能样本，但后续 case 出现挂起，进程已手动终止。因此这些样本可作为观测输入，但不能作为完整 UI CI 通过证据。
+- perf-only 接入后重新运行完整 `--ui-ci`，本地已通过 `ok=1 failed=0`；先前挂起暂未复现。
+
+当前 perf-only 样本摘要：
+
+| 场景 | alpha_screen_x1000 | cmd_mix rect/text/image/other | group_mix rect/text/image/other | flush_density_x1000 | exec_density_x1000 | text_bytes | blob_bytes |
+| --- | ---: | --- | --- | ---: | ---: | ---: | ---: |
+| Home | 306 | 48/29/23/10 | 21/20/14/10 | 591 | 1000 | 232/4096 | 48/2048 |
+| Now Playing | 109 | 37/20/9/0 | 14/15/9/0 | 576 | 1000 | 144/4096 | 336/2048 |
+| Library | 3221 | 75/38/15/8 | 27/23/15/8 | 537 | 1000 | 285/4096 | 0/2048 |
+| Library stress | 3221 | 75/38/15/8 | 27/23/15/8 | 537 | 1000 | 285/4096 | 0/2048 |
+
+Library stress 当前采用列表 wheel 后稳定帧。该样本与 Library 稳定帧 workload 相同，说明这次滚动输入后可见绘制压力没有变化；后续如需更强 stress，应加入明确可见区域变化或更深列表滚动状态。
 
 ## H747 样本
 
@@ -51,13 +74,16 @@ real_md3=1 mock=0 smoke=1/11111 cmd=111/1024 text=241/4096 exec_fail=0 exec=48/3
 
 - Library 是当前 Windows 样本中最明显的热点：`frame_us=83855`，其中 `execute_us=78914`，DrawCmd execute 主导整帧耗时。
 - Library 的 `alpha=2213412` 明显高于 Home 的 `210058` 和 Now Playing 的 `74588`，大面积 alpha blending 是首要嫌疑。
+- perf-only 派生画像进一步确认 Library `alpha_screen_x1000=3221`，即约 3.221 屏 alpha 覆盖；Home 约 0.306 屏，Now Playing 约 0.109 屏。
 - Library 的 `record_us=2969` 可见，但远小于 `execute_us`，第一优先级不是 controller tick 或 UI tree record。
 - Library 的 `present_us=583` 低于 Home 和 Now Playing，本次样本不支持把 Windows 主要瓶颈归因为 framebuffer present/flush。
+- `flush_density_x1000` 三页都在 537-591 区间，当前证据不支持把主要差异归因为 batch flush 密度。
+- `exec_density_x1000=1000` 表示 executor 执行命令数与 recorded cmd 数一致，当前没有明显命令扩张。
 - 在 MCU timing 补采之前，优化优先级只能先标记为候选；真正排序应以 H747 `perf_time` 和 status workload 一起判断。
 
 ## 待补观测
 
-1. 解决或绕开 Windows UI CI 在性能样本输出后的挂起，让同一批样本附着到完整通过的 UI CI。
+1. 保留 `--ui-ci-perf-only` 作为日常观测入口；如果完整 Windows UI CI 挂起再次复现，再单独排查。
 2. 探针空闲后烧录当前 `h747_lab_player_md3`，采集包含 `perf_time=<available>/<frame>/<tick>/<render>/<record>/<execute>/<present>` 的 status 行。
-3. 增加 Library 高压力样本：滚动或切 tab 后等待稳定帧，再记录 workload/timing。
+3. 增强 Library 高压力样本，让 stress 帧确实改变可见绘制状态，而不是与普通 Library 稳定帧相同。
 4. 若 H747 与 Windows 都指向 `execute_us + alpha`，下一轮再规划 Library alpha blending / DrawCmd execute 路径的针对性优化。

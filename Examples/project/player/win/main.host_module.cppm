@@ -15,12 +15,15 @@ module;
 #include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <cstdarg>
 #include <charconv>
 #include <cstdio>
+#include <filesystem>
 #include <optional>
 #include <span>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <vector>
 
 #include "main.ui_ci_shared.hpp"
@@ -120,6 +123,9 @@ export int run_player_win_main(int argc, char** argv) {
 
     if (options.ui_ci) {
         return run_ui_ci_preview(runtime);
+    }
+    if (options.ui_ci_perf_only) {
+        return run_ui_ci_perf_only_preview(runtime);
     }
 
     run_interactive_preview_loop(runtime, options);

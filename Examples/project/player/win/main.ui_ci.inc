@@ -8,6 +8,68 @@
                                      const player::CoverResourceRequest& request,
                                      player::CoverResourceView& out) noexcept;
 
+    static FILE* g_ui_ci_perf_log{nullptr};
+
+    void ui_ci_perf_printf(const char* fmt, ...) {
+        va_list args;
+        va_start(args, fmt);
+        va_list copy;
+        va_copy(copy, args);
+        std::vprintf(fmt, args);
+        if (g_ui_ci_perf_log) {
+            std::vfprintf(g_ui_ci_perf_log, fmt, copy);
+            std::fflush(g_ui_ci_perf_log);
+        }
+        va_end(copy);
+        va_end(args);
+    }
+
+    bool ui_ci_open_perf_profile_log() {
+        std::error_code ec;
+        const std::filesystem::path dir =
+            std::filesystem::current_path(ec) / "generated" / "perf";
+        if (ec) {
+            std::fprintf(stderr, "[ui-ci.perf_profile] current_path failed: %s\n", ec.message().c_str());
+            return false;
+        }
+        std::filesystem::create_directories(dir, ec);
+        if (ec) {
+            std::fprintf(stderr, "[ui-ci.perf_profile] create_directories failed: %s\n", ec.message().c_str());
+            return false;
+        }
+        const auto path = dir / "player_md3_ui_perf_profile.log";
+        g_ui_ci_perf_log = std::fopen(path.string().c_str(), "wb");
+        if (!g_ui_ci_perf_log) {
+            std::fprintf(stderr, "[ui-ci.perf_profile] open log failed: %s\n", path.string().c_str());
+            return false;
+        }
+        std::printf("[ui-ci.perf_profile] log=%s\n", path.string().c_str());
+        std::fprintf(g_ui_ci_perf_log, "[ui-ci.perf_profile] log=%s\n", path.string().c_str());
+        std::fflush(g_ui_ci_perf_log);
+        return true;
+    }
+
+    void ui_ci_close_perf_profile_log() noexcept {
+        if (g_ui_ci_perf_log) {
+            std::fclose(g_ui_ci_perf_log);
+            g_ui_ci_perf_log = nullptr;
+        }
+    }
+
+    struct UiCiPerfProfileLogScope {
+        bool opened{false};
+
+        explicit UiCiPerfProfileLogScope(bool enable) {
+            if (enable) {
+                opened = ui_ci_open_perf_profile_log();
+            }
+        }
+
+        ~UiCiPerfProfileLogScope() {
+            ui_ci_close_perf_profile_log();
+        }
+    };
+
     #include "main.ui_ci.portability.inc"
 
     #include "main.ui_ci.layer_snapshot.inc"
@@ -21,7 +83,7 @@
     template<typename SceneT>
     void ui_ci_emit_perf_evidence(const char* page, const SceneT& scene) {
         const auto evidence = ::ui::scene::make_scene_evidence(scene);
-        std::printf(
+        ui_ci_perf_printf(
             "[ui-ci.perf] page=%s cmd=%u/%u bytes=%u text=%u/%u blob=%u/%u "
             "batch=%u/%u/%u exec=%u/%u fail=%u alpha=%u "
             "groups=%u/%u/%u/%u flush=%u clip_fail=%u kinds=%u/%u/%u/%u/%u/%u fail_detail=%u/%u/%u "
@@ -66,6 +128,66 @@
             evidence.layer.composite_pixels,
             evidence.layer.pixel_blit_count,
             evidence.layer.pixel_blit_pixels);
+    }
+
+    std::uint32_t ui_ci_ratio_x1000(std::uint32_t numerator, std::uint32_t denominator) noexcept {
+        if (denominator == 0) return 0U;
+        const std::uint64_t scaled = static_cast<std::uint64_t>(numerator) * 1000ULL;
+        return static_cast<std::uint32_t>((scaled + denominator / 2U) / denominator);
+    }
+
+    void ui_ci_emit_perf_profile_evidence(const char* page,
+                                          const ::ui::scene::SceneEvidence& evidence) {
+        constexpr std::uint32_t screen_pixels =
+            static_cast<std::uint32_t>(screen_width * screen_height);
+        const std::uint32_t cmd_count = evidence.cmd.cmd_count;
+        const std::uint32_t exec_count = evidence.exec.cmd_count;
+        const std::uint32_t alpha_screen_x1000 =
+            ui_ci_ratio_x1000(evidence.exec.alpha_blend_count, screen_pixels);
+        const std::uint32_t flush_density_x1000 =
+            ui_ci_ratio_x1000(evidence.exec.batch_flushes, cmd_count);
+        const std::uint32_t exec_density_x1000 =
+            ui_ci_ratio_x1000(exec_count, cmd_count);
+        const std::uint32_t cmd_other_total =
+            evidence.exec.cmd_line + evidence.exec.cmd_path + evidence.exec.cmd_other;
+        const std::uint32_t group_other_total =
+            evidence.exec.group_line + evidence.exec.group_path + evidence.exec.group_other;
+        const std::uint32_t clip_fail =
+            evidence.exec.clip_push_overflow
+            + evidence.exec.clip_pop_underflow
+            + evidence.exec.clip_invalid
+            + evidence.exec.fail_clip;
+        const std::uint32_t fail_other_total =
+            evidence.exec.fail_blob
+            + evidence.exec.fail_path
+            + evidence.exec.fail_clip
+            + evidence.exec.fail_other;
+
+        ui_ci_perf_printf(
+            "[ui-ci.perf_profile] page=%s alpha_screen_x1000=%u cmd_mix=%u/%u/%u/%u "
+            "group_mix=%u/%u/%u/%u flush_density_x1000=%u exec_density_x1000=%u "
+            "text_bytes=%u/%u blob_bytes=%u/%u fail_count=%u clip_fail=%u fail_mix=%u/%u/%u\n",
+            page ? page : "unknown",
+            alpha_screen_x1000,
+            evidence.exec.cmd_rect,
+            evidence.exec.cmd_text,
+            evidence.exec.cmd_image,
+            cmd_other_total,
+            evidence.exec.group_rect,
+            evidence.exec.group_text,
+            evidence.exec.group_image,
+            group_other_total,
+            flush_density_x1000,
+            exec_density_x1000,
+            evidence.cmd.text_used,
+            evidence.cmd.text_capacity,
+            evidence.cmd.blob_used,
+            evidence.cmd.blob_capacity,
+            evidence.exec.failed_cmds,
+            clip_fail,
+            evidence.exec.fail_text,
+            evidence.exec.fail_image,
+            fail_other_total);
     }
 
     struct UiCiFrameTiming {
@@ -132,7 +254,7 @@
     void ui_ci_emit_perf_time_evidence(const char* page,
                                        const UiCiFrameTiming& timing,
                                        const ::ui::scene::SceneEvidence& scene_evidence) {
-        std::printf(
+        ui_ci_perf_printf(
             "[ui-ci.perf_time] page=%s available=%u frame=%u tick=%u render=%u "
             "record=%u execute=%u present=%u scene_available=%u\n",
             page ? page : "unknown",
@@ -146,6 +268,16 @@
             scene_evidence.timing.available);
     }
 
+    template<typename SceneT>
+    void ui_ci_emit_perf_evidence_bundle(const char* page,
+                                         const SceneT& scene,
+                                         const UiCiFrameTiming& timing) {
+        const auto evidence = ::ui::scene::make_scene_evidence(scene);
+        ui_ci_emit_perf_evidence(page, scene);
+        ui_ci_emit_perf_time_evidence(page, timing, evidence);
+        ui_ci_emit_perf_profile_evidence(page, evidence);
+    }
+
     template<typename SceneT, typename ContextT, typename PumpFrameFn, typename TimedPumpFrameFn>
     void run_ui_ci_perf_evidence_log(SceneT& scene,
                                      ContextT& ctx,
@@ -154,21 +286,58 @@
                                      player::PlayerDisplaySink* display_sink) {
         ctx.set_page(player::PlayerPage::Home);
         auto home_timing = timed_pump_frame(display_sink);
-        ui_ci_emit_perf_evidence("home", scene);
-        ui_ci_emit_perf_time_evidence("home", home_timing, ::ui::scene::make_scene_evidence(scene));
+        ui_ci_emit_perf_evidence_bundle("home", scene, home_timing);
 
         ctx.set_page(player::PlayerPage::NowPlaying);
         auto now_timing = timed_pump_frame(display_sink);
-        ui_ci_emit_perf_evidence("now", scene);
-        ui_ci_emit_perf_time_evidence("now", now_timing, ::ui::scene::make_scene_evidence(scene));
+        ui_ci_emit_perf_evidence_bundle("now", scene, now_timing);
 
         ctx.set_page(player::PlayerPage::Library);
         auto library_timing = timed_pump_frame(display_sink);
-        ui_ci_emit_perf_evidence("library", scene);
-        ui_ci_emit_perf_time_evidence("library", library_timing, ::ui::scene::make_scene_evidence(scene));
+        ui_ci_emit_perf_evidence_bundle("library", scene, library_timing);
 
         ctx.set_page(player::PlayerPage::Home);
         pump_frame();
+    }
+
+    template<typename SceneT, typename ContextT, typename TimedPumpFrameFn>
+    void run_ui_ci_perf_only_log(SceneT& scene,
+                                 ContextT& ctx,
+                                 PlayerRuntime& runtime,
+                                 TimedPumpFrameFn& timed_pump_frame,
+                                 player::PlayerDisplaySink* display_sink) {
+        auto settle = [&]() {
+            for (int i = 0; i < 3; ++i) {
+                (void)timed_pump_frame(display_sink);
+            }
+        };
+        auto emit_stable = [&](const char* page) {
+            settle();
+            auto timing = timed_pump_frame(display_sink);
+            ui_ci_emit_perf_evidence_bundle(page, scene, timing);
+        };
+
+        ctx.set_page(player::PlayerPage::Home);
+        emit_stable("home");
+
+        ctx.set_page(player::PlayerPage::NowPlaying);
+        emit_stable("now");
+
+        ctx.set_page(player::PlayerPage::Library);
+        emit_stable("library");
+
+        const Rect list_rect = scene.world_rect(ctx.handles.list);
+        if (list_rect.w > 0 && list_rect.h > 0) {
+            runtime.dispatch_input(player::PlayerInputEvent::make_wheel(
+                20,
+                static_cast<float>(list_rect.x + list_rect.w / 2),
+                static_cast<float>(list_rect.y + list_rect.h / 2),
+                -4.0f));
+        }
+        emit_stable("library_stress");
+
+        ctx.set_page(player::PlayerPage::Home);
+        (void)timed_pump_frame(display_sink);
     }
 
     UiCiResult run_ui_ci(PlayerRuntime& runtime, player::PlayerDisplaySink* perf_display_sink = nullptr) {
@@ -225,4 +394,16 @@
         const UiCiResult result = run_ui_ci(*g_runtime, &runtime.display_sink);
         shutdown_player_preview(runtime);
         return result.ok ? 0 : 2;
+    }
+
+    int run_ui_ci_perf_only_preview(SdlHostRuntime& runtime) noexcept {
+        UiCiPerfProfileLogScope log_scope{true};
+        auto& ctx = *g_runtime->controller();
+        auto& scene = g_runtime->scene_ref();
+        auto timed_pump_frame = [&](player::PlayerDisplaySink* display_sink = nullptr) {
+            return ui_ci_pump_frame_timed(*g_runtime, display_sink);
+        };
+        run_ui_ci_perf_only_log(scene, ctx, *g_runtime, timed_pump_frame, &runtime.display_sink);
+        shutdown_player_preview(runtime);
+        return 0;
     }

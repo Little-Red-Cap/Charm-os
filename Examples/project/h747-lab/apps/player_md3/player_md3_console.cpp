@@ -5,6 +5,7 @@
 #include "player_md3_console.hpp"
 #include "player_md3_diag.hpp"
 #include "player_md3_input.hpp"
+#include "player_md3_render_scheduler.hpp"
 #include "player_md3_resource_probe.hpp"
 #include "port.h"
 #include "stm32h7xx_hal.h"
@@ -22,16 +23,8 @@ void print_prompt() noexcept {
     h747::console::write("\r\nh747-player-md3> ");
 }
 
-void print_help() noexcept {
-    h747::console::write_line("Commands:");
-    h747::console::write_line("  help        - Show help");
-    h747::console::write_line("  status      - Print Player MD3 status");
-    h747::console::write_line("  resource status - Re-run resource probe and print status");
-    h747::console::write_line("  input route status - Print input route evidence");
-    h747::console::write_line("  input route reset - Reset input route counters");
-    h747::console::write_line("  input smoke - Inject semantic input smoke sequence");
-    h747::console::write_line("  playback smoke - Start first track and verify I2S DMA callbacks");
-    h747::console::write_line("  touch probe - Reset and probe GT970/GT9xx");
+void print_touch_help() noexcept {
+    h747::console::write_line("Touch commands:");
     h747::console::write_line("  touch monitor on/off/status - Short touch trace; on pauses render");
     h747::console::write_line("  touch raw/on/off/status - Print raw GT970 snapshot evidence");
     h747::console::write_line("  touch raw dump - Dump GT9xx 0x814E point/status bytes");
@@ -54,6 +47,20 @@ void print_help() noexcept {
     h747::console::write_line("  touch cfg fire [native] - Write Fire BSP GT9157 candidate config");
     h747::console::write_line("  touch cfg luat reset - Write Luat config then soft-reset GT9157");
     h747::console::write_line("  touch softreset - Write GT9157 command 0x02 then wake");
+}
+
+void print_help() noexcept {
+    h747::console::write_line("Commands:");
+    h747::console::write_line("  help        - Show help");
+    h747::console::write_line("  touch help  - Show touch bring-up/diagnostic commands");
+    h747::console::write_line("  status      - Print Player MD3 status");
+    h747::console::write_line("  resource status - Re-run resource probe and print status");
+    h747::console::write_line("  input route status - Print input route evidence");
+    h747::console::write_line("  input route reset - Reset input route counters");
+    h747::console::write_line("  input smoke - Inject semantic input smoke sequence");
+    h747::console::write_line("  playback smoke - Start first track and verify I2S DMA callbacks");
+    h747::console::write_line("  render throttle on/off/status - Gate heavy MD3 full-frame renders");
+    h747::console::write_line("  touch probe - Reset and probe GT970/GT9xx");
     h747::console::write_line("  up/down     - Dispatch navigation command");
     h747::console::write_line("  enter/back  - Dispatch activation/back command");
     h747::console::write_line("  play        - Dispatch PlayToggle command");
@@ -93,12 +100,9 @@ std::uint32_t run_input_smoke_sequence() noexcept {
     for (const auto command : kCommands) {
         dispatch_command(command);
         ++st.input_smoke_cmds;
-        (void)render_frame();
     }
 
-    for (std::uint32_t i = 0; i < 4U; ++i) {
-        (void)render_frame();
-    }
+    (void)force_render_frame();
 
     st.input_smoke_after_events = st.input_events;
     st.input_smoke_frames = st.frames - before_frames;
@@ -138,7 +142,12 @@ std::uint32_t run_playback_smoke_sequence() noexcept {
 
     constexpr std::uint32_t kMaxFrames = 180U;
     for (std::uint32_t i = 0; i < kMaxFrames; ++i) {
-        (void)render_frame();
+        if ((i % 30U) == 0U) {
+            (void)force_render_frame();
+        } else {
+            runtime_step_only();
+        }
+        refresh_playback_probe_state();
         if (st.playback_player_state == 3U) {
             st.playback_smoke_saw_playing = 1U;
         }
@@ -211,34 +220,9 @@ void reset_touch_controller_sequence(const std::uint8_t addr7) noexcept {
     print_touch_scan_status();
 }
 
-void handle_command(std::string_view line) noexcept {
-    if (line.empty()) {
-        return;
-    }
-
-    if (line == "help"sv) {
-        print_help();
-    } else if (line == "status"sv) {
-        print_status("player_md3");
-    } else if (line == "resource status"sv) {
-        run_resource_probe_now();
-        print_status("player_md3");
-    } else if (line == "input route status"sv) {
-        print_status("player_md3");
-    } else if (line == "input route reset"sv) {
-        reset_input_route_evidence();
-        h747::console::write_line("input_route: reset");
-        print_status("player_md3");
-    } else if (line == "input smoke"sv) {
-        const auto ok = run_input_smoke_sequence();
-        h747::console::write("input_smoke: ");
-        h747::console::write_line(ok ? "ok" : "failed");
-        print_status("player_md3");
-    } else if (line == "playback smoke"sv) {
-        const auto ok = run_playback_smoke_sequence();
-        h747::console::write("playback_smoke: ");
-        h747::console::write_line(ok ? "ok" : "failed");
-        print_status("player_md3");
+bool handle_touch_command(std::string_view line) noexcept {
+    if (line == "touch help"sv) {
+        print_touch_help();
     } else if (line == "touch probe"sv) {
         run_touch_probe();
     } else if (line == "touch monitor on"sv) {
@@ -414,6 +398,52 @@ void handle_command(std::string_view line) noexcept {
         load_luat_touch_config_and_reset();
     } else if (line == "touch softreset"sv) {
         soft_reset_touch_controller();
+    } else {
+        return false;
+    }
+    return true;
+}
+
+void handle_command(std::string_view line) noexcept {
+    if (line.empty()) {
+        return;
+    }
+
+    if (line == "help"sv) {
+        print_help();
+    } else if (handle_touch_command(line)) {
+        return;
+    } else if (line == "status"sv) {
+        print_status("player_md3");
+    } else if (line == "resource status"sv) {
+        run_resource_probe_now();
+        print_status("player_md3");
+    } else if (line == "input route status"sv) {
+        print_status("player_md3");
+    } else if (line == "input route reset"sv) {
+        reset_input_route_evidence();
+        h747::console::write_line("input_route: reset");
+        print_status("player_md3");
+    } else if (line == "input smoke"sv) {
+        const auto ok = run_input_smoke_sequence();
+        h747::console::write("input_smoke: ");
+        h747::console::write_line(ok ? "ok" : "failed");
+        print_status("player_md3");
+    } else if (line == "playback smoke"sv) {
+        const auto ok = run_playback_smoke_sequence();
+        h747::console::write("playback_smoke: ");
+        h747::console::write_line(ok ? "ok" : "failed");
+        print_status("player_md3");
+    } else if (line == "render throttle on"sv) {
+        render_scheduler_set_enabled(true);
+        h747::console::write_line("render_throttle: on");
+        render_scheduler_print_status();
+    } else if (line == "render throttle off"sv) {
+        render_scheduler_set_enabled(false);
+        h747::console::write_line("render_throttle: off");
+        render_scheduler_print_status();
+    } else if (line == "render throttle status"sv) {
+        render_scheduler_print_status();
     } else if (line == "up"sv) {
         dispatch_command(PlayerMd3InputCommand::Up);
     } else if (line == "down"sv) {

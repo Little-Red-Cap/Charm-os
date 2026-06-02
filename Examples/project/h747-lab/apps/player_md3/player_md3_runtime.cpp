@@ -13,6 +13,7 @@
 #include "player_md3_diag.hpp"
 #include "player_md3_input.hpp"
 #include "player_md3_memory.hpp"
+#include "player_md3_render_scheduler.hpp"
 #include "player_md3_resource_probe.hpp"
 #include "port.h"
 
@@ -364,6 +365,11 @@ void print_touch_ui_dispatch_trace(const charm::cap::PointerEvent& event,
     }
 }
 
+bool render_pause_requested() noexcept {
+    const auto& st = h747::apps::player_md3::state();
+    return st.touch_monitor_pause_render != 0U || st.touch_sample_pause_render != 0U;
+}
+
 } // namespace
 
 namespace h747::apps::player_md3 {
@@ -463,6 +469,7 @@ void dispatch_player_input_event(const ::player::PlayerInputEvent& event) noexce
 
     shell->dispatch_input(event);
     ++state().input_events;
+    render_scheduler_mark_dirty();
 }
 
 void dispatch_runtime_pointer(const charm::cap::PointerEvent event) noexcept {
@@ -977,10 +984,23 @@ bool render_frame() noexcept {
     refresh_playback_probe_state();
     if (ok) {
         ++state().frames;
+        render_scheduler_note_full_render();
         note_touch_render_frame();
     }
     update_smoke_verdict();
     return ok;
+}
+
+bool force_render_frame() noexcept {
+    render_scheduler_note_forced_render();
+    return render_frame();
+}
+
+void runtime_step_only() noexcept {
+    auto* shell = shell_ref();
+    if (shell != nullptr) {
+        shell->step(clock_ref().now_us());
+    }
 }
 
 void init_runtime() noexcept {
@@ -1024,7 +1044,7 @@ void init_runtime() noexcept {
     h747::console::write_line(st.runtime_bootstrapped ? "player_md3: bootstrap ok"
                                                       : "player_md3: bootstrap failed");
     refresh_resource_probe_state();
-    (void)render_frame();
+    (void)force_render_frame();
     h747::console::write_line(st.last_render_ok ? "player_md3: first render ok"
                                                 : "player_md3: first render failed");
     print_status("player_md3");
@@ -1037,10 +1057,15 @@ void loop_runtime() noexcept {
     }
     poll_console_bridge();
     poll_input_bridge();
-    if (state().touch_monitor_pause_render != 0U || state().touch_sample_pause_render != 0U) {
+    if (render_pause_requested()) {
         return;
     }
-    (void)render_frame();
+    if (render_scheduler_should_render(h747::port::tick_ms())) {
+        (void)render_frame();
+    } else {
+        runtime_step_only();
+        render_scheduler_note_skip();
+    }
     maybe_print_loop_status();
 }
 

@@ -164,7 +164,7 @@ With `-InputSmoke`, the capture first waits for a valid basic smoke line, then
 sends `input smoke` over the serial console. The firmware injects the fixed
 semantic command sequence `down`, `up`, `mode`, `play`, `next`, `prev`,
 `enter`, and `back` through the same `PlayerInputEvent` boundary used by
-hardware input, renders a few frames, and prints a fresh status line.
+hardware input, forces one evidence render, and prints a fresh status line.
 
 Touch trace collection is optional and does require manual interaction:
 
@@ -183,8 +183,13 @@ events were allowed into `PlayerRuntimeShell`.
 For direct serial testing without PowerShell automation, use the board prompt:
 
 ```text
+touch help
 touch monitor on
 ```
+
+`help` intentionally prints only the daily MD3 smoke commands. `touch help`
+prints the longer GT9xx bring-up/debug command matrix so normal serial sessions
+do not spend time dumping rarely used diagnostics.
 
 This low-load diagnostic mode pauses MD3 render/status work after the command
 has been accepted, but keeps polling console input and the GT970 input bridge.
@@ -224,7 +229,8 @@ hits, INT changes, raw coordinate range, filtered coordinate, and the last
 out-of-bounds clamp. Use it to distinguish "render is too slow and we miss
 short touch frames" from "the controller is not producing frames at all".
 
-Hardware touch dispatch into the Player UI is gated during board bring-up:
+Hardware touch dispatch into the Player UI remains manually gated for
+bring-up/regression isolation:
 
 ```text
 touch dispatch status
@@ -236,9 +242,9 @@ touch dispatch once
 The default is `off`. Touch events still print `touch action=...` lines and
 update app-local touch/input-route evidence, but valid in-range pointer events
 are blocked before `PlayerRuntimeShell` until `touch dispatch on` is issued.
-This keeps GT9xx coordinate/config testing usable while the current Vivid/SoA
-press-path UsageFault is isolated. Use `touch dispatch on` only when explicitly
-reproducing the UI input crash. Prefer `touch dispatch once` for first-pass
+The earlier press-path UsageFault was fixed by the WidgetHandle alignment
+closure; keep the gate because it still lets GT9xx coordinate/config testing run
+without changing Player UI state. Use `touch dispatch once` for first-pass UI
 validation because it only releases the next down/up pointer sequence.
 
 Touch coordinate mapping is app-local and can be changed at the serial prompt:
@@ -268,6 +274,22 @@ touch latency status
 INT-to-poll, poll-to-dispatch, and dispatch-to-next-frame. It is intended to
 quantify whether M7 render load is delaying input handling before moving input
 sampling to M4.
+
+Render throttling is app-local and intended to keep the M7 input/console pump
+from being starved by full-frame MD3 renders:
+
+```text
+render throttle status
+render throttle on
+render throttle off
+```
+
+When throttle is enabled, the loop still polls console/input first and ticks the
+real runtime, but skips full render unless an input event marks the scene dirty
+and the short coalescing window has elapsed, or the low-frequency keepalive
+interval expires. The status line appends
+`render_throttle=<enabled>/<skipped>/<forced>/<interval_ms>/<dirty>` so slow
+interaction can be separated from Vivid execute cost.
 
 If the monitor reports `ready=1` but `events=0`, collect raw GT970 evidence:
 
@@ -582,6 +604,10 @@ The status line also appends record-only Vivid render evidence:
   records microsecond timing sampled from DWT `CYCCNT` when available. `record`
   is Vivid scene command recording, `execute` is DrawCmd execution, and
   `present` is the display sink flush/present path.
+- `render_throttle=<enabled>/<skipped>/<forced>/<interval_ms>/<dirty>` records
+  whether the app-local M7 loop is skipping full renders, how many frames were
+  skipped, how many explicit evidence renders were forced, the keepalive
+  interval, and whether an input event has requested a redraw.
 - `console_tx=<started>/<done>/<bytes>/<fallback>/<dropped>/<busy>/<used>/<size>`
   records USART1 TX DMA activity and fallback/drop evidence for long serial
   output. This field is not part of the basic smoke gate.
@@ -772,8 +798,8 @@ Two acceptance modes are defined:
   frequency input pump or interrupt-assisted sampling.
 - `touch_dispatch=0/<n>/*` with `touch action=...` lines: the GT9xx hardware and
   app-local input bridge are producing pointer events, but dispatch into the
-  Player UI is intentionally gated off to avoid the current SoA press-path
-  UsageFault. Turn it on only for crash reproduction.
+  Player UI is intentionally gated off for bring-up isolation. Use
+  `touch dispatch once` or `touch dispatch on` when validating UI input.
 - `storage=0/*` or `fs=0/*`: check eMMC init, partition detection, FAT probe,
   and FatFs mount before changing Player UI.
 - `storage_detail=0/*`: the storage init node did not run; check profile wiring.

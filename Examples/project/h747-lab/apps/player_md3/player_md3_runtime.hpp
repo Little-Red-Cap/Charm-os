@@ -67,6 +67,14 @@ struct PlayerMd3State {
     std::uint32_t perf_time_record_us{0};
     std::uint32_t perf_time_execute_us{0};
     std::uint32_t perf_time_present_us{0};
+    std::uint8_t render_throttle_enabled{1};
+    std::uint8_t render_throttle_dirty{0};
+    std::uint32_t render_throttle_skipped{0};
+    std::uint32_t render_throttle_forced{0};
+    std::uint32_t render_throttle_interval_ms{30000};
+    std::uint32_t render_throttle_defer_ms{250};
+    std::uint32_t render_throttle_last_render_ms{0};
+    std::uint32_t render_throttle_dirty_since_ms{0};
     std::uint32_t style_rule_count{0};
     std::uint32_t style_rule_capacity{0};
     std::uint32_t style_metrics_used{0};
@@ -268,6 +276,8 @@ charm::system::Clock& clock_ref() noexcept;
 void init_runtime() noexcept;
 void loop_runtime() noexcept;
 bool render_frame() noexcept;
+bool force_render_frame() noexcept;
+void runtime_step_only() noexcept;
 void refresh_playback_probe_state() noexcept;
 
 } // namespace h747::apps::player_md3

@@ -215,6 +215,16 @@ void print_status(const char* prefix) {
     out.dec(st.perf_time_execute_us);
     out.slash();
     out.dec(st.perf_time_present_us);
+    out.field(PlayerMd3SmokeField::RenderThrottle);
+    out.dec(st.render_throttle_enabled);
+    out.slash();
+    out.dec(st.render_throttle_skipped);
+    out.slash();
+    out.dec(st.render_throttle_forced);
+    out.slash();
+    out.dec(st.render_throttle_interval_ms);
+    out.slash();
+    out.dec(st.render_throttle_dirty);
     out.field(PlayerMd3SmokeField::Input);
     out.dec(st.input_polls);
     out.slash();

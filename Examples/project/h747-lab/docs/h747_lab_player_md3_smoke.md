@@ -90,6 +90,13 @@ run should show `ready=1`, increasing `used`, and zero errors. If DMA2D bring-up
 or transfer fails, `display_raster` falls back to the CPU copy path and the
 basic display smoke gate should still pass.
 
+Console TX DMA evidence is also record-only in v1. Status lines append
+`console_tx=<started>/<done>/<bytes>/<fallback>/<dropped>/<busy>/<used>/<size>`.
+Long `help`, `touch help`, and `status` output should normally increase
+`started`, `done`, and `bytes` while keeping `dropped=0`. If USART1 TX DMA is
+not usable, the console service falls back to short blocking bytes or drops
+overflowing bytes instead of stalling the main loop.
+
 The current strict numeric checks are intentionally minimal:
 
 - `delta=<frames>/<presents>` has both sides non-zero.
@@ -500,6 +507,7 @@ A healthy loop status line must contain:
 - `front=<addr>:<first>/<center>/<last>` and `back=<addr>:<first>/<center>/<last>`
 - `lfb=<addr>` and `lpf=<value>`
 - record-only `dma2d=<ready>/<used>/<fallback>/<err>/<hal>/<dma_err>`
+- record-only `console_tx=<started>/<done>/<bytes>/<fallback>/<dropped>/<busy>/<used>/<size>`
 
 `smoke=1/11111` expands to:
 
@@ -574,6 +582,9 @@ The status line also appends record-only Vivid render evidence:
   records microsecond timing sampled from DWT `CYCCNT` when available. `record`
   is Vivid scene command recording, `execute` is DrawCmd execution, and
   `present` is the display sink flush/present path.
+- `console_tx=<started>/<done>/<bytes>/<fallback>/<dropped>/<busy>/<used>/<size>`
+  records USART1 TX DMA activity and fallback/drop evidence for long serial
+  output. This field is not part of the basic smoke gate.
 
 These fields are diagnostics only. They do not participate in the strict smoke
 gate yet and should be treated as baseline evidence for later render

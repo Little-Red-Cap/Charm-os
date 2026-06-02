@@ -76,6 +76,7 @@ enum class PlayerMd3SmokeField : std::uint8_t {
     TouchMap,
     TouchUi,
     TouchLatency,
+    ConsoleTx,
 };
 
 [[nodiscard]] constexpr const char* smoke_field_token(
@@ -213,6 +214,8 @@ enum class PlayerMd3SmokeField : std::uint8_t {
         return "touch_ui";
     case PlayerMd3SmokeField::TouchLatency:
         return "touch_latency";
+    case PlayerMd3SmokeField::ConsoleTx:
+        return "console_tx";
     }
     return "unknown";
 }

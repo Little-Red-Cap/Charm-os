@@ -561,6 +561,23 @@ void print_status(const char* prefix) {
     out.dec(raster.dma2d_last_hal_status);
     out.slash();
     out.hex32(raster.dma2d_last_error);
+    const auto console_stats = h747::console::rx_stats();
+    out.field(PlayerMd3SmokeField::ConsoleTx);
+    out.dec(console_stats.tx_dma_started);
+    out.slash();
+    out.dec(console_stats.tx_dma_done);
+    out.slash();
+    out.dec(console_stats.tx_dma_bytes);
+    out.slash();
+    out.dec(console_stats.tx_fallback_bytes);
+    out.slash();
+    out.dec(console_stats.tx_dropped_bytes);
+    out.slash();
+    out.dec(console_stats.tx_busy);
+    out.slash();
+    out.dec(console_stats.tx_ring_used);
+    out.slash();
+    out.dec(console_stats.tx_ring_size);
     out.newline();
 }
 

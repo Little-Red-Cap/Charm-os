@@ -27,6 +27,7 @@ static int8_t cdc_control(uint8_t cmd, uint8_t* pbuf, uint16_t length);
 static int8_t cdc_receive(uint8_t* Buf, uint32_t* Len);
 static int8_t cdc_transmit_complete(uint8_t* Buf, uint32_t* Len, uint8_t epnum);
 static void usb_device_soft_disconnect(uint8_t disconnected);
+static void clear_usb_handles(void);
 static void copy_prefix(uint8_t* dst, uint8_t* dst_len, uint32_t dst_capacity, const uint8_t* src, uint16_t src_len);
 extern uint8_t usb_last_setup_valid(void);
 extern void usb_copy_last_setup(uint8_t out[8]);
@@ -66,7 +67,12 @@ static void reset_runtime_state(void) {
 }
 
 void h747_usb_dev_loader_init(void) {
+    if (g_status.init_called != 0U) {
+        h747_usb_dev_loader_stop();
+    }
+
     reset_runtime_state();
+    clear_usb_handles();
     memset((void*)&g_status, 0, sizeof(g_status));
     g_status.init_called = 1U;
 
@@ -128,6 +134,7 @@ void h747_usb_dev_loader_stop(void) {
         (void)USBD_DeInit(&hUsbDeviceFS);
     }
     usb_otg_fs_pcd_mark_stopped();
+    clear_usb_handles();
     reset_runtime_state();
     g_status.started = 0U;
     g_status.cdc_ready = 0U;
@@ -151,6 +158,16 @@ h747_usb_dev_loader_status_t h747_usb_dev_loader_status(void) {
 
     status.pcd_init_status = usb_otg_fs_pcd_init_status();
     status.pcd_ready = usb_otg_fs_pcd_ready();
+    status.usbd_dev_state = hUsbDeviceFS.dev_state;
+    status.usbd_dev_config = hUsbDeviceFS.dev_config;
+    status.usbd_class_id = hUsbDeviceFS.classId;
+    status.usbd_num_classes = hUsbDeviceFS.NumClasses;
+    status.usbd_class_registered = (hUsbDeviceFS.pClass[0] != NULL) ? 1U : 0U;
+    status.usbd_user_data_registered = (hUsbDeviceFS.pUserData[0] != NULL) ? 1U : 0U;
+    status.usbd_class_data_ready = (hUsbDeviceFS.pClassData != NULL ||
+                                    hUsbDeviceFS.pClassDataCmsit[0] != NULL)
+                                       ? 1U
+                                       : 0U;
     status.setup_count = usb_setup_count();
     status.reset_count = usb_reset_count();
     status.suspend_count = usb_suspend_count();
@@ -214,7 +231,13 @@ static void copy_prefix(uint8_t* dst, uint8_t* dst_len, uint32_t dst_capacity, c
     *dst_len = (uint8_t)copy_len;
 }
 
+static void clear_usb_handles(void) {
+    memset(&hUsbDeviceFS, 0, sizeof(hUsbDeviceFS));
+    memset(&hpcd_USB_OTG_FS, 0, sizeof(hpcd_USB_OTG_FS));
+}
+
 static int8_t cdc_init(void) {
+    ++g_status.cdc_init_count;
     reset_runtime_state();
     g_status.cdc_ready = 1U;
     USBD_CDC_SetRxBuffer(&hUsbDeviceFS, g_cdc_rx_packet);
@@ -223,6 +246,7 @@ static int8_t cdc_init(void) {
 }
 
 static int8_t cdc_deinit(void) {
+    ++g_status.cdc_deinit_count;
     g_status.cdc_ready = 0U;
     return (int8_t)USBD_OK;
 }

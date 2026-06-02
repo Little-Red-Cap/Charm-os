@@ -125,8 +125,9 @@ void HAL_PCD_MspDeInit(PCD_HandleTypeDef* pcdHandle) {
 
 void HAL_PCD_SetupStageCallback(PCD_HandleTypeDef* hpcd) {
     ++g_usb_setup_count;
+    const uint8_t* setup = (const uint8_t*)hpcd->Setup;
     for (uint32_t i = 0U; i < 8U; ++i) {
-        g_usb_last_setup[i] = hpcd->Setup[i];
+        g_usb_last_setup[i] = setup[i];
     }
     g_usb_last_setup_valid = 1U;
     USBD_LL_SetupStage((USBD_HandleTypeDef*)hpcd->pData, (uint8_t*)hpcd->Setup);

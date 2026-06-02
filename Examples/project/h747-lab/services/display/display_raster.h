@@ -47,6 +47,12 @@ typedef struct display_raster_state {
     uint32_t back_sample0;
     uint32_t back_sample_center;
     uint32_t back_sample_last;
+    uint8_t dma2d_ready;
+    uint32_t dma2d_used_count;
+    uint32_t dma2d_fallback_count;
+    uint32_t dma2d_error_count;
+    uint32_t dma2d_last_hal_status;
+    uint32_t dma2d_last_error;
 } display_raster_state_t;
 
 uint8_t display_raster_init(void);

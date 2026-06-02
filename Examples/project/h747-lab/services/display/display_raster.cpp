@@ -3,6 +3,9 @@
 #include "display_min.h"
 #include "memory_probe.h"
 #include "stm32h7xx_hal.h"
+#if defined(HAL_DMA2D_MODULE_ENABLED)
+#include "stm32h7xx_hal_dma2d.h"
+#endif
 #include "stm32h7xx_hal_ltdc.h"
 
 #include <cstddef>
@@ -22,10 +25,14 @@ constexpr std::uint32_t kFramebufferBytes = kWidth * kHeight * kBytesPerPixel;
 constexpr std::uint32_t kFramebufferCount = 2U;
 constexpr std::uint32_t kFramebufferPoolBytes = kFramebufferBytes * kFramebufferCount;
 constexpr std::uint32_t kReloadWaitTimeoutMs = 50U;
+constexpr std::uint32_t kDma2dTransferTimeoutMs = 100U;
 
 display_raster_state_t g_raster{};
 std::uint32_t g_front_buffer = kFramebufferBase;
 std::uint32_t g_back_buffer = kFramebufferBase + kFramebufferBytes;
+#if defined(HAL_DMA2D_MODULE_ENABLED)
+DMA2D_HandleTypeDef g_dma2d{};
+#endif
 
 std::uintptr_t cache_align_down(const std::uintptr_t address) noexcept {
     return address & ~static_cast<std::uintptr_t>(31U);
@@ -52,6 +59,124 @@ void clean_dcache_range(void* address, const std::uint32_t length) noexcept {
     (void)address;
     (void)length;
 #endif
+}
+
+void clean_dcache_range_const(const void* address, const std::uint32_t length) noexcept {
+    clean_dcache_range(const_cast<void*>(address), length);
+}
+
+void invalidate_dcache_range(void* address, const std::uint32_t length) noexcept {
+#if defined(__DCACHE_PRESENT) && (__DCACHE_PRESENT == 1U)
+    if ((SCB->CCR & SCB_CCR_DC_Msk) == 0U) {
+        return;
+    }
+    const auto addr = reinterpret_cast<std::uintptr_t>(address);
+    auto* aligned = reinterpret_cast<std::uint32_t*>(cache_align_down(addr));
+    const std::uint32_t bytes = cache_aligned_length(addr, length);
+    SCB_InvalidateDCache_by_Addr(aligned, static_cast<std::int32_t>(bytes));
+    __DSB();
+    __ISB();
+#else
+    (void)address;
+    (void)length;
+#endif
+}
+
+void record_dma2d_status(const HAL_StatusTypeDef status) noexcept {
+    g_raster.dma2d_last_hal_status = static_cast<std::uint32_t>(status);
+#if defined(HAL_DMA2D_MODULE_ENABLED)
+    g_raster.dma2d_last_error = (g_dma2d.Instance != nullptr) ? HAL_DMA2D_GetError(&g_dma2d) : 0U;
+#else
+    g_raster.dma2d_last_error = 0U;
+#endif
+}
+
+bool init_dma2d() noexcept {
+#if defined(HAL_DMA2D_MODULE_ENABLED)
+    __HAL_RCC_DMA2D_CLK_ENABLE();
+
+    g_dma2d = {};
+    g_dma2d.Instance = DMA2D;
+    g_dma2d.Init.Mode = DMA2D_M2M;
+    g_dma2d.Init.ColorMode = DMA2D_OUTPUT_ARGB8888;
+    g_dma2d.Init.OutputOffset = 0U;
+    g_dma2d.Init.AlphaInverted = DMA2D_REGULAR_ALPHA;
+    g_dma2d.Init.RedBlueSwap = DMA2D_RB_REGULAR;
+
+    HAL_StatusTypeDef status = HAL_DMA2D_Init(&g_dma2d);
+    record_dma2d_status(status);
+    if (status != HAL_OK) {
+        ++g_raster.dma2d_error_count;
+        g_raster.dma2d_ready = 0U;
+        return false;
+    }
+
+    g_dma2d.LayerCfg[1].InputOffset = 0U;
+    g_dma2d.LayerCfg[1].InputColorMode = DMA2D_INPUT_ARGB8888;
+    g_dma2d.LayerCfg[1].AlphaMode = DMA2D_NO_MODIF_ALPHA;
+    g_dma2d.LayerCfg[1].InputAlpha = 0xFFU;
+    g_dma2d.LayerCfg[1].AlphaInverted = DMA2D_REGULAR_ALPHA;
+    g_dma2d.LayerCfg[1].RedBlueSwap = DMA2D_RB_REGULAR;
+
+    status = HAL_DMA2D_ConfigLayer(&g_dma2d, 1U);
+    record_dma2d_status(status);
+    if (status != HAL_OK) {
+        ++g_raster.dma2d_error_count;
+        g_raster.dma2d_ready = 0U;
+        return false;
+    }
+
+    g_raster.dma2d_ready = 1U;
+    return true;
+#else
+    g_raster.dma2d_ready = 0U;
+    g_raster.dma2d_last_hal_status = static_cast<std::uint32_t>(HAL_ERROR);
+    g_raster.dma2d_last_error = 0U;
+    return false;
+#endif
+}
+
+bool copy_frame_dma2d(const void* source, void* destination, const std::uint32_t bytes) noexcept {
+#if defined(HAL_DMA2D_MODULE_ENABLED)
+    if ((g_raster.dma2d_ready == 0U) || (source == nullptr) || (destination == nullptr) || (bytes != kFramebufferBytes)) {
+        return false;
+    }
+
+    clean_dcache_range_const(source, bytes);
+    ++g_raster.cache_clean_count;
+
+    HAL_StatusTypeDef status = HAL_DMA2D_Start(&g_dma2d,
+                                               reinterpret_cast<std::uint32_t>(source),
+                                               reinterpret_cast<std::uint32_t>(destination),
+                                               kWidth,
+                                               kHeight);
+    record_dma2d_status(status);
+    if (status != HAL_OK) {
+        ++g_raster.dma2d_error_count;
+        return false;
+    }
+
+    status = HAL_DMA2D_PollForTransfer(&g_dma2d, kDma2dTransferTimeoutMs);
+    record_dma2d_status(status);
+    if (status != HAL_OK) {
+        ++g_raster.dma2d_error_count;
+        return false;
+    }
+
+    invalidate_dcache_range(destination, bytes);
+    ++g_raster.dma2d_used_count;
+    return true;
+#else
+    (void)source;
+    (void)destination;
+    (void)bytes;
+    return false;
+#endif
+}
+
+void copy_frame_cpu(const void* source, void* destination, const std::uint32_t bytes) noexcept {
+    std::memcpy(destination, source, bytes);
+    ++g_raster.dma2d_fallback_count;
 }
 
 bool wait_reload_complete() noexcept {
@@ -219,6 +344,8 @@ uint8_t display_raster_init(void) {
         return 0U;
     }
 
+    init_dma2d();
+
     std::memset(reinterpret_cast<void*>(kFramebufferBase), 0, kFramebufferPoolBytes);
     clean_dcache_range(reinterpret_cast<void*>(kFramebufferBase), kFramebufferPoolBytes);
     ++g_raster.cache_clean_count;
@@ -253,7 +380,9 @@ uint8_t display_raster_present(const void* pixels, const uint32_t bytes) {
             snapshot();
             return 0U;
         }
-        std::memcpy(back, pixels, bytes);
+        if (!copy_frame_dma2d(pixels, back, bytes)) {
+            copy_frame_cpu(pixels, back, bytes);
+        }
     }
     sample_surface(back,
                    kFramebufferBytes,

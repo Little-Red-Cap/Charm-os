@@ -2,6 +2,7 @@ include_guard(GLOBAL)
 
 set(H747_LAB_COMMON_DEFINITIONS
     CORE_CM7
+    HAL_DMA2D_MODULE_ENABLED
     USE_HAL_DRIVER
     STM32H747xx
     USE_PWR_LDO_SUPPLY
@@ -44,6 +45,7 @@ set(H747_LAB_PLATFORM_SOURCES
     "${HAL_ROOT}/Src/stm32h7xx_hal_gpio.c"
     "${HAL_ROOT}/Src/stm32h7xx_hal_dma.c"
     "${HAL_ROOT}/Src/stm32h7xx_hal_dma_ex.c"
+    "${HAL_ROOT}/Src/stm32h7xx_hal_dma2d.c"
     "${HAL_ROOT}/Src/stm32h7xx_hal_pwr.c"
     "${HAL_ROOT}/Src/stm32h7xx_hal_pwr_ex.c"
     "${HAL_ROOT}/Src/stm32h7xx_hal_pcd.c"

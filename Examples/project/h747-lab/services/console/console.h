@@ -16,6 +16,14 @@ struct RxStats {
     std::uint32_t dma_read_pos;
     std::uint32_t dma_write_pos;
     std::uint32_t dma_buffer_size;
+    std::uint32_t tx_dma_started;
+    std::uint32_t tx_dma_done;
+    std::uint32_t tx_dma_bytes;
+    std::uint32_t tx_fallback_bytes;
+    std::uint32_t tx_dropped_bytes;
+    std::uint32_t tx_busy;
+    std::uint32_t tx_ring_used;
+    std::uint32_t tx_ring_size;
     std::uint8_t last_byte;
 };
 

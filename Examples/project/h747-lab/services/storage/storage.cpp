@@ -12,9 +12,12 @@
 namespace {
 
 constexpr std::uint32_t kTimeoutMs = 1000U;
-constexpr std::uint32_t kStorageClockDiv = 16U;
+constexpr std::uint32_t kStorageClockDiv = 6U;
+constexpr std::uint32_t kStorageFallbackClockDiv = 16U;
 constexpr std::uint32_t kTransferRetries = 3U;
 constexpr std::uint32_t kRetryDelayMs = 2U;
+constexpr std::uint32_t kBusProbeMaxBlocks = 4U;
+constexpr std::uint32_t kWriteProbeMaxBlocks = 1U;
 constexpr std::uint32_t kBusWidthUnknown = 0U;
 constexpr std::uint32_t kBusWidth1 = 1U;
 constexpr std::uint32_t kBusWidth4 = 4U;
@@ -136,6 +139,44 @@ bool read_raw_block(std::uint32_t lba, std::span<std::uint8_t> out) noexcept {
     return true;
 }
 
+std::uint32_t crc32_bytes(std::span<const std::uint8_t> bytes) noexcept {
+    std::uint32_t crc = 0xFFFFFFFFU;
+    for (const std::uint8_t byte : bytes) {
+        crc ^= byte;
+        for (std::uint32_t bit = 0U; bit < 8U; ++bit) {
+            const std::uint32_t mask = (crc & 1U) != 0U ? 0xEDB88320U : 0U;
+            crc = (crc >> 1U) ^ mask;
+        }
+    }
+    return ~crc;
+}
+
+std::uint32_t hal_width_from_value(const std::uint32_t width) noexcept {
+    switch (width) {
+    case kBusWidth8:
+        return SDMMC_BUS_WIDE_8B;
+    case kBusWidth4:
+        return SDMMC_BUS_WIDE_4B;
+    case kBusWidth1:
+        return SDMMC_BUS_WIDE_1B;
+    default:
+        return 0xFFFFFFFFU;
+    }
+}
+
+std::uint32_t* wide_status_slot_from_width(const std::uint32_t width) noexcept {
+    switch (width) {
+    case kBusWidth8:
+        return &g_state.wide_status_8;
+    case kBusWidth4:
+        return &g_state.wide_status_4;
+    case kBusWidth1:
+        return &g_state.wide_status_1;
+    default:
+        return nullptr;
+    }
+}
+
 bool probe_lba0_readable() noexcept {
     alignas(4) std::array<std::uint8_t, 512> buf{};
     return read_raw_block(0U, std::span<std::uint8_t>(buf.data(), buf.size()));
@@ -209,7 +250,7 @@ std::uint32_t detect_partition_lba() noexcept {
     return lba0_fat ? 0U : 0U;
 }
 
-bool init_emmc() noexcept {
+bool init_emmc_with_clock_div(std::uint32_t clock_div) noexcept {
     if (g_ready) return true;
     g_state.attempted = 1U;
     (void)power_apply_profile(POWER_PROFILE_STORAGE_STAGE_A);
@@ -227,7 +268,7 @@ bool init_emmc() noexcept {
     hmmc1.Init.HardwareFlowControl = SDMMC_HARDWARE_FLOW_CONTROL_DISABLE;
     // Polling writes can underrun the SDMMC FIFO at full speed during bring-up.
     // Keep the MSC/eMMC path conservative until DMA or a wider bus is stable.
-    hmmc1.Init.ClockDiv = kStorageClockDiv;
+    hmmc1.Init.ClockDiv = clock_div;
     hmmc1.State = HAL_MMC_STATE_RESET;
 
     const auto status = HAL_MMC_Init(&hmmc1);
@@ -283,6 +324,108 @@ bool init_emmc() noexcept {
     return true;
 }
 
+bool init_emmc() noexcept {
+    if (init_emmc_with_clock_div(kStorageClockDiv)) {
+        const auto wide_status = select_bus_width(SDMMC_BUS_WIDE_8B, g_state.wide_status_8);
+        g_state.last_hal_status = static_cast<std::uint32_t>(wide_status);
+        if (wide_status == HAL_OK && probe_lba0_readable()) {
+            return true;
+        }
+    }
+
+    g_state = {};
+    g_block_size = 512U;
+    g_block_count = 0U;
+    g_partition_lba = 0U;
+    g_exposed_block_count = 0U;
+    g_ready = false;
+    return init_emmc_with_clock_div(kStorageFallbackClockDiv);
+}
+
+bool reset_emmc_for_probe(const std::uint32_t clock_div) noexcept {
+    g_state = {};
+    g_block_size = 512U;
+    g_block_count = 0U;
+    g_partition_lba = 0U;
+    g_exposed_block_count = 0U;
+    g_ready = false;
+    return init_emmc_with_clock_div(clock_div);
+}
+
+bool select_probe_width(const std::uint32_t width, std::uint32_t& out_status) noexcept {
+    const std::uint32_t hal_width = hal_width_from_value(width);
+    auto* const status_slot = wide_status_slot_from_width(width);
+    if (hal_width == 0xFFFFFFFFU || status_slot == nullptr) {
+        out_status = static_cast<std::uint32_t>(HAL_ERROR);
+        return false;
+    }
+    const auto status = select_bus_width(hal_width, *status_slot);
+    out_status = static_cast<std::uint32_t>(status);
+    return status == HAL_OK;
+}
+
+bool probe_read_raw(std::uint32_t lba,
+                    std::uint32_t block_count,
+                    std::span<std::uint8_t> buffer,
+                    std::uint32_t& out_status) noexcept {
+    if (!g_ready || g_block_size == 0U || lba > g_block_count || block_count > (g_block_count - lba)
+        || buffer.size() < (block_count * g_block_size)) {
+        out_status = static_cast<std::uint32_t>(HAL_ERROR);
+        snapshot_regs();
+        return false;
+    }
+    if (!wait_transfer_state(lba, block_count)) {
+        out_status = g_state.last_hal_status;
+        snapshot_regs();
+        return false;
+    }
+    __HAL_MMC_CLEAR_FLAG(&hmmc1, SDMMC_STATIC_FLAGS);
+    const auto status = HAL_MMC_ReadBlocks(&hmmc1, buffer.data(), lba, block_count, kTimeoutMs);
+    g_state.last_hal_status = static_cast<std::uint32_t>(status);
+    g_state.last_lba = lba;
+    g_state.last_count = block_count;
+    out_status = static_cast<std::uint32_t>(status);
+    const bool ok = status == HAL_OK && wait_transfer_state(lba, block_count);
+    snapshot_regs();
+    return ok;
+}
+
+bool probe_write_raw(std::uint32_t lba,
+                     std::uint32_t block_count,
+                     std::span<std::uint8_t> buffer,
+                     std::uint32_t& out_status) noexcept {
+    if (!g_ready || g_block_size == 0U || lba > g_block_count || block_count > (g_block_count - lba)
+        || buffer.size() < (block_count * g_block_size)) {
+        out_status = static_cast<std::uint32_t>(HAL_ERROR);
+        snapshot_regs();
+        return false;
+    }
+    if (!wait_transfer_state(lba, block_count)) {
+        out_status = g_state.last_hal_status;
+        snapshot_regs();
+        return false;
+    }
+    __HAL_MMC_CLEAR_FLAG(&hmmc1, SDMMC_STATIC_FLAGS);
+    const auto status = HAL_MMC_WriteBlocks(&hmmc1, buffer.data(), lba, block_count, kTimeoutMs);
+    g_state.last_hal_status = static_cast<std::uint32_t>(status);
+    g_state.last_lba = lba;
+    g_state.last_count = block_count;
+    out_status = static_cast<std::uint32_t>(status);
+    const bool ok = status == HAL_OK && wait_transfer_state(lba, block_count);
+    snapshot_regs();
+    return ok;
+}
+
+void fill_write_probe_pattern(std::span<std::uint8_t> buffer,
+                              const std::uint32_t width,
+                              const std::uint32_t clock_div,
+                              const std::uint32_t lba) noexcept {
+    for (std::uint32_t index = 0U; index < buffer.size(); ++index) {
+        buffer[index] = static_cast<std::uint8_t>(
+            0xA5U ^ (index * 37U) ^ (width * 11U) ^ (clock_div * 3U) ^ (lba >> (index & 7U)));
+    }
+}
+
 } // namespace
 
 extern "C" void h747_storage_init(void) {
@@ -314,6 +457,204 @@ extern "C" std::uint32_t h747_storage_block_count(void) {
 
 extern "C" std::uint32_t h747_storage_partition_lba(void) {
     return g_ready ? g_partition_lba : 0U;
+}
+
+extern "C" std::uint8_t h747_storage_probe_bus_width(std::uint32_t width,
+                                                      std::uint32_t lba,
+                                                      std::uint32_t block_count,
+                                                      std::uint32_t clock_div,
+                                                      h747_storage_bus_probe_t* out) {
+    if (out == nullptr) {
+        return 0U;
+    }
+
+    h747_storage_bus_probe_t probe{};
+    probe.requested_bus_width = static_cast<std::uint8_t>(width);
+    probe.clock_div = clock_div;
+    if (block_count == 0U) {
+        block_count = 1U;
+    }
+    if (block_count > kBusProbeMaxBlocks) {
+        block_count = kBusProbeMaxBlocks;
+    }
+    probe.lba = lba;
+    probe.block_count = block_count;
+
+    const std::uint32_t hal_width = hal_width_from_value(width);
+    if (hal_width == 0xFFFFFFFFU) {
+        probe.init_status = static_cast<std::uint32_t>(HAL_ERROR);
+        probe.wide_status = static_cast<std::uint32_t>(HAL_ERROR);
+        probe.read_status = static_cast<std::uint32_t>(HAL_ERROR);
+        *out = probe;
+        return 0U;
+    }
+
+    (void)reset_emmc_for_probe(clock_div);
+    probe.initialized = g_ready ? 1U : 0U;
+    probe.init_status = g_state.init_status;
+    if (!g_ready || g_block_size == 0U || lba > g_block_count || block_count > (g_block_count - lba)) {
+        probe.read_status = static_cast<std::uint32_t>(HAL_ERROR);
+        snapshot_regs();
+        probe.selected_bus_width = static_cast<std::uint8_t>(g_state.selected_bus_width);
+        probe.last_error = g_state.last_error;
+        probe.card_state = g_state.card_state;
+        probe.clkcr = g_state.clkcr;
+        probe.sta = g_state.sta;
+        probe.resp1 = g_state.resp1;
+        *out = probe;
+        return 0U;
+    }
+
+    auto* const wide_status_slot = wide_status_slot_from_width(width);
+    if (wide_status_slot == nullptr) {
+        probe.read_status = static_cast<std::uint32_t>(HAL_ERROR);
+        *out = probe;
+        return 0U;
+    }
+    const auto wide_status = select_bus_width(hal_width, *wide_status_slot);
+    probe.wide_status = static_cast<std::uint32_t>(wide_status);
+    probe.selected_bus_width = static_cast<std::uint8_t>(g_state.selected_bus_width);
+    if (wide_status != HAL_OK) {
+        g_state.last_hal_status = static_cast<std::uint32_t>(wide_status);
+        snapshot_regs();
+        probe.read_status = g_state.last_hal_status;
+        probe.last_error = g_state.last_error;
+        probe.card_state = g_state.card_state;
+        probe.clkcr = g_state.clkcr;
+        probe.sta = g_state.sta;
+        probe.resp1 = g_state.resp1;
+        *out = probe;
+        return 0U;
+    }
+
+    alignas(4) std::array<std::uint8_t, 512U * kBusProbeMaxBlocks> buffer{};
+    const std::uint32_t bytes = block_count * g_block_size;
+    if (bytes > buffer.size()) {
+        probe.read_status = static_cast<std::uint32_t>(HAL_ERROR);
+        *out = probe;
+        return 0U;
+    }
+
+    const bool transfer_ready = wait_transfer_state(lba, block_count);
+    if (transfer_ready) {
+        __HAL_MMC_CLEAR_FLAG(&hmmc1, SDMMC_STATIC_FLAGS);
+        const auto read_status = HAL_MMC_ReadBlocks(&hmmc1, buffer.data(), lba, block_count, kTimeoutMs);
+        g_state.last_hal_status = static_cast<std::uint32_t>(read_status);
+        g_state.last_lba = lba;
+        g_state.last_count = block_count;
+        probe.read_status = static_cast<std::uint32_t>(read_status);
+        probe.read_ok = (read_status == HAL_OK && wait_transfer_state(lba, block_count)) ? 1U : 0U;
+    } else {
+        probe.read_status = g_state.last_hal_status;
+        probe.read_ok = 0U;
+    }
+
+    snapshot_regs();
+    probe.selected_bus_width = static_cast<std::uint8_t>(g_state.selected_bus_width);
+    probe.last_error = g_state.last_error;
+    probe.card_state = g_state.card_state;
+    probe.clkcr = g_state.clkcr;
+    probe.sta = g_state.sta;
+    probe.resp1 = g_state.resp1;
+    if (probe.read_ok != 0U) {
+        probe.bytes = bytes;
+        probe.crc32 = crc32_bytes(std::span<const std::uint8_t>{buffer.data(), bytes});
+        const std::uint32_t sample_len = (bytes < sizeof(probe.sample)) ? bytes : sizeof(probe.sample);
+        probe.sample_len = static_cast<std::uint8_t>(sample_len);
+        std::memcpy(probe.sample, buffer.data(), sample_len);
+    }
+    probe.ok = (probe.read_ok != 0U) ? 1U : 0U;
+    *out = probe;
+    return probe.ok;
+}
+
+extern "C" std::uint8_t h747_storage_probe_bus_width_write(std::uint32_t width,
+                                                            std::uint32_t lba,
+                                                            std::uint32_t block_count,
+                                                            std::uint32_t clock_div,
+                                                            h747_storage_write_probe_t* out) {
+    if (out == nullptr) {
+        return 0U;
+    }
+
+    h747_storage_write_probe_t probe{};
+    probe.requested_bus_width = static_cast<std::uint8_t>(width);
+    probe.clock_div = clock_div;
+    if (block_count == 0U) {
+        block_count = 1U;
+    }
+    if (block_count > kWriteProbeMaxBlocks) {
+        block_count = kWriteProbeMaxBlocks;
+    }
+    probe.lba = lba;
+    probe.block_count = block_count;
+
+    const std::uint32_t hal_width = hal_width_from_value(width);
+    if (hal_width == 0xFFFFFFFFU) {
+        probe.test_wide_status = static_cast<std::uint32_t>(HAL_ERROR);
+        *out = probe;
+        return 0U;
+    }
+
+    alignas(4) std::array<std::uint8_t, 512U * kWriteProbeMaxBlocks> pattern{};
+    alignas(4) std::array<std::uint8_t, 512U * kWriteProbeMaxBlocks> readback{};
+
+    (void)reset_emmc_for_probe(clock_div);
+    probe.initialized = g_ready ? 1U : 0U;
+    probe.bytes = block_count * g_block_size;
+    if (!g_ready || g_block_size == 0U || lba > g_block_count || block_count > (g_block_count - lba)) {
+        probe.test_write_status = static_cast<std::uint32_t>(HAL_ERROR);
+        snapshot_regs();
+        probe.last_error = g_state.last_error;
+        probe.card_state = g_state.card_state;
+        probe.clkcr = g_state.clkcr;
+        probe.sta = g_state.sta;
+        probe.resp1 = g_state.resp1;
+        *out = probe;
+        return 0U;
+    }
+
+    if (!select_probe_width(width, probe.test_wide_status)) {
+        snapshot_regs();
+        probe.selected_bus_width = static_cast<std::uint8_t>(g_state.selected_bus_width);
+        probe.last_error = g_state.last_error;
+        probe.card_state = g_state.card_state;
+        probe.clkcr = g_state.clkcr;
+        probe.sta = g_state.sta;
+        probe.resp1 = g_state.resp1;
+        *out = probe;
+        return 0U;
+    }
+    probe.selected_bus_width = static_cast<std::uint8_t>(g_state.selected_bus_width);
+
+    const auto bytes = block_count * g_block_size;
+    auto pattern_view = std::span<std::uint8_t>{pattern.data(), bytes};
+    auto readback_view = std::span<std::uint8_t>{readback.data(), bytes};
+    fill_write_probe_pattern(pattern_view, width, clock_div, lba);
+    probe.test_crc32 = crc32_bytes(pattern_view);
+    probe.sample_len = sizeof(probe.test_sample);
+    std::memcpy(probe.test_sample, pattern_view.data(), sizeof(probe.test_sample));
+
+    probe.test_write_ok = probe_write_raw(lba, block_count, pattern_view, probe.test_write_status) ? 1U : 0U;
+    if (probe.test_write_ok != 0U) {
+        probe.test_read_ok = probe_read_raw(lba, block_count, readback_view, probe.test_read_status) ? 1U : 0U;
+        if (probe.test_read_ok != 0U) {
+            probe.readback_crc32 = crc32_bytes(readback_view);
+            std::memcpy(probe.readback_sample, readback_view.data(), sizeof(probe.readback_sample));
+            probe.verify_ok = (std::memcmp(readback.data(), pattern.data(), bytes) == 0) ? 1U : 0U;
+        }
+    }
+
+    snapshot_regs();
+    probe.selected_bus_width = static_cast<std::uint8_t>(g_state.selected_bus_width);
+    probe.last_error = g_state.last_error;
+    probe.card_state = g_state.card_state;
+    probe.clkcr = g_state.clkcr;
+    probe.sta = g_state.sta;
+    probe.resp1 = g_state.resp1;
+    probe.ok = (probe.test_write_ok != 0U && probe.test_read_ok != 0U && probe.verify_ok != 0U) ? 1U : 0U;
+    *out = probe;
+    return probe.ok;
 }
 
 extern "C" std::uint8_t h747_storage_read_blocks(std::uint32_t lba,

@@ -295,7 +295,10 @@ struct Runtime {
     std::uint32_t app_read_bytes{0};
     std::uint32_t app_stage_bytes{0};
     std::array<char, app_abi::kAppReceivedImageMaxName> app_name_storage{};
+    std::array<char, app_abi::kAppReceivedImageMaxName> app_record_name_storage{};
     std::string_view app_name{kDefaultReceivedAppName};
+    std::string_view app_record_name{kDefaultReceivedAppName};
+    std::string_view app_source{"received"sv};
     std::string_view app_last_command{"none"sv};
 };
 
@@ -1062,6 +1065,16 @@ void print_usb_status(const Runtime& rt) noexcept {
         usb.register_class_status,
         usb.register_interface_status,
         usb.usbd_start_status);
+    emit<"dev: usb usbd_state={} config={} class_id={} num_classes={} class_registered={} user_data={} class_data={} cdc_init={} cdc_deinit={}\n">(
+        usb.usbd_dev_state,
+        usb.usbd_dev_config,
+        usb.usbd_class_id,
+        usb.usbd_num_classes,
+        usb.usbd_class_registered,
+        usb.usbd_user_data_registered,
+        usb.usbd_class_data_ready,
+        usb.cdc_init_count,
+        usb.cdc_deinit_count);
     emit<"dev: usb rx packets={} bytes={} read={} dropped={} overflow={} ctrl={} last_ctrl={}/{}\n">(
         usb.rx_packets,
         usb.rx_bytes,
@@ -1149,7 +1162,7 @@ void print_store_status(Runtime& rt) noexcept {
         emmc_layout.slot_lba,
         emmc_layout.slot_blocks,
         emmc_layout.slot_bytes);
-    emit<"dev: store emmc reads={}/{} writes={}/{} last_lba={} count={} hal={} err={} card={} bus={}\n">(
+    emit<"dev: store emmc reads={}/{} writes={}/{} last_lba={} count={} hal={} err={} card={} bus={} clkcr=0x{:08x} sta=0x{:08x} resp1=0x{:08x}\n">(
         emmc.read_count,
         emmc.read_fail_count,
         emmc.write_count,
@@ -1159,7 +1172,10 @@ void print_store_status(Runtime& rt) noexcept {
         emmc.last_hal_status,
         emmc.last_error,
         emmc.card_state,
-        emmc.selected_bus_width);
+        emmc.selected_bus_width,
+        emmc.clkcr,
+        emmc.sta,
+        emmc.resp1);
     emit<"dev: store install receive={} recv_bytes={} code={} target=0x{:08x} written={} erased={}\n">(
         loader::received_image_read_code_name(rt.store_receive_code),
         rt.store_receive_bytes,
@@ -1277,6 +1293,23 @@ void print_app_status(const Runtime& rt) noexcept {
     const auto arena = stage_arena_descriptor();
     const auto scratch = stage_scratch();
     emit<"dev: app command={} name={} run={}\n">(rt.app_last_command, rt.app_name, run_state);
+    emit<"dev: app record source={} format={} name={} command={} argv={} load=0x{:08x} entry=0x{:08x} span={} segments={} run_stage={} run_code={} exited={} exit={} caps_console={} caps_present={} caps_input={}\n">(
+        rt.app_source,
+        app_image_format_name(rt.app_image_format),
+        rt.app_record_name,
+        rt.app_last_command,
+        rt.app_prepare_argc,
+        static_cast<std::uint32_t>(rt.app_plan_load_base),
+        static_cast<std::uint32_t>(rt.app_plan_entry),
+        rt.app_probe.load_span,
+        rt.app_probe.segment_count,
+        app_abi::stage_name(rt.app_run_stage),
+        app_abi::code_name(rt.app_run_code),
+        rt.app_run_exited ? 1U : 0U,
+        rt.app_run_exit_code,
+        rt.app_console_bytes,
+        rt.app_display_present_count,
+        rt.app_input_poll_count);
     emit<"dev: app stage-arena name={} addr=0x{:08x} expected=0x{:08x} size={} align={}\n">(
         arena.name,
         static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(scratch.data())),
@@ -1658,9 +1691,29 @@ bool set_app_name(Runtime& rt, std::string_view name) noexcept {
     return true;
 }
 
-bool reset_app_diagnostics(Runtime& rt, std::string_view command, std::string_view name) noexcept {
+bool set_app_record_name(Runtime& rt, std::string_view name) noexcept {
+    name = name.empty() ? kDefaultReceivedAppName : name;
+    rt.app_record_name_storage.fill('\0');
+    if (name.size() + 1U > rt.app_record_name_storage.size()) {
+        constexpr auto too_long = "name_too_long"sv;
+        std::memcpy(rt.app_record_name_storage.data(), too_long.data(), too_long.size());
+        rt.app_record_name = {rt.app_record_name_storage.data(), too_long.size()};
+        return false;
+    }
+    std::memcpy(rt.app_record_name_storage.data(), name.data(), name.size());
+    rt.app_record_name = {rt.app_record_name_storage.data(), name.size()};
+    return true;
+}
+
+bool reset_app_diagnostics(Runtime& rt,
+                           std::string_view command,
+                           std::string_view name,
+                           std::string_view source = "received"sv,
+                           std::string_view record_name = {}) noexcept {
     rt.app_last_command = command;
     const bool name_ok = set_app_name(rt, name);
+    const bool record_name_ok = set_app_record_name(rt, record_name.empty() ? name : record_name);
+    rt.app_source = source;
     rt.app_read_code = loader::ReceivedImageReadCode::not_launch_ready;
     rt.app_stage_code = app_abi::AppReceivedImageStageCode::not_verified;
     rt.app_image_format = app_abi::AppImageFormat::elf;
@@ -1697,11 +1750,11 @@ bool reset_app_diagnostics(Runtime& rt, std::string_view command, std::string_vi
     rt.app_stage_bytes = 0;
     rt.store_read_code = app_abi::AppStoreReadCode::invalid_argument;
     rt.store_lookup = {};
-    if (!name_ok) {
+    if (!name_ok || !record_name_ok) {
         rt.app_read_code = loader::ReceivedImageReadCode::invalid_argument;
         rt.app_stage_code = app_abi::AppReceivedImageStageCode::name_too_long;
     }
-    return name_ok;
+    return name_ok && record_name_ok;
 }
 
 bool parse_qspi_app_name(std::string_view spec, std::string_view& name) noexcept {
@@ -1792,7 +1845,7 @@ app_abi::AppImage stage_received_app(Runtime& rt, std::string_view command, std:
 
 app_abi::AppImage stage_qspi_app(Runtime& rt, std::string_view command, std::string_view spec) noexcept {
     std::string_view name{};
-    if (!parse_qspi_app_name(spec, name) || !reset_app_diagnostics(rt, command, spec)) {
+    if (!parse_qspi_app_name(spec, name) || !reset_app_diagnostics(rt, command, spec, "qspi"sv, name)) {
         rt.store_read_code = app_abi::AppStoreReadCode::invalid_argument;
         rt.app_run_code = app_abi::AppRunCode::invalid_argument;
         return {};
@@ -1829,7 +1882,7 @@ app_abi::AppImage stage_qspi_app(Runtime& rt, std::string_view command, std::str
 
 app_abi::AppImage stage_emmc_app(Runtime& rt, std::string_view command, std::string_view spec) noexcept {
     std::string_view name{};
-    if (!parse_emmc_app_name(spec, name) || !reset_app_diagnostics(rt, command, spec)) {
+    if (!parse_emmc_app_name(spec, name) || !reset_app_diagnostics(rt, command, spec, "emmc"sv, name)) {
         rt.store_read_code = app_abi::AppStoreReadCode::invalid_argument;
         rt.app_run_code = app_abi::AppRunCode::invalid_argument;
         return {};

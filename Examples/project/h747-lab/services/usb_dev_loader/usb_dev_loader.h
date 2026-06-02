@@ -15,6 +15,13 @@ typedef struct h747_usb_dev_loader_status_t {
     uint8_t vbus_detector_enabled;
     uint8_t pcd_ready;
     uint8_t last_setup_valid;
+    uint8_t usbd_dev_state;
+    uint8_t usbd_dev_config;
+    uint8_t usbd_class_id;
+    uint8_t usbd_num_classes;
+    uint8_t usbd_class_registered;
+    uint8_t usbd_user_data_registered;
+    uint8_t usbd_class_data_ready;
     uint8_t dev_desc_len;
     uint8_t cfg_desc_len;
     uint8_t dev_desc_prefix_len;
@@ -29,6 +36,8 @@ typedef struct h747_usb_dev_loader_status_t {
     uint32_t rx_dropped_bytes;
     uint32_t rx_overflow_count;
     uint32_t bytes_read;
+    uint32_t cdc_init_count;
+    uint32_t cdc_deinit_count;
     uint32_t control_requests;
     uint32_t last_control_cmd;
     uint32_t last_control_length;

@@ -111,10 +111,12 @@ bool expect(const bool condition, const char* message) {
 loader::ByteTransportResult receive_payload(std::span<const std::byte> payload,
                                              MemoryStorage& storage,
                                              std::vector<std::byte>& transport_buffer) {
-    std::vector<std::byte> stream(payload.size() + 1024U);
+    const auto chunk_size = 257U;
+    const auto chunk_count = static_cast<std::uint32_t>((payload.size() + chunk_size - 1U) / chunk_size);
+    std::vector<std::byte> stream(payload.size() + ((chunk_count + 4U) * sizeof(loader::PacketHeader)) + 256U);
     const auto built = loader::packet_stream_build(loader::PacketStreamBuildConfig{
                                                        .payload = payload,
-                                                       .chunk_size = 257,
+                                                       .chunk_size = chunk_size,
                                                        .check_crc = true,
                                                        .append_launch_dry_run = true,
                                                    },
@@ -260,6 +262,16 @@ bool expect_real_elf_load(std::string_view name, const fs::path& path) {
     return ok;
 }
 
+struct SyntheticSegment {
+    std::uint32_t offset;
+    std::uint32_t vaddr;
+    std::uint32_t filesz;
+    std::uint32_t memsz;
+    std::uint32_t flags;
+    std::uint32_t align;
+    std::byte seed;
+};
+
 std::vector<std::byte> make_minimal_elf(std::uint32_t entry = 0x24070000U,
                                         std::uint32_t flags = app_abi::kAppElfPfX,
                                         std::uint32_t vaddr = 0x24070000U,
@@ -300,6 +312,57 @@ std::vector<std::byte> make_minimal_elf(std::uint32_t entry = 0x24070000U,
     return bytes;
 }
 
+std::vector<std::byte> make_segmented_elf(std::span<const SyntheticSegment> segments,
+                                          std::uint32_t entry) {
+    std::uint32_t image_size = sizeof(app_abi::AppElf32Header) +
+                               (segments.size() * sizeof(app_abi::AppElf32ProgramHeader));
+    for (const auto& segment : segments) {
+        const auto end = segment.offset + segment.filesz;
+        if (end > image_size) {
+            image_size = end;
+        }
+    }
+
+    std::vector<std::byte> bytes(image_size, std::byte{0});
+    app_abi::AppElf32Header header{};
+    header.ident[0] = 0x7f;
+    header.ident[1] = 'E';
+    header.ident[2] = 'L';
+    header.ident[3] = 'F';
+    header.ident[4] = 1;
+    header.ident[5] = 1;
+    header.type = 2;
+    header.machine = 40;
+    header.version = 1;
+    header.entry = entry;
+    header.phoff = sizeof(app_abi::AppElf32Header);
+    header.ehsize = sizeof(app_abi::AppElf32Header);
+    header.phentsize = sizeof(app_abi::AppElf32ProgramHeader);
+    header.phnum = static_cast<std::uint16_t>(segments.size());
+    std::memcpy(bytes.data(), &header, sizeof(header));
+
+    for (std::size_t index = 0; index < segments.size(); ++index) {
+        const auto& segment = segments[index];
+        app_abi::AppElf32ProgramHeader ph{};
+        ph.type = app_abi::kAppElfPtLoad;
+        ph.offset = segment.offset;
+        ph.vaddr = segment.vaddr;
+        ph.paddr = segment.vaddr;
+        ph.filesz = segment.filesz;
+        ph.memsz = segment.memsz;
+        ph.flags = segment.flags;
+        ph.align = segment.align;
+        std::memcpy(bytes.data() + header.phoff + (index * sizeof(app_abi::AppElf32ProgramHeader)),
+                    &ph,
+                    sizeof(ph));
+        for (std::uint32_t i = 0; i < segment.filesz; ++i) {
+            bytes[segment.offset + i] =
+                static_cast<std::byte>(static_cast<unsigned>(segment.seed) + (i & 0xffU));
+        }
+    }
+    return bytes;
+}
+
 app_abi::AppElfProbeResult probe_bytes(std::span<const std::byte> bytes,
                                        app_abi::AppImageFormat format,
                                        std::span<std::byte> load_buffer,
@@ -315,6 +378,89 @@ app_abi::AppElfProbeResult probe_bytes(std::span<const std::byte> bytes,
                                                   .size = load_buffer.size(),
                                                   .align = align,
                                               });
+}
+
+bool expect_large_segmented_elf_load() {
+    static constexpr std::uint32_t kBase = 0x24070000U;
+    static constexpr std::uint32_t kEntryOffset = 0x120U;
+    static constexpr std::uint32_t kLoadSpan = 0xC000U;
+    const std::array<SyntheticSegment, 3> segments{{
+        SyntheticSegment{
+            .offset = 0x1000U,
+            .vaddr = kBase,
+            .filesz = 0x300U,
+            .memsz = 0x300U,
+            .flags = 0x5U,
+            .align = 4U,
+            .seed = std::byte{0x10U},
+        },
+        SyntheticSegment{
+            .offset = 0x2000U,
+            .vaddr = kBase + 0x4000U,
+            .filesz = 0x1000U,
+            .memsz = 0x1000U,
+            .flags = 0x4U,
+            .align = 4U,
+            .seed = std::byte{0x30U},
+        },
+        SyntheticSegment{
+            .offset = 0x4000U,
+            .vaddr = kBase + 0xA000U,
+            .filesz = 0x1800U,
+            .memsz = 0x2000U,
+            .flags = 0x6U,
+            .align = 4U,
+            .seed = std::byte{0x60U},
+        },
+    }};
+
+    const auto elf = make_segmented_elf(segments, kBase + kEntryOffset);
+    std::vector<std::byte> received_cache{};
+    std::vector<std::byte> app_cache{};
+    app_abi::AppImage image{};
+    bool ok = stage_received_elf("large_segmented",
+                                 elf,
+                                 received_cache,
+                                 app_cache,
+                                 image);
+
+    alignas(64) std::array<std::byte, 64 * 1024> load{};
+    load.fill(std::byte{0xCCU});
+    app_abi::AppElfLoadBackend backend{};
+    const auto loaded = app_abi::app_elf_load_image(&backend,
+                                                    image,
+                                                    app_abi::AppLoadBuffer{
+                                                        .base = load.data(),
+                                                        .size = load.size(),
+                                                        .align = 16,
+                                                    });
+    ok = expect(loaded.code == app_abi::AppRunCode::ok, "large segmented ELF load succeeds") && ok;
+    ok = expect(backend.last.plan.probe.code == app_abi::AppElfProbeCode::ok &&
+                    backend.last.plan.probe.entry_offset == kEntryOffset &&
+                    backend.last.plan.probe.load_span == kLoadSpan &&
+                    backend.last.plan.probe.segment_count == segments.size(),
+                "large segmented ELF reports entry/span/segment metadata") && ok;
+    ok = expect(backend.last.plan.entry_address ==
+                    reinterpret_cast<std::uintptr_t>(load.data() + kEntryOffset),
+                "large segmented ELF materializes entry from load base plus offset") && ok;
+    ok = expect(load[0x0000U] == std::byte{0x10U} &&
+                    load[0x02ffU] == std::byte{0x0fU} &&
+                    load[0x4000U] == std::byte{0x30U} &&
+                    load[0x4fffU] == std::byte{0x2fU} &&
+                    load[0xA000U] == std::byte{0x60U} &&
+                    load[0xB7ffU] == std::byte{0x5fU},
+                "large segmented ELF copies each PT_LOAD payload") && ok;
+    ok = expect(load[0xB800U] == std::byte{0x00U} &&
+                    load[0xBfffU] == std::byte{0x00U},
+                "large segmented ELF zero-fills memsz beyond filesz") && ok;
+
+    alignas(64) std::array<std::byte, 32 * 1024> small_load{};
+    const auto too_small = probe_bytes(elf, app_abi::AppImageFormat::elf, small_load);
+    ok = expect(too_small.code == app_abi::AppElfProbeCode::load_buffer_too_small &&
+                    too_small.load_span == kLoadSpan &&
+                    too_small.segment_count == segments.size(),
+                "large segmented ELF preserves capacity diagnostics on small buffer") && ok;
+    return ok;
 }
 
 bool expect_error_paths() {
@@ -462,6 +608,7 @@ int main() {
     const fs::path sample_dir{CHARM_APP_ABI_ELF_SAMPLE_DIR};
     ok = expect_real_elf_load("hello_app", sample_dir / "hello_app.elf") && ok;
     ok = expect_real_elf_load("player_min", sample_dir / "player_min.elf") && ok;
+    ok = expect_large_segmented_elf_load() && ok;
     ok = expect_error_paths() && ok;
 
     if (!ok) {

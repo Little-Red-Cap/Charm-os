@@ -18,6 +18,7 @@ message(STATUS "${CMAKE_PROJECT_NAME} PLAYER_HOST_STORAGE_VHD_PATH: ${PLAYER_HOS
 option(CHARM_PLAYER_DEBUG_UI "Enable player debug UI" ON)
 option(CHARM_PLAYER_SOA_TRACE "Enable SoA trace-only hooks for player" OFF)
 option(CHARM_PLAYER_COVER_DEBUG "Enable cover debug log" OFF)
+option(CHARM_PLAYER_LYRICS "Enable player lyrics feature" OFF)
 
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/product_player_host_scenarios.cmake")
 
@@ -92,6 +93,11 @@ foreach(_target IN ITEMS ${PLAYER_TARGET_VIVID} ${PLAYER_TARGET_INK} ${PLAYER_TA
     endif()
     if (CHARM_PLAYER_COVER_DEBUG)
         target_compile_definitions(${_target} PRIVATE CHARM_PLAYER_COVER_DEBUG=1)
+    endif()
+    if (CHARM_PLAYER_LYRICS)
+        target_compile_definitions(${_target} PRIVATE CHARM_PLAYER_LYRICS=1)
+    else()
+        target_compile_definitions(${_target} PRIVATE CHARM_PLAYER_LYRICS=0)
     endif()
 endforeach()
 

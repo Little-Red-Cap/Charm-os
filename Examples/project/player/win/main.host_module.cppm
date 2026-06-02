@@ -29,6 +29,10 @@ module;
 #include <utility>
 #include <vector>
 
+#ifndef CHARM_PLAYER_LYRICS
+#define CHARM_PLAYER_LYRICS 1
+#endif
+
 #include "main.ui_ci_shared.hpp"
 
 export module player.win.main_host;
@@ -47,7 +51,9 @@ import player.font_resource;
 import player.fs_utils;
 import player.host_features;
 import player.input;
+#if CHARM_PLAYER_LYRICS
 import player.lyrics;
+#endif
 import player.platform;
 import player.storage;
 import player.playback;
@@ -135,6 +141,7 @@ namespace {
         std::filesystem::path fs_path{std::string(path)};
         std::printf("[lyrics.probe] path=%s\n", fs_path.string().c_str());
 
+#if CHARM_PLAYER_LYRICS
         const auto load_result = player::load_lyrics_for_track(path);
         const auto window = player::resolve_lyrics_window(0);
         std::printf("[lyrics.probe] loader status=%u source=%u lines=%d synced=%d truncated=%d current=%s\n",
@@ -245,6 +252,10 @@ namespace {
         }
         std::printf("[lyrics.probe] vorbis_comment_block=0\n");
         return 10;
+#else
+        std::printf("[lyrics.probe] enabled=0\n");
+        return 11;
+#endif
     }
 }
 

@@ -137,6 +137,7 @@
         builder.link(now_playing, h.cover);
     }
 
+#if CHARM_PLAYER_LYRICS
     static void build_now_playing_lyrics_area(::ui::scene::SceneBuilder& builder,
                                               WidgetHandle now_playing,
                                               UiHandles& h,
@@ -198,6 +199,7 @@
 
         builder.link(now_playing, h.now_lyrics_panel);
     }
+#endif
 
     static void build_now_playing_text_area(::ui::scene::SceneBuilder& builder,
                                             WidgetHandle now_playing,
@@ -490,13 +492,17 @@
 
         h.now_more = create_now_top_icon_button(
             builder, metrics.now_more_rect, icons.more, now_layout.top_more_icon + 2, 11);
+#if CHARM_PLAYER_LYRICS
         h.now_lyrics = create_now_top_text_button(builder, metrics.now_lyrics_rect, "Lyrics", 10, 16);
+#endif
 
         builder.link(now_playing, h.now_top_bar);
         builder.link(h.now_top_bar, h.now_back);
         builder.link(h.now_top_bar, top_title);
         builder.link(h.now_top_bar, h.now_more);
+#if CHARM_PLAYER_LYRICS
         builder.link(h.now_top_bar, h.now_lyrics);
+#endif
     }
 
 #if defined(CHARM_PLAYER_COVER_DEBUG)
@@ -533,7 +539,9 @@
         create_now_playing_hidden_widgets(builder, now_playing, h);
         build_now_playing_top_bar(builder, now_playing, h, now_layout, metrics, icons);
         build_now_playing_cover_area(builder, now_playing, h, metrics);
+#if CHARM_PLAYER_LYRICS
         build_now_playing_lyrics_area(builder, now_playing, h, metrics);
+#endif
         build_now_playing_text_area(builder, now_playing, h, now_layout, metrics);
         build_now_playing_progress_area(builder, now_playing, h, now_layout, metrics);
         build_now_playing_controls_area(builder, now_playing, h, now_layout, metrics, icons);

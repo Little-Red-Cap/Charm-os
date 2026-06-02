@@ -4,6 +4,14 @@ module;
 export module player.product_config;
 
 export namespace player::product_config {
+#if defined(CHARM_PLAYER_LYRICS)
+    inline constexpr bool lyrics_enabled = CHARM_PLAYER_LYRICS != 0;
+#elif defined(CHARM_PLAYER_MCU) && CHARM_PLAYER_MCU
+    inline constexpr bool lyrics_enabled = false;
+#else
+    inline constexpr bool lyrics_enabled = true;
+#endif
+
     inline constexpr std::size_t path_text_capacity = 260;
     inline constexpr std::size_t primary_title_text_capacity = 192;
     inline constexpr std::size_t primary_subtitle_text_capacity = 64;

@@ -8,10 +8,12 @@
 
             access.set_text_color(handles.title, roles.title);
             access.set_text_color(handles.subtitle, roles.subtitle);
+#if CHARM_PLAYER_LYRICS
             access.set_text_color(handles.now_lyrics_prev, roles.subtitle);
             access.set_text_color(handles.now_lyrics_current, roles.title);
             access.set_text_color(handles.now_lyrics_next, roles.subtitle);
             access.set_text_color(handles.now_lyrics_status, roles.time);
+#endif
             access.set_text_color(handles.time_left, roles.time);
             access.set_text_color(handles.time_right, roles.time);
             access.set_text_color(handles.mode_hint, roles.mode_hint);
@@ -20,7 +22,9 @@
 
             access.recolor_surface(handles.now_back, roles.top_button.bg, roles.top_button.border, roles.top_button.fg);
             access.recolor_surface(handles.now_more, roles.top_button.bg, roles.top_button.border, roles.top_button.fg);
+#if CHARM_PLAYER_LYRICS
             access.recolor_surface(handles.now_lyrics, roles.top_button.bg, roles.top_button.border, roles.top_button.fg);
+#endif
             access.recolor_surface(handles.btn_prev,
                                    roles.secondary_control.bg,
                                    roles.secondary_control.border,
@@ -1162,9 +1166,14 @@
             const bool cover_plate_visible = cover_plate && !has_cover_image();
             const bool cover_widgets_visible = cover && has_cover_image();
             set_handle_visible(handles.now_top_bar, top_bar);
+#if CHARM_PLAYER_LYRICS
             set_handle_visible(handles.now_cover_plate, cover_plate_visible && !lyrics_visible);
             set_handle_visible(handles.cover, cover_widgets_visible && !lyrics_visible);
             set_handle_visible(handles.now_lyrics_panel, cover && lyrics_visible);
+#else
+            set_handle_visible(handles.now_cover_plate, cover_plate_visible);
+            set_handle_visible(handles.cover, cover_widgets_visible);
+#endif
             set_handle_visible(handles.now_text_group, text);
             set_handle_visible(handles.now_progress_group, progress);
             set_handle_visible(handles.controls, controls_visible);

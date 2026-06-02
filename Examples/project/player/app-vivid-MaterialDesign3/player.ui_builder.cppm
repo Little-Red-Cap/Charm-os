@@ -4,6 +4,10 @@
 #include <cstdint>
 #include <string_view>
 
+#ifndef CHARM_PLAYER_LYRICS
+#define CHARM_PLAYER_LYRICS 1
+#endif
+
 export module player.ui_builder;
 
 import charm.core.config;

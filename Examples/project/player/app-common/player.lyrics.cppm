@@ -7,7 +7,13 @@ module;
 #include <span>
 #include <string_view>
 
+#ifndef CHARM_PLAYER_LYRICS
+#define CHARM_PLAYER_LYRICS 1
+#endif
+
 export module player.lyrics;
+
+#if CHARM_PLAYER_LYRICS
 
 import fs_core;
 import fs_vfs;
@@ -730,3 +736,71 @@ export namespace player {
     }
 #endif
 }
+
+#else
+
+export namespace player {
+    enum class LyricsSourceKind : std::uint8_t {
+        None,
+        Sidecar,
+        LyricsDir,
+        EmbeddedFlac,
+        EmbeddedMp3,
+        UnsupportedEmbedded,
+    };
+
+    enum class LyricsLoadStatus : std::uint8_t {
+        Missing,
+        Loaded,
+        Truncated,
+        Unsupported,
+        ParseError,
+        IoError,
+    };
+
+    struct LyricsWindow {
+        const char* previous{""};
+        const char* current{""};
+        const char* next{""};
+        int current_index{-1};
+        bool synced{false};
+        bool available{false};
+    };
+
+    struct LyricsLoadResult {
+        LyricsLoadStatus status{LyricsLoadStatus::Missing};
+        LyricsSourceKind source{LyricsSourceKind::None};
+        int line_count{0};
+        bool synced{false};
+        bool truncated{false};
+    };
+
+    struct LyricsServiceProfile {
+        std::size_t service_size_bytes{0};
+        std::size_t max_lines{0};
+        std::size_t line_text_capacity{0};
+        std::size_t raw_read_bytes{0};
+        std::size_t path_text_capacity{0};
+        std::size_t embedded_flac_supported{0};
+        std::size_t embedded_mp3_supported{0};
+        std::size_t embedded_m4a_supported{0};
+    };
+
+    inline LyricsLoadResult load_lyrics_for_track(std::string_view) noexcept {
+        return {};
+    }
+
+    inline LyricsWindow resolve_lyrics_window(int) noexcept {
+        return {};
+    }
+
+    inline LyricsLoadResult current_lyrics_result() noexcept {
+        return {};
+    }
+
+    inline constexpr LyricsServiceProfile lyrics_service_profile() noexcept {
+        return {};
+    }
+}
+
+#endif

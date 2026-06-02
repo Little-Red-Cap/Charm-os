@@ -10,6 +10,10 @@ module;
 #include <utility>
 #include <vector>
 
+#ifndef CHARM_PLAYER_LYRICS
+#define CHARM_PLAYER_LYRICS 1
+#endif
+
 export module player.controller;
 
 import player.fixed_string;
@@ -43,7 +47,9 @@ import player.ui;
 import player.cover;
 import player.cover_theme;
 import player.font_cache;
+#if CHARM_PLAYER_LYRICS
 import player.lyrics;
+#endif
 import charm.widgets.perf_overlay;
 import charm.core.style_sheet;
 import service.fixed_vector;
@@ -156,15 +162,19 @@ export namespace player {
         std::array<WidgetHandle, 3> home_recently_played_covers{};
         WidgetHandle now_back{};
         WidgetHandle now_more{};
+#if CHARM_PLAYER_LYRICS
         WidgetHandle now_lyrics{};
+#endif
         WidgetHandle now_backdrop{};
         WidgetHandle now_top_bar{};
         WidgetHandle now_cover_plate{};
+#if CHARM_PLAYER_LYRICS
         WidgetHandle now_lyrics_panel{};
         WidgetHandle now_lyrics_prev{};
         WidgetHandle now_lyrics_current{};
         WidgetHandle now_lyrics_next{};
         WidgetHandle now_lyrics_status{};
+#endif
         WidgetHandle now_text_group{};
         WidgetHandle now_progress_group{};
         WidgetHandle now_aux_group{};
@@ -344,10 +354,12 @@ export namespace player {
         FixedString<32> last_home_stats_total_text{};
         FixedString<16> last_home_stats_plays_text{};
         FixedString<32> last_home_stats_avg_text{};
+#if CHARM_PLAYER_LYRICS
         FixedString<product_config::lyrics_line_text_capacity> lyrics_prev_text{};
         FixedString<product_config::lyrics_line_text_capacity> lyrics_current_text{};
         FixedString<product_config::lyrics_line_text_capacity> lyrics_next_text{};
         FixedString<96> lyrics_status_text{};
+#endif
         std::uint64_t track_size_bytes{0};
         ResolvedCover current_cover{};
         cover_theme::CoverTheme cover_theme{};
@@ -362,10 +374,12 @@ export namespace player {
         };
         bool fs_ready{false};
         bool track_preloaded{false};
+#if CHARM_PLAYER_LYRICS
         bool lyrics_visible{false};
         LyricsLoadResult lyrics_result{};
         int last_lyrics_position_ms{-1};
         int last_lyrics_index{-2};
+#endif
         int preloaded_duration_sec{0};
         int play_mode{0};
         int last_play_button_state{-1};
@@ -748,10 +762,12 @@ export namespace player {
             ::ui::scene::TextSlotId title{::ui::scene::kInvalidTextSlot};
             ::ui::scene::TextSlotId subtitle{::ui::scene::kInvalidTextSlot};
             ::ui::scene::TextSlotId status{::ui::scene::kInvalidTextSlot};
+#if CHARM_PLAYER_LYRICS
             ::ui::scene::TextSlotId lyrics_prev{::ui::scene::kInvalidTextSlot};
             ::ui::scene::TextSlotId lyrics_current{::ui::scene::kInvalidTextSlot};
             ::ui::scene::TextSlotId lyrics_next{::ui::scene::kInvalidTextSlot};
             ::ui::scene::TextSlotId lyrics_status{::ui::scene::kInvalidTextSlot};
+#endif
             ::ui::scene::TextSlotId time_left{::ui::scene::kInvalidTextSlot};
             ::ui::scene::TextSlotId time_right{::ui::scene::kInvalidTextSlot};
             ::ui::scene::TextSlotId info_tag{::ui::scene::kInvalidTextSlot};
@@ -1033,7 +1049,21 @@ export namespace player {
 
         #include "player.controller.pages.inc"
         #include "player.controller.home.inc"
+#if CHARM_PLAYER_LYRICS
         #include "player.controller.lyrics.inc"
+#else
+        void sync_lyrics_visibility() noexcept {
+            if (!access.valid()) return;
+            const bool has_cover = has_cover_image();
+            set_handle_visible(handles.now_cover_plate, !has_cover);
+            set_handle_visible(handles.cover, has_cover);
+        }
+
+        void clear_current_lyrics() noexcept {}
+        void load_current_track_lyrics(std::string_view) noexcept {}
+        void refresh_lyrics_window(bool = false) noexcept {}
+        void toggle_lyrics_panel() noexcept {}
+#endif
 
         const char* track_path() const noexcept {
             return playback.track_path();
@@ -1062,10 +1092,12 @@ export namespace player {
             text_slots.title = alloc();
             text_slots.subtitle = alloc();
             text_slots.status = alloc();
+#if CHARM_PLAYER_LYRICS
             text_slots.lyrics_prev = alloc();
             text_slots.lyrics_current = alloc();
             text_slots.lyrics_next = alloc();
             text_slots.lyrics_status = alloc();
+#endif
             text_slots.time_left = alloc();
             text_slots.time_right = alloc();
             text_slots.info_tag = alloc();
@@ -1617,10 +1649,12 @@ export namespace player {
                 + sizeof(std::declval<PlayerController>().last_home_stats_total_text)
                 + sizeof(std::declval<PlayerController>().last_home_stats_plays_text)
                 + sizeof(std::declval<PlayerController>().last_home_stats_avg_text)
+#if CHARM_PLAYER_LYRICS
                 + sizeof(std::declval<PlayerController>().lyrics_prev_text)
                 + sizeof(std::declval<PlayerController>().lyrics_current_text)
                 + sizeof(std::declval<PlayerController>().lyrics_next_text)
                 + sizeof(std::declval<PlayerController>().lyrics_status_text)
+#endif
                 + sizeof(std::declval<PlayerController>().library_context_key)
                 + sizeof(std::declval<PlayerController>().mount_status),
             sizeof(std::declval<PlayerController>().cover_path)

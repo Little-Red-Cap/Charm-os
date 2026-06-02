@@ -103,6 +103,9 @@ function(_h747_mem_run_evidence)
     if(NOT DEFINED H747_MEMORY_RAM_D1_RECORD_BYTES OR H747_MEMORY_RAM_D1_RECORD_BYTES STREQUAL "")
         set(H747_MEMORY_RAM_D1_RECORD_BYTES 0)
     endif()
+    if(NOT DEFINED H747_MEMORY_PLAYER_LYRICS)
+        set(H747_MEMORY_PLAYER_LYRICS 0)
+    endif()
 
     execute_process(
         COMMAND "${H747_MEMORY_SIZE_TOOL}" -A "${H747_MEMORY_ELF}"
@@ -191,6 +194,7 @@ function(_h747_mem_run_evidence)
         set("_player_ui_style_profile_${_field}" "MISSING")
     endforeach()
     set(_player_lyrics_profile_fields
+        enabled
         service_size_bytes
         max_lines
         line_text_capacity
@@ -202,6 +206,19 @@ function(_h747_mem_run_evidence)
     foreach(_field IN LISTS _player_lyrics_profile_fields)
         set("_player_lyrics_profile_${_field}" "MISSING")
     endforeach()
+    if(H747_MEMORY_PLAYER_LYRICS)
+        set(_player_lyrics_profile_enabled "1")
+    else()
+        set(_player_lyrics_profile_enabled "0")
+        set(_player_lyrics_profile_service_size_bytes "0")
+        set(_player_lyrics_profile_max_lines "0")
+        set(_player_lyrics_profile_line_text_capacity "0")
+        set(_player_lyrics_profile_raw_read_bytes "0")
+        set(_player_lyrics_profile_path_text_capacity "0")
+        set(_player_lyrics_profile_embedded_flac_supported "0")
+        set(_player_lyrics_profile_embedded_mp3_supported "0")
+        set(_player_lyrics_profile_embedded_m4a_supported "0")
+    endif()
 
     set(_sections)
     set(_ram_d1_used 0)
@@ -439,7 +456,7 @@ function(_h747_mem_run_evidence)
         if(_player_ui_style_profile_rule_use_count GREATER _style_sheet_profile_style_rule_capacity)
             _h747_mem_fail("Player UI style rule usage ${_player_ui_style_profile_rule_use_count} exceeds StyleSheet rule cap ${_style_sheet_profile_style_rule_capacity}")
         endif()
-        if(_player_lyrics_profile_service_size_bytes STREQUAL "MISSING")
+        if(H747_MEMORY_PLAYER_LYRICS AND _player_lyrics_profile_service_size_bytes STREQUAL "MISSING")
             _h747_mem_fail("missing Player lyrics fixed-capacity profile symbols")
         endif()
     endif()
@@ -609,6 +626,7 @@ function(h747_lab_add_player_md3_memory_evidence target_name)
             "-DH747_MEMORY_TOP_N=${H747_PLAYER_MD3_MEMORY_TOP_N}"
             "-DH747_MEMORY_GATE=$<BOOL:${H747_PLAYER_MD3_MEMORY_GATE}>"
             "-DH747_MEMORY_RAM_D1_RECORD_BYTES=${H747_PLAYER_MD3_RAM_D1_RECORD_BYTES}"
+            "-DH747_MEMORY_PLAYER_LYRICS=$<BOOL:${CHARM_PLAYER_LYRICS}>"
             "-DH747_MEMORY_SIZE_TOOL=${CMAKE_SIZE}"
             "-DH747_MEMORY_NM_TOOL=${CMAKE_NM}"
             -P "${CMAKE_CURRENT_FUNCTION_LIST_FILE}"

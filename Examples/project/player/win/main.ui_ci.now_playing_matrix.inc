@@ -760,6 +760,7 @@
         return true;
     }
 
+#if CHARM_PLAYER_LYRICS
     bool ui_ci_write_vfs_text(std::string_view path, std::string_view text) {
         return ui_ci_write_vfs_file(path, std::span<const util::u8>{
             reinterpret_cast<const util::u8*>(text.data()),
@@ -1043,6 +1044,7 @@
             && mp3_result.source == player::LyricsSourceKind::EmbeddedMp3
             && std::string_view{mp3_window.current} == "MP3 lyric";
     }
+#endif
 
     template<typename RuntimeT,
              typename SceneT,
@@ -1142,6 +1144,7 @@
                ui_ci_now_playing_seek_ready_state_contract_ok(),
                "seek_ready_state_contract");
 
+#if CHARM_PLAYER_LYRICS
         // Lyrics: local sidecar/Lyrics dir/TXT display plus embedded metadata probe.
         record("now_playing_lyrics_toggle_fallback",
                ui_ci_now_playing_lyrics_toggle_fallback_ok(scene, ctx, pump_frame),
@@ -1161,4 +1164,5 @@
         record("now_playing_lyrics_embedded_probe",
                ui_ci_lyrics_embedded_probe_ok(ctx),
                "lyrics_embedded_probe");
+#endif
     }

@@ -665,6 +665,7 @@
 - 当前实现：`player.lyrics` 使用固定容量保存歌词行、时间戳、来源和状态；PlayerController 只保存可见状态、当前行索引和少量显示 scratch，不持有完整歌词文档
 - 本地歌词：支持常规 LRC `[mm:ss.xx]` / `[mm:ss.xxx]`、metadata tag 跳过、纯文本 TXT；超出行数、单行容量或 raw 读取上限时显示可用部分并标记 truncated
 - 内嵌歌词：FLAC 读取 Vorbis Comment `LYRICS` / `UNSYNCEDLYRICS`；MP3 读取 ID3v2 `USLT`，识别 `SYLT` 但暂记为 unsupported；M4A/MP4 因当前 audio pipeline 尚未接入对应 decoder，作为后续格式支持后的规划项
+- 编译期开关：歌词实现暂时保留但默认不进入主线产品/验证路径；`CHARM_PLAYER_LYRICS=OFF` 时 Now Playing 不创建 Lyrics 按钮/面板，H747 evidence 记录 `player_lyrics_profile.enabled=0` 和 `service_size_bytes=0`，后续需要恢复时显式开启该开关
 - 非目标：不做网络搜索、数据库、歌词编辑、翻译/罗马音、TTML 或 word-by-word 动画
 
 ### 17.9 视觉恢复第一切片验收矩阵

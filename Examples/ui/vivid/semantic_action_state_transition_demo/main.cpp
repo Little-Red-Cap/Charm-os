@@ -6,6 +6,7 @@ import charm.core.geometry;
 import charm.core.style;
 import charm.core.theme_preset;
 import charm.gfx.canvas;
+import charm.ui.scene.motion_runtime;
 import charm.ui.vivid;
 
 #include "../support/vivid_evidence_support.hpp"

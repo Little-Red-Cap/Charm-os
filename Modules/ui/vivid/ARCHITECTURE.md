@@ -101,6 +101,14 @@ sequenceDiagram
 - `draw_cmd` 内部按 `schema / buffer / executor` 三个 module partitions 组织，公开入口仍只保留 `charm.gfx.draw_cmd`。
 - Evidence Plane 的 DrawCmd 观察边界见 `docs/ui/vivid_draw_cmd_evidence_boundary_v0.md`：产品级证据依赖 scene-level stats / artifact 摘要，不依赖 partition 私有编码。
 - `Scene` 内部进一步按 `builder_support / layer_support / render_detail` 分层，边界见 `docs/ui/vivid_scene_support_boundary_v0.md`：这些是 Scene 内部支撑层，不是新的产品级 runtime surface。
+- Vivid import 边界见 `docs/ui/vivid_import_boundary_contract.md`：产品代码、Vivid 内部实现、Evidence Lab / regression demo 不共享同一 import 权限；`charm.ui.vivid_internal`、SoA kernel 与 DrawCmd partition 默认不是产品入口。
+
+**公共 surface 分层：**
+
+- `charm.ui.vivid` 是产品根入口，只 re-export core style/config、基础 gfx、`Scene`。
+- `charm.ui.scene.motion_runtime` 是 motion / page-transition runtime 扩展，放在 `core/` 下并受 PRODUCT whitelist 管控。
+- `charm.gfx.host_tools` 是 host snapshot / DrawCmd evidence 聚合，放在 `gfx/` 下；默认 PRODUCT profile 不应接入。
+- `charm.ui.vivid.font_runtime` 是 VFS font package / typography runtime 聚合，不 re-export FreeType provider；FreeType 仍属于 host/resource provider gate。
 
 **命令合批（Compaction）：**
 

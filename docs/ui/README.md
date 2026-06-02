@@ -54,31 +54,32 @@ Read first:
 1. [`vivid_runtime_charter.md`](vivid_runtime_charter.md)
 2. [`vivid_multibackend_plan.md`](vivid_multibackend_plan.md)
 3. [`vivid_replay_workflow.md`](vivid_replay_workflow.md)
-4. [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)
-5. [`vivid_evidence_lab_manifest_v0.md`](vivid_evidence_lab_manifest_v0.md)
-6. [`vivid_render_evidence_chain_v0.md`](vivid_render_evidence_chain_v0.md)
-7. [`vivid_draw_cmd_evidence_boundary_v0.md`](vivid_draw_cmd_evidence_boundary_v0.md)
-8. [`vivid_soa_table_tree_evidence_law_v0.md`](vivid_soa_table_tree_evidence_law_v0.md)
-9. [`vivid_scene_support_boundary_v0.md`](vivid_scene_support_boundary_v0.md)
-10. [`vivid_causal_verdict_law_v0.md`](vivid_causal_verdict_law_v0.md)
-11. [`vivid_evidence_artifact_promotion_v0.md`](vivid_evidence_artifact_promotion_v0.md)
-12. [`vivid_evidence_vocabulary_law_v0.md`](vivid_evidence_vocabulary_law_v0.md)
-13. [`vivid_intent_to_artifact_evidence_v0.md`](vivid_intent_to_artifact_evidence_v0.md)
-14. [`vivid_style_token_law_v0.md`](vivid_style_token_law_v0.md)
-15. [`vivid_layer_runtime_v0.md`](vivid_layer_runtime_v0.md)
-16. [`vivid_motion_runtime_v0.md`](vivid_motion_runtime_v0.md)
-17. [`vivid_display_hotkeys.md`](vivid_display_hotkeys.md)
-18. [`vivid_focus_evidence_boundary_v0.md`](vivid_focus_evidence_boundary_v0.md)
-19. [`vivid_focus_transfer_evidence_v0.md`](vivid_focus_transfer_evidence_v0.md)
-20. [`vivid_focus_scope_evidence_v0.md`](vivid_focus_scope_evidence_v0.md)
-21. [`vivid_focus_semantic_evidence_v0.md`](vivid_focus_semantic_evidence_v0.md)
-22. [`vivid_semantic_request_ledger_law_v0.md`](vivid_semantic_request_ledger_law_v0.md)
-23. [`vivid_semantic_transition_law_v0.md`](vivid_semantic_transition_law_v0.md)
-24. [`vivid_semantic_transition_evidence_v0.md`](vivid_semantic_transition_evidence_v0.md)
-25. [`vivid_semantic_action_state_transition_law_v0.md`](vivid_semantic_action_state_transition_law_v0.md)
-26. [`vivid_semantic_action_state_transition_evidence_v0.md`](vivid_semantic_action_state_transition_evidence_v0.md)
-27. [`vivid_page_layer_style_patch.md`](vivid_page_layer_style_patch.md)
-28. [`vivid_widget_spec_reflection_v0.md`](vivid_widget_spec_reflection_v0.md)
+4. [`vivid_import_boundary_contract.md`](vivid_import_boundary_contract.md)
+5. [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)
+6. [`vivid_evidence_lab_manifest_v0.md`](vivid_evidence_lab_manifest_v0.md)
+7. [`vivid_render_evidence_chain_v0.md`](vivid_render_evidence_chain_v0.md)
+8. [`vivid_draw_cmd_evidence_boundary_v0.md`](vivid_draw_cmd_evidence_boundary_v0.md)
+9. [`vivid_soa_table_tree_evidence_law_v0.md`](vivid_soa_table_tree_evidence_law_v0.md)
+10. [`vivid_scene_support_boundary_v0.md`](vivid_scene_support_boundary_v0.md)
+11. [`vivid_causal_verdict_law_v0.md`](vivid_causal_verdict_law_v0.md)
+12. [`vivid_evidence_artifact_promotion_v0.md`](vivid_evidence_artifact_promotion_v0.md)
+13. [`vivid_evidence_vocabulary_law_v0.md`](vivid_evidence_vocabulary_law_v0.md)
+14. [`vivid_intent_to_artifact_evidence_v0.md`](vivid_intent_to_artifact_evidence_v0.md)
+15. [`vivid_style_token_law_v0.md`](vivid_style_token_law_v0.md)
+16. [`vivid_layer_runtime_v0.md`](vivid_layer_runtime_v0.md)
+17. [`vivid_motion_runtime_v0.md`](vivid_motion_runtime_v0.md)
+18. [`vivid_display_hotkeys.md`](vivid_display_hotkeys.md)
+19. [`vivid_focus_evidence_boundary_v0.md`](vivid_focus_evidence_boundary_v0.md)
+20. [`vivid_focus_transfer_evidence_v0.md`](vivid_focus_transfer_evidence_v0.md)
+21. [`vivid_focus_scope_evidence_v0.md`](vivid_focus_scope_evidence_v0.md)
+22. [`vivid_focus_semantic_evidence_v0.md`](vivid_focus_semantic_evidence_v0.md)
+23. [`vivid_semantic_request_ledger_law_v0.md`](vivid_semantic_request_ledger_law_v0.md)
+24. [`vivid_semantic_transition_law_v0.md`](vivid_semantic_transition_law_v0.md)
+25. [`vivid_semantic_transition_evidence_v0.md`](vivid_semantic_transition_evidence_v0.md)
+26. [`vivid_semantic_action_state_transition_law_v0.md`](vivid_semantic_action_state_transition_law_v0.md)
+27. [`vivid_semantic_action_state_transition_evidence_v0.md`](vivid_semantic_action_state_transition_evidence_v0.md)
+28. [`vivid_page_layer_style_patch.md`](vivid_page_layer_style_patch.md)
+29. [`vivid_widget_spec_reflection_v0.md`](vivid_widget_spec_reflection_v0.md)
 
 Semantic Tree Artifact v0 runtime sample:
 
@@ -132,7 +133,7 @@ Fast manifest smoke:
 
 - UI 硬规则：`ui_kernel_contract.md`
 - 结构化视图：`structured_view_model_v1.md`
-- Vivid 路线：`vivid_runtime_charter.md` → `vivid_multibackend_plan.md` → `vivid_replay_workflow.md` → `vivid_evidence_stdout_law.md` → `vivid_render_evidence_chain_v0.md` → `vivid_style_token_law_v0.md` → `vivid_layer_runtime_v0.md` → `vivid_motion_runtime_v0.md`
+- Vivid 路线：`vivid_runtime_charter.md` → `vivid_multibackend_plan.md` → `vivid_replay_workflow.md` → `vivid_import_boundary_contract.md` → `vivid_evidence_stdout_law.md` → `vivid_render_evidence_chain_v0.md` → `vivid_style_token_law_v0.md` → `vivid_layer_runtime_v0.md` → `vivid_motion_runtime_v0.md`
 - Player/UI 组合：`player_ui.md` → `player_vivid_patterns.md`
 
 ## 使用提醒

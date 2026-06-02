@@ -13,7 +13,7 @@ export module player.ui_builder;
 import charm.core.config;
 import charm.core.geometry;
 import charm.gfx.image;
-import charm.ui.scene.builder_support;
+import charm.ui.scene;
 import charm.ui.scene.page_header;
 import charm.ui.scene.top_bar;
 import charm.ui.scene.pill;

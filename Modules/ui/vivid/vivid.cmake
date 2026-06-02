@@ -95,7 +95,8 @@ function(vivid_collect_product_area_modules out_var area list_var)
                 "${_vivid_product_module_path} does not exist")
         endif()
         if (_vivid_product_module STREQUAL "snapshot"
-            OR _vivid_product_module STREQUAL "display_policy")
+            OR _vivid_product_module STREQUAL "display_policy"
+            OR _vivid_product_module STREQUAL "host_tools")
             message(FATAL_ERROR
                 "Host-only Vivid ${area} module '${_vivid_product_module}' is not allowed "
                 "in CHARM_VIVID_FEATURESET=PRODUCT")

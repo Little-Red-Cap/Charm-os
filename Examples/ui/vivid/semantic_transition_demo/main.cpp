@@ -3,6 +3,7 @@
 #include <cstdio>
 
 import charm.gfx.canvas;
+import charm.ui.scene.motion_runtime;
 import charm.ui.vivid;
 
 #include "../support/vivid_evidence_support.hpp"

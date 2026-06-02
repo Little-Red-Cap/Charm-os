@@ -1,17 +1,45 @@
 param(
     [string]$Root = (Resolve-Path "$PSScriptRoot\..").Path,
-    [switch]$EnableSsuSubmitGate
+    [switch]$EnableSsuSubmitGate,
+    [switch]$OnlyVividImportBoundary
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+
+$script:ArchLintUseRg = $null
 
 function Test-Command([string]$Name) {
     return $null -ne (Get-Command $Name -ErrorAction SilentlyContinue)
 }
 
+function Test-RgAvailable {
+    if ($null -ne $script:ArchLintUseRg) {
+        return $script:ArchLintUseRg
+    }
+
+    $script:ArchLintUseRg = $false
+    if (-not (Test-Command "rg")) {
+        return $script:ArchLintUseRg
+    }
+
+    try {
+        & rg --version >$null 2>$null
+        if ($LASTEXITCODE -eq 0) {
+            $script:ArchLintUseRg = $true
+        }
+    } catch {
+        Write-Host ("[arch_lint] rg unavailable; falling back to Select-String ({0})" -f $_.Exception.Message)
+    }
+
+    return $script:ArchLintUseRg
+}
+
 function Normalize-Glob([string]$Glob) {
-    return $Glob -replace "\\*\\*", "*"
+    $g = $Glob.Replace("/", "\")
+    return $g -replace "\*\*", "*"
 }
 
 function Match-Any([string]$Value, [string[]]$Globs) {
@@ -22,10 +50,100 @@ function Match-Any([string]$Value, [string[]]$Globs) {
     return $false
 }
 
+function Should-PruneDirectory([string]$RelativePath, [string[]]$ExcludeGlobs) {
+    if ([string]::IsNullOrWhiteSpace($RelativePath)) {
+        return $false
+    }
+
+    if (Match-Any $RelativePath $ExcludeGlobs -or Match-Any ($RelativePath + "\*") $ExcludeGlobs) {
+        return $true
+    }
+
+    $parts = $RelativePath.Split([char[]]@("\", "/"), [System.StringSplitOptions]::RemoveEmptyEntries)
+    foreach ($part in $parts) {
+        if ($part -like "cmake-build-*" -or $part -eq "generated") {
+            return $true
+        }
+    }
+
+    return $false
+}
+
 function Get-RelativePath([string]$Base, [string]$Path) {
     $uriBase = [Uri]("$Base" + [IO.Path]::DirectorySeparatorChar)
     $uriPath = [Uri]$Path
     return $uriBase.MakeRelativeUri($uriPath).ToString().Replace("/", "\")
+}
+
+function Get-StaticGlobPrefix([string]$Glob) {
+    $g = $Glob.Replace("/", "\")
+    $wildcardIndex = $g.IndexOfAny([char[]]@("*", "?", "["))
+    if ($wildcardIndex -ge 0) {
+        $g = $g.Substring(0, $wildcardIndex)
+    }
+    return $g.TrimEnd("\")
+}
+
+function Get-FallbackSearchRoots([string[]]$IncludeGlobs) {
+    if ($IncludeGlobs.Count -eq 0) {
+        return @($Root)
+    }
+
+    $roots = @()
+    foreach ($glob in $IncludeGlobs) {
+        $prefix = Get-StaticGlobPrefix $glob
+        $candidate = $Root
+        if (-not [string]::IsNullOrWhiteSpace($prefix)) {
+            $candidate = Join-Path $Root $prefix
+        }
+        if (Test-Path -LiteralPath $candidate) {
+            $item = Get-Item -LiteralPath $candidate
+            if ($item.PSIsContainer) {
+                $roots += $item.FullName
+            } else {
+                $roots += $item.DirectoryName
+            }
+        }
+    }
+
+    if ($roots.Count -eq 0) {
+        return @()
+    }
+
+    return @($roots | Sort-Object -Unique)
+}
+
+function Get-FallbackFiles {
+    param(
+        [string[]]$SearchRoots,
+        [string[]]$ExcludeGlobs
+    )
+
+    foreach ($searchRoot in $SearchRoots) {
+        if (-not (Test-Path -LiteralPath $searchRoot)) { continue }
+
+        $stack = New-Object System.Collections.Generic.Stack[string]
+        $stack.Push($searchRoot)
+        while ($stack.Count -gt 0) {
+            $dir = $stack.Pop()
+            $dirRel = Get-RelativePath -Base $Root -Path $dir
+            if (Should-PruneDirectory $dirRel $ExcludeGlobs) {
+                continue
+            }
+
+            foreach ($childDir in Get-ChildItem -LiteralPath $dir -Directory -ErrorAction SilentlyContinue) {
+                $childRel = Get-RelativePath -Base $Root -Path $childDir.FullName
+                if (Should-PruneDirectory $childRel $ExcludeGlobs) {
+                    continue
+                }
+                $stack.Push($childDir.FullName)
+            }
+
+            foreach ($file in Get-ChildItem -LiteralPath $dir -File -ErrorAction SilentlyContinue) {
+                $file
+            }
+        }
+    }
 }
 
 function Find-Matches {
@@ -36,7 +154,7 @@ function Find-Matches {
     )
 
     $matches = @()
-    if (Test-Command "rg") {
+    if (Test-RgAvailable) {
         $args = @("-n", "--pcre2", $Pattern, $Root)
         foreach ($glob in $IncludeGlobs) { $args += @("--glob", $glob) }
         foreach ($glob in $ExcludeGlobs) { $args += @("--glob", "!$glob") }
@@ -49,8 +167,8 @@ function Find-Matches {
         return $matches
     }
 
-    $files = Get-ChildItem -Path $Root -Recurse -File
-    foreach ($file in $files) {
+    $searchRoots = Get-FallbackSearchRoots $IncludeGlobs
+    foreach ($file in Get-FallbackFiles -SearchRoots $searchRoots -ExcludeGlobs $ExcludeGlobs) {
         $rel = Get-RelativePath -Base $Root -Path $file.FullName
         if ($IncludeGlobs.Count -gt 0 -and -not (Match-Any $rel $IncludeGlobs)) { continue }
         if ($ExcludeGlobs.Count -gt 0 -and (Match-Any $rel $ExcludeGlobs)) { continue }
@@ -185,6 +303,90 @@ function Build-Import-Pattern([string[]]$Modules) {
     return "^[\\s]*(export\\s+)?import\\s+(" + ($escaped -join "|") + ")\\b"
 }
 
+function Invoke-VividImportBoundaryRules {
+    $vividRestrictedImportPattern =
+        "^[\\s]*(export\\s+)?import\\s+(" +
+        "charm\\.ui\\.vivid_internal" +
+        "|charm\\.core\\.soa_(kernel|factory|gui|payload)" +
+        "|charm\\.gfx\\.draw_cmd(:[A-Za-z0-9_]+)?" +
+        "|charm\\.gfx\\.host_tools" +
+        "|charm\\.ui\\.scene\\.(builder_support|layer_support)" +
+        "|charm\\.ui\\.scene:render_detail" +
+        ")\\b"
+
+    $vividBoundaryExcludes = @(
+        "Modules/thirdparty/**",
+        "Draft/**",
+        "**/cmake-build-*/**",
+        "generated/**",
+        "**/generated/**",
+        "Modules/ui/vivid/charm.ui.vivid_internal.cppm",
+        "Modules/ui/vivid/core/**",
+        "Modules/ui/vivid/gfx/**",
+        "Modules/ui/vivid/widgets/**",
+        "Examples/ui/vivid/soa_demo/**",
+        "Examples/ui/vivid/dropdown_popup_demo/**",
+        "Examples/ui/vivid/menu_tree_demo/**",
+        "Examples/project/player/win/main.ui_ci.object_tree.cpp",
+        "Examples/project/player/win/main.host_module.cppm"
+    )
+
+    $matches = Find-Matches `
+        -Pattern $vividRestrictedImportPattern `
+        -IncludeGlobs @(
+            "Modules/ui/vivid/**",
+            "Examples/ui/vivid/**",
+            "Examples/project/player/**"
+        ) `
+        -ExcludeGlobs $vividBoundaryExcludes
+
+    if (@($matches).Count -gt 0) {
+        Fail-Rule -Name "vivid-import-boundary" `
+            -Message "product-facing Vivid paths must import public scene/vivid surfaces instead of vivid_internal, SoA, DrawCmd, host tools, or scene support internals." `
+            -Matches $matches
+        return $true
+    }
+
+    $productRestrictedImportPattern =
+        "^[\\s]*(export\\s+)?import\\s+(" +
+        "charm\\.gfx\\.snapshot" +
+        "|charm\\.font\\.provider_freetype" +
+        ")\\b"
+
+    $productRestrictedExcludes = @(
+        "Draft/**",
+        "**/cmake-build-*/**",
+        "generated/**",
+        "**/generated/**",
+        "Examples/project/player/win/**"
+    )
+
+    $matches = Find-Matches `
+        -Pattern $productRestrictedImportPattern `
+        -IncludeGlobs @("Examples/project/h747-lab/**") `
+        -ExcludeGlobs $productRestrictedExcludes
+
+    if (@($matches).Count -gt 0) {
+        Fail-Rule -Name "vivid-product-host-import" `
+            -Message "PRODUCT/H747 Vivid paths must not import snapshot or FreeType provider directly; admit host/resource capabilities through product gates first." `
+            -Matches $matches
+        return $true
+    }
+
+    return $false
+}
+
+if ($OnlyVividImportBoundary) {
+    if (Invoke-VividImportBoundaryRules) {
+        Write-Host ""
+        Write-Host "[arch_lint] FAILED"
+        exit 1
+    }
+
+    Write-Host "[arch_lint] OK"
+    exit 0
+}
+
 $deletedPattern = Build-Import-Pattern $deletedModules
 $matches = Find-Matches `
     -Pattern $deletedPattern `
@@ -217,6 +419,11 @@ if (@($matches).Count -gt 0) {
     Fail-Rule -Name "no-deprecated-module-imports" `
         -Message "deprecated module imports are forbidden; use gfx/font defaults or updated APIs." `
         -Matches $matches
+    $failed = $true
+}
+
+# Rule: product-facing Vivid paths must not import internal runtime surfaces.
+if (Invoke-VividImportBoundaryRules) {
     $failed = $true
 }
 

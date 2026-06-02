@@ -6,8 +6,7 @@ export module player.scene_runtime;
 
 import charm.core.geometry;
 import charm.core.handle;
-export import charm.ui.scene.builder_support;
-export import charm.ui.scene.layer_runtime;
+export import charm.ui.scene;
 
 export namespace player {
     struct PlayerLayerCaptureResult {

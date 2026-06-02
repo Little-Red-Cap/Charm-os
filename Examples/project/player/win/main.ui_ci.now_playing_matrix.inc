@@ -738,6 +738,312 @@
         return ok;
     }
 
+    bool ui_ci_write_vfs_file(std::string_view path, std::span<const util::u8> bytes) {
+        fs::File file{};
+        auto st = fs::vfs_open(path, file,
+                               static_cast<fs::OpenFlags>(
+                                   static_cast<util::u32>(fs::OpenFlags::write)
+                                   | static_cast<util::u32>(fs::OpenFlags::create)
+                                   | static_cast<util::u32>(fs::OpenFlags::trunc)));
+        if (!st) {
+            std::printf("[ui-ci] lyrics_write_open path=%.*s err=%d\n",
+                        static_cast<int>(path.size()), path.data(), static_cast<int>(st.err));
+            return false;
+        }
+        st = fs::vfs_write(file, bytes);
+        (void)fs::vfs_close(file);
+        if (!st) {
+            std::printf("[ui-ci] lyrics_write path=%.*s err=%d\n",
+                        static_cast<int>(path.size()), path.data(), static_cast<int>(st.err));
+            return false;
+        }
+        return true;
+    }
+
+    bool ui_ci_write_vfs_text(std::string_view path, std::string_view text) {
+        return ui_ci_write_vfs_file(path, std::span<const util::u8>{
+            reinterpret_cast<const util::u8*>(text.data()),
+            text.size(),
+        });
+    }
+
+    std::string ui_ci_track_sidecar_path(std::string_view track_path, std::string_view ext) {
+        std::string out{track_path};
+        const auto slash = out.find_last_of("/\\");
+        const auto dot = out.find_last_of('.');
+        if (dot != std::string::npos && (slash == std::string::npos || dot > slash)) {
+            out.resize(dot);
+        }
+        out.append(ext);
+        return out;
+    }
+
+    std::string ui_ci_track_lyrics_dir_path(std::string_view track_path, std::string_view ext) {
+        std::string stem{track_path};
+        const auto slash = stem.find_last_of("/\\");
+        if (slash != std::string::npos) {
+            stem.erase(0, slash + 1);
+        }
+        const auto dot = stem.find_last_of('.');
+        if (dot != std::string::npos) {
+            stem.resize(dot);
+        }
+        std::string out{"/Lyrics/"};
+        out.append(stem);
+        out.append(ext);
+        return out;
+    }
+
+    std::string ui_ci_track_dir_temp_path(std::string_view track_path, std::string_view name) {
+        std::string out{track_path};
+        const auto slash = out.find_last_of("/\\");
+        if (slash == std::string::npos) {
+            out.assign("/");
+        } else {
+            out.resize(slash + 1);
+        }
+        out.append(name);
+        return out;
+    }
+
+    bool ui_ci_prepare_lyrics_dir() {
+        auto st = fs::vfs_mkdir("/Lyrics");
+        return st || st.err == fs::Errc::exist;
+    }
+
+    template<typename SceneT, typename ContextT, typename PumpFrameFn>
+    bool ui_ci_now_playing_lyrics_toggle_fallback_ok(const SceneT& scene,
+                                                     ContextT& ctx,
+                                                     PumpFrameFn& pump_frame) {
+        const bool saved_visible = ctx.lyrics_visible;
+        ctx.lyrics_visible = false;
+        ctx.sync_lyrics_visibility();
+        ctx.clear_current_lyrics();
+        pump_frame();
+        ctx.toggle_lyrics_panel();
+        pump_frame();
+        const bool ok = ctx.lyrics_visible
+            && std::string_view{ui_ci_text_value(scene, ctx.handles.now_lyrics_current)} == "No lyrics";
+        if (!ok) {
+            std::printf("[ui-ci] lyrics_toggle visible=%d current=%s\n",
+                        ctx.lyrics_visible ? 1 : 0,
+                        ui_ci_text_value(scene, ctx.handles.now_lyrics_current));
+        }
+        if (ctx.lyrics_visible != saved_visible) {
+            ctx.toggle_lyrics_panel();
+        }
+        ctx.lyrics_visible = saved_visible;
+        ctx.sync_lyrics_visibility();
+        pump_frame();
+        return ok;
+    }
+
+    template<typename SceneT, typename ContextT, typename PumpFrameFn>
+    bool ui_ci_now_playing_sidecar_lrc_ok(const SceneT& scene,
+                                          ContextT& ctx,
+                                          PumpFrameFn& pump_frame) {
+        if (!ctx.storage.tracks || ctx.storage.tracks->empty()) return true;
+        const std::string track{(*ctx.storage.tracks)[ctx.track_index].view()};
+        const std::string sidecar = ui_ci_track_sidecar_path(track, ".lrc");
+        constexpr std::string_view kLrc =
+            "[00:00.00]Intro line\n"
+            "[00:10.50]Current line\n"
+            "[00:20.000]Next line\n";
+        if (!ui_ci_write_vfs_text(sidecar, kLrc)) return false;
+        ctx.load_current_track_lyrics(track);
+        ctx.lyrics_visible = true;
+        ctx.sync_lyrics_visibility();
+        ctx.preloaded_duration_sec = 60;
+        ctx.track_preloaded = true;
+        ctx.playback.set_current_sec(11);
+        ctx.refresh_lyrics_window(true);
+        pump_frame();
+        const bool ok = ctx.lyrics_result.source == player::LyricsSourceKind::Sidecar
+            && ctx.lyrics_result.synced
+            && std::string_view{ui_ci_text_value(scene, ctx.handles.now_lyrics_prev)} == "Intro line"
+            && std::string_view{ui_ci_text_value(scene, ctx.handles.now_lyrics_current)} == "Current line"
+            && std::string_view{ui_ci_text_value(scene, ctx.handles.now_lyrics_next)} == "Next line";
+        (void)fs::vfs_unlink(sidecar);
+        ctx.lyrics_visible = false;
+        ctx.sync_lyrics_visibility();
+        pump_frame();
+        return ok;
+    }
+
+    template<typename SceneT, typename ContextT, typename PumpFrameFn>
+    bool ui_ci_now_playing_lyrics_dir_lrc_ok(const SceneT& scene,
+                                             ContextT& ctx,
+                                             PumpFrameFn& pump_frame) {
+        if (!ctx.storage.tracks || ctx.storage.tracks->empty()) return true;
+        if (!ui_ci_prepare_lyrics_dir()) return false;
+        const std::string track{(*ctx.storage.tracks)[ctx.track_index].view()};
+        const std::string sidecar = ui_ci_track_sidecar_path(track, ".lrc");
+        const std::string lyrics_path = ui_ci_track_lyrics_dir_path(track, ".lrc");
+        (void)fs::vfs_unlink(sidecar);
+        constexpr std::string_view kLrc =
+            "[00:00.00]Lyrics dir intro\n"
+            "[00:03.00]Lyrics dir current\n";
+        if (!ui_ci_write_vfs_text(lyrics_path, kLrc)) return false;
+        ctx.load_current_track_lyrics(track);
+        ctx.playback.set_current_sec(4);
+        ctx.refresh_lyrics_window(true);
+        pump_frame();
+        const bool ok = ctx.lyrics_result.source == player::LyricsSourceKind::LyricsDir
+            && std::string_view{ui_ci_text_value(scene, ctx.handles.now_lyrics_current)}
+                == "Lyrics dir current";
+        (void)fs::vfs_unlink(lyrics_path);
+        return ok;
+    }
+
+    template<typename SceneT, typename ContextT, typename PumpFrameFn>
+    bool ui_ci_now_playing_txt_unsynced_ok(const SceneT& scene,
+                                           ContextT& ctx,
+                                           PumpFrameFn& pump_frame) {
+        if (!ctx.storage.tracks || ctx.storage.tracks->empty()) return true;
+        const std::string track{(*ctx.storage.tracks)[ctx.track_index].view()};
+        const std::string sidecar = ui_ci_track_sidecar_path(track, ".txt");
+        constexpr std::string_view kTxt =
+            "First plain line\n"
+            "Second plain line\n";
+        if (!ui_ci_write_vfs_text(sidecar, kTxt)) return false;
+        ctx.load_current_track_lyrics(track);
+        ctx.playback.set_current_sec(20);
+        ctx.refresh_lyrics_window(true);
+        pump_frame();
+        const bool ok = ctx.lyrics_result.source == player::LyricsSourceKind::Sidecar
+            && !ctx.lyrics_result.synced
+            && std::string_view{ui_ci_text_value(scene, ctx.handles.now_lyrics_current)}
+                == "First plain line"
+            && std::string_view{ui_ci_text_value(scene, ctx.handles.now_lyrics_next)}
+                == "Second plain line";
+        (void)fs::vfs_unlink(sidecar);
+        return ok;
+    }
+
+    template<typename SceneT, typename ContextT, typename PumpFrameFn>
+    bool ui_ci_now_playing_lyrics_seek_pause_sync_ok(const SceneT& scene,
+                                                     ContextT& ctx,
+                                                     PumpFrameFn& pump_frame) {
+        if (!ctx.storage.tracks || ctx.storage.tracks->empty()) return true;
+        const std::string track{(*ctx.storage.tracks)[ctx.track_index].view()};
+        const std::string sidecar = ui_ci_track_sidecar_path(track, ".lrc");
+        constexpr std::string_view kLrc =
+            "[00:00.00]Start lyric\n"
+            "[00:30.00]Seek lyric\n"
+            "[00:45.00]Paused lyric\n";
+        if (!ui_ci_write_vfs_text(sidecar, kLrc)) return false;
+        ctx.load_current_track_lyrics(track);
+        ctx.track_preloaded = true;
+        ctx.preloaded_duration_sec = 90;
+        ctx.playback.set_current_sec(30);
+        ctx.sync_progress_idle(30);
+        pump_frame();
+        const bool seek_ok =
+            std::string_view{ui_ci_text_value(scene, ctx.handles.now_lyrics_current)} == "Seek lyric";
+        ctx.pause_playback();
+        ctx.playback.set_current_sec(46);
+        ctx.sync_progress_idle(46);
+        pump_frame();
+        const bool pause_ok =
+            std::string_view{ui_ci_text_value(scene, ctx.handles.now_lyrics_current)} == "Paused lyric";
+        (void)fs::vfs_unlink(sidecar);
+        return seek_ok && pause_ok;
+    }
+
+    std::array<util::u8, 96> ui_ci_make_flac_lyrics_file(std::string_view lyric, std::size_t& out_size) {
+        std::array<util::u8, 96> bytes{};
+        std::size_t pos = 0;
+        auto put = [&](util::u8 v) { bytes[pos++] = v; };
+        auto put_le32 = [&](std::uint32_t v) {
+            put(static_cast<util::u8>(v & 0xFFu));
+            put(static_cast<util::u8>((v >> 8) & 0xFFu));
+            put(static_cast<util::u8>((v >> 16) & 0xFFu));
+            put(static_cast<util::u8>((v >> 24) & 0xFFu));
+        };
+        constexpr std::string_view vendor{"ci"};
+        constexpr std::string_view key{"LYRICS="};
+        const std::uint32_t block_size =
+            4 + static_cast<std::uint32_t>(vendor.size())
+            + 4 + 4 + static_cast<std::uint32_t>(key.size() + lyric.size());
+        put('f'); put('L'); put('a'); put('C');
+        put(0x80u | 4u);
+        put(static_cast<util::u8>((block_size >> 16) & 0xFFu));
+        put(static_cast<util::u8>((block_size >> 8) & 0xFFu));
+        put(static_cast<util::u8>(block_size & 0xFFu));
+        put_le32(static_cast<std::uint32_t>(vendor.size()));
+        for (char c : vendor) put(static_cast<util::u8>(c));
+        put_le32(1);
+        put_le32(static_cast<std::uint32_t>(key.size() + lyric.size()));
+        for (char c : key) put(static_cast<util::u8>(c));
+        for (char c : lyric) put(static_cast<util::u8>(c));
+        out_size = pos;
+        return bytes;
+    }
+
+    std::array<util::u8, 128> ui_ci_make_mp3_uslt_file(std::string_view lyric, std::size_t& out_size) {
+        std::array<util::u8, 128> bytes{};
+        std::size_t pos = 0;
+        auto put = [&](util::u8 v) { bytes[pos++] = v; };
+        auto put_be32 = [&](std::uint32_t v) {
+            put(static_cast<util::u8>((v >> 24) & 0xFFu));
+            put(static_cast<util::u8>((v >> 16) & 0xFFu));
+            put(static_cast<util::u8>((v >> 8) & 0xFFu));
+            put(static_cast<util::u8>(v & 0xFFu));
+        };
+        constexpr std::string_view desc{"ci"};
+        const std::uint32_t frame_size =
+            1 + 3 + static_cast<std::uint32_t>(desc.size()) + 1
+            + static_cast<std::uint32_t>(lyric.size());
+        const std::uint32_t tag_size = 10 + frame_size;
+        put('I'); put('D'); put('3'); put(3); put(0); put(0);
+        put(static_cast<util::u8>((tag_size >> 21) & 0x7Fu));
+        put(static_cast<util::u8>((tag_size >> 14) & 0x7Fu));
+        put(static_cast<util::u8>((tag_size >> 7) & 0x7Fu));
+        put(static_cast<util::u8>(tag_size & 0x7Fu));
+        put('U'); put('S'); put('L'); put('T');
+        put_be32(frame_size);
+        put(0); put(0);
+        put(3);
+        put('e'); put('n'); put('g');
+        for (char c : desc) put(static_cast<util::u8>(c));
+        put(0);
+        for (char c : lyric) put(static_cast<util::u8>(c));
+        out_size = pos;
+        return bytes;
+    }
+
+    template<typename ContextT>
+    bool ui_ci_lyrics_embedded_probe_ok(ContextT& ctx) {
+        if (!ctx.storage.tracks || ctx.storage.tracks->empty()) return true;
+        const std::string track{(*ctx.storage.tracks)[ctx.track_index].view()};
+        const std::string flac_path = ui_ci_track_dir_temp_path(track, "ui-ci-lyrics.flac");
+        const std::string mp3_path = ui_ci_track_dir_temp_path(track, "ui-ci-lyrics.mp3");
+
+        std::size_t flac_size = 0;
+        auto flac = ui_ci_make_flac_lyrics_file("[00:00.00]FLAC lyric\n", flac_size);
+        if (!ui_ci_write_vfs_file(flac_path,
+                                  std::span<const util::u8>{flac.data(), flac_size})) {
+            return false;
+        }
+        const auto flac_result = player::load_lyrics_for_track(flac_path);
+        const auto flac_window = player::resolve_lyrics_window(0);
+        (void)fs::vfs_unlink(flac_path);
+
+        std::size_t mp3_size = 0;
+        auto mp3 = ui_ci_make_mp3_uslt_file("[00:00.00]MP3 lyric\n", mp3_size);
+        if (!ui_ci_write_vfs_file(mp3_path,
+                                  std::span<const util::u8>{mp3.data(), mp3_size})) {
+            return false;
+        }
+        const auto mp3_result = player::load_lyrics_for_track(mp3_path);
+        const auto mp3_window = player::resolve_lyrics_window(0);
+        (void)fs::vfs_unlink(mp3_path);
+        return flac_result.source == player::LyricsSourceKind::EmbeddedFlac
+            && std::string_view{flac_window.current} == "FLAC lyric"
+            && mp3_result.source == player::LyricsSourceKind::EmbeddedMp3
+            && std::string_view{mp3_window.current} == "MP3 lyric";
+    }
+
     template<typename RuntimeT,
              typename SceneT,
              typename ContextT,
@@ -835,4 +1141,24 @@
         record("now_playing_seek_ready_state_contract",
                ui_ci_now_playing_seek_ready_state_contract_ok(),
                "seek_ready_state_contract");
+
+        // Lyrics: local sidecar/Lyrics dir/TXT display plus embedded metadata probe.
+        record("now_playing_lyrics_toggle_fallback",
+               ui_ci_now_playing_lyrics_toggle_fallback_ok(scene, ctx, pump_frame),
+               "lyrics_toggle_fallback");
+        record("now_playing_lyrics_sidecar_lrc",
+               ui_ci_now_playing_sidecar_lrc_ok(scene, ctx, pump_frame),
+               "lyrics_sidecar_lrc");
+        record("now_playing_lyrics_dir_lrc",
+               ui_ci_now_playing_lyrics_dir_lrc_ok(scene, ctx, pump_frame),
+               "lyrics_dir_lrc");
+        record("now_playing_lyrics_txt",
+               ui_ci_now_playing_txt_unsynced_ok(scene, ctx, pump_frame),
+               "lyrics_txt");
+        record("now_playing_lyrics_seek_pause_sync",
+               ui_ci_now_playing_lyrics_seek_pause_sync_ok(scene, ctx, pump_frame),
+               "lyrics_seek_pause_sync");
+        record("now_playing_lyrics_embedded_probe",
+               ui_ci_lyrics_embedded_probe_ok(ctx),
+               "lyrics_embedded_probe");
     }

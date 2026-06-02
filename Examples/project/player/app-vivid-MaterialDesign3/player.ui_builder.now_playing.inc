@@ -137,6 +137,68 @@
         builder.link(now_playing, h.cover);
     }
 
+    static void build_now_playing_lyrics_area(::ui::scene::SceneBuilder& builder,
+                                              WidgetHandle now_playing,
+                                              UiHandles& h,
+                                              const NowPlayingBuildMetrics& metrics) {
+        h.now_lyrics_panel = builder.create_container();
+        mark_draw_scope(builder, h.now_lyrics_panel, PlayerDrawScopeId::NowCover);
+        anchor_rect(builder, h.now_lyrics_panel, metrics.lyrics_panel_rect);
+        {
+            StylePatch patch = ::ui::scene::make_clean_surface_patch({
+                .apply_bg_color = true,
+                .apply_border_color = true,
+                .apply_border_width = true,
+                .apply_corner_radius = true,
+                .bg_color = {kUiInfoTagBg.r, kUiInfoTagBg.g, kUiInfoTagBg.b, 36},
+                .border_color = {kUiTitle.r, kUiTitle.g, kUiTitle.b, 22},
+                .border_width = 0,
+                .corner_radius = metrics.cover_radius + 10,
+            });
+            builder.set_style_override(h.now_lyrics_panel, patch);
+            builder.set_hit_testable(h.now_lyrics_panel, false);
+        }
+
+        auto make_lyrics_label = [&](WidgetHandle& handle,
+                                     const Rect& rect,
+                                     int font_px,
+                                     FontWeight weight,
+                                     const rgba& color) {
+            handle = builder.create_label_static("");
+            anchor_rect(builder, handle, rect);
+            StylePatch patch = make_player_text_patch(PlayerTextRole::PageSubtitle, color);
+            patch.has_font = true;
+            patch.font = &get_player_font_px(font_px, weight);
+            builder.set_style_override(handle, patch);
+            builder.set_label_align(handle, ::ui::scene::TextAlignH::Center, ::ui::scene::TextAlignV::Center);
+            builder.set_hit_testable(handle, false);
+            builder.link(h.now_lyrics_panel, handle);
+        };
+
+        make_lyrics_label(h.now_lyrics_prev,
+                          metrics.lyrics_prev_rect,
+                          20,
+                          FontWeight::Regular,
+                          kUiSubtitle);
+        make_lyrics_label(h.now_lyrics_current,
+                          metrics.lyrics_current_rect,
+                          28,
+                          FontWeight::Bold,
+                          kUiTitle);
+        make_lyrics_label(h.now_lyrics_next,
+                          metrics.lyrics_next_rect,
+                          20,
+                          FontWeight::Regular,
+                          kUiSubtitle);
+        make_lyrics_label(h.now_lyrics_status,
+                          metrics.lyrics_status_rect,
+                          14,
+                          FontWeight::Medium,
+                          kUiTime);
+
+        builder.link(now_playing, h.now_lyrics_panel);
+    }
+
     static void build_now_playing_text_area(::ui::scene::SceneBuilder& builder,
                                             WidgetHandle now_playing,
                                             UiHandles& h,
@@ -471,6 +533,7 @@
         create_now_playing_hidden_widgets(builder, now_playing, h);
         build_now_playing_top_bar(builder, now_playing, h, now_layout, metrics, icons);
         build_now_playing_cover_area(builder, now_playing, h, metrics);
+        build_now_playing_lyrics_area(builder, now_playing, h, metrics);
         build_now_playing_text_area(builder, now_playing, h, now_layout, metrics);
         build_now_playing_progress_area(builder, now_playing, h, now_layout, metrics);
         build_now_playing_controls_area(builder, now_playing, h, now_layout, metrics, icons);

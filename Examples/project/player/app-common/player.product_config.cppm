@@ -47,6 +47,33 @@ export namespace player::product_config {
     inline constexpr std::size_t scan_status_text_capacity = 128;
     inline constexpr std::size_t max_scan_dirs = 64;
 
+#if defined(CHARM_PLAYER_LYRICS_MAX_LINES)
+    inline constexpr std::size_t lyrics_max_lines = CHARM_PLAYER_LYRICS_MAX_LINES;
+#elif defined(CHARM_PLAYER_MCU) && CHARM_PLAYER_MCU
+    inline constexpr std::size_t lyrics_max_lines = 64;
+#else
+    inline constexpr std::size_t lyrics_max_lines = 192;
+#endif
+
+#if defined(CHARM_PLAYER_LYRICS_LINE_TEXT_CAPACITY)
+    inline constexpr std::size_t lyrics_line_text_capacity =
+        CHARM_PLAYER_LYRICS_LINE_TEXT_CAPACITY;
+#elif defined(CHARM_PLAYER_MCU) && CHARM_PLAYER_MCU
+    inline constexpr std::size_t lyrics_line_text_capacity = 96;
+#else
+    inline constexpr std::size_t lyrics_line_text_capacity = 160;
+#endif
+
+    inline constexpr std::size_t lyrics_path_text_capacity = path_text_capacity;
+
+#if defined(CHARM_PLAYER_LYRICS_RAW_READ_BYTES)
+    inline constexpr std::size_t lyrics_raw_read_bytes = CHARM_PLAYER_LYRICS_RAW_READ_BYTES;
+#elif defined(CHARM_PLAYER_MCU) && CHARM_PLAYER_MCU
+    inline constexpr std::size_t lyrics_raw_read_bytes = 12288;
+#else
+    inline constexpr std::size_t lyrics_raw_read_bytes = 32768;
+#endif
+
 #if defined(CHARM_PLAYER_RESOURCE_FONT_PATH)
     inline constexpr const char* default_font_path = CHARM_PLAYER_RESOURCE_FONT_PATH;
 #else

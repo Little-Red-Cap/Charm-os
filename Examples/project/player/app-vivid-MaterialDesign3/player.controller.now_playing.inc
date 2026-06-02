@@ -8,6 +8,10 @@
 
             access.set_text_color(handles.title, roles.title);
             access.set_text_color(handles.subtitle, roles.subtitle);
+            access.set_text_color(handles.now_lyrics_prev, roles.subtitle);
+            access.set_text_color(handles.now_lyrics_current, roles.title);
+            access.set_text_color(handles.now_lyrics_next, roles.subtitle);
+            access.set_text_color(handles.now_lyrics_status, roles.time);
             access.set_text_color(handles.time_left, roles.time);
             access.set_text_color(handles.time_right, roles.time);
             access.set_text_color(handles.mode_hint, roles.mode_hint);
@@ -1158,8 +1162,9 @@
             const bool cover_plate_visible = cover_plate && !has_cover_image();
             const bool cover_widgets_visible = cover && has_cover_image();
             set_handle_visible(handles.now_top_bar, top_bar);
-            set_handle_visible(handles.now_cover_plate, cover_plate_visible);
-            set_handle_visible(handles.cover, cover_widgets_visible);
+            set_handle_visible(handles.now_cover_plate, cover_plate_visible && !lyrics_visible);
+            set_handle_visible(handles.cover, cover_widgets_visible && !lyrics_visible);
+            set_handle_visible(handles.now_lyrics_panel, cover && lyrics_visible);
             set_handle_visible(handles.now_text_group, text);
             set_handle_visible(handles.now_progress_group, progress);
             set_handle_visible(handles.controls, controls_visible);
@@ -1168,6 +1173,7 @@
 
         void restore_now_playing_group_visibility() noexcept {
             set_now_playing_group_visibility(true, true, true, true, true, true, true);
+            sync_lyrics_visibility();
         }
 
         void set_bottom_bar_content_visibility(bool cover,
@@ -1432,7 +1438,7 @@
         void update_info_label() {
             if (!access.valid() || !handles.info_tag) return;
             const int total = resolved_duration_sec();
-            if (total <= 0) {
+            if (!track_preloaded || total <= 0) {
                 set_info_label("");
                 return;
             }
@@ -1564,6 +1570,7 @@
             sync_progress_value(0);
             set_time_label(0);
             set_info_label("");
+            refresh_lyrics_window();
         }
 
         int progress_value_from_sec(int sec) const noexcept {
@@ -1588,6 +1595,7 @@
                 sync_progress_value(progress_value_from_sec(committed_sec));
                 set_time_label(committed_sec);
                 set_progress_info_for_state(ProgressInteractionState::SeekCommitted);
+                refresh_lyrics_window();
                 return;
             }
             progress_committed_sec = 0;
@@ -1596,6 +1604,7 @@
             sync_progress_value(progress_value_from_sec(elapsed_sec));
             set_time_label(elapsed_sec);
             update_info_label();
+            refresh_lyrics_window();
         }
 
         void reset_duration() {
@@ -1614,10 +1623,13 @@
         }
 
         void refresh_now_playing_runtime_content() {
-            update_duration_from_player();
+            if (track_preloaded) {
+                update_duration_from_player();
+            }
             if (!update_progress()) {
                 sync_progress_idle(playback.current_sec());
             }
+            refresh_lyrics_window();
             update_play_mode_label();
         }
 

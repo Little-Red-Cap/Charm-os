@@ -190,6 +190,18 @@ function(_h747_mem_run_evidence)
     foreach(_field IN LISTS _player_ui_style_profile_fields)
         set("_player_ui_style_profile_${_field}" "MISSING")
     endforeach()
+    set(_player_lyrics_profile_fields
+        service_size_bytes
+        max_lines
+        line_text_capacity
+        raw_read_bytes
+        path_text_capacity
+        embedded_flac_supported
+        embedded_mp3_supported
+        embedded_m4a_supported)
+    foreach(_field IN LISTS _player_lyrics_profile_fields)
+        set("_player_lyrics_profile_${_field}" "MISSING")
+    endforeach()
 
     set(_sections)
     set(_ram_d1_used 0)
@@ -323,6 +335,9 @@ function(_h747_mem_run_evidence)
             set(_profile_fatfs_size "${_symbol_size}")
             set(_profile_fatfs_region "${_symbol_region}")
             set(_profile_fatfs_section "${_symbol_section}")
+        elseif(_symbol_name MATCHES "lyrics_service\\(\\)::service")
+            set(_is_key TRUE)
+            set(_forbid_sdram TRUE)
         elseif(_symbol_name MATCHES "PlayerMd3State")
             set(_is_key TRUE)
         elseif(_symbol_name MATCHES "SoaKernel|soa")
@@ -363,6 +378,9 @@ function(_h747_mem_run_evidence)
         elseif(_line MATCHES "^([0-9A-Fa-f]+)[ \t]+A[ \t]+charm_player_ui_style_profile_([A-Za-z0-9_]+)$")
             math(EXPR _profile_value "0x${CMAKE_MATCH_1}")
             set("_player_ui_style_profile_${CMAKE_MATCH_2}" "${_profile_value}")
+        elseif(_line MATCHES "^([0-9A-Fa-f]+)[ \t]+A[ \t]+charm_player_lyrics_profile_([A-Za-z0-9_]+)$")
+            math(EXPR _profile_value "0x${CMAKE_MATCH_1}")
+            set("_player_lyrics_profile_${CMAKE_MATCH_2}" "${_profile_value}")
         endif()
     endforeach()
 
@@ -420,6 +438,9 @@ function(_h747_mem_run_evidence)
         endif()
         if(_player_ui_style_profile_rule_use_count GREATER _style_sheet_profile_style_rule_capacity)
             _h747_mem_fail("Player UI style rule usage ${_player_ui_style_profile_rule_use_count} exceeds StyleSheet rule cap ${_style_sheet_profile_style_rule_capacity}")
+        endif()
+        if(_player_lyrics_profile_service_size_bytes STREQUAL "MISSING")
+            _h747_mem_fail("missing Player lyrics fixed-capacity profile symbols")
         endif()
     endif()
 
@@ -501,6 +522,12 @@ function(_h747_mem_run_evidence)
     string(APPEND _out_text "\n[player_ui_style_profile]\n")
     foreach(_field IN LISTS _player_ui_style_profile_fields)
         set(_value_var "_player_ui_style_profile_${_field}")
+        string(APPEND _out_text "${_field}=${${_value_var}}\n")
+    endforeach()
+
+    string(APPEND _out_text "\n[player_lyrics_profile]\n")
+    foreach(_field IN LISTS _player_lyrics_profile_fields)
+        set(_value_var "_player_lyrics_profile_${_field}")
         string(APPEND _out_text "${_field}=${${_value_var}}\n")
     endforeach()
 

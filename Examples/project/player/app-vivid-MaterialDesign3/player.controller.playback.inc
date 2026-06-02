@@ -97,6 +97,7 @@
             (void)dispatch_playback_action(PlaybackAction::seek, seek_sec, [&](bool, const auto& status) {
                 set_status_if_present(status);
             });
+            refresh_lyrics_window(true);
         }
 
         void apply_actions(const PendingActions& actions) {
@@ -253,6 +254,7 @@
             playback.set_track_ready(track_ready);
             track_preloaded = true;
             update_track_cover_source(vfs_path.view(), track_ready);
+            load_current_track_lyrics(vfs_path.view());
             reset_loaded_track_runtime_state();
             preload_loaded_track_duration(track_path);
             return playback.track_ready();

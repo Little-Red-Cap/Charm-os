@@ -43,6 +43,7 @@ import player.ui;
 import player.cover;
 import player.cover_theme;
 import player.font_cache;
+import player.lyrics;
 import charm.widgets.perf_overlay;
 import charm.core.style_sheet;
 import service.fixed_vector;
@@ -159,6 +160,11 @@ export namespace player {
         WidgetHandle now_backdrop{};
         WidgetHandle now_top_bar{};
         WidgetHandle now_cover_plate{};
+        WidgetHandle now_lyrics_panel{};
+        WidgetHandle now_lyrics_prev{};
+        WidgetHandle now_lyrics_current{};
+        WidgetHandle now_lyrics_next{};
+        WidgetHandle now_lyrics_status{};
         WidgetHandle now_text_group{};
         WidgetHandle now_progress_group{};
         WidgetHandle now_aux_group{};
@@ -338,6 +344,10 @@ export namespace player {
         FixedString<32> last_home_stats_total_text{};
         FixedString<16> last_home_stats_plays_text{};
         FixedString<32> last_home_stats_avg_text{};
+        FixedString<product_config::lyrics_line_text_capacity> lyrics_prev_text{};
+        FixedString<product_config::lyrics_line_text_capacity> lyrics_current_text{};
+        FixedString<product_config::lyrics_line_text_capacity> lyrics_next_text{};
+        FixedString<96> lyrics_status_text{};
         std::uint64_t track_size_bytes{0};
         ResolvedCover current_cover{};
         cover_theme::CoverTheme cover_theme{};
@@ -352,6 +362,10 @@ export namespace player {
         };
         bool fs_ready{false};
         bool track_preloaded{false};
+        bool lyrics_visible{false};
+        LyricsLoadResult lyrics_result{};
+        int last_lyrics_position_ms{-1};
+        int last_lyrics_index{-2};
         int preloaded_duration_sec{0};
         int play_mode{0};
         int last_play_button_state{-1};
@@ -734,6 +748,10 @@ export namespace player {
             ::ui::scene::TextSlotId title{::ui::scene::kInvalidTextSlot};
             ::ui::scene::TextSlotId subtitle{::ui::scene::kInvalidTextSlot};
             ::ui::scene::TextSlotId status{::ui::scene::kInvalidTextSlot};
+            ::ui::scene::TextSlotId lyrics_prev{::ui::scene::kInvalidTextSlot};
+            ::ui::scene::TextSlotId lyrics_current{::ui::scene::kInvalidTextSlot};
+            ::ui::scene::TextSlotId lyrics_next{::ui::scene::kInvalidTextSlot};
+            ::ui::scene::TextSlotId lyrics_status{::ui::scene::kInvalidTextSlot};
             ::ui::scene::TextSlotId time_left{::ui::scene::kInvalidTextSlot};
             ::ui::scene::TextSlotId time_right{::ui::scene::kInvalidTextSlot};
             ::ui::scene::TextSlotId info_tag{::ui::scene::kInvalidTextSlot};
@@ -1015,6 +1033,7 @@ export namespace player {
 
         #include "player.controller.pages.inc"
         #include "player.controller.home.inc"
+        #include "player.controller.lyrics.inc"
 
         const char* track_path() const noexcept {
             return playback.track_path();
@@ -1030,6 +1049,7 @@ export namespace player {
             track_size_bytes = 0;
             track_format_text.clear();
             last_info_text.clear();
+            clear_current_lyrics();
             set_info_label("");
             reset_cover_image();
         }
@@ -1042,6 +1062,10 @@ export namespace player {
             text_slots.title = alloc();
             text_slots.subtitle = alloc();
             text_slots.status = alloc();
+            text_slots.lyrics_prev = alloc();
+            text_slots.lyrics_current = alloc();
+            text_slots.lyrics_next = alloc();
+            text_slots.lyrics_status = alloc();
             text_slots.time_left = alloc();
             text_slots.time_right = alloc();
             text_slots.info_tag = alloc();
@@ -1062,6 +1086,8 @@ export namespace player {
             text_slots.home_stats_total = alloc();
             text_slots.home_stats_plays = alloc();
             text_slots.home_stats_avg = alloc();
+            sync_lyrics_visibility();
+            clear_current_lyrics();
             set_handle_visible(handles.list_info_scrim, false);
             set_handle_visible(handles.list_info_card, false);
             clear_image_slot_if_present(library_info_cover_slot(), false);
@@ -1126,7 +1152,7 @@ export namespace player {
 
         void set_info_label(std::string_view value) {
             if (!access.valid() || !handles.info_tag) return;
-            if (last_info_text.view() == value) return;
+            if (last_info_text.view() == value && !value.empty()) return;
             last_info_text.assign(value);
             set_label_slot(handles.info_tag, text_slots.info_tag, last_info_text.c_str());
         }
@@ -1591,6 +1617,10 @@ export namespace player {
                 + sizeof(std::declval<PlayerController>().last_home_stats_total_text)
                 + sizeof(std::declval<PlayerController>().last_home_stats_plays_text)
                 + sizeof(std::declval<PlayerController>().last_home_stats_avg_text)
+                + sizeof(std::declval<PlayerController>().lyrics_prev_text)
+                + sizeof(std::declval<PlayerController>().lyrics_current_text)
+                + sizeof(std::declval<PlayerController>().lyrics_next_text)
+                + sizeof(std::declval<PlayerController>().lyrics_status_text)
                 + sizeof(std::declval<PlayerController>().library_context_key)
                 + sizeof(std::declval<PlayerController>().mount_status),
             sizeof(std::declval<PlayerController>().cover_path)

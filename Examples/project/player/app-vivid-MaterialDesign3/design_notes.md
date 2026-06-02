@@ -605,6 +605,7 @@
 ### 17.1 区块结构
 - `TopBar`
 - `CoverHero`
+- `LyricsPanel`
 - `TitleBlock`
 - `ProgressSection`
 - `MetaInfoRow`
@@ -614,6 +615,7 @@
 ### 17.2 区块职责
 - `TopBar`：负责返回、标题、次级操作，不喧宾夺主
 - `CoverHero`：页面主视觉核心
+- `LyricsPanel`：作为 `CoverHero` 的互斥主区状态，承载当前歌词窗口，不改变下方标题、进度和控制区节奏
 - `TitleBlock`：承载标题/作者，必须稳定居中
 - `ProgressSection`：承载产品级 seekbar 表达，负责播放进度、拖拽预览、提交反馈和不可用降级
 - `MetaInfoRow`：承载左右时间与中心状态标签
@@ -636,11 +638,13 @@
 - Dragging preview：轨道 fill/thumb、左侧时间和中心 `Seeking...` 反馈必须立即跟随指针，右侧总时长不变
 - Seek committed：提交后至少保留一帧 `Seek queued` 与目标位置反馈，随后回到 idle 同步
 - No duration / unavailable：显示稳定空轨与 `0:00 / 0:00`，中心信息清空，不做错误态闪烁
+- Lyrics visible：顶部 `Lyrics` 按钮在封面主区和歌词主区之间切换；歌词区显示上一行、当前行、下一行和来源/截断状态，无歌词时显示稳定 fallback
 
 ### 17.5 行为规格
 - 点击返回：回到主页面，不丢当前播放状态
 - 点击/拖拽进度条：命中透明 hitbox，视觉轨道不塌缩；取消拖拽必须恢复到当前播放位置
 - 点击控制按钮：立即反映状态变化
+- 点击 Lyrics：只切换 Now Playing 主视觉区，不影响播放、seek、封面解析或底部 mini-player
 - 点击信息标签：后续可扩展模式切换或提示入口
 
 ### 17.6 动效预留
@@ -655,8 +659,15 @@
 - 信息带：第一轮视觉恢复已推进，进度条、左右时间和中心标签现在被更明确地收进同一块播放信息区
 - 进度条风格身份：已从“复用 Slider 视觉壳”推进到产品级 seekbar pattern；当前仍不新增专属 widget，后续再评估是否上收到 Vivid
 - 控制区主次关系：已达成，第一轮视觉恢复进一步强化了主播放按钮与侧按钮的层级差异
+- 歌词基础闭环：已达成。外部歌词按同目录同名 `.lrc/.txt`、`/Lyrics/<stem>.lrc/.txt`、内嵌 metadata 的优先级加载；Now Playing 已支持歌词主区切换、seek/暂停/切歌同步、无歌词 fallback 和截断状态提示
 
-### 17.8 视觉恢复第一切片验收矩阵
+### 17.8 Lyrics 路线
+- 当前实现：`player.lyrics` 使用固定容量保存歌词行、时间戳、来源和状态；PlayerController 只保存可见状态、当前行索引和少量显示 scratch，不持有完整歌词文档
+- 本地歌词：支持常规 LRC `[mm:ss.xx]` / `[mm:ss.xxx]`、metadata tag 跳过、纯文本 TXT；超出行数、单行容量或 raw 读取上限时显示可用部分并标记 truncated
+- 内嵌歌词：FLAC 读取 Vorbis Comment `LYRICS` / `UNSYNCEDLYRICS`；MP3 读取 ID3v2 `USLT`，识别 `SYLT` 但暂记为 unsupported；M4A/MP4 因当前 audio pipeline 尚未接入对应 decoder，作为后续格式支持后的规划项
+- 非目标：不做网络搜索、数据库、歌词编辑、翻译/罗马音、TTML 或 word-by-word 动画
+
+### 17.9 视觉恢复第一切片验收矩阵
 - 正常封面：封面本体显示，封面舞台只承担轻量占位和对齐职责，不抢主图，不主观追加重装饰
 - Placeholder / default cover：封面舞台必须可见，承担页面主视觉占位，不允许主视觉塌为空白
 - 长标题 / 长作者：标题块仍居中，不能挤压进度区和控制区

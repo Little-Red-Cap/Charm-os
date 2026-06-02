@@ -58,6 +58,7 @@ function(h747_lab_collect_player_md3_modules out_modules out_base_dirs)
         "${CHARM_ROOT}/Examples/project/player/app-common/player.fs_utils.cppm"
         "${CHARM_ROOT}/Examples/project/player/app-common/player.host_features.cppm"
         "${CHARM_ROOT}/Examples/project/player/app-common/player.input.cppm"
+        "${CHARM_ROOT}/Examples/project/player/app-common/player.lyrics.cppm"
         "${CHARM_ROOT}/Examples/project/player/app-common/player.mcu_policy.cppm"
         "${CHARM_ROOT}/Examples/project/player/app-common/player.media_scan.cppm"
         "${CHARM_ROOT}/Examples/project/player/app-common/player.platform.cppm"

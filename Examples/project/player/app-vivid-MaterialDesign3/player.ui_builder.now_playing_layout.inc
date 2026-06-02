@@ -88,6 +88,11 @@
         int cover_radius{};
         Rect cover_rect{};
         Rect cover_plate_rect{};
+        Rect lyrics_panel_rect{};
+        Rect lyrics_prev_rect{};
+        Rect lyrics_current_rect{};
+        Rect lyrics_next_rect{};
+        Rect lyrics_status_rect{};
         int title_h{};
         int subtitle_h{};
         int text_gap{};
@@ -286,6 +291,34 @@
             cover_size,
         };
         const Rect cover_plate_rect = expand_rect(cover_rect, now_layout.cover_plate_pad);
+        const Rect lyrics_panel_rect = cover_plate_rect;
+        const int lyrics_inner_x = 22;
+        const int lyrics_inner_w = lyrics_panel_rect.w - lyrics_inner_x * 2;
+        const int lyrics_current_h = 86;
+        const int lyrics_side_h = 48;
+        const int lyrics_status_h = 30;
+        const int lyrics_gap = 18;
+        const int lyrics_total_h = lyrics_side_h * 2 + lyrics_current_h + lyrics_status_h + lyrics_gap * 3;
+        const int lyrics_y = (lyrics_panel_rect.h - lyrics_total_h) / 2;
+        const Rect lyrics_prev_rect{lyrics_inner_x, lyrics_y, lyrics_inner_w, lyrics_side_h};
+        const Rect lyrics_current_rect{
+            lyrics_inner_x,
+            lyrics_prev_rect.y + lyrics_prev_rect.h + lyrics_gap,
+            lyrics_inner_w,
+            lyrics_current_h,
+        };
+        const Rect lyrics_next_rect{
+            lyrics_inner_x,
+            lyrics_current_rect.y + lyrics_current_rect.h + lyrics_gap,
+            lyrics_inner_w,
+            lyrics_side_h,
+        };
+        const Rect lyrics_status_rect{
+            lyrics_inner_x,
+            lyrics_next_rect.y + lyrics_next_rect.h + lyrics_gap,
+            lyrics_inner_w,
+            lyrics_status_h,
+        };
 
         const int title_h = now_layout.title_h;
         const int subtitle_h = now_layout.subtitle_h;
@@ -358,6 +391,11 @@
             .cover_radius = cover_radius,
             .cover_rect = cover_rect,
             .cover_plate_rect = cover_plate_rect,
+            .lyrics_panel_rect = lyrics_panel_rect,
+            .lyrics_prev_rect = lyrics_prev_rect,
+            .lyrics_current_rect = lyrics_current_rect,
+            .lyrics_next_rect = lyrics_next_rect,
+            .lyrics_status_rect = lyrics_status_rect,
             .title_h = title_h,
             .subtitle_h = subtitle_h,
             .text_gap = text_gap,

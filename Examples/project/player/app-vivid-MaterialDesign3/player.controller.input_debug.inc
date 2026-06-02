@@ -201,6 +201,8 @@
                 actions.toggle_play = true;
             } else if (target == handles.btn_mode) {
                 actions.cycle_mode = true;
+            } else if (target == handles.now_lyrics) {
+                toggle_lyrics_panel();
 #if defined(CHARM_PLAYER_DEBUG_UI)
             } else if (target == handles.cover) {
                 cycle_palette_style();

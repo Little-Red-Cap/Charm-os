@@ -46,6 +46,7 @@ import player.font_resource;
 import player.fs_utils;
 import player.host_features;
 import player.input;
+import player.lyrics;
 import player.platform;
 import player.storage;
 import player.playback;

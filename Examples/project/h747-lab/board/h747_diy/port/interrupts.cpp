@@ -1,11 +1,12 @@
 #include "main.h"
-#include "input.h"
 #include "usart.h"
 
 #include <cstdint>
 
 extern "C" DMA_HandleTypeDef hdma_usart1_tx;
 extern "C" DMA_HandleTypeDef hdma_usart1_rx;
+
+extern "C" __attribute__((weak)) void input_touch_int_exti_notify(uint16_t) {}
 
 namespace {
 

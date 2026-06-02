@@ -899,7 +899,7 @@ import charm.core.soa_registry;
 
     WidgetHandle SoaKernel::input_find_scroll_ancestor(WidgetHandle h) const noexcept {
         WidgetHandle cur = h;
-        while (cur) {
+        while (cur && valid(cur)) {
             if (input_is_scrollable_kind(kind(cur))) {
                 return cur;
             }
@@ -909,8 +909,8 @@ import charm.core.soa_registry;
     }
 
     WidgetHandle SoaKernel::input_find_toggle_group_ancestor(WidgetHandle h) const noexcept {
-        WidgetHandle cur = parent(h);
-        while (cur) {
+        WidgetHandle cur = (h && valid(h)) ? parent(h) : WidgetHandle{};
+        while (cur && valid(cur)) {
             if (kind(cur) == WidgetKind::ToggleGroup) {
                 return cur;
             }

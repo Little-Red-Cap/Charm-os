@@ -84,6 +84,12 @@ It also requires the Display + Player evidence fields that align with
 `boot`, `render`, `frames`, `present`, `bytes`, `content`, `input`, `t`, `e`,
 `p_src`, `p_dst`, `front`, `back`, `lfb`, and `lpf`.
 
+DMA2D acceleration evidence is record-only in v1. Status lines append
+`dma2d=<ready>/<used>/<fallback>/<err>/<hal>/<dma_err>`. A healthy accelerated
+run should show `ready=1`, increasing `used`, and zero errors. If DMA2D bring-up
+or transfer fails, `display_raster` falls back to the CPU copy path and the
+basic display smoke gate should still pass.
+
 The current strict numeric checks are intentionally minimal:
 
 - `delta=<frames>/<presents>` has both sides non-zero.
@@ -164,7 +170,310 @@ waits for a live GT970 trace line. Touching the panel should produce a line of
 the form `touch action=<down|move|up|cancel> down=<0|1> x=<n> y=<n> ...`.
 This proves the hardware coordinate stream reached the app-local input bridge;
 route counters in the following status lines prove the same event path reached
-`PlayerRuntimeShell`.
+the app-local input boundary. `touch_dispatch` then shows whether those pointer
+events were allowed into `PlayerRuntimeShell`.
+
+For direct serial testing without PowerShell automation, use the board prompt:
+
+```text
+touch monitor on
+```
+
+This low-load diagnostic mode pauses MD3 render/status work after the command
+has been accepted, but keeps polling console input and the GT970 input bridge.
+It is useful when the normal long `player_md3.loop` line interleaves with typed
+commands. Touching the panel should then print short lines:
+
+```text
+touch down x=<n> y=<n> down=1 n=<count>
+touch move x=<n> y=<n> down=1 n=<count>
+touch up x=<n> y=<n> down=0 n=<count>
+```
+
+Use:
+
+```text
+touch monitor status
+touch monitor off
+```
+
+`touch monitor status` prints the monitor counter and the last sampled touch
+fields. `touch monitor off` resumes normal rendering and automatic status
+behavior.
+
+For a more aggressive low-load hardware sampling mode, use:
+
+```text
+touch sample on
+<touch or drag the panel for 5-10 seconds>
+touch sample status
+touch sample off
+```
+
+`touch sample on` pauses MD3 render/status work and does not dispatch pointer
+events into the Player UI. It keeps only the console and GT9xx input sampler
+active, prints short `touch_sample ...` lines, and records sample count, ready
+hits, INT changes, raw coordinate range, filtered coordinate, and the last
+out-of-bounds clamp. Use it to distinguish "render is too slow and we miss
+short touch frames" from "the controller is not producing frames at all".
+
+Hardware touch dispatch into the Player UI is gated during board bring-up:
+
+```text
+touch dispatch status
+touch dispatch off
+touch dispatch on
+touch dispatch once
+```
+
+The default is `off`. Touch events still print `touch action=...` lines and
+update app-local touch/input-route evidence, but valid in-range pointer events
+are blocked before `PlayerRuntimeShell` until `touch dispatch on` is issued.
+This keeps GT9xx coordinate/config testing usable while the current Vivid/SoA
+press-path UsageFault is isolated. Use `touch dispatch on` only when explicitly
+reproducing the UI input crash. Prefer `touch dispatch once` for first-pass
+validation because it only releases the next down/up pointer sequence.
+
+Touch coordinate mapping is app-local and can be changed at the serial prompt:
+
+```text
+touch map status
+touch map normal
+touch map swap
+touch map invx
+touch map invy
+touch map rot90
+touch map rot270
+```
+
+Each mode records `touch_map=<mode>/<raw_x>,<raw_y>/<ui_x>,<ui_y>@<raw_w>x<raw_h>/<display_w>x<display_h>`
+in the status line. Use the four corners and center of the panel to pick the
+mode that matches the visible UI.
+
+Touch latency evidence is also record-only:
+
+```text
+touch latency reset
+touch latency status
+```
+
+`touch_latency` reports sample count plus rough millisecond deltas for
+INT-to-poll, poll-to-dispatch, and dispatch-to-next-frame. It is intended to
+quantify whether M7 render load is delaying input handling before moving input
+sampling to M4.
+
+If the monitor reports `ready=1` but `events=0`, collect raw GT970 evidence:
+
+```text
+touch raw
+touch raw on
+touch raw status
+touch raw dump
+touch raw off
+```
+
+`touch raw` bypasses `InputFrameTracker` and the Player runtime. It prints the
+input service snapshot with `ready`, `detected`, `down`, `contacts`, GT970
+status byte, INT/RST pin levels, HAL/I2C status, address, coordinates,
+resolution, pressure, and version bytes. If raw output changes while
+`events=0`, the break is in app-local frame tracking. If raw output never
+changes while pressing the panel, the break is in GT970 sampling, INT/RST/I2C,
+or the touch controller state machine.
+
+`touch raw dump` reads the raw point/status window starting at `0x814E` and
+prints the status byte plus 40 following bytes. It is intended for coordinate
+layout checks when a config table produces touch-ready frames but the parsed
+coordinates look impossible.
+
+For GT9xx register-level triage:
+
+```text
+touch bus status
+touch bus recover
+touch reprobe
+touch debug
+touch int reset
+touch int status
+touch info
+touch cfg verify
+touch scan status
+touch scan wake
+touch scan reset
+touch wake
+touch reset14
+touch reset5d
+touch reset seq14
+touch reset seq5d
+touch reset try14
+touch reset try5d
+touch cfg luat
+touch cfg luat0 native
+touch cfg luat1 native
+touch cfg luat2 native
+touch cfg fire native
+touch cfg int rising
+touch cfg int falling
+touch cfg int low
+touch cfg int high
+touch cfg luat reset
+touch softreset
+```
+
+Always start a config-table comparison from a stable bus and product read:
+
+```text
+touch bus status
+touch bus recover
+touch reprobe
+touch info
+touch cfg verify
+touch scan status
+```
+
+`touch bus status` prints I2C4 HAL state/error, SCL/SDA/INT/RST levels,
+current `ready/addr`, and the last probe statuses. `touch bus recover`
+deinitializes/reinitializes I2C4, releases SCL in GPIO mode if needed, and then
+reprobes `0x14` before `0x5D`. `touch reprobe` only detects the controller
+product/version and does not write config bytes. If `touch info` does not show
+`product="9157"`, do not compare Luat/Fire config tables yet; first recover the
+bus or restore the address.
+
+`touch debug` reads command register `0x8040`, point/status register `0x814E`
+plus the first point payload, version register `0x8140`, and the beginning of
+the config register block at `0x8047`. `touch wake` writes `0` to command
+register `0x8040`, clears `0x814E`, then prints the same debug snapshot. If
+I2C reads are ok and version/config are plausible but the point/status byte
+stays `0x00` while pressing the panel, the controller is present but not
+reporting touch-ready frames.
+`touch scan status` prints the command byte, status byte, config summary,
+`0x8140..0x8158` runtime window, first point window, INT edge counters, and
+HAL/I2C status in one line. It also prints `bus_ok`, `read_mask`, and
+`recover_hint`. A healthy full register read should have `read_mask=0x0F`.
+`recover_hint=1` means no current address, `2` means I2C error, and `3` means
+one or more register windows failed to read. `touch scan wake` writes command
+`0`, clears `0x814E`, briefly syncs TP_INT low-to-input, samples a few frames,
+and prints the same scan line. `touch scan reset` sends command `0x02`,
+re-runs the current ensure-config path, wakes, and prints scan evidence.
+
+`touch reset14` and `touch reset5d` are legacy aliases that perform a GT9xx
+address-select reset by driving TP_INT during TP_RST release, then re-probe the
+selected address. `touch reset seq14` and `touch reset seq5d` additionally
+run the current config ensure path and print `touch info` plus `touch scan`
+evidence. They are diagnostic only. `touch reset try14` and `touch reset try5d`
+attempt the same address-select reset but preserve the previous usable
+`ready/addr/version` if the requested address fails; use the `try*` commands
+when comparing address behavior because they avoid poisoning the current
+session with `ready=0 addr=0`.
+
+`touch cfg luat` writes Luat candidate table 2 with 720x1280 patched into the
+config. `touch cfg luat0/1/2 native` writes the three Luat candidate tables
+without changing the table's own resolution bytes. `touch cfg fire native`
+writes the Fire BSP `CTP_CFG_GT9157` table without changing its resolution.
+The non-native variants patch output resolution to 720x1280. Extra explicit
+variants exist for `800x480`, `1024x600`, and `1280x720`, for example
+`touch cfg fire 800x480` and `touch cfg luat2 1024x600`. Each command
+recomputes the Goodix checksum, sets the fresh flag, and prints verify plus
+scan evidence. `touch cfg fire native` additionally prints
+`cfg_src=fire/native`, the table max resolution, `module_switch1/2`, and
+`fresh`, because it is currently the first candidate observed to produce a
+GT9157 touch-ready frame on this board.
+
+Fire native is still a diagnostic candidate, not the startup default. One
+captured Fire-native event reported an out-of-range coordinate
+`x=19712 y=57089 max=800x480` and then faulted in Vivid:
+`pc=0x0804FA32 -> SoaKernel::input_handle_press(int,int,int)`,
+`lr=0x08053789 -> SoaKernel::parent(WidgetHandle) const`. The app-local H747
+input bridge now records `touch_oob=...` and drops out-of-range pointer samples
+before dispatching them to `PlayerRuntimeShell`; this prevents malformed
+bring-up coordinates from entering Vivid while preserving raw diagnostic output
+for coordinate-layout triage.
+
+`touch cfg int rising/falling/low/high` changes only the Goodix
+`module_switch1[1:0]` interrupt mode bits, recomputes checksum/fresh, then
+prints INT/raw/scan evidence. MCU EXTI remains configured for both rising and
+falling edges, so this command tests the controller's INT mode without hiding
+physical edges at the MCU side.
+
+These config commands are not part of the product UI path. They exist to
+distinguish a bad panel config table from an address/reset/INT/wiring problem.
+`touch cfg luat reset` performs the same write and then sends command `0x02`
+to force a GT9157 soft reset before printing the debug snapshot. Use it when
+the config bytes can be read back but the point/status register still does not
+produce touch-ready frames. `touch softreset` runs only the soft-reset/wake
+sequence.
+
+Recommended dead-touch matrix:
+
+```text
+touch bus status
+touch bus recover
+touch reprobe
+touch info
+touch cfg verify
+touch scan status
+touch int reset
+<touch or drag the panel>
+touch scan status
+touch int status
+touch reset try14
+touch bus status
+touch reset try5d
+touch bus status
+touch bus recover
+touch reprobe
+touch info
+touch cfg fire native
+touch scan wake
+touch int reset
+<touch or drag the panel>
+touch scan status
+touch int status
+touch cfg luat0 native
+touch scan wake
+touch scan status
+touch cfg luat1 native
+touch scan wake
+touch scan status
+touch cfg luat2 native
+touch scan wake
+touch scan status
+touch cfg int rising
+touch cfg int falling
+touch cfg int low
+touch cfg int high
+```
+
+The Luat/Fire commands are meaningful only when `touch info` can repeatedly
+read `product="9157"` and `touch scan status` does not report `recover_hint=1`
+or `recover_hint=2`. If a reset or address test leaves the bus at
+`ready=0 addr=0`, run `touch bus recover`, `touch reprobe`, and `touch info`
+before drawing conclusions about any config table.
+
+If any step produces `status=0x8?`, `contacts>0`, changing point bytes, or
+non-zero INT rise/fall counts, keep that address/config/INT combination and
+continue with coordinate mapping. If all candidate tables verify but
+`status=0x00`, point bytes, and INT edges never change while pressing the
+panel, current evidence points away from Player input routing and toward the
+panel config table, FPC/sensor/INT physical side, or touch analog/sensor power.
+
+`touch int status` prints only the `TP_INT` evidence:
+
+```text
+touch_int ok=<ok> ready=<ready> profile=<id> addr=<addr> int=<level>/<rise>/<fall>/<last_ms>/<exti>@<last_level> rst=<level> pending=<pending>
+```
+
+Use `touch int reset`, touch the panel, then run `touch int status` again. If
+`rise` and `fall` stay zero while `touch info` and I2C reads are healthy, the
+current evidence points at the Goodix panel config, the INT physical wire, or
+the touch sensor side rather than the Player runtime.
+
+`touch info` reads the GT9xx runtime block at `0x8140..0x814E`, including
+product id, firmware, runtime resolution, sensor/vendor byte, status, HAL/I2C
+status, and raw bytes. `touch cfg verify` reads the full `0x8047..0x8100`
+config block and prints length, config version, resolution, touch count,
+module switch bytes, refresh byte, checksum read/expected/ok, fresh flag, and
+the first eight config bytes. If checksum or fresh evidence is wrong, fix the
+config write path before debugging Player input routing.
 
 ## Required Status Fields
 
@@ -190,6 +499,7 @@ A healthy loop status line must contain:
 - `p_src=<first>/<center>/<last>` and `p_dst=<first>/<center>/<last>`
 - `front=<addr>:<first>/<center>/<last>` and `back=<addr>:<first>/<center>/<last>`
 - `lfb=<addr>` and `lpf=<value>`
+- record-only `dma2d=<ready>/<used>/<fallback>/<err>/<hal>/<dma_err>`
 
 `smoke=1/11111` expands to:
 
@@ -211,14 +521,33 @@ The same status line also carries input bridge evidence:
   translated into the Player input boundary.
 - `input_route=<console>/<touch>/<encoder>/<button>@<src>/<kind>/<code>`
   records app-local routing evidence. The counters show how many events from
-  each source reached the Player input boundary. `src` is `0` unknown, `1`
-  console, `2` touch, `3` encoder, and `4` button. `kind=1` means a semantic
-  command and `kind=2` means a pointer action. `code` is the command enum value
-  for commands or pointer action enum value for touch.
+  each source reached the app-local input bridge. Console, encoder, and button
+  commands are dispatched to the Player runtime immediately; hardware touch
+  pointers may be held by the `touch_dispatch` bring-up gate. `src` is `0`
+  unknown, `1` console, `2` touch, `3` encoder, and `4` button. `kind=1` means
+  a semantic command and `kind=2` means a pointer action. `code` is the command
+  enum value for commands or pointer action enum value for touch.
 - `input_smoke=<ok>/<cmds>/<before>-<after>/<frames>/<exec_fail>` records the
   automatic serial input smoke verdict, command count, input event count before
   and after injection, frames rendered by the smoke command, and scene execute
   failure count after the sequence.
+- `touch_oob=<count>/<raw_x>,<raw_y>/<clamped_x>,<clamped_y>@<max_x>x<max_y>`
+  records app-local pointer clamp evidence. A non-zero count means at least one
+  raw GT9xx coordinate exceeded the current touch max and was blocked before
+  entering the Player runtime.
+- `touch_sample=<enabled>/<samples>/<hits>/<int_changes>/<raw_min_x>,<raw_min_y>-<raw_max_x>,<raw_max_y>/<filtered_x>,<filtered_y>`
+  records the low-load `touch sample` diagnostic state. It is evidence only and
+  is not part of the strict smoke gate.
+- `touch_dispatch=<enabled>/<once>/<seq>/<blocked>/<last_action>` records
+  whether hardware touch pointers are currently allowed into `PlayerRuntimeShell`,
+  whether one-shot dispatch is armed/in-progress, how many valid in-range
+  pointers were blocked by the bring-up gate, and the last blocked action.
+- `touch_map=<mode>/<raw_x>,<raw_y>/<ui_x>,<ui_y>@<raw_w>x<raw_h>/<display_w>x<display_h>`
+  records the active app-local touch mapping and the last raw-to-UI conversion.
+- `touch_ui=<enabled>/<sent>/<blocked>/<fault_guard>/<last_action>` records UI
+  dispatch evidence for hardware pointer events.
+- `touch_latency=<samples>/<last_int_poll>,<last_poll_dispatch>,<last_dispatch_frame>/<max_int_poll>,<max_poll_dispatch>,<max_dispatch_frame>`
+  records rough M7 touch latency evidence in milliseconds.
 
 Hardware input evidence is preferred. Console commands are acceptable for
 bring-up because they inject the same semantic Player command path, but they do
@@ -266,7 +595,8 @@ input route status
 Expected route source changes:
 
 - Touch interaction increments the second `input_route` counter and leaves the
-  last route as `2/2/<pointer-action>`.
+  last route as `2/2/<pointer-action>`; `touch_dispatch` decides whether it was
+  forwarded into the Player UI.
 - Encoder rotation increments the third `input_route` counter and leaves the
   last route as `3/1/<command>`.
 - Encoder button press increments the fourth `input_route` counter and leaves
@@ -422,6 +752,17 @@ Two acceptance modes are defined:
 - `input_smoke=0/*`: check the serial command path, `dispatch_runtime_command`,
   scene execution health, and command/text overflow fields before changing
   controller logic.
+- `touch_oob>0`: keep the raw coordinate and `touch raw dump` bytes, then check
+  GT9xx point-byte layout, active config table, sensor/channel mapping, and
+  max resolution before changing Vivid or Player UI code.
+- `touch_sample` hits grow while normal `touch monitor` misses events: render
+  load is likely lowering the polling rate enough to miss short touch-ready
+  windows. Keep the working config table and move the next fix toward a higher
+  frequency input pump or interrupt-assisted sampling.
+- `touch_dispatch=0/<n>/*` with `touch action=...` lines: the GT9xx hardware and
+  app-local input bridge are producing pointer events, but dispatch into the
+  Player UI is intentionally gated off to avoid the current SoA press-path
+  UsageFault. Turn it on only for crash reproduction.
 - `storage=0/*` or `fs=0/*`: check eMMC init, partition detection, FAT probe,
   and FatFs mount before changing Player UI.
 - `storage_detail=0/*`: the storage init node did not run; check profile wiring.

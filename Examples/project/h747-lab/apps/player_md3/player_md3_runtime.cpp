@@ -226,6 +226,102 @@ float scale_coord(std::uint16_t value, std::uint16_t max_value, std::uint32_t ex
            static_cast<float>(max_value - 1U);
 }
 
+std::uint16_t clamp_touch_axis(const std::uint16_t value, const std::uint16_t max_value) noexcept {
+    if (max_value <= 1U) {
+        return value;
+    }
+    return value < max_value ? value : static_cast<std::uint16_t>(max_value - 1U);
+}
+
+void update_max(std::uint32_t& current, const std::uint32_t value) noexcept {
+    current = value > current ? value : current;
+}
+
+charm::cap::PointerSample clamp_touch_sample(const charm::cap::PointerSample sample) noexcept {
+    auto clamped = sample;
+    clamped.x = clamp_touch_axis(sample.x, sample.max_x);
+    clamped.y = clamp_touch_axis(sample.y, sample.max_y);
+    return clamped;
+}
+
+struct MappedTouchSample {
+    std::uint16_t raw_x{0};
+    std::uint16_t raw_y{0};
+    std::uint16_t ui_x{0};
+    std::uint16_t ui_y{0};
+    std::uint16_t raw_w{720};
+    std::uint16_t raw_h{1280};
+    std::uint16_t display_w{720};
+    std::uint16_t display_h{1280};
+};
+
+MappedTouchSample map_touch_sample(const charm::cap::PointerSample sample) noexcept {
+    constexpr std::uint16_t kDisplayWidth = 720U;
+    constexpr std::uint16_t kDisplayHeight = 1280U;
+    auto& st = h747::apps::player_md3::state();
+    std::uint16_t x = sample.x;
+    std::uint16_t y = sample.y;
+    std::uint16_t source_w = sample.max_x;
+    std::uint16_t source_h = sample.max_y;
+
+    if (st.touch_map_swap_xy != 0U) {
+        const auto old_x = x;
+        x = y;
+        y = old_x;
+        const auto old_w = source_w;
+        source_w = source_h;
+        source_h = old_w;
+    }
+    if (st.touch_map_invert_x != 0U && source_w > 1U) {
+        x = static_cast<std::uint16_t>((source_w - 1U) - clamp_touch_axis(x, source_w));
+    }
+    if (st.touch_map_invert_y != 0U && source_h > 1U) {
+        y = static_cast<std::uint16_t>((source_h - 1U) - clamp_touch_axis(y, source_h));
+    }
+
+    const auto ui_x = static_cast<std::uint16_t>(
+        scale_coord(clamp_touch_axis(x, source_w), source_w, kDisplayWidth));
+    const auto ui_y = static_cast<std::uint16_t>(
+        scale_coord(clamp_touch_axis(y, source_h), source_h, kDisplayHeight));
+    st.touch_map_raw_x = sample.x;
+    st.touch_map_raw_y = sample.y;
+    st.touch_map_ui_x = ui_x;
+    st.touch_map_ui_y = ui_y;
+    st.touch_map_raw_w = sample.max_x;
+    st.touch_map_raw_h = sample.max_y;
+    st.touch_map_display_w = kDisplayWidth;
+    st.touch_map_display_h = kDisplayHeight;
+    return MappedTouchSample{
+        .raw_x = sample.x,
+        .raw_y = sample.y,
+        .ui_x = ui_x,
+        .ui_y = ui_y,
+        .raw_w = sample.max_x,
+        .raw_h = sample.max_y,
+        .display_w = kDisplayWidth,
+        .display_h = kDisplayHeight,
+    };
+}
+
+void print_touch_ui_dispatch_trace(const charm::cap::PointerEvent& event,
+                                   const MappedTouchSample mapped) noexcept {
+    h747::console::write("touch_ui dispatch action=");
+    h747::console::write_dec(static_cast<std::uint8_t>(event.action));
+    h747::console::write(" raw=");
+    h747::console::write_dec(mapped.raw_x);
+    h747::console::write(",");
+    h747::console::write_dec(mapped.raw_y);
+    h747::console::write(" ui=");
+    h747::console::write_dec(mapped.ui_x);
+    h747::console::write(",");
+    h747::console::write_dec(mapped.ui_y);
+    h747::console::write(" id=");
+    h747::console::write_dec(event.sample.id);
+    h747::console::write(" sent=");
+    h747::console::write_dec(h747::apps::player_md3::state().touch_ui_sent + 1U);
+    h747::console::write("\n");
+}
+
 ::player::PlayerPointerAction to_player_pointer_action(
     const charm::cap::PointerAction action) noexcept {
     using charm::cap::PointerAction;
@@ -275,6 +371,25 @@ namespace h747::apps::player_md3 {
 PlayerMd3State& state() noexcept {
     static PlayerMd3State s{};
     return s;
+}
+
+void set_touch_monitor_enabled(const bool enabled, const bool pause_render) noexcept {
+    auto& st = state();
+    st.touch_monitor_enabled = enabled ? 1U : 0U;
+    st.touch_monitor_pause_render = (enabled && pause_render) ? 1U : 0U;
+    st.touch_monitor_events = 0U;
+}
+
+bool touch_monitor_enabled() noexcept {
+    return state().touch_monitor_enabled != 0U;
+}
+
+std::uint32_t touch_monitor_event_count() noexcept {
+    return state().touch_monitor_events;
+}
+
+std::uint32_t record_touch_monitor_event() noexcept {
+    return ++state().touch_monitor_events;
 }
 
 ::player::PlayerController& controller_ref() noexcept {
@@ -351,18 +466,19 @@ void dispatch_player_input_event(const ::player::PlayerInputEvent& event) noexce
 }
 
 void dispatch_runtime_pointer(const charm::cap::PointerEvent event) noexcept {
-    constexpr std::uint32_t kDisplayWidth = 720U;
-    constexpr std::uint32_t kDisplayHeight = 1280U;
-    const auto x = scale_coord(event.sample.x, event.sample.max_x, kDisplayWidth);
-    const auto y = scale_coord(event.sample.y, event.sample.max_y, kDisplayHeight);
+    const auto sample = clamp_touch_sample(event.sample);
+    const auto mapped = map_touch_sample(sample);
+    print_touch_ui_dispatch_trace(event, mapped);
+    record_touch_runtime_dispatch_sent(event.action);
+    record_touch_latency_dispatch(h747::port::tick_ms());
     dispatch_player_input_event(::player::PlayerInputEvent::make_pointer(
         h747::port::tick_ms(),
         to_player_pointer_action(event.action),
         ::player::PlayerPointerSample{
-            event.sample.down,
-            x,
-            y,
-            event.sample.id,
+            sample.down,
+            static_cast<float>(mapped.ui_x),
+            static_cast<float>(mapped.ui_y),
+            sample.id,
         }));
 }
 
@@ -417,13 +533,240 @@ void record_input_route(const PlayerMd3InputRouteSource source,
     st.input_route_last_code = static_cast<std::uint8_t>(action);
 }
 
+void set_touch_runtime_dispatch_enabled(const bool enabled) noexcept {
+    auto& st = state();
+    st.touch_dispatch_enabled = enabled ? 1U : 0U;
+    if (enabled) {
+        st.touch_dispatch_once_active = 0U;
+        st.touch_dispatch_once_in_sequence = 0U;
+    }
+}
+
+void set_touch_runtime_dispatch_once() noexcept {
+    auto& st = state();
+    st.touch_dispatch_enabled = 0U;
+    st.touch_dispatch_once_active = 1U;
+    st.touch_dispatch_once_in_sequence = 0U;
+}
+
+bool touch_runtime_dispatch_enabled() noexcept {
+    const auto& st = state();
+    return st.touch_dispatch_enabled != 0U || st.touch_dispatch_once_active != 0U;
+}
+
+bool touch_runtime_dispatch_allows(const charm::cap::PointerAction action) noexcept {
+    auto& st = state();
+    if (st.touch_dispatch_enabled != 0U) {
+        return true;
+    }
+    if (st.touch_dispatch_once_active == 0U) {
+        return false;
+    }
+
+    if (!st.touch_dispatch_once_in_sequence) {
+        if (action != charm::cap::PointerAction::down) {
+            return false;
+        }
+        st.touch_dispatch_once_in_sequence = 1U;
+        return true;
+    }
+
+    if (action == charm::cap::PointerAction::up || action == charm::cap::PointerAction::cancel) {
+        st.touch_dispatch_once_active = 0U;
+        st.touch_dispatch_once_in_sequence = 0U;
+    }
+    return true;
+}
+
+std::uint32_t touch_runtime_dispatch_blocked_count() noexcept {
+    return state().touch_dispatch_blocked;
+}
+
+std::uint8_t touch_runtime_dispatch_last_action() noexcept {
+    return state().touch_dispatch_last_action;
+}
+
+void record_touch_runtime_dispatch_blocked(const charm::cap::PointerAction action) noexcept {
+    auto& st = state();
+    ++st.touch_dispatch_blocked;
+    ++st.touch_ui_blocked;
+    st.touch_dispatch_last_action = static_cast<std::uint8_t>(action);
+    st.touch_ui_last_action = static_cast<std::uint8_t>(action);
+}
+
+void record_touch_runtime_dispatch_sent(const charm::cap::PointerAction action) noexcept {
+    auto& st = state();
+    ++st.touch_ui_sent;
+    st.touch_ui_last_action = static_cast<std::uint8_t>(action);
+}
+
+void record_touch_ui_fault_guard(const charm::cap::PointerAction action) noexcept {
+    auto& st = state();
+    ++st.touch_ui_fault_guard;
+    st.touch_ui_last_action = static_cast<std::uint8_t>(action);
+}
+
+void record_touch_latency_poll(const std::uint32_t poll_ms,
+                               const std::uint32_t int_edge_ms) noexcept {
+    auto& st = state();
+    st.touch_latency_last_poll_ms = poll_ms;
+    if (int_edge_ms != 0U && poll_ms >= int_edge_ms) {
+        st.touch_latency_last_int_to_poll_ms = poll_ms - int_edge_ms;
+        update_max(st.touch_latency_max_int_to_poll_ms, st.touch_latency_last_int_to_poll_ms);
+    }
+}
+
+void record_touch_latency_dispatch(const std::uint32_t dispatch_ms) noexcept {
+    auto& st = state();
+    st.touch_latency_last_dispatch_ms = dispatch_ms;
+    ++st.touch_latency_samples;
+    if (st.touch_latency_last_poll_ms != 0U && dispatch_ms >= st.touch_latency_last_poll_ms) {
+        st.touch_latency_last_poll_to_dispatch_ms = dispatch_ms - st.touch_latency_last_poll_ms;
+        update_max(st.touch_latency_max_poll_to_dispatch_ms,
+                   st.touch_latency_last_poll_to_dispatch_ms);
+    }
+}
+
+void note_touch_render_frame() noexcept {
+    auto& st = state();
+    const auto now_ms = h747::port::tick_ms();
+    st.touch_latency_last_frame_ms = now_ms;
+    if (st.touch_latency_last_dispatch_ms != 0U && now_ms >= st.touch_latency_last_dispatch_ms) {
+        st.touch_latency_last_dispatch_to_frame_ms = now_ms - st.touch_latency_last_dispatch_ms;
+        update_max(st.touch_latency_max_dispatch_to_frame_ms,
+                   st.touch_latency_last_dispatch_to_frame_ms);
+    }
+}
+
+void reset_touch_latency_evidence() noexcept {
+    auto& st = state();
+    st.touch_latency_samples = 0U;
+    st.touch_latency_last_int_to_poll_ms = 0U;
+    st.touch_latency_last_poll_to_dispatch_ms = 0U;
+    st.touch_latency_last_dispatch_to_frame_ms = 0U;
+    st.touch_latency_max_int_to_poll_ms = 0U;
+    st.touch_latency_max_poll_to_dispatch_ms = 0U;
+    st.touch_latency_max_dispatch_to_frame_ms = 0U;
+    st.touch_latency_last_poll_ms = 0U;
+    st.touch_latency_last_dispatch_ms = 0U;
+    st.touch_latency_last_frame_ms = 0U;
+}
+
+void set_touch_map_mode(const PlayerMd3TouchMapMode mode) noexcept {
+    auto& st = state();
+    st.touch_map_mode = static_cast<std::uint8_t>(mode);
+    st.touch_map_swap_xy = 0U;
+    st.touch_map_invert_x = 0U;
+    st.touch_map_invert_y = 0U;
+    switch (mode) {
+    case PlayerMd3TouchMapMode::Swap:
+        st.touch_map_swap_xy = 1U;
+        break;
+    case PlayerMd3TouchMapMode::InvertX:
+        st.touch_map_invert_x = 1U;
+        break;
+    case PlayerMd3TouchMapMode::InvertY:
+        st.touch_map_invert_y = 1U;
+        break;
+    case PlayerMd3TouchMapMode::Rot90:
+        st.touch_map_swap_xy = 1U;
+        st.touch_map_invert_x = 1U;
+        break;
+    case PlayerMd3TouchMapMode::Rot270:
+        st.touch_map_swap_xy = 1U;
+        st.touch_map_invert_y = 1U;
+        break;
+    case PlayerMd3TouchMapMode::Normal:
+    default:
+        break;
+    }
+}
+
+void print_touch_runtime_dispatch_status() noexcept {
+    const auto& st = state();
+    h747::console::write("touch_dispatch enabled=");
+    h747::console::write_dec(st.touch_dispatch_enabled);
+    h747::console::write(" once=");
+    h747::console::write_dec(st.touch_dispatch_once_active);
+    h747::console::write("/");
+    h747::console::write_dec(st.touch_dispatch_once_in_sequence);
+    h747::console::write(" blocked=");
+    h747::console::write_dec(st.touch_dispatch_blocked);
+    h747::console::write(" sent=");
+    h747::console::write_dec(st.touch_ui_sent);
+    h747::console::write(" last_action=");
+    h747::console::write_dec(st.touch_dispatch_last_action);
+    h747::console::write("\n");
+}
+
+void print_touch_map_status() noexcept {
+    const auto& st = state();
+    h747::console::write("touch_map mode=");
+    h747::console::write_dec(st.touch_map_mode);
+    h747::console::write(" flags=");
+    h747::console::write_dec(st.touch_map_swap_xy);
+    h747::console::write("/");
+    h747::console::write_dec(st.touch_map_invert_x);
+    h747::console::write("/");
+    h747::console::write_dec(st.touch_map_invert_y);
+    h747::console::write(" raw=");
+    h747::console::write_dec(st.touch_map_raw_x);
+    h747::console::write(",");
+    h747::console::write_dec(st.touch_map_raw_y);
+    h747::console::write(" ui=");
+    h747::console::write_dec(st.touch_map_ui_x);
+    h747::console::write(",");
+    h747::console::write_dec(st.touch_map_ui_y);
+    h747::console::write(" raw_max=");
+    h747::console::write_dec(st.touch_map_raw_w);
+    h747::console::write("x");
+    h747::console::write_dec(st.touch_map_raw_h);
+    h747::console::write(" display=");
+    h747::console::write_dec(st.touch_map_display_w);
+    h747::console::write("x");
+    h747::console::write_dec(st.touch_map_display_h);
+    h747::console::write("\n");
+}
+
+void print_touch_latency_status() noexcept {
+    const auto& st = state();
+    h747::console::write("touch_latency samples=");
+    h747::console::write_dec(st.touch_latency_samples);
+    h747::console::write(" last=");
+    h747::console::write_dec(st.touch_latency_last_int_to_poll_ms);
+    h747::console::write("/");
+    h747::console::write_dec(st.touch_latency_last_poll_to_dispatch_ms);
+    h747::console::write("/");
+    h747::console::write_dec(st.touch_latency_last_dispatch_to_frame_ms);
+    h747::console::write(" max=");
+    h747::console::write_dec(st.touch_latency_max_int_to_poll_ms);
+    h747::console::write("/");
+    h747::console::write_dec(st.touch_latency_max_poll_to_dispatch_ms);
+    h747::console::write("/");
+    h747::console::write_dec(st.touch_latency_max_dispatch_to_frame_ms);
+    h747::console::write(" ms poll=");
+    h747::console::write_dec(st.touch_latency_last_poll_ms);
+    h747::console::write(" dispatch=");
+    h747::console::write_dec(st.touch_latency_last_dispatch_ms);
+    h747::console::write(" frame=");
+    h747::console::write_dec(st.touch_latency_last_frame_ms);
+    h747::console::write("\n");
+}
+
 void record_input_snapshot(const PlayerMd3InputSnapshot snapshot) noexcept {
     auto& st = state();
     st.input_touch_ready = snapshot.touch_ready;
     st.input_touch_down = snapshot.touch_down;
     st.input_last_id = snapshot.touch_id;
+    st.input_touch_profile = snapshot.touch_profile;
+    st.input_touch_int_exti = snapshot.touch_int_exti;
+    st.input_touch_int_level = snapshot.touch_int_level;
+    st.input_touch_int_last_level = snapshot.touch_int_last_level;
     st.input_last_x = snapshot.touch_x;
     st.input_last_y = snapshot.touch_y;
+    st.input_touch_int_rise = snapshot.touch_int_rise;
+    st.input_touch_int_fall = snapshot.touch_int_fall;
+    st.input_touch_int_last_ms = snapshot.touch_int_last_ms;
     st.input_encoder1_delta = snapshot.encoder1_delta;
     st.input_encoder2_delta = snapshot.encoder2_delta;
     st.input_encoder1_button = snapshot.encoder1_button;
@@ -451,6 +794,127 @@ void record_input_encoder_event() noexcept {
 
 void record_input_button_event() noexcept {
     ++state().input_button_events;
+}
+
+std::uint32_t touch_oob_count() noexcept {
+    return state().touch_oob_count;
+}
+
+void record_touch_oob(const std::uint16_t raw_x,
+                      const std::uint16_t raw_y,
+                      const std::uint16_t clamped_x,
+                      const std::uint16_t clamped_y,
+                      const std::uint16_t max_x,
+                      const std::uint16_t max_y) noexcept {
+    auto& st = state();
+    ++st.touch_oob_count;
+    st.touch_oob_raw_x = raw_x;
+    st.touch_oob_raw_y = raw_y;
+    st.touch_oob_clamped_x = clamped_x;
+    st.touch_oob_clamped_y = clamped_y;
+    st.touch_oob_max_x = max_x;
+    st.touch_oob_max_y = max_y;
+}
+
+void reset_touch_sample_evidence(const bool enabled,
+                                 const std::uint8_t last_int,
+                                 const std::uint32_t now_ms) noexcept {
+    auto& st = state();
+    st.touch_sample_enabled = enabled ? 1U : 0U;
+    st.touch_sample_pause_render = enabled ? 1U : 0U;
+    if (!enabled) {
+        return;
+    }
+    st.touch_sample_count = 0U;
+    st.touch_sample_ready_hits = 0U;
+    st.touch_sample_int_changes = 0U;
+    st.touch_sample_last_ms = now_ms;
+    st.touch_sample_last_int = last_int;
+    st.touch_sample_raw_min_x = 0U;
+    st.touch_sample_raw_min_y = 0U;
+    st.touch_sample_raw_max_x = 0U;
+    st.touch_sample_raw_max_y = 0U;
+    st.touch_sample_filtered_x = 0U;
+    st.touch_sample_filtered_y = 0U;
+}
+
+void record_touch_sample_poll(const std::uint32_t now_ms,
+                              const std::uint8_t int_level,
+                              const bool ready_hit,
+                              const std::uint16_t raw_x,
+                              const std::uint16_t raw_y,
+                              const std::uint16_t max_x,
+                              const std::uint16_t max_y) noexcept {
+    auto& st = state();
+    ++st.touch_sample_count;
+    st.touch_sample_last_ms = now_ms;
+    if (int_level != st.touch_sample_last_int) {
+        ++st.touch_sample_int_changes;
+        st.touch_sample_last_int = int_level;
+    }
+    if (!ready_hit) {
+        return;
+    }
+
+    if (st.touch_sample_ready_hits == 0U) {
+        st.touch_sample_raw_min_x = raw_x;
+        st.touch_sample_raw_min_y = raw_y;
+        st.touch_sample_raw_max_x = raw_x;
+        st.touch_sample_raw_max_y = raw_y;
+    } else {
+        st.touch_sample_raw_min_x = raw_x < st.touch_sample_raw_min_x ? raw_x : st.touch_sample_raw_min_x;
+        st.touch_sample_raw_min_y = raw_y < st.touch_sample_raw_min_y ? raw_y : st.touch_sample_raw_min_y;
+        st.touch_sample_raw_max_x = raw_x > st.touch_sample_raw_max_x ? raw_x : st.touch_sample_raw_max_x;
+        st.touch_sample_raw_max_y = raw_y > st.touch_sample_raw_max_y ? raw_y : st.touch_sample_raw_max_y;
+    }
+    ++st.touch_sample_ready_hits;
+    st.touch_sample_filtered_x = clamp_touch_axis(raw_x, max_x);
+    st.touch_sample_filtered_y = clamp_touch_axis(raw_y, max_y);
+}
+
+PlayerMd3TouchSampleEvidence touch_sample_evidence() noexcept {
+    const auto& st = state();
+    return PlayerMd3TouchSampleEvidence{
+        .enabled = st.touch_sample_enabled,
+        .pause_render = st.touch_sample_pause_render,
+        .samples = st.touch_sample_count,
+        .ready_hits = st.touch_sample_ready_hits,
+        .int_changes = st.touch_sample_int_changes,
+        .raw_min_x = st.touch_sample_raw_min_x,
+        .raw_min_y = st.touch_sample_raw_min_y,
+        .raw_max_x = st.touch_sample_raw_max_x,
+        .raw_max_y = st.touch_sample_raw_max_y,
+        .filtered_x = st.touch_sample_filtered_x,
+        .filtered_y = st.touch_sample_filtered_y,
+        .oob_count = st.touch_oob_count,
+        .oob_raw_x = st.touch_oob_raw_x,
+        .oob_raw_y = st.touch_oob_raw_y,
+        .oob_clamped_x = st.touch_oob_clamped_x,
+        .oob_clamped_y = st.touch_oob_clamped_y,
+        .oob_max_x = st.touch_oob_max_x,
+        .oob_max_y = st.touch_oob_max_y,
+    };
+}
+
+void record_touch_config_auto_evidence(const std::uint8_t attempted,
+                                       const std::uint8_t written,
+                                       const std::uint8_t verify_ok,
+                                       const std::uint8_t stage,
+                                       const std::uint8_t invalid_reason,
+                                       const std::uint8_t before_valid,
+                                       const std::uint8_t after_valid,
+                                       const std::uint8_t force,
+                                       const std::uint32_t error_code) noexcept {
+    auto& st = state();
+    st.touch_cfg_auto_attempted = attempted;
+    st.touch_cfg_auto_written = written;
+    st.touch_cfg_auto_verify = verify_ok;
+    st.touch_cfg_auto_stage = stage;
+    st.touch_cfg_auto_err = invalid_reason;
+    st.touch_cfg_auto_before_valid = before_valid;
+    st.touch_cfg_auto_after_valid = after_valid;
+    st.touch_cfg_auto_force = force;
+    st.touch_cfg_auto_error_code = error_code;
 }
 
 void refresh_playback_probe_state() noexcept {
@@ -513,6 +977,7 @@ bool render_frame() noexcept {
     refresh_playback_probe_state();
     if (ok) {
         ++state().frames;
+        note_touch_render_frame();
     }
     update_smoke_verdict();
     return ok;
@@ -572,6 +1037,9 @@ void loop_runtime() noexcept {
     }
     poll_console_bridge();
     poll_input_bridge();
+    if (state().touch_monitor_pause_render != 0U || state().touch_sample_pause_render != 0U) {
+        return;
+    }
     (void)render_frame();
     maybe_print_loop_status();
 }

@@ -1,4 +1,5 @@
 #include "main.h"
+#include "input.h"
 #include "usart.h"
 
 #include <cstdint>
@@ -183,6 +184,12 @@ void DMA1_Stream2_IRQHandler(void) {
 }
 void DMA1_Stream3_IRQHandler(void) {
     HAL_DMA_IRQHandler(&hdma_usart1_rx);
+}
+void EXTI15_10_IRQHandler(void) {
+    if (__HAL_GPIO_EXTI_GET_IT(GPIO_PIN_11) != 0U) {
+        __HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_11);
+        input_touch_int_exti_notify(GPIO_PIN_11);
+    }
 }
 
 __attribute__((weak)) void LTDC_IRQHandler(void) {}

@@ -80,13 +80,15 @@ enum class WidgetKind : std::uint8_t {
 };
 
 export
-struct WidgetHandle {
+struct alignas(4) WidgetHandle {
     WidgetKind kind{WidgetKind::None};
     std::uint16_t index{0};
     std::uint16_t generation{0};
 
     constexpr explicit operator bool() const noexcept { return kind != WidgetKind::None; }
 };
+
+static_assert(alignof(WidgetHandle) >= alignof(std::uint32_t));
 
 export
 inline const char* widget_kind_name(WidgetKind kind) noexcept {

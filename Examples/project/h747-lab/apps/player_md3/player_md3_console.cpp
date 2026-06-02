@@ -32,6 +32,28 @@ void print_help() noexcept {
     h747::console::write_line("  input smoke - Inject semantic input smoke sequence");
     h747::console::write_line("  playback smoke - Start first track and verify I2S DMA callbacks");
     h747::console::write_line("  touch probe - Reset and probe GT970/GT9xx");
+    h747::console::write_line("  touch monitor on/off/status - Short touch trace; on pauses render");
+    h747::console::write_line("  touch raw/on/off/status - Print raw GT970 snapshot evidence");
+    h747::console::write_line("  touch raw dump - Dump GT9xx 0x814E point/status bytes");
+    h747::console::write_line("  touch sample on/off/status - Low-load GT9xx sampling, no UI dispatch");
+    h747::console::write_line("  touch dispatch on/off/once/status - Gate hardware touch into Player UI");
+    h747::console::write_line("  touch map normal/swap/invx/invy/rot90/rot270/status - Calibrate touch mapping");
+    h747::console::write_line("  touch latency status/reset - Print or reset touch latency evidence");
+    h747::console::write_line("  touch debug/wake - Print or wake GT970 registers");
+    h747::console::write_line("  touch bus status/recover - Print or recover I2C4/GT9xx bus state");
+    h747::console::write_line("  touch reprobe - Re-detect GT9xx product without config writes");
+    h747::console::write_line("  touch int status/reset - Print or reset TP_INT edge evidence");
+    h747::console::write_line("  touch info - Print GT9xx product/runtime register evidence");
+    h747::console::write_line("  touch cfg verify - Verify GT9xx config/checksum/fresh fields");
+    h747::console::write_line("  touch cfg ensure/force - Ensure or force-write GT9157 config");
+    h747::console::write_line("  touch scan status/wake/reset - Print GT9xx scan/runtime windows");
+    h747::console::write_line("  touch cfg int rising/falling/low/high - Change Goodix INT mode");
+    h747::console::write_line("  touch reset seq14/seq5d - Reset GT9xx with address-select INT level");
+    h747::console::write_line("  touch reset try14/try5d - Try address reset, restoring old addr on failure");
+    h747::console::write_line("  touch cfg luat0/1/2 [native] - Write Luat GT9157 candidate config");
+    h747::console::write_line("  touch cfg fire [native] - Write Fire BSP GT9157 candidate config");
+    h747::console::write_line("  touch cfg luat reset - Write Luat config then soft-reset GT9157");
+    h747::console::write_line("  touch softreset - Write GT9157 command 0x02 then wake");
     h747::console::write_line("  up/down     - Dispatch navigation command");
     h747::console::write_line("  enter/back  - Dispatch activation/back command");
     h747::console::write_line("  play        - Dispatch PlayToggle command");
@@ -151,6 +173,44 @@ void run_touch_probe() noexcept {
     print_status("player_md3");
 }
 
+void print_touch_monitor_status() noexcept {
+    const auto& st = state();
+    h747::console::write("touch_monitor enabled=");
+    h747::console::write_dec(st.touch_monitor_enabled);
+    h747::console::write(" pause_render=");
+    h747::console::write_dec(st.touch_monitor_pause_render);
+    h747::console::write(" events=");
+    h747::console::write_dec(st.touch_monitor_events);
+    h747::console::write(" ready=");
+    h747::console::write_dec(st.input_touch_ready);
+    h747::console::write(" down=");
+    h747::console::write_dec(st.input_touch_down);
+    h747::console::write(" x=");
+    h747::console::write_dec(st.input_last_x);
+    h747::console::write(" y=");
+    h747::console::write_dec(st.input_last_y);
+    h747::console::write(" int=");
+    h747::console::write_dec(st.input_touch_int_level);
+    h747::console::write("/");
+    h747::console::write_dec(st.input_touch_int_rise);
+    h747::console::write("/");
+    h747::console::write_dec(st.input_touch_int_fall);
+    h747::console::write("/");
+    h747::console::write_dec(st.input_touch_int_last_ms);
+    h747::console::write("/");
+    h747::console::write_dec(st.input_touch_int_exti);
+    h747::console::write("@");
+    h747::console::write_dec(st.input_touch_int_last_level);
+    h747::console::write("\n");
+}
+
+void reset_touch_controller_sequence(const std::uint8_t addr7) noexcept {
+    reset_touch_controller_address(addr7);
+    ensure_touch_config(false);
+    print_touch_info_status();
+    print_touch_scan_status();
+}
+
 void handle_command(std::string_view line) noexcept {
     if (line.empty()) {
         return;
@@ -181,6 +241,179 @@ void handle_command(std::string_view line) noexcept {
         print_status("player_md3");
     } else if (line == "touch probe"sv) {
         run_touch_probe();
+    } else if (line == "touch monitor on"sv) {
+        set_touch_monitor_enabled(true, true);
+        h747::console::write_line("touch_monitor: on pause_render=1");
+        print_touch_monitor_status();
+    } else if (line == "touch monitor off"sv) {
+        set_touch_monitor_enabled(false, false);
+        h747::console::write_line("touch_monitor: off");
+        print_touch_monitor_status();
+    } else if (line == "touch monitor status"sv) {
+        print_touch_monitor_status();
+    } else if (line == "touch raw"sv) {
+        print_touch_raw_status();
+    } else if (line == "touch raw on"sv) {
+        set_touch_raw_monitor_enabled(true);
+        h747::console::write_line("touch_raw: on");
+        print_touch_raw_status();
+    } else if (line == "touch raw off"sv) {
+        set_touch_raw_monitor_enabled(false);
+        h747::console::write_line("touch_raw: off");
+        print_touch_raw_status();
+    } else if (line == "touch raw status"sv) {
+        h747::console::write("touch_raw enabled=");
+        h747::console::write_dec(touch_raw_monitor_enabled() ? 1U : 0U);
+        h747::console::write("\n");
+        print_touch_raw_status();
+    } else if (line == "touch raw dump"sv) {
+        print_touch_raw_dump();
+    } else if (line == "touch sample on"sv) {
+        set_touch_sample_enabled(true);
+        h747::console::write_line("touch_sample: on pause_render=1 no_ui=1");
+        print_touch_sample_status();
+    } else if (line == "touch sample off"sv) {
+        set_touch_sample_enabled(false);
+        h747::console::write_line("touch_sample: off");
+        print_touch_sample_status();
+    } else if (line == "touch sample status"sv) {
+        print_touch_sample_status();
+    } else if (line == "touch dispatch on"sv) {
+        set_touch_runtime_dispatch_enabled(true);
+        h747::console::write_line("touch_dispatch: on");
+        print_touch_runtime_dispatch_status();
+    } else if (line == "touch dispatch off"sv) {
+        set_touch_runtime_dispatch_enabled(false);
+        h747::console::write_line("touch_dispatch: off");
+        print_touch_runtime_dispatch_status();
+    } else if (line == "touch dispatch once"sv) {
+        set_touch_runtime_dispatch_once();
+        h747::console::write_line("touch_dispatch: once");
+        print_touch_runtime_dispatch_status();
+    } else if (line == "touch dispatch status"sv) {
+        print_touch_runtime_dispatch_status();
+    } else if (line == "touch map status"sv) {
+        print_touch_map_status();
+    } else if (line == "touch map normal"sv) {
+        set_touch_map_mode(PlayerMd3TouchMapMode::Normal);
+        print_touch_map_status();
+    } else if (line == "touch map swap"sv) {
+        set_touch_map_mode(PlayerMd3TouchMapMode::Swap);
+        print_touch_map_status();
+    } else if (line == "touch map invx"sv) {
+        set_touch_map_mode(PlayerMd3TouchMapMode::InvertX);
+        print_touch_map_status();
+    } else if (line == "touch map invy"sv) {
+        set_touch_map_mode(PlayerMd3TouchMapMode::InvertY);
+        print_touch_map_status();
+    } else if (line == "touch map rot90"sv) {
+        set_touch_map_mode(PlayerMd3TouchMapMode::Rot90);
+        print_touch_map_status();
+    } else if (line == "touch map rot270"sv) {
+        set_touch_map_mode(PlayerMd3TouchMapMode::Rot270);
+        print_touch_map_status();
+    } else if (line == "touch latency status"sv) {
+        print_touch_latency_status();
+    } else if (line == "touch latency reset"sv) {
+        reset_touch_latency_evidence();
+        h747::console::write_line("touch_latency: reset");
+        print_touch_latency_status();
+    } else if (line == "touch debug"sv) {
+        print_touch_debug_status();
+    } else if (line == "touch bus status"sv) {
+        print_touch_bus_status();
+    } else if (line == "touch bus recover"sv) {
+        recover_touch_bus();
+    } else if (line == "touch reprobe"sv) {
+        reprobe_touch_bus();
+    } else if (line == "touch int status"sv) {
+        print_touch_int_status();
+    } else if (line == "touch int reset"sv) {
+        reset_touch_int_counters();
+    } else if (line == "touch info"sv) {
+        print_touch_info_status();
+    } else if (line == "touch cfg verify"sv) {
+        print_touch_config_verify_status();
+    } else if (line == "touch cfg ensure"sv) {
+        ensure_touch_config(false);
+        print_touch_config_verify_status();
+    } else if (line == "touch cfg force"sv) {
+        ensure_touch_config(true);
+        print_touch_config_verify_status();
+    } else if (line == "touch scan status"sv) {
+        print_touch_scan_status();
+    } else if (line == "touch scan wake"sv) {
+        wake_touch_scan();
+    } else if (line == "touch scan reset"sv) {
+        reset_touch_scan();
+    } else if (line == "touch cfg int rising"sv) {
+        set_touch_int_mode(0U, "touch_cfg_int_rising");
+    } else if (line == "touch cfg int falling"sv) {
+        set_touch_int_mode(1U, "touch_cfg_int_falling");
+    } else if (line == "touch cfg int low"sv) {
+        set_touch_int_mode(2U, "touch_cfg_int_low");
+    } else if (line == "touch cfg int high"sv) {
+        set_touch_int_mode(3U, "touch_cfg_int_high");
+    } else if (line == "touch cfg luat0"sv) {
+        force_luat_touch_config(0U, 720U, 1280U, "touch_cfg_luat0");
+    } else if (line == "touch cfg luat1"sv) {
+        force_luat_touch_config(1U, 720U, 1280U, "touch_cfg_luat1");
+    } else if (line == "touch cfg luat2"sv) {
+        force_luat_touch_config(2U, 720U, 1280U, "touch_cfg_luat2");
+    } else if (line == "touch cfg luat0 native"sv) {
+        force_luat_touch_config(0U, 0U, 0U, "touch_cfg_luat0_native");
+    } else if (line == "touch cfg luat1 native"sv) {
+        force_luat_touch_config(1U, 0U, 0U, "touch_cfg_luat1_native");
+    } else if (line == "touch cfg luat2 native"sv) {
+        force_luat_touch_config(2U, 0U, 0U, "touch_cfg_luat2_native");
+    } else if (line == "touch cfg luat0 800x480"sv) {
+        force_luat_touch_config(0U, 800U, 480U, "touch_cfg_luat0_800x480");
+    } else if (line == "touch cfg luat1 800x480"sv) {
+        force_luat_touch_config(1U, 800U, 480U, "touch_cfg_luat1_800x480");
+    } else if (line == "touch cfg luat2 800x480"sv) {
+        force_luat_touch_config(2U, 800U, 480U, "touch_cfg_luat2_800x480");
+    } else if (line == "touch cfg luat0 1024x600"sv) {
+        force_luat_touch_config(0U, 1024U, 600U, "touch_cfg_luat0_1024x600");
+    } else if (line == "touch cfg luat1 1024x600"sv) {
+        force_luat_touch_config(1U, 1024U, 600U, "touch_cfg_luat1_1024x600");
+    } else if (line == "touch cfg luat2 1024x600"sv) {
+        force_luat_touch_config(2U, 1024U, 600U, "touch_cfg_luat2_1024x600");
+    } else if (line == "touch cfg luat0 1280x720"sv) {
+        force_luat_touch_config(0U, 1280U, 720U, "touch_cfg_luat0_1280x720");
+    } else if (line == "touch cfg luat1 1280x720"sv) {
+        force_luat_touch_config(1U, 1280U, 720U, "touch_cfg_luat1_1280x720");
+    } else if (line == "touch cfg luat2 1280x720"sv) {
+        force_luat_touch_config(2U, 1280U, 720U, "touch_cfg_luat2_1280x720");
+    } else if (line == "touch cfg fire"sv) {
+        force_fire_touch_config(720U, 1280U, "touch_cfg_fire");
+    } else if (line == "touch cfg fire native"sv) {
+        force_fire_touch_config(0U, 0U, "touch_cfg_fire_native");
+    } else if (line == "touch cfg fire 800x480"sv) {
+        force_fire_touch_config(800U, 480U, "touch_cfg_fire_800x480");
+    } else if (line == "touch cfg fire 1024x600"sv) {
+        force_fire_touch_config(1024U, 600U, "touch_cfg_fire_1024x600");
+    } else if (line == "touch cfg fire 1280x720"sv) {
+        force_fire_touch_config(1280U, 720U, "touch_cfg_fire_1280x720");
+    } else if (line == "touch wake"sv) {
+        wake_touch_controller();
+    } else if (line == "touch reset14"sv) {
+        reset_touch_controller_address(0x14U);
+    } else if (line == "touch reset5d"sv) {
+        reset_touch_controller_address(0x5DU);
+    } else if (line == "touch reset seq14"sv) {
+        reset_touch_controller_sequence(0x14U);
+    } else if (line == "touch reset seq5d"sv) {
+        reset_touch_controller_sequence(0x5DU);
+    } else if (line == "touch reset try14"sv) {
+        try_reset_touch_controller_address(0x14U);
+    } else if (line == "touch reset try5d"sv) {
+        try_reset_touch_controller_address(0x5DU);
+    } else if (line == "touch cfg luat"sv) {
+        force_luat_touch_config(2U, 720U, 1280U, "touch_cfg_luat");
+    } else if (line == "touch cfg luat reset"sv) {
+        load_luat_touch_config_and_reset();
+    } else if (line == "touch softreset"sv) {
+        soft_reset_touch_controller();
     } else if (line == "up"sv) {
         dispatch_command(PlayerMd3InputCommand::Up);
     } else if (line == "down"sv) {

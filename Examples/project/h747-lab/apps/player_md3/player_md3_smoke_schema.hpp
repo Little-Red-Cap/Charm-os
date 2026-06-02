@@ -39,6 +39,8 @@ enum class PlayerMd3SmokeField : std::uint8_t {
     FailTextImage,
     Input,
     Touch,
+    TouchInt,
+    TouchConfigAuto,
     Events,
     InputRoute,
     InputSmoke,
@@ -67,6 +69,13 @@ enum class PlayerMd3SmokeField : std::uint8_t {
     ExecCmdKinds,
     ExecFailDetail,
     PerfTime,
+    Dma2d,
+    TouchOob,
+    TouchSample,
+    TouchDispatch,
+    TouchMap,
+    TouchUi,
+    TouchLatency,
 };
 
 [[nodiscard]] constexpr const char* smoke_field_token(
@@ -142,6 +151,10 @@ enum class PlayerMd3SmokeField : std::uint8_t {
         return "input";
     case PlayerMd3SmokeField::Touch:
         return "t";
+    case PlayerMd3SmokeField::TouchInt:
+        return "touch_int";
+    case PlayerMd3SmokeField::TouchConfigAuto:
+        return "cfg_auto";
     case PlayerMd3SmokeField::Events:
         return "e";
     case PlayerMd3SmokeField::InputRoute:
@@ -186,6 +199,20 @@ enum class PlayerMd3SmokeField : std::uint8_t {
         return "lcr";
     case PlayerMd3SmokeField::LtdcPixelFormat:
         return "lpf";
+    case PlayerMd3SmokeField::Dma2d:
+        return "dma2d";
+    case PlayerMd3SmokeField::TouchOob:
+        return "touch_oob";
+    case PlayerMd3SmokeField::TouchSample:
+        return "touch_sample";
+    case PlayerMd3SmokeField::TouchDispatch:
+        return "touch_dispatch";
+    case PlayerMd3SmokeField::TouchMap:
+        return "touch_map";
+    case PlayerMd3SmokeField::TouchUi:
+        return "touch_ui";
+    case PlayerMd3SmokeField::TouchLatency:
+        return "touch_latency";
     }
     return "unknown";
 }

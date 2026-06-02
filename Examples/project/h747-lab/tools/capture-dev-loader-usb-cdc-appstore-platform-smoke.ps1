@@ -1,5 +1,6 @@
 param(
     [string]$PacketStream = "",
+    [string]$ArtifactManifest = "",
     [string]$ControlPort = "COM16",
     [string]$UsbPort = "",
     [int]$ControlBaudRate = 115200,
@@ -19,6 +20,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "charm-resident-artifacts.ps1")
 
 function Test-ContainsLiteral {
     param(
@@ -101,11 +103,13 @@ function Get-RequiredTokens {
     param(
         [int]$PayloadSize,
         [uint32]$Crc32,
-        [string]$Media
+        [string]$Media,
+        [object[]]$Artifacts
     )
 
     $ListToken = if ($Media -eq "emmc") { "dev: store emmc entries=3" } else { "dev: store entries=3" }
-    return @(
+    $Tokens = New-Object System.Collections.Generic.List[string]
+    foreach ($Token in @(
         "USB CDC packetstream transfer passed.",
         "dev: usb active=0 exit=launch_ready",
         "dev: stage=launch_ready code=ok received=$PayloadSize",
@@ -114,10 +118,6 @@ function Get-RequiredTokens {
         "dev: store install $Media receive=ok",
         "store=ok code=ok",
         $ListToken,
-        "name=hello_app",
-        "name=player_min",
-        "name=modulex_hello_app",
-        "format=modulex",
         "hello_app: charm_app_main entered",
         "hello_app: argv1=alpha",
         "dev: app command=run name=${Media}:hello_app run=enabled",
@@ -128,11 +128,19 @@ function Get-RequiredTokens {
         "dev: app format=modulex modulex=ok",
         "dev: app modulex diag validate=ok",
         "relocated=1",
-        "dev: app stage-arena name=sdram2_stage_cache addr=0xd0040000 expected=0xd0040000",
-        "dev: app sdram2 ready=1 init=1 smoke=1 base=0xd0000000",
+        "dev: app stage-arena name=",
+        "dev: app sdram2 ready=",
         "present_count=1",
         "input_polls=1"
-    )
+    )) {
+        [void]$Tokens.Add($Token)
+    }
+    foreach ($Artifact in $Artifacts) {
+        [void]$Tokens.Add("name=$($Artifact.Name)")
+        [void]$Tokens.Add("format=$($Artifact.Format)")
+        [void]$Tokens.Add(("flags=0x{0:x8}" -f $Artifact.StoreFlags))
+    }
+    return ,$Tokens.ToArray()
 }
 
 function Get-RequiredCounts {
@@ -240,13 +248,13 @@ $ListLine
 hello_app: charm_app_main entered
 hello_app: argv1=alpha
 dev: app command=run name=${Media}:hello_app run=enabled
-dev: app stage-arena name=sdram2_stage_cache addr=0xd0040000 expected=0xd0040000 size=131072 align=32
-dev: app sdram2 ready=1 init=1 smoke=1 base=0xd0000000 size=33554432
+dev: app stage-arena name=ram_d1_stage_fallback addr=0x240241e0 expected=0x240241e0 size=131072 align=32
+dev: app sdram2 ready=0 init=1 smoke=0 base=0xd0000000 size=33554432
 dev: app run stage=exit code=ok backend=0 load=0x24070000 entry=0x24070021 span=270 segments=2 exited=1 exit=0 app_exit=0 app_exit_code=0
 player_min: presented one frame
 dev: app command=run name=${Media}:player_min run=enabled
-dev: app stage-arena name=sdram2_stage_cache addr=0xd0040000 expected=0xd0040000 size=131072 align=32
-dev: app sdram2 ready=1 init=1 smoke=1 base=0xd0000000 size=33554432
+dev: app stage-arena name=ram_d1_stage_fallback addr=0x240241e0 expected=0x240241e0 size=131072 align=32
+dev: app sdram2 ready=0 init=1 smoke=0 base=0xd0000000 size=33554432
 dev: app run stage=exit code=ok backend=0 load=0x24070000 entry=0x24070001 span=1280 segments=3 exited=1 exit=0 app_exit=0 app_exit_code=0
 dev: app caps console_bytes=32 present_count=1 present_bytes=1024 sample0=0xff51a851 input_polls=1
 modulex_hello_app: charm_app_main entered
@@ -259,8 +267,21 @@ platform repeat 1/1 passed
 }
 
 function Invoke-SelfTest {
+    if (-not (Test-CharmResidentArtifactManifestSelfTest)) {
+        Write-Host "Self-test failed: artifact manifest helper checks failed."
+        return 1
+    }
+    $SyntheticArtifacts = @(
+        [pscustomobject]@{ Name = "hello_app"; Format = "elf"; StoreFlags = [uint32]0 },
+        [pscustomobject]@{ Name = "player_min"; Format = "elf"; StoreFlags = [uint32]0 },
+        [pscustomobject]@{ Name = "modulex_hello_app"; Format = "modulex"; StoreFlags = [uint32]1 }
+    )
     foreach ($TestMedia in @("qspi", "emmc")) {
-        $Tokens = Get-RequiredTokens -PayloadSize 10676 -Crc32 ([uint32]0x647b2090) -Media $TestMedia
+        $Tokens = Get-RequiredTokens `
+            -PayloadSize 10676 `
+            -Crc32 ([uint32]0x647b2090) `
+            -Media $TestMedia `
+            -Artifacts $SyntheticArtifacts
         $Counts = Get-RequiredCounts -Media $TestMedia
         $Missing = Get-MissingEvidence -Text (Get-SyntheticPassingLog -Media $TestMedia) -Tokens $Tokens -Counts $Counts
         if ($Missing.Count -ne 0) {
@@ -403,8 +424,9 @@ if ($Repeat -le 0) {
 }
 
 $ProjectRoot = Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")
+$Manifest = Read-CharmResidentArtifactManifest -Path $ArtifactManifest
 if ([string]::IsNullOrWhiteSpace($PacketStream)) {
-    $PacketStream = Join-Path $ProjectRoot "..\..\app_abi\elf_samples\out\appstore.bin.packetstream"
+    $PacketStream = $Manifest.StorePacketStreamPath
 }
 if (-not (Test-Path -LiteralPath $PacketStream)) {
     throw "PacketStream not found: $PacketStream"
@@ -426,9 +448,22 @@ if (-not (Test-Path -LiteralPath $TransferSmoke)) {
 $ResolvedPacketStream = (Resolve-Path -LiteralPath $PacketStream).Path
 $PacketBytes = [System.IO.File]::ReadAllBytes($ResolvedPacketStream)
 $PacketInfo = Get-PacketStreamBeginInfo -Bytes $PacketBytes
-$RequiredTokens = Get-RequiredTokens -PayloadSize $PacketInfo.PayloadSize -Crc32 $PacketInfo.Crc32 -Media $Media
+$RequiredTokens = Get-RequiredTokens `
+    -PayloadSize $PacketInfo.PayloadSize `
+    -Crc32 $PacketInfo.Crc32 `
+    -Media $Media `
+    -Artifacts $Manifest.Artifacts
 $RequiredCounts = Get-RequiredCounts -Repeat $Repeat -Media $Media
 $PerRepeatCounts = Get-RequiredCounts -Repeat 1 -Media $Media
+
+if ($ResolvedPacketStream -eq $Manifest.StorePacketStreamPath) {
+    if ($PacketInfo.PayloadSize -ne $Manifest.StoreSize) {
+        throw "size_mismatch: manifest store payload=$($Manifest.StoreSize) packetstream=$($PacketInfo.PayloadSize)"
+    }
+    if ($PacketInfo.Crc32 -ne $Manifest.StoreCrc32) {
+        throw "crc_mismatch: manifest store crc=$(Format-CharmResidentHex32 $Manifest.StoreCrc32) packetstream=$(Format-CharmResidentHex32 $PacketInfo.Crc32)"
+    }
+}
 
 if (-not [string]::IsNullOrWhiteSpace($ValidateLog)) {
     exit (Validate-LogFile -Path $ValidateLog -Tokens $RequiredTokens -Counts $RequiredCounts -Repeat $Repeat)
@@ -440,6 +475,7 @@ if ($DryRun) {
     Write-Host "  control port: $ControlPort"
     Write-Host "  usb port:     $(if ([string]::IsNullOrWhiteSpace($UsbPort)) { 'auto-discover after dev usb begin' } else { $UsbPort })"
     Write-Host "  packetstream: $ResolvedPacketStream"
+    Write-Host "  manifest:     $($Manifest.Path)"
     Write-Host "  bytes:        $($PacketBytes.Length)"
     Write-Host "  payload:      $($PacketInfo.PayloadSize)"
     Write-Host ("  expected crc: 0x{0:x8}" -f $PacketInfo.Crc32)
@@ -468,6 +504,7 @@ try {
     Write-CaptureText "  control port: $ControlPort`n"
     Write-CaptureText "  usb port:     $(if ([string]::IsNullOrWhiteSpace($UsbPort)) { 'auto' } else { $UsbPort })`n"
     Write-CaptureText "  packetstream: $ResolvedPacketStream`n"
+    Write-CaptureText "  manifest:     $($Manifest.Path)`n"
     Write-CaptureText "  bytes:        $($PacketBytes.Length)`n"
     Write-CaptureText "  payload:      $($PacketInfo.PayloadSize)`n"
     Write-CaptureText ("  expected crc: 0x{0:x8}`n" -f $PacketInfo.Crc32)

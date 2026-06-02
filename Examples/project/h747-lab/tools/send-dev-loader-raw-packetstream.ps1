@@ -288,6 +288,10 @@ try {
         throw "Timed out waiting for launch_ready."
     }
     $LaunchReadyElapsed = [DateTime]::UtcNow - $Start
+    [void](Wait-ForToken -Serial $Serial -Token "dev-loader>" -Deadline ([DateTime]::UtcNow.AddSeconds(2)))
+    $Serial.WriteLine("dev raw status")
+    Write-CaptureText "`n[sender] sent: dev raw status`n"
+    [void](Wait-ForToken -Serial $Serial -Token "dev-loader>" -Deadline ([DateTime]::UtcNow.AddSeconds(2)))
     $Captured = $RawCapture.ToString()
     $ExpectedReceived = "received=$($PacketInfo.PayloadSize)"
     if ($Captured.IndexOf($ExpectedReceived, [System.StringComparison]::Ordinal) -lt 0) {

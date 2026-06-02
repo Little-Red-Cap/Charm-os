@@ -88,6 +88,22 @@ Packet frontend commands:
 - `dev app run <name>|qspi:<name>|emmc:<name> [args...]`
 - `dev app status`
 
+`dev app status` now prints a canonical resident ELF/App run record in addition
+to the legacy command line:
+
+```text
+dev: app record source=<received|qspi|emmc> format=<elf|modulex> name=<app>
+  command=<stage|probe|prepare|run> argv=<argc> load=<addr> entry=<addr>
+  span=<bytes> segments=<n> run_stage=<stage> run_code=<code>
+  exited=<0|1> exit=<code> caps_console=<bytes> caps_present=<n> caps_input=<n>
+```
+
+For ELF, `received`, `qspi`, and `emmc` are expected to converge on the same
+`AppImage(format=elf) -> staged AppImageSource -> AppRuntime -> CharmAppApi`
+result model. The legacy `dev: app command=... name=qspi:<name>` token remains
+for existing scripts, but new platform checks should prefer the canonical
+`source=... format=elf name=...` record.
+
 `dev packet ingest` accepts continuous hex pairs or space-separated hex pairs.
 The current console line buffer is 128 bytes, so keep each command small; use
 roughly 48 decoded bytes or less per line and split large packet streams across
@@ -199,20 +215,22 @@ USB CDC board validation status:
   `65.37..77.38 KiB/s`, `512` bytes at `64.63..75.33 KiB/s`, and `1024` bytes
   at `64.92..68.11 KiB/s`. All runs reached `exit=launch_ready`,
   `received=10416`, CRC `0x73de4894/0x73de4894`, and `dropped=0 overflow=0`.
-- SDRAM arena migration is board-validated after USB frontend hardening: the
-  receive backing store is `sdram2_receive_buffer` at `0xD0000000` with
-  `256 KiB`, and the staging scratch is `sdram2_stage_cache` at `0xD0040000`
-  with `128 KiB`. The build result reports `RAM_D1=83440 B`,
-  `SDRAM=384 KiB`, `FLASH=274316 B`, and `h747_lab_dev_loader.bin=274316`
-  bytes. `dev status` and `dev app status` print the actual arena addresses
-  plus SDRAM2 `ready/init/smoke` state for board-side validation.
-- The SDRAM build was flashed once with `pyocd load --format bin -a
-  0x08000000`; pyOCD exited `0`, took `176.013s`, and programmed at about
-  `1.55 KiB/s`. This confirms the resident-loader path still matters: the
-  internal Flash download link remains the slow step.
-- The post-flash monitor smoke reported `sdram2 ready=1 init=1 smoke=1`,
-  receive arena `addr=0xd0000000 expected=0xd0000000`, QSPI ready, and the
-  existing Store v1 header readable with two entries.
+- The resident runtime prefers SDRAM2 for receive/stage arenas when SDRAM2 is
+  healthy: `sdram2_receive_buffer` at `0xD0000000` with `256 KiB`, and
+  `sdram2_stage_cache` at `0xD0040000` with `128 KiB`. If SDRAM2 smoke fails,
+  startup continues and the runtime falls back to D1 RAM receive/stage arenas
+  (`128 KiB` each). `dev status` and `dev app status` print the actual arena
+  names, addresses, capacity, and SDRAM2 `ready/init/smoke` state so board logs
+  can distinguish platform fallback from Store/AppRuntime failures.
+- SDRAM2 diagnostic closure: the dedicated `diag_shell` probes passed SDRAM2
+  `probe/bus/addr/lane/repeat/locate/verify` across the `0xD0000000..0xD2000000`
+  window, and timing sweep passed all tested presets except the expected
+  burst-length-8 variant. Storage/eMMC initialization did not break SDRAM2.
+  The earlier `dev_loader` fallback was caused by probing memory before the
+  storage power profile was applied, not by data/address lines or partial-bank
+  failure. `dev_loader` now applies `storage_stage_a` before SDRAM2 smoke, and
+  the board smoke reports `sdram2 ready=1 init=1 smoke=1` with receive arena
+  `sdram2_receive_buffer`.
 - The SDRAM build passed the safe USB App Store transfer smoke three
   consecutive times with 256-byte writes plus 1 ms delay. Throughput was
   `12.77..13.45 KiB/s`; every run reached `exit=launch_ready`, received
@@ -235,6 +253,26 @@ USB CDC board validation status:
   D1 App ELF run-region token, so a media pass cannot hide an arena regression.
   Use `capture-dev-loader-usb-cdc-appstore-platform-smoke.ps1 -Media qspi|emmc`
   when only one Store media needs to be checked.
+- Before running the matrix, regenerate the canonical resident-platform input
+  artifacts with `Examples/app_abi/elf_samples/build_resident_platform_artifacts.ps1`.
+  The script emits `hello_app.elf`, `player_min.elf`,
+  `modulex_hello_app.modulex`, the mixed `appstore.bin`, packetstreams for each,
+  and `artifact_manifest.json` under `Examples/app_abi/elf_samples/out`. The
+  manifest is a host/CI evidence index only; it is not Store v1 metadata and does
+  not change the board protocol.
+- The App Store platform, matrix, and App-run capture scripts now accept
+  `-ArtifactManifest` and default to the generated manifest. The recommended
+  resident-platform evidence flow is now
+  `capture-resident-platform-evidence-bundle.ps1`. By default it runs only the
+  off-board chain: `build_resident_platform_artifacts.ps1 -Validate`,
+  `resident-platform-inspect --strict`, host regression smokes, and H747
+  `dev_loader` build-only. Passing `-BoardMatrix` explicitly appends the
+  QSPI/eMMC USB CDC platform matrix; without that switch it does not open serial,
+  USB, reset, or flash the board. Passing `-InstalledStoreMatrix` explicitly runs
+  a lighter persistence check that does not download or install anything; it only
+  lists the already-installed QSPI/eMMC stores and runs the three resident apps
+  by name. Explicit `-PacketStream` on the lower-level scripts remains the
+  override path for temporary stress inputs.
 - The first matrix board run passed for both media with the safe USB defaults:
   QSPI reported about `13.28 KiB/s`, `written=10416`, `erased=12288`, and eMMC
   reported about `13.27 KiB/s`, `written=10416`, `erased=10752`. Both media
@@ -387,6 +425,21 @@ Board validation helpers:
   `powershell -ExecutionPolicy Bypass -File tools/capture-dev-loader-usb-cdc-appstore-platform-smoke.ps1`
 - Run the full QSPI/eMMC resident App Store platform matrix smoke:
   `powershell -ExecutionPolicy Bypass -File tools/capture-dev-loader-usb-cdc-appstore-platform-matrix-smoke.ps1`
+- Run the ELF-only resident platform smoke across received, QSPI, and eMMC:
+  `powershell -ExecutionPolicy Bypass -File tools/capture-dev-loader-usb-cdc-elf-platform-smoke.ps1`
+- Run the same ELF-only resident platform smoke through raw UART when USB device
+  enumeration is unavailable:
+  `powershell -ExecutionPolicy Bypass -File tools/capture-dev-loader-raw-elf-platform-smoke.ps1`
+- Run only the installed-store persistence matrix, without USB download/install:
+  `powershell -ExecutionPolicy Bypass -File tools/capture-dev-loader-installed-store-matrix-smoke.ps1`
+- Run the default off-board resident platform evidence bundle:
+  `powershell -ExecutionPolicy Bypass -File tools/capture-resident-platform-evidence-bundle.ps1`
+- Run the same evidence bundle and append the QSPI/eMMC board matrix:
+  `powershell -ExecutionPolicy Bypass -File tools/capture-resident-platform-evidence-bundle.ps1 -BoardMatrix -UsbPort COMxx`
+- Run the same evidence bundle and append only the installed-store persistence matrix:
+  `powershell -ExecutionPolicy Bypass -File tools/capture-resident-platform-evidence-bundle.ps1 -InstalledStoreMatrix`
+- Inspect the canonical resident-platform artifacts before using the board:
+  `Examples/system/resident_platform_inspect_tool/cmake-build-resident-platform-inspect-tool/Debug/resident-platform-inspect.exe Examples/app_abi/elf_samples/out/artifact_manifest.json`
 - Sweep USB CDC chunk sizes against the same App Store packetstream:
   `powershell -ExecutionPolicy Bypass -File tools/capture-dev-loader-usb-cdc-throughput-sweep.ps1 -UsbPort COMxx`
 - Capture a received App ELF run smoke:

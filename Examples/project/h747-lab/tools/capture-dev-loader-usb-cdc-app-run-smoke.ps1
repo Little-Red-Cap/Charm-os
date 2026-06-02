@@ -1,5 +1,6 @@
 param(
     [string]$PacketStream = "",
+    [string]$ArtifactManifest = "",
     [string]$AppName = "received_app",
     [string]$AppArgs = "",
     [string]$ControlPort = "COM16",
@@ -21,6 +22,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "charm-resident-artifacts.ps1")
 
 function Test-ContainsLiteral {
     param(
@@ -229,6 +231,10 @@ function Wait-ForUsbPort {
 }
 
 function Invoke-SelfTest {
+    if (-not (Test-CharmResidentArtifactManifestSelfTest)) {
+        Write-Host "Self-test failed: artifact manifest helper checks failed."
+        return 1
+    }
     foreach ($Format in @("elf", "modulex")) {
         $Extra = if ($Format -eq "modulex") { @("modulex_hello_app: charm_app_main entered") } else { @("present_count=1") }
         $Tokens = Get-DefaultTokens -Format $Format -ExtraTokens $Extra
@@ -266,19 +272,30 @@ if ($SelfTest) {
     exit (Invoke-SelfTest)
 }
 
-$RequiredTokens = Get-DefaultTokens -Format $AppFormat -ExtraTokens $Expect
-if (-not [string]::IsNullOrWhiteSpace($ValidateLog)) {
-    exit (Validate-LogFile -Path $ValidateLog -Tokens $RequiredTokens)
+if ([string]::IsNullOrWhiteSpace($AppName)) {
+    throw "AppName must not be empty."
 }
 
+$Manifest = Read-CharmResidentArtifactManifest -Path $ArtifactManifest
+$ManifestArtifact = $null
 if ([string]::IsNullOrWhiteSpace($PacketStream)) {
-    throw "PacketStream is required."
+    $ManifestArtifact = Get-CharmResidentArtifact -Manifest $Manifest -Name $AppName
+    $PacketStream = $ManifestArtifact.PacketStreamPath
+    $AppFormat = $ManifestArtifact.Format
+} else {
+    $PacketStream = (Resolve-Path -LiteralPath $PacketStream).Path
+    $Matches = @($Manifest.Artifacts | Where-Object { $_.Name -eq $AppName })
+    if ($Matches.Count -eq 1) {
+        $ManifestArtifact = $Matches[0]
+    }
 }
 if (-not (Test-Path -LiteralPath $PacketStream)) {
     throw "PacketStream not found: $PacketStream"
 }
-if ([string]::IsNullOrWhiteSpace($AppName)) {
-    throw "AppName must not be empty."
+
+$RequiredTokens = Get-DefaultTokens -Format $AppFormat -ExtraTokens $Expect
+if (-not [string]::IsNullOrWhiteSpace($ValidateLog)) {
+    exit (Validate-LogFile -Path $ValidateLog -Tokens $RequiredTokens)
 }
 if ($TimeoutSeconds -le 0) {
     throw "TimeoutSeconds must be greater than zero."
@@ -307,6 +324,16 @@ if (-not (Test-Path -LiteralPath $Sender)) {
 }
 
 $ResolvedPacketStream = (Resolve-Path -LiteralPath $PacketStream).Path
+$PacketBytesForManifest = [System.IO.File]::ReadAllBytes($ResolvedPacketStream)
+$PacketInfoForManifest = Get-CharmResidentPacketStreamBeginInfo -Bytes $PacketBytesForManifest
+if ($null -ne $ManifestArtifact -and $ResolvedPacketStream -eq $ManifestArtifact.PacketStreamPath) {
+    if ($PacketInfoForManifest.PayloadSize -ne $ManifestArtifact.Size) {
+        throw "size_mismatch: manifest app payload=$($ManifestArtifact.Size) packetstream=$($PacketInfoForManifest.PayloadSize)"
+    }
+    if ($PacketInfoForManifest.Crc32 -ne $ManifestArtifact.Crc32) {
+        throw "crc_mismatch: manifest app crc=$(Format-CharmResidentHex32 $ManifestArtifact.Crc32) packetstream=$(Format-CharmResidentHex32 $PacketInfoForManifest.Crc32)"
+    }
+}
 $ResolvedLog = [System.IO.Path]::GetFullPath($Log)
 $DownloadLog = [System.IO.Path]::ChangeExtension($ResolvedLog, ".usb-download.log")
 
@@ -315,6 +342,7 @@ if ($DryRun) {
     Write-Host "  control port: $ControlPort"
     Write-Host "  usb port:     $(if ([string]::IsNullOrWhiteSpace($UsbPort)) { 'auto-discover after dev usb begin' } else { $UsbPort })"
     Write-Host "  packetstream: $ResolvedPacketStream"
+    Write-Host "  manifest:     $($Manifest.Path)"
     Write-Host "  app:          $AppName"
     Write-Host "  format:       $AppFormat"
     Write-Host "  args:         $AppArgs"
@@ -412,6 +440,7 @@ try {
     Write-CaptureText "  control port: $ControlPort`n"
     Write-CaptureText "  usb port:     $(if ([string]::IsNullOrWhiteSpace($UsbPort)) { 'auto' } else { $UsbPort })`n"
     Write-CaptureText "  packetstream: $ResolvedPacketStream`n"
+    Write-CaptureText "  manifest:     $($Manifest.Path)`n"
     Write-CaptureText "  app:          $AppName`n"
     Write-CaptureText "  format:       $AppFormat`n"
     Write-CaptureText "  args:         $AppArgs`n"

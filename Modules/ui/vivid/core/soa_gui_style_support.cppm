@@ -56,10 +56,14 @@ export namespace ui::soa_gui_detail {
         if (patch.has_accent_color) colors.accent = patch.accent_color;
         if (patch.has_on_accent) colors.on_accent = patch.on_accent;
         if (patch.has_border_focus) colors.border_focus = patch.border_focus;
-        if (patch.has_gradient_enabled) colors.gradient_enabled = patch.gradient_enabled ? 1 : 0;
+        if (patch.has_gradient_enabled) {
+            set_resolved_decoration_gradient_enabled(decoration, patch.gradient_enabled);
+        }
         if (patch.has_gradient_start) colors.gradient_start = patch.gradient_start;
         if (patch.has_gradient_end) colors.gradient_end = patch.gradient_end;
-        if (patch.has_gradient_direction) colors.gradient_direction = patch.gradient_direction;
+        if (patch.has_gradient_direction) {
+            set_resolved_decoration_gradient_direction(decoration, patch.gradient_direction);
+        }
         if (patch.has_shadow_enabled) decoration.shadow_enabled = patch.shadow_enabled ? 1 : 0;
         if (patch.has_shadow_color) decoration.shadow_color = patch.shadow_color;
         if (patch.has_shadow_offset_x) decoration.shadow_offset_x = static_cast<std::int16_t>(patch.shadow_offset_x);
@@ -174,13 +178,13 @@ export namespace ui::soa_gui_detail {
         const int rad = metrics.corner_radius;
         draw_decoration_shadow(out, r, rad, deco);
         if (draw_fill) {
-            if (colors.gradient_enabled) {
+            if (resolved_decoration_gradient_enabled(deco)) {
                 out.fill_linear_gradient_rect(
                     r,
                     colors.gradient_start,
                     colors.gradient_end,
                     rad,
-                    colors.gradient_direction == 0);
+                    resolved_decoration_gradient_direction(deco) == 0);
             } else {
                 out.fill_round_rect(r, rad, colors.bg);
             }

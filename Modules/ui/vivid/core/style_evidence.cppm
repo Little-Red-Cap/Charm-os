@@ -53,8 +53,26 @@ inline std::uint32_t hash_resolved_style_colors(const ResolvedColors* colors) no
     hash = hash_style_color(hash, colors->border_focus);
     hash = hash_style_color(hash, colors->gradient_start);
     hash = hash_style_color(hash, colors->gradient_end);
-    hash = style_evidence_hash_mix(hash, colors->gradient_enabled);
-    hash = style_evidence_hash_mix(hash, colors->gradient_direction);
+    return hash;
+}
+
+inline std::uint32_t hash_resolved_style_decoration(const ResolvedDecoration* decoration) noexcept {
+    std::uint32_t hash = 2166136261u;
+    if (!decoration) return hash;
+    hash = hash_style_color(hash, decoration->shadow_color);
+    hash = style_evidence_hash_mix(hash, static_cast<std::uint32_t>(decoration->shadow_offset_x));
+    hash = style_evidence_hash_mix(hash, static_cast<std::uint32_t>(decoration->shadow_offset_y));
+    hash = style_evidence_hash_mix(hash, static_cast<std::uint32_t>(decoration->shadow_spread));
+    hash = style_evidence_hash_mix(hash, static_cast<std::uint32_t>(decoration->shadow_radius));
+    hash = hash_style_color(hash, decoration->inner_stroke_color);
+    hash = style_evidence_hash_mix(hash, static_cast<std::uint32_t>(decoration->inner_stroke_width));
+    hash = hash_style_color(hash, decoration->outline_color);
+    hash = style_evidence_hash_mix(hash, static_cast<std::uint32_t>(decoration->outline_width));
+    hash = style_evidence_hash_mix(hash, decoration->shadow_enabled);
+    hash = style_evidence_hash_mix(hash, decoration->inner_stroke_enabled);
+    hash = style_evidence_hash_mix(hash, decoration->outline_enabled);
+    hash = style_evidence_hash_mix(hash, resolved_decoration_gradient_enabled(*decoration) ? 1u : 0u);
+    hash = style_evidence_hash_mix(hash, resolved_decoration_gradient_direction(*decoration));
     return hash;
 }
 
@@ -79,6 +97,7 @@ export
 inline ResolvedStyleEvidence make_resolved_style_evidence(const ResolvedStyleView& style) noexcept {
     ResolvedStyleEvidence evidence{};
     evidence.color_hash = hash_resolved_style_colors(style.colors);
+    evidence.color_hash = style_evidence_hash_mix(evidence.color_hash, hash_resolved_style_decoration(style.decoration));
     evidence.metrics_hash = hash_resolved_style_metrics(style.metrics);
     evidence.style_key = style_evidence_hash_mix(evidence.color_hash, evidence.metrics_hash);
     return evidence;
@@ -118,13 +137,13 @@ export
 inline bool style_evidence_matches_impact(const ResolvedStyleEvidence& before,
                                           const ResolvedStyleEvidence& after,
                                           const StyleImpactDecision& impact) noexcept {
-    const bool color_changed = !style_color_evidence_equal(before, after);
+    const bool paint_changed = !style_color_evidence_equal(before, after);
     const bool metrics_changed = !style_metrics_evidence_equal(before, after);
     if (impact.has(StyleInvalidationImpact::TextMetrics) || impact.has(StyleInvalidationImpact::Layout)) {
-        return color_changed || metrics_changed;
+        return paint_changed || metrics_changed;
     }
     if (impact.has(StyleInvalidationImpact::PaintOnly)) {
-        return color_changed && !metrics_changed;
+        return paint_changed && !metrics_changed;
     }
     return before.style_key == after.style_key;
 }

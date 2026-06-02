@@ -267,8 +267,6 @@ struct ResolvedColors {
     rgba border_focus{};
     rgba gradient_start{};
     rgba gradient_end{};
-    std::uint8_t gradient_enabled{0};
-    std::uint8_t gradient_direction{0};
 };
 
 export
@@ -300,7 +298,39 @@ struct ResolvedDecoration {
     std::uint8_t shadow_enabled{0};
     std::uint8_t inner_stroke_enabled{0};
     std::uint8_t outline_enabled{0};
+    std::uint8_t gradient_enabled{0};
+    std::uint8_t gradient_direction{0};
 };
+
+export
+inline constexpr bool resolved_decoration_gradient_enabled(const ResolvedDecoration& decoration) noexcept {
+    return decoration.gradient_enabled != 0;
+}
+
+export
+inline constexpr std::uint8_t resolved_decoration_gradient_direction(const ResolvedDecoration& decoration) noexcept {
+    return decoration.gradient_direction;
+}
+
+export
+inline constexpr void set_resolved_decoration_gradient_enabled(ResolvedDecoration& decoration,
+                                                              bool enabled) noexcept {
+    decoration.gradient_enabled = static_cast<std::uint8_t>(enabled ? 1 : 0);
+}
+
+export
+inline constexpr void set_resolved_decoration_gradient_direction(ResolvedDecoration& decoration,
+                                                                std::uint8_t direction) noexcept {
+    decoration.gradient_direction = direction;
+}
+
+export
+inline constexpr void set_resolved_decoration_gradient(ResolvedDecoration& decoration,
+                                                       bool enabled,
+                                                       std::uint8_t direction) noexcept {
+    set_resolved_decoration_gradient_enabled(decoration, enabled);
+    set_resolved_decoration_gradient_direction(decoration, direction);
+}
 
 export
 struct ResolvedStyleView {
@@ -367,7 +397,7 @@ static_assert(std::is_trivially_copyable_v<ResolvedColors>);
 static_assert(std::is_trivially_copyable_v<ResolvedMetrics>);
 static_assert(std::is_trivially_copyable_v<ResolvedDecoration>);
 static_assert(std::is_trivially_copyable_v<ResolvedStyleView>);
-static_assert(sizeof(ResolvedColors) <= 40);
+static_assert(sizeof(ResolvedColors) == 32);
 static_assert(sizeof(ResolvedMetrics) <= 32);
 static_assert(sizeof(ResolvedDecoration) <= 32);
 static_assert(sizeof(ResolvedStyleView) <= 32);
@@ -523,8 +553,6 @@ inline ResolvedColors build_resolved_colors(const Style& st, const StyleState& s
     ResolvedColors out{bg, border, font, accent, st.colors.on_accent, st.colors.border_focus};
     out.gradient_start = st.decoration.gradient_start;
     out.gradient_end = st.decoration.gradient_end;
-    out.gradient_enabled = static_cast<std::uint8_t>(st.decoration.gradient_enabled ? 1 : 0);
-    out.gradient_direction = st.decoration.gradient_direction;
     return out;
 }
 
@@ -548,6 +576,7 @@ inline ResolvedDecoration build_resolved_decoration(const Style& st) noexcept {
     d.shadow_enabled = static_cast<std::uint8_t>(st.decoration.shadow_enabled ? 1 : 0);
     d.inner_stroke_enabled = static_cast<std::uint8_t>(st.decoration.inner_stroke_enabled ? 1 : 0);
     d.outline_enabled = static_cast<std::uint8_t>(st.decoration.outline_enabled ? 1 : 0);
+    set_resolved_decoration_gradient(d, st.decoration.gradient_enabled, st.decoration.gradient_direction);
     return d;
 }
 
@@ -599,6 +628,8 @@ inline void apply_resolved_decoration(Style& style, const ResolvedDecoration& de
     style.decoration.shadow_enabled = deco.shadow_enabled != 0;
     style.decoration.inner_stroke_enabled = deco.inner_stroke_enabled != 0;
     style.decoration.outline_enabled = deco.outline_enabled != 0;
+    style.decoration.gradient_enabled = resolved_decoration_gradient_enabled(deco);
+    style.decoration.gradient_direction = resolved_decoration_gradient_direction(deco);
 }
 
 inline rgba role_color(const RolePalette& palette, StyleRole role) noexcept {

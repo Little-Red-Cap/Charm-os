@@ -19,6 +19,9 @@
 
 当前 Player 架构收敛基线见：`ARCHITECTURE_CONVERGENCE.md`
 
+完整播放系统的能力域、边界、验证路线和近期优先级见：
+[PLAYER_SYSTEM_CAPABILITY_MAP.md](PLAYER_SYSTEM_CAPABILITY_MAP.md)
+
 ## 目录结构
 
 ```

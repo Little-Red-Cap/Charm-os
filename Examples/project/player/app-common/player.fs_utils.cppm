@@ -22,6 +22,7 @@ import fs_mal_file;
 import fs_fatfs;
 import fs_vfs;
 import util.core;
+import player.media_library;
 
 export namespace player::fs_utils {
     namespace detail {
@@ -90,28 +91,6 @@ export namespace player::fs_utils {
             return 0;
         }
 
-        bool has_audio_ext(std::string_view name) {
-            const auto dot = name.find_last_of('.');
-            if (dot == std::string_view::npos || dot + 1 >= name.size()) return false;
-            const auto ext = name.substr(dot + 1);
-            if (ext.size() == 3) {
-                const char a = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[0])));
-                const char b = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[1])));
-                const char c = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[2])));
-                if (a == 'm' && b == 'p' && c == '3') return true;
-                if (a == 'w' && b == 'a' && c == 'v') return true;
-                if (a == 'f' && b == 'l' && c == 'a') return true;
-            }
-            if (ext.size() == 4) {
-                const char a = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[0])));
-                const char b = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[1])));
-                const char c = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[2])));
-                const char d = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[3])));
-                if (a == 'f' && b == 'l' && c == 'a' && d == 'c') return true;
-            }
-            return false;
-        }
-
         constexpr std::array<std::string_view, 6> kCoverNames{
             "cover.jpg",
             "cover.png",
@@ -163,7 +142,8 @@ export namespace player::fs_utils {
                 return fs::Status{fs::Errc::ok};
             }
             if (entry.type != fs::NodeType::file) return fs::Status{fs::Errc::ok};
-            if (!has_audio_ext(entry.name)) {
+            const auto format = player::media_track_format(entry.name);
+            if (!player::media_is_audio_extension(format)) {
                 if (detail::kFsLogEnabled) {
                     bool has_non_ascii = false;
                     for (unsigned char ch : entry.name) {

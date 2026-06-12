@@ -36,7 +36,7 @@ Player 是 Charm 的真实项目压力线。它应该用真实播放系统需求
 
 | 能力域 | 当前状态 | 目标闭环 | 归属层 | Host 验证 | QEMU 可选验证 | Real Board 验证 | 明确不做 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 媒体库扫描 | Library 已有固定数据与基础浏览闭环，真实文件扫描仍未完整产品化。 | 从资源源读取曲目，建立歌曲、专辑、艺术家索引，并支持空库、损坏文件、增量刷新。 | Player runtime service，底层消费 file/resource capability。 | 用 host file tree 验证扫描、排序、分组、错误映射。 | 验证文件 source 控制流或 storage failure path。 | 验证 eMMC/FAT/resource population、真实路径缺失和错误 evidence。 | 不让 UI 直接依赖 FAT path；不把 Store layout 当媒体库模型。 |
+| 媒体库扫描 | 已建立 host-first 路径推导索引：扫描 `/music` 与下一级目录，回退根目录一层扫描，并从路径推导 title/artist/album/format。 | 从资源源读取曲目，建立歌曲、专辑、艺术家索引，并支持空库、损坏文件、增量刷新。 | Player runtime service，底层消费 file/resource capability。 | 用 host file tree 验证扫描、排序、分组、错误映射。 | 验证文件 source 控制流或 storage failure path。 | 验证 eMMC/FAT/resource population、真实路径缺失和错误 evidence。 | 不让 UI 直接依赖 FAT path；不把 Store layout 当媒体库模型；当前不读取 FLAC/MP3 tag。 |
 | 播放队列 | Controller 已支持当前曲目、选择同步、播放/暂停、seek 状态。 | 支持当前队列、上一首/下一首、shuffle、repeat、Library 选择同步、mini-player/Now Playing 一致性。 | Player domain/controller，小容量状态留在 shared controller。 | UI CI 覆盖队列语义、随机顺序、切歌同步。 | 可验证状态机或 capability table。 | 验证触摸/encoder/button 到语义命令的真实输入路径。 | 不在 controller 引入动态容器或 host-only 分支。 |
 | 解码与 audio sink | UI playback 状态已存在，H747 audio smoke 仍是后续闭环。 | 音频文件解码、PCM 输出、pause/resume/seek、underrun/error evidence、sink unavailable 降级。 | Decoder/runtime service + AudioSink provider；UI 只消费播放状态。 | 用 host decoder/sink mock 验证状态和错误语义。 | 可验证 sink unavailable/failure path。 | 验证 I2S/DMA callback、speaker/HiFi path、underrun、真实时钟与缓存行为。 | 不把 I2S、DMA、codec HAL 暴露给 Player UI。 |
 | 资源、封面、歌词 | Cover 已通过 `ResolvedCover` seam 收敛；歌词代码保留但默认从固件剔除。 | 资源封面、placeholder、host cover decode、sidecar 歌词、后续 embedded metadata 通过统一 seam 进入 UI。 | Player resource/cover/lyrics service；host-only decode 保持内部细节。 | 用 host 文件和 metadata 样本验证解析、fallback、截断和 UI 同步。 | 可验证 resource source 控制流。 | 验证资源文件存在、unsupported decoder、容量和 memory evidence。 | 当前不做网络歌词、歌词编辑、翻译、TTML、word-by-word 动画。 |
@@ -52,7 +52,7 @@ Player 是 Charm 的真实项目压力线。它应该用真实播放系统需求
 近期 Player 工作按以下顺序推进，避免同时打开过多系统面：
 
 1. 继续完成 UI 产品闭环：Library 已完成基础操作闭环，下一步优先补 Home 真实入口与 Now Playing 细节缺口。
-2. 建立真实媒体库最小闭环：host-first 扫描文件树，生成 songs/albums/artists，并把结果接入现有 Library。
+2. 收敛媒体库最小闭环：当前已有路径推导索引，下一步再评估真实 tag metadata、深层递归、增量刷新和持久媒体库数据库。
 3. 收敛播放队列：把 Library 选择、shuffle、sort、上一首/下一首、mini-player 与 Now Playing 同步为可测试状态机。
 4. 接入 audio sink：先 host mock/host playback，再按 H747 provider evidence 验证 I2S/DMA/underrun。
 5. 恢复资源扩展：封面、歌词、统计、最近播放按 capability seam 接入，不把 host-only 或 board-only 路径写进 shared controller。

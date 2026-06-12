@@ -182,6 +182,94 @@
         }
     }
 
+    bool run_media_library_path_derivation_artist_title_ci() noexcept {
+        const auto view = player::derive_media_track("/music/Album One/Kalafina - Oblivious.flac");
+        return view.path == "/music/Album One/Kalafina - Oblivious.flac"
+            && view.file_name == "Kalafina - Oblivious.flac"
+            && view.stem == "Kalafina - Oblivious"
+            && view.title == "Oblivious"
+            && view.artist == "Kalafina"
+            && view.album == "Album One"
+            && view.format == "FLAC"
+            && view.has_artist;
+    }
+
+    bool run_media_library_path_derivation_unknown_artist_ci() noexcept {
+        const auto view = player::derive_media_track("/music/Loose/Track 01.mp3");
+        return view.title == "Track 01"
+            && view.artist == player::kUnknownArtist
+            && view.album == "Loose"
+            && view.format == "MP3"
+            && !view.has_artist;
+    }
+
+    bool run_media_library_path_derivation_compact_dash_ci() noexcept {
+        const auto view = player::derive_media_track("/music/Loose/AC-DC.flac");
+        return view.title == "AC-DC"
+            && view.artist == player::kUnknownArtist
+            && view.format == "FLAC"
+            && !view.has_artist;
+    }
+
+    bool run_media_library_group_key_album_artist_ci() noexcept {
+        const auto view = player::derive_media_track("/music/Ninth Wave/Artist Name - Track.wav");
+        return player::media_group_key(view, player::MediaGroupKind::Albums) == "Ninth Wave"
+            && player::media_group_key(view, player::MediaGroupKind::Artists) == "Artist Name";
+    }
+
+    bool run_media_library_sort_compare_ci() noexcept {
+        return player::compare_media_text_ci("alpha", "Beta") < 0
+            && player::compare_media_text_ci("Track", "track") == 0
+            && player::compare_media_text_ci("Zoo", "album") > 0;
+    }
+
+    void run_media_library_helper_regressions(UiCiResult& res) noexcept {
+        const bool artist_title = run_media_library_path_derivation_artist_title_ci();
+        ui_ci_emit("media_library_path_derivation_artist_title",
+                   artist_title,
+                   artist_title ? nullptr : "artist_title");
+        if (!artist_title) {
+            res.ok = false;
+            res.failed++;
+        }
+
+        const bool unknown_artist = run_media_library_path_derivation_unknown_artist_ci();
+        ui_ci_emit("media_library_path_derivation_unknown_artist",
+                   unknown_artist,
+                   unknown_artist ? nullptr : "unknown_artist");
+        if (!unknown_artist) {
+            res.ok = false;
+            res.failed++;
+        }
+
+        const bool compact_dash = run_media_library_path_derivation_compact_dash_ci();
+        ui_ci_emit("media_library_path_derivation_compact_dash",
+                   compact_dash,
+                   compact_dash ? nullptr : "compact_dash");
+        if (!compact_dash) {
+            res.ok = false;
+            res.failed++;
+        }
+
+        const bool group_key = run_media_library_group_key_album_artist_ci();
+        ui_ci_emit("media_library_group_key_album_artist",
+                   group_key,
+                   group_key ? nullptr : "group_key");
+        if (!group_key) {
+            res.ok = false;
+            res.failed++;
+        }
+
+        const bool sort_compare = run_media_library_sort_compare_ci();
+        ui_ci_emit("media_library_sort_compare_ci",
+                   sort_compare,
+                   sort_compare ? nullptr : "sort_compare");
+        if (!sort_compare) {
+            res.ok = false;
+            res.failed++;
+        }
+    }
+
     template<typename RuntimeT,
              typename SceneT,
              typename ContextT,
@@ -210,6 +298,8 @@
             res.ok = false;
             res.failed++;
         }
+
+        run_media_library_helper_regressions(res);
 
         if (run_memory_display_sink_probe().ok) {
             ui_ci_emit("memory_display_sink_player_ui_external_surface", true, nullptr);

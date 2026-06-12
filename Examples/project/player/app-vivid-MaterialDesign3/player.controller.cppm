@@ -36,6 +36,7 @@ import charm.system.clock;
 import player.playback;
 import player.input;
 import player.fs_utils;
+import player.media_library;
 import player.media_scan;
 import player.product_config;
 import player.scene_runtime;

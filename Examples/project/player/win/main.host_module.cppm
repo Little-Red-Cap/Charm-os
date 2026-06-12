@@ -51,6 +51,7 @@ import player.font_resource;
 import player.fs_utils;
 import player.host_features;
 import player.input;
+import player.media_library;
 #if CHARM_PLAYER_LYRICS
 import player.lyrics;
 #endif

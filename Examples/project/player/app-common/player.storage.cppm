@@ -19,6 +19,7 @@ import fs_stream;
 import fs_vfs;
 import player.fs_utils;
 import player.host_features;
+import player.media_library;
 import player.media_scan;
 import player.product_config;
 
@@ -38,6 +39,7 @@ export namespace player {
     struct StorageState {
         bool fs_ready{false};
         bool has_tracks{false};
+        MediaLibraryStats media_stats{};
         FixedString<product_config::scan_status_text_capacity> status{};
         FixedString<product_config::scan_status_text_capacity> mount_status{};
         TrackList tracks{};
@@ -56,6 +58,7 @@ export namespace player {
         const TrackLabelList* track_labels{nullptr};
         const TrackTitleList* track_titles{nullptr};
         const TrackSubtitleList* track_subtitles{nullptr};
+        const MediaLibraryStats* media_stats{nullptr};
     };
 
     namespace detail {
@@ -110,6 +113,11 @@ export namespace player {
         out.status.assign(scan.status.view());
         out.mount_status.assign(scan.mount_status.view());
         out.tracks = scan.tracks;
+        if constexpr (requires { out.media_stats; }) {
+            out.media_stats.track_count = scan.tracks.size();
+            out.media_stats.track_truncated = scan.track_truncated;
+            out.media_stats.dir_truncated = scan.dir_truncated;
+        }
     }
 
     TrackScanResult scan_tracks_default() {
@@ -140,6 +148,7 @@ export namespace player {
         out.track_labels = &state.track_labels;
         out.track_titles = &state.track_titles;
         out.track_subtitles = &state.track_subtitles;
+        out.media_stats = &state.media_stats;
         return out;
     }
 
@@ -149,38 +158,38 @@ export namespace player {
         state.track_titles = {};
         state.track_subtitles = {};
         for (std::size_t i = 0; i < state.tracks.size(); ++i) {
-            const auto path_view = state.tracks[i].view();
-            std::string_view base{path_view};
-            const auto pos = base.find_last_of("/\\");
-            if (pos != std::string_view::npos) base = base.substr(pos + 1);
+            const auto track = derive_media_track(state.tracks[i].view());
             TrackLabel label{};
-            label.assign(base);
+            label.assign(track.file_name);
             if (!state.track_labels.push_back(label)) break;
-            std::string_view ext{};
-            const auto dot = base.find_last_of('.');
-            if (dot != std::string_view::npos && dot + 1 < base.size()) {
-                ext = base.substr(dot + 1);
-            }
             TrackTitle title{};
-            title.assign(base);
+            title.assign(track.title);
             if (title.empty()) {
                 title.assign("Unknown Track");
             }
             if (!state.track_titles.push_back(title)) break;
-            if (!ext.empty()) {
-                char upper_buf[32]{};
-                const std::size_t count = std::min<std::size_t>(ext.size(), sizeof(upper_buf) - 1);
-                for (std::size_t j = 0; j < count; ++j) {
-                    upper_buf[j] = static_cast<char>(std::toupper(static_cast<unsigned char>(ext[j])));
+            TrackSubtitle subtitle{};
+            subtitle.assign(track.has_artist ? track.artist : track.album);
+            if (!state.track_subtitles.push_back(subtitle)) break;
+        }
+        state.media_stats.track_count = state.tracks.size();
+        state.media_stats.album_count = 0;
+        state.media_stats.artist_count = 0;
+        for (std::size_t i = 0; i < state.tracks.size(); ++i) {
+            const auto track = derive_media_track(state.tracks[i].view());
+            bool seen_album = false;
+            bool seen_artist = false;
+            for (std::size_t j = 0; j < i; ++j) {
+                const auto prev = derive_media_track(state.tracks[j].view());
+                if (compare_media_text_ci(track.album, prev.album) == 0) {
+                    seen_album = true;
                 }
-                TrackSubtitle subtitle{};
-                subtitle.assign(std::string_view(upper_buf, count));
-                if (!state.track_subtitles.push_back(subtitle)) break;
-            } else {
-                TrackSubtitle subtitle{};
-                subtitle.assign("UNKNOWN");
-                if (!state.track_subtitles.push_back(subtitle)) break;
+                if (compare_media_text_ci(track.artist, prev.artist) == 0) {
+                    seen_artist = true;
+                }
             }
+            if (!seen_album) ++state.media_stats.album_count;
+            if (!seen_artist) ++state.media_stats.artist_count;
         }
         state.labels_ready = true;
     }

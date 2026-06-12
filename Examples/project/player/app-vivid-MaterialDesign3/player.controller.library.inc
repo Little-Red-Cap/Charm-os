@@ -8,16 +8,7 @@
         }
 
         static int compare_ci(std::string_view a, std::string_view b) noexcept {
-            const std::size_t n = std::min(a.size(), b.size());
-            for (std::size_t i = 0; i < n; ++i) {
-                const char ca = static_cast<char>(std::tolower(static_cast<unsigned char>(a[i])));
-                const char cb = static_cast<char>(std::tolower(static_cast<unsigned char>(b[i])));
-                if (ca < cb) return -1;
-                if (ca > cb) return 1;
-            }
-            if (a.size() < b.size()) return -1;
-            if (a.size() > b.size()) return 1;
-            return 0;
+            return compare_media_text_ci(a, b);
         }
 
         static constexpr int kLibraryTabRadius = 20;
@@ -70,29 +61,19 @@
         };
 
         static std::string_view library_file_name(std::string_view path) noexcept {
-            const auto slash = path.find_last_of("/\\");
-            return (slash == std::string_view::npos) ? path : path.substr(slash + 1);
+            return media_file_name(path);
         }
 
         static std::string_view library_track_stem(std::string_view path) noexcept {
-            std::string_view name = library_file_name(path);
-            const auto dot = name.find_last_of('.');
-            if (dot == std::string_view::npos) return name;
-            const auto ext = name.substr(dot + 1);
-            return is_audio_extension(ext) ? name.substr(0, dot) : name;
+            return media_track_stem(path);
         }
 
         static std::string_view library_parent_folder(std::string_view path) noexcept {
-            const auto slash = path.find_last_of("/\\");
-            if (slash == std::string_view::npos) return {};
-            std::string_view parent = path.substr(0, slash);
-            const auto prev = parent.find_last_of("/\\");
-            return (prev == std::string_view::npos) ? parent : parent.substr(prev + 1);
+            return media_parent_folder(path);
         }
 
         static std::string_view library_directory_path(std::string_view path) noexcept {
-            const auto slash = path.find_last_of("/\\");
-            return (slash == std::string_view::npos) ? std::string_view{} : path.substr(0, slash);
+            return media_directory_path(path);
         }
 
         static bool library_starts_with_bytes(std::string_view value,
@@ -385,32 +366,12 @@
         static bool library_split_track_stem(std::string_view stem,
                                              std::string_view& title_out,
                                              std::string_view& artist_out) noexcept {
-            title_out = {};
-            artist_out = {};
-            const auto assign_split = [&](std::string_view title,
-                                          std::string_view artist) noexcept -> bool {
-                title = library_trim_space(title);
-                artist = library_trim_space(artist);
-                if (title.empty() || artist.empty()) return false;
-                title_out = title;
-                artist_out = artist;
-                return true;
-            };
-
-            const auto spaced_sep = stem.find(" - ");
-            if (spaced_sep != std::string_view::npos) {
-                if (assign_split(stem.substr(spaced_sep + 3), stem.substr(0, spaced_sep))) {
-                    return true;
-                }
-            }
-
-            const auto compact_sep = stem.find_last_of('-');
-            if (compact_sep != std::string_view::npos && compact_sep > 0 && compact_sep + 1 < stem.size()) {
-                if (assign_split(stem.substr(compact_sep + 1), stem.substr(0, compact_sep))) {
-                    return true;
-                }
-            }
-            return false;
+            std::string_view artist{};
+            std::string_view title{};
+            if (!split_media_stem_artist_title(stem, artist, title)) return false;
+            title_out = library_trim_space(title);
+            artist_out = library_trim_space(artist);
+            return !title_out.empty() && !artist_out.empty();
         }
 
         static bool library_looks_like_format(std::string_view value) noexcept {
@@ -425,17 +386,17 @@
         }
 
         static std::string_view library_artist_from_stem(std::string_view stem) noexcept {
-            std::string_view title{};
             std::string_view artist{};
-            if (!library_split_track_stem(stem, title, artist)) return {};
-            return artist;
+            std::string_view title{};
+            if (!split_media_stem_artist_title(stem, artist, title)) return {};
+            return library_trim_space(artist);
         }
 
         static std::string_view library_title_from_stem(std::string_view stem) noexcept {
-            std::string_view title{};
             std::string_view artist{};
-            if (!library_split_track_stem(stem, title, artist)) return stem;
-            return title;
+            std::string_view title{};
+            if (!split_media_stem_artist_title(stem, artist, title)) return stem;
+            return library_trim_space(title);
         }
 
         static std::uint32_t library_shuffle_key(int track_index, std::uint32_t seed) noexcept {
@@ -582,10 +543,11 @@
             }
 
             const auto path = (*tracks)[static_cast<std::size_t>(track_index)].view();
-            const std::string_view stem = library_track_stem(path);
-            const std::string_view artist = library_artist_from_stem(stem);
-            const std::string_view title = library_title_from_stem(stem);
-            const std::string_view album = library_parent_folder(path);
+            const auto media = derive_media_track(path);
+            const std::string_view stem = media.stem;
+            const std::string_view artist = media.has_artist ? media.artist : std::string_view{};
+            const std::string_view title = media.title;
+            const std::string_view album = media.album;
             std::string_view display_title{};
             std::string_view display_subtitle{};
 
@@ -797,14 +759,12 @@
                 return {};
             }
             const auto path = (*tracks)[static_cast<std::size_t>(track_index)].view();
-            const std::string_view stem = library_track_stem(path);
-            const std::string_view artist = library_artist_from_stem(stem);
-            const std::string_view album = library_parent_folder(path);
+            const auto media = derive_media_track(path);
             switch (tab) {
             case LibraryTab::Albums:
-                return library_album_label(album);
+                return media_group_key(media, MediaGroupKind::Albums);
             case LibraryTab::Artists:
-                return library_artist_label(artist);
+                return media_group_key(media, MediaGroupKind::Artists);
             case LibraryTab::Songs:
             default:
                 return {};
@@ -940,6 +900,7 @@
 
                 ++track_count;
                 const auto path = (*tracks)[i].view();
+                const auto media = derive_media_track(path);
                 const int duration_sec = cached_track_duration(static_cast<int>(i));
                 if (duration_sec == kTrackDurationUnknown) {
                     duration_complete = false;
@@ -948,15 +909,14 @@
                 }
 
                 if (library_tab == LibraryTab::Albums) {
-                    const auto stem = library_track_stem(path);
-                    const auto artist = library_artist_label(library_artist_from_stem(stem));
+                    const auto artist = media_group_key(media, MediaGroupKind::Artists);
                     if (primary_artist.empty()) {
                         primary_artist.assign(artist);
                     } else if (compare_ci(primary_artist.view(), artist) != 0) {
                         multiple_artists = true;
                     }
                 } else if (library_tab == LibraryTab::Artists) {
-                    const auto album = library_album_label(library_parent_folder(path));
+                    const auto album = media_group_key(media, MediaGroupKind::Albums);
                     bool exists = false;
                     for (std::size_t album_index = 0; album_index < unique_album_count; ++album_index) {
                         if (compare_ci(unique_albums[album_index].view(), album) == 0) {
@@ -1067,9 +1027,9 @@
                     && row.track_index >= 0
                     && row.track_index < static_cast<int>(tracks->size())) {
                     const auto path = (*tracks)[static_cast<std::size_t>(row.track_index)].view();
-                    const auto stem = library_track_stem(path);
-                    artist = library_artist_from_stem(stem);
-                    album = library_parent_folder(path);
+                    const auto media = derive_media_track(path);
+                    artist = media.has_artist ? media.artist : std::string_view{};
+                    album = media.album;
                 }
 
                 if (!library_looks_like_format(artist)) {
@@ -1649,7 +1609,8 @@
                 title.assign((*titles)[static_cast<std::size_t>(track_idx)].view());
             }
             if (title.empty()) {
-                title.assign(library_track_stem(path));
+                const auto media = derive_media_track(path);
+                title.assign(media.title.empty() ? media.stem : media.title);
             }
             strip_audio_extension(title);
 
@@ -1668,9 +1629,9 @@
                 }
             }
             if (artist.empty()) {
-                const auto stem_artist = library_artist_from_stem(library_track_stem(path));
-                if (!stem_artist.empty()) {
-                    artist.assign(stem_artist);
+                const auto media = derive_media_track(path);
+                if (media.has_artist && !media.artist.empty()) {
+                    artist.assign(media.artist);
                 }
             }
             if (!artist.empty() && compare_ci(artist.view(), title.view()) == 0) {
@@ -1678,8 +1639,11 @@
             }
 
             FixedString<96> album{};
-            if (const auto album_name = library_parent_folder(path); !album_name.empty()) {
-                album.assign(album_name);
+            {
+                const auto media = derive_media_track(path);
+                if (!media.album.empty()) {
+                    album.assign(media.album);
+                }
             }
             const auto artist_group =
                 library_group_title_for_track_in_tab(storage, track_idx, LibraryTab::Artists);
@@ -2317,29 +2281,26 @@
             }
 
             const auto path = (*tracks)[static_cast<std::size_t>(track_index)].view();
-            const std::string_view stem = library_track_stem(path);
-            const std::string_view artist = library_artist_from_stem(stem);
-            const std::string_view title = library_title_from_stem(stem);
-            const std::string_view album = library_parent_folder(path);
+            const auto media = derive_media_track(path);
 
             switch (library_tab) {
             case LibraryTab::Songs:
                 return {
-                    title.empty() ? stem : title,
-                    artist,
-                    album,
+                    media.title.empty() ? media.stem : media.title,
+                    media.artist,
+                    media.album,
                 };
             case LibraryTab::Albums:
                 return {
-                    album.empty() ? std::string_view{"Unknown Album"} : album,
-                    title.empty() ? stem : title,
-                    artist,
+                    media_group_key(media, MediaGroupKind::Albums),
+                    media.title.empty() ? media.stem : media.title,
+                    media.artist,
                 };
             case LibraryTab::Artists:
                 return {
-                    artist.empty() ? std::string_view{"Unknown Artist"} : artist,
-                    title.empty() ? stem : title,
-                    album,
+                    media_group_key(media, MediaGroupKind::Artists),
+                    media.title.empty() ? media.stem : media.title,
+                    media.album,
                 };
             }
             return {};

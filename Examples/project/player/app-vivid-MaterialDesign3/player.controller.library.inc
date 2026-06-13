@@ -1931,7 +1931,7 @@
             }
             const int track_idx = list_index_to_track(list_index);
             if (track_idx >= 0) {
-                select_track_index(track_idx);
+                select_library_track_index(track_idx, list_index);
             }
         }
 
@@ -2841,6 +2841,7 @@
             close_list_action_menu();
             storage = view;
             fs_ready = storage.fs_ready;
+            reset_playback_queue();
             mount_status.assign(storage.mount_status);
             clear_list_cover_cache();
             reset_track_duration_cache();
@@ -2860,6 +2861,9 @@
 #endif
             refresh_list_view();
             update_list_placeholder();
+            if (fs_ready && storage.tracks && storage.tracks->size() > 0) {
+                (void)rebuild_full_playback_queue(track_index);
+            }
             if (allow_track_preload
                 && fs_ready && storage.tracks && storage.tracks->size() > 0
                 && handles.list

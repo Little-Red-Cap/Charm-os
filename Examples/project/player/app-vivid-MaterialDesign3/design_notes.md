@@ -674,7 +674,7 @@
 - 长标题 / 长作者：标题块仍居中，不能挤压进度区和控制区
 - 播放 / 暂停：主播放按钮图标立即同步，按钮尺寸和视觉层级不变
 - 无媒体库 / 空资源：时间、标签、封面占位和控制区结构保持稳定
-- Library 选择后同步：标题、副标题、封面、底部 mini-player 和 Now Playing 主屏同步更新
+- Library 选择后同步：标题、副标题、封面、底部 mini-player 和 Now Playing 主屏同步更新；Next/Prev 与 track end 使用选曲时捕获的 Library 视图队列
 - Windows host：允许文件字体、动态封面主题和 layered preview 增强观感
 - H747 PRODUCT：保持同一 shared 页面结构，继续使用内建字体、fallback cover theme、StaticCut 和 PRODUCT gate
 - 自动验收：Windows `--ui-ci` 已加入 `now_playing_matrix_*`、`now_playing_seek_*` 与 `now_playing_closure_*` 状态矩阵；H747 closure 切片 evidence 为 `RAM_D1 46016 B`、`FLASH 714688 B`、`PlayerController 9560 B`
@@ -734,6 +734,7 @@
 - 浏览上下文表达：已达成
 - 基础功能闭环：已达成（Tab、Sort、Shuffle、Path 返回、列表进入 context、track 选择、action menu 与 info popup 已纳入 Windows UI CI）
 - 媒体库语义：已从纯路径列表推进到路径推导索引；当前按 `Artist - Title.ext`、父目录 album 和大写 format 推导，真实 tag metadata、深层递归与持久媒体库数据库留到后续切片
+- 播放队列语义：已完成第一切片；Library track 选择会捕获当前 Songs/context 视图顺序，Next/Prev、track end、repeat/random 都在该队列内运行，后续浏览其它 tab/sort/context 不会隐式改写当前队列
 
 ---
 

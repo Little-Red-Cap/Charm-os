@@ -50,6 +50,138 @@
             return TrackResumeMode::Stopped;
         }
 
+        void mark_playback_queue_changed() noexcept {
+            ++playback_queue_generation;
+            if (playback_queue_generation == 0) {
+                playback_queue_generation = 1;
+            }
+        }
+
+        bool valid_track_index(int idx) const noexcept {
+            return idx >= 0 && idx < available_track_count();
+        }
+
+        int clamp_track_index(int idx) const noexcept {
+            const int count = available_track_count();
+            if (count <= 0) return -1;
+            if (idx < 0) return 0;
+            if (idx >= count) return count - 1;
+            return idx;
+        }
+
+        bool playback_queue_valid_for_storage() const noexcept {
+            if (playback_queue_order.empty()) return false;
+            for (const int idx : playback_queue_order) {
+                if (!valid_track_index(idx)) return false;
+            }
+            return true;
+        }
+
+        int playback_queue_position_for_track(int idx) const noexcept {
+            for (std::size_t i = 0; i < playback_queue_order.size(); ++i) {
+                if (playback_queue_order[i] == idx) {
+                    return static_cast<int>(i);
+                }
+            }
+            return -1;
+        }
+
+        void sync_playback_queue_position_to_track(int idx) noexcept {
+            playback_queue_position = playback_queue_position_for_track(idx);
+        }
+
+        void reset_playback_queue() noexcept {
+            playback_queue_order.clear();
+            playback_queue_position = -1;
+            mark_playback_queue_changed();
+        }
+
+        bool rebuild_full_playback_queue(int selected_track) {
+            playback_queue_order.clear();
+            const int count = available_track_count();
+            if (count <= 0) {
+                playback_queue_position = -1;
+                mark_playback_queue_changed();
+                return false;
+            }
+            for (int i = 0; i < count; ++i) {
+                (void)playback_queue_order.push_back(i);
+            }
+            const int clamped = clamp_track_index(selected_track);
+            playback_queue_position = (clamped >= 0) ? clamped : 0;
+            mark_playback_queue_changed();
+            return true;
+        }
+
+        bool ensure_playback_queue() {
+            if (playback_queue_valid_for_storage()) {
+                const int pos = playback_queue_position_for_track(track_index);
+                if (pos >= 0) {
+                    playback_queue_position = pos;
+                    return true;
+                }
+            }
+            return rebuild_full_playback_queue(track_index);
+        }
+
+        bool capture_playback_queue_from_library(int selected_list_index) {
+            if (library_shows_group_rows()) return false;
+            const int selected_track = list_index_to_track(selected_list_index);
+            if (!valid_track_index(selected_track)) return false;
+
+            playback_queue_order.clear();
+            playback_queue_position = -1;
+            for (const int idx : list_order) {
+                if (!valid_track_index(idx)) continue;
+                const int queue_pos = static_cast<int>(playback_queue_order.size());
+                (void)playback_queue_order.push_back(idx);
+                if (idx == selected_track && playback_queue_position < 0) {
+                    playback_queue_position = queue_pos;
+                }
+            }
+            if (playback_queue_order.empty() || playback_queue_position < 0) {
+                playback_queue_order.clear();
+                playback_queue_position = -1;
+                mark_playback_queue_changed();
+                return false;
+            }
+            mark_playback_queue_changed();
+            return true;
+        }
+
+        int playback_queue_track_for_delta(int delta) {
+            if (!ensure_playback_queue()) return -1;
+            const int count = static_cast<int>(playback_queue_order.size());
+            if (count <= 0) return -1;
+
+            int pos = playback_queue_position_for_track(track_index);
+            if (pos < 0) pos = playback_queue_position;
+            if (pos < 0 || pos >= count) pos = 0;
+            pos += delta;
+            while (pos < 0) pos += count;
+            while (pos >= count) pos -= count;
+            return playback_queue_order[static_cast<std::size_t>(pos)];
+        }
+
+        int playback_queue_random_track() {
+            if (!ensure_playback_queue()) return -1;
+            const int count = static_cast<int>(playback_queue_order.size());
+            if (count <= 0) return -1;
+            if (count <= 1) return playback_queue_order.front();
+
+            int current_pos = playback_queue_position_for_track(track_index);
+            if (current_pos < 0) current_pos = playback_queue_position;
+            int next_pos = current_pos;
+            for (int i = 0; i < 4 && next_pos == current_pos; ++i) {
+                next_pos = rand_index(count);
+            }
+            if (next_pos == current_pos) {
+                next_pos = current_pos + 1;
+                if (next_pos >= count) next_pos = 0;
+            }
+            return playback_queue_order[static_cast<std::size_t>(next_pos)];
+        }
+
         void restore_track_resume_mode(TrackResumeMode mode) {
             if (!playback.track_ready()) return;
             if (mode == TrackResumeMode::Stopped) return;
@@ -257,16 +389,15 @@
             load_current_track_lyrics(vfs_path.view());
             reset_loaded_track_runtime_state();
             preload_loaded_track_duration(track_path);
+            sync_playback_queue_position_to_track(track_index);
             return playback.track_ready();
         }
 
         void switch_track(int delta) {
             if (!ensure_playback_fs_ready()) return;
             if (!has_available_tracks()) return;
-            const int count = available_track_count();
-            int next = track_index + delta;
-            if (next < 0) next = count - 1;
-            if (next >= count) next = 0;
+            const int next = playback_queue_track_for_delta(delta);
+            if (next < 0) return;
             load_track_with_resume_mode(next, has_active_playback() ? TrackResumeMode::Playing
                                                                     : TrackResumeMode::Stopped);
         }
@@ -274,6 +405,16 @@
         void select_track_index(int idx) {
             if (!ensure_playback_fs_ready()) return;
             if (!has_available_tracks()) return;
+            (void)rebuild_full_playback_queue(idx);
+            load_track_with_resume_mode(idx, current_track_resume_mode());
+        }
+
+        void select_library_track_index(int idx, int list_index) {
+            if (!ensure_playback_fs_ready()) return;
+            if (!has_available_tracks()) return;
+            if (!capture_playback_queue_from_library(list_index)) {
+                (void)rebuild_full_playback_queue(idx);
+            }
             load_track_with_resume_mode(idx, current_track_resume_mode());
         }
 

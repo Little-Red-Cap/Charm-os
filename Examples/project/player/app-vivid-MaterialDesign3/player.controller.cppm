@@ -407,6 +407,9 @@ export namespace player {
         } library_visual_state{};
         std::uint32_t library_visual_generation{1};
         service::FixedVector<int, kMaxTracks> list_order{};
+        service::FixedVector<int, kMaxTracks> playback_queue_order{};
+        int playback_queue_position{-1};
+        std::uint32_t playback_queue_generation{1};
         service::FixedVector<int, kMaxTracks> track_duration_cache_sec{};
         std::size_t list_duration_probe_cursor{0};
         std::uint64_t last_list_duration_probe_ms{0};

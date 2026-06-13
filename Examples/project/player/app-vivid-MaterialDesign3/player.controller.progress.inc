@@ -5,19 +5,9 @@
                 return track_index;
             }
             if (play_mode == 2) {
-                if (count <= 1) return track_index;
-                int next = track_index;
-                for (int i = 0; i < 4 && next == track_index; ++i) {
-                    next = rand_index(count);
-                }
-                if (next == track_index) {
-                    next = (track_index + 1) % count;
-                }
-                return next;
+                return playback_queue_random_track();
             }
-            int next = track_index + 1;
-            if (next >= count) next = 0;
-            return next;
+            return playback_queue_track_for_delta(1);
         }
 
         void handle_track_end() {

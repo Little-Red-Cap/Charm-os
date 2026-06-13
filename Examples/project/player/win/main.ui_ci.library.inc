@@ -279,6 +279,170 @@
         return closed_by_button && closed_by_scrim;
     }
 
+    template<typename ContextT>
+    bool ui_ci_playback_queue_equals_list_order(const ContextT& ctx) noexcept {
+        if (ctx.playback_queue_order.size() != ctx.list_order.size()) return false;
+        for (std::size_t i = 0; i < ctx.list_order.size(); ++i) {
+            if (ctx.playback_queue_order[i] != ctx.list_order[i]) return false;
+        }
+        return true;
+    }
+
+    template<typename ContextT>
+    bool ui_ci_playback_queue_contains_track(const ContextT& ctx, int track_index) noexcept {
+        for (const int idx : ctx.playback_queue_order) {
+            if (idx == track_index) return true;
+        }
+        return false;
+    }
+
+    template<typename ContextT, typename PumpFrameFn>
+    bool ui_ci_prepare_library_songs_queue_view(ContextT& ctx, PumpFrameFn& pump_frame) {
+        ctx.set_page(player::PlayerPage::Library);
+        ctx.set_library_tab(player::LibraryTab::Songs);
+        if (ctx.list_shuffle_enabled) {
+            ctx.toggle_library_shuffle();
+        }
+        pump_frame();
+        return !ctx.list_order.empty();
+    }
+
+    template<typename SceneT, typename ContextT, typename PumpFrameFn>
+    bool ui_ci_playback_queue_library_view_order(SceneT& scene,
+                                                 ContextT& ctx,
+                                                 PumpFrameFn& pump_frame) {
+        if (!ui_ci_library_has_tracks(scene, ctx)) return false;
+        if (!ui_ci_prepare_library_songs_queue_view(ctx, pump_frame)) return false;
+
+        const int row = (ctx.list_order.size() > 1) ? 1 : 0;
+        const int expected_track = ctx.list_order[static_cast<std::size_t>(row)];
+        const auto generation_before = ctx.playback_queue_generation;
+        ctx.activate_list_index(row);
+        pump_frame();
+
+        return ctx.track_index == expected_track
+            && ctx.playback_queue_generation != generation_before
+            && ctx.playback_queue_position == row
+            && ui_ci_playback_queue_equals_list_order(ctx);
+    }
+
+    template<typename SceneT, typename ContextT, typename PumpFrameFn>
+    bool ui_ci_playback_queue_next_prev_wrap(SceneT& scene,
+                                             ContextT& ctx,
+                                             PumpFrameFn& pump_frame) {
+        if (!ui_ci_library_has_tracks(scene, ctx)) return false;
+        if (!ui_ci_prepare_library_songs_queue_view(ctx, pump_frame)) return false;
+
+        const int last_row = static_cast<int>(ctx.list_order.size()) - 1;
+        const int first_track = ctx.list_order.front();
+        const int last_track = ctx.list_order.back();
+        ctx.activate_list_index(last_row);
+        pump_frame();
+        if (ctx.track_index != last_track) return false;
+
+        ctx.switch_track(1);
+        pump_frame();
+        if (ctx.track_index != first_track || ctx.playback_queue_position != 0) return false;
+
+        ctx.switch_track(-1);
+        pump_frame();
+        return ctx.track_index == last_track
+            && ctx.playback_queue_position == last_row
+            && ui_ci_playback_queue_equals_list_order(ctx);
+    }
+
+    template<typename SceneT, typename ContextT, typename PumpFrameFn>
+    bool ui_ci_playback_queue_shuffle_capture(SceneT& scene,
+                                              ContextT& ctx,
+                                              PumpFrameFn& pump_frame) {
+        if (!ui_ci_library_has_tracks(scene, ctx)) return false;
+        ctx.set_page(player::PlayerPage::Library);
+        ctx.set_library_tab(player::LibraryTab::Songs);
+        if (!ctx.list_shuffle_enabled) {
+            ctx.toggle_library_shuffle();
+        }
+        pump_frame();
+        if (!ctx.list_shuffle_enabled || ctx.list_order.empty()) return false;
+
+        ctx.activate_list_index(0);
+        pump_frame();
+        if (!ui_ci_playback_queue_equals_list_order(ctx)) return false;
+
+        const auto captured = ctx.playback_queue_order;
+        ctx.toggle_library_shuffle();
+        pump_frame();
+        if (ctx.list_shuffle_enabled) return false;
+        if (ctx.playback_queue_order.size() != captured.size()) return false;
+        for (std::size_t i = 0; i < captured.size(); ++i) {
+            if (ctx.playback_queue_order[i] != captured[i]) return false;
+        }
+        return true;
+    }
+
+    template<typename ContextT, typename PumpFrameFn>
+    bool ui_ci_playback_queue_capture_first_context(ContextT& ctx,
+                                                    PumpFrameFn& pump_frame,
+                                                    player::LibraryTab tab) {
+        ctx.set_page(player::PlayerPage::Library);
+        ctx.set_library_tab(tab);
+        if (ctx.list_shuffle_enabled) {
+            ctx.toggle_library_shuffle();
+        }
+        pump_frame();
+        if (!ctx.open_first_library_group_for_preview()) return false;
+        pump_frame();
+        if (ctx.library_shows_group_rows() || ctx.list_order.empty()) return false;
+
+        const int expected_track = ctx.list_order.front();
+        ctx.activate_list_index(0);
+        pump_frame();
+        return ctx.track_index == expected_track
+            && ctx.playback_queue_position == 0
+            && ui_ci_playback_queue_equals_list_order(ctx);
+    }
+
+    template<typename SceneT, typename ContextT, typename PumpFrameFn>
+    bool ui_ci_playback_queue_context_album_artist(SceneT& scene,
+                                                   ContextT& ctx,
+                                                   PumpFrameFn& pump_frame) {
+        if (!ui_ci_library_has_tracks(scene, ctx)) return false;
+        const bool album_ok = ui_ci_playback_queue_capture_first_context(
+            ctx, pump_frame, player::LibraryTab::Albums);
+        const bool artist_ok = ui_ci_playback_queue_capture_first_context(
+            ctx, pump_frame, player::LibraryTab::Artists);
+        return album_ok && artist_ok;
+    }
+
+    template<typename SceneT, typename ContextT, typename PumpFrameFn>
+    bool ui_ci_playback_queue_mode_repeat_random_scope(SceneT& scene,
+                                                       ContextT& ctx,
+                                                       PumpFrameFn& pump_frame) {
+        if (!ui_ci_library_has_tracks(scene, ctx)) return false;
+        if (!ui_ci_prepare_library_songs_queue_view(ctx, pump_frame)) return false;
+
+        ctx.activate_list_index(0);
+        pump_frame();
+        const int selected = ctx.track_index;
+        ctx.set_play_mode(1);
+        ctx.handle_track_end();
+        pump_frame();
+        if (ctx.track_index != selected) {
+            ctx.set_play_mode(0);
+            ctx.stop_playback();
+            pump_frame();
+            return false;
+        }
+
+        ctx.set_play_mode(2);
+        ctx.handle_track_end();
+        pump_frame();
+        const bool random_scoped = ui_ci_playback_queue_contains_track(ctx, ctx.track_index);
+        ctx.set_play_mode(0);
+        ctx.stop_playback();
+        pump_frame();
+        return random_scoped && !ctx.playback_queue_order.empty();
+    }
+
     template<typename RuntimeT, typename SceneT, typename ContextT, typename PumpFrameFn>
     void run_library_function_regressions(UiCiResult& res,
                                           RuntimeT& runtime,
@@ -302,6 +466,11 @@
             record("library_action_menu_open_invoke", true, "skipped_no_tracks");
             record("library_action_menu_keyboard", true, "skipped_no_tracks");
             record("library_info_popup_open_close", true, "skipped_no_tracks");
+            record("playback_queue_library_view_order", true, "skipped_no_tracks");
+            record("playback_queue_next_prev_wrap", true, "skipped_no_tracks");
+            record("playback_queue_shuffle_capture", true, "skipped_no_tracks");
+            record("playback_queue_context_album_artist", true, "skipped_no_tracks");
+            record("playback_queue_mode_repeat_random_scope", true, "skipped_no_tracks");
             return;
         }
 
@@ -329,4 +498,19 @@
         record("library_info_popup_open_close",
                ui_ci_library_info_popup_open_close(runtime, scene, ctx, pump_frame),
                "info_popup_open_close");
+        record("playback_queue_library_view_order",
+               ui_ci_playback_queue_library_view_order(scene, ctx, pump_frame),
+               "library_view_order");
+        record("playback_queue_next_prev_wrap",
+               ui_ci_playback_queue_next_prev_wrap(scene, ctx, pump_frame),
+               "next_prev_wrap");
+        record("playback_queue_shuffle_capture",
+               ui_ci_playback_queue_shuffle_capture(scene, ctx, pump_frame),
+               "shuffle_capture");
+        record("playback_queue_context_album_artist",
+               ui_ci_playback_queue_context_album_artist(scene, ctx, pump_frame),
+               "context_album_artist");
+        record("playback_queue_mode_repeat_random_scope",
+               ui_ci_playback_queue_mode_repeat_random_scope(scene, ctx, pump_frame),
+               "mode_repeat_random_scope");
     }

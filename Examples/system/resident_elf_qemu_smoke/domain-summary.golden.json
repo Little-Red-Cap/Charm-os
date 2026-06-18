@@ -1,0 +1,1415 @@
+{
+    "schema":  "charm.resident_elf_qemu.domain_summary.v1",
+    "domain":  "virtual_m7",
+    "machine":  "mps2-an500",
+    "cpu":  "cortex-m7",
+    "image_format":  "elf",
+    "app_model":  "CharmAppApi",
+    "backend_contract":  {
+                             "kind":  "virtual",
+                             "runtime_domain":  "virtual_m7",
+                             "capabilities":  [
+                                                  "console",
+                                                  "time",
+                                                  "display",
+                                                  "input",
+                                                  "storage",
+                                                  "app_exit"
+                                              ],
+                             "storage":  "readonly",
+                             "afe":  "unsupported"
+                         },
+    "run_region":  {
+                       "base":  "0x20080000",
+                       "expected":  "0x20080000",
+                       "size":  65536,
+                       "base_numeric":  537395200
+                   },
+    "stage_cache":  {
+                        "bytes":  16384
+                    },
+    "display":  {
+                    "width":  16,
+                    "height":  16,
+                    "stride_bytes":  64,
+                    "format":  "argb8888",
+                    "frame_bytes":  1024,
+                    "pixel_bytes":  4
+                },
+    "store":  {
+                  "format":  "store_v1",
+                  "entries":  13,
+                  "bytes":  81888,
+                  "media":  {
+                                "kind":  "memory",
+                                "bytes":  81888,
+                                "read_calls":  130,
+                                "read_bytes":  66044,
+                                "read_failures":  0
+                            }
+              },
+    "coverage":  {
+                     "runs":  [
+                                  {
+                                      "name":  "hello_app",
+                                      "stage":  "exit",
+                                      "code":  "ok",
+                                      "exit":  0
+                                  },
+                                  {
+                                      "name":  "received:hello_app",
+                                      "stage":  "exit",
+                                      "code":  "ok",
+                                      "exit":  0
+                                  },
+                                  {
+                                      "name":  "packetstream:hello_app",
+                                      "stage":  "exit",
+                                      "code":  "ok",
+                                      "exit":  0
+                                  },
+                                  {
+                                      "name":  "store:hello_app",
+                                      "stage":  "exit",
+                                      "code":  "ok",
+                                      "exit":  0
+                                  },
+                                  {
+                                      "name":  "argv_app",
+                                      "stage":  "exit",
+                                      "code":  "ok",
+                                      "exit":  0
+                                  },
+                                  {
+                                      "name":  "store:argv_app",
+                                      "stage":  "exit",
+                                      "code":  "ok",
+                                      "exit":  0
+                                  },
+                                  {
+                                      "name":  "argv_overflow_app",
+                                      "stage":  "argv",
+                                      "code":  "argv_overflow",
+                                      "exit":  0
+                                  },
+                                  {
+                                      "name":  "abi_mismatch_app",
+                                      "stage":  "abi",
+                                      "code":  "abi_mismatch",
+                                      "exit":  0
+                                  },
+                                  {
+                                      "name":  "bss_app",
+                                      "stage":  "exit",
+                                      "code":  "ok",
+                                      "exit":  0
+                                  },
+                                  {
+                                      "name":  "store:bss_app",
+                                      "stage":  "exit",
+                                      "code":  "ok",
+                                      "exit":  0
+                                  },
+                                  {
+                                      "name":  "exit_app",
+                                      "stage":  "exit",
+                                      "code":  "ok",
+                                      "exit":  0
+                                  },
+                                  {
+                                      "name":  "store:exit_app",
+                                      "stage":  "exit",
+                                      "code":  "ok",
+                                      "exit":  0
+                                  },
+                                  {
+                                      "name":  "unsupported_caps_app",
+                                      "stage":  "exit",
+                                      "code":  "ok",
+                                      "exit":  0
+                                  },
+                                  {
+                                      "name":  "store:unsupported_caps_app",
+                                      "stage":  "exit",
+                                      "code":  "ok",
+                                      "exit":  0
+                                  },
+                                  {
+                                      "name":  "storage_app",
+                                      "stage":  "exit",
+                                      "code":  "ok",
+                                      "exit":  0
+                                  },
+                                  {
+                                      "name":  "store:storage_app",
+                                      "stage":  "exit",
+                                      "code":  "ok",
+                                      "exit":  0
+                                  },
+                                  {
+                                      "name":  "storage_catalog_app",
+                                      "stage":  "exit",
+                                      "code":  "ok",
+                                      "exit":  0
+                                  },
+                                  {
+                                      "name":  "store:storage_catalog_app",
+                                      "stage":  "exit",
+                                      "code":  "ok",
+                                      "exit":  0
+                                  },
+                                  {
+                                      "name":  "display_sequence_app",
+                                      "stage":  "exit",
+                                      "code":  "ok",
+                                      "exit":  0
+                                  },
+                                  {
+                                      "name":  "store:display_sequence_app",
+                                      "stage":  "exit",
+                                      "code":  "ok",
+                                      "exit":  0
+                                  },
+                                  {
+                                      "name":  "input_sequence_app",
+                                      "stage":  "exit",
+                                      "code":  "ok",
+                                      "exit":  0
+                                  },
+                                  {
+                                      "name":  "store:input_sequence_app",
+                                      "stage":  "exit",
+                                      "code":  "ok",
+                                      "exit":  0
+                                  },
+                                  {
+                                      "name":  "time_app",
+                                      "stage":  "exit",
+                                      "code":  "ok",
+                                      "exit":  0
+                                  },
+                                  {
+                                      "name":  "store:time_app",
+                                      "stage":  "exit",
+                                      "code":  "ok",
+                                      "exit":  0
+                                  },
+                                  {
+                                      "name":  "large_fit_app",
+                                      "stage":  "exit",
+                                      "code":  "ok",
+                                      "exit":  0
+                                  },
+                                  {
+                                      "name":  "received:large_fit_app",
+                                      "stage":  "exit",
+                                      "code":  "ok",
+                                      "exit":  0
+                                  },
+                                  {
+                                      "name":  "packetstream:large_fit_app",
+                                      "stage":  "exit",
+                                      "code":  "ok",
+                                      "exit":  0
+                                  },
+                                  {
+                                      "name":  "store:large_fit_app",
+                                      "stage":  "exit",
+                                      "code":  "ok",
+                                      "exit":  0
+                                  },
+                                  {
+                                      "name":  "bad_elf_magic_app",
+                                      "stage":  "load",
+                                      "code":  "load_failed",
+                                      "exit":  0
+                                  },
+                                  {
+                                      "name":  "packetstream:packetstream_bad_elf_magic_app",
+                                      "stage":  "load",
+                                      "code":  "load_failed",
+                                      "exit":  0
+                                  },
+                                  {
+                                      "name":  "too_large_app",
+                                      "stage":  "load",
+                                      "code":  "load_failed",
+                                      "exit":  0
+                                  },
+                                  {
+                                      "name":  "player_min",
+                                      "stage":  "exit",
+                                      "code":  "ok",
+                                      "exit":  0
+                                  },
+                                  {
+                                      "name":  "received:player_min",
+                                      "stage":  "exit",
+                                      "code":  "ok",
+                                      "exit":  0
+                                  },
+                                  {
+                                      "name":  "packetstream:player_min",
+                                      "stage":  "exit",
+                                      "code":  "ok",
+                                      "exit":  0
+                                  },
+                                  {
+                                      "name":  "store:player_min",
+                                      "stage":  "exit",
+                                      "code":  "ok",
+                                      "exit":  0
+                                  }
+                              ],
+                     "stages":  [
+                                    {
+                                        "source":  "received",
+                                        "name":  "hello_app",
+                                        "code":  "ok",
+                                        "expected":  ""
+                                    },
+                                    {
+                                        "source":  "store",
+                                        "name":  "hello_app",
+                                        "code":  "ok",
+                                        "expected":  ""
+                                    },
+                                    {
+                                        "source":  "store",
+                                        "name":  "argv_app",
+                                        "code":  "ok",
+                                        "expected":  ""
+                                    },
+                                    {
+                                        "source":  "store",
+                                        "name":  "missing_app",
+                                        "code":  "image_not_found",
+                                        "expected":  "image_not_found"
+                                    },
+                                    {
+                                        "source":  "store",
+                                        "name":  "bss_app",
+                                        "code":  "ok",
+                                        "expected":  ""
+                                    },
+                                    {
+                                        "source":  "store",
+                                        "name":  "exit_app",
+                                        "code":  "ok",
+                                        "expected":  ""
+                                    },
+                                    {
+                                        "source":  "store",
+                                        "name":  "unsupported_caps_app",
+                                        "code":  "ok",
+                                        "expected":  ""
+                                    },
+                                    {
+                                        "source":  "store",
+                                        "name":  "storage_app",
+                                        "code":  "ok",
+                                        "expected":  ""
+                                    },
+                                    {
+                                        "source":  "store",
+                                        "name":  "storage_catalog_app",
+                                        "code":  "ok",
+                                        "expected":  ""
+                                    },
+                                    {
+                                        "source":  "store",
+                                        "name":  "display_sequence_app",
+                                        "code":  "ok",
+                                        "expected":  ""
+                                    },
+                                    {
+                                        "source":  "store",
+                                        "name":  "input_sequence_app",
+                                        "code":  "ok",
+                                        "expected":  ""
+                                    },
+                                    {
+                                        "source":  "store",
+                                        "name":  "time_app",
+                                        "code":  "ok",
+                                        "expected":  ""
+                                    },
+                                    {
+                                        "source":  "received",
+                                        "name":  "large_fit_app",
+                                        "code":  "ok",
+                                        "expected":  ""
+                                    },
+                                    {
+                                        "source":  "store",
+                                        "name":  "large_fit_app",
+                                        "code":  "ok",
+                                        "expected":  ""
+                                    },
+                                    {
+                                        "source":  "received",
+                                        "name":  "received_too_large_app",
+                                        "code":  "buffer_too_small",
+                                        "expected":  "buffer_too_small"
+                                    },
+                                    {
+                                        "source":  "store",
+                                        "name":  "too_large_store_app",
+                                        "code":  "image_too_large",
+                                        "expected":  "image_too_large"
+                                    },
+                                    {
+                                        "source":  "received",
+                                        "name":  "player_min",
+                                        "code":  "ok",
+                                        "expected":  ""
+                                    },
+                                    {
+                                        "source":  "store",
+                                        "name":  "player_min",
+                                        "code":  "ok",
+                                        "expected":  ""
+                                    }
+                                ],
+                     "loads":  [
+                                   {
+                                       "name":  "hello_app",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "entry":  "0x20080021",
+                                       "entry_numeric":  537395233,
+                                       "span":  270,
+                                       "segments":  2,
+                                       "needed":  270,
+                                       "free":  65266,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   },
+                                   {
+                                       "name":  "received:hello_app",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "entry":  "0x20080021",
+                                       "entry_numeric":  537395233,
+                                       "span":  270,
+                                       "segments":  2,
+                                       "needed":  270,
+                                       "free":  65266,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   },
+                                   {
+                                       "name":  "packetstream:hello_app",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "entry":  "0x20080021",
+                                       "entry_numeric":  537395233,
+                                       "span":  270,
+                                       "segments":  2,
+                                       "needed":  270,
+                                       "free":  65266,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   },
+                                   {
+                                       "name":  "store:hello_app",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "entry":  "0x20080021",
+                                       "entry_numeric":  537395233,
+                                       "span":  270,
+                                       "segments":  2,
+                                       "needed":  270,
+                                       "free":  65266,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   },
+                                   {
+                                       "name":  "argv_app",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "entry":  "0x2008007d",
+                                       "entry_numeric":  537395325,
+                                       "span":  396,
+                                       "segments":  2,
+                                       "needed":  396,
+                                       "free":  65140,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   },
+                                   {
+                                       "name":  "store:argv_app",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "entry":  "0x2008007d",
+                                       "entry_numeric":  537395325,
+                                       "span":  396,
+                                       "segments":  2,
+                                       "needed":  396,
+                                       "free":  65140,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   },
+                                   {
+                                       "name":  "prepare:argv_app",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "entry":  "0x2008007d",
+                                       "entry_numeric":  537395325,
+                                       "span":  396,
+                                       "segments":  2,
+                                       "needed":  396,
+                                       "free":  65140,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   },
+                                   {
+                                       "name":  "argv_overflow_app",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "entry":  "0x2008007d",
+                                       "entry_numeric":  537395325,
+                                       "span":  396,
+                                       "segments":  2,
+                                       "needed":  396,
+                                       "free":  65140,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   },
+                                   {
+                                       "name":  "abi_mismatch_app",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "entry":  "0x20080021",
+                                       "entry_numeric":  537395233,
+                                       "span":  270,
+                                       "segments":  2,
+                                       "needed":  270,
+                                       "free":  65266,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   },
+                                   {
+                                       "name":  "bss_app",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "entry":  "0x20080019",
+                                       "entry_numeric":  537395225,
+                                       "span":  513,
+                                       "segments":  3,
+                                       "needed":  513,
+                                       "free":  65023,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   },
+                                   {
+                                       "name":  "store:bss_app",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "entry":  "0x20080019",
+                                       "entry_numeric":  537395225,
+                                       "span":  513,
+                                       "segments":  3,
+                                       "needed":  513,
+                                       "free":  65023,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   },
+                                   {
+                                       "name":  "exit_app",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "entry":  "0x20080001",
+                                       "entry_numeric":  537395201,
+                                       "span":  22,
+                                       "segments":  1,
+                                       "needed":  22,
+                                       "free":  65514,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   },
+                                   {
+                                       "name":  "store:exit_app",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "entry":  "0x20080001",
+                                       "entry_numeric":  537395201,
+                                       "span":  22,
+                                       "segments":  1,
+                                       "needed":  22,
+                                       "free":  65514,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   },
+                                   {
+                                       "name":  "unsupported_caps_app",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "entry":  "0x20080001",
+                                       "entry_numeric":  537395201,
+                                       "span":  165,
+                                       "segments":  2,
+                                       "needed":  165,
+                                       "free":  65371,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   },
+                                   {
+                                       "name":  "store:unsupported_caps_app",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "entry":  "0x20080001",
+                                       "entry_numeric":  537395201,
+                                       "span":  165,
+                                       "segments":  2,
+                                       "needed":  165,
+                                       "free":  65371,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   },
+                                   {
+                                       "name":  "storage_app",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "entry":  "0x20080045",
+                                       "entry_numeric":  537395269,
+                                       "span":  317,
+                                       "segments":  2,
+                                       "needed":  317,
+                                       "free":  65219,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   },
+                                   {
+                                       "name":  "store:storage_app",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "entry":  "0x20080045",
+                                       "entry_numeric":  537395269,
+                                       "span":  317,
+                                       "segments":  2,
+                                       "needed":  317,
+                                       "free":  65219,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   },
+                                   {
+                                       "name":  "storage_catalog_app",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "entry":  "0x20080089",
+                                       "entry_numeric":  537395337,
+                                       "span":  454,
+                                       "segments":  2,
+                                       "needed":  454,
+                                       "free":  65082,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   },
+                                   {
+                                       "name":  "store:storage_catalog_app",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "entry":  "0x20080089",
+                                       "entry_numeric":  537395337,
+                                       "span":  454,
+                                       "segments":  2,
+                                       "needed":  454,
+                                       "free":  65082,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   },
+                                   {
+                                       "name":  "display_sequence_app",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "entry":  "0x20080001",
+                                       "entry_numeric":  537395201,
+                                       "span":  1280,
+                                       "segments":  3,
+                                       "needed":  1280,
+                                       "free":  64256,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   },
+                                   {
+                                       "name":  "store:display_sequence_app",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "entry":  "0x20080001",
+                                       "entry_numeric":  537395201,
+                                       "span":  1280,
+                                       "segments":  3,
+                                       "needed":  1280,
+                                       "free":  64256,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   },
+                                   {
+                                       "name":  "input_sequence_app",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "entry":  "0x20080001",
+                                       "entry_numeric":  537395201,
+                                       "span":  174,
+                                       "segments":  2,
+                                       "needed":  174,
+                                       "free":  65362,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   },
+                                   {
+                                       "name":  "store:input_sequence_app",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "entry":  "0x20080001",
+                                       "entry_numeric":  537395201,
+                                       "span":  174,
+                                       "segments":  2,
+                                       "needed":  174,
+                                       "free":  65362,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   },
+                                   {
+                                       "name":  "time_app",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "entry":  "0x20080001",
+                                       "entry_numeric":  537395201,
+                                       "span":  36,
+                                       "segments":  1,
+                                       "needed":  36,
+                                       "free":  65500,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   },
+                                   {
+                                       "name":  "store:time_app",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "entry":  "0x20080001",
+                                       "entry_numeric":  537395201,
+                                       "span":  36,
+                                       "segments":  1,
+                                       "needed":  36,
+                                       "free":  65500,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   },
+                                   {
+                                       "name":  "large_fit_app",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "entry":  "0x20080019",
+                                       "entry_numeric":  537395225,
+                                       "span":  61696,
+                                       "segments":  3,
+                                       "needed":  61696,
+                                       "free":  3840,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   },
+                                   {
+                                       "name":  "received:large_fit_app",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "entry":  "0x20080019",
+                                       "entry_numeric":  537395225,
+                                       "span":  61696,
+                                       "segments":  3,
+                                       "needed":  61696,
+                                       "free":  3840,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   },
+                                   {
+                                       "name":  "packetstream:large_fit_app",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "entry":  "0x20080019",
+                                       "entry_numeric":  537395225,
+                                       "span":  61696,
+                                       "segments":  3,
+                                       "needed":  61696,
+                                       "free":  3840,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   },
+                                   {
+                                       "name":  "store:large_fit_app",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "entry":  "0x20080019",
+                                       "entry_numeric":  537395225,
+                                       "span":  61696,
+                                       "segments":  3,
+                                       "needed":  61696,
+                                       "free":  3840,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   },
+                                   {
+                                       "name":  "bad_elf_magic_app",
+                                       "format":  "elf",
+                                       "probe":  "bad_magic",
+                                       "entry":  "0x00000000",
+                                       "entry_numeric":  0,
+                                       "span":  0,
+                                       "segments":  0,
+                                       "needed":  0,
+                                       "free":  65536,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "bad_magic"
+                                   },
+                                   {
+                                       "name":  "packetstream:packetstream_bad_elf_magic_app",
+                                       "format":  "elf",
+                                       "probe":  "bad_magic",
+                                       "entry":  "0x00000000",
+                                       "entry_numeric":  0,
+                                       "span":  0,
+                                       "segments":  0,
+                                       "needed":  0,
+                                       "free":  65536,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "bad_magic"
+                                   },
+                                   {
+                                       "name":  "too_large_app",
+                                       "format":  "elf",
+                                       "probe":  "load_buffer_too_small",
+                                       "entry":  "0x00000000",
+                                       "entry_numeric":  0,
+                                       "span":  82176,
+                                       "segments":  2,
+                                       "needed":  82176,
+                                       "free":  0,
+                                       "fits":  false,
+                                       "region":  65536,
+                                       "capacity_probe":  "load_buffer_too_small"
+                                   },
+                                   {
+                                       "name":  "player_min",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "entry":  "0x20080001",
+                                       "entry_numeric":  537395201,
+                                       "span":  1280,
+                                       "segments":  3,
+                                       "needed":  1280,
+                                       "free":  64256,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   },
+                                   {
+                                       "name":  "received:player_min",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "entry":  "0x20080001",
+                                       "entry_numeric":  537395201,
+                                       "span":  1280,
+                                       "segments":  3,
+                                       "needed":  1280,
+                                       "free":  64256,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   },
+                                   {
+                                       "name":  "packetstream:player_min",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "entry":  "0x20080001",
+                                       "entry_numeric":  537395201,
+                                       "span":  1280,
+                                       "segments":  3,
+                                       "needed":  1280,
+                                       "free":  64256,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   },
+                                   {
+                                       "name":  "store:player_min",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "entry":  "0x20080001",
+                                       "entry_numeric":  537395201,
+                                       "span":  1280,
+                                       "segments":  3,
+                                       "needed":  1280,
+                                       "free":  64256,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   }
+                               ],
+                     "packetstreams":  [
+                                           {
+                                               "name":  "hello_app",
+                                               "transport":  "ok",
+                                               "packet":  "ok",
+                                               "receive_stage":  "launch_ready",
+                                               "receive_code":  "ok",
+                                               "payload":  5132,
+                                               "stream":  5776,
+                                               "packets":  23,
+                                               "dispatch":  23,
+                                               "actual_crc":  "0xb3b7bcc5",
+                                               "expected_crc":  "0xb3b7bcc5",
+                                               "read_code":  "ok",
+                                               "read_bytes":  5132,
+                                               "app_stage_code":  "ok",
+                                               "app_stage_format":  "elf",
+                                               "app_stage_bytes":  5132
+                                           },
+                                           {
+                                               "name":  "large_fit_app",
+                                               "transport":  "ok",
+                                               "packet":  "ok",
+                                               "receive_stage":  "launch_ready",
+                                               "receive_code":  "ok",
+                                               "payload":  5168,
+                                               "stream":  5840,
+                                               "packets":  24,
+                                               "dispatch":  24,
+                                               "actual_crc":  "0xdffdfba1",
+                                               "expected_crc":  "0xdffdfba1",
+                                               "read_code":  "ok",
+                                               "read_bytes":  5168,
+                                               "app_stage_code":  "ok",
+                                               "app_stage_format":  "elf",
+                                               "app_stage_bytes":  5168
+                                           },
+                                           {
+                                               "name":  "packetstream_crc_mismatch",
+                                               "transport":  "packet_failed",
+                                               "packet":  "receive_failed",
+                                               "receive_stage":  "failed",
+                                               "receive_code":  "crc_mismatch",
+                                               "payload":  5132,
+                                               "stream":  5776,
+                                               "packets":  23,
+                                               "dispatch":  22,
+                                               "actual_crc":  "0x7d9c7647",
+                                               "expected_crc":  "0xb3b7bcc5",
+                                               "read_code":  "",
+                                               "read_bytes":  0,
+                                               "app_stage_code":  "",
+                                               "app_stage_format":  "",
+                                               "app_stage_bytes":  0
+                                           },
+                                           {
+                                               "name":  "packetstream_bad_elf_magic_app",
+                                               "transport":  "ok",
+                                               "packet":  "ok",
+                                               "receive_stage":  "launch_ready",
+                                               "receive_code":  "ok",
+                                               "payload":  64,
+                                               "stream":  176,
+                                               "packets":  4,
+                                               "dispatch":  4,
+                                               "actual_crc":  "0xbd40f3c7",
+                                               "expected_crc":  "0xbd40f3c7",
+                                               "read_code":  "ok",
+                                               "read_bytes":  64,
+                                               "app_stage_code":  "ok",
+                                               "app_stage_format":  "elf",
+                                               "app_stage_bytes":  64
+                                           },
+                                           {
+                                               "name":  "player_min",
+                                               "transport":  "ok",
+                                               "packet":  "ok",
+                                               "receive_stage":  "launch_ready",
+                                               "receive_code":  "ok",
+                                               "payload":  5168,
+                                               "stream":  5840,
+                                               "packets":  24,
+                                               "dispatch":  24,
+                                               "actual_crc":  "0xba5eb94a",
+                                               "expected_crc":  "0xba5eb94a",
+                                               "read_code":  "ok",
+                                               "read_bytes":  5168,
+                                               "app_stage_code":  "ok",
+                                               "app_stage_format":  "elf",
+                                               "app_stage_bytes":  5168
+                                           }
+                                       ],
+                     "source_matrix":  [
+                                           {
+                                               "name":  "hello_app",
+                                               "direct":  {
+                                                              "stage":  "exit",
+                                                              "code":  "ok",
+                                                              "exit":  0
+                                                          },
+                                               "received":  {
+                                                                "stage":  "exit",
+                                                                "code":  "ok",
+                                                                "exit":  0
+                                                            },
+                                               "packetstream":  {
+                                                                    "stage":  "exit",
+                                                                    "code":  "ok",
+                                                                    "exit":  0
+                                                                },
+                                               "store":  {
+                                                             "stage":  "exit",
+                                                             "code":  "ok",
+                                                             "exit":  0
+                                                         },
+                                               "prepare":  null
+                                           },
+                                           {
+                                               "name":  "argv_app",
+                                               "direct":  {
+                                                              "stage":  "exit",
+                                                              "code":  "ok",
+                                                              "exit":  0
+                                                          },
+                                               "received":  null,
+                                               "packetstream":  null,
+                                               "store":  {
+                                                             "stage":  "exit",
+                                                             "code":  "ok",
+                                                             "exit":  0
+                                                         },
+                                               "prepare":  {
+                                                               "stage":  "start",
+                                                               "code":  "ok",
+                                                               "ready":  true,
+                                                               "argc":  4
+                                                           }
+                                           },
+                                           {
+                                               "name":  "argv_overflow_app",
+                                               "direct":  {
+                                                              "stage":  "argv",
+                                                              "code":  "argv_overflow",
+                                                              "exit":  0
+                                                          },
+                                               "received":  null,
+                                               "packetstream":  null,
+                                               "store":  null,
+                                               "prepare":  null
+                                           },
+                                           {
+                                               "name":  "abi_mismatch_app",
+                                               "direct":  {
+                                                              "stage":  "abi",
+                                                              "code":  "abi_mismatch",
+                                                              "exit":  0
+                                                          },
+                                               "received":  null,
+                                               "packetstream":  null,
+                                               "store":  null,
+                                               "prepare":  null
+                                           },
+                                           {
+                                               "name":  "bss_app",
+                                               "direct":  {
+                                                              "stage":  "exit",
+                                                              "code":  "ok",
+                                                              "exit":  0
+                                                          },
+                                               "received":  null,
+                                               "packetstream":  null,
+                                               "store":  {
+                                                             "stage":  "exit",
+                                                             "code":  "ok",
+                                                             "exit":  0
+                                                         },
+                                               "prepare":  null
+                                           },
+                                           {
+                                               "name":  "exit_app",
+                                               "direct":  {
+                                                              "stage":  "exit",
+                                                              "code":  "ok",
+                                                              "exit":  0
+                                                          },
+                                               "received":  null,
+                                               "packetstream":  null,
+                                               "store":  {
+                                                             "stage":  "exit",
+                                                             "code":  "ok",
+                                                             "exit":  0
+                                                         },
+                                               "prepare":  null
+                                           },
+                                           {
+                                               "name":  "unsupported_caps_app",
+                                               "direct":  {
+                                                              "stage":  "exit",
+                                                              "code":  "ok",
+                                                              "exit":  0
+                                                          },
+                                               "received":  null,
+                                               "packetstream":  null,
+                                               "store":  {
+                                                             "stage":  "exit",
+                                                             "code":  "ok",
+                                                             "exit":  0
+                                                         },
+                                               "prepare":  null
+                                           },
+                                           {
+                                               "name":  "storage_app",
+                                               "direct":  {
+                                                              "stage":  "exit",
+                                                              "code":  "ok",
+                                                              "exit":  0
+                                                          },
+                                               "received":  null,
+                                               "packetstream":  null,
+                                               "store":  {
+                                                             "stage":  "exit",
+                                                             "code":  "ok",
+                                                             "exit":  0
+                                                         },
+                                               "prepare":  null
+                                           },
+                                           {
+                                               "name":  "storage_catalog_app",
+                                               "direct":  {
+                                                              "stage":  "exit",
+                                                              "code":  "ok",
+                                                              "exit":  0
+                                                          },
+                                               "received":  null,
+                                               "packetstream":  null,
+                                               "store":  {
+                                                             "stage":  "exit",
+                                                             "code":  "ok",
+                                                             "exit":  0
+                                                         },
+                                               "prepare":  null
+                                           },
+                                           {
+                                               "name":  "display_sequence_app",
+                                               "direct":  {
+                                                              "stage":  "exit",
+                                                              "code":  "ok",
+                                                              "exit":  0
+                                                          },
+                                               "received":  null,
+                                               "packetstream":  null,
+                                               "store":  {
+                                                             "stage":  "exit",
+                                                             "code":  "ok",
+                                                             "exit":  0
+                                                         },
+                                               "prepare":  null
+                                           },
+                                           {
+                                               "name":  "input_sequence_app",
+                                               "direct":  {
+                                                              "stage":  "exit",
+                                                              "code":  "ok",
+                                                              "exit":  0
+                                                          },
+                                               "received":  null,
+                                               "packetstream":  null,
+                                               "store":  {
+                                                             "stage":  "exit",
+                                                             "code":  "ok",
+                                                             "exit":  0
+                                                         },
+                                               "prepare":  null
+                                           },
+                                           {
+                                               "name":  "time_app",
+                                               "direct":  {
+                                                              "stage":  "exit",
+                                                              "code":  "ok",
+                                                              "exit":  0
+                                                          },
+                                               "received":  null,
+                                               "packetstream":  null,
+                                               "store":  {
+                                                             "stage":  "exit",
+                                                             "code":  "ok",
+                                                             "exit":  0
+                                                         },
+                                               "prepare":  null
+                                           },
+                                           {
+                                               "name":  "large_fit_app",
+                                               "direct":  {
+                                                              "stage":  "exit",
+                                                              "code":  "ok",
+                                                              "exit":  0
+                                                          },
+                                               "received":  {
+                                                                "stage":  "exit",
+                                                                "code":  "ok",
+                                                                "exit":  0
+                                                            },
+                                               "packetstream":  {
+                                                                    "stage":  "exit",
+                                                                    "code":  "ok",
+                                                                    "exit":  0
+                                                                },
+                                               "store":  {
+                                                             "stage":  "exit",
+                                                             "code":  "ok",
+                                                             "exit":  0
+                                                         },
+                                               "prepare":  null
+                                           },
+                                           {
+                                               "name":  "bad_elf_magic_app",
+                                               "direct":  {
+                                                              "stage":  "load",
+                                                              "code":  "load_failed",
+                                                              "exit":  0
+                                                          },
+                                               "received":  null,
+                                               "packetstream":  null,
+                                               "store":  null,
+                                               "prepare":  null
+                                           },
+                                           {
+                                               "name":  "packetstream_bad_elf_magic_app",
+                                               "direct":  null,
+                                               "received":  null,
+                                               "packetstream":  {
+                                                                    "stage":  "load",
+                                                                    "code":  "load_failed",
+                                                                    "exit":  0
+                                                                },
+                                               "store":  null,
+                                               "prepare":  null
+                                           },
+                                           {
+                                               "name":  "too_large_app",
+                                               "direct":  {
+                                                              "stage":  "load",
+                                                              "code":  "load_failed",
+                                                              "exit":  0
+                                                          },
+                                               "received":  null,
+                                               "packetstream":  null,
+                                               "store":  null,
+                                               "prepare":  null
+                                           },
+                                           {
+                                               "name":  "player_min",
+                                               "direct":  {
+                                                              "stage":  "exit",
+                                                              "code":  "ok",
+                                                              "exit":  0
+                                                          },
+                                               "received":  {
+                                                                "stage":  "exit",
+                                                                "code":  "ok",
+                                                                "exit":  0
+                                                            },
+                                               "packetstream":  {
+                                                                    "stage":  "exit",
+                                                                    "code":  "ok",
+                                                                    "exit":  0
+                                                                },
+                                               "store":  {
+                                                             "stage":  "exit",
+                                                             "code":  "ok",
+                                                             "exit":  0
+                                                         },
+                                               "prepare":  null
+                                           }
+                                       ],
+                     "gui_timeline":  [
+                                          {
+                                              "name":  "display_sequence_app",
+                                              "stage":  "exit",
+                                              "code":  "ok",
+                                              "exit":  0,
+                                              "frames":  2,
+                                              "inputs":  0,
+                                              "last_frame_hash":  "0xa9b09dc5",
+                                              "last_input":  ""
+                                          },
+                                          {
+                                              "name":  "store:display_sequence_app",
+                                              "stage":  "exit",
+                                              "code":  "ok",
+                                              "exit":  0,
+                                              "frames":  2,
+                                              "inputs":  0,
+                                              "last_frame_hash":  "0xa9b09dc5",
+                                              "last_input":  ""
+                                          },
+                                          {
+                                              "name":  "player_min",
+                                              "stage":  "exit",
+                                              "code":  "ok",
+                                              "exit":  0,
+                                              "frames":  1,
+                                              "inputs":  1,
+                                              "last_frame_hash":  "0xfac53a05",
+                                              "last_input":  "3,5,0"
+                                          },
+                                          {
+                                              "name":  "received:player_min",
+                                              "stage":  "exit",
+                                              "code":  "ok",
+                                              "exit":  0,
+                                              "frames":  1,
+                                              "inputs":  1,
+                                              "last_frame_hash":  "0xfac53a05",
+                                              "last_input":  "3,5,0"
+                                          },
+                                          {
+                                              "name":  "packetstream:player_min",
+                                              "stage":  "exit",
+                                              "code":  "ok",
+                                              "exit":  0,
+                                              "frames":  1,
+                                              "inputs":  1,
+                                              "last_frame_hash":  "0xfac53a05",
+                                              "last_input":  "3,5,0"
+                                          },
+                                          {
+                                              "name":  "store:player_min",
+                                              "stage":  "exit",
+                                              "code":  "ok",
+                                              "exit":  0,
+                                              "frames":  1,
+                                              "inputs":  1,
+                                              "last_frame_hash":  "0xfac53a05",
+                                              "last_input":  "3,5,0"
+                                          },
+                                          {
+                                              "name":  "input_sequence_app",
+                                              "stage":  "exit",
+                                              "code":  "ok",
+                                              "exit":  0,
+                                              "frames":  0,
+                                              "inputs":  4,
+                                              "last_frame_hash":  "",
+                                              "last_input":  "6,8,0"
+                                          },
+                                          {
+                                              "name":  "store:input_sequence_app",
+                                              "stage":  "exit",
+                                              "code":  "ok",
+                                              "exit":  0,
+                                              "frames":  0,
+                                              "inputs":  4,
+                                              "last_frame_hash":  "",
+                                              "last_input":  "6,8,0"
+                                          }
+                                      ],
+                     "prepare":  {
+                                     "name":  "prepare:argv_app",
+                                     "stage":  "start",
+                                     "code":  "ok",
+                                     "ready":  true,
+                                     "argc":  4,
+                                     "capability_calls":  0
+                                 },
+                     "capabilities":  {
+                                          "console":  true,
+                                          "time":  true,
+                                          "display":  true,
+                                          "input":  true,
+                                          "storage":  true,
+                                          "app_exit":  true,
+                                          "unsupported":  true
+                                      },
+                     "negative_cases":  [
+                                            {
+                                                "name":  "packetstream_crc_mismatch",
+                                                "stage":  "packetstream_verify",
+                                                "code":  "crc_mismatch"
+                                            },
+                                            {
+                                                "name":  "received_too_large_app",
+                                                "stage":  "received_stage",
+                                                "code":  "buffer_too_small"
+                                            },
+                                            {
+                                                "name":  "too_large_store_app",
+                                                "stage":  "store_stage",
+                                                "code":  "image_too_large"
+                                            },
+                                            {
+                                                "name":  "bad_elf_magic_app",
+                                                "stage":  "load",
+                                                "code":  "load_failed"
+                                            },
+                                            {
+                                                "name":  "packetstream_bad_elf_magic_app",
+                                                "stage":  "load",
+                                                "code":  "load_failed"
+                                            },
+                                            {
+                                                "name":  "too_large_app",
+                                                "stage":  "load",
+                                                "code":  "load_failed"
+                                            },
+                                            {
+                                                "name":  "argv_overflow_app",
+                                                "stage":  "argv",
+                                                "code":  "argv_overflow"
+                                            },
+                                            {
+                                                "name":  "abi_mismatch_app",
+                                                "stage":  "abi",
+                                                "code":  "abi_mismatch"
+                                            }
+                                        ]
+                 },
+    "evidence":  {
+                     "log":  "qemu-ci.log",
+                     "frame_signatures":  "frame-signatures.json",
+                     "frame_signature_count":  8,
+                     "frame_signature_run_count":  6,
+                     "frame_dumps":  "frame-dumps.json",
+                     "frame_dump_count":  8,
+                     "frame_dump_run_count":  6,
+                     "frame_ppm":  "frame-ppm",
+                     "frame_ppm_count":  8,
+                     "frame_ppm_run_count":  6,
+                     "input_trace":  "input-trace.json",
+                     "input_trace_event_count":  12,
+                     "input_trace_run_count":  6,
+                     "storage_trace":  "storage-trace.json",
+                     "storage_trace_event_count":  49,
+                     "storage_trace_run_count":  6
+                 }
+}

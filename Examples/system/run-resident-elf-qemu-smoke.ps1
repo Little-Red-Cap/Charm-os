@@ -14,6 +14,7 @@ param(
     [string]$StorageTraceOut = "",
     [string]$GoldenStorageTrace = "",
     [string]$DomainSummaryOut = "",
+    [string]$GoldenDomainSummary = "",
     [string]$ElfBase = "0x20080000",
     [int]$TimeoutSec = 8,
     [int]$TailLines = 80,
@@ -30,11 +31,14 @@ param(
     [string]$CompareStorageTrace = "",
     [string]$ActualStorageTrace = "",
     [string]$ValidateDomainSummary = "",
+    [string]$CompareDomainSummary = "",
+    [string]$ActualDomainSummary = "",
     [string]$CompareFrameDumps = "",
     [string]$ActualFrameDumps = "",
     [switch]$SkipGoldenFrameSignatures,
     [switch]$SkipGoldenInputTrace,
     [switch]$SkipGoldenStorageTrace,
+    [switch]$SkipGoldenDomainSummary,
     [switch]$DryRun,
     [switch]$SelfTest
 )
@@ -112,6 +116,7 @@ function New-QemuSmokeArguments {
     Add-OptionalStringArgument -Arguments $Arguments -Name "-StorageTraceOut" -Value $StorageTraceOut
     Add-OptionalStringArgument -Arguments $Arguments -Name "-GoldenStorageTrace" -Value $GoldenStorageTrace
     Add-OptionalStringArgument -Arguments $Arguments -Name "-DomainSummaryOut" -Value $DomainSummaryOut
+    Add-OptionalStringArgument -Arguments $Arguments -Name "-GoldenDomainSummary" -Value $GoldenDomainSummary
     Add-OptionalStringArgument -Arguments $Arguments -Name "-ValidateLog" -Value $ValidateLog
     Add-OptionalStringArgument -Arguments $Arguments -Name "-ValidateFrameSignatures" -Value $ValidateFrameSignatures
     Add-OptionalStringArgument -Arguments $Arguments -Name "-CompareFrameSignatures" -Value $CompareFrameSignatures
@@ -125,11 +130,14 @@ function New-QemuSmokeArguments {
     Add-OptionalStringArgument -Arguments $Arguments -Name "-CompareStorageTrace" -Value $CompareStorageTrace
     Add-OptionalStringArgument -Arguments $Arguments -Name "-ActualStorageTrace" -Value $ActualStorageTrace
     Add-OptionalStringArgument -Arguments $Arguments -Name "-ValidateDomainSummary" -Value $ValidateDomainSummary
+    Add-OptionalStringArgument -Arguments $Arguments -Name "-CompareDomainSummary" -Value $CompareDomainSummary
+    Add-OptionalStringArgument -Arguments $Arguments -Name "-ActualDomainSummary" -Value $ActualDomainSummary
     Add-OptionalStringArgument -Arguments $Arguments -Name "-CompareFrameDumps" -Value $CompareFrameDumps
     Add-OptionalStringArgument -Arguments $Arguments -Name "-ActualFrameDumps" -Value $ActualFrameDumps
     Add-OptionalSwitchArgument -Arguments $Arguments -Name "-SkipGoldenFrameSignatures" -Enabled $SkipGoldenFrameSignatures.IsPresent
     Add-OptionalSwitchArgument -Arguments $Arguments -Name "-SkipGoldenInputTrace" -Enabled $SkipGoldenInputTrace.IsPresent
     Add-OptionalSwitchArgument -Arguments $Arguments -Name "-SkipGoldenStorageTrace" -Enabled $SkipGoldenStorageTrace.IsPresent
+    Add-OptionalSwitchArgument -Arguments $Arguments -Name "-SkipGoldenDomainSummary" -Enabled $SkipGoldenDomainSummary.IsPresent
     Add-OptionalSwitchArgument -Arguments $Arguments -Name "-DryRun" -Enabled $DryRun.IsPresent
     Add-OptionalSwitchArgument -Arguments $Arguments -Name "-SelfTest" -Enabled ($SelfTest.IsPresent -or $ForceSelfTest)
 
@@ -172,6 +180,9 @@ function Invoke-WrapperSelfTest {
     }
     if ($SkipGoldenStorageTrace -and -not (Test-ArgumentPresent -Arguments $Forwarded -Name "-SkipGoldenStorageTrace")) {
         throw "selftest_failed: wrapper did not forward -SkipGoldenStorageTrace"
+    }
+    if ($SkipGoldenDomainSummary -and -not (Test-ArgumentPresent -Arguments $Forwarded -Name "-SkipGoldenDomainSummary")) {
+        throw "selftest_failed: wrapper did not forward -SkipGoldenDomainSummary"
     }
 
     & powershell @Forwarded

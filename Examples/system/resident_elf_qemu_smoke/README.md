@@ -223,8 +223,13 @@ compares the generated storage trace with `storage-trace.golden.json`; pass
 is expected to drift.
 Use
 `-ValidateDomainSummary resident_elf_qemu_smoke/domain-summary.json` to validate
-the machine-readable `virtual_m7` runtime-domain summary. Use
-`-CompareStorageTrace expected.json -ActualStorageTrace actual.json` or
+the machine-readable `virtual_m7` runtime-domain summary. The default full smoke
+also compares the generated summary with `domain-summary.golden.json` after
+canonicalizing environment-specific paths; pass `-SkipGoldenDomainSummary` only
+for temporary experiments where the backend contract or coverage matrix is
+expected to drift. Use
+`-CompareDomainSummary expected.json -ActualDomainSummary actual.json`,
+`-CompareStorageTrace expected.json -ActualStorageTrace actual.json`, or
 `-CompareFrameDumps expected.json -ActualFrameDumps actual.json` to compare two
 captures after canonicalizing environment-specific fields such as log paths.
 The local `run_qemu_ci.ps1` script remains the direct implementation entry for
@@ -458,7 +463,9 @@ Validation treats this summary as a stable QEMU backend contract: expected
 backend contract, coverage counts for runs, stages, loads, packetstreams,
 source-matrix entries, GUI timeline entries, negative cases, and evidence traces
 are exact gates. If a future change adds or removes coverage, update the smoke
-and this evidence contract intentionally.
+and this evidence contract intentionally. `domain-summary.golden.json` is the
+checked-in canonical contract snapshot; its environment-specific evidence paths
+are reduced to file names before comparison.
 
 ## Boundary
 

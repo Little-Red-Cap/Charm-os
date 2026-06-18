@@ -14,6 +14,7 @@ param(
     [string]$StorageTraceOut = "$PSScriptRoot\storage-trace.json",
     [string]$GoldenStorageTrace = "$PSScriptRoot\storage-trace.golden.json",
     [string]$DomainSummaryOut = "$PSScriptRoot\domain-summary.json",
+    [string]$GoldenDomainSummary = "$PSScriptRoot\domain-summary.golden.json",
     [string]$ElfBase = "0x20080000",
     [int]$TimeoutSec = 8,
     [int]$TailLines = 80,
@@ -30,11 +31,14 @@ param(
     [string]$CompareStorageTrace = "",
     [string]$ActualStorageTrace = "",
     [string]$ValidateDomainSummary = "",
+    [string]$CompareDomainSummary = "",
+    [string]$ActualDomainSummary = "",
     [string]$CompareFrameDumps = "",
     [string]$ActualFrameDumps = "",
     [switch]$SkipGoldenFrameSignatures,
     [switch]$SkipGoldenInputTrace,
     [switch]$SkipGoldenStorageTrace,
+    [switch]$SkipGoldenDomainSummary,
     [switch]$DryRun,
     [switch]$SelfTest
 )
@@ -2168,6 +2172,60 @@ function Write-DomainSummaryCapture {
     Write-Host "  store_media_reads=$StoreMediaReadCalls"
 }
 
+function ConvertTo-CanonicalDomainSummary {
+    param([object]$Summary)
+
+    $Canonical = $Summary | ConvertTo-Json -Depth 32 | ConvertFrom-Json
+    if ($null -ne $Canonical.evidence) {
+        foreach ($PropertyName in @("log", "frame_signatures", "frame_dumps", "frame_ppm", "input_trace", "storage_trace")) {
+            $Property = $Canonical.evidence.PSObject.Properties[$PropertyName]
+            if ($null -ne $Property -and -not [string]::IsNullOrWhiteSpace([string]$Property.Value)) {
+                $Property.Value = [System.IO.Path]::GetFileName([string]$Property.Value)
+            }
+        }
+    }
+    return $Canonical
+}
+
+function Read-CanonicalDomainSummaryJson {
+    param([string]$Path)
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        throw "domain_summary_compare_failed: path is empty"
+    }
+    if (-not (Test-Path -LiteralPath $Path)) {
+        throw "domain_summary_compare_failed: file not found: $Path"
+    }
+    $ResolvedPath = (Resolve-Path -LiteralPath $Path).Path
+    $Summary = Get-Content -LiteralPath $ResolvedPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    return (ConvertTo-CanonicalDomainSummary -Summary $Summary) | ConvertTo-Json -Depth 32 -Compress
+}
+
+function Compare-DomainSummaryFiles {
+    param(
+        [string]$ExpectedPath,
+        [string]$ActualPath
+    )
+
+    if ([string]::IsNullOrWhiteSpace($ExpectedPath) -or [string]::IsNullOrWhiteSpace($ActualPath)) {
+        throw "domain_summary_compare_failed: expected and actual paths are required"
+    }
+    [void](Validate-DomainSummaryFile -Path $ExpectedPath)
+    [void](Validate-DomainSummaryFile -Path $ActualPath)
+    $ExpectedJson = Read-CanonicalDomainSummaryJson -Path $ExpectedPath
+    $ActualJson = Read-CanonicalDomainSummaryJson -Path $ActualPath
+    if ($ExpectedJson -ne $ActualJson) {
+        Write-Host "resident-elf-qemu domain summary comparison failed"
+        Write-Host "  expected=$ExpectedPath"
+        Write-Host "  actual=$ActualPath"
+        throw "domain_summary_compare_failed: captures differ"
+    }
+    Write-Host "resident-elf-qemu domain summary comparison ok"
+    Write-Host "  expected=$ExpectedPath"
+    Write-Host "  actual=$ActualPath"
+    return 0
+}
+
 function Assert-DomainRun {
     param(
         [object[]]$Runs,
@@ -2682,6 +2740,9 @@ function Invoke-SelfTest {
     if (-not (Test-SelfTestThrowsLike -Prefix "domain_summary_validate_failed:" -Script { Validate-DomainSummaryFile -Path "" })) {
         throw "selftest_failed: domain summary validation did not report domain_summary_validate_failed"
     }
+    if (-not (Test-SelfTestThrowsLike -Prefix "domain_summary_compare_failed:" -Script { Compare-DomainSummaryFiles -ExpectedPath "" -ActualPath "" })) {
+        throw "selftest_failed: domain summary compare did not report domain_summary_compare_failed"
+    }
     $GoodStoreSummary = [pscustomobject]@{
         format = "store_v1"
         entries = 13
@@ -2839,6 +2900,7 @@ function Invoke-SelfTest {
         "-SkipGoldenFrameSignatures",
         "-SkipGoldenInputTrace",
         "-SkipGoldenStorageTrace",
+        "-SkipGoldenDomainSummary",
         "capture-resident-platform-evidence-bundle.ps1 -QemuElf",
         "display mode is fixed at 16x16 ARGB8888",
         "coverage.gui_timeline",
@@ -2872,6 +2934,7 @@ function Invoke-SelfTest {
         (Join-Path $PSScriptRoot "frame-signatures.golden.json"),
         (Join-Path $PSScriptRoot "input-trace.golden.json"),
         (Join-Path $PSScriptRoot "storage-trace.golden.json"),
+        (Join-Path $PSScriptRoot "domain-summary.golden.json"),
         (Join-Path $AppSampleDir "app_elf.ld"),
         (Join-Path $AppSampleDir "hello_app.c"),
         (Join-Path $AppSampleDir "player_min.c"),
@@ -2886,9 +2949,11 @@ function Invoke-SelfTest {
     $GoldenFrameSignatureFile = Join-Path $PSScriptRoot "frame-signatures.golden.json"
     $GoldenInputTraceFile = Join-Path $PSScriptRoot "input-trace.golden.json"
     $GoldenStorageTraceFile = Join-Path $PSScriptRoot "storage-trace.golden.json"
+    $GoldenDomainSummaryFile = Join-Path $PSScriptRoot "domain-summary.golden.json"
     [void](Validate-FrameSignatureFile -Path $GoldenFrameSignatureFile)
     [void](Validate-InputTraceFile -Path $GoldenInputTraceFile)
     [void](Validate-StorageTraceFile -Path $GoldenStorageTraceFile)
+    [void](Validate-DomainSummaryFile -Path $GoldenDomainSummaryFile)
 
     $CMakePath = Resolve-ToolPath -Tool $CMakeExe
     $QemuPath = Resolve-ToolPath -Tool $QemuExe
@@ -2905,6 +2970,7 @@ function Invoke-SelfTest {
     $StorageTracePath = Resolve-ScriptPath -Path $StorageTraceOut
     $GoldenStorageTracePath = if ($SkipGoldenStorageTrace) { "skipped" } else { Resolve-ScriptPath -Path $GoldenStorageTrace }
     $DomainSummaryPath = Resolve-ScriptPath -Path $DomainSummaryOut
+    $GoldenDomainSummaryPath = if ($SkipGoldenDomainSummary) { "skipped" } else { Resolve-ScriptPath -Path $GoldenDomainSummary }
 
     Write-Host "resident-elf-qemu selftest:"
     Write-Host "  cmake=$CMakePath"
@@ -2922,6 +2988,7 @@ function Invoke-SelfTest {
     Write-Host "  storage_trace=$StorageTracePath"
     Write-Host "  golden_storage_trace=$GoldenStorageTracePath"
     Write-Host "  domain_summary=$DomainSummaryPath"
+    Write-Host "  golden_domain_summary=$GoldenDomainSummaryPath"
     Write-Host "  elf_base=$ElfBase"
     Write-Host "[resident-elf-qemu] selftest ok"
 }
@@ -2974,6 +3041,11 @@ if (-not [string]::IsNullOrWhiteSpace($ValidateDomainSummary)) {
     exit (Validate-DomainSummaryFile -Path $ValidateDomainSummary)
 }
 
+if (-not [string]::IsNullOrWhiteSpace($CompareDomainSummary) -or
+    -not [string]::IsNullOrWhiteSpace($ActualDomainSummary)) {
+    exit (Compare-DomainSummaryFiles -ExpectedPath $CompareDomainSummary -ActualPath $ActualDomainSummary)
+}
+
 if (-not [string]::IsNullOrWhiteSpace($CompareFrameDumps) -or
     -not [string]::IsNullOrWhiteSpace($ActualFrameDumps)) {
     exit (Compare-FrameDumpFiles -ExpectedPath $CompareFrameDumps -ActualPath $ActualFrameDumps)
@@ -3023,6 +3095,11 @@ if ($DryRun) {
         Write-Host "[dry-run] golden_storage_trace=$(Resolve-ScriptPath -Path $GoldenStorageTrace)"
     }
     Write-Host "[dry-run] domain_summary=$(Resolve-ScriptPath -Path $DomainSummaryOut)"
+    if ($SkipGoldenDomainSummary) {
+        Write-Host "[dry-run] golden_domain_summary=skipped"
+    } else {
+        Write-Host "[dry-run] golden_domain_summary=$(Resolve-ScriptPath -Path $GoldenDomainSummary)"
+    }
     exit 0
 }
 
@@ -3269,5 +3346,9 @@ Write-DomainSummaryCapture -LogPath $outFile `
 if (-not [string]::IsNullOrWhiteSpace($DomainSummaryOut)) {
     $ResolvedDomainSummaryOut = Resolve-ScriptPath -Path $DomainSummaryOut
     [void](Validate-DomainSummaryFile -Path $ResolvedDomainSummaryOut)
+    if (-not $SkipGoldenDomainSummary -and -not [string]::IsNullOrWhiteSpace($GoldenDomainSummary)) {
+        $ResolvedGoldenDomainSummary = Resolve-ScriptPath -Path $GoldenDomainSummary
+        [void](Compare-DomainSummaryFiles -ExpectedPath $ResolvedGoldenDomainSummary -ActualPath $ResolvedDomainSummaryOut)
+    }
 }
 Write-Host "[ok] resident ELF QEMU smoke detected"

@@ -98,6 +98,18 @@ dev: app record source=<received|qspi|emmc> format=<elf|modulex> name=<app>
   exited=<0|1> exit=<code> caps_console=<bytes> caps_present=<n> caps_input=<n>
 ```
 
+For ELF capacity work, the same status output also prints the fixed H747 run
+region and the latest load-span pressure:
+
+```text
+dev: app run-region name=ram_d1_app_elf base=0x24070000 size=65536 align=16 linked_elf_base=0x24070000
+dev: app capacity needed=<load_span> free=<bytes> fits=<0|1> region=65536 probe=<elf_probe_code>
+```
+
+This is the v1 boundary for large App ELF diagnostics. A payload that exceeds
+the D1 run region must fail in probe/load with `load_buffer_too_small`; it must
+not turn into a private jump path, SDRAM execute experiment, or App ABI change.
+
 For ELF, `received`, `qspi`, and `emmc` are expected to converge on the same
 `AppImage(format=elf) -> staged AppImageSource -> AppRuntime -> CharmAppApi`
 result model. The legacy `dev: app command=... name=qspi:<name>` token remains
@@ -434,6 +446,18 @@ Board validation helpers:
   `powershell -ExecutionPolicy Bypass -File tools/capture-dev-loader-installed-store-matrix-smoke.ps1`
 - Run the default off-board resident platform evidence bundle:
   `powershell -ExecutionPolicy Bypass -File tools/capture-resident-platform-evidence-bundle.ps1`
+- Run the same evidence bundle and append the off-board QEMU ELF virtual-board smoke:
+  `powershell -ExecutionPolicy Bypass -File tools/capture-resident-platform-evidence-bundle.ps1 -QemuElf`
+  The bundle summary expands the generated QEMU `domain-summary.json` into
+  `qemu_elf_domain`, `qemu_elf_display`, `qemu_elf_coverage`, and
+  `qemu_elf_player_min_gui` tokens so the archived evidence shows the virtual
+  runtime domain, fixed display mode, coverage counts, and GUI timeline without
+  opening the JSON manually.
+- Run only the off-board QEMU ELF virtual-board smoke:
+  `powershell -ExecutionPolicy Bypass -File ../../system/run-resident-elf-qemu-smoke.ps1`
+  The QEMU smoke covers direct App ELF plus QEMU-local Store v1 staging into the
+  same `AppImage(format=elf) -> AppRuntime` path; it is not a replacement for
+  USB/QSPI/eMMC board evidence.
 - Run the same evidence bundle and append the QSPI/eMMC board matrix:
   `powershell -ExecutionPolicy Bypass -File tools/capture-resident-platform-evidence-bundle.ps1 -BoardMatrix -UsbPort COMxx`
 - Run the same evidence bundle and append only the installed-store persistence matrix:

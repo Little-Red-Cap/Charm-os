@@ -214,7 +214,126 @@ function Invoke-SelfTest {
         }
     }
 
+    $TempSummary = Join-Path ([System.IO.Path]::GetTempPath()) "charm_qemu_domain_summary_selftest.json"
+    $GoodSummary = [pscustomobject]@{
+        schema = "charm.resident_elf_qemu.domain_summary.v1"
+        domain = "virtual_m7"
+        machine = "mps2-an500"
+        cpu = "cortex-m7"
+        display = [pscustomobject]@{
+            width = 16
+            height = 16
+            format = "argb8888"
+            stride_bytes = 64
+            frame_bytes = 1024
+        }
+        coverage = [pscustomobject]@{
+            runs = 1..35
+            source_matrix = 1..17
+            gui_timeline = @(
+                [pscustomobject]@{ name = "player_min"; frames = 1; inputs = 1; last_frame_hash = "0xfac53a05"; last_input = "3,5,0" },
+                [pscustomobject]@{ name = "received:player_min"; frames = 1; inputs = 1; last_frame_hash = "0xfac53a05"; last_input = "3,5,0" },
+                [pscustomobject]@{ name = "packetstream:player_min"; frames = 1; inputs = 1; last_frame_hash = "0xfac53a05"; last_input = "3,5,0" },
+                [pscustomobject]@{ name = "store:player_min"; frames = 1; inputs = 1; last_frame_hash = "0xfac53a05"; last_input = "3,5,0" }
+            )
+        }
+    }
+    [System.IO.File]::WriteAllText($TempSummary, (($GoodSummary | ConvertTo-Json -Depth 8) + "`n"), [System.Text.UTF8Encoding]::new($false))
+    try {
+        $ParsedQemu = Read-QemuElfDomainSummary -Path $TempSummary
+        if ($ParsedQemu.Domain -ne "virtual_m7" -or
+            $ParsedQemu.Display -ne "16x16:argb8888:stride=64:frame=1024" -or
+            $ParsedQemu.GuiTimeline -ne 4 -or
+            $ParsedQemu.PlayerMin.IndexOf("packetstream:player_min:frames=1,inputs=1", [System.StringComparison]::Ordinal) -lt 0) {
+            throw "selftest_failed: qemu summary parse result is unexpected"
+        }
+        $BadSummary = $GoodSummary
+        $BadSummary.schema = "bad"
+        [System.IO.File]::WriteAllText($TempSummary, (($BadSummary | ConvertTo-Json -Depth 8) + "`n"), [System.Text.UTF8Encoding]::new($false))
+        try {
+            Read-QemuElfDomainSummary -Path $TempSummary | Out-Null
+            throw "selftest_failed: bad qemu summary did not fail"
+        } catch {
+            if ($_.Exception.Message.IndexOf("qemu_elf_summary_invalid", [System.StringComparison]::Ordinal) -lt 0) {
+                throw "selftest_failed: bad qemu summary did not report qemu_elf_summary_invalid: $($_.Exception.Message)"
+            }
+        }
+    } finally {
+        Remove-Item -LiteralPath $TempSummary -Force -ErrorAction SilentlyContinue
+    }
+
     Write-Host "[resident-platform-evidence-bundle] selftest ok"
+}
+
+function Read-QemuElfDomainSummary {
+    param([string]$Path)
+
+    if ([string]::IsNullOrWhiteSpace($Path) -or -not (Test-Path -LiteralPath $Path)) {
+        return $null
+    }
+
+    $Summary = Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($Summary.schema -ne "charm.resident_elf_qemu.domain_summary.v1") {
+        throw "qemu_elf_summary_invalid: bad schema: $($Summary.schema)"
+    }
+    $Timeline = @($Summary.coverage.gui_timeline)
+    $PlayerMinPaths = @("player_min", "received:player_min", "packetstream:player_min", "store:player_min")
+    $PlayerMinSummary = @()
+    foreach ($Name in $PlayerMinPaths) {
+        $Matches = @($Timeline | Where-Object { $_.name -eq $Name })
+        if ($Matches.Count -ne 1) {
+            throw "qemu_elf_summary_invalid: missing gui timeline $Name"
+        }
+        $Entry = $Matches[0]
+        $PlayerMinSummary += ("{0}:frames={1},inputs={2},hash={3},input={4}" -f `
+            $Name, `
+            ([int]$Entry.frames), `
+            ([int]$Entry.inputs), `
+            ([string]$Entry.last_frame_hash), `
+            ([string]$Entry.last_input))
+    }
+
+    return [pscustomobject]@{
+        Domain = [string]$Summary.domain
+        Machine = [string]$Summary.machine
+        Cpu = [string]$Summary.cpu
+        Runs = @($Summary.coverage.runs).Count
+        SourceMatrix = @($Summary.coverage.source_matrix).Count
+        GuiTimeline = $Timeline.Count
+        Display = ("{0}x{1}:{2}:stride={3}:frame={4}" -f `
+            ([int]$Summary.display.width), `
+            ([int]$Summary.display.height), `
+            ([string]$Summary.display.format), `
+            ([int]$Summary.display.stride_bytes), `
+            ([int]$Summary.display.frame_bytes))
+        PlayerMin = ($PlayerMinSummary -join ";")
+    }
+}
+
+function Write-QemuElfSummaryLines {
+    param(
+        [System.Collections.Generic.List[string]]$Lines,
+        [object]$QemuElfSummary
+    )
+
+    if ($null -eq $QemuElfSummary) {
+        Write-BundleLine -Lines $Lines -Text "qemu_elf_domain=skipped"
+        Write-BundleLine -Lines $Lines -Text "qemu_elf_display=skipped"
+        Write-BundleLine -Lines $Lines -Text "qemu_elf_coverage=skipped"
+        Write-BundleLine -Lines $Lines -Text "qemu_elf_player_min_gui=skipped"
+        return
+    }
+
+    Write-BundleLine -Lines $Lines -Text ("qemu_elf_domain={0}/{1}/{2}" -f `
+        $QemuElfSummary.Domain, `
+        $QemuElfSummary.Machine, `
+        $QemuElfSummary.Cpu)
+    Write-BundleLine -Lines $Lines -Text ("qemu_elf_display={0}" -f $QemuElfSummary.Display)
+    Write-BundleLine -Lines $Lines -Text ("qemu_elf_coverage runs={0} source_matrix={1} gui_timeline={2}" -f `
+        $QemuElfSummary.Runs, `
+        $QemuElfSummary.SourceMatrix, `
+        $QemuElfSummary.GuiTimeline)
+    Write-BundleLine -Lines $Lines -Text ("qemu_elf_player_min_gui={0}" -f $QemuElfSummary.PlayerMin)
 }
 
 function Write-Summary {
@@ -227,6 +346,7 @@ function Write-Summary {
         [string]$QemuElfLog,
         [string]$QemuElfDomainSummary,
         [string]$QemuElfFramePpm,
+        [object]$QemuElfSummary,
         [int64]$FirmwareSize,
         [string]$BoardMatrixLog,
         [string]$InstalledStoreMatrixLog
@@ -258,6 +378,7 @@ function Write-Summary {
     } else {
         Write-BundleLine -Lines $Lines -Text "qemu_elf_frame_ppm=skipped"
     }
+    Write-QemuElfSummaryLines -Lines $Lines -QemuElfSummary $QemuElfSummary
     Write-BundleLine -Lines $Lines -Text "h747_lab_dev_loader.bin=$FirmwareSize"
     if (-not [string]::IsNullOrWhiteSpace($BoardMatrixLog)) {
         Write-BundleLine -Lines $Lines -Text "board_matrix_log=$BoardMatrixLog"
@@ -390,6 +511,7 @@ try {
     $QemuElfLogResolved = ""
     $QemuElfDomainSummaryResolved = ""
     $QemuElfFramePpmResolved = ""
+    $QemuElfSummary = $null
     if ($QemuElf) {
         Invoke-Logged -Lines $Lines -Label "resident ELF QEMU smoke selftest" -FilePath "powershell" -Arguments @(
             "-NoProfile",
@@ -412,10 +534,15 @@ try {
         }
         if (Test-Path -LiteralPath $QemuElfDomainSummary) {
             $QemuElfDomainSummaryResolved = (Resolve-Path -LiteralPath $QemuElfDomainSummary).Path
+        } else {
+            throw "qemu_elf_summary_missing: $QemuElfDomainSummary"
         }
         if (Test-Path -LiteralPath $QemuElfFramePpm) {
             $QemuElfFramePpmResolved = (Resolve-Path -LiteralPath $QemuElfFramePpm).Path
         }
+        $QemuElfSummary = Read-QemuElfDomainSummary -Path $QemuElfDomainSummaryResolved
+        Write-BundleLine -Lines $Lines -Text "== resident ELF QEMU summary =="
+        Write-QemuElfSummaryLines -Lines $Lines -QemuElfSummary $QemuElfSummary
     }
 
     Invoke-Logged -Lines $Lines -Label "h747 dev_loader build-only" -FilePath "cmake" -Arguments @(
@@ -505,6 +632,7 @@ try {
         -QemuElfLog $QemuElfLogResolved `
         -QemuElfDomainSummary $QemuElfDomainSummaryResolved `
         -QemuElfFramePpm $QemuElfFramePpmResolved `
+        -QemuElfSummary $QemuElfSummary `
         -FirmwareSize $FirmwareSize `
         -BoardMatrixLog $BoardLogResolved `
         -InstalledStoreMatrixLog $InstalledStoreLogResolved

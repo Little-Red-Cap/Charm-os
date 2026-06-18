@@ -1,0 +1,88 @@
+{
+  "schema": "charm.resident_elf_qemu.input_trace.v1",
+  "log": "",
+  "event_count": 12,
+  "events": [
+    { "index": 1, "encoder1": 1, "pointer_x": 3, "pointer_y": 5, "pointer_max_x": 15, "pointer_max_y": 15, "detected": 1, "down": 0 },
+    { "index": 2, "encoder1": 0, "pointer_x": 4, "pointer_y": 6, "pointer_max_x": 15, "pointer_max_y": 15, "detected": 1, "down": 1 },
+    { "index": 3, "encoder1": -1, "pointer_x": 5, "pointer_y": 7, "pointer_max_x": 15, "pointer_max_y": 15, "detected": 1, "down": 1 },
+    { "index": 4, "encoder1": 0, "pointer_x": 6, "pointer_y": 8, "pointer_max_x": 15, "pointer_max_y": 15, "detected": 1, "down": 0 },
+    { "index": 5, "encoder1": 1, "pointer_x": 3, "pointer_y": 5, "pointer_max_x": 15, "pointer_max_y": 15, "detected": 1, "down": 0 },
+    { "index": 6, "encoder1": 0, "pointer_x": 4, "pointer_y": 6, "pointer_max_x": 15, "pointer_max_y": 15, "detected": 1, "down": 1 },
+    { "index": 7, "encoder1": -1, "pointer_x": 5, "pointer_y": 7, "pointer_max_x": 15, "pointer_max_y": 15, "detected": 1, "down": 1 },
+    { "index": 8, "encoder1": 0, "pointer_x": 6, "pointer_y": 8, "pointer_max_x": 15, "pointer_max_y": 15, "detected": 1, "down": 0 },
+    { "index": 9, "encoder1": 1, "pointer_x": 3, "pointer_y": 5, "pointer_max_x": 15, "pointer_max_y": 15, "detected": 1, "down": 0 },
+    { "index": 10, "encoder1": 1, "pointer_x": 3, "pointer_y": 5, "pointer_max_x": 15, "pointer_max_y": 15, "detected": 1, "down": 0 },
+    { "index": 11, "encoder1": 1, "pointer_x": 3, "pointer_y": 5, "pointer_max_x": 15, "pointer_max_y": 15, "detected": 1, "down": 0 },
+    { "index": 12, "encoder1": 1, "pointer_x": 3, "pointer_y": 5, "pointer_max_x": 15, "pointer_max_y": 15, "detected": 1, "down": 0 }
+  ],
+  "run_count": 6,
+  "runs": [
+    {
+      "name": "input_sequence_app",
+      "stage": "exit",
+      "code": "ok",
+      "exit": 0,
+      "event_count": 4,
+      "events": [
+        { "index": 1, "encoder1": 1, "pointer_x": 3, "pointer_y": 5, "pointer_max_x": 15, "pointer_max_y": 15, "detected": 1, "down": 0 },
+        { "index": 2, "encoder1": 0, "pointer_x": 4, "pointer_y": 6, "pointer_max_x": 15, "pointer_max_y": 15, "detected": 1, "down": 1 },
+        { "index": 3, "encoder1": -1, "pointer_x": 5, "pointer_y": 7, "pointer_max_x": 15, "pointer_max_y": 15, "detected": 1, "down": 1 },
+        { "index": 4, "encoder1": 0, "pointer_x": 6, "pointer_y": 8, "pointer_max_x": 15, "pointer_max_y": 15, "detected": 1, "down": 0 }
+      ]
+    },
+    {
+      "name": "store:input_sequence_app",
+      "stage": "exit",
+      "code": "ok",
+      "exit": 0,
+      "event_count": 4,
+      "events": [
+        { "index": 5, "encoder1": 1, "pointer_x": 3, "pointer_y": 5, "pointer_max_x": 15, "pointer_max_y": 15, "detected": 1, "down": 0 },
+        { "index": 6, "encoder1": 0, "pointer_x": 4, "pointer_y": 6, "pointer_max_x": 15, "pointer_max_y": 15, "detected": 1, "down": 1 },
+        { "index": 7, "encoder1": -1, "pointer_x": 5, "pointer_y": 7, "pointer_max_x": 15, "pointer_max_y": 15, "detected": 1, "down": 1 },
+        { "index": 8, "encoder1": 0, "pointer_x": 6, "pointer_y": 8, "pointer_max_x": 15, "pointer_max_y": 15, "detected": 1, "down": 0 }
+      ]
+    },
+    {
+      "name": "player_min",
+      "stage": "exit",
+      "code": "ok",
+      "exit": 0,
+      "event_count": 1,
+      "events": [
+        { "index": 9, "encoder1": 1, "pointer_x": 3, "pointer_y": 5, "pointer_max_x": 15, "pointer_max_y": 15, "detected": 1, "down": 0 }
+      ]
+    },
+    {
+      "name": "received:player_min",
+      "stage": "exit",
+      "code": "ok",
+      "exit": 0,
+      "event_count": 1,
+      "events": [
+        { "index": 10, "encoder1": 1, "pointer_x": 3, "pointer_y": 5, "pointer_max_x": 15, "pointer_max_y": 15, "detected": 1, "down": 0 }
+      ]
+    },
+    {
+      "name": "packetstream:player_min",
+      "stage": "exit",
+      "code": "ok",
+      "exit": 0,
+      "event_count": 1,
+      "events": [
+        { "index": 11, "encoder1": 1, "pointer_x": 3, "pointer_y": 5, "pointer_max_x": 15, "pointer_max_y": 15, "detected": 1, "down": 0 }
+      ]
+    },
+    {
+      "name": "store:player_min",
+      "stage": "exit",
+      "code": "ok",
+      "exit": 0,
+      "event_count": 1,
+      "events": [
+        { "index": 12, "encoder1": 1, "pointer_x": 3, "pointer_y": 5, "pointer_max_x": 15, "pointer_max_y": 15, "detected": 1, "down": 0 }
+      ]
+    }
+  ]
+}

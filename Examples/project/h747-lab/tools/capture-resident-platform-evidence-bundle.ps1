@@ -9,6 +9,7 @@ param(
     [int]$RepeatPerMedia = 1,
     [int]$WriteChunkSize = 256,
     [int]$InterChunkDelayMs = 1,
+    [switch]$QemuElf,
     [switch]$DryRun,
     [switch]$SelfTest
 )
@@ -180,6 +181,9 @@ function Invoke-SelfTest {
     if (-not (Test-Path -LiteralPath (Join-Path $PSScriptRoot "capture-dev-loader-usb-cdc-appstore-platform-matrix-smoke.ps1"))) {
         throw "selftest_failed: board matrix script is missing"
     }
+    if (-not (Test-Path -LiteralPath (Join-Path $RepoRoot "Examples\system\run-resident-elf-qemu-smoke.ps1"))) {
+        throw "selftest_failed: resident ELF QEMU smoke entry is missing"
+    }
     $ParsedMedia = Get-MediaList -RawMedia @("qspi,emmc")
     if ($ParsedMedia.Count -ne 2 -or $ParsedMedia[0] -ne "qspi" -or $ParsedMedia[1] -ne "emmc") {
         throw "selftest_failed: comma media parsing failed"
@@ -219,6 +223,10 @@ function Write-Summary {
         [object]$Manifest,
         [string]$InspectStatus,
         [object[]]$SmokeResults,
+        [string]$QemuElfStatus,
+        [string]$QemuElfLog,
+        [string]$QemuElfDomainSummary,
+        [string]$QemuElfFramePpm,
         [int64]$FirmwareSize,
         [string]$BoardMatrixLog,
         [string]$InstalledStoreMatrixLog
@@ -233,6 +241,22 @@ function Write-Summary {
     Write-BundleLine -Lines $Lines -Text "inspect=$InspectStatus"
     foreach ($Result in $SmokeResults) {
         Write-BundleLine -Lines $Lines -Text "smoke $($Result.Name)=$($Result.Status)"
+    }
+    Write-BundleLine -Lines $Lines -Text "qemu_elf=$QemuElfStatus"
+    if (-not [string]::IsNullOrWhiteSpace($QemuElfLog)) {
+        Write-BundleLine -Lines $Lines -Text "qemu_elf_log=$QemuElfLog"
+    } else {
+        Write-BundleLine -Lines $Lines -Text "qemu_elf_log=skipped"
+    }
+    if (-not [string]::IsNullOrWhiteSpace($QemuElfDomainSummary)) {
+        Write-BundleLine -Lines $Lines -Text "qemu_elf_domain_summary=$QemuElfDomainSummary"
+    } else {
+        Write-BundleLine -Lines $Lines -Text "qemu_elf_domain_summary=skipped"
+    }
+    if (-not [string]::IsNullOrWhiteSpace($QemuElfFramePpm)) {
+        Write-BundleLine -Lines $Lines -Text "qemu_elf_frame_ppm=$QemuElfFramePpm"
+    } else {
+        Write-BundleLine -Lines $Lines -Text "qemu_elf_frame_ppm=skipped"
     }
     Write-BundleLine -Lines $Lines -Text "h747_lab_dev_loader.bin=$FirmwareSize"
     if (-not [string]::IsNullOrWhiteSpace($BoardMatrixLog)) {
@@ -279,6 +303,10 @@ $StoreHandoffSource = Join-Path $RepoRoot "Examples\system\dev_loader_store_inst
 $StoreHandoffBuild = Get-CmakeBuildDir -SourceDir $StoreHandoffSource -BuildName "cmake-build-dev-loader-store-install-handoff-smoke"
 $ModuleXSmokeSource = Join-Path $RepoRoot "Examples\system\app_abi_modulex_smoke"
 $ModuleXSmokeBuild = Get-CmakeBuildDir -SourceDir $ModuleXSmokeSource -BuildName "cmake-build-app-abi-modulex-smoke"
+$QemuElfScript = Join-Path $RepoRoot "Examples\system\run-resident-elf-qemu-smoke.ps1"
+$QemuElfLog = Join-Path $RepoRoot "Examples\system\resident_elf_qemu_smoke\qemu-ci.log"
+$QemuElfDomainSummary = Join-Path $RepoRoot "Examples\system\resident_elf_qemu_smoke\domain-summary.json"
+$QemuElfFramePpm = Join-Path $RepoRoot "Examples\system\resident_elf_qemu_smoke\frame-ppm"
 
 $BoardMatrixLog = Join-Path $H747Root "cmake-build-h747-lab-debug\resident_platform_board_matrix_from_bundle.log"
 $InstalledStoreMatrixLog = Join-Path $H747Root "cmake-build-h747-lab-debug\resident_platform_installed_store_matrix_from_bundle.log"
@@ -290,9 +318,16 @@ if ($DryRun) {
     Write-Host "log=$Log"
     Write-Host "board_matrix=$($BoardMatrix.IsPresent)"
     Write-Host "installed_store_matrix=$($InstalledStoreMatrix.IsPresent)"
+    Write-Host "qemu_elf=$($QemuElf.IsPresent)"
     Write-Host "inspect_source=$InspectSource"
     Write-Host "host_smokes=resident_platform_inspect_smoke,resident_platform_artifact_smoke,dev_loader_packet_stream_smoke,dev_loader_store_install_handoff_smoke,app_abi_modulex_smoke"
     Write-Host "h747_build=build-h747-lab-dev-loader-debug"
+    if ($QemuElf) {
+        Write-Host "qemu_elf_script=$QemuElfScript"
+        Write-Host "qemu_elf_log=$QemuElfLog"
+        Write-Host "qemu_elf_domain_summary=$QemuElfDomainSummary"
+        Write-Host "qemu_elf_frame_ppm=$QemuElfFramePpm"
+    }
     if ($BoardMatrix) {
         Write-Host "board_matrix_log=$BoardMatrixLog"
         Write-Host "board_matrix_media=$($MediaList -join ',') repeat=$RepeatPerMedia write_chunk=$WriteChunkSize delay_ms=$InterChunkDelayMs"
@@ -348,6 +383,38 @@ try {
         $SmokeResults += [pscustomobject]@{
             Name = $Smoke.Name
             Status = "pass"
+        }
+    }
+
+    $QemuElfStatus = "skipped"
+    $QemuElfLogResolved = ""
+    $QemuElfDomainSummaryResolved = ""
+    $QemuElfFramePpmResolved = ""
+    if ($QemuElf) {
+        Invoke-Logged -Lines $Lines -Label "resident ELF QEMU smoke selftest" -FilePath "powershell" -Arguments @(
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            $QemuElfScript,
+            "-SelfTest"
+        )
+        Invoke-Logged -Lines $Lines -Label "resident ELF QEMU smoke" -FilePath "powershell" -Arguments @(
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            $QemuElfScript
+        )
+        $QemuElfStatus = "pass"
+        if (Test-Path -LiteralPath $QemuElfLog) {
+            $QemuElfLogResolved = (Resolve-Path -LiteralPath $QemuElfLog).Path
+        }
+        if (Test-Path -LiteralPath $QemuElfDomainSummary) {
+            $QemuElfDomainSummaryResolved = (Resolve-Path -LiteralPath $QemuElfDomainSummary).Path
+        }
+        if (Test-Path -LiteralPath $QemuElfFramePpm) {
+            $QemuElfFramePpmResolved = (Resolve-Path -LiteralPath $QemuElfFramePpm).Path
         }
     }
 
@@ -434,6 +501,10 @@ try {
         -Manifest $Manifest `
         -InspectStatus $InspectStatus `
         -SmokeResults $SmokeResults `
+        -QemuElfStatus $QemuElfStatus `
+        -QemuElfLog $QemuElfLogResolved `
+        -QemuElfDomainSummary $QemuElfDomainSummaryResolved `
+        -QemuElfFramePpm $QemuElfFramePpmResolved `
         -FirmwareSize $FirmwareSize `
         -BoardMatrixLog $BoardLogResolved `
         -InstalledStoreMatrixLog $InstalledStoreLogResolved

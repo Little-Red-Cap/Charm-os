@@ -3373,7 +3373,7 @@ if (-not [string]::IsNullOrWhiteSpace($FrameSignatureOut)) {
     [void](Validate-FrameSignatureFile -Path $ResolvedFrameSignatureOut)
     if (-not $SkipGoldenFrameSignatures -and -not [string]::IsNullOrWhiteSpace($GoldenFrameSignatures)) {
         $ResolvedGoldenFrameSignatures = Resolve-ScriptPath -Path $GoldenFrameSignatures
-        [void](Compare-FrameSignatureFiles -ExpectedPath $ResolvedGoldenFrameSignatures -ActualPath $ResolvedFrameSignatureOut)
+        Assert-ValidationOk -Name "frame_signatures_golden" -Code (Compare-FrameSignatureFiles -ExpectedPath $ResolvedGoldenFrameSignatures -ActualPath $ResolvedFrameSignatureOut)
     }
 }
 Write-FrameDumpCapture -LogPath $outFile -OutputPath $FrameDumpOut
@@ -3396,7 +3396,7 @@ if (-not [string]::IsNullOrWhiteSpace($InputTraceOut)) {
     [void](Validate-InputTraceFile -Path $ResolvedInputTraceOut)
     if (-not $SkipGoldenInputTrace -and -not [string]::IsNullOrWhiteSpace($GoldenInputTrace)) {
         $ResolvedGoldenInputTrace = Resolve-ScriptPath -Path $GoldenInputTrace
-        [void](Compare-InputTraceFiles -ExpectedPath $ResolvedGoldenInputTrace -ActualPath $ResolvedInputTraceOut)
+        Assert-ValidationOk -Name "input_trace_golden" -Code (Compare-InputTraceFiles -ExpectedPath $ResolvedGoldenInputTrace -ActualPath $ResolvedInputTraceOut)
     }
 }
 Write-StorageTraceCapture -LogPath $outFile -OutputPath $StorageTraceOut
@@ -3405,7 +3405,7 @@ if (-not [string]::IsNullOrWhiteSpace($StorageTraceOut)) {
     [void](Validate-StorageTraceFile -Path $ResolvedStorageTraceOut)
     if (-not $SkipGoldenStorageTrace -and -not [string]::IsNullOrWhiteSpace($GoldenStorageTrace)) {
         $ResolvedGoldenStorageTrace = Resolve-ScriptPath -Path $GoldenStorageTrace
-        [void](Compare-StorageTraceFiles -ExpectedPath $ResolvedGoldenStorageTrace -ActualPath $ResolvedStorageTraceOut)
+        Assert-ValidationOk -Name "storage_trace_golden" -Code (Compare-StorageTraceFiles -ExpectedPath $ResolvedGoldenStorageTrace -ActualPath $ResolvedStorageTraceOut)
     }
 }
 Write-DomainSummaryCapture -LogPath $outFile `
@@ -3420,7 +3420,7 @@ if (-not [string]::IsNullOrWhiteSpace($DomainSummaryOut)) {
     [void](Validate-DomainSummaryFile -Path $ResolvedDomainSummaryOut)
     if (-not $SkipGoldenDomainSummary -and -not [string]::IsNullOrWhiteSpace($GoldenDomainSummary)) {
         $ResolvedGoldenDomainSummary = Resolve-ScriptPath -Path $GoldenDomainSummary
-        [void](Compare-DomainSummaryFiles -ExpectedPath $ResolvedGoldenDomainSummary -ActualPath $ResolvedDomainSummaryOut)
+        Assert-ValidationOk -Name "domain_summary_golden" -Code (Compare-DomainSummaryFiles -ExpectedPath $ResolvedGoldenDomainSummary -ActualPath $ResolvedDomainSummaryOut)
     }
 }
 Write-Host "[ok] resident ELF QEMU smoke detected"

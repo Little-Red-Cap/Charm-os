@@ -483,6 +483,8 @@ The switch is opt-in so the default H747 evidence bundle keeps its existing
 meaning. QEMU evidence is off-board semantic evidence for the ELF/AppRuntime
 chain; it does not replace real-board USB, Store, SDRAM, eMMC, or HAL evidence.
 When `-QemuElf` is enabled, the bundle summary expands `domain-summary.json`
-into `qemu_elf_domain`, `qemu_elf_backend`, `qemu_elf_display`,
-`qemu_elf_coverage`, and `qemu_elf_player_min_gui` tokens so archived logs expose
-the virtual backend contract without opening the JSON file.
+into `qemu_elf_domain`, `qemu_elf_backend`, `qemu_elf_memory`,
+`qemu_elf_store`, `qemu_elf_display`, `qemu_elf_coverage`, and
+`qemu_elf_player_min_gui` tokens so archived logs expose the virtual backend
+contract, ELF load memory boundary, and Store media without opening the JSON
+file.

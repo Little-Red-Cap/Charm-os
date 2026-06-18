@@ -228,12 +228,32 @@ function Invoke-SelfTest {
             storage = "readonly"
             afe = "unsupported"
         }
+        run_region = [pscustomobject]@{
+            base = "0x20080000"
+            expected = "0x20080000"
+            size = 65536
+        }
+        stage_cache = [pscustomobject]@{
+            bytes = 16384
+        }
         display = [pscustomobject]@{
             width = 16
             height = 16
             format = "argb8888"
             stride_bytes = 64
             frame_bytes = 1024
+        }
+        store = [pscustomobject]@{
+            format = "store_v1"
+            entries = 13
+            bytes = 81888
+            media = [pscustomobject]@{
+                kind = "memory"
+                bytes = 81888
+                read_calls = 130
+                read_bytes = 66044
+                read_failures = 0
+            }
         }
         coverage = [pscustomobject]@{
             runs = 1..35
@@ -251,6 +271,8 @@ function Invoke-SelfTest {
         $ParsedQemu = Read-QemuElfDomainSummary -Path $TempSummary
         if ($ParsedQemu.Domain -ne "virtual_m7" -or
             $ParsedQemu.Backend -ne "virtual:virtual_m7:console,time,display,input,storage,app_exit:storage=readonly:afe=unsupported" -or
+            $ParsedQemu.Memory -ne "run_base=0x20080000:run_size=65536:stage_cache=16384" -or
+            $ParsedQemu.Store -ne "store_v1:entries=13:bytes=81888:media=memory:reads=130:read_bytes=66044:failures=0" -or
             $ParsedQemu.Display -ne "16x16:argb8888:stride=64:frame=1024" -or
             $ParsedQemu.GuiTimeline -ne 4 -or
             $ParsedQemu.PlayerMin.IndexOf("packetstream:player_min:frames=1,inputs=1", [System.StringComparison]::Ordinal) -lt 0) {
@@ -301,6 +323,24 @@ function Read-QemuElfDomainSummary {
     if ($BackendCapabilities.Count -ne $ExpectedBackendCapabilities.Count) {
         throw "qemu_elf_summary_invalid: unexpected backend capability count"
     }
+    if ($Summary.run_region.base -ne "0x20080000" -or
+        $Summary.run_region.expected -ne "0x20080000" -or
+        [int]$Summary.run_region.size -ne 65536) {
+        throw "qemu_elf_summary_invalid: bad run_region"
+    }
+    if ([int]$Summary.stage_cache.bytes -ne 16384) {
+        throw "qemu_elf_summary_invalid: bad stage_cache"
+    }
+    if ($Summary.store.format -ne "store_v1" -or
+        [int]$Summary.store.entries -ne 13 -or
+        [int]$Summary.store.bytes -le 0 -or
+        $Summary.store.media.kind -ne "memory" -or
+        [int]$Summary.store.media.bytes -ne [int]$Summary.store.bytes -or
+        [int]$Summary.store.media.read_calls -le 0 -or
+        [int]$Summary.store.media.read_bytes -le 0 -or
+        [int]$Summary.store.media.read_failures -ne 0) {
+        throw "qemu_elf_summary_invalid: bad store media"
+    }
     $Timeline = @($Summary.coverage.gui_timeline)
     $PlayerMinPaths = @("player_min", "received:player_min", "packetstream:player_min", "store:player_min")
     $PlayerMinSummary = @()
@@ -328,6 +368,18 @@ function Read-QemuElfDomainSummary {
             ($BackendCapabilities -join ","), `
             ([string]$Summary.backend_contract.storage), `
             ([string]$Summary.backend_contract.afe))
+        Memory = ("run_base={0}:run_size={1}:stage_cache={2}" -f `
+            ([string]$Summary.run_region.base), `
+            ([int]$Summary.run_region.size), `
+            ([int]$Summary.stage_cache.bytes))
+        Store = ("{0}:entries={1}:bytes={2}:media={3}:reads={4}:read_bytes={5}:failures={6}" -f `
+            ([string]$Summary.store.format), `
+            ([int]$Summary.store.entries), `
+            ([int]$Summary.store.bytes), `
+            ([string]$Summary.store.media.kind), `
+            ([int]$Summary.store.media.read_calls), `
+            ([int]$Summary.store.media.read_bytes), `
+            ([int]$Summary.store.media.read_failures))
         Runs = @($Summary.coverage.runs).Count
         SourceMatrix = @($Summary.coverage.source_matrix).Count
         GuiTimeline = $Timeline.Count
@@ -350,6 +402,8 @@ function Write-QemuElfSummaryLines {
     if ($null -eq $QemuElfSummary) {
         Write-BundleLine -Lines $Lines -Text "qemu_elf_domain=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_backend=skipped"
+        Write-BundleLine -Lines $Lines -Text "qemu_elf_memory=skipped"
+        Write-BundleLine -Lines $Lines -Text "qemu_elf_store=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_display=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_coverage=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_player_min_gui=skipped"
@@ -361,6 +415,8 @@ function Write-QemuElfSummaryLines {
         $QemuElfSummary.Machine, `
         $QemuElfSummary.Cpu)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_backend={0}" -f $QemuElfSummary.Backend)
+    Write-BundleLine -Lines $Lines -Text ("qemu_elf_memory={0}" -f $QemuElfSummary.Memory)
+    Write-BundleLine -Lines $Lines -Text ("qemu_elf_store={0}" -f $QemuElfSummary.Store)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_display={0}" -f $QemuElfSummary.Display)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_coverage runs={0} source_matrix={1} gui_timeline={2}" -f `
         $QemuElfSummary.Runs, `

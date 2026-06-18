@@ -163,13 +163,16 @@ The smoke writes `storage-trace.json` and compares it with
 `storage-trace.golden.json` so open/read/close ordering, fd assignment, byte
 counts, EOF behavior, and unsupported storage stubs are regression-gated.
 
-The virtual display backend logs both byte count and a deterministic byte-sum
-checksum for presented frames. The same checksum is also included in the per-run
-capability counters so direct and Store-backed runs can prove which App
-presented the frame. A stronger FNV-1a-style frame hash and frame index are
-also logged, and cumulative checksum/hash fields are recorded for multi-frame
-smokes. This is intentionally a smoke-level content proof, not a framebuffer
-protocol or GUI backend API.
+The virtual display mode is fixed at 16x16 ARGB8888 with a 64-byte stride and
+1024-byte frame payload. `display.describe` logs that mode explicitly, and
+`domain-summary.json` records it as the QEMU display contract. The virtual
+display backend logs both byte count and a deterministic byte-sum checksum for
+presented frames. The same checksum is also included in the per-run capability
+counters so direct and Store-backed runs can prove which App presented the
+frame. A stronger FNV-1a-style frame hash and frame index are also logged, and
+cumulative checksum/hash fields are recorded for multi-frame smokes. This is
+intentionally a smoke-level content proof, not a framebuffer protocol or GUI
+backend API.
 
 The virtual input backend exposes a deterministic four-step event sequence and
 logs each returned state. `player_min` still sees the first event:
@@ -415,8 +418,10 @@ The script also writes `domain-summary.json` with schema
 proof that the QEMU run is a `virtual_m7` runtime domain with run region
 `0x20080000..0x20090000`, 16 KiB stage cache, Store v1 staging, direct/received/
 packetstream/Store ELF runs, prepare-only coverage, capability coverage, and the
-expected negative cases. Its evidence section records frame signature, full dump,
-visual PPM, input trace, and storage trace counts. Its `coverage.loads` section records the ELF loader/probe/capacity
+expected negative cases. Its `display` section records the fixed virtual display
+mode so GUI evidence drift is caught before frame hashes are interpreted. Its
+evidence section records frame signature, full dump, visual PPM, input trace,
+and storage trace counts. Its `coverage.loads` section records the ELF loader/probe/capacity
 facts for each loaded image: format, probe code, entry, span, segment count,
 needed/free bytes, fit result, and run region. It is an off-board evidence
 artifact, not a product manifest and not Store metadata. Its

@@ -351,7 +351,7 @@ function Get-ExpectedTokens {
         "resident-elf-qemu: load too_large_app format=elf probe=load_buffer_too_small",
         "resident-elf-qemu: capacity too_large_app needed=82176 free=0 fits=0 region=65536 probe=load_buffer_too_small",
         "resident-elf-qemu: caps too_large_app console=0 time=0 describe=0 present=0 input=0 exit=0",
-        "resident-elf-qemu: display describe",
+        "resident-elf-qemu: display describe width=16 height=16 stride=64 format=argb8888 frame_bytes=1024",
         "resident-elf-qemu: input poll",
         "resident-elf-qemu: input poll encoder1=1 pointer=3,5 max=15,15 detected=1 down=0",
         "resident-elf-qemu: display present bytes=1024",
@@ -1957,6 +1957,11 @@ function Write-DomainSummaryCapture {
     $StoreMediaReadCalls = [int](Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: store-media kind=[a-z0-9_]+ bytes=\d+ read_calls=(\d+)' -ErrorPrefix "domain_summary_failed")
     $StoreMediaReadBytes = [int](Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: store-media kind=[a-z0-9_]+ bytes=\d+ read_calls=\d+ read_bytes=(\d+)' -ErrorPrefix "domain_summary_failed")
     $StoreMediaReadFailures = [int](Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: store-media kind=[a-z0-9_]+ bytes=\d+ read_calls=\d+ read_bytes=\d+ read_failures=(\d+)' -ErrorPrefix "domain_summary_failed")
+    $DisplayWidth = [int](Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: display describe width=(\d+)' -ErrorPrefix "domain_summary_failed")
+    $DisplayHeight = [int](Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: display describe width=\d+ height=(\d+)' -ErrorPrefix "domain_summary_failed")
+    $DisplayStride = [int](Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: display describe width=\d+ height=\d+ stride=(\d+)' -ErrorPrefix "domain_summary_failed")
+    $DisplayFormat = Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: display describe width=\d+ height=\d+ stride=\d+ format=([a-z0-9_]+)' -ErrorPrefix "domain_summary_failed"
+    $DisplayFrameBytes = [int](Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: display describe width=\d+ height=\d+ stride=\d+ format=[a-z0-9_]+ frame_bytes=(\d+)' -ErrorPrefix "domain_summary_failed")
     $PrepareArgc = [int](Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: prepare prepare:argv_app stage=start code=ok ready=1 argc=(\d+)' -ErrorPrefix "domain_summary_failed")
 
     $FrameSignatureResolved = ""
@@ -2027,6 +2032,14 @@ function Write-DomainSummaryCapture {
         }
         stage_cache = [pscustomobject]@{
             bytes = $StageCacheBytes
+        }
+        display = [pscustomobject]@{
+            width = $DisplayWidth
+            height = $DisplayHeight
+            stride_bytes = $DisplayStride
+            format = $DisplayFormat
+            frame_bytes = $DisplayFrameBytes
+            pixel_bytes = 4
         }
         store = [pscustomobject]@{
             format = "store_v1"
@@ -2352,6 +2365,14 @@ function Validate-DomainSummaryFile {
     if ([int]$Summary.stage_cache.bytes -ne 16384) {
         throw "domain_summary_validate_failed: bad stage cache size"
     }
+    if ([int]$Summary.display.width -ne 16 -or
+        [int]$Summary.display.height -ne 16 -or
+        [int]$Summary.display.stride_bytes -ne 64 -or
+        $Summary.display.format -ne "argb8888" -or
+        [int]$Summary.display.frame_bytes -ne 1024 -or
+        [int]$Summary.display.pixel_bytes -ne 4) {
+        throw "domain_summary_validate_failed: bad display summary"
+    }
     Assert-DomainStoreMedia -Store $Summary.store
     $Runs = @($Summary.coverage.runs)
     Assert-DomainCount -Name "runs" -Actual $Runs.Count -Expected 35
@@ -2652,6 +2673,7 @@ function Invoke-SelfTest {
         "-SkipGoldenInputTrace",
         "-SkipGoldenStorageTrace",
         "capture-resident-platform-evidence-bundle.ps1 -QemuElf",
+        "display mode is fixed at 16x16 ARGB8888",
         "virtual_m7"
     )) {
         if (-not $ReadmeText.Contains($RequiredReadmeToken)) {

@@ -163,7 +163,7 @@ int display_describe(CharmAppDisplayMode* out_mode) {
         .format = CHARM_APP_PIXEL_FORMAT_ARGB8888,
     };
     ++g_capability_counters.display_describe;
-    log_line("resident-elf-qemu: display describe");
+    write("resident-elf-qemu: display describe width=16 height=16 stride=64 format=argb8888 frame_bytes=1024\n");
     return CHARM_APP_STATUS_OK;
 }
 

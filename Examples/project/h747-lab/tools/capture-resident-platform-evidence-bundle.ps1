@@ -215,6 +215,47 @@ function Invoke-SelfTest {
         }
     }
 
+    function New-SelfTestQemuRun {
+        param(
+            [string]$Stage,
+            [string]$Code,
+            [int]$Exit = 0
+        )
+        return [pscustomobject]@{
+            stage = $Stage
+            code = $Code
+            exit = $Exit
+        }
+    }
+
+    function New-SelfTestQemuPrepare {
+        return [pscustomobject]@{
+            stage = "start"
+            code = "ok"
+            ready = $true
+            argc = 4
+        }
+    }
+
+    function New-SelfTestQemuSourceCase {
+        param(
+            [string]$Name,
+            [object]$Direct = $null,
+            [object]$Received = $null,
+            [object]$Packetstream = $null,
+            [object]$Store = $null,
+            [object]$Prepare = $null
+        )
+        return [pscustomobject]@{
+            name = $Name
+            direct = $Direct
+            received = $Received
+            packetstream = $Packetstream
+            store = $Store
+            prepare = $Prepare
+        }
+    }
+
     $TempSummary = Join-Path ([System.IO.Path]::GetTempPath()) "charm_qemu_domain_summary_selftest.json"
     $GoodSummary = [pscustomobject]@{
         schema = "charm.resident_elf_qemu.domain_summary.v1"
@@ -257,7 +298,25 @@ function Invoke-SelfTest {
         }
         coverage = [pscustomobject]@{
             runs = 1..35
-            source_matrix = 1..17
+            source_matrix = @(
+                (New-SelfTestQemuSourceCase -Name "hello_app" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Received (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Packetstream (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok")),
+                (New-SelfTestQemuSourceCase -Name "argv_app" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Prepare (New-SelfTestQemuPrepare)),
+                (New-SelfTestQemuSourceCase -Name "argv_overflow_app" -Direct (New-SelfTestQemuRun -Stage "argv" -Code "argv_overflow")),
+                (New-SelfTestQemuSourceCase -Name "abi_mismatch_app" -Direct (New-SelfTestQemuRun -Stage "abi" -Code "abi_mismatch")),
+                (New-SelfTestQemuSourceCase -Name "bss_app" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok")),
+                (New-SelfTestQemuSourceCase -Name "exit_app" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok")),
+                (New-SelfTestQemuSourceCase -Name "unsupported_caps_app" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok")),
+                (New-SelfTestQemuSourceCase -Name "storage_app" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok")),
+                (New-SelfTestQemuSourceCase -Name "storage_catalog_app" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok")),
+                (New-SelfTestQemuSourceCase -Name "display_sequence_app" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok")),
+                (New-SelfTestQemuSourceCase -Name "input_sequence_app" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok")),
+                (New-SelfTestQemuSourceCase -Name "time_app" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok")),
+                (New-SelfTestQemuSourceCase -Name "large_fit_app" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Received (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Packetstream (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok")),
+                (New-SelfTestQemuSourceCase -Name "bad_elf_magic_app" -Direct (New-SelfTestQemuRun -Stage "load" -Code "load_failed")),
+                (New-SelfTestQemuSourceCase -Name "packetstream_bad_elf_magic_app" -Packetstream (New-SelfTestQemuRun -Stage "load" -Code "load_failed")),
+                (New-SelfTestQemuSourceCase -Name "too_large_app" -Direct (New-SelfTestQemuRun -Stage "load" -Code "load_failed")),
+                (New-SelfTestQemuSourceCase -Name "player_min" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Received (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Packetstream (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok"))
+            )
             loads = @(
                 [pscustomobject]@{
                     name = "large_fit_app"
@@ -312,6 +371,7 @@ function Invoke-SelfTest {
             $ParsedQemu.Display -ne "16x16:argb8888:stride=64:frame=1024" -or
             $ParsedQemu.Evidence -ne "frames=8/6:dumps=8/6:ppm=8/6:input=12/6:storage=49/6" -or
             $ParsedQemu.Capacity -ne "large_fit=61696/65536:free=3840:fits=1:probe=ok;too_large=82176/65536:free=0:fits=0:probe=load_buffer_too_small" -or
+            $ParsedQemu.Sources -ne "hello_app=direct,received,packetstream,store:exit/ok;large_fit_app=direct,received,packetstream,store:exit/ok;player_min=direct,received,packetstream,store:exit/ok;argv_app=direct,store:exit/ok:prepare=start/ok:argc=4;negatives=argv_overflow_app:direct=argv/argv_overflow,abi_mismatch_app:direct=abi/abi_mismatch,bad_elf_magic_app:direct=load/load_failed,packetstream_bad_elf_magic_app:packetstream=load/load_failed,too_large_app:direct=load/load_failed" -or
             $ParsedQemu.GuiTimeline -ne 4 -or
             $ParsedQemu.PlayerMin.IndexOf("packetstream:player_min:frames=1,inputs=1", [System.StringComparison]::Ordinal) -lt 0) {
             throw "selftest_failed: qemu summary parse result is unexpected"
@@ -342,12 +402,66 @@ function Invoke-SelfTest {
         Test-BadQemuSummary -Label "store_media" -Mutate { param($Summary) $Summary.store.media.read_failures = 1 }
         Test-BadQemuSummary -Label "evidence_counts" -Mutate { param($Summary) $Summary.evidence.frame_signature_count = 7 }
         Test-BadQemuSummary -Label "capacity" -Mutate { param($Summary) ($Summary.coverage.loads | Where-Object { $_.name -eq "too_large_app" }).fits = $true }
+        Test-BadQemuSummary -Label "source_matrix" -Mutate { param($Summary) ($Summary.coverage.source_matrix | Where-Object { $_.name -eq "player_min" }).packetstream.code = "load_failed" }
         Test-BadQemuSummary -Label "gui_timeline" -Mutate { param($Summary) $Summary.coverage.gui_timeline = @($Summary.coverage.gui_timeline | Where-Object { $_.name -ne "store:player_min" }) }
     } finally {
         Remove-Item -LiteralPath $TempSummary -Force -ErrorAction SilentlyContinue
     }
 
     Write-Host "[resident-platform-evidence-bundle] selftest ok"
+}
+
+function Get-QemuElfSourceMatrixCase {
+    param(
+        [object[]]$Matrix,
+        [string]$Name
+    )
+
+    $Matches = @($Matrix | Where-Object { $_.name -eq $Name })
+    if ($Matches.Count -ne 1) {
+        throw "qemu_elf_summary_invalid: missing source matrix $Name"
+    }
+    return $Matches[0]
+}
+
+function Assert-QemuElfSourceRun {
+    param(
+        [object]$Case,
+        [string]$Path,
+        [string]$Stage,
+        [string]$Code,
+        [object]$Exit = 0
+    )
+
+    $Property = $Case.PSObject.Properties[$Path]
+    if ($null -eq $Property -or $null -eq $Property.Value) {
+        throw "qemu_elf_summary_invalid: missing source matrix $($Case.name).$Path"
+    }
+    $Record = $Property.Value
+    if ($Record.stage -ne $Stage -or $Record.code -ne $Code) {
+        throw "qemu_elf_summary_invalid: bad source matrix $($Case.name).$Path"
+    }
+    if ($null -ne $Exit -and [int]$Record.exit -ne [int]$Exit) {
+        throw "qemu_elf_summary_invalid: bad source matrix exit $($Case.name).$Path"
+    }
+    return ("{0}={1}/{2}" -f $Path, ([string]$Record.stage), ([string]$Record.code))
+}
+
+function Assert-QemuElfSourcePrepare {
+    param(
+        [object]$Case,
+        [int]$Argc
+    )
+
+    $Property = $Case.PSObject.Properties["prepare"]
+    if ($null -eq $Property -or $null -eq $Property.Value) {
+        throw "qemu_elf_summary_invalid: missing source matrix $($Case.name).prepare"
+    }
+    $Record = $Property.Value
+    if ($Record.stage -ne "start" -or $Record.code -ne "ok" -or -not [bool]$Record.ready -or [int]$Record.argc -ne $Argc) {
+        throw "qemu_elf_summary_invalid: bad source matrix $($Case.name).prepare"
+    }
+    return ("prepare={0}/{1}:argc={2}" -f ([string]$Record.stage), ([string]$Record.code), ([int]$Record.argc))
 }
 
 function Read-QemuElfDomainSummary {
@@ -434,6 +548,37 @@ function Read-QemuElfDomainSummary {
     }
     $LargeFitFits = if ([bool]$LargeFitLoad.fits) { "1" } else { "0" }
     $TooLargeFits = if ([bool]$TooLargeLoad.fits) { "1" } else { "0" }
+    $SourceMatrix = @($Summary.coverage.source_matrix)
+    if ($SourceMatrix.Count -ne 17) {
+        throw "qemu_elf_summary_invalid: bad source matrix count"
+    }
+    $SourceSummaryParts = @()
+    foreach ($Name in @("hello_app", "large_fit_app", "player_min")) {
+        $Case = Get-QemuElfSourceMatrixCase -Matrix $SourceMatrix -Name $Name
+        Assert-QemuElfSourceRun -Case $Case -Path "direct" -Stage "exit" -Code "ok" | Out-Null
+        Assert-QemuElfSourceRun -Case $Case -Path "received" -Stage "exit" -Code "ok" | Out-Null
+        Assert-QemuElfSourceRun -Case $Case -Path "packetstream" -Stage "exit" -Code "ok" | Out-Null
+        Assert-QemuElfSourceRun -Case $Case -Path "store" -Stage "exit" -Code "ok" | Out-Null
+        $SourceSummaryParts += ("{0}=direct,received,packetstream,store:exit/ok" -f $Name)
+    }
+    $ArgvCase = Get-QemuElfSourceMatrixCase -Matrix $SourceMatrix -Name "argv_app"
+    Assert-QemuElfSourceRun -Case $ArgvCase -Path "direct" -Stage "exit" -Code "ok" | Out-Null
+    Assert-QemuElfSourceRun -Case $ArgvCase -Path "store" -Stage "exit" -Code "ok" | Out-Null
+    Assert-QemuElfSourcePrepare -Case $ArgvCase -Argc 4 | Out-Null
+    $SourceSummaryParts += "argv_app=direct,store:exit/ok:prepare=start/ok:argc=4"
+    $NegativeSummaryParts = @()
+    foreach ($Negative in @(
+            [pscustomobject]@{ name = "argv_overflow_app"; path = "direct"; stage = "argv"; code = "argv_overflow" },
+            [pscustomobject]@{ name = "abi_mismatch_app"; path = "direct"; stage = "abi"; code = "abi_mismatch" },
+            [pscustomobject]@{ name = "bad_elf_magic_app"; path = "direct"; stage = "load"; code = "load_failed" },
+            [pscustomobject]@{ name = "packetstream_bad_elf_magic_app"; path = "packetstream"; stage = "load"; code = "load_failed" },
+            [pscustomobject]@{ name = "too_large_app"; path = "direct"; stage = "load"; code = "load_failed" }
+        )) {
+        $Case = Get-QemuElfSourceMatrixCase -Matrix $SourceMatrix -Name $Negative.name
+        Assert-QemuElfSourceRun -Case $Case -Path $Negative.path -Stage $Negative.stage -Code $Negative.code | Out-Null
+        $NegativeSummaryParts += ("{0}:{1}={2}/{3}" -f $Negative.name, $Negative.path, $Negative.stage, $Negative.code)
+    }
+    $SourceSummaryParts += ("negatives={0}" -f ($NegativeSummaryParts -join ","))
     $Timeline = @($Summary.coverage.gui_timeline)
     $PlayerMinPaths = @("player_min", "received:player_min", "packetstream:player_min", "store:player_min")
     $PlayerMinSummary = @()
@@ -497,6 +642,7 @@ function Read-QemuElfDomainSummary {
             ([string]$TooLargeLoad.capacity_probe))
         Runs = @($Summary.coverage.runs).Count
         SourceMatrix = @($Summary.coverage.source_matrix).Count
+        Sources = ($SourceSummaryParts -join ";")
         GuiTimeline = $Timeline.Count
         Display = ("{0}x{1}:{2}:stride={3}:frame={4}" -f `
             ([int]$Summary.display.width), `
@@ -522,6 +668,7 @@ function Write-QemuElfSummaryLines {
         Write-BundleLine -Lines $Lines -Text "qemu_elf_display=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_evidence=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_capacity=skipped"
+        Write-BundleLine -Lines $Lines -Text "qemu_elf_sources=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_coverage=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_player_min_gui=skipped"
         return
@@ -537,6 +684,7 @@ function Write-QemuElfSummaryLines {
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_display={0}" -f $QemuElfSummary.Display)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_evidence={0}" -f $QemuElfSummary.Evidence)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_capacity={0}" -f $QemuElfSummary.Capacity)
+    Write-BundleLine -Lines $Lines -Text ("qemu_elf_sources={0}" -f $QemuElfSummary.Sources)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_coverage runs={0} source_matrix={1} gui_timeline={2}" -f `
         $QemuElfSummary.Runs, `
         $QemuElfSummary.SourceMatrix, `

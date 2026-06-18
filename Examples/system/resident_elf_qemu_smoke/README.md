@@ -485,6 +485,7 @@ chain; it does not replace real-board USB, Store, SDRAM, eMMC, or HAL evidence.
 When `-QemuElf` is enabled, the bundle summary expands `domain-summary.json`
 into `qemu_elf_domain`, `qemu_elf_backend`, `qemu_elf_memory`,
 `qemu_elf_store`, `qemu_elf_display`, `qemu_elf_evidence`,
-`qemu_elf_coverage`, and `qemu_elf_player_min_gui` tokens so archived logs expose
-the virtual backend contract, ELF load memory boundary, Store media, and
-frame/input/storage evidence counts without opening the JSON file.
+`qemu_elf_capacity`, `qemu_elf_coverage`, and `qemu_elf_player_min_gui` tokens
+so archived logs expose the virtual backend contract, ELF load memory boundary,
+Store media, frame/input/storage evidence counts, and near-limit/over-limit ELF
+capacity without opening the JSON file.

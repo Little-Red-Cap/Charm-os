@@ -258,6 +258,30 @@ function Invoke-SelfTest {
         coverage = [pscustomobject]@{
             runs = 1..35
             source_matrix = 1..17
+            loads = @(
+                [pscustomobject]@{
+                    name = "large_fit_app"
+                    probe = "ok"
+                    span = 61696
+                    segments = 3
+                    needed = 61696
+                    free = 3840
+                    fits = $true
+                    region = 65536
+                    capacity_probe = "ok"
+                },
+                [pscustomobject]@{
+                    name = "too_large_app"
+                    probe = "load_buffer_too_small"
+                    span = 82176
+                    segments = 2
+                    needed = 82176
+                    free = 0
+                    fits = $false
+                    region = 65536
+                    capacity_probe = "load_buffer_too_small"
+                }
+            )
             gui_timeline = @(
                 [pscustomobject]@{ name = "player_min"; frames = 1; inputs = 1; last_frame_hash = "0xfac53a05"; last_input = "3,5,0" },
                 [pscustomobject]@{ name = "received:player_min"; frames = 1; inputs = 1; last_frame_hash = "0xfac53a05"; last_input = "3,5,0" },
@@ -287,6 +311,7 @@ function Invoke-SelfTest {
             $ParsedQemu.Store -ne "store_v1:entries=13:bytes=81888:media=memory:reads=130:read_bytes=66044:failures=0" -or
             $ParsedQemu.Display -ne "16x16:argb8888:stride=64:frame=1024" -or
             $ParsedQemu.Evidence -ne "frames=8/6:dumps=8/6:ppm=8/6:input=12/6:storage=49/6" -or
+            $ParsedQemu.Capacity -ne "large_fit=61696/65536:free=3840:fits=1:probe=ok;too_large=82176/65536:free=0:fits=0:probe=load_buffer_too_small" -or
             $ParsedQemu.GuiTimeline -ne 4 -or
             $ParsedQemu.PlayerMin.IndexOf("packetstream:player_min:frames=1,inputs=1", [System.StringComparison]::Ordinal) -lt 0) {
             throw "selftest_failed: qemu summary parse result is unexpected"
@@ -316,6 +341,7 @@ function Invoke-SelfTest {
         Test-BadQemuSummary -Label "stage_cache" -Mutate { param($Summary) $Summary.stage_cache.bytes = 8192 }
         Test-BadQemuSummary -Label "store_media" -Mutate { param($Summary) $Summary.store.media.read_failures = 1 }
         Test-BadQemuSummary -Label "evidence_counts" -Mutate { param($Summary) $Summary.evidence.frame_signature_count = 7 }
+        Test-BadQemuSummary -Label "capacity" -Mutate { param($Summary) ($Summary.coverage.loads | Where-Object { $_.name -eq "too_large_app" }).fits = $true }
         Test-BadQemuSummary -Label "gui_timeline" -Mutate { param($Summary) $Summary.coverage.gui_timeline = @($Summary.coverage.gui_timeline | Where-Object { $_.name -ne "store:player_min" }) }
     } finally {
         Remove-Item -LiteralPath $TempSummary -Force -ErrorAction SilentlyContinue
@@ -381,6 +407,33 @@ function Read-QemuElfDomainSummary {
         [int]$Summary.evidence.storage_trace_run_count -ne 6) {
         throw "qemu_elf_summary_invalid: bad evidence counts"
     }
+    $LargeFit = @($Summary.coverage.loads | Where-Object { $_.name -eq "large_fit_app" })
+    $TooLarge = @($Summary.coverage.loads | Where-Object { $_.name -eq "too_large_app" })
+    if ($LargeFit.Count -ne 1 -or $TooLarge.Count -ne 1) {
+        throw "qemu_elf_summary_invalid: missing capacity loads"
+    }
+    $LargeFitLoad = $LargeFit[0]
+    $TooLargeLoad = $TooLarge[0]
+    if ($LargeFitLoad.probe -ne "ok" -or
+        [int]$LargeFitLoad.span -lt 60000 -or
+        [int]$LargeFitLoad.needed -ne [int]$LargeFitLoad.span -or
+        [int]$LargeFitLoad.region -ne 65536 -or
+        [int]$LargeFitLoad.free -ne 3840 -or
+        -not [bool]$LargeFitLoad.fits -or
+        $LargeFitLoad.capacity_probe -ne "ok") {
+        throw "qemu_elf_summary_invalid: bad large-fit capacity"
+    }
+    if ($TooLargeLoad.probe -ne "load_buffer_too_small" -or
+        [int]$TooLargeLoad.span -le 65536 -or
+        [int]$TooLargeLoad.needed -ne [int]$TooLargeLoad.span -or
+        [int]$TooLargeLoad.region -ne 65536 -or
+        [int]$TooLargeLoad.free -ne 0 -or
+        [bool]$TooLargeLoad.fits -or
+        $TooLargeLoad.capacity_probe -ne "load_buffer_too_small") {
+        throw "qemu_elf_summary_invalid: bad too-large capacity"
+    }
+    $LargeFitFits = if ([bool]$LargeFitLoad.fits) { "1" } else { "0" }
+    $TooLargeFits = if ([bool]$TooLargeLoad.fits) { "1" } else { "0" }
     $Timeline = @($Summary.coverage.gui_timeline)
     $PlayerMinPaths = @("player_min", "received:player_min", "packetstream:player_min", "store:player_min")
     $PlayerMinSummary = @()
@@ -431,6 +484,17 @@ function Read-QemuElfDomainSummary {
             ([int]$Summary.evidence.input_trace_run_count), `
             ([int]$Summary.evidence.storage_trace_event_count), `
             ([int]$Summary.evidence.storage_trace_run_count))
+        Capacity = ("large_fit={0}/{1}:free={2}:fits={3}:probe={4};too_large={5}/{6}:free={7}:fits={8}:probe={9}" -f `
+            ([int]$LargeFitLoad.needed), `
+            ([int]$LargeFitLoad.region), `
+            ([int]$LargeFitLoad.free), `
+            $LargeFitFits, `
+            ([string]$LargeFitLoad.capacity_probe), `
+            ([int]$TooLargeLoad.needed), `
+            ([int]$TooLargeLoad.region), `
+            ([int]$TooLargeLoad.free), `
+            $TooLargeFits, `
+            ([string]$TooLargeLoad.capacity_probe))
         Runs = @($Summary.coverage.runs).Count
         SourceMatrix = @($Summary.coverage.source_matrix).Count
         GuiTimeline = $Timeline.Count
@@ -457,6 +521,7 @@ function Write-QemuElfSummaryLines {
         Write-BundleLine -Lines $Lines -Text "qemu_elf_store=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_display=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_evidence=skipped"
+        Write-BundleLine -Lines $Lines -Text "qemu_elf_capacity=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_coverage=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_player_min_gui=skipped"
         return
@@ -471,6 +536,7 @@ function Write-QemuElfSummaryLines {
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_store={0}" -f $QemuElfSummary.Store)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_display={0}" -f $QemuElfSummary.Display)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_evidence={0}" -f $QemuElfSummary.Evidence)
+    Write-BundleLine -Lines $Lines -Text ("qemu_elf_capacity={0}" -f $QemuElfSummary.Capacity)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_coverage runs={0} source_matrix={1} gui_timeline={2}" -f `
         $QemuElfSummary.Runs, `
         $QemuElfSummary.SourceMatrix, `

@@ -30,6 +30,17 @@
 embedded app -> QSPI install -> named/raw run-path -> generic file-backed stub
 -> diagnostics-first status。它不是通用 `AppRuntime` proof，也不触碰 H747 板测。
 
+### 我想用 QEMU 验证 resident ELF 主链
+
+先读：
+
+- [`resident_elf_qemu_smoke/README.md`](resident_elf_qemu_smoke/README.md)
+
+这个示例是 Charm virtual-board 后端的第一步：在 QEMU `mps2-an500/cortex-m7`
+固件中生成并执行 QEMU 地址域的 App ELF，验证
+`AppImage(format=elf) -> ELF loader -> AppRuntime -> CharmAppApi`。它不是 H747
+外设仿真器，不验证 USB/QSPI/eMMC/FMC/HAL。
+
 ### 我想看 AppHost / poster / deferred signal
 
 先读：

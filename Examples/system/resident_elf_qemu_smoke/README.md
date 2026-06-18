@@ -195,8 +195,11 @@ loose log token.
 
 Use `..\run-resident-elf-qemu-smoke.ps1 -SelfTest` for a fast preflight that
 checks the local CMake, QEMU, Arm GCC, sample source, linker script, and QEMU
-`ELF_BASE` assumptions without building or launching QEMU. Use `-DryRun` to
-print the paths that would be used by the full run. Use
+`ELF_BASE` assumptions without building or launching QEMU. It also exercises
+the domain-summary source-matrix assertions with synthetic direct, received,
+packetstream, Store, prepare, and failure entries so those gates fail before a
+full QEMU run is needed. Use `-DryRun` to print the paths that would be used by
+the full run. Use
 `-ValidateLog resident_elf_qemu_smoke/qemu-ci.log` to classify an existing QEMU
 log without rebuilding or launching QEMU. Use
 `-ValidateFrameSignatures resident_elf_qemu_smoke/frame-signatures.json` to

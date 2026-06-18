@@ -2398,6 +2398,47 @@ function Assert-SourceMatrixFailure {
     }
 }
 
+function New-SelfTestSourceRun {
+    param(
+        [string]$Stage,
+        [string]$Code,
+        [int]$Exit = 0
+    )
+    return [pscustomobject]@{
+        stage = $Stage
+        code = $Code
+        exit = $Exit
+    }
+}
+
+function New-SelfTestSourcePrepare {
+    return [pscustomobject]@{
+        stage = "start"
+        code = "ok"
+        ready = $true
+        argc = 4
+    }
+}
+
+function New-SelfTestSourceMatrixEntry {
+    param(
+        [string]$Name,
+        [object]$Direct = $null,
+        [object]$Received = $null,
+        [object]$Packetstream = $null,
+        [object]$Store = $null,
+        [object]$Prepare = $null
+    )
+    return [pscustomobject]@{
+        name = $Name
+        direct = $Direct
+        received = $Received
+        packetstream = $Packetstream
+        store = $Store
+        prepare = $Prepare
+    }
+}
+
 function Assert-GuiTimelineEntry {
     param(
         [object[]]$Timeline,
@@ -2668,6 +2709,20 @@ function Invoke-SelfTest {
     }
     if (-not (Test-SelfTestThrowsLike -Prefix "domain_summary_validate_failed:" -Script { Assert-DomainStoreMedia -Store $BadStoreSummary })) {
         throw "selftest_failed: bad store media summary validated unexpectedly"
+    }
+    $GoodSourceMatrix = @(
+        (New-SelfTestSourceMatrixEntry -Name "hello_app" -Direct (New-SelfTestSourceRun -Stage "exit" -Code "ok") -Received (New-SelfTestSourceRun -Stage "exit" -Code "ok") -Packetstream (New-SelfTestSourceRun -Stage "exit" -Code "ok") -Store (New-SelfTestSourceRun -Stage "exit" -Code "ok")),
+        (New-SelfTestSourceMatrixEntry -Name "argv_app" -Direct (New-SelfTestSourceRun -Stage "exit" -Code "ok") -Store (New-SelfTestSourceRun -Stage "exit" -Code "ok") -Prepare (New-SelfTestSourcePrepare)),
+        (New-SelfTestSourceMatrixEntry -Name "too_large_app" -Direct (New-SelfTestSourceRun -Stage "load" -Code "load_failed"))
+    )
+    Assert-SourceMatrixEntry -Matrix $GoodSourceMatrix -Name "hello_app" -Sources @("direct", "received", "packetstream", "store")
+    Assert-SourceMatrixEntry -Matrix $GoodSourceMatrix -Name "argv_app" -Sources @("direct", "store", "prepare")
+    Assert-SourceMatrixFailure -Matrix $GoodSourceMatrix -Name "too_large_app" -Source "direct" -Stage "load" -Code "load_failed"
+    if (-not (Test-SelfTestThrowsLike -Prefix "domain_summary_validate_failed:" -Script { Assert-SourceMatrixEntry -Matrix $GoodSourceMatrix -Name "hello_app" -Sources @("received", "store", "prepare") })) {
+        throw "selftest_failed: bad source matrix entry validated unexpectedly"
+    }
+    if (-not (Test-SelfTestThrowsLike -Prefix "domain_summary_validate_failed:" -Script { Assert-SourceMatrixFailure -Matrix $GoodSourceMatrix -Name "too_large_app" -Source "direct" -Stage "exit" -Code "ok" })) {
+        throw "selftest_failed: bad source matrix failure validated unexpectedly"
     }
     if (-not (Test-LogText -Text (Get-SyntheticPassingLog))) {
         throw "selftest_failed: synthetic passing log did not validate"

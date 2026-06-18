@@ -449,10 +449,10 @@ Board validation helpers:
 - Run the same evidence bundle and append the off-board QEMU ELF virtual-board smoke:
   `powershell -ExecutionPolicy Bypass -File tools/capture-resident-platform-evidence-bundle.ps1 -QemuElf`
   The bundle summary expands the generated QEMU `domain-summary.json` into
-  `qemu_elf_domain`, `qemu_elf_display`, `qemu_elf_coverage`, and
-  `qemu_elf_player_min_gui` tokens so the archived evidence shows the virtual
-  runtime domain, fixed display mode, coverage counts, and GUI timeline without
-  opening the JSON manually.
+  `qemu_elf_domain`, `qemu_elf_backend`, `qemu_elf_display`,
+  `qemu_elf_coverage`, and `qemu_elf_player_min_gui` tokens so the archived
+  evidence shows the virtual runtime domain, capability contract, fixed display
+  mode, coverage counts, and GUI timeline without opening the JSON manually.
 - Run the off-board artifact/inspect/host-smoke/QEMU ELF evidence path without
   requiring the H747 build preset:
   `powershell -ExecutionPolicy Bypass -File tools/capture-resident-platform-evidence-bundle.ps1 -QemuElf -SkipH747Build`

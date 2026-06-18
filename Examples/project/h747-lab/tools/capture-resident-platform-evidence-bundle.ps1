@@ -221,6 +221,13 @@ function Invoke-SelfTest {
         domain = "virtual_m7"
         machine = "mps2-an500"
         cpu = "cortex-m7"
+        backend_contract = [pscustomobject]@{
+            kind = "virtual"
+            runtime_domain = "virtual_m7"
+            capabilities = @("console", "time", "display", "input", "storage", "app_exit")
+            storage = "readonly"
+            afe = "unsupported"
+        }
         display = [pscustomobject]@{
             width = 16
             height = 16
@@ -243,6 +250,7 @@ function Invoke-SelfTest {
     try {
         $ParsedQemu = Read-QemuElfDomainSummary -Path $TempSummary
         if ($ParsedQemu.Domain -ne "virtual_m7" -or
+            $ParsedQemu.Backend -ne "virtual:virtual_m7:console,time,display,input,storage,app_exit:storage=readonly:afe=unsupported" -or
             $ParsedQemu.Display -ne "16x16:argb8888:stride=64:frame=1024" -or
             $ParsedQemu.GuiTimeline -ne 4 -or
             $ParsedQemu.PlayerMin.IndexOf("packetstream:player_min:frames=1,inputs=1", [System.StringComparison]::Ordinal) -lt 0) {
@@ -277,6 +285,22 @@ function Read-QemuElfDomainSummary {
     if ($Summary.schema -ne "charm.resident_elf_qemu.domain_summary.v1") {
         throw "qemu_elf_summary_invalid: bad schema: $($Summary.schema)"
     }
+    if ($Summary.backend_contract.kind -ne "virtual" -or
+        $Summary.backend_contract.runtime_domain -ne "virtual_m7" -or
+        $Summary.backend_contract.storage -ne "readonly" -or
+        $Summary.backend_contract.afe -ne "unsupported") {
+        throw "qemu_elf_summary_invalid: bad backend_contract"
+    }
+    $BackendCapabilities = @($Summary.backend_contract.capabilities)
+    $ExpectedBackendCapabilities = @("console", "time", "display", "input", "storage", "app_exit")
+    foreach ($Capability in $ExpectedBackendCapabilities) {
+        if (-not ($BackendCapabilities -contains $Capability)) {
+            throw "qemu_elf_summary_invalid: missing backend capability $Capability"
+        }
+    }
+    if ($BackendCapabilities.Count -ne $ExpectedBackendCapabilities.Count) {
+        throw "qemu_elf_summary_invalid: unexpected backend capability count"
+    }
     $Timeline = @($Summary.coverage.gui_timeline)
     $PlayerMinPaths = @("player_min", "received:player_min", "packetstream:player_min", "store:player_min")
     $PlayerMinSummary = @()
@@ -298,6 +322,12 @@ function Read-QemuElfDomainSummary {
         Domain = [string]$Summary.domain
         Machine = [string]$Summary.machine
         Cpu = [string]$Summary.cpu
+        Backend = ("{0}:{1}:{2}:storage={3}:afe={4}" -f `
+            ([string]$Summary.backend_contract.kind), `
+            ([string]$Summary.backend_contract.runtime_domain), `
+            ($BackendCapabilities -join ","), `
+            ([string]$Summary.backend_contract.storage), `
+            ([string]$Summary.backend_contract.afe))
         Runs = @($Summary.coverage.runs).Count
         SourceMatrix = @($Summary.coverage.source_matrix).Count
         GuiTimeline = $Timeline.Count
@@ -319,6 +349,7 @@ function Write-QemuElfSummaryLines {
 
     if ($null -eq $QemuElfSummary) {
         Write-BundleLine -Lines $Lines -Text "qemu_elf_domain=skipped"
+        Write-BundleLine -Lines $Lines -Text "qemu_elf_backend=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_display=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_coverage=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_player_min_gui=skipped"
@@ -329,6 +360,7 @@ function Write-QemuElfSummaryLines {
         $QemuElfSummary.Domain, `
         $QemuElfSummary.Machine, `
         $QemuElfSummary.Cpu)
+    Write-BundleLine -Lines $Lines -Text ("qemu_elf_backend={0}" -f $QemuElfSummary.Backend)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_display={0}" -f $QemuElfSummary.Display)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_coverage runs={0} source_matrix={1} gui_timeline={2}" -f `
         $QemuElfSummary.Runs, `

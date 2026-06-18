@@ -39,6 +39,7 @@ param(
     [switch]$SkipGoldenInputTrace,
     [switch]$SkipGoldenStorageTrace,
     [switch]$SkipGoldenDomainSummary,
+    [switch]$ValidateEvidenceBundle,
     [switch]$DryRun,
     [switch]$SelfTest
 )
@@ -138,6 +139,7 @@ function New-QemuSmokeArguments {
     Add-OptionalSwitchArgument -Arguments $Arguments -Name "-SkipGoldenInputTrace" -Enabled $SkipGoldenInputTrace.IsPresent
     Add-OptionalSwitchArgument -Arguments $Arguments -Name "-SkipGoldenStorageTrace" -Enabled $SkipGoldenStorageTrace.IsPresent
     Add-OptionalSwitchArgument -Arguments $Arguments -Name "-SkipGoldenDomainSummary" -Enabled $SkipGoldenDomainSummary.IsPresent
+    Add-OptionalSwitchArgument -Arguments $Arguments -Name "-ValidateEvidenceBundle" -Enabled $ValidateEvidenceBundle.IsPresent
     Add-OptionalSwitchArgument -Arguments $Arguments -Name "-DryRun" -Enabled $DryRun.IsPresent
     Add-OptionalSwitchArgument -Arguments $Arguments -Name "-SelfTest" -Enabled ($SelfTest.IsPresent -or $ForceSelfTest)
 
@@ -183,6 +185,9 @@ function Invoke-WrapperSelfTest {
     }
     if ($SkipGoldenDomainSummary -and -not (Test-ArgumentPresent -Arguments $Forwarded -Name "-SkipGoldenDomainSummary")) {
         throw "selftest_failed: wrapper did not forward -SkipGoldenDomainSummary"
+    }
+    if ($ValidateEvidenceBundle -and -not (Test-ArgumentPresent -Arguments $Forwarded -Name "-ValidateEvidenceBundle")) {
+        throw "selftest_failed: wrapper did not forward -ValidateEvidenceBundle"
     }
 
     & powershell @Forwarded

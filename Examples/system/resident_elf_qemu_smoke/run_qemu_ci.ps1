@@ -39,6 +39,7 @@ param(
     [switch]$SkipGoldenInputTrace,
     [switch]$SkipGoldenStorageTrace,
     [switch]$SkipGoldenDomainSummary,
+    [switch]$ValidateEvidenceBundle,
     [switch]$DryRun,
     [switch]$SelfTest
 )
@@ -2703,6 +2704,69 @@ function Get-SyntheticPassingLog {
     return (Get-ExpectedTokens -join "`n")
 }
 
+function Assert-ValidationOk {
+    param(
+        [string]$Name,
+        [int]$Code
+    )
+
+    if ($Code -ne 0) {
+        throw "evidence_bundle_validate_failed: $Name returned $Code"
+    }
+}
+
+function Invoke-EvidenceBundleValidation {
+    $LogPath = $ValidateLog
+    if ([string]::IsNullOrWhiteSpace($LogPath)) {
+        $LogPath = Join-Path $PSScriptRoot "qemu-ci.log"
+    }
+
+    Assert-ValidationOk -Name "log" -Code (Validate-LogFile -Path (Resolve-ScriptPath -Path $LogPath))
+
+    if (-not [string]::IsNullOrWhiteSpace($FrameSignatureOut)) {
+        $ResolvedFrameSignatureOut = Resolve-ScriptPath -Path $FrameSignatureOut
+        Assert-ValidationOk -Name "frame_signatures" -Code (Validate-FrameSignatureFile -Path $ResolvedFrameSignatureOut)
+        if (-not $SkipGoldenFrameSignatures -and -not [string]::IsNullOrWhiteSpace($GoldenFrameSignatures)) {
+            Assert-ValidationOk -Name "frame_signatures_golden" -Code (Compare-FrameSignatureFiles -ExpectedPath (Resolve-ScriptPath -Path $GoldenFrameSignatures) -ActualPath $ResolvedFrameSignatureOut)
+        }
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($FrameDumpOut)) {
+        Assert-ValidationOk -Name "frame_dumps" -Code (Validate-FrameDumpFile -Path (Resolve-ScriptPath -Path $FrameDumpOut))
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($FramePpmOut)) {
+        Assert-ValidationOk -Name "frame_ppm" -Code (Validate-FramePpmDirectory -Path (Resolve-ScriptPath -Path $FramePpmOut))
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($InputTraceOut)) {
+        $ResolvedInputTraceOut = Resolve-ScriptPath -Path $InputTraceOut
+        Assert-ValidationOk -Name "input_trace" -Code (Validate-InputTraceFile -Path $ResolvedInputTraceOut)
+        if (-not $SkipGoldenInputTrace -and -not [string]::IsNullOrWhiteSpace($GoldenInputTrace)) {
+            Assert-ValidationOk -Name "input_trace_golden" -Code (Compare-InputTraceFiles -ExpectedPath (Resolve-ScriptPath -Path $GoldenInputTrace) -ActualPath $ResolvedInputTraceOut)
+        }
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($StorageTraceOut)) {
+        $ResolvedStorageTraceOut = Resolve-ScriptPath -Path $StorageTraceOut
+        Assert-ValidationOk -Name "storage_trace" -Code (Validate-StorageTraceFile -Path $ResolvedStorageTraceOut)
+        if (-not $SkipGoldenStorageTrace -and -not [string]::IsNullOrWhiteSpace($GoldenStorageTrace)) {
+            Assert-ValidationOk -Name "storage_trace_golden" -Code (Compare-StorageTraceFiles -ExpectedPath (Resolve-ScriptPath -Path $GoldenStorageTrace) -ActualPath $ResolvedStorageTraceOut)
+        }
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($DomainSummaryOut)) {
+        $ResolvedDomainSummaryOut = Resolve-ScriptPath -Path $DomainSummaryOut
+        Assert-ValidationOk -Name "domain_summary" -Code (Validate-DomainSummaryFile -Path $ResolvedDomainSummaryOut)
+        if (-not $SkipGoldenDomainSummary -and -not [string]::IsNullOrWhiteSpace($GoldenDomainSummary)) {
+            Assert-ValidationOk -Name "domain_summary_golden" -Code (Compare-DomainSummaryFiles -ExpectedPath (Resolve-ScriptPath -Path $GoldenDomainSummary) -ActualPath $ResolvedDomainSummaryOut)
+        }
+    }
+
+    Write-Host "resident-elf-qemu evidence bundle validation ok"
+    return 0
+}
+
 function Invoke-SelfTest {
     if ($ElfBase -ne "0x20080000") {
         throw "selftest_failed: QEMU ELF base must remain 0x20080000, got $ElfBase"
@@ -2742,6 +2806,9 @@ function Invoke-SelfTest {
     }
     if (-not (Test-SelfTestThrowsLike -Prefix "domain_summary_compare_failed:" -Script { Compare-DomainSummaryFiles -ExpectedPath "" -ActualPath "" })) {
         throw "selftest_failed: domain summary compare did not report domain_summary_compare_failed"
+    }
+    if (-not (Test-SelfTestThrowsLike -Prefix "evidence_bundle_validate_failed:" -Script { Assert-ValidationOk -Name "selftest" -Code 1 })) {
+        throw "selftest_failed: evidence bundle validation did not report evidence_bundle_validate_failed"
     }
     $GoodStoreSummary = [pscustomobject]@{
         format = "store_v1"
@@ -2998,6 +3065,10 @@ if ($SelfTest) {
     exit 0
 }
 
+if ($ValidateEvidenceBundle) {
+    exit (Invoke-EvidenceBundleValidation)
+}
+
 if (-not [string]::IsNullOrWhiteSpace($ValidateLog)) {
     exit (Validate-LogFile -Path $ValidateLog)
 }
@@ -3100,6 +3171,7 @@ if ($DryRun) {
     } else {
         Write-Host "[dry-run] golden_domain_summary=$(Resolve-ScriptPath -Path $GoldenDomainSummary)"
     }
+    Write-Host "[dry-run] validate_evidence_bundle=$($ValidateEvidenceBundle.IsPresent)"
     exit 0
 }
 

@@ -1921,6 +1921,51 @@ function Get-CapabilitySummaryFromText {
     return [pscustomobject]$Caps
 }
 
+function Get-GuiTimelineSummary {
+    param(
+        [object]$FrameSignatureCapture,
+        [object]$InputTraceCapture
+    )
+
+    $Entries = [ordered]@{}
+    foreach ($Run in @($FrameSignatureCapture.runs)) {
+        $Frames = @($Run.frames)
+        $Entries[[string]$Run.name] = [ordered]@{
+            name = [string]$Run.name
+            stage = [string]$Run.stage
+            code = [string]$Run.code
+            exit = [int]$Run.exit
+            frames = [int]$Run.frame_count
+            inputs = 0
+            last_frame_hash = if ($Frames.Count -gt 0) { [string]$Frames[$Frames.Count - 1].hash } else { "" }
+            last_input = ""
+        }
+    }
+    foreach ($Run in @($InputTraceCapture.runs)) {
+        $Name = [string]$Run.name
+        if (-not $Entries.Contains($Name)) {
+            $Entries[$Name] = [ordered]@{
+                name = $Name
+                stage = [string]$Run.stage
+                code = [string]$Run.code
+                exit = [int]$Run.exit
+                frames = 0
+                inputs = 0
+                last_frame_hash = ""
+                last_input = ""
+            }
+        }
+        $Events = @($Run.events)
+        $Entries[$Name].inputs = [int]$Run.event_count
+        if ($Events.Count -gt 0) {
+            $Last = $Events[$Events.Count - 1]
+            $Entries[$Name].last_input = "{0},{1},{2}" -f ([int]$Last.pointer_x), ([int]$Last.pointer_y), ([int]$Last.down)
+        }
+    }
+
+    return @($Entries.Values | ForEach-Object { [pscustomobject]$_ })
+}
+
 function Write-DomainSummaryCapture {
     param(
         [string]$LogPath,
@@ -1967,6 +2012,7 @@ function Write-DomainSummaryCapture {
     $FrameSignatureResolved = ""
     $FrameSignatureCount = 0
     $FrameSignatureRunCount = 0
+    $FrameSignatureCapture = [pscustomobject]@{ runs = @() }
     if (-not [string]::IsNullOrWhiteSpace($FrameSignaturePath) -and (Test-Path -LiteralPath $FrameSignaturePath)) {
         $FrameSignatureResolved = (Resolve-Path -LiteralPath $FrameSignaturePath).Path
         $FrameSignatureCapture = Get-Content -LiteralPath $FrameSignatureResolved -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -2000,6 +2046,7 @@ function Write-DomainSummaryCapture {
     $InputTraceResolved = ""
     $InputTraceCount = 0
     $InputTraceRunCount = 0
+    $InputTraceCapture = [pscustomobject]@{ runs = @() }
     if (-not [string]::IsNullOrWhiteSpace($InputTracePath) -and (Test-Path -LiteralPath $InputTracePath)) {
         $InputTraceResolved = (Resolve-Path -LiteralPath $InputTracePath).Path
         $InputTraceCapture = Get-Content -LiteralPath $InputTraceResolved -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -2059,6 +2106,7 @@ function Write-DomainSummaryCapture {
             loads = Get-ElfLoadSummaryFromText -Text $Text
             packetstreams = Get-PacketstreamSummaryFromText -Text $Text
             source_matrix = Get-SourceMatrixFromText -Text $Text
+            gui_timeline = Get-GuiTimelineSummary -FrameSignatureCapture $FrameSignatureCapture -InputTraceCapture $InputTraceCapture
             prepare = [pscustomobject]@{
                 name = "prepare:argv_app"
                 stage = "start"
@@ -2339,6 +2387,35 @@ function Assert-SourceMatrixFailure {
     }
 }
 
+function Assert-GuiTimelineEntry {
+    param(
+        [object[]]$Timeline,
+        [string]$Name,
+        [int]$Frames,
+        [int]$Inputs,
+        [string]$LastFrameHash,
+        [string]$LastInput
+    )
+
+    $Matches = @($Timeline | Where-Object { $_.name -eq $Name })
+    if ($Matches.Count -ne 1) {
+        throw "domain_summary_validate_failed: gui timeline missing or duplicate run $Name"
+    }
+    $Entry = $Matches[0]
+    if ([int]$Entry.frames -ne $Frames -or [int]$Entry.inputs -ne $Inputs) {
+        throw "domain_summary_validate_failed: gui timeline $Name expected frames=$Frames inputs=$Inputs"
+    }
+    if ($Entry.stage -ne "exit" -or $Entry.code -ne "ok" -or [int]$Entry.exit -ne 0) {
+        throw "domain_summary_validate_failed: gui timeline $Name did not exit ok"
+    }
+    if ([string]$Entry.last_frame_hash -ne $LastFrameHash) {
+        throw "domain_summary_validate_failed: gui timeline $Name bad last frame hash"
+    }
+    if ([string]$Entry.last_input -ne $LastInput) {
+        throw "domain_summary_validate_failed: gui timeline $Name bad last input"
+    }
+}
+
 function Validate-DomainSummaryFile {
     param([string]$Path)
 
@@ -2468,6 +2545,15 @@ function Validate-DomainSummaryFile {
     Assert-SourceMatrixFailure -Matrix $SourceMatrix -Name "packetstream_bad_elf_magic_app" -Source "packetstream" -Stage "load" -Code "load_failed"
     Assert-SourceMatrixFailure -Matrix $SourceMatrix -Name "argv_overflow_app" -Source "direct" -Stage "argv" -Code "argv_overflow"
     Assert-SourceMatrixFailure -Matrix $SourceMatrix -Name "abi_mismatch_app" -Source "direct" -Stage "abi" -Code "abi_mismatch"
+    $GuiTimeline = @($Summary.coverage.gui_timeline)
+    Assert-DomainCount -Name "gui_timeline" -Actual $GuiTimeline.Count -Expected 8
+    Assert-GuiTimelineEntry -Timeline $GuiTimeline -Name "display_sequence_app" -Frames 2 -Inputs 0 -LastFrameHash "0xa9b09dc5" -LastInput ""
+    Assert-GuiTimelineEntry -Timeline $GuiTimeline -Name "store:display_sequence_app" -Frames 2 -Inputs 0 -LastFrameHash "0xa9b09dc5" -LastInput ""
+    Assert-GuiTimelineEntry -Timeline $GuiTimeline -Name "input_sequence_app" -Frames 0 -Inputs 4 -LastFrameHash "" -LastInput "6,8,0"
+    Assert-GuiTimelineEntry -Timeline $GuiTimeline -Name "store:input_sequence_app" -Frames 0 -Inputs 4 -LastFrameHash "" -LastInput "6,8,0"
+    foreach ($Name in @("player_min", "received:player_min", "packetstream:player_min", "store:player_min")) {
+        Assert-GuiTimelineEntry -Timeline $GuiTimeline -Name $Name -Frames 1 -Inputs 1 -LastFrameHash "0xfac53a05" -LastInput "3,5,0"
+    }
     if ([int]$Summary.evidence.frame_signature_count -ne 8 -or [int]$Summary.evidence.frame_signature_run_count -ne 6) {
         throw "domain_summary_validate_failed: bad frame signature evidence"
     }
@@ -2674,6 +2760,7 @@ function Invoke-SelfTest {
         "-SkipGoldenStorageTrace",
         "capture-resident-platform-evidence-bundle.ps1 -QemuElf",
         "display mode is fixed at 16x16 ARGB8888",
+        "coverage.gui_timeline",
         "virtual_m7"
     )) {
         if (-not $ReadmeText.Contains($RequiredReadmeToken)) {

@@ -439,10 +439,17 @@ coverage per App. For example, `hello_app`, `large_fit_app`, and `player_min`
 must all prove equivalent direct, received, packetstream, and Store-backed ELF
 runs; `argv_app` also proves the prepare-only path; negative entries retain the
 source where the stable failure stage was observed.
+Its `coverage.gui_timeline` section merges display frames and input polls by App
+run name. `player_min`, `received:player_min`, `packetstream:player_min`, and
+`store:player_min` must each prove `frames=1 inputs=1` with the same frame hash
+and last input event. `display_sequence_app` and `input_sequence_app` remain
+single-capability controls for display-only and input-only behavior. This makes
+GUI evidence a per-run timeline check rather than two unrelated trace files.
 Validation treats this summary as a stable QEMU backend contract: expected
 coverage counts for runs, stages, loads, packetstreams, source-matrix entries,
-negative cases, and evidence traces are exact gates. If a future change adds or
-removes coverage, update the smoke and this evidence contract intentionally.
+GUI timeline entries, negative cases, and evidence traces are exact gates. If a
+future change adds or removes coverage, update the smoke and this evidence
+contract intentionally.
 
 ## Boundary
 

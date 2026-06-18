@@ -265,6 +265,18 @@ function Invoke-SelfTest {
                 [pscustomobject]@{ name = "store:player_min"; frames = 1; inputs = 1; last_frame_hash = "0xfac53a05"; last_input = "3,5,0" }
             )
         }
+        evidence = [pscustomobject]@{
+            frame_signature_count = 8
+            frame_signature_run_count = 6
+            frame_dump_count = 8
+            frame_dump_run_count = 6
+            frame_ppm_count = 8
+            frame_ppm_run_count = 6
+            input_trace_event_count = 12
+            input_trace_run_count = 6
+            storage_trace_event_count = 49
+            storage_trace_run_count = 6
+        }
     }
     [System.IO.File]::WriteAllText($TempSummary, (($GoodSummary | ConvertTo-Json -Depth 8) + "`n"), [System.Text.UTF8Encoding]::new($false))
     try {
@@ -274,6 +286,7 @@ function Invoke-SelfTest {
             $ParsedQemu.Memory -ne "run_base=0x20080000:run_size=65536:stage_cache=16384" -or
             $ParsedQemu.Store -ne "store_v1:entries=13:bytes=81888:media=memory:reads=130:read_bytes=66044:failures=0" -or
             $ParsedQemu.Display -ne "16x16:argb8888:stride=64:frame=1024" -or
+            $ParsedQemu.Evidence -ne "frames=8/6:dumps=8/6:ppm=8/6:input=12/6:storage=49/6" -or
             $ParsedQemu.GuiTimeline -ne 4 -or
             $ParsedQemu.PlayerMin.IndexOf("packetstream:player_min:frames=1,inputs=1", [System.StringComparison]::Ordinal) -lt 0) {
             throw "selftest_failed: qemu summary parse result is unexpected"
@@ -302,6 +315,7 @@ function Invoke-SelfTest {
         Test-BadQemuSummary -Label "run_region" -Mutate { param($Summary) $Summary.run_region.size = 32768 }
         Test-BadQemuSummary -Label "stage_cache" -Mutate { param($Summary) $Summary.stage_cache.bytes = 8192 }
         Test-BadQemuSummary -Label "store_media" -Mutate { param($Summary) $Summary.store.media.read_failures = 1 }
+        Test-BadQemuSummary -Label "evidence_counts" -Mutate { param($Summary) $Summary.evidence.frame_signature_count = 7 }
         Test-BadQemuSummary -Label "gui_timeline" -Mutate { param($Summary) $Summary.coverage.gui_timeline = @($Summary.coverage.gui_timeline | Where-Object { $_.name -ne "store:player_min" }) }
     } finally {
         Remove-Item -LiteralPath $TempSummary -Force -ErrorAction SilentlyContinue
@@ -355,6 +369,18 @@ function Read-QemuElfDomainSummary {
         [int]$Summary.store.media.read_failures -ne 0) {
         throw "qemu_elf_summary_invalid: bad store media"
     }
+    if ([int]$Summary.evidence.frame_signature_count -ne 8 -or
+        [int]$Summary.evidence.frame_signature_run_count -ne 6 -or
+        [int]$Summary.evidence.frame_dump_count -ne 8 -or
+        [int]$Summary.evidence.frame_dump_run_count -ne 6 -or
+        [int]$Summary.evidence.frame_ppm_count -ne 8 -or
+        [int]$Summary.evidence.frame_ppm_run_count -ne 6 -or
+        [int]$Summary.evidence.input_trace_event_count -ne 12 -or
+        [int]$Summary.evidence.input_trace_run_count -ne 6 -or
+        [int]$Summary.evidence.storage_trace_event_count -ne 49 -or
+        [int]$Summary.evidence.storage_trace_run_count -ne 6) {
+        throw "qemu_elf_summary_invalid: bad evidence counts"
+    }
     $Timeline = @($Summary.coverage.gui_timeline)
     $PlayerMinPaths = @("player_min", "received:player_min", "packetstream:player_min", "store:player_min")
     $PlayerMinSummary = @()
@@ -394,6 +420,17 @@ function Read-QemuElfDomainSummary {
             ([int]$Summary.store.media.read_calls), `
             ([int]$Summary.store.media.read_bytes), `
             ([int]$Summary.store.media.read_failures))
+        Evidence = ("frames={0}/{1}:dumps={2}/{3}:ppm={4}/{5}:input={6}/{7}:storage={8}/{9}" -f `
+            ([int]$Summary.evidence.frame_signature_count), `
+            ([int]$Summary.evidence.frame_signature_run_count), `
+            ([int]$Summary.evidence.frame_dump_count), `
+            ([int]$Summary.evidence.frame_dump_run_count), `
+            ([int]$Summary.evidence.frame_ppm_count), `
+            ([int]$Summary.evidence.frame_ppm_run_count), `
+            ([int]$Summary.evidence.input_trace_event_count), `
+            ([int]$Summary.evidence.input_trace_run_count), `
+            ([int]$Summary.evidence.storage_trace_event_count), `
+            ([int]$Summary.evidence.storage_trace_run_count))
         Runs = @($Summary.coverage.runs).Count
         SourceMatrix = @($Summary.coverage.source_matrix).Count
         GuiTimeline = $Timeline.Count
@@ -419,6 +456,7 @@ function Write-QemuElfSummaryLines {
         Write-BundleLine -Lines $Lines -Text "qemu_elf_memory=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_store=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_display=skipped"
+        Write-BundleLine -Lines $Lines -Text "qemu_elf_evidence=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_coverage=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_player_min_gui=skipped"
         return
@@ -432,6 +470,7 @@ function Write-QemuElfSummaryLines {
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_memory={0}" -f $QemuElfSummary.Memory)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_store={0}" -f $QemuElfSummary.Store)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_display={0}" -f $QemuElfSummary.Display)
+    Write-BundleLine -Lines $Lines -Text ("qemu_elf_evidence={0}" -f $QemuElfSummary.Evidence)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_coverage runs={0} source_matrix={1} gui_timeline={2}" -f `
         $QemuElfSummary.Runs, `
         $QemuElfSummary.SourceMatrix, `

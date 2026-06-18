@@ -148,6 +148,11 @@ app.exit counters. Unsupported storage calls and all AFE calls are explicit
 smoke code should stay focused on Store staging, ELF loading, AppRuntime, and
 diagnostics. This split is not a public Backends API and does not introduce a
 second App model.
+The smoke logs `resident-elf-qemu: backend-capabilities ...`, and
+`domain-summary.json` records the same data under `backend_contract`. That field
+is the virtual-board evidence contract for this smoke: runtime domain
+`virtual_m7`, virtual capabilities `console,time,display,input,storage,app_exit`,
+read-only storage, and unsupported AFE. It is not a product backend registry.
 
 The QEMU-local Store path is exposed through a smoke-local virtual memory media
 reader owned by `qemu_virtual_backend`. Its counters are logged as
@@ -418,10 +423,11 @@ The script also writes `domain-summary.json` with schema
 proof that the QEMU run is a `virtual_m7` runtime domain with run region
 `0x20080000..0x20090000`, 16 KiB stage cache, Store v1 staging, direct/received/
 packetstream/Store ELF runs, prepare-only coverage, capability coverage, and the
-expected negative cases. Its `display` section records the fixed virtual display
-mode so GUI evidence drift is caught before frame hashes are interpreted. Its
-evidence section records frame signature, full dump, visual PPM, input trace,
-and storage trace counts. Its `coverage.loads` section records the ELF loader/probe/capacity
+expected negative cases. Its `backend_contract` section records the smoke-local
+virtual capabilities and unsupported AFE boundary. Its `display` section records
+the fixed virtual display mode so GUI evidence drift is caught before frame
+hashes are interpreted. Its evidence section records frame signature, full dump,
+visual PPM, input trace, and storage trace counts. Its `coverage.loads` section records the ELF loader/probe/capacity
 facts for each loaded image: format, probe code, entry, span, segment count,
 needed/free bytes, fit result, and run region. It is an off-board evidence
 artifact, not a product manifest and not Store metadata. Its
@@ -446,10 +452,10 @@ and last input event. `display_sequence_app` and `input_sequence_app` remain
 single-capability controls for display-only and input-only behavior. This makes
 GUI evidence a per-run timeline check rather than two unrelated trace files.
 Validation treats this summary as a stable QEMU backend contract: expected
-coverage counts for runs, stages, loads, packetstreams, source-matrix entries,
-GUI timeline entries, negative cases, and evidence traces are exact gates. If a
-future change adds or removes coverage, update the smoke and this evidence
-contract intentionally.
+backend contract, coverage counts for runs, stages, loads, packetstreams,
+source-matrix entries, GUI timeline entries, negative cases, and evidence traces
+are exact gates. If a future change adds or removes coverage, update the smoke
+and this evidence contract intentionally.
 
 ## Boundary
 

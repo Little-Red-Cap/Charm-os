@@ -221,6 +221,7 @@ function Get-ExpectedTokens {
     return @(
         "resident-elf-qemu: begin",
         "resident-elf-qemu: backend=virtual_m7 machine=mps2-an500 cpu=cortex-m7",
+        "resident-elf-qemu: backend-capabilities capabilities=console,time,display,input,storage,app_exit storage=readonly afe=unsupported",
         "resident-elf-qemu: run-region base=0x20080000 expected=0x20080000 size=65536",
         "resident-elf-qemu: stage-cache bytes=16384",
         "resident-elf-qemu: store entries=13 bytes=",
@@ -1991,6 +1992,9 @@ function Write-DomainSummaryCapture {
     }
 
     $Text = Get-Content -LiteralPath $ResolvedLog -Raw -Encoding UTF8
+    $BackendCapabilities = Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: backend-capabilities capabilities=([a-z0-9_,]+)' -ErrorPrefix "domain_summary_failed"
+    $BackendStorageMode = Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: backend-capabilities capabilities=[a-z0-9_,]+ storage=([a-z0-9_]+)' -ErrorPrefix "domain_summary_failed"
+    $BackendAfeMode = Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: backend-capabilities capabilities=[a-z0-9_,]+ storage=[a-z0-9_]+ afe=([a-z0-9_]+)' -ErrorPrefix "domain_summary_failed"
     $RunRegionBase = Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: run-region base=(0x[0-9a-f]+)' -ErrorPrefix "domain_summary_failed"
     $RunRegionExpected = Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: run-region base=0x[0-9a-f]+ expected=(0x[0-9a-f]+)' -ErrorPrefix "domain_summary_failed"
     $RunRegionSize = [int](Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: run-region base=0x[0-9a-f]+ expected=0x[0-9a-f]+ size=(\d+)' -ErrorPrefix "domain_summary_failed")
@@ -2071,6 +2075,13 @@ function Write-DomainSummaryCapture {
         cpu = "cortex-m7"
         image_format = "elf"
         app_model = "CharmAppApi"
+        backend_contract = [pscustomobject]@{
+            kind = "virtual"
+            runtime_domain = "virtual_m7"
+            capabilities = @($BackendCapabilities -split ",")
+            storage = $BackendStorageMode
+            afe = $BackendAfeMode
+        }
         run_region = [pscustomobject]@{
             base = $RunRegionBase
             expected = $RunRegionExpected
@@ -2435,6 +2446,21 @@ function Validate-DomainSummaryFile {
     }
     if ($Summary.image_format -ne "elf" -or $Summary.app_model -ne "CharmAppApi") {
         throw "domain_summary_validate_failed: bad app model"
+    }
+    if ($Summary.backend_contract.kind -ne "virtual" -or
+        $Summary.backend_contract.runtime_domain -ne "virtual_m7" -or
+        $Summary.backend_contract.storage -ne "readonly" -or
+        $Summary.backend_contract.afe -ne "unsupported") {
+        throw "domain_summary_validate_failed: bad backend contract"
+    }
+    $BackendCapabilities = @($Summary.backend_contract.capabilities)
+    foreach ($Capability in @("console", "time", "display", "input", "storage", "app_exit")) {
+        if (-not ($BackendCapabilities -contains $Capability)) {
+            throw "domain_summary_validate_failed: backend capability missing $Capability"
+        }
+    }
+    if ($BackendCapabilities.Count -ne 6) {
+        throw "domain_summary_validate_failed: unexpected backend capability count"
     }
     if ($Summary.run_region.base -ne "0x20080000" -or $Summary.run_region.expected -ne "0x20080000" -or [int]$Summary.run_region.size -ne 65536) {
         throw "domain_summary_validate_failed: bad run region"

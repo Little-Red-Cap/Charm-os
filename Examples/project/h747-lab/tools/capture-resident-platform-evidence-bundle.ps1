@@ -10,6 +10,7 @@ param(
     [int]$WriteChunkSize = 256,
     [int]$InterChunkDelayMs = 1,
     [switch]$QemuElf,
+    [switch]$SkipH747Build,
     [switch]$DryRun,
     [switch]$SelfTest
 )
@@ -347,7 +348,7 @@ function Write-Summary {
         [string]$QemuElfDomainSummary,
         [string]$QemuElfFramePpm,
         [object]$QemuElfSummary,
-        [int64]$FirmwareSize,
+        [string]$FirmwareSize,
         [string]$BoardMatrixLog,
         [string]$InstalledStoreMatrixLog
     )
@@ -440,9 +441,14 @@ if ($DryRun) {
     Write-Host "board_matrix=$($BoardMatrix.IsPresent)"
     Write-Host "installed_store_matrix=$($InstalledStoreMatrix.IsPresent)"
     Write-Host "qemu_elf=$($QemuElf.IsPresent)"
+    Write-Host "skip_h747_build=$($SkipH747Build.IsPresent)"
     Write-Host "inspect_source=$InspectSource"
     Write-Host "host_smokes=resident_platform_inspect_smoke,resident_platform_artifact_smoke,dev_loader_packet_stream_smoke,dev_loader_store_install_handoff_smoke,app_abi_modulex_smoke"
-    Write-Host "h747_build=build-h747-lab-dev-loader-debug"
+    if ($SkipH747Build) {
+        Write-Host "h747_build=skipped"
+    } else {
+        Write-Host "h747_build=build-h747-lab-dev-loader-debug"
+    }
     if ($QemuElf) {
         Write-Host "qemu_elf_script=$QemuElfScript"
         Write-Host "qemu_elf_log=$QemuElfLog"
@@ -545,16 +551,22 @@ try {
         Write-QemuElfSummaryLines -Lines $Lines -QemuElfSummary $QemuElfSummary
     }
 
-    Invoke-Logged -Lines $Lines -Label "h747 dev_loader build-only" -FilePath "cmake" -Arguments @(
-        "--build",
-        "--preset",
-        "build-h747-lab-dev-loader-debug",
-        "--",
-        "-j1"
-    ) -WorkingDirectory $H747Root
+    $FirmwareSize = "skipped"
+    if ($SkipH747Build) {
+        Write-BundleLine -Lines $Lines -Text "== h747 dev_loader build-only =="
+        Write-BundleLine -Lines $Lines -Text "skipped by -SkipH747Build"
+    } else {
+        Invoke-Logged -Lines $Lines -Label "h747 dev_loader build-only" -FilePath "cmake" -Arguments @(
+            "--build",
+            "--preset",
+            "build-h747-lab-dev-loader-debug",
+            "--",
+            "-j1"
+        ) -WorkingDirectory $H747Root
 
-    $FirmwarePath = Join-Path $H747Root "cmake-build-h747-lab-debug\h747_lab_dev_loader.bin"
-    $FirmwareSize = Get-BinSize -Path $FirmwarePath
+        $FirmwarePath = Join-Path $H747Root "cmake-build-h747-lab-debug\h747_lab_dev_loader.bin"
+        $FirmwareSize = [string](Get-BinSize -Path $FirmwarePath)
+    }
 
     $BoardLogResolved = ""
     if ($BoardMatrix) {

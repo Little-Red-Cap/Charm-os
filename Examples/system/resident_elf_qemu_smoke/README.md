@@ -466,6 +466,13 @@ explicit `-QemuElf` switch:
 Examples/project/h747-lab/tools/capture-resident-platform-evidence-bundle.ps1 -QemuElf
 ```
 
+When BSP/CubeMX source-list migration is blocking the H747 build-only step, the
+same bundle can be used as an off-board ELF/QEMU gate with:
+
+```powershell
+Examples/project/h747-lab/tools/capture-resident-platform-evidence-bundle.ps1 -QemuElf -SkipH747Build
+```
+
 The switch is opt-in so the default H747 evidence bundle keeps its existing
 meaning. QEMU evidence is off-board semantic evidence for the ELF/AppRuntime
 chain; it does not replace real-board USB, Store, SDRAM, eMMC, or HAL evidence.

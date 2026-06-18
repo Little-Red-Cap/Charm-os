@@ -453,6 +453,12 @@ Board validation helpers:
   `qemu_elf_player_min_gui` tokens so the archived evidence shows the virtual
   runtime domain, fixed display mode, coverage counts, and GUI timeline without
   opening the JSON manually.
+- Run the off-board artifact/inspect/host-smoke/QEMU ELF evidence path without
+  requiring the H747 build preset:
+  `powershell -ExecutionPolicy Bypass -File tools/capture-resident-platform-evidence-bundle.ps1 -QemuElf -SkipH747Build`
+  Use this when BSP/CubeMX source-list migration is being debugged and the goal
+  is to gate the resident ELF virtual backend. It does not replace the default
+  H747 build-only or board-matrix evidence.
 - Run only the off-board QEMU ELF virtual-board smoke:
   `powershell -ExecutionPolicy Bypass -File ../../system/run-resident-elf-qemu-smoke.ps1`
   The QEMU smoke covers direct App ELF plus QEMU-local Store v1 staging into the

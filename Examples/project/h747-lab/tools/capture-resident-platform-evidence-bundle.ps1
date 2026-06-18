@@ -278,17 +278,31 @@ function Invoke-SelfTest {
             $ParsedQemu.PlayerMin.IndexOf("packetstream:player_min:frames=1,inputs=1", [System.StringComparison]::Ordinal) -lt 0) {
             throw "selftest_failed: qemu summary parse result is unexpected"
         }
-        $BadSummary = $GoodSummary
-        $BadSummary.schema = "bad"
-        [System.IO.File]::WriteAllText($TempSummary, (($BadSummary | ConvertTo-Json -Depth 8) + "`n"), [System.Text.UTF8Encoding]::new($false))
-        try {
-            Read-QemuElfDomainSummary -Path $TempSummary | Out-Null
-            throw "selftest_failed: bad qemu summary did not fail"
-        } catch {
-            if ($_.Exception.Message.IndexOf("qemu_elf_summary_invalid", [System.StringComparison]::Ordinal) -lt 0) {
-                throw "selftest_failed: bad qemu summary did not report qemu_elf_summary_invalid: $($_.Exception.Message)"
+        function Test-BadQemuSummary {
+            param(
+                [scriptblock]$Mutate,
+                [string]$Label
+            )
+
+            $BadSummary = $GoodSummary | ConvertTo-Json -Depth 8 | ConvertFrom-Json
+            & $Mutate $BadSummary
+            [System.IO.File]::WriteAllText($TempSummary, (($BadSummary | ConvertTo-Json -Depth 8) + "`n"), [System.Text.UTF8Encoding]::new($false))
+            try {
+                Read-QemuElfDomainSummary -Path $TempSummary | Out-Null
+                throw "selftest_failed: bad qemu summary '$Label' did not fail"
+            } catch {
+                if ($_.Exception.Message.IndexOf("qemu_elf_summary_invalid", [System.StringComparison]::Ordinal) -lt 0) {
+                    throw "selftest_failed: bad qemu summary '$Label' did not report qemu_elf_summary_invalid: $($_.Exception.Message)"
+                }
             }
         }
+
+        Test-BadQemuSummary -Label "schema" -Mutate { param($Summary) $Summary.schema = "bad" }
+        Test-BadQemuSummary -Label "backend_contract" -Mutate { param($Summary) $Summary.backend_contract.storage = "writeable" }
+        Test-BadQemuSummary -Label "run_region" -Mutate { param($Summary) $Summary.run_region.size = 32768 }
+        Test-BadQemuSummary -Label "stage_cache" -Mutate { param($Summary) $Summary.stage_cache.bytes = 8192 }
+        Test-BadQemuSummary -Label "store_media" -Mutate { param($Summary) $Summary.store.media.read_failures = 1 }
+        Test-BadQemuSummary -Label "gui_timeline" -Mutate { param($Summary) $Summary.coverage.gui_timeline = @($Summary.coverage.gui_timeline | Where-Object { $_.name -ne "store:player_min" }) }
     } finally {
         Remove-Item -LiteralPath $TempSummary -Force -ErrorAction SilentlyContinue
     }

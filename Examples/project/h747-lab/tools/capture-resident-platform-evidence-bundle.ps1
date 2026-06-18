@@ -257,6 +257,7 @@ function Invoke-SelfTest {
     }
 
     $TempSummary = Join-Path ([System.IO.Path]::GetTempPath()) "charm_qemu_domain_summary_selftest.json"
+    $TempQemuLog = Join-Path ([System.IO.Path]::GetTempPath()) "charm_qemu_domain_summary_selftest.log"
     $GoodSummary = [pscustomobject]@{
         schema = "charm.resident_elf_qemu.domain_summary.v1"
         domain = "virtual_m7"
@@ -362,8 +363,10 @@ function Invoke-SelfTest {
         }
     }
     [System.IO.File]::WriteAllText($TempSummary, (($GoodSummary | ConvertTo-Json -Depth 8) + "`n"), [System.Text.UTF8Encoding]::new($false))
+    [System.IO.File]::WriteAllText($TempQemuLog, "resident-elf-qemu domain summary comparison ok`n  expected=domain-summary.golden.json`n", [System.Text.UTF8Encoding]::new($false))
     try {
         $ParsedQemu = Read-QemuElfDomainSummary -Path $TempSummary
+        $DomainGolden = Read-QemuElfDomainGoldenStatus -LogPath $TempQemuLog
         if ($ParsedQemu.Domain -ne "virtual_m7" -or
             $ParsedQemu.Backend -ne "virtual:virtual_m7:console,time,display,input,storage,app_exit:storage=readonly:afe=unsupported" -or
             $ParsedQemu.Memory -ne "run_base=0x20080000:run_size=65536:stage_cache=16384" -or
@@ -372,6 +375,7 @@ function Invoke-SelfTest {
             $ParsedQemu.Evidence -ne "frames=8/6:dumps=8/6:ppm=8/6:input=12/6:storage=49/6" -or
             $ParsedQemu.Capacity -ne "large_fit=61696/65536:free=3840:fits=1:probe=ok;too_large=82176/65536:free=0:fits=0:probe=load_buffer_too_small" -or
             $ParsedQemu.Sources -ne "hello_app=direct,received,packetstream,store:exit/ok;large_fit_app=direct,received,packetstream,store:exit/ok;player_min=direct,received,packetstream,store:exit/ok;argv_app=direct,store:exit/ok:prepare=start/ok:argc=4;negatives=argv_overflow_app:direct=argv/argv_overflow,abi_mismatch_app:direct=abi/abi_mismatch,bad_elf_magic_app:direct=load/load_failed,packetstream_bad_elf_magic_app:packetstream=load/load_failed,too_large_app:direct=load/load_failed" -or
+            $DomainGolden -ne "ok" -or
             $ParsedQemu.GuiTimeline -ne 4 -or
             $ParsedQemu.PlayerMin.IndexOf("packetstream:player_min:frames=1,inputs=1", [System.StringComparison]::Ordinal) -lt 0) {
             throw "selftest_failed: qemu summary parse result is unexpected"
@@ -404,8 +408,18 @@ function Invoke-SelfTest {
         Test-BadQemuSummary -Label "capacity" -Mutate { param($Summary) ($Summary.coverage.loads | Where-Object { $_.name -eq "too_large_app" }).fits = $true }
         Test-BadQemuSummary -Label "source_matrix" -Mutate { param($Summary) ($Summary.coverage.source_matrix | Where-Object { $_.name -eq "player_min" }).packetstream.code = "load_failed" }
         Test-BadQemuSummary -Label "gui_timeline" -Mutate { param($Summary) $Summary.coverage.gui_timeline = @($Summary.coverage.gui_timeline | Where-Object { $_.name -ne "store:player_min" }) }
+        [System.IO.File]::WriteAllText($TempQemuLog, "resident-elf-qemu domain summary validation ok`n", [System.Text.UTF8Encoding]::new($false))
+        try {
+            Read-QemuElfDomainGoldenStatus -LogPath $TempQemuLog | Out-Null
+            throw "selftest_failed: bad qemu domain golden log validated unexpectedly"
+        } catch {
+            if ($_.Exception.Message.IndexOf("qemu_elf_summary_invalid", [System.StringComparison]::Ordinal) -lt 0) {
+                throw "selftest_failed: bad qemu domain golden log did not report qemu_elf_summary_invalid: $($_.Exception.Message)"
+            }
+        }
     } finally {
         Remove-Item -LiteralPath $TempSummary -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $TempQemuLog -Force -ErrorAction SilentlyContinue
     }
 
     Write-Host "[resident-platform-evidence-bundle] selftest ok"
@@ -462,6 +476,36 @@ function Assert-QemuElfSourcePrepare {
         throw "qemu_elf_summary_invalid: bad source matrix $($Case.name).prepare"
     }
     return ("prepare={0}/{1}:argc={2}" -f ([string]$Record.stage), ([string]$Record.code), ([int]$Record.argc))
+}
+
+function Read-QemuElfDomainGoldenStatusFromText {
+    param([string]$Text)
+
+    if ([string]::IsNullOrWhiteSpace($Text)) {
+        throw "qemu_elf_summary_invalid: missing domain summary golden comparison"
+    }
+    if ($Text.IndexOf("resident-elf-qemu domain summary comparison ok", [System.StringComparison]::Ordinal) -lt 0) {
+        throw "qemu_elf_summary_invalid: missing domain summary golden comparison"
+    }
+    if ($Text.IndexOf("domain-summary.golden.json", [System.StringComparison]::OrdinalIgnoreCase) -lt 0) {
+        throw "qemu_elf_summary_invalid: missing domain summary golden path"
+    }
+    return "ok"
+}
+
+function Read-QemuElfDomainGoldenStatus {
+    param([string]$LogPath)
+
+    if ([string]::IsNullOrWhiteSpace($LogPath) -or -not (Test-Path -LiteralPath $LogPath)) {
+        return "skipped"
+    }
+    return (Read-QemuElfDomainGoldenStatusFromText -Text (Get-Content -LiteralPath $LogPath -Raw -Encoding UTF8))
+}
+
+function Read-QemuElfDomainGoldenStatusFromLines {
+    param([System.Collections.Generic.List[string]]$Lines)
+
+    return (Read-QemuElfDomainGoldenStatusFromText -Text ([string]::Join("`n", $Lines)))
 }
 
 function Read-QemuElfDomainSummary {
@@ -657,7 +701,8 @@ function Read-QemuElfDomainSummary {
 function Write-QemuElfSummaryLines {
     param(
         [System.Collections.Generic.List[string]]$Lines,
-        [object]$QemuElfSummary
+        [object]$QemuElfSummary,
+        [string]$QemuElfDomainGolden = "skipped"
     )
 
     if ($null -eq $QemuElfSummary) {
@@ -668,6 +713,7 @@ function Write-QemuElfSummaryLines {
         Write-BundleLine -Lines $Lines -Text "qemu_elf_display=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_evidence=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_capacity=skipped"
+        Write-BundleLine -Lines $Lines -Text "qemu_elf_domain_golden=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_sources=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_coverage=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_player_min_gui=skipped"
@@ -684,6 +730,7 @@ function Write-QemuElfSummaryLines {
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_display={0}" -f $QemuElfSummary.Display)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_evidence={0}" -f $QemuElfSummary.Evidence)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_capacity={0}" -f $QemuElfSummary.Capacity)
+    Write-BundleLine -Lines $Lines -Text ("qemu_elf_domain_golden={0}" -f $QemuElfDomainGolden)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_sources={0}" -f $QemuElfSummary.Sources)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_coverage runs={0} source_matrix={1} gui_timeline={2}" -f `
         $QemuElfSummary.Runs, `
@@ -703,6 +750,7 @@ function Write-Summary {
         [string]$QemuElfDomainSummary,
         [string]$QemuElfFramePpm,
         [object]$QemuElfSummary,
+        [string]$QemuElfDomainGolden,
         [string]$FirmwareSize,
         [string]$BoardMatrixLog,
         [string]$InstalledStoreMatrixLog
@@ -734,7 +782,7 @@ function Write-Summary {
     } else {
         Write-BundleLine -Lines $Lines -Text "qemu_elf_frame_ppm=skipped"
     }
-    Write-QemuElfSummaryLines -Lines $Lines -QemuElfSummary $QemuElfSummary
+    Write-QemuElfSummaryLines -Lines $Lines -QemuElfSummary $QemuElfSummary -QemuElfDomainGolden $QemuElfDomainGolden
     Write-BundleLine -Lines $Lines -Text "h747_lab_dev_loader.bin=$FirmwareSize"
     if (-not [string]::IsNullOrWhiteSpace($BoardMatrixLog)) {
         Write-BundleLine -Lines $Lines -Text "board_matrix_log=$BoardMatrixLog"
@@ -873,6 +921,7 @@ try {
     $QemuElfDomainSummaryResolved = ""
     $QemuElfFramePpmResolved = ""
     $QemuElfSummary = $null
+    $QemuElfDomainGolden = "skipped"
     if ($QemuElf) {
         Invoke-Logged -Lines $Lines -Label "resident ELF QEMU smoke selftest" -FilePath "powershell" -Arguments @(
             "-NoProfile",
@@ -902,8 +951,9 @@ try {
             $QemuElfFramePpmResolved = (Resolve-Path -LiteralPath $QemuElfFramePpm).Path
         }
         $QemuElfSummary = Read-QemuElfDomainSummary -Path $QemuElfDomainSummaryResolved
+        $QemuElfDomainGolden = Read-QemuElfDomainGoldenStatusFromLines -Lines $Lines
         Write-BundleLine -Lines $Lines -Text "== resident ELF QEMU summary =="
-        Write-QemuElfSummaryLines -Lines $Lines -QemuElfSummary $QemuElfSummary
+        Write-QemuElfSummaryLines -Lines $Lines -QemuElfSummary $QemuElfSummary -QemuElfDomainGolden $QemuElfDomainGolden
     }
 
     $FirmwareSize = "skipped"
@@ -1000,6 +1050,7 @@ try {
         -QemuElfDomainSummary $QemuElfDomainSummaryResolved `
         -QemuElfFramePpm $QemuElfFramePpmResolved `
         -QemuElfSummary $QemuElfSummary `
+        -QemuElfDomainGolden $QemuElfDomainGolden `
         -FirmwareSize $FirmwareSize `
         -BoardMatrixLog $BoardLogResolved `
         -InstalledStoreMatrixLog $InstalledStoreLogResolved

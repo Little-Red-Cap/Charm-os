@@ -2029,9 +2029,30 @@ function Split-BackendContractEvidence {
     return @($Value -split "," | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
 }
 
+function Get-BackendIdentityFromText {
+    param([string]$Text)
+
+    $RuntimeDomain = Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: backend=([a-z0-9_]+)' -ErrorPrefix "domain_summary_failed"
+    $Machine = Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: backend=[a-z0-9_]+ machine=([a-z0-9_-]+)' -ErrorPrefix "domain_summary_failed"
+    $Cpu = Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: backend=[a-z0-9_]+ machine=[a-z0-9_-]+ cpu=([a-z0-9_-]+)' -ErrorPrefix "domain_summary_failed"
+    $Capabilities = Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: backend-capabilities capabilities=([a-z0-9_,]+)' -ErrorPrefix "domain_summary_failed"
+    $StorageMode = Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: backend-capabilities capabilities=[a-z0-9_,]+ storage=([a-z0-9_]+)' -ErrorPrefix "domain_summary_failed"
+    $AfeMode = Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: backend-capabilities capabilities=[a-z0-9_,]+ storage=[a-z0-9_]+ afe=([a-z0-9_]+)' -ErrorPrefix "domain_summary_failed"
+
+    return [pscustomobject]@{
+        runtime_domain = $RuntimeDomain
+        machine = $Machine
+        cpu = $Cpu
+        capabilities = $Capabilities
+        storage = $StorageMode
+        afe = $AfeMode
+    }
+}
+
 function Get-BackendContractFromText {
     param(
         [string]$Text,
+        [string]$RuntimeDomain,
         [string]$Capabilities,
         [string]$StorageMode,
         [string]$AfeMode
@@ -2075,7 +2096,7 @@ function Get-BackendContractFromText {
 
     return [pscustomobject]@{
         kind = "virtual"
-        runtime_domain = "virtual_m7"
+        runtime_domain = $RuntimeDomain
         capabilities = @($Capabilities -split ",")
         storage = $StorageMode
         afe = $AfeMode
@@ -2417,9 +2438,7 @@ function Write-DomainSummaryCapture {
     }
 
     $Text = Get-Content -LiteralPath $ResolvedLog -Raw -Encoding UTF8
-    $BackendCapabilities = Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: backend-capabilities capabilities=([a-z0-9_,]+)' -ErrorPrefix "domain_summary_failed"
-    $BackendStorageMode = Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: backend-capabilities capabilities=[a-z0-9_,]+ storage=([a-z0-9_]+)' -ErrorPrefix "domain_summary_failed"
-    $BackendAfeMode = Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: backend-capabilities capabilities=[a-z0-9_,]+ storage=[a-z0-9_]+ afe=([a-z0-9_]+)' -ErrorPrefix "domain_summary_failed"
+    $BackendIdentity = Get-BackendIdentityFromText -Text $Text
     $RunRegionBase = Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: run-region base=(0x[0-9a-f]+)' -ErrorPrefix "domain_summary_failed"
     $RunRegionExpected = Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: run-region base=0x[0-9a-f]+ expected=(0x[0-9a-f]+)' -ErrorPrefix "domain_summary_failed"
     $RunRegionSize = [int](Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: run-region base=0x[0-9a-f]+ expected=0x[0-9a-f]+ size=(\d+)' -ErrorPrefix "domain_summary_failed")
@@ -2438,9 +2457,10 @@ function Write-DomainSummaryCapture {
     $DisplayFrameBytes = [int](Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: display describe width=\d+ height=\d+ stride=\d+ format=[a-z0-9_]+ frame_bytes=(\d+)' -ErrorPrefix "domain_summary_failed")
     $PrepareArgc = [int](Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: prepare prepare:argv_app stage=start code=ok ready=1 argc=(\d+)' -ErrorPrefix "domain_summary_failed")
     $BackendContract = Get-BackendContractFromText -Text $Text `
-        -Capabilities $BackendCapabilities `
-        -StorageMode $BackendStorageMode `
-        -AfeMode $BackendAfeMode
+        -RuntimeDomain $BackendIdentity.runtime_domain `
+        -Capabilities $BackendIdentity.capabilities `
+        -StorageMode $BackendIdentity.storage `
+        -AfeMode $BackendIdentity.afe
     if ([int]$BackendContract.display.width -ne $DisplayWidth -or
         [int]$BackendContract.display.height -ne $DisplayHeight -or
         [int]$BackendContract.display.stride_bytes -ne $DisplayStride -or
@@ -2506,9 +2526,9 @@ function Write-DomainSummaryCapture {
 
     $Summary = [pscustomobject]@{
         schema = "charm.resident_elf_qemu.domain_summary.v1"
-        domain = "virtual_m7"
-        machine = "mps2-an500"
-        cpu = "cortex-m7"
+        domain = $BackendIdentity.runtime_domain
+        machine = $BackendIdentity.machine
+        cpu = $BackendIdentity.cpu
         image_format = "elf"
         app_model = "CharmAppApi"
         backend_contract = $BackendContract
@@ -3598,7 +3618,22 @@ function Invoke-SelfTest {
     if (Test-LogText -Text $ForbiddenLog) {
         throw "selftest_failed: synthetic forbidden log validated unexpectedly"
     }
+    $SyntheticBackendIdentity = Get-BackendIdentityFromText -Text (Get-SyntheticPassingLog)
+    if ($SyntheticBackendIdentity.runtime_domain -ne "virtual_m7" -or
+        $SyntheticBackendIdentity.machine -ne "mps2-an500" -or
+        $SyntheticBackendIdentity.cpu -ne "cortex-m7" -or
+        $SyntheticBackendIdentity.capabilities -ne "console,time,display,input,storage,app_exit" -or
+        $SyntheticBackendIdentity.storage -ne "readonly" -or
+        $SyntheticBackendIdentity.afe -ne "unsupported") {
+        throw "selftest_failed: synthetic backend identity parse returned unexpected values"
+    }
+    $MissingBackendIdentityLog = ((Get-SyntheticPassingLog) -split "`r?`n" |
+        Where-Object { $_ -ne "resident-elf-qemu: backend=virtual_m7 machine=mps2-an500 cpu=cortex-m7" }) -join "`n"
+    if (-not (Test-SelfTestThrowsLike -Prefix "domain_summary_failed:" -Script { Get-BackendIdentityFromText -Text $MissingBackendIdentityLog })) {
+        throw "selftest_failed: missing backend identity parsed unexpectedly"
+    }
     $SyntheticBackendContract = Get-BackendContractFromText -Text (Get-SyntheticPassingLog) `
+        -RuntimeDomain "virtual_m7" `
         -Capabilities "console,time,display,input,storage,app_exit" `
         -StorageMode "readonly" `
         -AfeMode "unsupported"
@@ -3613,7 +3648,7 @@ function Invoke-SelfTest {
     $BadBackendFlagLog = (Get-SyntheticPassingLog).Replace(
         "resident-elf-qemu: backend-contract app_exit=notification_counter overrides_return=0",
         "resident-elf-qemu: backend-contract app_exit=notification_counter overrides_return=2")
-    if (-not (Test-SelfTestThrowsLike -Prefix "domain_summary_failed:" -Script { Get-BackendContractFromText -Text $BadBackendFlagLog -Capabilities "console,time,display,input,storage,app_exit" -StorageMode "readonly" -AfeMode "unsupported" })) {
+    if (-not (Test-SelfTestThrowsLike -Prefix "domain_summary_failed:" -Script { Get-BackendContractFromText -Text $BadBackendFlagLog -RuntimeDomain "virtual_m7" -Capabilities "console,time,display,input,storage,app_exit" -StorageMode "readonly" -AfeMode "unsupported" })) {
         throw "selftest_failed: bad backend contract flag parsed unexpectedly"
     }
     $SyntheticFrameLog = @(

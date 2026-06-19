@@ -38,13 +38,13 @@
                 },
     "store":  {
                   "format":  "store_v1",
-                  "entries":  15,
-                  "bytes":  92720,
+                  "entries":  16,
+                  "bytes":  97664,
                   "media":  {
                                 "kind":  "memory",
-                                "bytes":  92720,
-                                "read_calls":  165,
-                                "read_bytes":  78156,
+                                "bytes":  97664,
+                                "read_calls":  184,
+                                "read_bytes":  83824,
                                 "read_failures":  0
                             }
               },
@@ -190,6 +190,18 @@
                                   },
                                   {
                                       "name":  "store:display_sequence_app",
+                                      "stage":  "exit",
+                                      "code":  "ok",
+                                      "exit":  0
+                                  },
+                                  {
+                                      "name":  "input_error_app",
+                                      "stage":  "exit",
+                                      "code":  "ok",
+                                      "exit":  0
+                                  },
+                                  {
+                                      "name":  "store:input_error_app",
                                       "stage":  "exit",
                                       "code":  "ok",
                                       "exit":  0
@@ -445,6 +457,12 @@
                                     {
                                         "source":  "store",
                                         "name":  "display_sequence_app",
+                                        "code":  "ok",
+                                        "expected":  ""
+                                    },
+                                    {
+                                        "source":  "store",
+                                        "name":  "input_error_app",
                                         "code":  "ok",
                                         "expected":  ""
                                     },
@@ -844,6 +862,34 @@
                                        "segments":  3,
                                        "needed":  1280,
                                        "free":  64256,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   },
+                                   {
+                                       "name":  "input_error_app",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "entry":  "0x20080001",
+                                       "entry_numeric":  537395201,
+                                       "span":  85,
+                                       "segments":  2,
+                                       "needed":  85,
+                                       "free":  65451,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   },
+                                   {
+                                       "name":  "store:input_error_app",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "entry":  "0x20080001",
+                                       "entry_numeric":  537395201,
+                                       "span":  85,
+                                       "segments":  2,
+                                       "needed":  85,
+                                       "free":  65451,
                                        "fits":  true,
                                        "region":  65536,
                                        "capacity_probe":  "ok"
@@ -1545,6 +1591,22 @@
                                            },
                                            {
                                                "name":  "display_sequence_app",
+                                               "direct":  {
+                                                              "stage":  "exit",
+                                                              "code":  "ok",
+                                                              "exit":  0
+                                                          },
+                                               "received":  null,
+                                               "packetstream":  null,
+                                               "store":  {
+                                                             "stage":  "exit",
+                                                             "code":  "ok",
+                                                             "exit":  0
+                                                         },
+                                               "prepare":  null
+                                           },
+                                           {
+                                               "name":  "input_error_app",
                                                "direct":  {
                                                               "stage":  "exit",
                                                               "code":  "ok",

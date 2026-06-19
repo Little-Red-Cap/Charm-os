@@ -220,14 +220,15 @@ int display_present(const void* pixels, std::uint32_t bytes) {
 }
 
 int input_poll(CharmAppInputState* out_state) {
+    ++g_capability_counters.input_poll;
     if (out_state == nullptr) {
+        write("resident-elf-qemu: input poll code=invalid_argument\n");
         return CHARM_APP_STATUS_INVALID_ARGUMENT;
     }
     constexpr std::uint32_t kInputCount =
         static_cast<std::uint32_t>(sizeof(kInputSequence) / sizeof(kInputSequence[0]));
     *out_state = kInputSequence[g_input_cursor % kInputCount];
     ++g_input_cursor;
-    ++g_capability_counters.input_poll;
     g_capability_counters.input_last_x = out_state->pointer_x;
     g_capability_counters.input_last_y = out_state->pointer_y;
     g_capability_counters.input_last_down = out_state->pointer_down;

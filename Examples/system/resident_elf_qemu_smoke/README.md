@@ -277,6 +277,12 @@ are not emitted as input trace events.
 ..\run-resident-elf-qemu-smoke.ps1
 ```
 
+The wrapper owns the supported command-line surface and forwards to
+`resident_elf_qemu_smoke/run_qemu_ci.ps1`; keep the wrapper default wait budget
+aligned with the direct script default at `-TimeoutSec 15`. The local
+`run_qemu_ci.ps1` script remains the direct implementation entry for lower-level
+debugging.
+
 Use `..\run-resident-elf-qemu-smoke.ps1 -SelfTest` for a fast preflight that
 checks the local CMake, QEMU, Arm GCC, sample source, linker script, and QEMU
 `ELF_BASE` assumptions without building or launching QEMU. It also exercises
@@ -322,8 +328,6 @@ expected to drift. Use
 `-CompareStorageTrace expected.json -ActualStorageTrace actual.json`, or
 `-CompareFrameDumps expected.json -ActualFrameDumps actual.json` to compare two
 captures after canonicalizing environment-specific fields such as log paths.
-The local `run_qemu_ci.ps1` script remains the direct implementation entry for
-lower-level debugging.
 
 The script builds QEMU-specific App ELF artifacts with `ELF_BASE=0x20080000`,
 uses the shared `app-abi-store-pack` tool to build a QEMU-local Store v1 image

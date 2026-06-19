@@ -16,7 +16,7 @@ param(
     [string]$DomainSummaryOut = "",
     [string]$GoldenDomainSummary = "",
     [string]$ElfBase = "0x20080000",
-    [int]$TimeoutSec = 8,
+    [int]$TimeoutSec = 15,
     [int]$TailLines = 80,
     [string]$ValidateLog = "",
     [string]$ValidateFrameSignatures = "",
@@ -155,6 +155,21 @@ function Test-ArgumentPresent {
     return ($Arguments -contains $Name)
 }
 
+function Test-ArgumentValue {
+    param(
+        [string[]]$Arguments,
+        [string]$Name,
+        [string]$Expected
+    )
+
+    for ($i = 0; $i -lt ($Arguments.Count - 1); ++$i) {
+        if ($Arguments[$i] -eq $Name) {
+            return ($Arguments[$i + 1] -eq $Expected)
+        }
+    }
+    return $false
+}
+
 function Invoke-WrapperSelfTest {
     if (-not (Test-Path -LiteralPath $Script)) {
         throw "selftest_failed: resident ELF QEMU script is missing: $Script"
@@ -174,6 +189,15 @@ function Invoke-WrapperSelfTest {
             throw "selftest_failed: wrapper did not forward $RequiredArg"
         }
     }
+    foreach ($ExpectedForward in @(
+        @{ Name = "-TimeoutSec"; Value = "15" },
+        @{ Name = "-TailLines"; Value = "80" },
+        @{ Name = "-ElfBase"; Value = "0x20080000" }
+    )) {
+        if (-not (Test-ArgumentValue -Arguments $Forwarded -Name $ExpectedForward.Name -Expected $ExpectedForward.Value)) {
+            throw "selftest_failed: wrapper did not forward $($ExpectedForward.Name)=$($ExpectedForward.Value)"
+        }
+    }
     if ($SkipGoldenFrameSignatures -and -not (Test-ArgumentPresent -Arguments $Forwarded -Name "-SkipGoldenFrameSignatures")) {
         throw "selftest_failed: wrapper did not forward -SkipGoldenFrameSignatures"
     }
@@ -188,6 +212,41 @@ function Invoke-WrapperSelfTest {
     }
     if ($ValidateEvidenceBundle -and -not (Test-ArgumentPresent -Arguments $Forwarded -Name "-ValidateEvidenceBundle")) {
         throw "selftest_failed: wrapper did not forward -ValidateEvidenceBundle"
+    }
+
+    $OriginalValidateFrameSignatures = $ValidateFrameSignatures
+    $OriginalCompareFrameSignatures = $CompareFrameSignatures
+    $OriginalActualFrameSignatures = $ActualFrameSignatures
+    $OriginalValidateDomainSummary = $ValidateDomainSummary
+    $OriginalCompareDomainSummary = $CompareDomainSummary
+    $OriginalActualDomainSummary = $ActualDomainSummary
+    $script:ValidateFrameSignatures = "frame-signatures.json"
+    $script:CompareFrameSignatures = "frame-signatures.golden.json"
+    $script:ActualFrameSignatures = "frame-signatures.json"
+    $script:ValidateDomainSummary = "domain-summary.json"
+    $script:CompareDomainSummary = "domain-summary.golden.json"
+    $script:ActualDomainSummary = "domain-summary.json"
+    try {
+        $ProbeEvidence = New-QemuSmokeArguments
+        foreach ($ExpectedForward in @(
+            @{ Name = "-ValidateFrameSignatures"; Value = "frame-signatures.json" },
+            @{ Name = "-CompareFrameSignatures"; Value = "frame-signatures.golden.json" },
+            @{ Name = "-ActualFrameSignatures"; Value = "frame-signatures.json" },
+            @{ Name = "-ValidateDomainSummary"; Value = "domain-summary.json" },
+            @{ Name = "-CompareDomainSummary"; Value = "domain-summary.golden.json" },
+            @{ Name = "-ActualDomainSummary"; Value = "domain-summary.json" }
+        )) {
+            if (-not (Test-ArgumentValue -Arguments $ProbeEvidence -Name $ExpectedForward.Name -Expected $ExpectedForward.Value)) {
+                throw "selftest_failed: wrapper did not forward $($ExpectedForward.Name)"
+            }
+        }
+    } finally {
+        $script:ValidateFrameSignatures = $OriginalValidateFrameSignatures
+        $script:CompareFrameSignatures = $OriginalCompareFrameSignatures
+        $script:ActualFrameSignatures = $OriginalActualFrameSignatures
+        $script:ValidateDomainSummary = $OriginalValidateDomainSummary
+        $script:CompareDomainSummary = $OriginalCompareDomainSummary
+        $script:ActualDomainSummary = $OriginalActualDomainSummary
     }
 
     & powershell @Forwarded

@@ -542,6 +542,10 @@ void log_capability_counters(std::string_view name) noexcept {
     write_dec(g_capability_counters.storage_close);
     write(" storage_bytes=");
     write_dec(g_capability_counters.storage_bytes);
+    write(" afe=");
+    write_dec(g_capability_counters.afe_configure);
+    write("/");
+    write_dec(g_capability_counters.afe_read);
     write(" input_checksum=");
     write_dec(g_capability_counters.input_checksum);
     write(" input_last=");

@@ -38,13 +38,13 @@
                 },
     "store":  {
                   "format":  "store_v1",
-                  "entries":  27,
-                  "bytes":  153456,
+                  "entries":  28,
+                  "bytes":  158464,
                   "media":  {
                                 "kind":  "memory",
-                                "bytes":  153456,
-                                "read_calls":  459,
-                                "read_bytes":  150368,
+                                "bytes":  158464,
+                                "read_calls":  490,
+                                "read_bytes":  156632,
                                 "read_failures":  0
                             }
               },
@@ -96,6 +96,18 @@
                                       "name":  "abi_mismatch_app",
                                       "stage":  "abi",
                                       "code":  "abi_mismatch",
+                                      "exit":  0
+                                  },
+                                  {
+                                      "name":  "afe_error_app",
+                                      "stage":  "exit",
+                                      "code":  "ok",
+                                      "exit":  0
+                                  },
+                                  {
+                                      "name":  "store:afe_error_app",
+                                      "stage":  "exit",
+                                      "code":  "ok",
                                       "exit":  0
                                   },
                                   {
@@ -546,6 +558,12 @@
                                     },
                                     {
                                         "source":  "store",
+                                        "name":  "afe_error_app",
+                                        "code":  "ok",
+                                        "expected":  ""
+                                    },
+                                    {
+                                        "source":  "store",
                                         "name":  "bss_app",
                                         "code":  "ok",
                                         "expected":  ""
@@ -836,6 +854,34 @@
                                        "segments":  2,
                                        "needed":  270,
                                        "free":  65266,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   },
+                                   {
+                                       "name":  "afe_error_app",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "entry":  "0x20080001",
+                                       "entry_numeric":  537395201,
+                                       "span":  153,
+                                       "segments":  2,
+                                       "needed":  153,
+                                       "free":  65383,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   },
+                                   {
+                                       "name":  "store:afe_error_app",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "entry":  "0x20080001",
+                                       "entry_numeric":  537395201,
+                                       "span":  153,
+                                       "segments":  2,
+                                       "needed":  153,
+                                       "free":  65383,
                                        "fits":  true,
                                        "region":  65536,
                                        "capacity_probe":  "ok"
@@ -1981,6 +2027,22 @@
                                                "received":  null,
                                                "packetstream":  null,
                                                "store":  null,
+                                               "prepare":  null
+                                           },
+                                           {
+                                               "name":  "afe_error_app",
+                                               "direct":  {
+                                                              "stage":  "exit",
+                                                              "code":  "ok",
+                                                              "exit":  0
+                                                          },
+                                               "received":  null,
+                                               "packetstream":  null,
+                                               "store":  {
+                                                             "stage":  "exit",
+                                                             "code":  "ok",
+                                                             "exit":  0
+                                                         },
                                                "prepare":  null
                                            },
                                            {

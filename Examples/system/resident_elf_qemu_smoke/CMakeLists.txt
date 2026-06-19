@@ -14,6 +14,7 @@ if(NOT DEFINED CHARM_QEMU_APP_ELF_INC_DIR)
 endif()
 
 set(CHARM_QEMU_REQUIRED_INC_FILES
+    afe_error_app.elf.inc
     appstore.bin.inc
     argv_app.elf.inc
     bss_app.elf.inc

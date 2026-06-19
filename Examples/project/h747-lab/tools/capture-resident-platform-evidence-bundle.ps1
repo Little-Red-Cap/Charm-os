@@ -469,6 +469,45 @@ function Invoke-SelfTest {
                     capacity_probe = "ok"
                 },
                 [pscustomobject]@{
+                    name = "received:hello_app"
+                    format = "elf"
+                    probe = "ok"
+                    entry = "0x20080021"
+                    span = 270
+                    segments = 2
+                    needed = 270
+                    free = 65266
+                    fits = $true
+                    region = 65536
+                    capacity_probe = "ok"
+                },
+                [pscustomobject]@{
+                    name = "packetstream:hello_app"
+                    format = "elf"
+                    probe = "ok"
+                    entry = "0x20080021"
+                    span = 270
+                    segments = 2
+                    needed = 270
+                    free = 65266
+                    fits = $true
+                    region = 65536
+                    capacity_probe = "ok"
+                },
+                [pscustomobject]@{
+                    name = "store:hello_app"
+                    format = "elf"
+                    probe = "ok"
+                    entry = "0x20080021"
+                    span = 270
+                    segments = 2
+                    needed = 270
+                    free = 65266
+                    fits = $true
+                    region = 65536
+                    capacity_probe = "ok"
+                },
+                [pscustomobject]@{
                     name = "large_fit_app"
                     format = "elf"
                     probe = "ok"
@@ -482,7 +521,85 @@ function Invoke-SelfTest {
                     capacity_probe = "ok"
                 },
                 [pscustomobject]@{
+                    name = "received:large_fit_app"
+                    format = "elf"
+                    probe = "ok"
+                    entry = "0x20080019"
+                    span = 61696
+                    segments = 3
+                    needed = 61696
+                    free = 3840
+                    fits = $true
+                    region = 65536
+                    capacity_probe = "ok"
+                },
+                [pscustomobject]@{
+                    name = "packetstream:large_fit_app"
+                    format = "elf"
+                    probe = "ok"
+                    entry = "0x20080019"
+                    span = 61696
+                    segments = 3
+                    needed = 61696
+                    free = 3840
+                    fits = $true
+                    region = 65536
+                    capacity_probe = "ok"
+                },
+                [pscustomobject]@{
+                    name = "store:large_fit_app"
+                    format = "elf"
+                    probe = "ok"
+                    entry = "0x20080019"
+                    span = 61696
+                    segments = 3
+                    needed = 61696
+                    free = 3840
+                    fits = $true
+                    region = 65536
+                    capacity_probe = "ok"
+                },
+                [pscustomobject]@{
+                    name = "player_min"
+                    format = "elf"
+                    probe = "ok"
+                    entry = "0x20080001"
+                    span = 1280
+                    segments = 3
+                    needed = 1280
+                    free = 64256
+                    fits = $true
+                    region = 65536
+                    capacity_probe = "ok"
+                },
+                [pscustomobject]@{
+                    name = "received:player_min"
+                    format = "elf"
+                    probe = "ok"
+                    entry = "0x20080001"
+                    span = 1280
+                    segments = 3
+                    needed = 1280
+                    free = 64256
+                    fits = $true
+                    region = 65536
+                    capacity_probe = "ok"
+                },
+                [pscustomobject]@{
                     name = "packetstream:player_min"
+                    format = "elf"
+                    probe = "ok"
+                    entry = "0x20080001"
+                    span = 1280
+                    segments = 3
+                    needed = 1280
+                    free = 64256
+                    fits = $true
+                    region = 65536
+                    capacity_probe = "ok"
+                },
+                [pscustomobject]@{
+                    name = "store:player_min"
                     format = "elf"
                     probe = "ok"
                     entry = "0x20080001"
@@ -809,9 +926,10 @@ function Invoke-SelfTest {
             $ParsedQemu.Loads.IndexOf("wrong_link_base_app=entry:0x20080021:span:270:segments:2:fits:1:probe:ok", [System.StringComparison]::Ordinal) -lt 0 -or
             $ParsedQemu.Packetstreams -ne "hello_app=payload:5132:stream:5776:packets:23:crc:0xb3b7bcc5;large_fit_app=payload:5168:stream:5840:packets:24:crc:0xdffdfba1;packetstream_bad_elf_magic_app=payload:64:stream:176:packets:4:crc:0xbd40f3c7;player_min=payload:5168:stream:5840:packets:24:crc:0xba5eb94a;packetstream_crc_mismatch=stage:failed/crc_mismatch:dispatch:22/23:crc:0x7d9c7647->0xb3b7bcc5:read:0:stage_bytes:0" -or
             $ParsedQemu.LinkBase -ne "expected=0x20080000;hello_app=link:0x20080000:entry_vaddr:0x20080021:base_match:1;large_fit_app=link:0x20080000:entry_vaddr:0x20080019:base_match:1;packetstream:player_min=link:0x20080000:entry_vaddr:0x20080001:base_match:1;wrong_link_base_app=link:0x20081000:entry_vaddr:0x20081021:base_match:0:source:load/load_failed" -or
+            $ParsedQemu.EquivalentSources -ne "hello_app=direct,received,packetstream,store:entry:0x20080021:span:270:segments:2:fits:1:probe:ok;large_fit_app=direct,received,packetstream,store:entry:0x20080019:span:61696:segments:3:fits:1:probe:ok;player_min=direct,received,packetstream,store:entry:0x20080001:span:1280:segments:3:fits:1:probe:ok" -or
             $ParsedQemu.Sources.IndexOf("wrong_link_base_app:direct=load/load_failed", [System.StringComparison]::Ordinal) -lt 0 -or
             $DomainGolden -ne "ok" -or
-            $ParsedQemu.Coverage -ne "runs=87:stages=36:loads=21:packetstreams=5:source_matrix=51:gui_timeline=4:prepare=1:capabilities=7:negative_cases=24" -or
+            $ParsedQemu.Coverage -ne "runs=87:stages=36:loads=30:packetstreams=5:source_matrix=51:gui_timeline=4:prepare=1:capabilities=7:negative_cases=24" -or
             $ParsedQemu.GuiTimeline -ne 4 -or
             $ParsedQemu.PlayerMin.IndexOf("packetstream:player_min:frames=1,inputs=1", [System.StringComparison]::Ordinal) -lt 0) {
             throw "selftest_failed: qemu summary parse result is unexpected"
@@ -847,6 +965,7 @@ function Invoke-SelfTest {
         Test-BadQemuSummary -Label "link_base" -Mutate { param($Summary) ($Summary.coverage.loads | Where-Object { $_.name -eq "wrong_link_base_app" }).base_match = $true }
         Test-BadQemuSummary -Label "packetstream_crc_mismatch" -Mutate { param($Summary) ($Summary.coverage.packetstreams | Where-Object { $_.name -eq "packetstream_crc_mismatch" }).read_code = "ok" }
         Test-BadQemuSummary -Label "source_matrix" -Mutate { param($Summary) ($Summary.coverage.source_matrix | Where-Object { $_.name -eq "player_min" }).packetstream.code = "load_failed" }
+        Test-BadQemuSummary -Label "equivalent_sources" -Mutate { param($Summary) ($Summary.coverage.loads | Where-Object { $_.name -eq "store:hello_app" }).span = 271 }
         Test-BadQemuSummary -Label "gui_timeline" -Mutate { param($Summary) $Summary.coverage.gui_timeline = @($Summary.coverage.gui_timeline | Where-Object { $_.name -ne "store:player_min" }) }
         [System.IO.File]::WriteAllText($TempQemuLog, "resident-elf-qemu domain summary validation ok`n", [System.Text.UTF8Encoding]::new($false))
         try {
@@ -1027,6 +1146,48 @@ function Assert-QemuElfLinkBaseSummary {
         ([string]$Load.link_base), `
         ([string]$Load.entry_vaddr), `
         $BaseMatchToken)
+}
+
+function Assert-QemuElfEquivalentSourceLoads {
+    param(
+        [object[]]$Loads,
+        [string]$Name
+    )
+
+    $Expected = Get-QemuElfLoadCase -Loads $Loads -Name $Name
+    foreach ($Source in @("received", "packetstream", "store")) {
+        $RunName = "$($Source):$Name"
+        $Load = Get-QemuElfLoadCase -Loads $Loads -Name $RunName
+        foreach ($Property in @(
+            "format",
+            "probe",
+            "link_base",
+            "expected_base",
+            "entry",
+            "entry_vaddr",
+            "span",
+            "segments",
+            "base_match",
+            "needed",
+            "free",
+            "fits",
+            "region",
+            "capacity_probe"
+        )) {
+            if ($Load.$Property -ne $Expected.$Property) {
+                throw "qemu_elf_summary_invalid: equivalent source $RunName load $Property differs from direct"
+            }
+        }
+    }
+
+    $FitToken = if ([bool]$Expected.fits) { "1" } else { "0" }
+    return ("{0}=direct,received,packetstream,store:entry:{1}:span:{2}:segments:{3}:fits:{4}:probe:{5}" -f `
+        $Name, `
+        ([string]$Expected.entry), `
+        ([int]$Expected.span), `
+        ([int]$Expected.segments), `
+        $FitToken, `
+        ([string]$Expected.probe))
 }
 
 function Read-QemuElfDomainGoldenStatusFromText {
@@ -1248,6 +1409,10 @@ function Read-QemuElfDomainSummary {
                 -EntryVaddr $Expected.entry_vaddr `
                 -BaseMatch $Expected.base_match)
     }
+    $EquivalentSourceSummaryParts = @()
+    foreach ($Name in @("hello_app", "large_fit_app", "player_min")) {
+        $EquivalentSourceSummaryParts += (Assert-QemuElfEquivalentSourceLoads -Loads @($Summary.coverage.loads) -Name $Name)
+    }
     $Packetstreams = @($Summary.coverage.packetstreams)
     if ($Packetstreams.Count -ne 5) {
         throw "qemu_elf_summary_invalid: bad packetstream count"
@@ -1444,6 +1609,7 @@ function Read-QemuElfDomainSummary {
             ([string]$TooLargeLoad.capacity_probe))
         Loads = ($LoadSummaryParts -join ";")
         LinkBase = (($LinkBaseSummaryParts -join ";") + ":source:load/load_failed")
+        EquivalentSources = ($EquivalentSourceSummaryParts -join ";")
         Packetstreams = ($PacketstreamSummaryParts -join ";")
         Runs = @($Summary.coverage.runs).Count
         Stages = $CoverageStages
@@ -1494,6 +1660,7 @@ function Write-QemuElfSummaryLines {
         Write-BundleLine -Lines $Lines -Text "qemu_elf_capacity=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_link_base=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_loads=skipped"
+        Write-BundleLine -Lines $Lines -Text "qemu_elf_equivalent_sources=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_packetstreams=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_domain_golden=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_sources=skipped"
@@ -1516,6 +1683,7 @@ function Write-QemuElfSummaryLines {
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_capacity={0}" -f $QemuElfSummary.Capacity)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_link_base={0}" -f $QemuElfSummary.LinkBase)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_loads={0}" -f $QemuElfSummary.Loads)
+    Write-BundleLine -Lines $Lines -Text ("qemu_elf_equivalent_sources={0}" -f $QemuElfSummary.EquivalentSources)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_packetstreams={0}" -f $QemuElfSummary.Packetstreams)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_domain_golden={0}" -f $QemuElfDomainGolden)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_sources={0}" -f $QemuElfSummary.Sources)

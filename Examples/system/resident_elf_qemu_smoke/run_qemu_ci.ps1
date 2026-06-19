@@ -3937,6 +3937,8 @@ function Invoke-SelfTest {
         "capture-resident-platform-evidence-bundle.ps1 -QemuElf",
         "-QemuElfTimeoutSec <seconds>",
         "-QemuElfTailLines <lines>",
+        "timeout_sec",
+        "tail_lines",
         "wrapper owns the supported command-line surface",
         'direct script default at `-TimeoutSec 15`',
         "display mode is fixed at 16x16 ARGB8888",
@@ -4064,6 +4066,8 @@ function Invoke-SelfTest {
     Write-Host "  domain_summary=$DomainSummaryPath"
     Write-Host "  golden_domain_summary=$GoldenDomainSummaryPath"
     Write-Host "  elf_base=$ElfBase"
+    Write-Host "  timeout_sec=$TimeoutSec"
+    Write-Host "  tail_lines=$TailLines"
     Write-Host "[resident-elf-qemu] selftest ok"
 }
 
@@ -4178,6 +4182,8 @@ if ($DryRun) {
     } else {
         Write-Host "[dry-run] golden_domain_summary=$(Resolve-ScriptPath -Path $GoldenDomainSummary)"
     }
+    Write-Host "[dry-run] timeout_sec=$TimeoutSec"
+    Write-Host "[dry-run] tail_lines=$TailLines"
     Write-Host "[dry-run] validate_evidence_bundle=$($ValidateEvidenceBundle.IsPresent)"
     exit 0
 }

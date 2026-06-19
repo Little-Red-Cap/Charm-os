@@ -281,7 +281,9 @@ The wrapper owns the supported command-line surface and forwards to
 `resident_elf_qemu_smoke/run_qemu_ci.ps1`; keep the wrapper default wait budget
 aligned with the direct script default at `-TimeoutSec 15`. The local
 `run_qemu_ci.ps1` script remains the direct implementation entry for lower-level
-debugging.
+debugging. Both `-SelfTest` and `-DryRun` print the effective `timeout_sec` and
+`tail_lines` values so standalone QEMU runs expose the same run-budget evidence
+as the resident platform evidence bundle.
 
 Use `..\run-resident-elf-qemu-smoke.ps1 -SelfTest` for a fast preflight that
 checks the local CMake, QEMU, Arm GCC, sample source, linker script, and QEMU

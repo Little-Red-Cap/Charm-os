@@ -195,40 +195,78 @@ function Test-SelfTestThrowsLike {
     return $false
 }
 
-function Get-QemuAppNames {
+function Get-QemuAppSpecs {
     return @(
-        "afe_error_app",
-        "hello_app",
-        "player_min",
-        "argv_app",
-        "bss_app",
-        "console_error_app",
-        "data_app",
-        "display_describe_error_app",
-        "display_error_app",
-        "display_null_present_app",
-        "display_sequence_app",
-        "exit_app",
-        "exit_error_app",
-        "exit_negative_app",
-        "input_error_app",
-        "input_sequence_app",
-        "input_wrap_app",
-        "large_fit_app",
-        "return_negative_app",
-        "unsupported_caps_app",
-        "storage_app",
-        "storage_catalog_app",
-        "storage_close_error_app",
-        "storage_error_app",
-        "storage_fd_exhaustion_app",
-        "storage_open_error_app",
-        "storage_write_error_app",
-        "storage_zero_io_app",
-        "time_app",
-        "time_sequence_app",
-        "too_large_app"
+        @{ Name = "afe_error_app"; SourceRoot = "qemu"; Store = $true },
+        @{ Name = "hello_app"; SourceRoot = "samples"; Store = $true },
+        @{ Name = "player_min"; SourceRoot = "samples"; Store = $true },
+        @{ Name = "argv_app"; SourceRoot = "qemu"; Store = $true },
+        @{ Name = "bss_app"; SourceRoot = "qemu"; Store = $true },
+        @{ Name = "console_error_app"; SourceRoot = "qemu"; Store = $true },
+        @{ Name = "data_app"; SourceRoot = "qemu"; Store = $true },
+        @{ Name = "display_describe_error_app"; SourceRoot = "qemu"; Store = $true },
+        @{ Name = "display_error_app"; SourceRoot = "qemu"; Store = $true },
+        @{ Name = "display_null_present_app"; SourceRoot = "qemu"; Store = $true },
+        @{ Name = "display_sequence_app"; SourceRoot = "qemu"; Store = $true },
+        @{ Name = "exit_app"; SourceRoot = "qemu"; Store = $true },
+        @{ Name = "exit_error_app"; SourceRoot = "qemu"; Store = $true },
+        @{ Name = "exit_negative_app"; SourceRoot = "qemu"; Store = $true },
+        @{ Name = "input_error_app"; SourceRoot = "qemu"; Store = $true },
+        @{ Name = "input_sequence_app"; SourceRoot = "qemu"; Store = $true },
+        @{ Name = "input_wrap_app"; SourceRoot = "qemu"; Store = $true },
+        @{ Name = "large_fit_app"; SourceRoot = "qemu"; Store = $true },
+        @{ Name = "return_negative_app"; SourceRoot = "qemu"; Store = $true },
+        @{ Name = "unsupported_caps_app"; SourceRoot = "qemu"; Store = $true },
+        @{ Name = "storage_app"; SourceRoot = "qemu"; Store = $true },
+        @{ Name = "storage_catalog_app"; SourceRoot = "qemu"; Store = $true },
+        @{ Name = "storage_close_error_app"; SourceRoot = "qemu"; Store = $true },
+        @{ Name = "storage_error_app"; SourceRoot = "qemu"; Store = $true },
+        @{ Name = "storage_fd_exhaustion_app"; SourceRoot = "qemu"; Store = $true },
+        @{ Name = "storage_open_error_app"; SourceRoot = "qemu"; Store = $true },
+        @{ Name = "storage_write_error_app"; SourceRoot = "qemu"; Store = $true },
+        @{ Name = "storage_zero_io_app"; SourceRoot = "qemu"; Store = $true },
+        @{ Name = "time_app"; SourceRoot = "qemu"; Store = $true },
+        @{ Name = "time_sequence_app"; SourceRoot = "qemu"; Store = $true },
+        @{ Name = "too_large_app"; SourceRoot = "qemu"; Store = $false }
     )
+}
+
+function Get-QemuAppNames {
+    return Get-QemuAppSpecs | ForEach-Object { $_.Name }
+}
+
+function Resolve-QemuAppSource {
+    param(
+        [hashtable]$Spec,
+        [string]$AppSampleDir
+    )
+
+    if ($Spec.SourceRoot -eq "qemu") {
+        return Join-Path $PSScriptRoot "$($Spec.Name).c"
+    }
+    if ($Spec.SourceRoot -eq "samples") {
+        return Join-Path $AppSampleDir "$($Spec.Name).c"
+    }
+    throw "unknown_qemu_app_source_root: $($Spec.SourceRoot)"
+}
+
+function Get-QemuRequiredIncFiles {
+    return @("appstore.bin.inc") + (Get-QemuAppNames | ForEach-Object { "$_.elf.inc" })
+}
+
+function Get-QemuStorePackArguments {
+    param(
+        [string]$StorePath,
+        [string]$AppOutDir,
+        [string]$TooLargeStoreElf
+    )
+
+    $args = @($StorePath)
+    foreach ($Spec in (Get-QemuAppSpecs | Where-Object { [bool]$_.Store })) {
+        $args += ("{0}={1}" -f $Spec.Name, (Join-Path $AppOutDir "$($Spec.Name).elf"))
+    }
+    $args += ("too_large_store_app={0}" -f $TooLargeStoreElf)
+    return $args
 }
 
 function Resolve-ScriptPath {
@@ -3852,10 +3890,28 @@ function Invoke-SelfTest {
     $AppSampleDir = Resolve-Path (Join-Path $PSScriptRoot "..\..\app_abi\elf_samples")
     $CMakeListsPath = Join-Path $PSScriptRoot "CMakeLists.txt"
     $CMakeListsText = Get-Content -LiteralPath $CMakeListsPath -Raw -Encoding UTF8
-    foreach ($RequiredInc in @("appstore.bin.inc") + (Get-QemuAppNames | ForEach-Object { "$_.elf.inc" })) {
-        if (-not $CMakeListsText.Contains($RequiredInc)) {
-            throw "selftest_failed: CMakeLists.txt does not require generated artifact $RequiredInc"
+    foreach ($RequiredCMakeToken in @("CHARM_QEMU_REQUIRED_INC_FILES", "missing generated QEMU resident ELF artifacts")) {
+        if (-not $CMakeListsText.Contains($RequiredCMakeToken)) {
+            throw "selftest_failed: CMakeLists.txt does not document $RequiredCMakeToken"
         }
+    }
+    $RequiredIncFiles = Get-QemuRequiredIncFiles
+    if ($RequiredIncFiles.Count -ne ((Get-QemuAppNames).Count + 1)) {
+        throw "selftest_failed: QEMU required inc list count is unexpected"
+    }
+    foreach ($Spec in (Get-QemuAppSpecs)) {
+        $ExpectedSource = Resolve-QemuAppSource -Spec $Spec -AppSampleDir $AppSampleDir
+        if (-not (Test-Path -LiteralPath $ExpectedSource)) {
+            throw "selftest_failed: QEMU App source is missing: $ExpectedSource"
+        }
+    }
+    $StorePackArgs = Get-QemuStorePackArguments `
+        -StorePath "appstore.bin" `
+        -AppOutDir "out" `
+        -TooLargeStoreElf "too_large_store_app.elf"
+    if ($StorePackArgs.Count -ne ((Get-QemuAppSpecs | Where-Object { [bool]$_.Store }).Count + 2) -or
+        -not ($StorePackArgs -contains "too_large_store_app=too_large_store_app.elf")) {
+        throw "selftest_failed: QEMU Store pack argument list is unexpected"
     }
 
     $ReadmePath = Join-Path $PSScriptRoot "README.md"
@@ -4147,96 +4203,9 @@ $ldflags = @(
     "-Wl,-T$ldscript"
 )
 
-foreach ($name in (Get-QemuAppNames)) {
-    if ($name -eq "too_large_app" -or $name -eq "afe_error_app" -or $name -eq "argv_app" -or $name -eq "bss_app" -or $name -eq "console_error_app" -or $name -eq "data_app" -or $name -eq "display_describe_error_app" -or $name -eq "display_error_app" -or $name -eq "display_null_present_app" -or $name -eq "display_sequence_app" -or $name -eq "exit_app" -or $name -eq "exit_error_app" -or $name -eq "exit_negative_app" -or $name -eq "input_error_app" -or $name -eq "input_sequence_app" -or $name -eq "input_wrap_app" -or $name -eq "large_fit_app" -or $name -eq "return_negative_app" -or $name -eq "unsupported_caps_app" -or $name -eq "storage_app" -or $name -eq "storage_catalog_app" -or $name -eq "storage_close_error_app" -or $name -eq "storage_error_app" -or $name -eq "storage_fd_exhaustion_app" -or $name -eq "storage_open_error_app" -or $name -eq "storage_write_error_app" -or $name -eq "storage_zero_io_app" -or $name -eq "time_app" -or $name -eq "time_sequence_app") {
-        $src = Join-Path $PSScriptRoot "too_large_app.c"
-        if ($name -eq "afe_error_app") {
-            $src = Join-Path $PSScriptRoot "afe_error_app.c"
-        }
-        if ($name -eq "argv_app") {
-            $src = Join-Path $PSScriptRoot "argv_app.c"
-        }
-        if ($name -eq "bss_app") {
-            $src = Join-Path $PSScriptRoot "bss_app.c"
-        }
-        if ($name -eq "console_error_app") {
-            $src = Join-Path $PSScriptRoot "console_error_app.c"
-        }
-        if ($name -eq "data_app") {
-            $src = Join-Path $PSScriptRoot "data_app.c"
-        }
-        if ($name -eq "display_describe_error_app") {
-            $src = Join-Path $PSScriptRoot "display_describe_error_app.c"
-        }
-        if ($name -eq "display_error_app") {
-            $src = Join-Path $PSScriptRoot "display_error_app.c"
-        }
-        if ($name -eq "display_null_present_app") {
-            $src = Join-Path $PSScriptRoot "display_null_present_app.c"
-        }
-        if ($name -eq "exit_app") {
-            $src = Join-Path $PSScriptRoot "exit_app.c"
-        }
-        if ($name -eq "exit_error_app") {
-            $src = Join-Path $PSScriptRoot "exit_error_app.c"
-        }
-        if ($name -eq "exit_negative_app") {
-            $src = Join-Path $PSScriptRoot "exit_negative_app.c"
-        }
-        if ($name -eq "input_error_app") {
-            $src = Join-Path $PSScriptRoot "input_error_app.c"
-        }
-        if ($name -eq "input_sequence_app") {
-            $src = Join-Path $PSScriptRoot "input_sequence_app.c"
-        }
-        if ($name -eq "input_wrap_app") {
-            $src = Join-Path $PSScriptRoot "input_wrap_app.c"
-        }
-        if ($name -eq "large_fit_app") {
-            $src = Join-Path $PSScriptRoot "large_fit_app.c"
-        }
-        if ($name -eq "return_negative_app") {
-            $src = Join-Path $PSScriptRoot "return_negative_app.c"
-        }
-        if ($name -eq "display_sequence_app") {
-            $src = Join-Path $PSScriptRoot "display_sequence_app.c"
-        }
-        if ($name -eq "unsupported_caps_app") {
-            $src = Join-Path $PSScriptRoot "unsupported_caps_app.c"
-        }
-        if ($name -eq "storage_app") {
-            $src = Join-Path $PSScriptRoot "storage_app.c"
-        }
-        if ($name -eq "storage_catalog_app") {
-            $src = Join-Path $PSScriptRoot "storage_catalog_app.c"
-        }
-        if ($name -eq "storage_close_error_app") {
-            $src = Join-Path $PSScriptRoot "storage_close_error_app.c"
-        }
-        if ($name -eq "storage_error_app") {
-            $src = Join-Path $PSScriptRoot "storage_error_app.c"
-        }
-        if ($name -eq "storage_fd_exhaustion_app") {
-            $src = Join-Path $PSScriptRoot "storage_fd_exhaustion_app.c"
-        }
-        if ($name -eq "storage_open_error_app") {
-            $src = Join-Path $PSScriptRoot "storage_open_error_app.c"
-        }
-        if ($name -eq "storage_write_error_app") {
-            $src = Join-Path $PSScriptRoot "storage_write_error_app.c"
-        }
-        if ($name -eq "storage_zero_io_app") {
-            $src = Join-Path $PSScriptRoot "storage_zero_io_app.c"
-        }
-        if ($name -eq "time_app") {
-            $src = Join-Path $PSScriptRoot "time_app.c"
-        }
-        if ($name -eq "time_sequence_app") {
-            $src = Join-Path $PSScriptRoot "time_sequence_app.c"
-        }
-    } else {
-        $src = Join-Path $appSampleDir "$name.c"
-    }
+foreach ($Spec in (Get-QemuAppSpecs)) {
+    $name = $Spec.Name
+    $src = Resolve-QemuAppSource -Spec $Spec -AppSampleDir $appSampleDir
     $elf = Join-Path $appOut "$name.elf"
     $inc = Join-Path $appOut "$name.elf.inc"
     Invoke-Checked -FilePath $cc -Arguments (@($cflags) + @($src, "-o", $elf) + @($ldflags))
@@ -4263,40 +4232,10 @@ $storePackExe = Join-Path $storePackBuild "app-abi-store-pack.exe"
 if (-not (Test-Path -LiteralPath $storePackExe)) {
     throw "missing_tool: app-abi-store-pack was not built at $storePackExe"
 }
-Invoke-Checked -FilePath $storePackExe -Arguments @(
-    $store,
-    ("afe_error_app={0}" -f (Join-Path $appOut "afe_error_app.elf")),
-    ("hello_app={0}" -f (Join-Path $appOut "hello_app.elf")),
-    ("player_min={0}" -f (Join-Path $appOut "player_min.elf")),
-    ("argv_app={0}" -f (Join-Path $appOut "argv_app.elf")),
-    ("bss_app={0}" -f (Join-Path $appOut "bss_app.elf")),
-    ("console_error_app={0}" -f (Join-Path $appOut "console_error_app.elf")),
-    ("data_app={0}" -f (Join-Path $appOut "data_app.elf")),
-    ("display_describe_error_app={0}" -f (Join-Path $appOut "display_describe_error_app.elf")),
-    ("display_error_app={0}" -f (Join-Path $appOut "display_error_app.elf")),
-    ("display_null_present_app={0}" -f (Join-Path $appOut "display_null_present_app.elf")),
-    ("display_sequence_app={0}" -f (Join-Path $appOut "display_sequence_app.elf")),
-    ("exit_app={0}" -f (Join-Path $appOut "exit_app.elf")),
-    ("exit_error_app={0}" -f (Join-Path $appOut "exit_error_app.elf")),
-    ("exit_negative_app={0}" -f (Join-Path $appOut "exit_negative_app.elf")),
-    ("input_error_app={0}" -f (Join-Path $appOut "input_error_app.elf")),
-    ("input_sequence_app={0}" -f (Join-Path $appOut "input_sequence_app.elf")),
-    ("input_wrap_app={0}" -f (Join-Path $appOut "input_wrap_app.elf")),
-    ("unsupported_caps_app={0}" -f (Join-Path $appOut "unsupported_caps_app.elf")),
-    ("storage_app={0}" -f (Join-Path $appOut "storage_app.elf")),
-    ("storage_catalog_app={0}" -f (Join-Path $appOut "storage_catalog_app.elf")),
-    ("storage_close_error_app={0}" -f (Join-Path $appOut "storage_close_error_app.elf")),
-    ("storage_error_app={0}" -f (Join-Path $appOut "storage_error_app.elf")),
-    ("storage_fd_exhaustion_app={0}" -f (Join-Path $appOut "storage_fd_exhaustion_app.elf")),
-    ("storage_open_error_app={0}" -f (Join-Path $appOut "storage_open_error_app.elf")),
-    ("storage_write_error_app={0}" -f (Join-Path $appOut "storage_write_error_app.elf")),
-    ("storage_zero_io_app={0}" -f (Join-Path $appOut "storage_zero_io_app.elf")),
-    ("time_app={0}" -f (Join-Path $appOut "time_app.elf")),
-    ("time_sequence_app={0}" -f (Join-Path $appOut "time_sequence_app.elf")),
-    ("large_fit_app={0}" -f (Join-Path $appOut "large_fit_app.elf")),
-    ("return_negative_app={0}" -f (Join-Path $appOut "return_negative_app.elf")),
-    ("too_large_store_app={0}" -f $tooLargeStoreElf)
-)
+Invoke-Checked -FilePath $storePackExe -Arguments (Get-QemuStorePackArguments `
+    -StorePath $store `
+    -AppOutDir $appOut `
+    -TooLargeStoreElf $tooLargeStoreElf)
 Write-IncFile -InputPath $store -OutputPath $storeInc -Symbol "qemu_appstore_bin"
 
 Invoke-Checked -FilePath $cmake -Arguments @(
@@ -4305,7 +4244,8 @@ Invoke-Checked -FilePath $cmake -Arguments @(
     "-G", "Ninja",
     "-DCMAKE_BUILD_TYPE=Debug",
     "-DCMAKE_TOOLCHAIN_FILE=$($toolchainFile.Path)",
-    "-DCHARM_QEMU_APP_ELF_INC_DIR=$appOut"
+    "-DCHARM_QEMU_APP_ELF_INC_DIR=$appOut",
+    "-DCHARM_QEMU_REQUIRED_INC_FILES=$((Get-QemuRequiredIncFiles) -join ';')"
 )
 Invoke-Checked -FilePath $cmake -Arguments @("--build", $build, "--parallel", "1")
 

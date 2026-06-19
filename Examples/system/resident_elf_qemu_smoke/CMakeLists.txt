@@ -13,39 +13,9 @@ if(NOT DEFINED CHARM_QEMU_APP_ELF_INC_DIR)
     message(FATAL_ERROR "CHARM_QEMU_APP_ELF_INC_DIR must point at generated QEMU App ELF .inc files")
 endif()
 
-set(CHARM_QEMU_REQUIRED_INC_FILES
-    afe_error_app.elf.inc
-    appstore.bin.inc
-    argv_app.elf.inc
-    bss_app.elf.inc
-    console_error_app.elf.inc
-    data_app.elf.inc
-    display_describe_error_app.elf.inc
-    display_error_app.elf.inc
-    display_null_present_app.elf.inc
-    display_sequence_app.elf.inc
-    exit_app.elf.inc
-    exit_error_app.elf.inc
-    exit_negative_app.elf.inc
-    hello_app.elf.inc
-    input_error_app.elf.inc
-    input_sequence_app.elf.inc
-    input_wrap_app.elf.inc
-    large_fit_app.elf.inc
-    player_min.elf.inc
-    return_negative_app.elf.inc
-    storage_app.elf.inc
-    storage_catalog_app.elf.inc
-    storage_close_error_app.elf.inc
-    storage_error_app.elf.inc
-    storage_fd_exhaustion_app.elf.inc
-    storage_open_error_app.elf.inc
-    storage_write_error_app.elf.inc
-    storage_zero_io_app.elf.inc
-    time_app.elf.inc
-    time_sequence_app.elf.inc
-    too_large_app.elf.inc
-    unsupported_caps_app.elf.inc)
+if(NOT DEFINED CHARM_QEMU_REQUIRED_INC_FILES)
+    message(FATAL_ERROR "CHARM_QEMU_REQUIRED_INC_FILES must list generated QEMU App ELF .inc files")
+endif()
 
 set(CHARM_QEMU_MISSING_INC_FILES)
 foreach(required_inc IN LISTS CHARM_QEMU_REQUIRED_INC_FILES)

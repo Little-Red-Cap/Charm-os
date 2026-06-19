@@ -411,20 +411,85 @@ bool expect_mutated_hello_load_failure(std::string_view name,
                                        bool (*mutate)(const unsigned char*, std::size_t) noexcept,
                                        app_abi::AppElfProbeCode expected_probe) noexcept;
 
+struct ElfLinkFacts {
+    std::uint32_t link_base{0};
+    std::uint32_t entry_vaddr{0};
+    bool valid{false};
+};
+
+ElfLinkFacts read_elf_link_facts(const app_abi::AppImage& image) noexcept {
+    ElfLinkFacts facts{};
+    if (image.format != app_abi::AppImageFormat::elf ||
+        image.image_base == nullptr ||
+        image.image_size < sizeof(app_abi::AppElf32Header)) {
+        return facts;
+    }
+
+    const auto* bytes = static_cast<const std::byte*>(image.image_base);
+    app_abi::AppElf32Header header{};
+    std::memcpy(&header, image.image_base, sizeof(header));
+    if (header.phoff < header.ehsize ||
+        header.phoff > image.image_size ||
+        header.phentsize != sizeof(app_abi::AppElf32ProgramHeader) ||
+        header.phnum == 0U) {
+        return facts;
+    }
+
+    const auto ph_table_bytes =
+        static_cast<std::uint64_t>(header.phentsize) * static_cast<std::uint64_t>(header.phnum);
+    if (static_cast<std::uint64_t>(header.phoff) + ph_table_bytes > image.image_size) {
+        return facts;
+    }
+
+    bool min_set = false;
+    std::uint32_t min_vaddr = 0U;
+    for (std::uint16_t i = 0; i < header.phnum; ++i) {
+        app_abi::AppElf32ProgramHeader ph{};
+        std::memcpy(&ph, bytes + header.phoff + (static_cast<std::uint32_t>(header.phentsize) * i), sizeof(ph));
+        if (ph.type != app_abi::kAppElfPtLoad || (ph.memsz == 0U && ph.filesz == 0U)) {
+            continue;
+        }
+        if (!min_set || ph.vaddr < min_vaddr) {
+            min_vaddr = ph.vaddr;
+            min_set = true;
+        }
+    }
+    if (!min_set) {
+        return facts;
+    }
+
+    facts.link_base = min_vaddr;
+    facts.entry_vaddr = header.entry;
+    facts.valid = true;
+    return facts;
+}
+
 void log_format(app_abi::AppImageFormat format) noexcept;
 
-void log_probe(std::string_view name, const app_abi::AppElfLoadBackend& backend) noexcept {
+void log_probe(std::string_view name, const app_abi::AppImage& image, const app_abi::AppElfLoadBackend& backend) noexcept {
     const auto& probe = backend.last.plan.probe;
+    const auto facts = read_elf_link_facts(image);
+    const auto link_base = facts.valid ? facts.link_base : 0U;
+    const auto entry_vaddr = facts.valid ? facts.entry_vaddr : 0U;
+    const auto base_match = facts.valid && link_base == static_cast<std::uint32_t>(kQemuRunRegionBase);
     qemu_backend::write("resident-elf-qemu: load ");
     qemu_backend::log_view(name);
     qemu_backend::write(" format=elf probe=");
     qemu_backend::log_view(app_abi::app_elf_probe_code_name(probe.code));
+    qemu_backend::write(" link_base=");
+    qemu_backend::write_hex32(link_base);
+    qemu_backend::write(" expected_base=");
+    qemu_backend::write_hex32(static_cast<std::uint32_t>(kQemuRunRegionBase));
     qemu_backend::write(" entry=");
     qemu_backend::write_hex32(static_cast<std::uint32_t>(backend.last.plan.entry_address));
+    qemu_backend::write(" entry_vaddr=");
+    qemu_backend::write_hex32(entry_vaddr);
     qemu_backend::write(" span=");
     qemu_backend::write_dec(probe.load_span);
     qemu_backend::write(" segments=");
     qemu_backend::write_dec(probe.segment_count);
+    qemu_backend::write(" base_match=");
+    qemu_backend::write_dec(base_match ? 1U : 0U);
     qemu_backend::write("\n");
 
     const bool fits = probe.load_span <= kQemuRunRegionSize;
@@ -474,7 +539,7 @@ bool run_image(std::string_view log_name,
         .arg_text = arg_text,
     });
 
-    log_probe(log_name, backend);
+    log_probe(log_name, image, backend);
     qemu_backend::write("resident-elf-qemu: app ");
     qemu_backend::log_view(log_name);
     qemu_backend::write(" stage=");
@@ -490,7 +555,8 @@ bool run_image(std::string_view log_name,
            result.code == app_abi::AppRunCode::ok &&
            result.exited &&
            result.exit_code == expected_exit_code &&
-           backend.last.plan.probe.code == app_abi::AppElfProbeCode::ok;
+           backend.last.plan.probe.code == app_abi::AppElfProbeCode::ok &&
+           read_elf_link_facts(image).link_base == static_cast<std::uint32_t>(kQemuRunRegionBase);
 }
 
 bool run_direct_app(std::string_view name,
@@ -1051,7 +1117,7 @@ bool expect_load_failure(std::string_view name,
         .arg_text = "",
     });
 
-    log_probe(name, backend);
+    log_probe(name, staged.image, backend);
     qemu_backend::write("resident-elf-qemu: app ");
     qemu_backend::log_view(name);
     qemu_backend::write(" stage=");
@@ -1126,7 +1192,7 @@ bool expect_runtime_failure(std::string_view log_name,
         .arg_text = arg_text,
     });
 
-    log_probe(log_name, backend);
+    log_probe(log_name, image, backend);
     qemu_backend::write("resident-elf-qemu: app ");
     qemu_backend::log_view(log_name);
     qemu_backend::write(" stage=");
@@ -1187,7 +1253,7 @@ bool expect_prepare_only(std::string_view log_name,
         .arg_text = arg_text,
     });
 
-    log_probe(log_name, backend);
+    log_probe(log_name, image, backend);
     qemu_backend::write("resident-elf-qemu: prepare ");
     qemu_backend::log_view(log_name);
     qemu_backend::write(" stage=");

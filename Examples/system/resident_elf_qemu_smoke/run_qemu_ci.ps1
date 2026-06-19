@@ -2033,7 +2033,7 @@ function Get-ElfLoadSummaryFromText {
     param([string]$Text)
 
     $LoadRegex = [System.Text.RegularExpressions.Regex]::new(
-        'resident-elf-qemu: load (\S+) format=(\S+) probe=(\S+) entry=(0x[0-9a-f]+) span=(\d+) segments=(\d+)')
+        'resident-elf-qemu: load (\S+) format=(\S+) probe=(\S+) link_base=(0x[0-9a-f]+) expected_base=(0x[0-9a-f]+) entry=(0x[0-9a-f]+) entry_vaddr=(0x[0-9a-f]+) span=(\d+) segments=(\d+) base_match=(\d+)')
     $CapacityRegex = [System.Text.RegularExpressions.Regex]::new(
         'resident-elf-qemu: capacity (\S+) needed=(\d+) free=(\d+) fits=(\d+) region=(\d+) probe=(\S+)')
     $CapacityByName = @{}
@@ -2055,10 +2055,17 @@ function Get-ElfLoadSummaryFromText {
             name = $Name
             format = $Match.Groups[2].Value
             probe = $Match.Groups[3].Value
-            entry = $Match.Groups[4].Value
-            entry_numeric = (Convert-HexToInt64 -Value $Match.Groups[4].Value)
-            span = [int]$Match.Groups[5].Value
-            segments = [int]$Match.Groups[6].Value
+            link_base = $Match.Groups[4].Value
+            link_base_numeric = (Convert-HexToInt64 -Value $Match.Groups[4].Value)
+            expected_base = $Match.Groups[5].Value
+            expected_base_numeric = (Convert-HexToInt64 -Value $Match.Groups[5].Value)
+            entry = $Match.Groups[6].Value
+            entry_numeric = (Convert-HexToInt64 -Value $Match.Groups[6].Value)
+            entry_vaddr = $Match.Groups[7].Value
+            entry_vaddr_numeric = (Convert-HexToInt64 -Value $Match.Groups[7].Value)
+            span = [int]$Match.Groups[8].Value
+            segments = [int]$Match.Groups[9].Value
+            base_match = ([int]$Match.Groups[10].Value) -ne 0
             needed = if ($null -ne $Capacity) { [int]$Capacity.needed } else { $null }
             free = if ($null -ne $Capacity) { [int]$Capacity.free } else { $null }
             fits = if ($null -ne $Capacity) { [bool]$Capacity.fits } else { $null }
@@ -2569,7 +2576,8 @@ function Assert-DomainLoad {
         [bool]$Fits,
         [int]$Region,
         [int]$MinSpan,
-        [int]$Segments
+        [int]$Segments,
+        [string]$ExpectedBase = "0x20080000"
     )
 
     $Matches = @($Loads | Where-Object { $_.name -eq $Name })
@@ -2579,6 +2587,20 @@ function Assert-DomainLoad {
     $Load = $Matches[0]
     if ($Load.format -ne "elf" -or $Load.probe -ne $Probe -or $Load.capacity_probe -ne $Probe) {
         throw "domain_summary_validate_failed: load $Name bad probe/format"
+    }
+    if ($Probe -eq "ok") {
+        if ($Load.link_base -ne $ExpectedBase -or
+            $Load.expected_base -ne $ExpectedBase -or
+            -not [bool]$Load.base_match) {
+            throw "domain_summary_validate_failed: load $Name bad link base"
+        }
+        if ([int64]$Load.entry_vaddr_numeric -lt [int64]$Load.link_base_numeric) {
+            throw "domain_summary_validate_failed: load $Name entry before link base"
+        }
+        if (([int64]$Load.entry_numeric - [int64]$Load.entry_vaddr_numeric) -ne
+            ([int64]$Load.expected_base_numeric - [int64]$Load.link_base_numeric)) {
+            throw "domain_summary_validate_failed: load $Name entry/link relocation mismatch"
+        }
     }
     if ([bool]$Load.fits -ne $Fits) {
         throw "domain_summary_validate_failed: load $Name fits=$($Load.fits), expected $Fits"

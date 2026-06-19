@@ -705,8 +705,9 @@ virtual capabilities and unsupported AFE boundary. Its `display` section records
 the fixed virtual display mode so GUI evidence drift is caught before frame
 hashes are interpreted. Its evidence section records frame signature, full dump,
 visual PPM, input trace, and storage trace counts. Its `coverage.loads` section records the ELF loader/probe/capacity
-facts for each loaded image: format, probe code, entry, span, segment count,
-needed/free bytes, fit result, and run region. It is an off-board evidence
+facts for each loaded image: format, probe code, ELF link base, expected domain
+base, materialized entry, original entry vaddr, span, segment count,
+needed/free bytes, fit result, base match, and run region. It is an off-board evidence
 artifact, not a product manifest and not Store metadata. Its
 `store.media` section records the QEMU-local virtual Store media kind, byte
 size, read calls, read bytes, and read failures. Its

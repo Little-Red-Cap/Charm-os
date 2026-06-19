@@ -10,6 +10,54 @@
 
 namespace resident_elf_qemu {
 
+struct VirtualBackendContract {
+    struct Time {
+        const char* kind;
+        std::uint32_t start_ms;
+        std::uint32_t step_ms;
+        bool reset_per_run;
+    };
+
+    struct Display {
+        const char* kind;
+        std::uint32_t width;
+        std::uint32_t height;
+        std::uint32_t stride_bytes;
+        const char* format;
+        std::uint32_t frame_bytes;
+        const char* evidence;
+    };
+
+    struct Input {
+        const char* kind;
+        std::uint32_t sample_count;
+        std::uint32_t pointer_max_x;
+        std::uint32_t pointer_max_y;
+        bool wraps;
+        const char* evidence;
+    };
+
+    struct StorageMedia {
+        const char* kind;
+        std::uint32_t file_count;
+        int fd_base;
+        std::uint32_t fd_slots;
+        const char* write_policy;
+        const char* evidence;
+    };
+
+    struct AppExit {
+        const char* kind;
+        bool overrides_return;
+    };
+
+    Time time;
+    Display display;
+    Input input;
+    StorageMedia storage_media;
+    AppExit app_exit;
+};
+
 struct VirtualCapabilityCounters {
     std::uint32_t console_bytes{0};
     std::uint32_t time_now{0};
@@ -58,6 +106,7 @@ void log_view(std::string_view text) noexcept;
 
 void reset_capability_counters() noexcept;
 const VirtualCapabilityCounters& capability_counters() noexcept;
+const VirtualBackendContract& backend_contract() noexcept;
 void log_capability_counters(std::string_view name) noexcept;
 CharmAppApi make_virtual_app_api() noexcept;
 bool probe_unsupported_capabilities() noexcept;

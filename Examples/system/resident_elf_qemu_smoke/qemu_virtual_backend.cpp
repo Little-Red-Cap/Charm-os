@@ -112,6 +112,44 @@ constexpr CharmAppInputState kInputSequence[] = {
 constexpr std::uint32_t kInputSequenceCount =
     static_cast<std::uint32_t>(sizeof(kInputSequence) / sizeof(kInputSequence[0]));
 
+constexpr VirtualBackendContract kBackendContract{
+    .time = VirtualBackendContract::Time{
+        .kind = "deterministic_tick",
+        .start_ms = kTimeStartMs,
+        .step_ms = kTimeStepMs,
+        .reset_per_run = true,
+    },
+    .display = VirtualBackendContract::Display{
+        .kind = "framebuffer",
+        .width = kDisplayWidth,
+        .height = kDisplayHeight,
+        .stride_bytes = kDisplayStrideBytes,
+        .format = "argb8888",
+        .frame_bytes = kDisplayFrameBytes,
+        .evidence = "frame_signatures,frame_dumps,frame_ppm,gui_timeline",
+    },
+    .input = VirtualBackendContract::Input{
+        .kind = "deterministic_sequence",
+        .sample_count = kInputSequenceCount,
+        .pointer_max_x = kInputPointerMaxX,
+        .pointer_max_y = kInputPointerMaxY,
+        .wraps = true,
+        .evidence = "input_trace,gui_timeline",
+    },
+    .storage_media = VirtualBackendContract::StorageMedia{
+        .kind = "virtual_readonly_files",
+        .file_count = kVirtualStorageFileCount,
+        .fd_base = kVirtualStorageFdBase,
+        .fd_slots = static_cast<std::uint32_t>(kVirtualStorageFdSlots),
+        .write_policy = "unsupported",
+        .evidence = "storage_trace",
+    },
+    .app_exit = VirtualBackendContract::AppExit{
+        .kind = "notification_counter",
+        .overrides_return = false,
+    },
+};
+
 struct UartCmsdk {
     static constexpr std::uint32_t base = 0x40004000u;
     static constexpr std::uint32_t data = base + 0x00u;
@@ -154,7 +192,7 @@ int console_write(const char* text, std::size_t len) {
 
 std::uint32_t now_ms() {
     ++g_capability_counters.time_now;
-    g_tick_ms += kTimeStepMs;
+    g_tick_ms += kBackendContract.time.step_ms;
     return g_tick_ms;
 }
 
@@ -163,31 +201,33 @@ int display_describe(CharmAppDisplayMode* out_mode) {
         return CHARM_APP_STATUS_INVALID_ARGUMENT;
     }
     *out_mode = CharmAppDisplayMode{
-        .width = kDisplayWidth,
-        .height = kDisplayHeight,
-        .stride_bytes = kDisplayStrideBytes,
+        .width = kBackendContract.display.width,
+        .height = kBackendContract.display.height,
+        .stride_bytes = kBackendContract.display.stride_bytes,
         .format = CHARM_APP_PIXEL_FORMAT_ARGB8888,
     };
     ++g_capability_counters.display_describe;
     write("resident-elf-qemu: display describe width=");
-    write_dec(kDisplayWidth);
+    write_dec(kBackendContract.display.width);
     write(" height=");
-    write_dec(kDisplayHeight);
+    write_dec(kBackendContract.display.height);
     write(" stride=");
-    write_dec(kDisplayStrideBytes);
-    write(" format=argb8888 frame_bytes=");
-    write_dec(kDisplayFrameBytes);
+    write_dec(kBackendContract.display.stride_bytes);
+    write(" format=");
+    write(kBackendContract.display.format);
+    write(" frame_bytes=");
+    write_dec(kBackendContract.display.frame_bytes);
     write("\n");
     return CHARM_APP_STATUS_OK;
 }
 
 int display_present(const void* pixels, std::uint32_t bytes) {
     ++g_capability_counters.display_present;
-    if (pixels == nullptr || bytes != kDisplayFrameBytes) {
+    if (pixels == nullptr || bytes != kBackendContract.display.frame_bytes) {
         write("resident-elf-qemu: display present bytes=");
         write_dec(bytes);
         write(" code=invalid_argument expected=");
-        write_dec(kDisplayFrameBytes);
+        write_dec(kBackendContract.display.frame_bytes);
         write("\n");
         return CHARM_APP_STATUS_INVALID_ARGUMENT;
     }
@@ -523,7 +563,7 @@ void log_view(std::string_view text) noexcept {
 
 void reset_capability_counters() noexcept {
     g_capability_counters = {};
-    g_tick_ms = kTimeStartMs;
+    g_tick_ms = kBackendContract.time.start_ms;
     g_input_cursor = 0;
     for (auto& open_file : g_storage_open_files) {
         open_file = {};
@@ -532,6 +572,10 @@ void reset_capability_counters() noexcept {
 
 const VirtualCapabilityCounters& capability_counters() noexcept {
     return g_capability_counters;
+}
+
+const VirtualBackendContract& backend_contract() noexcept {
+    return kBackendContract;
 }
 
 void log_capability_counters(std::string_view name) noexcept {
@@ -605,35 +649,62 @@ CharmAppApi make_virtual_app_api() noexcept {
 }
 
 void log_backend_contract() noexcept {
-    write("resident-elf-qemu: backend-contract time=deterministic_tick start_ms=");
-    write_dec(kTimeStartMs);
+    const auto& contract = backend_contract();
+    write("resident-elf-qemu: backend-contract time=");
+    write(contract.time.kind);
+    write(" start_ms=");
+    write_dec(contract.time.start_ms);
     write(" step_ms=");
-    write_dec(kTimeStepMs);
-    write(" reset_per_run=1\n");
-    write("resident-elf-qemu: backend-contract display=framebuffer width=");
-    write_dec(kDisplayWidth);
+    write_dec(contract.time.step_ms);
+    write(" reset_per_run=");
+    write_dec(contract.time.reset_per_run ? 1U : 0U);
+    write("\n");
+    write("resident-elf-qemu: backend-contract display=");
+    write(contract.display.kind);
+    write(" width=");
+    write_dec(contract.display.width);
     write(" height=");
-    write_dec(kDisplayHeight);
+    write_dec(contract.display.height);
     write(" stride=");
-    write_dec(kDisplayStrideBytes);
-    write(" format=argb8888 frame_bytes=");
-    write_dec(kDisplayFrameBytes);
-    write(" evidence=frame_signatures,frame_dumps,frame_ppm,gui_timeline\n");
-    write("resident-elf-qemu: backend-contract input=deterministic_sequence sample_count=");
-    write_dec(kInputSequenceCount);
+    write_dec(contract.display.stride_bytes);
+    write(" format=");
+    write(contract.display.format);
+    write(" frame_bytes=");
+    write_dec(contract.display.frame_bytes);
+    write(" evidence=");
+    write(contract.display.evidence);
+    write("\n");
+    write("resident-elf-qemu: backend-contract input=");
+    write(contract.input.kind);
+    write(" sample_count=");
+    write_dec(contract.input.sample_count);
     write(" pointer_max=");
-    write_dec(kInputPointerMaxX);
+    write_dec(contract.input.pointer_max_x);
     write(",");
-    write_dec(kInputPointerMaxY);
-    write(" wraps=1 evidence=input_trace,gui_timeline\n");
-    write("resident-elf-qemu: backend-contract storage=virtual_readonly_files file_count=");
-    write_dec(kVirtualStorageFileCount);
+    write_dec(contract.input.pointer_max_y);
+    write(" wraps=");
+    write_dec(contract.input.wraps ? 1U : 0U);
+    write(" evidence=");
+    write(contract.input.evidence);
+    write("\n");
+    write("resident-elf-qemu: backend-contract storage=");
+    write(contract.storage_media.kind);
+    write(" file_count=");
+    write_dec(contract.storage_media.file_count);
     write(" fd_base=");
-    write_dec(static_cast<std::uint32_t>(kVirtualStorageFdBase));
+    write_dec(static_cast<std::uint32_t>(contract.storage_media.fd_base));
     write(" fd_slots=");
-    write_dec(static_cast<std::uint32_t>(kVirtualStorageFdSlots));
-    write(" write_policy=unsupported evidence=storage_trace\n");
-    write("resident-elf-qemu: backend-contract app_exit=notification_counter overrides_return=0\n");
+    write_dec(contract.storage_media.fd_slots);
+    write(" write_policy=");
+    write(contract.storage_media.write_policy);
+    write(" evidence=");
+    write(contract.storage_media.evidence);
+    write("\n");
+    write("resident-elf-qemu: backend-contract app_exit=");
+    write(contract.app_exit.kind);
+    write(" overrides_return=");
+    write_dec(contract.app_exit.overrides_return ? 1U : 0U);
+    write("\n");
 }
 
 bool probe_unsupported_capabilities() noexcept {

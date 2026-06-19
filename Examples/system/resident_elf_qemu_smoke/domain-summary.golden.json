@@ -2475,6 +2475,128 @@
                                         "ready":  true
                                     }
                                 ],
+    "failure_taxonomy":  {
+                             "schema":  "charm.resident_elf_qemu.failure_taxonomy.v1",
+                             "total":  24,
+                             "categories":  [
+                                                {
+                                                    "category":  "transport",
+                                                    "count":  1,
+                                                    "stages":  [
+                                                                   "packetstream_verify"
+                                                               ]
+                                                },
+                                                {
+                                                    "category":  "stage",
+                                                    "count":  2,
+                                                    "stages":  [
+                                                                   "received_stage",
+                                                                   "store_stage"
+                                                               ]
+                                                },
+                                                {
+                                                    "category":  "load",
+                                                    "count":  19,
+                                                    "stages":  [
+                                                                   "load"
+                                                               ]
+                                                },
+                                                {
+                                                    "category":  "runtime",
+                                                    "count":  2,
+                                                    "stages":  [
+                                                                   "argv",
+                                                                   "abi"
+                                                               ]
+                                                }
+                                            ],
+                             "stages":  [
+                                            {
+                                                "stage":  "packetstream_verify",
+                                                "category":  "transport",
+                                                "count":  1,
+                                                "codes":  [
+                                                              "crc_mismatch"
+                                                          ],
+                                                "cases":  [
+                                                              "packetstream_crc_mismatch"
+                                                          ]
+                                            },
+                                            {
+                                                "stage":  "received_stage",
+                                                "category":  "stage",
+                                                "count":  1,
+                                                "codes":  [
+                                                              "buffer_too_small"
+                                                          ],
+                                                "cases":  [
+                                                              "received_too_large_app"
+                                                          ]
+                                            },
+                                            {
+                                                "stage":  "store_stage",
+                                                "category":  "stage",
+                                                "count":  1,
+                                                "codes":  [
+                                                              "image_too_large"
+                                                          ],
+                                                "cases":  [
+                                                              "too_large_store_app"
+                                                          ]
+                                            },
+                                            {
+                                                "stage":  "load",
+                                                "category":  "load",
+                                                "count":  19,
+                                                "codes":  [
+                                                              "load_failed"
+                                                          ],
+                                                "cases":  [
+                                                              "bad_elf_magic_app",
+                                                              "packetstream_bad_elf_magic_app",
+                                                              "bad_header_app",
+                                                              "bad_class_app",
+                                                              "bad_endian_app",
+                                                              "bad_ident_version_app",
+                                                              "bad_type_app",
+                                                              "bad_machine_app",
+                                                              "bad_version_app",
+                                                              "bad_ehsize_app",
+                                                              "bad_phentsize_app",
+                                                              "bad_program_header_app",
+                                                              "truncated_payload_app",
+                                                              "no_load_segment_app",
+                                                              "entry_outside_segment_app",
+                                                              "overlapping_segments_app",
+                                                              "rwx_segment_app",
+                                                              "wrong_link_base_app",
+                                                              "too_large_app"
+                                                          ]
+                                            },
+                                            {
+                                                "stage":  "argv",
+                                                "category":  "runtime",
+                                                "count":  1,
+                                                "codes":  [
+                                                              "argv_overflow"
+                                                          ],
+                                                "cases":  [
+                                                              "argv_overflow_app"
+                                                          ]
+                                            },
+                                            {
+                                                "stage":  "abi",
+                                                "category":  "runtime",
+                                                "count":  1,
+                                                "codes":  [
+                                                              "abi_mismatch"
+                                                          ],
+                                                "cases":  [
+                                                              "abi_mismatch_app"
+                                                          ]
+                                            }
+                                        ]
+                         },
     "artifacts":  {
                       "directory":  "G:\\Project\\BareWorkspace\\Charm-os\\Examples\\app_abi\\elf_samples\\out-qemu",
                       "app_count":  31,

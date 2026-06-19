@@ -202,6 +202,7 @@ function Invoke-SelfTest {
         "qemu_elf_backend_readiness=",
         "qemu_elf_capability_matrix=",
         "qemu_elf_run_evidence_matrix=",
+        "qemu_elf_failure_taxonomy=",
         "qemu_elf_run_budget_match=",
         "qemu_elf_run_budget_mismatch:",
         "-QemuElfRunBudgetMatch `$QemuElfRunBudgetMatch"
@@ -1011,17 +1012,32 @@ function Invoke-SelfTest {
                 app_exit = $true
                 unsupported = $true
             }
-            negative_cases = @(@(1..23 | ForEach-Object {
-                        [pscustomobject]@{
-                            name = "synthetic_negative_$($_)"
-                            stage = "load"
-                            code = "load_failed"
-                        }
-                    }) + @([pscustomobject]@{
-                    name = "wrong_link_base_app"
-                    stage = "load"
-                    code = "load_failed"
-                }))
+            negative_cases = @(
+                [pscustomobject]@{ name = "packetstream_crc_mismatch"; stage = "packetstream_verify"; code = "crc_mismatch" },
+                [pscustomobject]@{ name = "received_too_large_app"; stage = "received_stage"; code = "buffer_too_small" },
+                [pscustomobject]@{ name = "too_large_store_app"; stage = "store_stage"; code = "image_too_large" },
+                [pscustomobject]@{ name = "bad_elf_magic_app"; stage = "load"; code = "load_failed" },
+                [pscustomobject]@{ name = "packetstream_bad_elf_magic_app"; stage = "load"; code = "load_failed" },
+                [pscustomobject]@{ name = "bad_header_app"; stage = "load"; code = "load_failed" },
+                [pscustomobject]@{ name = "bad_class_app"; stage = "load"; code = "load_failed" },
+                [pscustomobject]@{ name = "bad_endian_app"; stage = "load"; code = "load_failed" },
+                [pscustomobject]@{ name = "bad_ident_version_app"; stage = "load"; code = "load_failed" },
+                [pscustomobject]@{ name = "bad_type_app"; stage = "load"; code = "load_failed" },
+                [pscustomobject]@{ name = "bad_machine_app"; stage = "load"; code = "load_failed" },
+                [pscustomobject]@{ name = "bad_version_app"; stage = "load"; code = "load_failed" },
+                [pscustomobject]@{ name = "bad_ehsize_app"; stage = "load"; code = "load_failed" },
+                [pscustomobject]@{ name = "bad_phentsize_app"; stage = "load"; code = "load_failed" },
+                [pscustomobject]@{ name = "bad_program_header_app"; stage = "load"; code = "load_failed" },
+                [pscustomobject]@{ name = "truncated_payload_app"; stage = "load"; code = "load_failed" },
+                [pscustomobject]@{ name = "no_load_segment_app"; stage = "load"; code = "load_failed" },
+                [pscustomobject]@{ name = "entry_outside_segment_app"; stage = "load"; code = "load_failed" },
+                [pscustomobject]@{ name = "overlapping_segments_app"; stage = "load"; code = "load_failed" },
+                [pscustomobject]@{ name = "rwx_segment_app"; stage = "load"; code = "load_failed" },
+                [pscustomobject]@{ name = "wrong_link_base_app"; stage = "load"; code = "load_failed" },
+                [pscustomobject]@{ name = "too_large_app"; stage = "load"; code = "load_failed" },
+                [pscustomobject]@{ name = "argv_overflow_app"; stage = "argv"; code = "argv_overflow" },
+                [pscustomobject]@{ name = "abi_mismatch_app"; stage = "abi"; code = "abi_mismatch" }
+            )
             gui_timeline = @(
                 [pscustomobject]@{ name = "player_min"; frames = 1; inputs = 1; last_frame_hash = "0xfac53a05"; last_input = "3,5,0" },
                 [pscustomobject]@{ name = "received:player_min"; frames = 1; inputs = 1; last_frame_hash = "0xfac53a05"; last_input = "3,5,0" },
@@ -1062,6 +1078,47 @@ function Invoke-SelfTest {
         -NotePropertyName "elf_run_evidence_matrix" `
         -NotePropertyValue @($GoodSummary.coverage.loads | ForEach-Object { New-SelfTestQemuRunEvidenceFromLoad -Load $_ }) `
         -Force
+    $GoodSummary | Add-Member `
+        -NotePropertyName "failure_taxonomy" `
+        -NotePropertyValue ([pscustomobject]@{
+            schema = "charm.resident_elf_qemu.failure_taxonomy.v1"
+            total = 24
+            categories = @(
+                [pscustomobject]@{ category = "transport"; count = 1; stages = @("packetstream_verify") },
+                [pscustomobject]@{ category = "stage"; count = 2; stages = @("received_stage", "store_stage") },
+                [pscustomobject]@{ category = "load"; count = 19; stages = @("load") },
+                [pscustomobject]@{ category = "runtime"; count = 2; stages = @("argv", "abi") }
+            )
+            stages = @(
+                [pscustomobject]@{ stage = "packetstream_verify"; category = "transport"; count = 1; codes = @("crc_mismatch"); cases = @("packetstream_crc_mismatch") },
+                [pscustomobject]@{ stage = "received_stage"; category = "stage"; count = 1; codes = @("buffer_too_small"); cases = @("received_too_large_app") },
+                [pscustomobject]@{ stage = "store_stage"; category = "stage"; count = 1; codes = @("image_too_large"); cases = @("too_large_store_app") },
+                [pscustomobject]@{ stage = "load"; category = "load"; count = 19; codes = @("load_failed"); cases = @(
+                        "bad_elf_magic_app",
+                        "packetstream_bad_elf_magic_app",
+                        "bad_header_app",
+                        "bad_class_app",
+                        "bad_endian_app",
+                        "bad_ident_version_app",
+                        "bad_type_app",
+                        "bad_machine_app",
+                        "bad_version_app",
+                        "bad_ehsize_app",
+                        "bad_phentsize_app",
+                        "bad_program_header_app",
+                        "truncated_payload_app",
+                        "no_load_segment_app",
+                        "entry_outside_segment_app",
+                        "overlapping_segments_app",
+                        "rwx_segment_app",
+                        "wrong_link_base_app",
+                        "too_large_app"
+                    ) },
+                [pscustomobject]@{ stage = "argv"; category = "runtime"; count = 1; codes = @("argv_overflow"); cases = @("argv_overflow_app") },
+                [pscustomobject]@{ stage = "abi"; category = "runtime"; count = 1; codes = @("abi_mismatch"); cases = @("abi_mismatch_app") }
+            )
+        }) `
+        -Force
     [System.IO.File]::WriteAllText($TempSummary, (($GoodSummary | ConvertTo-Json -Depth 8) + "`n"), [System.Text.UTF8Encoding]::new($false))
     [System.IO.File]::WriteAllText($TempQemuLog, "resident-elf-qemu domain summary comparison ok`n  expected=domain-summary.golden.json`n", [System.Text.UTF8Encoding]::new($false))
     try {
@@ -1083,6 +1140,7 @@ function Invoke-SelfTest {
             $ParsedQemu.Capacity -ne "large_fit=61696/65536:free=3840:fits=1:probe=ok;too_large=82176/65536:free=0:fits=0:probe=load_buffer_too_small" -or
             $ParsedQemu.Loads.IndexOf("wrong_link_base_app=entry:0x20080021:span:270:segments:2:fits:1:probe:ok", [System.StringComparison]::Ordinal) -lt 0 -or
             $ParsedQemu.Packetstreams -ne "hello_app=payload:5132:stream:5776:packets:23:crc:0xb3b7bcc5;large_fit_app=payload:5168:stream:5840:packets:24:crc:0xdffdfba1;packetstream_bad_elf_magic_app=payload:64:stream:176:packets:4:crc:0xbd40f3c7;player_min=payload:5168:stream:5840:packets:24:crc:0xba5eb94a;packetstream_crc_mismatch=stage:failed/crc_mismatch:dispatch:22/23:crc:0x7d9c7647->0xb3b7bcc5:read:0:stage_bytes:0" -or
+            $ParsedQemu.FailureTaxonomy -ne "total=24:categories=transport=1,stage=2,load=19,runtime=2:stages=packetstream_verify=transport/1,received_stage=stage/1,store_stage=stage/1,load=load/19,argv=runtime/1,abi=runtime/1" -or
             $ParsedQemu.LinkBase -ne "expected=0x20080000;hello_app=link:0x20080000:entry_vaddr:0x20080021:base_match:1;large_fit_app=link:0x20080000:entry_vaddr:0x20080019:base_match:1;packetstream:player_min=link:0x20080000:entry_vaddr:0x20080001:base_match:1;wrong_link_base_app=link:0x20081000:entry_vaddr:0x20081021:base_match:0:source:load/load_failed" -or
             $ParsedQemu.EquivalentSources -ne "hello_app=direct,received,packetstream,store:entry:0x20080021:span:270:segments:2:fits:1:probe:ok;large_fit_app=direct,received,packetstream,store:entry:0x20080019:span:61696:segments:3:fits:1:probe:ok;player_min=direct,received,packetstream,store:entry:0x20080001:span:1280:segments:3:fits:1:probe:ok" -or
             $ParsedQemu.Sources.IndexOf("wrong_link_base_app:direct=load/load_failed", [System.StringComparison]::Ordinal) -lt 0 -or
@@ -1126,6 +1184,7 @@ function Invoke-SelfTest {
         Test-BadQemuSummary -Label "capacity" -Mutate { param($Summary) ($Summary.coverage.loads | Where-Object { $_.name -eq "too_large_app" }).fits = $true }
         Test-BadQemuSummary -Label "link_base" -Mutate { param($Summary) ($Summary.coverage.loads | Where-Object { $_.name -eq "wrong_link_base_app" }).base_match = $true }
         Test-BadQemuSummary -Label "packetstream_crc_mismatch" -Mutate { param($Summary) ($Summary.coverage.packetstreams | Where-Object { $_.name -eq "packetstream_crc_mismatch" }).read_code = "ok" }
+        Test-BadQemuSummary -Label "failure_taxonomy" -Mutate { param($Summary) ($Summary.failure_taxonomy.categories | Where-Object { $_.category -eq "load" }).count = 18 }
         Test-BadQemuSummary -Label "source_matrix" -Mutate { param($Summary) ($Summary.coverage.source_matrix | Where-Object { $_.name -eq "player_min" }).packetstream.code = "load_failed" }
         Test-BadQemuSummary -Label "equivalent_sources" -Mutate { param($Summary) ($Summary.coverage.loads | Where-Object { $_.name -eq "store:hello_app" }).span = 271 }
         Test-BadQemuSummary -Label "gui_timeline" -Mutate { param($Summary) $Summary.coverage.gui_timeline = @($Summary.coverage.gui_timeline | Where-Object { $_.name -ne "store:player_min" }) }
@@ -1674,6 +1733,146 @@ function Assert-QemuElfCapabilityMatrix {
     return ($Parts -join ";")
 }
 
+function Get-QemuElfFailureTaxonomyStage {
+    param(
+        [object[]]$Stages,
+        [string]$Stage
+    )
+
+    $Matches = @($Stages | Where-Object { $_.stage -eq $Stage })
+    if ($Matches.Count -ne 1) {
+        throw "qemu_elf_summary_invalid: failure taxonomy missing or duplicate stage $Stage"
+    }
+    return $Matches[0]
+}
+
+function Assert-QemuElfFailureTaxonomyCategory {
+    param(
+        [object[]]$Categories,
+        [string]$Category,
+        [int]$Count,
+        [string[]]$Stages
+    )
+
+    $Matches = @($Categories | Where-Object { $_.category -eq $Category })
+    if ($Matches.Count -ne 1) {
+        throw "qemu_elf_summary_invalid: failure taxonomy missing or duplicate category $Category"
+    }
+    $Entry = $Matches[0]
+    if ([int]$Entry.count -ne $Count) {
+        throw "qemu_elf_summary_invalid: failure taxonomy category $Category count=$($Entry.count), expected $Count"
+    }
+    $ActualStages = @($Entry.stages)
+    if ($ActualStages.Count -ne $Stages.Count) {
+        throw "qemu_elf_summary_invalid: failure taxonomy category $Category bad stage count"
+    }
+    foreach ($Stage in $Stages) {
+        if (-not ($ActualStages -contains $Stage)) {
+            throw "qemu_elf_summary_invalid: failure taxonomy category $Category missing stage $Stage"
+        }
+    }
+}
+
+function Assert-QemuElfFailureTaxonomyStage {
+    param(
+        [object[]]$Stages,
+        [string]$Stage,
+        [string]$Category,
+        [int]$Count,
+        [string[]]$Codes,
+        [string[]]$Cases
+    )
+
+    $Entry = Get-QemuElfFailureTaxonomyStage -Stages $Stages -Stage $Stage
+    if ($Entry.category -ne $Category -or [int]$Entry.count -ne $Count) {
+        throw "qemu_elf_summary_invalid: failure taxonomy stage $Stage bad category/count"
+    }
+    $ActualCodes = @($Entry.codes)
+    if ($ActualCodes.Count -ne $Codes.Count) {
+        throw "qemu_elf_summary_invalid: failure taxonomy stage $Stage bad code count"
+    }
+    foreach ($Code in $Codes) {
+        if (-not ($ActualCodes -contains $Code)) {
+            throw "qemu_elf_summary_invalid: failure taxonomy stage $Stage missing code $Code"
+        }
+    }
+    $ActualCases = @($Entry.cases)
+    if ($ActualCases.Count -ne $Cases.Count) {
+        throw "qemu_elf_summary_invalid: failure taxonomy stage $Stage bad case count"
+    }
+    foreach ($Case in $Cases) {
+        if (-not ($ActualCases -contains $Case)) {
+            throw "qemu_elf_summary_invalid: failure taxonomy stage $Stage missing case $Case"
+        }
+    }
+}
+
+function Assert-QemuElfFailureTaxonomy {
+    param(
+        [object]$Taxonomy,
+        [object[]]$NegativeCases
+    )
+
+    if ($null -eq $Taxonomy -or $Taxonomy.schema -ne "charm.resident_elf_qemu.failure_taxonomy.v1") {
+        throw "qemu_elf_summary_invalid: bad failure taxonomy schema"
+    }
+    if ([int]$Taxonomy.total -ne @($NegativeCases).Count -or [int]$Taxonomy.total -ne 24) {
+        throw "qemu_elf_summary_invalid: bad failure taxonomy total"
+    }
+
+    $Categories = @($Taxonomy.categories)
+    $Stages = @($Taxonomy.stages)
+    if ($Categories.Count -ne 4 -or $Stages.Count -ne 6) {
+        throw "qemu_elf_summary_invalid: bad failure taxonomy counts"
+    }
+
+    Assert-QemuElfFailureTaxonomyCategory -Categories $Categories -Category "transport" -Count 1 -Stages @("packetstream_verify")
+    Assert-QemuElfFailureTaxonomyCategory -Categories $Categories -Category "stage" -Count 2 -Stages @("received_stage", "store_stage")
+    Assert-QemuElfFailureTaxonomyCategory -Categories $Categories -Category "load" -Count 19 -Stages @("load")
+    Assert-QemuElfFailureTaxonomyCategory -Categories $Categories -Category "runtime" -Count 2 -Stages @("argv", "abi")
+    Assert-QemuElfFailureTaxonomyStage -Stages $Stages -Stage "packetstream_verify" -Category "transport" -Count 1 -Codes @("crc_mismatch") -Cases @("packetstream_crc_mismatch")
+    Assert-QemuElfFailureTaxonomyStage -Stages $Stages -Stage "received_stage" -Category "stage" -Count 1 -Codes @("buffer_too_small") -Cases @("received_too_large_app")
+    Assert-QemuElfFailureTaxonomyStage -Stages $Stages -Stage "store_stage" -Category "stage" -Count 1 -Codes @("image_too_large") -Cases @("too_large_store_app")
+    Assert-QemuElfFailureTaxonomyStage -Stages $Stages -Stage "load" -Category "load" -Count 19 -Codes @("load_failed") -Cases @(
+        "bad_elf_magic_app",
+        "packetstream_bad_elf_magic_app",
+        "bad_header_app",
+        "bad_class_app",
+        "bad_endian_app",
+        "bad_ident_version_app",
+        "bad_type_app",
+        "bad_machine_app",
+        "bad_version_app",
+        "bad_ehsize_app",
+        "bad_phentsize_app",
+        "bad_program_header_app",
+        "truncated_payload_app",
+        "no_load_segment_app",
+        "entry_outside_segment_app",
+        "overlapping_segments_app",
+        "rwx_segment_app",
+        "wrong_link_base_app",
+        "too_large_app"
+    )
+    Assert-QemuElfFailureTaxonomyStage -Stages $Stages -Stage "argv" -Category "runtime" -Count 1 -Codes @("argv_overflow") -Cases @("argv_overflow_app")
+    Assert-QemuElfFailureTaxonomyStage -Stages $Stages -Stage "abi" -Category "runtime" -Count 1 -Codes @("abi_mismatch") -Cases @("abi_mismatch_app")
+
+    foreach ($Negative in @($NegativeCases)) {
+        $Stage = Get-QemuElfFailureTaxonomyStage -Stages $Stages -Stage ([string]$Negative.stage)
+        if (-not (@($Stage.cases) -contains ([string]$Negative.name)) -or
+            -not (@($Stage.codes) -contains ([string]$Negative.code))) {
+            throw "qemu_elf_summary_invalid: failure taxonomy does not include negative case $($Negative.name)"
+        }
+    }
+
+    $CategorySummary = @($Categories | ForEach-Object { "{0}={1}" -f ([string]$_.category), ([int]$_.count) })
+    $StageSummary = @($Stages | ForEach-Object { "{0}={1}/{2}" -f ([string]$_.stage), ([string]$_.category), ([int]$_.count) })
+    return ("total={0}:categories={1}:stages={2}" -f `
+        ([int]$Taxonomy.total), `
+        ($CategorySummary -join ","), `
+        ($StageSummary -join ","))
+}
+
 function Read-QemuElfDomainSummary {
     param([string]$Path)
 
@@ -1991,6 +2190,9 @@ function Read-QemuElfDomainSummary {
         $CoverageNegativeCases -ne 24) {
         throw "qemu_elf_summary_invalid: bad coverage counts"
     }
+    $FailureTaxonomySummary = Assert-QemuElfFailureTaxonomy `
+        -Taxonomy $Summary.failure_taxonomy `
+        -NegativeCases @($Summary.coverage.negative_cases)
     $SourceSummaryParts = @()
     foreach ($Name in @("hello_app", "large_fit_app", "player_min")) {
         $Case = Get-QemuElfSourceMatrixCase -Matrix $SourceMatrix -Name $Name
@@ -2143,6 +2345,7 @@ function Read-QemuElfDomainSummary {
         LinkBase = (($LinkBaseSummaryParts -join ";") + ":source:load/load_failed")
         EquivalentSources = ($EquivalentSourceSummaryParts -join ";")
         Packetstreams = ($PacketstreamSummaryParts -join ";")
+        FailureTaxonomy = $FailureTaxonomySummary
         Runs = @($Summary.coverage.runs).Count
         Stages = $CoverageStages
         LoadCount = @($Summary.coverage.loads).Count
@@ -2199,6 +2402,7 @@ function Write-QemuElfSummaryLines {
         Write-BundleLine -Lines $Lines -Text "qemu_elf_loads=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_equivalent_sources=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_packetstreams=skipped"
+        Write-BundleLine -Lines $Lines -Text "qemu_elf_failure_taxonomy=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_domain_golden=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_sources=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_coverage=skipped"
@@ -2227,6 +2431,7 @@ function Write-QemuElfSummaryLines {
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_loads={0}" -f $QemuElfSummary.Loads)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_equivalent_sources={0}" -f $QemuElfSummary.EquivalentSources)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_packetstreams={0}" -f $QemuElfSummary.Packetstreams)
+    Write-BundleLine -Lines $Lines -Text ("qemu_elf_failure_taxonomy={0}" -f $QemuElfSummary.FailureTaxonomy)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_domain_golden={0}" -f $QemuElfDomainGolden)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_sources={0}" -f $QemuElfSummary.Sources)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_coverage runs={0} stages={1} loads={2} packetstreams={3} source_matrix={4} gui_timeline={5} prepare={6} capabilities={7} negative_cases={8}" -f `

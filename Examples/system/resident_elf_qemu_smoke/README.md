@@ -770,7 +770,11 @@ virtual provider, policy, evidence source, and representative run set. Its
 source (`direct`, `received`, `packetstream`, `store`, or `prepare`), source
 stage/code, ELF load probe/capacity, AppRuntime stage/code/exit, and readiness
 into one record. This is the QEMU-local evidence index for the resident ELF
-main chain; it is not a public backend/profile schema. Its `display` section
+main chain; it is not a public backend/profile schema. Its `failure_taxonomy`
+section derives a compact negative-path index from `coverage.negative_cases`:
+transport (`packetstream_verify`), stage (`received_stage`/`store_stage`), load,
+and runtime (`argv`/`abi`) failures must keep their expected counts and cases.
+Its `display` section
 records the fixed virtual display mode so GUI evidence drift is caught before
 frame hashes are interpreted. Its evidence section records frame signature, full
 dump, visual PPM, input trace, and storage trace counts. Its `coverage.loads` section records the ELF loader/probe/capacity
@@ -867,8 +871,8 @@ into `qemu_elf_mode`, `qemu_elf_domain`, `qemu_elf_app_model`,
 `qemu_elf_display`, `qemu_elf_evidence`,
 `qemu_elf_capacity`, `qemu_elf_artifacts`, `qemu_elf_loads`,
 `qemu_elf_equivalent_sources`,
-`qemu_elf_packetstreams`, `qemu_elf_domain_golden`, `qemu_elf_sources`,
-`qemu_elf_coverage`, and
+`qemu_elf_packetstreams`, `qemu_elf_failure_taxonomy`,
+`qemu_elf_domain_golden`, `qemu_elf_sources`, `qemu_elf_coverage`, and
 `qemu_elf_player_min_gui` tokens so archived logs expose whether QEMU was
 rebuilt and launched (`build_and_run`) or reused from an existing capture
 (`validate_existing_evidence`), plus the fixed App model
@@ -881,7 +885,7 @@ ELF/Store CRCs, representative ELF loader
 entry/span/segment/fits facts, direct/received/packetstream/Store equivalent
 ELF load facts for `hello_app`, `large_fit_app`, and `player_min`,
 packetstream payload/CRC and failure-boundary facts, domain-summary golden
-comparison, and the
+comparison, transport/stage/load/runtime failure taxonomy, and the
 direct/received/packetstream/store source matrix plus full coverage counts
 (`runs/stages/loads/packetstreams/source_matrix/gui_timeline/prepare/
 capabilities/negative_cases`) without opening the JSON file.

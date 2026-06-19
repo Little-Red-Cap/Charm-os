@@ -2634,6 +2634,88 @@ function Get-ElfRunEvidenceMatrix {
     return @($Evidence)
 }
 
+function Get-QemuNegativeCases {
+    return @(
+        [pscustomobject]@{ name = "packetstream_crc_mismatch"; stage = "packetstream_verify"; code = "crc_mismatch" },
+        [pscustomobject]@{ name = "received_too_large_app"; stage = "received_stage"; code = "buffer_too_small" },
+        [pscustomobject]@{ name = "too_large_store_app"; stage = "store_stage"; code = "image_too_large" },
+        [pscustomobject]@{ name = "bad_elf_magic_app"; stage = "load"; code = "load_failed" },
+        [pscustomobject]@{ name = "packetstream_bad_elf_magic_app"; stage = "load"; code = "load_failed" },
+        [pscustomobject]@{ name = "bad_header_app"; stage = "load"; code = "load_failed" },
+        [pscustomobject]@{ name = "bad_class_app"; stage = "load"; code = "load_failed" },
+        [pscustomobject]@{ name = "bad_endian_app"; stage = "load"; code = "load_failed" },
+        [pscustomobject]@{ name = "bad_ident_version_app"; stage = "load"; code = "load_failed" },
+        [pscustomobject]@{ name = "bad_type_app"; stage = "load"; code = "load_failed" },
+        [pscustomobject]@{ name = "bad_machine_app"; stage = "load"; code = "load_failed" },
+        [pscustomobject]@{ name = "bad_version_app"; stage = "load"; code = "load_failed" },
+        [pscustomobject]@{ name = "bad_ehsize_app"; stage = "load"; code = "load_failed" },
+        [pscustomobject]@{ name = "bad_phentsize_app"; stage = "load"; code = "load_failed" },
+        [pscustomobject]@{ name = "bad_program_header_app"; stage = "load"; code = "load_failed" },
+        [pscustomobject]@{ name = "truncated_payload_app"; stage = "load"; code = "load_failed" },
+        [pscustomobject]@{ name = "no_load_segment_app"; stage = "load"; code = "load_failed" },
+        [pscustomobject]@{ name = "entry_outside_segment_app"; stage = "load"; code = "load_failed" },
+        [pscustomobject]@{ name = "overlapping_segments_app"; stage = "load"; code = "load_failed" },
+        [pscustomobject]@{ name = "rwx_segment_app"; stage = "load"; code = "load_failed" },
+        [pscustomobject]@{ name = "wrong_link_base_app"; stage = "load"; code = "load_failed" },
+        [pscustomobject]@{ name = "too_large_app"; stage = "load"; code = "load_failed" },
+        [pscustomobject]@{ name = "argv_overflow_app"; stage = "argv"; code = "argv_overflow" },
+        [pscustomobject]@{ name = "abi_mismatch_app"; stage = "abi"; code = "abi_mismatch" }
+    )
+}
+
+function Get-QemuFailureCategory {
+    param([string]$Stage)
+
+    switch ($Stage) {
+        "packetstream_verify" { return "transport" }
+        "received_stage" { return "stage" }
+        "store_stage" { return "stage" }
+        "load" { return "load" }
+        "argv" { return "runtime" }
+        "abi" { return "runtime" }
+        default { return "unknown" }
+    }
+}
+
+function Get-QemuFailureTaxonomy {
+    param([object[]]$NegativeCases)
+
+    $CategoryOrder = @("transport", "stage", "load", "runtime")
+    $StageOrder = @("packetstream_verify", "received_stage", "store_stage", "load", "argv", "abi")
+
+    $Categories = @()
+    foreach ($Category in $CategoryOrder) {
+        $Cases = @($NegativeCases | Where-Object { (Get-QemuFailureCategory -Stage ([string]$_.stage)) -eq $Category })
+        $Categories += [pscustomobject]@{
+            category = $Category
+            count = $Cases.Count
+            stages = @($Cases | ForEach-Object { [string]$_.stage } | Select-Object -Unique)
+        }
+    }
+
+    $Stages = @()
+    foreach ($Stage in $StageOrder) {
+        $Cases = @($NegativeCases | Where-Object { $_.stage -eq $Stage })
+        if ($Cases.Count -eq 0) {
+            continue
+        }
+        $Stages += [pscustomobject]@{
+            stage = $Stage
+            category = Get-QemuFailureCategory -Stage $Stage
+            count = $Cases.Count
+            codes = @($Cases | ForEach-Object { [string]$_.code } | Select-Object -Unique)
+            cases = @($Cases | ForEach-Object { [string]$_.name })
+        }
+    }
+
+    return [pscustomobject]@{
+        schema = "charm.resident_elf_qemu.failure_taxonomy.v1"
+        total = @($NegativeCases).Count
+        categories = $Categories
+        stages = $Stages
+    }
+}
+
 function Get-CapabilitySummaryFromText {
     param([string]$Text)
 
@@ -3133,6 +3215,8 @@ function Write-DomainSummaryCapture {
         -FramePpmCount $FramePpmCount `
         -InputTraceCount $InputTraceCount `
         -StorageTraceCount $StorageTraceCount
+    $NegativeCases = Get-QemuNegativeCases
+    $FailureTaxonomy = Get-QemuFailureTaxonomy -NegativeCases $NegativeCases
 
     $Summary = [pscustomobject]@{
         schema = "charm.resident_elf_qemu.domain_summary.v1"
@@ -3145,6 +3229,7 @@ function Write-DomainSummaryCapture {
         backend_readiness = $BackendReadiness
         backend_capability_matrix = $BackendCapabilityMatrix
         elf_run_evidence_matrix = $ElfRunEvidenceMatrix
+        failure_taxonomy = $FailureTaxonomy
         artifacts = $ArtifactSummary
         run_budget = [pscustomobject]@{
             timeout_sec = $TimeoutSec
@@ -3183,32 +3268,7 @@ function Write-DomainSummaryCapture {
             gui_timeline = $GuiTimeline
             prepare = $PrepareSummary
             capabilities = $Capabilities
-            negative_cases = @(
-                [pscustomobject]@{ name = "packetstream_crc_mismatch"; stage = "packetstream_verify"; code = "crc_mismatch" },
-                [pscustomobject]@{ name = "received_too_large_app"; stage = "received_stage"; code = "buffer_too_small" },
-                [pscustomobject]@{ name = "too_large_store_app"; stage = "store_stage"; code = "image_too_large" },
-                [pscustomobject]@{ name = "bad_elf_magic_app"; stage = "load"; code = "load_failed" },
-                [pscustomobject]@{ name = "packetstream_bad_elf_magic_app"; stage = "load"; code = "load_failed" },
-                [pscustomobject]@{ name = "bad_header_app"; stage = "load"; code = "load_failed" },
-                [pscustomobject]@{ name = "bad_class_app"; stage = "load"; code = "load_failed" },
-                [pscustomobject]@{ name = "bad_endian_app"; stage = "load"; code = "load_failed" },
-                [pscustomobject]@{ name = "bad_ident_version_app"; stage = "load"; code = "load_failed" },
-                [pscustomobject]@{ name = "bad_type_app"; stage = "load"; code = "load_failed" },
-                [pscustomobject]@{ name = "bad_machine_app"; stage = "load"; code = "load_failed" },
-                [pscustomobject]@{ name = "bad_version_app"; stage = "load"; code = "load_failed" },
-                [pscustomobject]@{ name = "bad_ehsize_app"; stage = "load"; code = "load_failed" },
-                [pscustomobject]@{ name = "bad_phentsize_app"; stage = "load"; code = "load_failed" },
-                [pscustomobject]@{ name = "bad_program_header_app"; stage = "load"; code = "load_failed" },
-                [pscustomobject]@{ name = "truncated_payload_app"; stage = "load"; code = "load_failed" },
-                [pscustomobject]@{ name = "no_load_segment_app"; stage = "load"; code = "load_failed" },
-                [pscustomobject]@{ name = "entry_outside_segment_app"; stage = "load"; code = "load_failed" },
-                [pscustomobject]@{ name = "overlapping_segments_app"; stage = "load"; code = "load_failed" },
-                [pscustomobject]@{ name = "rwx_segment_app"; stage = "load"; code = "load_failed" },
-                [pscustomobject]@{ name = "wrong_link_base_app"; stage = "load"; code = "load_failed" },
-                [pscustomobject]@{ name = "too_large_app"; stage = "load"; code = "load_failed" },
-                [pscustomobject]@{ name = "argv_overflow_app"; stage = "argv"; code = "argv_overflow" },
-                [pscustomobject]@{ name = "abi_mismatch_app"; stage = "abi"; code = "abi_mismatch" }
-            )
+            negative_cases = $NegativeCases
         }
         evidence = [pscustomobject]@{
             log = $ResolvedLog
@@ -3552,6 +3612,184 @@ function Assert-DomainNegativeCase {
     $Matches = @($NegativeCases | Where-Object { $_.name -eq $Name -and $_.stage -eq $Stage -and $_.code -eq $Code })
     if ($Matches.Count -lt 1) {
         throw "domain_summary_validate_failed: missing negative case $Name stage=$Stage code=$Code"
+    }
+}
+
+function Get-DomainFailureTaxonomyCategory {
+    param(
+        [object[]]$Categories,
+        [string]$Category
+    )
+
+    $Matches = @($Categories | Where-Object { $_.category -eq $Category })
+    if ($Matches.Count -ne 1) {
+        throw "domain_summary_validate_failed: failure taxonomy missing or duplicate category $Category"
+    }
+    return $Matches[0]
+}
+
+function Get-DomainFailureTaxonomyStage {
+    param(
+        [object[]]$Stages,
+        [string]$Stage
+    )
+
+    $Matches = @($Stages | Where-Object { $_.stage -eq $Stage })
+    if ($Matches.Count -ne 1) {
+        throw "domain_summary_validate_failed: failure taxonomy missing or duplicate stage $Stage"
+    }
+    return $Matches[0]
+}
+
+function Assert-DomainFailureTaxonomyCategory {
+    param(
+        [object[]]$Categories,
+        [string]$Category,
+        [int]$Count,
+        [string[]]$Stages
+    )
+
+    $Entry = Get-DomainFailureTaxonomyCategory -Categories $Categories -Category $Category
+    if ([int]$Entry.count -ne $Count) {
+        throw "domain_summary_validate_failed: failure taxonomy category $Category count=$($Entry.count), expected $Count"
+    }
+    $ActualStages = @($Entry.stages)
+    if ($ActualStages.Count -ne $Stages.Count) {
+        throw "domain_summary_validate_failed: failure taxonomy category $Category bad stage count"
+    }
+    foreach ($Stage in $Stages) {
+        if (-not ($ActualStages -contains $Stage)) {
+            throw "domain_summary_validate_failed: failure taxonomy category $Category missing stage $Stage"
+        }
+    }
+}
+
+function Assert-DomainFailureTaxonomyStage {
+    param(
+        [object[]]$Stages,
+        [string]$Stage,
+        [string]$Category,
+        [int]$Count,
+        [string[]]$Codes,
+        [string[]]$Cases
+    )
+
+    $Entry = Get-DomainFailureTaxonomyStage -Stages $Stages -Stage $Stage
+    if ($Entry.category -ne $Category -or [int]$Entry.count -ne $Count) {
+        throw "domain_summary_validate_failed: failure taxonomy stage $Stage bad category/count"
+    }
+    $ActualCodes = @($Entry.codes)
+    if ($ActualCodes.Count -ne $Codes.Count) {
+        throw "domain_summary_validate_failed: failure taxonomy stage $Stage bad code count"
+    }
+    foreach ($Code in $Codes) {
+        if (-not ($ActualCodes -contains $Code)) {
+            throw "domain_summary_validate_failed: failure taxonomy stage $Stage missing code $Code"
+        }
+    }
+    $ActualCases = @($Entry.cases)
+    if ($ActualCases.Count -ne $Cases.Count) {
+        throw "domain_summary_validate_failed: failure taxonomy stage $Stage bad case count"
+    }
+    foreach ($Case in $Cases) {
+        if (-not ($ActualCases -contains $Case)) {
+            throw "domain_summary_validate_failed: failure taxonomy stage $Stage missing case $Case"
+        }
+    }
+}
+
+function Assert-DomainFailureTaxonomy {
+    param(
+        [object]$Taxonomy,
+        [object[]]$NegativeCases
+    )
+
+    if ($null -eq $Taxonomy -or $Taxonomy.schema -ne "charm.resident_elf_qemu.failure_taxonomy.v1") {
+        throw "domain_summary_validate_failed: bad failure taxonomy schema"
+    }
+    if ([int]$Taxonomy.total -ne @($NegativeCases).Count -or [int]$Taxonomy.total -ne 24) {
+        throw "domain_summary_validate_failed: bad failure taxonomy total"
+    }
+
+    $Categories = @($Taxonomy.categories)
+    $Stages = @($Taxonomy.stages)
+    Assert-DomainCount -Name "failure_taxonomy.categories" -Actual $Categories.Count -Expected 4
+    Assert-DomainCount -Name "failure_taxonomy.stages" -Actual $Stages.Count -Expected 6
+
+    Assert-DomainFailureTaxonomyCategory -Categories $Categories -Category "transport" -Count 1 -Stages @("packetstream_verify")
+    Assert-DomainFailureTaxonomyCategory -Categories $Categories -Category "stage" -Count 2 -Stages @("received_stage", "store_stage")
+    Assert-DomainFailureTaxonomyCategory -Categories $Categories -Category "load" -Count 19 -Stages @("load")
+    Assert-DomainFailureTaxonomyCategory -Categories $Categories -Category "runtime" -Count 2 -Stages @("argv", "abi")
+
+    Assert-DomainFailureTaxonomyStage `
+        -Stages $Stages `
+        -Stage "packetstream_verify" `
+        -Category "transport" `
+        -Count 1 `
+        -Codes @("crc_mismatch") `
+        -Cases @("packetstream_crc_mismatch")
+    Assert-DomainFailureTaxonomyStage `
+        -Stages $Stages `
+        -Stage "received_stage" `
+        -Category "stage" `
+        -Count 1 `
+        -Codes @("buffer_too_small") `
+        -Cases @("received_too_large_app")
+    Assert-DomainFailureTaxonomyStage `
+        -Stages $Stages `
+        -Stage "store_stage" `
+        -Category "stage" `
+        -Count 1 `
+        -Codes @("image_too_large") `
+        -Cases @("too_large_store_app")
+    Assert-DomainFailureTaxonomyStage `
+        -Stages $Stages `
+        -Stage "load" `
+        -Category "load" `
+        -Count 19 `
+        -Codes @("load_failed") `
+        -Cases @(
+            "bad_elf_magic_app",
+            "packetstream_bad_elf_magic_app",
+            "bad_header_app",
+            "bad_class_app",
+            "bad_endian_app",
+            "bad_ident_version_app",
+            "bad_type_app",
+            "bad_machine_app",
+            "bad_version_app",
+            "bad_ehsize_app",
+            "bad_phentsize_app",
+            "bad_program_header_app",
+            "truncated_payload_app",
+            "no_load_segment_app",
+            "entry_outside_segment_app",
+            "overlapping_segments_app",
+            "rwx_segment_app",
+            "wrong_link_base_app",
+            "too_large_app"
+        )
+    Assert-DomainFailureTaxonomyStage `
+        -Stages $Stages `
+        -Stage "argv" `
+        -Category "runtime" `
+        -Count 1 `
+        -Codes @("argv_overflow") `
+        -Cases @("argv_overflow_app")
+    Assert-DomainFailureTaxonomyStage `
+        -Stages $Stages `
+        -Stage "abi" `
+        -Category "runtime" `
+        -Count 1 `
+        -Codes @("abi_mismatch") `
+        -Cases @("abi_mismatch_app")
+
+    foreach ($Negative in @($NegativeCases)) {
+        $Stage = Get-DomainFailureTaxonomyStage -Stages $Stages -Stage ([string]$Negative.stage)
+        if (-not (@($Stage.cases) -contains ([string]$Negative.name)) -or
+            -not (@($Stage.codes) -contains ([string]$Negative.code))) {
+            throw "domain_summary_validate_failed: failure taxonomy does not include negative case $($Negative.name)"
+        }
     }
 }
 
@@ -4467,6 +4705,7 @@ function Validate-DomainSummaryFile {
     Assert-DomainNegativeCase -NegativeCases $NegativeCases -Name "too_large_app" -Stage "load" -Code "load_failed"
     Assert-DomainNegativeCase -NegativeCases $NegativeCases -Name "argv_overflow_app" -Stage "argv" -Code "argv_overflow"
     Assert-DomainNegativeCase -NegativeCases $NegativeCases -Name "abi_mismatch_app" -Stage "abi" -Code "abi_mismatch"
+    Assert-DomainFailureTaxonomy -Taxonomy $Summary.failure_taxonomy -NegativeCases $NegativeCases
     $SourceMatrix = @($Summary.coverage.source_matrix)
     Assert-DomainCount -Name "source_matrix" -Actual $SourceMatrix.Count -Expected 51
     Assert-SourceMatrixEntry -Matrix $SourceMatrix -Name "hello_app" -Sources @("direct", "received", "packetstream", "store")

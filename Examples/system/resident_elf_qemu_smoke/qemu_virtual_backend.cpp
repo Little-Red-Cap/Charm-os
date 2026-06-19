@@ -8,7 +8,19 @@ namespace {
 
 VirtualCapabilityCounters g_capability_counters{};
 VirtualStoreMediaCounters g_store_media_counters{};
-std::uint32_t g_tick_ms = 1000U;
+constexpr std::uint32_t kTimeStartMs = 1000U;
+constexpr std::uint32_t kTimeStepMs = 17U;
+constexpr std::uint32_t kDisplayWidth = 16U;
+constexpr std::uint32_t kDisplayHeight = 16U;
+constexpr std::uint32_t kDisplayPixelBytes = 4U;
+constexpr std::uint32_t kDisplayStrideBytes = kDisplayWidth * kDisplayPixelBytes;
+constexpr std::uint32_t kDisplayFrameBytes = kDisplayHeight * kDisplayStrideBytes;
+constexpr std::uint32_t kInputPointerMaxX = 15U;
+constexpr std::uint32_t kInputPointerMaxY = 15U;
+constexpr int kVirtualStorageFdBase = 3;
+constexpr std::size_t kVirtualStorageFdSlots = 4U;
+
+std::uint32_t g_tick_ms = kTimeStartMs;
 std::uint32_t g_input_cursor = 0;
 
 struct VirtualStorageFile {
@@ -23,7 +35,6 @@ struct VirtualStorageOpenFile {
     std::size_t cursor;
 };
 
-constexpr int kVirtualStorageFdBase = 3;
 constexpr unsigned char kVirtualStorageReadme[] = "Charm QEMU virtual storage\n";
 constexpr unsigned char kVirtualStorageAlpha[] = "alpha resource\n";
 constexpr unsigned char kVirtualStorageBeta[] = "beta media blob\n";
@@ -44,7 +55,9 @@ constexpr VirtualStorageFile kVirtualStorageFiles[] = {
         .size = sizeof(kVirtualStorageBeta) - 1U,
     },
 };
-VirtualStorageOpenFile g_storage_open_files[4]{};
+constexpr std::uint32_t kVirtualStorageFileCount =
+    static_cast<std::uint32_t>(sizeof(kVirtualStorageFiles) / sizeof(kVirtualStorageFiles[0]));
+VirtualStorageOpenFile g_storage_open_files[kVirtualStorageFdSlots]{};
 
 constexpr CharmAppInputState kInputSequence[] = {
     CharmAppInputState{
@@ -56,8 +69,8 @@ constexpr CharmAppInputState kInputSequence[] = {
         .pointer_down = 0,
         .pointer_x = 3,
         .pointer_y = 5,
-        .pointer_max_x = 15,
-        .pointer_max_y = 15,
+        .pointer_max_x = kInputPointerMaxX,
+        .pointer_max_y = kInputPointerMaxY,
     },
     CharmAppInputState{
         .encoder1_delta = 0,
@@ -68,8 +81,8 @@ constexpr CharmAppInputState kInputSequence[] = {
         .pointer_down = 1,
         .pointer_x = 4,
         .pointer_y = 6,
-        .pointer_max_x = 15,
-        .pointer_max_y = 15,
+        .pointer_max_x = kInputPointerMaxX,
+        .pointer_max_y = kInputPointerMaxY,
     },
     CharmAppInputState{
         .encoder1_delta = -1,
@@ -80,8 +93,8 @@ constexpr CharmAppInputState kInputSequence[] = {
         .pointer_down = 1,
         .pointer_x = 5,
         .pointer_y = 7,
-        .pointer_max_x = 15,
-        .pointer_max_y = 15,
+        .pointer_max_x = kInputPointerMaxX,
+        .pointer_max_y = kInputPointerMaxY,
     },
     CharmAppInputState{
         .encoder1_delta = 0,
@@ -92,10 +105,12 @@ constexpr CharmAppInputState kInputSequence[] = {
         .pointer_down = 0,
         .pointer_x = 6,
         .pointer_y = 8,
-        .pointer_max_x = 15,
-        .pointer_max_y = 15,
+        .pointer_max_x = kInputPointerMaxX,
+        .pointer_max_y = kInputPointerMaxY,
     },
 };
+constexpr std::uint32_t kInputSequenceCount =
+    static_cast<std::uint32_t>(sizeof(kInputSequence) / sizeof(kInputSequence[0]));
 
 struct UartCmsdk {
     static constexpr std::uint32_t base = 0x40004000u;
@@ -139,7 +154,7 @@ int console_write(const char* text, std::size_t len) {
 
 std::uint32_t now_ms() {
     ++g_capability_counters.time_now;
-    g_tick_ms += 17U;
+    g_tick_ms += kTimeStepMs;
     return g_tick_ms;
 }
 
@@ -148,24 +163,31 @@ int display_describe(CharmAppDisplayMode* out_mode) {
         return CHARM_APP_STATUS_INVALID_ARGUMENT;
     }
     *out_mode = CharmAppDisplayMode{
-        .width = 16U,
-        .height = 16U,
-        .stride_bytes = 16U * 4U,
+        .width = kDisplayWidth,
+        .height = kDisplayHeight,
+        .stride_bytes = kDisplayStrideBytes,
         .format = CHARM_APP_PIXEL_FORMAT_ARGB8888,
     };
     ++g_capability_counters.display_describe;
-    write("resident-elf-qemu: display describe width=16 height=16 stride=64 format=argb8888 frame_bytes=1024\n");
+    write("resident-elf-qemu: display describe width=");
+    write_dec(kDisplayWidth);
+    write(" height=");
+    write_dec(kDisplayHeight);
+    write(" stride=");
+    write_dec(kDisplayStrideBytes);
+    write(" format=argb8888 frame_bytes=");
+    write_dec(kDisplayFrameBytes);
+    write("\n");
     return CHARM_APP_STATUS_OK;
 }
 
 int display_present(const void* pixels, std::uint32_t bytes) {
     ++g_capability_counters.display_present;
-    constexpr std::uint32_t kFrameBytes = 16U * 16U * 4U;
-    if (pixels == nullptr || bytes != kFrameBytes) {
+    if (pixels == nullptr || bytes != kDisplayFrameBytes) {
         write("resident-elf-qemu: display present bytes=");
         write_dec(bytes);
         write(" code=invalid_argument expected=");
-        write_dec(kFrameBytes);
+        write_dec(kDisplayFrameBytes);
         write("\n");
         return CHARM_APP_STATUS_INVALID_ARGUMENT;
     }
@@ -216,9 +238,7 @@ int input_poll(CharmAppInputState* out_state) {
         write("resident-elf-qemu: input poll code=invalid_argument\n");
         return CHARM_APP_STATUS_INVALID_ARGUMENT;
     }
-    constexpr std::uint32_t kInputCount =
-        static_cast<std::uint32_t>(sizeof(kInputSequence) / sizeof(kInputSequence[0]));
-    *out_state = kInputSequence[g_input_cursor % kInputCount];
+    *out_state = kInputSequence[g_input_cursor % kInputSequenceCount];
     ++g_input_cursor;
     g_capability_counters.input_last_x = out_state->pointer_x;
     g_capability_counters.input_last_y = out_state->pointer_y;
@@ -273,7 +293,7 @@ int storage_open(const char* path, int flags, int mode) {
         return CHARM_APP_STATUS_UNSUPPORTED;
     }
     for (std::uint32_t file_index = 0;
-         file_index < (sizeof(kVirtualStorageFiles) / sizeof(kVirtualStorageFiles[0]));
+         file_index < kVirtualStorageFileCount;
          ++file_index) {
         if (!text_equals(path, kVirtualStorageFiles[file_index].path)) {
             continue;
@@ -503,7 +523,7 @@ void log_view(std::string_view text) noexcept {
 
 void reset_capability_counters() noexcept {
     g_capability_counters = {};
-    g_tick_ms = 1000U;
+    g_tick_ms = kTimeStartMs;
     g_input_cursor = 0;
     for (auto& open_file : g_storage_open_files) {
         open_file = {};
@@ -585,10 +605,34 @@ CharmAppApi make_virtual_app_api() noexcept {
 }
 
 void log_backend_contract() noexcept {
-    write("resident-elf-qemu: backend-contract time=deterministic_tick start_ms=1000 step_ms=17 reset_per_run=1\n");
-    write("resident-elf-qemu: backend-contract display=framebuffer width=16 height=16 stride=64 format=argb8888 frame_bytes=1024 evidence=frame_signatures,frame_dumps,frame_ppm,gui_timeline\n");
-    write("resident-elf-qemu: backend-contract input=deterministic_sequence sample_count=4 pointer_max=15,15 wraps=1 evidence=input_trace,gui_timeline\n");
-    write("resident-elf-qemu: backend-contract storage=virtual_readonly_files file_count=3 fd_base=3 fd_slots=4 write_policy=unsupported evidence=storage_trace\n");
+    write("resident-elf-qemu: backend-contract time=deterministic_tick start_ms=");
+    write_dec(kTimeStartMs);
+    write(" step_ms=");
+    write_dec(kTimeStepMs);
+    write(" reset_per_run=1\n");
+    write("resident-elf-qemu: backend-contract display=framebuffer width=");
+    write_dec(kDisplayWidth);
+    write(" height=");
+    write_dec(kDisplayHeight);
+    write(" stride=");
+    write_dec(kDisplayStrideBytes);
+    write(" format=argb8888 frame_bytes=");
+    write_dec(kDisplayFrameBytes);
+    write(" evidence=frame_signatures,frame_dumps,frame_ppm,gui_timeline\n");
+    write("resident-elf-qemu: backend-contract input=deterministic_sequence sample_count=");
+    write_dec(kInputSequenceCount);
+    write(" pointer_max=");
+    write_dec(kInputPointerMaxX);
+    write(",");
+    write_dec(kInputPointerMaxY);
+    write(" wraps=1 evidence=input_trace,gui_timeline\n");
+    write("resident-elf-qemu: backend-contract storage=virtual_readonly_files file_count=");
+    write_dec(kVirtualStorageFileCount);
+    write(" fd_base=");
+    write_dec(static_cast<std::uint32_t>(kVirtualStorageFdBase));
+    write(" fd_slots=");
+    write_dec(static_cast<std::uint32_t>(kVirtualStorageFdSlots));
+    write(" write_policy=unsupported evidence=storage_trace\n");
     write("resident-elf-qemu: backend-contract app_exit=notification_counter overrides_return=0\n");
 }
 

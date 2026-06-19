@@ -363,6 +363,10 @@ function Invoke-SelfTest {
             expected = "0x20080000"
             size = 65536
         }
+        run_budget = [pscustomobject]@{
+            timeout_sec = 15
+            tail_lines = 80
+        }
         stage_cache = [pscustomobject]@{
             bytes = 16384
         }
@@ -918,6 +922,7 @@ function Invoke-SelfTest {
             $ParsedQemu.AppModel -ne "format=elf:model=CharmAppApi" -or
             $ParsedQemu.Backend -ne "virtual:virtual_m7:console,time,display,input,storage,app_exit:storage=readonly:afe=unsupported" -or
             $ParsedQemu.BackendContract -ne "time=deterministic_tick:1000+17:reset=1;display=framebuffer:16x16:argb8888:stride=64:frame=1024:evidence=frame_signatures,frame_dumps,frame_ppm,gui_timeline;input=deterministic_sequence:samples=4:max=15,15:wraps=1:evidence=input_trace,gui_timeline;storage=virtual_readonly_files:files=3:fd=3+4:write=unsupported:evidence=storage_trace;app_exit=notification_counter:overrides_return=0" -or
+            $ParsedQemu.RunBudget -ne "timeout_sec=15:tail_lines=80" -or
             $ParsedQemu.Memory -ne "run_base=0x20080000:run_size=65536:stage_cache=16384:packetstream=16384/2048/32768/16384" -or
             $ParsedQemu.Store -ne "store_v1:entries=31:bytes=173184:media=memory:reads=589:read_bytes=175332:failures=0" -or
             $ParsedQemu.Display -ne "16x16:argb8888:stride=64:frame=1024" -or
@@ -957,6 +962,7 @@ function Invoke-SelfTest {
         Test-BadQemuSummary -Label "app_model" -Mutate { param($Summary) $Summary.app_model = "RawJump" }
         Test-BadQemuSummary -Label "backend_contract" -Mutate { param($Summary) $Summary.backend_contract.storage = "writeable" }
         Test-BadQemuSummary -Label "backend_contract_time" -Mutate { param($Summary) $Summary.backend_contract.time.step_ms = 16 }
+        Test-BadQemuSummary -Label "run_budget" -Mutate { param($Summary) $Summary.run_budget.timeout_sec = 0 }
         Test-BadQemuSummary -Label "run_region" -Mutate { param($Summary) $Summary.run_region.size = 32768 }
         Test-BadQemuSummary -Label "stage_cache" -Mutate { param($Summary) $Summary.stage_cache.bytes = 8192 }
         Test-BadQemuSummary -Label "store_media" -Mutate { param($Summary) $Summary.store.media.read_failures = 1 }
@@ -1300,6 +1306,11 @@ function Read-QemuElfDomainSummary {
         [int]$Summary.run_region.size -ne 65536) {
         throw "qemu_elf_summary_invalid: bad run_region"
     }
+    if ($null -eq $Summary.run_budget -or
+        [int]$Summary.run_budget.timeout_sec -le 0 -or
+        [int]$Summary.run_budget.tail_lines -le 0) {
+        throw "qemu_elf_summary_invalid: bad run_budget"
+    }
     if ([int]$Summary.stage_cache.bytes -ne 16384) {
         throw "qemu_elf_summary_invalid: bad stage_cache"
     }
@@ -1569,6 +1580,9 @@ function Read-QemuElfDomainSummary {
             ($BackendStorageEvidence -join ","), `
             ([string]$Summary.backend_contract.app_exit.kind), `
             $AppExitOverridesToken)
+        RunBudget = ("timeout_sec={0}:tail_lines={1}" -f `
+            ([int]$Summary.run_budget.timeout_sec), `
+            ([int]$Summary.run_budget.tail_lines))
         Memory = ("run_base={0}:run_size={1}:stage_cache={2}:packetstream={3}/{4}/{5}/{6}" -f `
             ([string]$Summary.run_region.base), `
             ([int]$Summary.run_region.size), `
@@ -1653,6 +1667,7 @@ function Write-QemuElfSummaryLines {
         Write-BundleLine -Lines $Lines -Text "qemu_elf_app_model=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_backend=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_backend_contract=skipped"
+        Write-BundleLine -Lines $Lines -Text "qemu_elf_run_budget=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_memory=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_store=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_display=skipped"
@@ -1676,6 +1691,7 @@ function Write-QemuElfSummaryLines {
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_app_model={0}" -f $QemuElfSummary.AppModel)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_backend={0}" -f $QemuElfSummary.Backend)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_backend_contract={0}" -f $QemuElfSummary.BackendContract)
+    Write-BundleLine -Lines $Lines -Text ("qemu_elf_run_budget={0}" -f $QemuElfSummary.RunBudget)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_memory={0}" -f $QemuElfSummary.Memory)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_store={0}" -f $QemuElfSummary.Store)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_display={0}" -f $QemuElfSummary.Display)

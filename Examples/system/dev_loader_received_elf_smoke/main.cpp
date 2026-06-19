@@ -465,6 +465,127 @@ bool expect_large_segmented_elf_load() {
     return ok;
 }
 
+bool expect_run_region_boundary_elf_load() {
+    static constexpr std::uint32_t kBase = 0x24070000U;
+    static constexpr std::uint32_t kRunRegionSize = 64U * 1024U;
+    static constexpr std::uint32_t kFitSpan = 0xFF00U;
+    static constexpr std::uint32_t kTooLargeSpan = 0x10100U;
+    static constexpr std::uint32_t kEntryOffset = 0x40U;
+
+    const std::array<SyntheticSegment, 3> fit_segments{{
+        SyntheticSegment{
+            .offset = 0x1000U,
+            .vaddr = kBase,
+            .filesz = 0x200U,
+            .memsz = 0x200U,
+            .flags = 0x5U,
+            .align = 4U,
+            .seed = std::byte{0x21U},
+        },
+        SyntheticSegment{
+            .offset = 0x2000U,
+            .vaddr = kBase + 0x8000U,
+            .filesz = 0x800U,
+            .memsz = 0x800U,
+            .flags = 0x4U,
+            .align = 4U,
+            .seed = std::byte{0x42U},
+        },
+        SyntheticSegment{
+            .offset = 0x3000U,
+            .vaddr = kBase + 0xF000U,
+            .filesz = 0x500U,
+            .memsz = 0xF00U,
+            .flags = 0x6U,
+            .align = 4U,
+            .seed = std::byte{0x63U},
+        },
+    }};
+
+    const auto fit_elf = make_segmented_elf(fit_segments, kBase + kEntryOffset);
+    std::vector<std::byte> received_cache{};
+    std::vector<std::byte> app_cache{};
+    app_abi::AppImage fit_image{};
+    bool ok = stage_received_elf("large_fit", fit_elf, received_cache, app_cache, fit_image);
+
+    alignas(64) std::array<std::byte, kRunRegionSize> run_region{};
+    run_region.fill(std::byte{0xEEU});
+    app_abi::AppElfLoadBackend fit_backend{};
+    const auto fit_loaded = app_abi::app_elf_load_image(&fit_backend,
+                                                        fit_image,
+                                                        app_abi::AppLoadBuffer{
+                                                            .base = run_region.data(),
+                                                            .size = run_region.size(),
+                                                            .align = 16,
+                                                        });
+    ok = expect(fit_loaded.code == app_abi::AppRunCode::ok,
+                "near-limit ELF fits the 64 KiB run region") && ok;
+    ok = expect(fit_backend.last.plan.probe.code == app_abi::AppElfProbeCode::ok &&
+                    fit_backend.last.plan.probe.load_span == kFitSpan &&
+                    fit_backend.last.plan.probe.segment_count == fit_segments.size() &&
+                    fit_backend.last.plan.probe.runnable,
+                "near-limit ELF reports runnable capacity metadata") && ok;
+    ok = expect(fit_backend.last.plan.entry_address ==
+                    reinterpret_cast<std::uintptr_t>(run_region.data() + kEntryOffset),
+                "near-limit ELF entry is load base plus entry offset") && ok;
+    ok = expect(run_region[0xF500U] == std::byte{0x00U} &&
+                    run_region[0xFEFFU] == std::byte{0x00U},
+                "near-limit ELF zero-fills high BSS inside run region") && ok;
+
+    const std::array<SyntheticSegment, 2> too_large_segments{{
+        SyntheticSegment{
+            .offset = 0x1000U,
+            .vaddr = kBase,
+            .filesz = 0x100U,
+            .memsz = 0x100U,
+            .flags = 0x5U,
+            .align = 4U,
+            .seed = std::byte{0x71U},
+        },
+        SyntheticSegment{
+            .offset = 0x2000U,
+            .vaddr = kBase + 0x10000U,
+            .filesz = 0x100U,
+            .memsz = 0x100U,
+            .flags = 0x6U,
+            .align = 4U,
+            .seed = std::byte{0x81U},
+        },
+    }};
+
+    const auto too_large_elf = make_segmented_elf(too_large_segments, kBase + kEntryOffset);
+    app_abi::AppImage too_large_image{};
+    ok = stage_received_elf("large_too_big", too_large_elf, received_cache, app_cache, too_large_image) && ok;
+    app_abi::AppElfLoadBackend too_large_backend{};
+    const auto too_large_loaded = app_abi::app_elf_load_image(&too_large_backend,
+                                                              too_large_image,
+                                                              app_abi::AppLoadBuffer{
+                                                                  .base = run_region.data(),
+                                                                  .size = run_region.size(),
+                                                                  .align = 16,
+                                                              });
+    ok = expect(too_large_loaded.code == app_abi::AppRunCode::load_failed &&
+                    too_large_loaded.backend_error ==
+                        static_cast<int>(app_abi::AppElfProbeCode::load_buffer_too_small),
+                "over-limit ELF fails cleanly at load stage") && ok;
+    ok = expect(too_large_backend.last.plan.probe.code ==
+                    app_abi::AppElfProbeCode::load_buffer_too_small &&
+                    too_large_backend.last.plan.probe.load_span == kTooLargeSpan &&
+                    too_large_backend.last.plan.probe.segment_count == too_large_segments.size() &&
+                    !too_large_backend.last.plan.probe.runnable,
+                "over-limit ELF reports needed span and segment count") && ok;
+
+    alignas(64) std::array<std::byte, 128 * 1024> probe_region{};
+    const auto probe_ok = probe_bytes(too_large_elf,
+                                      app_abi::AppImageFormat::elf,
+                                      probe_region);
+    ok = expect(probe_ok.code == app_abi::AppElfProbeCode::ok &&
+                    probe_ok.load_span == kTooLargeSpan &&
+                    probe_ok.segment_count == too_large_segments.size(),
+                "over-limit ELF remains structurally valid with a larger probe buffer") && ok;
+    return ok;
+}
+
 bool expect_error_paths() {
     bool ok = true;
     alignas(64) std::array<std::byte, 512> load{};
@@ -611,6 +732,7 @@ int main() {
     ok = expect_real_elf_load("hello_app", sample_dir / "hello_app.elf") && ok;
     ok = expect_real_elf_load("player_min", sample_dir / "player_min.elf") && ok;
     ok = expect_large_segmented_elf_load() && ok;
+    ok = expect_run_region_boundary_elf_load() && ok;
     ok = expect_error_paths() && ok;
 
     if (!ok) {

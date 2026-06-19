@@ -64,6 +64,473 @@
                                               "overrides_return":  false
                                           }
                          },
+    "artifacts":  {
+                      "directory":  "out-qemu",
+                      "app_count":  31,
+                      "store_app_count":  30,
+                      "include_count":  32,
+                      "apps":  [
+                                   {
+                                       "name":  "afe_error_app",
+                                       "kind":  "elf",
+                                       "path":  "afe_error_app.elf",
+                                       "size":  4972,
+                                       "crc32":  "0x8e289811"
+                                   },
+                                   {
+                                       "name":  "hello_app",
+                                       "kind":  "elf",
+                                       "path":  "hello_app.elf",
+                                       "size":  5132,
+                                       "crc32":  "0xb3b7bcc5"
+                                   },
+                                   {
+                                       "name":  "player_min",
+                                       "kind":  "elf",
+                                       "path":  "player_min.elf",
+                                       "size":  5168,
+                                       "crc32":  "0xba5eb94a"
+                                   },
+                                   {
+                                       "name":  "argv_app",
+                                       "kind":  "elf",
+                                       "path":  "argv_app.elf",
+                                       "size":  5392,
+                                       "crc32":  "0x40c58f7d"
+                                   },
+                                   {
+                                       "name":  "bss_app",
+                                       "kind":  "elf",
+                                       "path":  "bss_app.elf",
+                                       "size":  5140,
+                                       "crc32":  "0xd503d15f"
+                                   },
+                                   {
+                                       "name":  "console_error_app",
+                                       "kind":  "elf",
+                                       "path":  "console_error_app.elf",
+                                       "size":  4908,
+                                       "crc32":  "0xe33a07dd"
+                                   },
+                                   {
+                                       "name":  "data_app",
+                                       "kind":  "elf",
+                                       "path":  "data_app.elf",
+                                       "size":  5640,
+                                       "crc32":  "0x85ccb28b"
+                                   },
+                                   {
+                                       "name":  "display_describe_error_app",
+                                       "kind":  "elf",
+                                       "path":  "display_describe_error_app.elf",
+                                       "size":  4928,
+                                       "crc32":  "0x91b401ff"
+                                   },
+                                   {
+                                       "name":  "display_error_app",
+                                       "kind":  "elf",
+                                       "path":  "display_error_app.elf",
+                                       "size":  5076,
+                                       "crc32":  "0x0349d397"
+                                   },
+                                   {
+                                       "name":  "display_null_present_app",
+                                       "kind":  "elf",
+                                       "path":  "display_null_present_app.elf",
+                                       "size":  4980,
+                                       "crc32":  "0x2f3d4f2b"
+                                   },
+                                   {
+                                       "name":  "display_sequence_app",
+                                       "kind":  "elf",
+                                       "path":  "display_sequence_app.elf",
+                                       "size":  5120,
+                                       "crc32":  "0xca4a0b94"
+                                   },
+                                   {
+                                       "name":  "exit_app",
+                                       "kind":  "elf",
+                                       "path":  "exit_app.elf",
+                                       "size":  4736,
+                                       "crc32":  "0xa904ce5d"
+                                   },
+                                   {
+                                       "name":  "exit_error_app",
+                                       "kind":  "elf",
+                                       "path":  "exit_error_app.elf",
+                                       "size":  4740,
+                                       "crc32":  "0xc3a75243"
+                                   },
+                                   {
+                                       "name":  "exit_negative_app",
+                                       "kind":  "elf",
+                                       "path":  "exit_negative_app.elf",
+                                       "size":  4744,
+                                       "crc32":  "0x310651bf"
+                                   },
+                                   {
+                                       "name":  "input_error_app",
+                                       "kind":  "elf",
+                                       "path":  "input_error_app.elf",
+                                       "size":  4904,
+                                       "crc32":  "0x3aa05d3f"
+                                   },
+                                   {
+                                       "name":  "input_sequence_app",
+                                       "kind":  "elf",
+                                       "path":  "input_sequence_app.elf",
+                                       "size":  4996,
+                                       "crc32":  "0x4ce5557e"
+                                   },
+                                   {
+                                       "name":  "input_wrap_app",
+                                       "kind":  "elf",
+                                       "path":  "input_wrap_app.elf",
+                                       "size":  5360,
+                                       "crc32":  "0x13d61a65"
+                                   },
+                                   {
+                                       "name":  "large_fit_app",
+                                       "kind":  "elf",
+                                       "path":  "large_fit_app.elf",
+                                       "size":  5168,
+                                       "crc32":  "0xdffdfba1"
+                                   },
+                                   {
+                                       "name":  "return_negative_app",
+                                       "kind":  "elf",
+                                       "path":  "return_negative_app.elf",
+                                       "size":  4728,
+                                       "crc32":  "0xdb1d1cdf"
+                                   },
+                                   {
+                                       "name":  "unsupported_caps_app",
+                                       "kind":  "elf",
+                                       "path":  "unsupported_caps_app.elf",
+                                       "size":  4988,
+                                       "crc32":  "0x338e5522"
+                                   },
+                                   {
+                                       "name":  "storage_app",
+                                       "kind":  "elf",
+                                       "path":  "storage_app.elf",
+                                       "size":  5236,
+                                       "crc32":  "0x2a7cc9c1"
+                                   },
+                                   {
+                                       "name":  "storage_catalog_app",
+                                       "kind":  "elf",
+                                       "path":  "storage_catalog_app.elf",
+                                       "size":  5420,
+                                       "crc32":  "0x9add1c8b"
+                                   },
+                                   {
+                                       "name":  "storage_close_error_app",
+                                       "kind":  "elf",
+                                       "path":  "storage_close_error_app.elf",
+                                       "size":  5064,
+                                       "crc32":  "0x13a0ccf3"
+                                   },
+                                   {
+                                       "name":  "storage_error_app",
+                                       "kind":  "elf",
+                                       "path":  "storage_error_app.elf",
+                                       "size":  5064,
+                                       "crc32":  "0xc0182a17"
+                                   },
+                                   {
+                                       "name":  "storage_fd_exhaustion_app",
+                                       "kind":  "elf",
+                                       "path":  "storage_fd_exhaustion_app.elf",
+                                       "size":  5212,
+                                       "crc32":  "0xe8bc40ac"
+                                   },
+                                   {
+                                       "name":  "storage_open_error_app",
+                                       "kind":  "elf",
+                                       "path":  "storage_open_error_app.elf",
+                                       "size":  5084,
+                                       "crc32":  "0x475d24f7"
+                                   },
+                                   {
+                                       "name":  "storage_write_error_app",
+                                       "kind":  "elf",
+                                       "path":  "storage_write_error_app.elf",
+                                       "size":  5096,
+                                       "crc32":  "0x18ad4f95"
+                                   },
+                                   {
+                                       "name":  "storage_zero_io_app",
+                                       "kind":  "elf",
+                                       "path":  "storage_zero_io_app.elf",
+                                       "size":  5088,
+                                       "crc32":  "0xf7140e39"
+                                   },
+                                   {
+                                       "name":  "time_app",
+                                       "kind":  "elf",
+                                       "path":  "time_app.elf",
+                                       "size":  4748,
+                                       "crc32":  "0x38015ef3"
+                                   },
+                                   {
+                                       "name":  "time_sequence_app",
+                                       "kind":  "elf",
+                                       "path":  "time_sequence_app.elf",
+                                       "size":  4800,
+                                       "crc32":  "0xc9485c49"
+                                   },
+                                   {
+                                       "name":  "too_large_app",
+                                       "kind":  "elf",
+                                       "path":  "too_large_app.elf",
+                                       "size":  4868,
+                                       "crc32":  "0x95bd9de6"
+                                   }
+                               ],
+                      "extra":  [
+                                    {
+                                        "name":  "too_large_store_app",
+                                        "kind":  "elf",
+                                        "path":  "too_large_store_app.elf",
+                                        "size":  20000,
+                                        "crc32":  "0xf6b0c577"
+                                    }
+                                ],
+                      "store":  {
+                                    "name":  "appstore",
+                                    "kind":  "store_v1",
+                                    "path":  "appstore.bin",
+                                    "size":  173184,
+                                    "crc32":  "0xce0c212a"
+                                },
+                      "includes":  [
+                                       {
+                                           "name":  "appstore.bin",
+                                           "kind":  "generated_inc",
+                                           "path":  "appstore.bin.inc",
+                                           "size":  1111376,
+                                           "crc32":  "0x8d4b49cb"
+                                       },
+                                       {
+                                           "name":  "afe_error_app.elf",
+                                           "kind":  "generated_inc",
+                                           "path":  "afe_error_app.elf.inc",
+                                           "size":  32017,
+                                           "crc32":  "0x68d7c373"
+                                       },
+                                       {
+                                           "name":  "hello_app.elf",
+                                           "kind":  "generated_inc",
+                                           "path":  "hello_app.elf.inc",
+                                           "size":  33034,
+                                           "crc32":  "0xb6e7b03e"
+                                       },
+                                       {
+                                           "name":  "player_min.elf",
+                                           "kind":  "generated_inc",
+                                           "path":  "player_min.elf.inc",
+                                           "size":  33267,
+                                           "crc32":  "0x4c7a0802"
+                                       },
+                                       {
+                                           "name":  "argv_app.elf",
+                                           "kind":  "generated_inc",
+                                           "path":  "argv_app.elf.inc",
+                                           "size":  34702,
+                                           "crc32":  "0x9a537a75"
+                                       },
+                                       {
+                                           "name":  "bss_app.elf",
+                                           "kind":  "generated_inc",
+                                           "path":  "bss_app.elf.inc",
+                                           "size":  33083,
+                                           "crc32":  "0x81c4984f"
+                                       },
+                                       {
+                                           "name":  "console_error_app.elf",
+                                           "kind":  "generated_inc",
+                                           "path":  "console_error_app.elf.inc",
+                                           "size":  31611,
+                                           "crc32":  "0xee96aa7e"
+                                       },
+                                       {
+                                           "name":  "data_app.elf",
+                                           "kind":  "generated_inc",
+                                           "path":  "data_app.elf.inc",
+                                           "size":  36290,
+                                           "crc32":  "0x1e8bb284"
+                                       },
+                                       {
+                                           "name":  "display_describe_error_app.elf",
+                                           "kind":  "generated_inc",
+                                           "path":  "display_describe_error_app.elf.inc",
+                                           "size":  31759,
+                                           "crc32":  "0xe625bb18"
+                                       },
+                                       {
+                                           "name":  "display_error_app.elf",
+                                           "kind":  "generated_inc",
+                                           "path":  "display_error_app.elf.inc",
+                                           "size":  32689,
+                                           "crc32":  "0x0c50385c"
+                                       },
+                                       {
+                                           "name":  "display_null_present_app.elf",
+                                           "kind":  "generated_inc",
+                                           "path":  "display_null_present_app.elf.inc",
+                                           "size":  32087,
+                                           "crc32":  "0x791132b4"
+                                       },
+                                       {
+                                           "name":  "display_sequence_app.elf",
+                                           "kind":  "generated_inc",
+                                           "path":  "display_sequence_app.elf.inc",
+                                           "size":  32979,
+                                           "crc32":  "0x74adabe5"
+                                       },
+                                       {
+                                           "name":  "exit_app.elf",
+                                           "kind":  "generated_inc",
+                                           "path":  "exit_app.elf.inc",
+                                           "size":  30491,
+                                           "crc32":  "0xc91767dc"
+                                       },
+                                       {
+                                           "name":  "exit_error_app.elf",
+                                           "kind":  "generated_inc",
+                                           "path":  "exit_error_app.elf.inc",
+                                           "size":  30527,
+                                           "crc32":  "0x3dbea008"
+                                       },
+                                       {
+                                           "name":  "exit_negative_app.elf",
+                                           "kind":  "generated_inc",
+                                           "path":  "exit_negative_app.elf.inc",
+                                           "size":  30562,
+                                           "crc32":  "0xfe453b8b"
+                                       },
+                                       {
+                                           "name":  "input_error_app.elf",
+                                           "kind":  "generated_inc",
+                                           "path":  "input_error_app.elf.inc",
+                                           "size":  31583,
+                                           "crc32":  "0xce8aa034"
+                                       },
+                                       {
+                                           "name":  "input_sequence_app.elf",
+                                           "kind":  "generated_inc",
+                                           "path":  "input_sequence_app.elf.inc",
+                                           "size":  32181,
+                                           "crc32":  "0xa6f37bb2"
+                                       },
+                                       {
+                                           "name":  "input_wrap_app.elf",
+                                           "kind":  "generated_inc",
+                                           "path":  "input_wrap_app.elf.inc",
+                                           "size":  34507,
+                                           "crc32":  "0x5ff1b25a"
+                                       },
+                                       {
+                                           "name":  "large_fit_app.elf",
+                                           "kind":  "generated_inc",
+                                           "path":  "large_fit_app.elf.inc",
+                                           "size":  33273,
+                                           "crc32":  "0x4f0be5ce"
+                                       },
+                                       {
+                                           "name":  "return_negative_app.elf",
+                                           "kind":  "generated_inc",
+                                           "path":  "return_negative_app.elf.inc",
+                                           "size":  30460,
+                                           "crc32":  "0xc33eb0f4"
+                                       },
+                                       {
+                                           "name":  "unsupported_caps_app.elf",
+                                           "kind":  "generated_inc",
+                                           "path":  "unsupported_caps_app.elf.inc",
+                                           "size":  32132,
+                                           "crc32":  "0xf12566b6"
+                                       },
+                                       {
+                                           "name":  "storage_app.elf",
+                                           "kind":  "generated_inc",
+                                           "path":  "storage_app.elf.inc",
+                                           "size":  33707,
+                                           "crc32":  "0x0341c2fb"
+                                       },
+                                       {
+                                           "name":  "storage_catalog_app.elf",
+                                           "kind":  "generated_inc",
+                                           "path":  "storage_catalog_app.elf.inc",
+                                           "size":  34902,
+                                           "crc32":  "0xee29485b"
+                                       },
+                                       {
+                                           "name":  "storage_close_error_app.elf",
+                                           "kind":  "generated_inc",
+                                           "path":  "storage_close_error_app.elf.inc",
+                                           "size":  32624,
+                                           "crc32":  "0xdbb94bdd"
+                                       },
+                                       {
+                                           "name":  "storage_error_app.elf",
+                                           "kind":  "generated_inc",
+                                           "path":  "storage_error_app.elf.inc",
+                                           "size":  32612,
+                                           "crc32":  "0xce4be7b5"
+                                       },
+                                       {
+                                           "name":  "storage_fd_exhaustion_app.elf",
+                                           "kind":  "generated_inc",
+                                           "path":  "storage_fd_exhaustion_app.elf.inc",
+                                           "size":  33581,
+                                           "crc32":  "0xc151be44"
+                                       },
+                                       {
+                                           "name":  "storage_open_error_app.elf",
+                                           "kind":  "generated_inc",
+                                           "path":  "storage_open_error_app.elf.inc",
+                                           "size":  32752,
+                                           "crc32":  "0xa1c483f6"
+                                       },
+                                       {
+                                           "name":  "storage_write_error_app.elf",
+                                           "kind":  "generated_inc",
+                                           "path":  "storage_write_error_app.elf.inc",
+                                           "size":  32831,
+                                           "crc32":  "0x76f747e1"
+                                       },
+                                       {
+                                           "name":  "storage_zero_io_app.elf",
+                                           "kind":  "generated_inc",
+                                           "path":  "storage_zero_io_app.elf.inc",
+                                           "size":  32770,
+                                           "crc32":  "0x7c22d000"
+                                       },
+                                       {
+                                           "name":  "time_app.elf",
+                                           "kind":  "generated_inc",
+                                           "path":  "time_app.elf.inc",
+                                           "size":  30568,
+                                           "crc32":  "0x42e852b1"
+                                       },
+                                       {
+                                           "name":  "time_sequence_app.elf",
+                                           "kind":  "generated_inc",
+                                           "path":  "time_sequence_app.elf.inc",
+                                           "size":  30918,
+                                           "crc32":  "0x18eb14ff"
+                                       },
+                                       {
+                                           "name":  "too_large_app.elf",
+                                           "kind":  "generated_inc",
+                                           "path":  "too_large_app.elf.inc",
+                                           "size":  31348,
+                                           "crc32":  "0x31ed5bbb"
+                                       }
+                                   ]
+                  },
     "run_budget":  {
                        "timeout_sec":  15,
                        "tail_lines":  80

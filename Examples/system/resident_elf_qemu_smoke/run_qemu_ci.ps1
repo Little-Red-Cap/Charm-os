@@ -121,6 +121,94 @@ function Write-PaddedArtifact {
     [System.IO.File]::WriteAllBytes($OutputPath, $padded)
 }
 
+function Get-QemuArtifactCrc32 {
+    param([byte[]]$Bytes)
+
+    $crc = [uint32]::MaxValue
+    $poly = [uint32]3988292384
+    foreach ($b in $Bytes) {
+        $crc = $crc -bxor [uint32]$b
+        for ($i = 0; $i -lt 8; $i++) {
+            if (($crc -band 1) -ne 0) {
+                $crc = ($crc -shr 1) -bxor $poly
+            } else {
+                $crc = $crc -shr 1
+            }
+        }
+    }
+    return ($crc -bxor [uint32]::MaxValue)
+}
+
+function Format-QemuArtifactHex32 {
+    param([uint32]$Value)
+
+    return ("0x{0:x8}" -f $Value)
+}
+
+function New-QemuArtifactRecord {
+    param(
+        [string]$Name,
+        [string]$Kind,
+        [string]$Path
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Path) -or -not (Test-Path -LiteralPath $Path)) {
+        throw "domain_summary_failed: artifact missing: $Name path=$Path"
+    }
+    $ResolvedPath = (Resolve-Path -LiteralPath $Path).Path
+    $Bytes = [System.IO.File]::ReadAllBytes($ResolvedPath)
+    return [pscustomobject]@{
+        name = $Name
+        kind = $Kind
+        path = $ResolvedPath
+        size = $Bytes.Length
+        crc32 = (Format-QemuArtifactHex32 (Get-QemuArtifactCrc32 -Bytes $Bytes))
+    }
+}
+
+function Get-QemuArtifactSummary {
+    param([string]$AppOutDir)
+
+    $ResolvedOut = [System.IO.Path]::GetFullPath($AppOutDir)
+    if (-not (Test-Path -LiteralPath $ResolvedOut)) {
+        throw "domain_summary_failed: app artifact directory missing: $ResolvedOut"
+    }
+
+    $Apps = @()
+    foreach ($Spec in (Get-QemuAppSpecs)) {
+        $Apps += New-QemuArtifactRecord `
+            -Name $Spec.Name `
+            -Kind "elf" `
+            -Path (Join-Path $ResolvedOut "$($Spec.Name).elf")
+    }
+    $TooLargeStore = New-QemuArtifactRecord `
+        -Name "too_large_store_app" `
+        -Kind "elf" `
+        -Path (Join-Path $ResolvedOut "too_large_store_app.elf")
+    $Store = New-QemuArtifactRecord `
+        -Name "appstore" `
+        -Kind "store_v1" `
+        -Path (Join-Path $ResolvedOut "appstore.bin")
+    $Includes = @()
+    foreach ($Inc in (Get-QemuRequiredIncFiles)) {
+        $Includes += New-QemuArtifactRecord `
+            -Name ([System.IO.Path]::GetFileNameWithoutExtension($Inc)) `
+            -Kind "generated_inc" `
+            -Path (Join-Path $ResolvedOut $Inc)
+    }
+
+    return [pscustomobject]@{
+        directory = $ResolvedOut
+        app_count = @($Apps).Count
+        store_app_count = @($Apps | Where-Object { $_.name -ne "too_large_app" }).Count
+        include_count = @($Includes).Count
+        apps = @($Apps)
+        extra = @($TooLargeStore)
+        store = $Store
+        includes = @($Includes)
+    }
+}
+
 function Read-LogSafe {
     param([string]$Path, [int]$MaxBytes = 131072)
 
@@ -2461,6 +2549,7 @@ function Write-DomainSummaryCapture {
         [string]$InputTracePath,
         [string]$StorageTracePath,
         [string]$OutputPath,
+        [string]$ArtifactDir,
         [int]$TimeoutSec,
         [int]$TailLines
     )
@@ -2506,6 +2595,10 @@ function Write-DomainSummaryCapture {
         -Capabilities $BackendIdentity.capabilities `
         -StorageMode $BackendIdentity.storage `
         -AfeMode $BackendIdentity.afe
+    $ArtifactSummary = Get-QemuArtifactSummary -AppOutDir $ArtifactDir
+    if ([int]$ArtifactSummary.store.size -ne $StoreBytes) {
+        throw "domain_summary_failed: artifact store size does not match runtime store bytes"
+    }
     if ([int]$BackendContract.display.width -ne $DisplayWidth -or
         [int]$BackendContract.display.height -ne $DisplayHeight -or
         [int]$BackendContract.display.stride_bytes -ne $DisplayStride -or
@@ -2577,6 +2670,7 @@ function Write-DomainSummaryCapture {
         image_format = "elf"
         app_model = "CharmAppApi"
         backend_contract = $BackendContract
+        artifacts = $ArtifactSummary
         run_budget = [pscustomobject]@{
             timeout_sec = $TimeoutSec
             tail_lines = $TailLines
@@ -2693,6 +2787,28 @@ function ConvertTo-CanonicalDomainSummary {
     param([object]$Summary)
 
     $Canonical = $Summary | ConvertTo-Json -Depth 32 | ConvertFrom-Json
+    if ($null -ne $Canonical.artifacts) {
+        if (-not [string]::IsNullOrWhiteSpace([string]$Canonical.artifacts.directory)) {
+            $Canonical.artifacts.directory = [System.IO.Path]::GetFileName([string]$Canonical.artifacts.directory)
+        }
+        foreach ($GroupName in @("apps", "extra", "includes")) {
+            $Group = $Canonical.artifacts.PSObject.Properties[$GroupName]
+            if ($null -eq $Group) {
+                continue
+            }
+            foreach ($Artifact in @($Group.Value)) {
+                if ($null -ne $Artifact.PSObject.Properties["path"] -and
+                    -not [string]::IsNullOrWhiteSpace([string]$Artifact.path)) {
+                    $Artifact.path = [System.IO.Path]::GetFileName([string]$Artifact.path)
+                }
+            }
+        }
+        if ($null -ne $Canonical.artifacts.store -and
+            $null -ne $Canonical.artifacts.store.PSObject.Properties["path"] -and
+            -not [string]::IsNullOrWhiteSpace([string]$Canonical.artifacts.store.path)) {
+            $Canonical.artifacts.store.path = [System.IO.Path]::GetFileName([string]$Canonical.artifacts.store.path)
+        }
+    }
     if ($null -ne $Canonical.evidence) {
         foreach ($PropertyName in @("log", "frame_signatures", "frame_dumps", "frame_ppm", "input_trace", "storage_trace")) {
             $Property = $Canonical.evidence.PSObject.Properties[$PropertyName]
@@ -2997,6 +3113,74 @@ function Assert-DomainStoreMedia {
     }
 }
 
+function Assert-DomainArtifactRecord {
+    param(
+        [object[]]$Artifacts,
+        [string]$Name,
+        [string]$Kind,
+        [int]$Size = 0
+    )
+
+    $Matches = @($Artifacts | Where-Object { $_.name -eq $Name })
+    if ($Matches.Count -ne 1) {
+        throw "domain_summary_validate_failed: missing or duplicate artifact $Name"
+    }
+    $Artifact = $Matches[0]
+    if ($Artifact.kind -ne $Kind) {
+        throw "domain_summary_validate_failed: artifact $Name kind=$($Artifact.kind), expected $Kind"
+    }
+    if ($Size -gt 0 -and [int]$Artifact.size -ne $Size) {
+        throw "domain_summary_validate_failed: artifact $Name size=$($Artifact.size), expected $Size"
+    }
+    if ([int]$Artifact.size -le 0) {
+        throw "domain_summary_validate_failed: artifact $Name has invalid size"
+    }
+    if (([string]$Artifact.crc32) -notmatch '^0x[0-9a-f]{8}$') {
+        throw "domain_summary_validate_failed: artifact $Name has invalid crc32"
+    }
+    if ([string]::IsNullOrWhiteSpace([string]$Artifact.path)) {
+        throw "domain_summary_validate_failed: artifact $Name path is empty"
+    }
+    return $Artifact
+}
+
+function Assert-DomainArtifacts {
+    param(
+        [object]$Artifacts,
+        [object]$Store
+    )
+
+    if ($null -eq $Artifacts) {
+        throw "domain_summary_validate_failed: missing artifacts summary"
+    }
+    if ([string]::IsNullOrWhiteSpace([string]$Artifacts.directory)) {
+        throw "domain_summary_validate_failed: artifact directory is empty"
+    }
+    if ([int]$Artifacts.app_count -ne 31 -or
+        [int]$Artifacts.store_app_count -ne 30 -or
+        [int]$Artifacts.include_count -ne 32) {
+        throw "domain_summary_validate_failed: bad artifact counts"
+    }
+    $Apps = @($Artifacts.apps)
+    $Extra = @($Artifacts.extra)
+    $Includes = @($Artifacts.includes)
+    if ($Apps.Count -ne 31 -or $Extra.Count -ne 1 -or $Includes.Count -ne 32) {
+        throw "domain_summary_validate_failed: bad artifact array counts"
+    }
+    [void](Assert-DomainArtifactRecord -Artifacts $Apps -Name "hello_app" -Kind "elf" -Size 5132)
+    [void](Assert-DomainArtifactRecord -Artifacts $Apps -Name "player_min" -Kind "elf" -Size 5168)
+    [void](Assert-DomainArtifactRecord -Artifacts $Apps -Name "large_fit_app" -Kind "elf" -Size 5168)
+    [void](Assert-DomainArtifactRecord -Artifacts $Apps -Name "too_large_app" -Kind "elf" -Size 4868)
+    [void](Assert-DomainArtifactRecord -Artifacts $Extra -Name "too_large_store_app" -Kind "elf" -Size 20000)
+    [void](Assert-DomainArtifactRecord -Artifacts $Includes -Name "hello_app.elf" -Kind "generated_inc")
+    [void](Assert-DomainArtifactRecord -Artifacts $Includes -Name "appstore.bin" -Kind "generated_inc")
+
+    $StoreArtifact = Assert-DomainArtifactRecord -Artifacts @($Artifacts.store) -Name "appstore" -Kind "store_v1" -Size ([int]$Store.bytes)
+    if ([int]$StoreArtifact.size -ne [int]$Store.media.bytes) {
+        throw "domain_summary_validate_failed: store artifact size does not match media bytes"
+    }
+}
+
 function Assert-DomainCount {
     param(
         [string]$Name,
@@ -3279,6 +3463,7 @@ function Validate-DomainSummaryFile {
         throw "domain_summary_validate_failed: bad display summary"
     }
     Assert-DomainStoreMedia -Store $Summary.store
+    Assert-DomainArtifacts -Artifacts $Summary.artifacts -Store $Summary.store
     $Runs = @($Summary.coverage.runs)
     Assert-DomainCount -Name "runs" -Actual $Runs.Count -Expected 87
     Assert-DomainRun -Runs $Runs -Name "hello_app" -Stage "exit" -Code "ok"
@@ -4472,6 +4657,7 @@ Write-DomainSummaryCapture -LogPath $outFile `
     -InputTracePath $InputTraceOut `
     -StorageTracePath $StorageTraceOut `
     -OutputPath $DomainSummaryOut `
+    -ArtifactDir $appOut `
     -TimeoutSec $TimeoutSec `
     -TailLines $TailLines
 if (-not [string]::IsNullOrWhiteSpace($DomainSummaryOut)) {

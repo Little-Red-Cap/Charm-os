@@ -405,6 +405,36 @@ function Invoke-SelfTest {
                 read_failures = 0
             }
         }
+        artifacts = [pscustomobject]@{
+            directory = "out-qemu"
+            app_count = 31
+            store_app_count = 30
+            include_count = 32
+            apps = @(
+                [pscustomobject]@{ name = "hello_app"; kind = "elf"; path = "hello_app.elf"; size = 5132; crc32 = "0xb3b7bcc5" },
+                [pscustomobject]@{ name = "player_min"; kind = "elf"; path = "player_min.elf"; size = 5168; crc32 = "0xba5eb94a" },
+                [pscustomobject]@{ name = "large_fit_app"; kind = "elf"; path = "large_fit_app.elf"; size = 5168; crc32 = "0xdffdfba1" },
+                [pscustomobject]@{ name = "too_large_app"; kind = "elf"; path = "too_large_app.elf"; size = 4868; crc32 = "0x3c6ce7f4" }
+            ) + @(1..27 | ForEach-Object {
+                    [pscustomobject]@{ name = "synthetic_$_.elf"; kind = "elf"; path = "synthetic_$_.elf"; size = 1; crc32 = "0x00000001" }
+                })
+            extra = @(
+                [pscustomobject]@{ name = "too_large_store_app"; kind = "elf"; path = "too_large_store_app.elf"; size = 20000; crc32 = "0x47d77d3c" }
+            )
+            store = [pscustomobject]@{
+                name = "appstore"
+                kind = "store_v1"
+                path = "appstore.bin"
+                size = 173184
+                crc32 = "0xd5cc3f4e"
+            }
+            includes = @(
+                [pscustomobject]@{ name = "appstore.bin"; kind = "generated_inc"; path = "appstore.bin.inc"; size = 1111376; crc32 = "0x5d3f9465" },
+                [pscustomobject]@{ name = "hello_app.elf"; kind = "generated_inc"; path = "hello_app.elf.inc"; size = 33034; crc32 = "0x82bd53fa" }
+            ) + @(1..30 | ForEach-Object {
+                    [pscustomobject]@{ name = "synthetic_$_.elf"; kind = "generated_inc"; path = "synthetic_$_.elf.inc"; size = 1; crc32 = "0x00000001" }
+                })
+        }
         coverage = [pscustomobject]@{
             runs = 1..87
             stages = 1..36
@@ -1340,6 +1370,53 @@ function Read-QemuElfDomainSummary {
         [int]$Summary.store.media.read_failures -ne 0) {
         throw "qemu_elf_summary_invalid: bad store media"
     }
+    if ($null -eq $Summary.artifacts -or
+        [int]$Summary.artifacts.app_count -ne 31 -or
+        [int]$Summary.artifacts.store_app_count -ne 30 -or
+        [int]$Summary.artifacts.include_count -ne 32) {
+        throw "qemu_elf_summary_invalid: bad artifacts summary"
+    }
+    $ArtifactApps = @($Summary.artifacts.apps)
+    $ArtifactExtra = @($Summary.artifacts.extra)
+    $ArtifactIncludes = @($Summary.artifacts.includes)
+    if ($ArtifactApps.Count -ne 31 -or
+        $ArtifactExtra.Count -ne 1 -or
+        $ArtifactIncludes.Count -ne 32) {
+        throw "qemu_elf_summary_invalid: bad artifact array counts"
+    }
+    foreach ($ExpectedArtifact in @(
+            [pscustomobject]@{ name = "hello_app"; kind = "elf"; size = 5132 },
+            [pscustomobject]@{ name = "player_min"; kind = "elf"; size = 5168 },
+            [pscustomobject]@{ name = "large_fit_app"; kind = "elf"; size = 5168 },
+            [pscustomobject]@{ name = "too_large_app"; kind = "elf"; size = 4868 }
+        )) {
+        $Matches = @($ArtifactApps | Where-Object { $_.name -eq $ExpectedArtifact.name })
+        if ($Matches.Count -ne 1 -or
+            $Matches[0].kind -ne $ExpectedArtifact.kind -or
+            [int]$Matches[0].size -ne [int]$ExpectedArtifact.size -or
+            (([string]$Matches[0].crc32) -notmatch '^0x[0-9a-f]{8}$')) {
+            throw "qemu_elf_summary_invalid: bad artifact $($ExpectedArtifact.name)"
+        }
+    }
+    $TooLargeStoreArtifact = @($ArtifactExtra | Where-Object { $_.name -eq "too_large_store_app" })
+    if ($TooLargeStoreArtifact.Count -ne 1 -or
+        $TooLargeStoreArtifact[0].kind -ne "elf" -or
+        [int]$TooLargeStoreArtifact[0].size -ne 20000 -or
+        (([string]$TooLargeStoreArtifact[0].crc32) -notmatch '^0x[0-9a-f]{8}$')) {
+        throw "qemu_elf_summary_invalid: bad too_large_store_app artifact"
+    }
+    if ($Summary.artifacts.store.name -ne "appstore" -or
+        $Summary.artifacts.store.kind -ne "store_v1" -or
+        [int]$Summary.artifacts.store.size -ne [int]$Summary.store.bytes -or
+        (([string]$Summary.artifacts.store.crc32) -notmatch '^0x[0-9a-f]{8}$')) {
+        throw "qemu_elf_summary_invalid: bad store artifact"
+    }
+    foreach ($ExpectedInclude in @("appstore.bin", "hello_app.elf")) {
+        $Matches = @($ArtifactIncludes | Where-Object { $_.name -eq $ExpectedInclude -and $_.kind -eq "generated_inc" })
+        if ($Matches.Count -ne 1 -or [int]$Matches[0].size -le 0 -or (([string]$Matches[0].crc32) -notmatch '^0x[0-9a-f]{8}$')) {
+            throw "qemu_elf_summary_invalid: bad include artifact $ExpectedInclude"
+        }
+    }
     if ([int]$Summary.evidence.frame_signature_count -ne 8 -or
         [int]$Summary.evidence.frame_signature_run_count -ne 6 -or
         [int]$Summary.evidence.frame_dump_count -ne 8 -or
@@ -1422,14 +1499,28 @@ function Read-QemuElfDomainSummary {
             [pscustomobject]@{ name = "packetstream:player_min"; link_base = "0x20080000"; entry_vaddr = "0x20080001"; base_match = $true },
             [pscustomobject]@{ name = "wrong_link_base_app"; link_base = "0x20081000"; entry_vaddr = "0x20081021"; base_match = $false }
         )) {
-        $Load = Get-QemuElfLoadCase -Loads @($Summary.coverage.loads) -Name $Expected.name
-        $LinkBaseSummaryParts += (Assert-QemuElfLinkBaseSummary `
+            $Load = Get-QemuElfLoadCase -Loads @($Summary.coverage.loads) -Name $Expected.name
+            $LinkBaseSummaryParts += (Assert-QemuElfLinkBaseSummary `
                 -Load $Load `
                 -LinkBase $Expected.link_base `
                 -ExpectedBase "0x20080000" `
                 -EntryVaddr $Expected.entry_vaddr `
                 -BaseMatch $Expected.base_match)
     }
+    $ArtifactSummaryParts = @(
+        ("apps={0}" -f ([int]$Summary.artifacts.app_count)),
+        ("store_apps={0}" -f ([int]$Summary.artifacts.store_app_count)),
+        ("includes={0}" -f ([int]$Summary.artifacts.include_count)),
+        ("store={0}:{1}" -f ([int]$Summary.artifacts.store.size), ([string]$Summary.artifacts.store.crc32))
+    )
+    foreach ($Name in @("hello_app", "player_min", "large_fit_app", "too_large_app")) {
+        $Artifact = @($Summary.artifacts.apps | Where-Object { $_.name -eq $Name })[0]
+        $ArtifactSummaryParts += ("{0}={1}:{2}" -f $Name, ([int]$Artifact.size), ([string]$Artifact.crc32))
+    }
+    $TooLargeStoreArtifactForSummary = @($Summary.artifacts.extra | Where-Object { $_.name -eq "too_large_store_app" })[0]
+    $ArtifactSummaryParts += ("too_large_store_app={0}:{1}" -f `
+        ([int]$TooLargeStoreArtifactForSummary.size), `
+        ([string]$TooLargeStoreArtifactForSummary.crc32))
     $EquivalentSourceSummaryParts = @()
     foreach ($Name in @("hello_app", "large_fit_app", "player_min")) {
         $EquivalentSourceSummaryParts += (Assert-QemuElfEquivalentSourceLoads -Loads @($Summary.coverage.loads) -Name $Name)
@@ -1631,6 +1722,7 @@ function Read-QemuElfDomainSummary {
             ([int]$TooLargeLoad.free), `
             $TooLargeFits, `
             ([string]$TooLargeLoad.capacity_probe))
+        Artifacts = ($ArtifactSummaryParts -join ";")
         Loads = ($LoadSummaryParts -join ";")
         LinkBase = (($LinkBaseSummaryParts -join ";") + ":source:load/load_failed")
         EquivalentSources = ($EquivalentSourceSummaryParts -join ";")
@@ -1683,6 +1775,7 @@ function Write-QemuElfSummaryLines {
         Write-BundleLine -Lines $Lines -Text "qemu_elf_display=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_evidence=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_capacity=skipped"
+        Write-BundleLine -Lines $Lines -Text "qemu_elf_artifacts=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_link_base=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_loads=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_equivalent_sources=skipped"
@@ -1707,6 +1800,7 @@ function Write-QemuElfSummaryLines {
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_display={0}" -f $QemuElfSummary.Display)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_evidence={0}" -f $QemuElfSummary.Evidence)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_capacity={0}" -f $QemuElfSummary.Capacity)
+    Write-BundleLine -Lines $Lines -Text ("qemu_elf_artifacts={0}" -f $QemuElfSummary.Artifacts)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_link_base={0}" -f $QemuElfSummary.LinkBase)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_loads={0}" -f $QemuElfSummary.Loads)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_equivalent_sources={0}" -f $QemuElfSummary.EquivalentSources)

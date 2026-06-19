@@ -3899,7 +3899,19 @@ function Invoke-SelfTest {
     if ($RequiredIncFiles.Count -ne ((Get-QemuAppNames).Count + 1)) {
         throw "selftest_failed: QEMU required inc list count is unexpected"
     }
+    $QemuAppSpecs = @(Get-QemuAppSpecs)
+    $QemuAppNames = @($QemuAppSpecs | ForEach-Object { $_.Name })
+    if (@($QemuAppNames | Sort-Object -Unique).Count -ne $QemuAppNames.Count) {
+        throw "selftest_failed: QEMU App specs contain duplicate names"
+    }
+    $NonStoreAppNames = @($QemuAppSpecs | Where-Object { -not [bool]$_.Store } | ForEach-Object { $_.Name })
+    if ($NonStoreAppNames.Count -ne 1 -or $NonStoreAppNames[0] -ne "too_large_app") {
+        throw "selftest_failed: QEMU non-Store App specs are unexpected"
+    }
     foreach ($Spec in (Get-QemuAppSpecs)) {
+        if ($Spec.SourceRoot -ne "qemu" -and $Spec.SourceRoot -ne "samples") {
+            throw "selftest_failed: QEMU App source root is unexpected: $($Spec.SourceRoot)"
+        }
         $ExpectedSource = Resolve-QemuAppSource -Spec $Spec -AppSampleDir $AppSampleDir
         if (-not (Test-Path -LiteralPath $ExpectedSource)) {
             throw "selftest_failed: QEMU App source is missing: $ExpectedSource"
@@ -3930,6 +3942,8 @@ function Invoke-SelfTest {
         "storage_zero_io_app",
         "exit_negative_app",
         "return_negative_app",
+        "Get-QemuAppSpecs",
+        "CHARM_QEMU_REQUIRED_INC_FILES",
         "virtual_m7"
     )) {
         if (-not $ReadmeText.Contains($RequiredReadmeToken)) {

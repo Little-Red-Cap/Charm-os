@@ -2498,6 +2498,26 @@ function New-SelfTestSourceMatrixEntry {
     }
 }
 
+function Assert-BadDomainSummaryRejected {
+    param(
+        [string]$SourcePath,
+        [string]$Label,
+        [scriptblock]$Mutate
+    )
+
+    $TempPath = Join-Path ([System.IO.Path]::GetTempPath()) ("charm_resident_elf_qemu_bad_domain_{0}.json" -f $Label)
+    $Summary = Get-Content -LiteralPath $SourcePath -Raw -Encoding UTF8 | ConvertFrom-Json
+    & $Mutate $Summary
+    try {
+        [System.IO.File]::WriteAllText($TempPath, (($Summary | ConvertTo-Json -Depth 16) + "`n"), [System.Text.UTF8Encoding]::new($false))
+        if (-not (Test-SelfTestThrowsLike -Prefix "domain_summary_validate_failed:" -Script { Validate-DomainSummaryFile -Path $TempPath })) {
+            throw "selftest_failed: bad domain summary '$Label' validated unexpectedly"
+        }
+    } finally {
+        Remove-Item -LiteralPath $TempPath -Force -ErrorAction SilentlyContinue
+    }
+}
+
 function Assert-GuiTimelineEntry {
     param(
         [object[]]$Timeline,
@@ -3021,6 +3041,14 @@ function Invoke-SelfTest {
     [void](Validate-InputTraceFile -Path $GoldenInputTraceFile)
     [void](Validate-StorageTraceFile -Path $GoldenStorageTraceFile)
     [void](Validate-DomainSummaryFile -Path $GoldenDomainSummaryFile)
+    Assert-BadDomainSummaryRejected -SourcePath $GoldenDomainSummaryFile -Label "app_model" -Mutate {
+        param($Summary)
+        $Summary.app_model = "RawJump"
+    }
+    Assert-BadDomainSummaryRejected -SourcePath $GoldenDomainSummaryFile -Label "packetstream_crc" -Mutate {
+        param($Summary)
+        ($Summary.coverage.packetstreams | Where-Object { $_.name -eq "packetstream_crc_mismatch" }).read_code = "ok"
+    }
 
     $CMakePath = Resolve-ToolPath -Tool $CMakeExe
     $QemuPath = Resolve-ToolPath -Tool $QemuExe

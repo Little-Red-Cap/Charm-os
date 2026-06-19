@@ -314,6 +314,41 @@ function Invoke-SelfTest {
             capabilities = @("console", "time", "display", "input", "storage", "app_exit")
             storage = "readonly"
             afe = "unsupported"
+            time = [pscustomobject]@{
+                kind = "deterministic_tick"
+                start_ms = 1000
+                step_ms = 17
+                reset_per_run = $true
+            }
+            display = [pscustomobject]@{
+                kind = "framebuffer"
+                width = 16
+                height = 16
+                stride_bytes = 64
+                format = "argb8888"
+                frame_bytes = 1024
+                evidence = @("frame_signatures", "frame_dumps", "frame_ppm", "gui_timeline")
+            }
+            input = [pscustomobject]@{
+                kind = "deterministic_sequence"
+                sample_count = 4
+                pointer_max_x = 15
+                pointer_max_y = 15
+                wraps = $true
+                evidence = @("input_trace", "gui_timeline")
+            }
+            storage_media = [pscustomobject]@{
+                kind = "virtual_readonly_files"
+                file_count = 3
+                fd_base = 3
+                fd_slots = 4
+                write_policy = "unsupported"
+                evidence = @("storage_trace")
+            }
+            app_exit = [pscustomobject]@{
+                kind = "notification_counter"
+                overrides_return = $false
+            }
         }
         run_region = [pscustomobject]@{
             base = "0x20080000"
@@ -751,6 +786,7 @@ function Invoke-SelfTest {
         if ($ParsedQemu.Domain -ne "virtual_m7" -or
             $ParsedQemu.AppModel -ne "format=elf:model=CharmAppApi" -or
             $ParsedQemu.Backend -ne "virtual:virtual_m7:console,time,display,input,storage,app_exit:storage=readonly:afe=unsupported" -or
+            $ParsedQemu.BackendContract -ne "time=deterministic_tick:1000+17:reset=1;display=framebuffer:16x16:argb8888:stride=64:frame=1024:evidence=frame_signatures,frame_dumps,frame_ppm,gui_timeline;input=deterministic_sequence:samples=4:max=15,15:wraps=1:evidence=input_trace,gui_timeline;storage=virtual_readonly_files:files=3:fd=3+4:write=unsupported:evidence=storage_trace;app_exit=notification_counter:overrides_return=0" -or
             $ParsedQemu.Memory -ne "run_base=0x20080000:run_size=65536:stage_cache=16384" -or
             $ParsedQemu.Store -ne "store_v1:entries=31:bytes=173184:media=memory:reads=589:read_bytes=175332:failures=0" -or
             $ParsedQemu.Display -ne "16x16:argb8888:stride=64:frame=1024" -or
@@ -788,6 +824,7 @@ function Invoke-SelfTest {
         Test-BadQemuSummary -Label "schema" -Mutate { param($Summary) $Summary.schema = "bad" }
         Test-BadQemuSummary -Label "app_model" -Mutate { param($Summary) $Summary.app_model = "RawJump" }
         Test-BadQemuSummary -Label "backend_contract" -Mutate { param($Summary) $Summary.backend_contract.storage = "writeable" }
+        Test-BadQemuSummary -Label "backend_contract_time" -Mutate { param($Summary) $Summary.backend_contract.time.step_ms = 16 }
         Test-BadQemuSummary -Label "run_region" -Mutate { param($Summary) $Summary.run_region.size = 32768 }
         Test-BadQemuSummary -Label "stage_cache" -Mutate { param($Summary) $Summary.stage_cache.bytes = 8192 }
         Test-BadQemuSummary -Label "store_media" -Mutate { param($Summary) $Summary.store.media.read_failures = 1 }
@@ -1038,6 +1075,51 @@ function Read-QemuElfDomainSummary {
     if ($BackendCapabilities.Count -ne $ExpectedBackendCapabilities.Count) {
         throw "qemu_elf_summary_invalid: unexpected backend capability count"
     }
+    $BackendDisplayEvidence = @($Summary.backend_contract.display.evidence)
+    $BackendInputEvidence = @($Summary.backend_contract.input.evidence)
+    $BackendStorageEvidence = @($Summary.backend_contract.storage_media.evidence)
+    if ($Summary.backend_contract.time.kind -ne "deterministic_tick" -or
+        [int]$Summary.backend_contract.time.start_ms -ne 1000 -or
+        [int]$Summary.backend_contract.time.step_ms -ne 17 -or
+        -not [bool]$Summary.backend_contract.time.reset_per_run) {
+        throw "qemu_elf_summary_invalid: bad time backend_contract"
+    }
+    if ($Summary.backend_contract.display.kind -ne "framebuffer" -or
+        [int]$Summary.backend_contract.display.width -ne 16 -or
+        [int]$Summary.backend_contract.display.height -ne 16 -or
+        [int]$Summary.backend_contract.display.stride_bytes -ne 64 -or
+        $Summary.backend_contract.display.format -ne "argb8888" -or
+        [int]$Summary.backend_contract.display.frame_bytes -ne 1024 -or
+        $BackendDisplayEvidence.Count -ne 4 -or
+        -not ($BackendDisplayEvidence -contains "frame_signatures") -or
+        -not ($BackendDisplayEvidence -contains "frame_dumps") -or
+        -not ($BackendDisplayEvidence -contains "frame_ppm") -or
+        -not ($BackendDisplayEvidence -contains "gui_timeline")) {
+        throw "qemu_elf_summary_invalid: bad display backend_contract"
+    }
+    if ($Summary.backend_contract.input.kind -ne "deterministic_sequence" -or
+        [int]$Summary.backend_contract.input.sample_count -ne 4 -or
+        [int]$Summary.backend_contract.input.pointer_max_x -ne 15 -or
+        [int]$Summary.backend_contract.input.pointer_max_y -ne 15 -or
+        -not [bool]$Summary.backend_contract.input.wraps -or
+        $BackendInputEvidence.Count -ne 2 -or
+        -not ($BackendInputEvidence -contains "input_trace") -or
+        -not ($BackendInputEvidence -contains "gui_timeline")) {
+        throw "qemu_elf_summary_invalid: bad input backend_contract"
+    }
+    if ($Summary.backend_contract.storage_media.kind -ne "virtual_readonly_files" -or
+        [int]$Summary.backend_contract.storage_media.file_count -ne 3 -or
+        [int]$Summary.backend_contract.storage_media.fd_base -ne 3 -or
+        [int]$Summary.backend_contract.storage_media.fd_slots -ne 4 -or
+        $Summary.backend_contract.storage_media.write_policy -ne "unsupported" -or
+        $BackendStorageEvidence.Count -ne 1 -or
+        -not ($BackendStorageEvidence -contains "storage_trace")) {
+        throw "qemu_elf_summary_invalid: bad storage backend_contract"
+    }
+    if ($Summary.backend_contract.app_exit.kind -ne "notification_counter" -or
+        [bool]$Summary.backend_contract.app_exit.overrides_return) {
+        throw "qemu_elf_summary_invalid: bad app_exit backend_contract"
+    }
     if ($Summary.run_region.base -ne "0x20080000" -or
         $Summary.run_region.expected -ne "0x20080000" -or
         [int]$Summary.run_region.size -ne 65536) {
@@ -1095,6 +1177,9 @@ function Read-QemuElfDomainSummary {
     }
     $LargeFitFits = if ([bool]$LargeFitLoad.fits) { "1" } else { "0" }
     $TooLargeFits = if ([bool]$TooLargeLoad.fits) { "1" } else { "0" }
+    $TimeResetToken = if ([bool]$Summary.backend_contract.time.reset_per_run) { "1" } else { "0" }
+    $InputWrapsToken = if ([bool]$Summary.backend_contract.input.wraps) { "1" } else { "0" }
+    $AppExitOverridesToken = if ([bool]$Summary.backend_contract.app_exit.overrides_return) { "1" } else { "0" }
     $LoadSummaryParts = @()
     foreach ($Expected in @(
             [pscustomobject]@{ name = "hello_app"; probe = "ok"; entry = "0x20080021"; span = 270; segments = 2; fits = $true },
@@ -1273,6 +1358,32 @@ function Read-QemuElfDomainSummary {
             ($BackendCapabilities -join ","), `
             ([string]$Summary.backend_contract.storage), `
             ([string]$Summary.backend_contract.afe))
+        BackendContract = ("time={0}:{1}+{2}:reset={3};display={4}:{5}x{6}:{7}:stride={8}:frame={9}:evidence={10};input={11}:samples={12}:max={13},{14}:wraps={15}:evidence={16};storage={17}:files={18}:fd={19}+{20}:write={21}:evidence={22};app_exit={23}:overrides_return={24}" -f `
+            ([string]$Summary.backend_contract.time.kind), `
+            ([int]$Summary.backend_contract.time.start_ms), `
+            ([int]$Summary.backend_contract.time.step_ms), `
+            $TimeResetToken, `
+            ([string]$Summary.backend_contract.display.kind), `
+            ([int]$Summary.backend_contract.display.width), `
+            ([int]$Summary.backend_contract.display.height), `
+            ([string]$Summary.backend_contract.display.format), `
+            ([int]$Summary.backend_contract.display.stride_bytes), `
+            ([int]$Summary.backend_contract.display.frame_bytes), `
+            ($BackendDisplayEvidence -join ","), `
+            ([string]$Summary.backend_contract.input.kind), `
+            ([int]$Summary.backend_contract.input.sample_count), `
+            ([int]$Summary.backend_contract.input.pointer_max_x), `
+            ([int]$Summary.backend_contract.input.pointer_max_y), `
+            $InputWrapsToken, `
+            ($BackendInputEvidence -join ","), `
+            ([string]$Summary.backend_contract.storage_media.kind), `
+            ([int]$Summary.backend_contract.storage_media.file_count), `
+            ([int]$Summary.backend_contract.storage_media.fd_base), `
+            ([int]$Summary.backend_contract.storage_media.fd_slots), `
+            ([string]$Summary.backend_contract.storage_media.write_policy), `
+            ($BackendStorageEvidence -join ","), `
+            ([string]$Summary.backend_contract.app_exit.kind), `
+            $AppExitOverridesToken)
         Memory = ("run_base={0}:run_size={1}:stage_cache={2}" -f `
             ([string]$Summary.run_region.base), `
             ([int]$Summary.run_region.size), `
@@ -1351,6 +1462,7 @@ function Write-QemuElfSummaryLines {
         Write-BundleLine -Lines $Lines -Text "qemu_elf_domain=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_app_model=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_backend=skipped"
+        Write-BundleLine -Lines $Lines -Text "qemu_elf_backend_contract=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_memory=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_store=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_display=skipped"
@@ -1372,6 +1484,7 @@ function Write-QemuElfSummaryLines {
         $QemuElfSummary.Cpu)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_app_model={0}" -f $QemuElfSummary.AppModel)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_backend={0}" -f $QemuElfSummary.Backend)
+    Write-BundleLine -Lines $Lines -Text ("qemu_elf_backend_contract={0}" -f $QemuElfSummary.BackendContract)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_memory={0}" -f $QemuElfSummary.Memory)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_store={0}" -f $QemuElfSummary.Store)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_display={0}" -f $QemuElfSummary.Display)

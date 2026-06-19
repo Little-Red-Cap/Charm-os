@@ -798,14 +798,15 @@ meaning. QEMU evidence is off-board semantic evidence for the ELF/AppRuntime
 chain; it does not replace real-board USB, Store, SDRAM, eMMC, or HAL evidence.
 When `-QemuElf` is enabled, the bundle summary expands `domain-summary.json`
 into `qemu_elf_mode`, `qemu_elf_domain`, `qemu_elf_app_model`,
-`qemu_elf_backend`, `qemu_elf_memory`, `qemu_elf_store`, `qemu_elf_display`,
-`qemu_elf_evidence`, `qemu_elf_capacity`, `qemu_elf_loads`,
-`qemu_elf_packetstreams`, `qemu_elf_domain_golden`, `qemu_elf_sources`,
-`qemu_elf_coverage`, and `qemu_elf_player_min_gui` tokens so archived logs expose whether QEMU was
+`qemu_elf_backend`, `qemu_elf_backend_contract`, `qemu_elf_memory`,
+`qemu_elf_store`, `qemu_elf_display`, `qemu_elf_evidence`,
+`qemu_elf_capacity`, `qemu_elf_loads`, `qemu_elf_packetstreams`,
+`qemu_elf_domain_golden`, `qemu_elf_sources`, `qemu_elf_coverage`, and
+`qemu_elf_player_min_gui` tokens so archived logs expose whether QEMU was
 rebuilt and launched (`build_and_run`) or reused from an existing capture
 (`validate_existing_evidence`), plus the fixed App model
-(`format=elf:model=CharmAppApi`), virtual backend contract, ELF load memory
-boundary, Store media, frame/input/storage evidence counts,
+(`format=elf:model=CharmAppApi`), virtual backend identity, detailed backend
+contract, ELF load memory boundary, Store media, frame/input/storage evidence counts,
 near-limit/over-limit ELF capacity, representative ELF loader
 entry/span/segment/fits facts, packetstream payload/CRC and failure-boundary
 facts, domain-summary golden comparison, and the

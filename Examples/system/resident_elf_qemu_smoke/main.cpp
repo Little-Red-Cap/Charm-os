@@ -10,6 +10,7 @@
 #include "argv_app.elf.inc"
 #include "bss_app.elf.inc"
 #include "data_app.elf.inc"
+#include "display_error_app.elf.inc"
 #include "display_sequence_app.elf.inc"
 #include "exit_app.elf.inc"
 #include "hello_app.elf.inc"
@@ -37,7 +38,7 @@ namespace qemu_backend = resident_elf_qemu;
 inline constexpr std::uintptr_t kQemuRunRegionBase = 0x20080000U;
 inline constexpr std::size_t kQemuRunRegionSize = 64U * 1024U;
 inline constexpr std::size_t kQemuStageCacheSize = 16U * 1024U;
-inline constexpr std::uint32_t kQemuStoreEntryCount = 14U;
+inline constexpr std::uint32_t kQemuStoreEntryCount = 15U;
 
 alignas(16) __attribute__((section(".elf_load")))
 static std::byte g_elf_load_region[kQemuRunRegionSize];
@@ -1382,6 +1383,8 @@ extern "C" int resident_elf_qemu_main() {
     ok = run_store_app("storage_app", "") && ok;
     ok = run_direct_app("storage_catalog_app", storage_catalog_app_elf, storage_catalog_app_elf_len, "") && ok;
     ok = run_store_app("storage_catalog_app", "") && ok;
+    ok = run_direct_app("display_error_app", display_error_app_elf, display_error_app_elf_len, "") && ok;
+    ok = run_store_app("display_error_app", "") && ok;
     ok = run_direct_app("display_sequence_app", display_sequence_app_elf, display_sequence_app_elf_len, "") && ok;
     ok = run_store_app("display_sequence_app", "") && ok;
     ok = run_direct_app("input_sequence_app", input_sequence_app_elf, input_sequence_app_elf_len, "") && ok;

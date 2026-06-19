@@ -169,15 +169,23 @@ int display_describe(CharmAppDisplayMode* out_mode) {
 
 int display_present(const void* pixels, std::uint32_t bytes) {
     ++g_capability_counters.display_present;
+    constexpr std::uint32_t kFrameBytes = 16U * 16U * 4U;
+    if (pixels == nullptr || bytes != kFrameBytes) {
+        write("resident-elf-qemu: display present bytes=");
+        write_dec(bytes);
+        write(" code=invalid_argument expected=");
+        write_dec(kFrameBytes);
+        write("\n");
+        return CHARM_APP_STATUS_INVALID_ARGUMENT;
+    }
+
     std::uint32_t checksum = 0U;
     std::uint32_t hash = 2166136261U;
-    if (pixels != nullptr) {
-        const auto* data = static_cast<const unsigned char*>(pixels);
-        for (std::uint32_t i = 0; i < bytes; ++i) {
-            checksum = (checksum + data[i]) & 0xffffffffU;
-            hash ^= data[i];
-            hash *= 16777619U;
-        }
+    const auto* data = static_cast<const unsigned char*>(pixels);
+    for (std::uint32_t i = 0; i < bytes; ++i) {
+        checksum = (checksum + data[i]) & 0xffffffffU;
+        hash ^= data[i];
+        hash *= 16777619U;
     }
     g_capability_counters.display_checksum = checksum;
     g_capability_counters.display_checksum_total =
@@ -195,23 +203,20 @@ int display_present(const void* pixels, std::uint32_t bytes) {
     write(" frame=");
     write_dec(g_capability_counters.display_frame_index);
     write("\n");
-    if (pixels != nullptr) {
-        const auto* data = static_cast<const unsigned char*>(pixels);
-        write("resident-elf-qemu: display dump bytes=");
-        write_dec(bytes);
-        write(" checksum=");
-        write_dec(checksum);
-        write(" hash=");
-        write_hex32(hash);
-        write(" frame=");
-        write_dec(g_capability_counters.display_frame_index);
-        write(" hex=");
-        for (std::uint32_t i = 0; i < bytes; ++i) {
-            write_hex_byte(data[i]);
-        }
-        write("\n");
+    write("resident-elf-qemu: display dump bytes=");
+    write_dec(bytes);
+    write(" checksum=");
+    write_dec(checksum);
+    write(" hash=");
+    write_hex32(hash);
+    write(" frame=");
+    write_dec(g_capability_counters.display_frame_index);
+    write(" hex=");
+    for (std::uint32_t i = 0; i < bytes; ++i) {
+        write_hex_byte(data[i]);
     }
-    return bytes == (16U * 16U * 4U) ? CHARM_APP_STATUS_OK : CHARM_APP_STATUS_INVALID_ARGUMENT;
+    write("\n");
+    return CHARM_APP_STATUS_OK;
 }
 
 int input_poll(CharmAppInputState* out_state) {

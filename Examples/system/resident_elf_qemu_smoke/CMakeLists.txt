@@ -18,6 +18,7 @@ set(CHARM_QEMU_REQUIRED_INC_FILES
     argv_app.elf.inc
     bss_app.elf.inc
     data_app.elf.inc
+    display_error_app.elf.inc
     display_sequence_app.elf.inc
     exit_app.elf.inc
     hello_app.elf.inc

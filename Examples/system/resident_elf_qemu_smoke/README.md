@@ -509,11 +509,12 @@ chain; it does not replace real-board USB, Store, SDRAM, eMMC, or HAL evidence.
 When `-QemuElf` is enabled, the bundle summary expands `domain-summary.json`
 into `qemu_elf_mode`, `qemu_elf_domain`, `qemu_elf_backend`, `qemu_elf_memory`,
 `qemu_elf_store`, `qemu_elf_display`, `qemu_elf_evidence`,
-`qemu_elf_capacity`, `qemu_elf_domain_golden`, `qemu_elf_sources`,
-`qemu_elf_coverage`, and `qemu_elf_player_min_gui` tokens so archived logs
-expose whether QEMU was rebuilt and launched (`build_and_run`) or reused from
-an existing capture (`validate_existing_evidence`), plus the virtual backend
-contract, ELF load memory boundary, Store media, frame/input/storage evidence
-counts, near-limit/over-limit ELF capacity, domain-summary golden comparison,
-and the direct/received/packetstream/store source matrix without opening the
-JSON file.
+`qemu_elf_capacity`, `qemu_elf_packetstreams`, `qemu_elf_domain_golden`,
+`qemu_elf_sources`, `qemu_elf_coverage`, and `qemu_elf_player_min_gui` tokens
+so archived logs expose whether QEMU was rebuilt and launched
+(`build_and_run`) or reused from an existing capture
+(`validate_existing_evidence`), plus the virtual backend contract, ELF load
+memory boundary, Store media, frame/input/storage evidence counts,
+near-limit/over-limit ELF capacity, packetstream payload/CRC and
+failure-boundary facts, domain-summary golden comparison, and the
+direct/received/packetstream/store source matrix without opening the JSON file.

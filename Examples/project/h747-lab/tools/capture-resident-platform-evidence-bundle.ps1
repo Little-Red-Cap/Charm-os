@@ -260,6 +260,45 @@ function Invoke-SelfTest {
         }
     }
 
+    function New-SelfTestQemuPacketstream {
+        param(
+            [string]$Name,
+            [string]$Transport,
+            [string]$Packet,
+            [string]$Stage,
+            [string]$Code,
+            [int]$Payload,
+            [int]$Stream,
+            [int]$Packets,
+            [int]$Dispatch,
+            [string]$ActualCrc,
+            [string]$ExpectedCrc,
+            [string]$ReadCode = "",
+            [int]$ReadBytes = 0,
+            [string]$AppStageCode = "",
+            [string]$AppStageFormat = "",
+            [int]$AppStageBytes = 0
+        )
+        return [pscustomobject]@{
+            name = $Name
+            transport = $Transport
+            packet = $Packet
+            receive_stage = $Stage
+            receive_code = $Code
+            payload = $Payload
+            stream = $Stream
+            packets = $Packets
+            dispatch = $Dispatch
+            actual_crc = $ActualCrc
+            expected_crc = $ExpectedCrc
+            read_code = $ReadCode
+            read_bytes = $ReadBytes
+            app_stage_code = $AppStageCode
+            app_stage_format = $AppStageFormat
+            app_stage_bytes = $AppStageBytes
+        }
+    }
+
     $TempSummary = Join-Path ([System.IO.Path]::GetTempPath()) "charm_qemu_domain_summary_selftest.json"
     $TempQemuLog = Join-Path ([System.IO.Path]::GetTempPath()) "charm_qemu_domain_summary_selftest.log"
     $GoodSummary = [pscustomobject]@{
@@ -322,6 +361,13 @@ function Invoke-SelfTest {
                 (New-SelfTestQemuSourceCase -Name "too_large_app" -Direct (New-SelfTestQemuRun -Stage "load" -Code "load_failed")),
                 (New-SelfTestQemuSourceCase -Name "player_min" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Received (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Packetstream (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok"))
             )
+            packetstreams = @(
+                (New-SelfTestQemuPacketstream -Name "hello_app" -Transport "ok" -Packet "ok" -Stage "launch_ready" -Code "ok" -Payload 5132 -Stream 5776 -Packets 23 -Dispatch 23 -ActualCrc "0xb3b7bcc5" -ExpectedCrc "0xb3b7bcc5" -ReadCode "ok" -ReadBytes 5132 -AppStageCode "ok" -AppStageFormat "elf" -AppStageBytes 5132),
+                (New-SelfTestQemuPacketstream -Name "large_fit_app" -Transport "ok" -Packet "ok" -Stage "launch_ready" -Code "ok" -Payload 5168 -Stream 5840 -Packets 24 -Dispatch 24 -ActualCrc "0xdffdfba1" -ExpectedCrc "0xdffdfba1" -ReadCode "ok" -ReadBytes 5168 -AppStageCode "ok" -AppStageFormat "elf" -AppStageBytes 5168),
+                (New-SelfTestQemuPacketstream -Name "packetstream_crc_mismatch" -Transport "packet_failed" -Packet "receive_failed" -Stage "failed" -Code "crc_mismatch" -Payload 5132 -Stream 5776 -Packets 23 -Dispatch 22 -ActualCrc "0x7d9c7647" -ExpectedCrc "0xb3b7bcc5"),
+                (New-SelfTestQemuPacketstream -Name "packetstream_bad_elf_magic_app" -Transport "ok" -Packet "ok" -Stage "launch_ready" -Code "ok" -Payload 64 -Stream 176 -Packets 4 -Dispatch 4 -ActualCrc "0xbd40f3c7" -ExpectedCrc "0xbd40f3c7" -ReadCode "ok" -ReadBytes 64 -AppStageCode "ok" -AppStageFormat "elf" -AppStageBytes 64),
+                (New-SelfTestQemuPacketstream -Name "player_min" -Transport "ok" -Packet "ok" -Stage "launch_ready" -Code "ok" -Payload 5168 -Stream 5840 -Packets 24 -Dispatch 24 -ActualCrc "0xba5eb94a" -ExpectedCrc "0xba5eb94a" -ReadCode "ok" -ReadBytes 5168 -AppStageCode "ok" -AppStageFormat "elf" -AppStageBytes 5168)
+            )
             loads = @(
                 [pscustomobject]@{
                     name = "large_fit_app"
@@ -378,6 +424,7 @@ function Invoke-SelfTest {
             $ParsedQemu.Display -ne "16x16:argb8888:stride=64:frame=1024" -or
             $ParsedQemu.Evidence -ne "frames=8/6:dumps=8/6:ppm=8/6:input=12/6:storage=49/6" -or
             $ParsedQemu.Capacity -ne "large_fit=61696/65536:free=3840:fits=1:probe=ok;too_large=82176/65536:free=0:fits=0:probe=load_buffer_too_small" -or
+            $ParsedQemu.Packetstreams -ne "hello_app=payload:5132:stream:5776:packets:23:crc:0xb3b7bcc5;large_fit_app=payload:5168:stream:5840:packets:24:crc:0xdffdfba1;packetstream_bad_elf_magic_app=payload:64:stream:176:packets:4:crc:0xbd40f3c7;player_min=payload:5168:stream:5840:packets:24:crc:0xba5eb94a;packetstream_crc_mismatch=stage:failed/crc_mismatch:dispatch:22/23:crc:0x7d9c7647->0xb3b7bcc5:read:0:stage_bytes:0" -or
             $ParsedQemu.Sources -ne "hello_app=direct,received,packetstream,store:exit/ok;large_fit_app=direct,received,packetstream,store:exit/ok;player_min=direct,received,packetstream,store:exit/ok;argv_app=direct,store:exit/ok:prepare=start/ok:argc=4;negatives=argv_overflow_app:direct=argv/argv_overflow,abi_mismatch_app:direct=abi/abi_mismatch,bad_elf_magic_app:direct=load/load_failed,packetstream_bad_elf_magic_app:packetstream=load/load_failed,too_large_app:direct=load/load_failed" -or
             $DomainGolden -ne "ok" -or
             $ParsedQemu.GuiTimeline -ne 4 -or
@@ -410,6 +457,7 @@ function Invoke-SelfTest {
         Test-BadQemuSummary -Label "store_media" -Mutate { param($Summary) $Summary.store.media.read_failures = 1 }
         Test-BadQemuSummary -Label "evidence_counts" -Mutate { param($Summary) $Summary.evidence.frame_signature_count = 7 }
         Test-BadQemuSummary -Label "capacity" -Mutate { param($Summary) ($Summary.coverage.loads | Where-Object { $_.name -eq "too_large_app" }).fits = $true }
+        Test-BadQemuSummary -Label "packetstream_crc_mismatch" -Mutate { param($Summary) ($Summary.coverage.packetstreams | Where-Object { $_.name -eq "packetstream_crc_mismatch" }).read_code = "ok" }
         Test-BadQemuSummary -Label "source_matrix" -Mutate { param($Summary) ($Summary.coverage.source_matrix | Where-Object { $_.name -eq "player_min" }).packetstream.code = "load_failed" }
         Test-BadQemuSummary -Label "gui_timeline" -Mutate { param($Summary) $Summary.coverage.gui_timeline = @($Summary.coverage.gui_timeline | Where-Object { $_.name -ne "store:player_min" }) }
         [System.IO.File]::WriteAllText($TempQemuLog, "resident-elf-qemu domain summary validation ok`n", [System.Text.UTF8Encoding]::new($false))
@@ -480,6 +528,49 @@ function Assert-QemuElfSourcePrepare {
         throw "qemu_elf_summary_invalid: bad source matrix $($Case.name).prepare"
     }
     return ("prepare={0}/{1}:argc={2}" -f ([string]$Record.stage), ([string]$Record.code), ([int]$Record.argc))
+}
+
+function Get-QemuElfPacketstreamCase {
+    param(
+        [object[]]$Packetstreams,
+        [string]$Name
+    )
+
+    $Matches = @($Packetstreams | Where-Object { $_.name -eq $Name })
+    if ($Matches.Count -ne 1) {
+        throw "qemu_elf_summary_invalid: missing packetstream $Name"
+    }
+    return $Matches[0]
+}
+
+function Assert-QemuElfPacketstreamSuccess {
+    param(
+        [object]$Packetstream,
+        [int]$Payload
+    )
+
+    if ($Packetstream.transport -ne "ok" -or
+        $Packetstream.packet -ne "ok" -or
+        $Packetstream.receive_stage -ne "launch_ready" -or
+        $Packetstream.receive_code -ne "ok" -or
+        [int]$Packetstream.payload -ne $Payload -or
+        [int]$Packetstream.stream -le [int]$Packetstream.payload -or
+        [int]$Packetstream.packets -le 0 -or
+        [int]$Packetstream.dispatch -ne [int]$Packetstream.packets -or
+        [string]$Packetstream.actual_crc -ne [string]$Packetstream.expected_crc -or
+        $Packetstream.read_code -ne "ok" -or
+        [int]$Packetstream.read_bytes -ne $Payload -or
+        $Packetstream.app_stage_code -ne "ok" -or
+        $Packetstream.app_stage_format -ne "elf" -or
+        [int]$Packetstream.app_stage_bytes -ne $Payload) {
+        throw "qemu_elf_summary_invalid: bad packetstream success $($Packetstream.name)"
+    }
+    return ("{0}=payload:{1}:stream:{2}:packets:{3}:crc:{4}" -f `
+        ([string]$Packetstream.name), `
+        ([int]$Packetstream.payload), `
+        ([int]$Packetstream.stream), `
+        ([int]$Packetstream.packets), `
+        ([string]$Packetstream.actual_crc))
 }
 
 function Read-QemuElfDomainGoldenStatusFromText {
@@ -596,6 +687,45 @@ function Read-QemuElfDomainSummary {
     }
     $LargeFitFits = if ([bool]$LargeFitLoad.fits) { "1" } else { "0" }
     $TooLargeFits = if ([bool]$TooLargeLoad.fits) { "1" } else { "0" }
+    $Packetstreams = @($Summary.coverage.packetstreams)
+    if ($Packetstreams.Count -ne 5) {
+        throw "qemu_elf_summary_invalid: bad packetstream count"
+    }
+    $PacketstreamSummaryParts = @()
+    foreach ($Expected in @(
+            [pscustomobject]@{ name = "hello_app"; payload = 5132 },
+            [pscustomobject]@{ name = "large_fit_app"; payload = 5168 },
+            [pscustomobject]@{ name = "packetstream_bad_elf_magic_app"; payload = 64 },
+            [pscustomobject]@{ name = "player_min"; payload = 5168 }
+        )) {
+        $Packetstream = Get-QemuElfPacketstreamCase -Packetstreams $Packetstreams -Name $Expected.name
+        $PacketstreamSummaryParts += (Assert-QemuElfPacketstreamSuccess -Packetstream $Packetstream -Payload $Expected.payload)
+    }
+    $CrcMismatch = Get-QemuElfPacketstreamCase -Packetstreams $Packetstreams -Name "packetstream_crc_mismatch"
+    if ($CrcMismatch.transport -ne "packet_failed" -or
+        $CrcMismatch.packet -ne "receive_failed" -or
+        $CrcMismatch.receive_stage -ne "failed" -or
+        $CrcMismatch.receive_code -ne "crc_mismatch" -or
+        [int]$CrcMismatch.payload -ne 5132 -or
+        [int]$CrcMismatch.stream -le [int]$CrcMismatch.payload -or
+        [int]$CrcMismatch.packets -ne 23 -or
+        [int]$CrcMismatch.dispatch -ne 22 -or
+        [string]$CrcMismatch.actual_crc -eq [string]$CrcMismatch.expected_crc -or
+        -not [string]::IsNullOrWhiteSpace([string]$CrcMismatch.read_code) -or
+        [int]$CrcMismatch.read_bytes -ne 0 -or
+        -not [string]::IsNullOrWhiteSpace([string]$CrcMismatch.app_stage_code) -or
+        [int]$CrcMismatch.app_stage_bytes -ne 0) {
+        throw "qemu_elf_summary_invalid: bad packetstream crc mismatch"
+    }
+    $PacketstreamSummaryParts += ("packetstream_crc_mismatch=stage:{0}/{1}:dispatch:{2}/{3}:crc:{4}->{5}:read:{6}:stage_bytes:{7}" -f `
+        ([string]$CrcMismatch.receive_stage), `
+        ([string]$CrcMismatch.receive_code), `
+        ([int]$CrcMismatch.dispatch), `
+        ([int]$CrcMismatch.packets), `
+        ([string]$CrcMismatch.actual_crc), `
+        ([string]$CrcMismatch.expected_crc), `
+        ([int]$CrcMismatch.read_bytes), `
+        ([int]$CrcMismatch.app_stage_bytes))
     $SourceMatrix = @($Summary.coverage.source_matrix)
     if ($SourceMatrix.Count -ne 17) {
         throw "qemu_elf_summary_invalid: bad source matrix count"
@@ -688,6 +818,7 @@ function Read-QemuElfDomainSummary {
             ([int]$TooLargeLoad.free), `
             $TooLargeFits, `
             ([string]$TooLargeLoad.capacity_probe))
+        Packetstreams = ($PacketstreamSummaryParts -join ";")
         Runs = @($Summary.coverage.runs).Count
         SourceMatrix = @($Summary.coverage.source_matrix).Count
         Sources = ($SourceSummaryParts -join ";")
@@ -717,6 +848,7 @@ function Write-QemuElfSummaryLines {
         Write-BundleLine -Lines $Lines -Text "qemu_elf_display=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_evidence=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_capacity=skipped"
+        Write-BundleLine -Lines $Lines -Text "qemu_elf_packetstreams=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_domain_golden=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_sources=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_coverage=skipped"
@@ -734,6 +866,7 @@ function Write-QemuElfSummaryLines {
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_display={0}" -f $QemuElfSummary.Display)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_evidence={0}" -f $QemuElfSummary.Evidence)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_capacity={0}" -f $QemuElfSummary.Capacity)
+    Write-BundleLine -Lines $Lines -Text ("qemu_elf_packetstreams={0}" -f $QemuElfSummary.Packetstreams)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_domain_golden={0}" -f $QemuElfDomainGolden)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_sources={0}" -f $QemuElfSummary.Sources)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_coverage runs={0} source_matrix={1} gui_timeline={2}" -f `

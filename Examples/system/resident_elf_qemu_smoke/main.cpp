@@ -9,6 +9,7 @@
 #include "appstore.bin.inc"
 #include "argv_app.elf.inc"
 #include "bss_app.elf.inc"
+#include "data_app.elf.inc"
 #include "display_sequence_app.elf.inc"
 #include "exit_app.elf.inc"
 #include "hello_app.elf.inc"
@@ -36,7 +37,7 @@ namespace qemu_backend = resident_elf_qemu;
 inline constexpr std::uintptr_t kQemuRunRegionBase = 0x20080000U;
 inline constexpr std::size_t kQemuRunRegionSize = 64U * 1024U;
 inline constexpr std::size_t kQemuStageCacheSize = 16U * 1024U;
-inline constexpr std::uint32_t kQemuStoreEntryCount = 13U;
+inline constexpr std::uint32_t kQemuStoreEntryCount = 14U;
 
 alignas(16) __attribute__((section(".elf_load")))
 static std::byte g_elf_load_region[kQemuRunRegionSize];
@@ -1088,6 +1089,8 @@ extern "C" int resident_elf_qemu_main() {
     ok = expect_store_stage_failure("missing_app", app_abi::AppStoreReadCode::image_not_found) && ok;
     ok = run_direct_app("bss_app", bss_app_elf, bss_app_elf_len, "") && ok;
     ok = run_store_app("bss_app", "") && ok;
+    ok = run_direct_app("data_app", data_app_elf, data_app_elf_len, "") && ok;
+    ok = run_store_app("data_app", "") && ok;
     ok = run_direct_app("exit_app", exit_app_elf, exit_app_elf_len, "") && ok;
     ok = run_store_app("exit_app", "") && ok;
     ok = run_direct_app("unsupported_caps_app", unsupported_caps_app_elf, unsupported_caps_app_elf_len, "") && ok;

@@ -463,7 +463,8 @@ Board validation helpers:
   capacity, representative ELF loader entry/span/segment/fits facts,
   packetstream payload/CRC and failure-boundary facts,
   domain-summary golden comparison, direct/received/packetstream/store source
-  matrix coverage, full coverage counts (`runs/stages/loads/packetstreams/
+  matrix coverage including the QEMU `data_app` direct/Store `.data` init
+  proof, full coverage counts (`runs/stages/loads/packetstreams/
   source_matrix/gui_timeline/prepare/capabilities/negative_cases`), and GUI
   timeline without opening the JSON manually.
 - Run the off-board artifact/inspect/host-smoke/QEMU ELF evidence path without

@@ -332,25 +332,26 @@ function Invoke-SelfTest {
         }
         store = [pscustomobject]@{
             format = "store_v1"
-            entries = 13
-            bytes = 81888
+            entries = 14
+            bytes = 87584
             media = [pscustomobject]@{
                 kind = "memory"
-                bytes = 81888
-                read_calls = 130
-                read_bytes = 66044
+                bytes = 87584
+                read_calls = 147
+                read_bytes = 72360
                 read_failures = 0
             }
         }
         coverage = [pscustomobject]@{
-            runs = 1..35
-            stages = 1..18
+            runs = 1..37
+            stages = 1..19
             source_matrix = @(
                 (New-SelfTestQemuSourceCase -Name "hello_app" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Received (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Packetstream (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok")),
                 (New-SelfTestQemuSourceCase -Name "argv_app" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Prepare (New-SelfTestQemuPrepare)),
                 (New-SelfTestQemuSourceCase -Name "argv_overflow_app" -Direct (New-SelfTestQemuRun -Stage "argv" -Code "argv_overflow")),
                 (New-SelfTestQemuSourceCase -Name "abi_mismatch_app" -Direct (New-SelfTestQemuRun -Stage "abi" -Code "abi_mismatch")),
                 (New-SelfTestQemuSourceCase -Name "bss_app" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok")),
+                (New-SelfTestQemuSourceCase -Name "data_app" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok")),
                 (New-SelfTestQemuSourceCase -Name "exit_app" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok")),
                 (New-SelfTestQemuSourceCase -Name "unsupported_caps_app" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok")),
                 (New-SelfTestQemuSourceCase -Name "storage_app" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok")),
@@ -484,15 +485,15 @@ function Invoke-SelfTest {
             $ParsedQemu.AppModel -ne "format=elf:model=CharmAppApi" -or
             $ParsedQemu.Backend -ne "virtual:virtual_m7:console,time,display,input,storage,app_exit:storage=readonly:afe=unsupported" -or
             $ParsedQemu.Memory -ne "run_base=0x20080000:run_size=65536:stage_cache=16384" -or
-            $ParsedQemu.Store -ne "store_v1:entries=13:bytes=81888:media=memory:reads=130:read_bytes=66044:failures=0" -or
+            $ParsedQemu.Store -ne "store_v1:entries=14:bytes=87584:media=memory:reads=147:read_bytes=72360:failures=0" -or
             $ParsedQemu.Display -ne "16x16:argb8888:stride=64:frame=1024" -or
             $ParsedQemu.Evidence -ne "frames=8/6:dumps=8/6:ppm=8/6:input=12/6:storage=49/6" -or
             $ParsedQemu.Capacity -ne "large_fit=61696/65536:free=3840:fits=1:probe=ok;too_large=82176/65536:free=0:fits=0:probe=load_buffer_too_small" -or
             $ParsedQemu.Loads -ne "hello_app=entry:0x20080021:span:270:segments:2:fits:1:probe:ok;packetstream:player_min=entry:0x20080001:span:1280:segments:3:fits:1:probe:ok;large_fit_app=entry:0x20080019:span:61696:segments:3:fits:1:probe:ok;bad_elf_magic_app=entry:0x00000000:span:0:segments:0:fits:1:probe:bad_magic;too_large_app=entry:0x00000000:span:82176:segments:2:fits:0:probe:load_buffer_too_small" -or
             $ParsedQemu.Packetstreams -ne "hello_app=payload:5132:stream:5776:packets:23:crc:0xb3b7bcc5;large_fit_app=payload:5168:stream:5840:packets:24:crc:0xdffdfba1;packetstream_bad_elf_magic_app=payload:64:stream:176:packets:4:crc:0xbd40f3c7;player_min=payload:5168:stream:5840:packets:24:crc:0xba5eb94a;packetstream_crc_mismatch=stage:failed/crc_mismatch:dispatch:22/23:crc:0x7d9c7647->0xb3b7bcc5:read:0:stage_bytes:0" -or
-            $ParsedQemu.Sources -ne "hello_app=direct,received,packetstream,store:exit/ok;large_fit_app=direct,received,packetstream,store:exit/ok;player_min=direct,received,packetstream,store:exit/ok;argv_app=direct,store:exit/ok:prepare=start/ok:argc=4;negatives=argv_overflow_app:direct=argv/argv_overflow,abi_mismatch_app:direct=abi/abi_mismatch,bad_elf_magic_app:direct=load/load_failed,packetstream_bad_elf_magic_app:packetstream=load/load_failed,too_large_app:direct=load/load_failed" -or
+            $ParsedQemu.Sources -ne "hello_app=direct,received,packetstream,store:exit/ok;large_fit_app=direct,received,packetstream,store:exit/ok;player_min=direct,received,packetstream,store:exit/ok;argv_app=direct,store:exit/ok:prepare=start/ok:argc=4;data_app=direct,store:exit/ok;negatives=argv_overflow_app:direct=argv/argv_overflow,abi_mismatch_app:direct=abi/abi_mismatch,bad_elf_magic_app:direct=load/load_failed,packetstream_bad_elf_magic_app:packetstream=load/load_failed,too_large_app:direct=load/load_failed" -or
             $DomainGolden -ne "ok" -or
-            $ParsedQemu.Coverage -ne "runs=35:stages=18:loads=5:packetstreams=5:source_matrix=17:gui_timeline=4:prepare=1:capabilities=7:negative_cases=8" -or
+            $ParsedQemu.Coverage -ne "runs=37:stages=19:loads=5:packetstreams=5:source_matrix=18:gui_timeline=4:prepare=1:capabilities=7:negative_cases=8" -or
             $ParsedQemu.GuiTimeline -ne 4 -or
             $ParsedQemu.PlayerMin.IndexOf("packetstream:player_min:frames=1,inputs=1", [System.StringComparison]::Ordinal) -lt 0) {
             throw "selftest_failed: qemu summary parse result is unexpected"
@@ -753,7 +754,7 @@ function Read-QemuElfDomainSummary {
         throw "qemu_elf_summary_invalid: bad stage_cache"
     }
     if ($Summary.store.format -ne "store_v1" -or
-        [int]$Summary.store.entries -ne 13 -or
+        [int]$Summary.store.entries -ne 14 -or
         [int]$Summary.store.bytes -le 0 -or
         $Summary.store.media.kind -ne "memory" -or
         [int]$Summary.store.media.bytes -ne [int]$Summary.store.bytes -or
@@ -858,14 +859,14 @@ function Read-QemuElfDomainSummary {
         ([int]$CrcMismatch.read_bytes), `
         ([int]$CrcMismatch.app_stage_bytes))
     $SourceMatrix = @($Summary.coverage.source_matrix)
-    if ($SourceMatrix.Count -ne 17) {
+    if ($SourceMatrix.Count -ne 18) {
         throw "qemu_elf_summary_invalid: bad source matrix count"
     }
     $CoverageStages = @($Summary.coverage.stages).Count
     $CoveragePrepare = if ($null -ne $Summary.coverage.prepare) { 1 } else { 0 }
     $CoverageCapabilities = @($Summary.coverage.capabilities.PSObject.Properties | Where-Object { [bool]$_.Value }).Count
     $CoverageNegativeCases = @($Summary.coverage.negative_cases).Count
-    if ($CoverageStages -ne 18 -or
+    if ($CoverageStages -ne 19 -or
         $CoveragePrepare -ne 1 -or
         $CoverageCapabilities -ne 7 -or
         $CoverageNegativeCases -ne 8) {
@@ -885,6 +886,10 @@ function Read-QemuElfDomainSummary {
     Assert-QemuElfSourceRun -Case $ArgvCase -Path "store" -Stage "exit" -Code "ok" | Out-Null
     Assert-QemuElfSourcePrepare -Case $ArgvCase -Argc 4 | Out-Null
     $SourceSummaryParts += "argv_app=direct,store:exit/ok:prepare=start/ok:argc=4"
+    $DataCase = Get-QemuElfSourceMatrixCase -Matrix $SourceMatrix -Name "data_app"
+    Assert-QemuElfSourceRun -Case $DataCase -Path "direct" -Stage "exit" -Code "ok" | Out-Null
+    Assert-QemuElfSourceRun -Case $DataCase -Path "store" -Stage "exit" -Code "ok" | Out-Null
+    $SourceSummaryParts += "data_app=direct,store:exit/ok"
     $NegativeSummaryParts = @()
     foreach ($Negative in @(
             [pscustomobject]@{ name = "argv_overflow_app"; path = "direct"; stage = "argv"; code = "argv_overflow" },

@@ -38,13 +38,13 @@
                 },
     "store":  {
                   "format":  "store_v1",
-                  "entries":  13,
-                  "bytes":  81888,
+                  "entries":  14,
+                  "bytes":  87584,
                   "media":  {
                                 "kind":  "memory",
-                                "bytes":  81888,
-                                "read_calls":  130,
-                                "read_bytes":  66044,
+                                "bytes":  87584,
+                                "read_calls":  147,
+                                "read_bytes":  72360,
                                 "read_failures":  0
                             }
               },
@@ -106,6 +106,18 @@
                                   },
                                   {
                                       "name":  "store:bss_app",
+                                      "stage":  "exit",
+                                      "code":  "ok",
+                                      "exit":  0
+                                  },
+                                  {
+                                      "name":  "data_app",
+                                      "stage":  "exit",
+                                      "code":  "ok",
+                                      "exit":  0
+                                  },
+                                  {
+                                      "name":  "store:data_app",
                                       "stage":  "exit",
                                       "code":  "ok",
                                       "exit":  0
@@ -289,6 +301,12 @@
                                     {
                                         "source":  "store",
                                         "name":  "bss_app",
+                                        "code":  "ok",
+                                        "expected":  ""
+                                    },
+                                    {
+                                        "source":  "store",
+                                        "name":  "data_app",
                                         "code":  "ok",
                                         "expected":  ""
                                     },
@@ -522,6 +540,34 @@
                                        "segments":  3,
                                        "needed":  513,
                                        "free":  65023,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   },
+                                   {
+                                       "name":  "data_app",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "entry":  "0x20080019",
+                                       "entry_numeric":  537395225,
+                                       "span":  529,
+                                       "segments":  3,
+                                       "needed":  529,
+                                       "free":  65007,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   },
+                                   {
+                                       "name":  "store:data_app",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "entry":  "0x20080019",
+                                       "entry_numeric":  537395225,
+                                       "span":  529,
+                                       "segments":  3,
+                                       "needed":  529,
+                                       "free":  65007,
                                        "fits":  true,
                                        "region":  65536,
                                        "capacity_probe":  "ok"
@@ -1041,6 +1087,22 @@
                                            },
                                            {
                                                "name":  "bss_app",
+                                               "direct":  {
+                                                              "stage":  "exit",
+                                                              "code":  "ok",
+                                                              "exit":  0
+                                                          },
+                                               "received":  null,
+                                               "packetstream":  null,
+                                               "store":  {
+                                                             "stage":  "exit",
+                                                             "code":  "ok",
+                                                             "exit":  0
+                                                         },
+                                               "prepare":  null
+                                           },
+                                           {
+                                               "name":  "data_app",
                                                "direct":  {
                                                               "stage":  "exit",
                                                               "code":  "ok",

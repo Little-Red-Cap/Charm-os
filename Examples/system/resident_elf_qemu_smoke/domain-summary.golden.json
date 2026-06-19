@@ -185,6 +185,55 @@
                                                    ]
                                       }
                                   ],
+    "runtime_domain_profile":  {
+                                   "schema":  "charm.resident_elf_qemu.runtime_domain_profile.v1",
+                                   "domain":  "virtual_m7",
+                                   "machine":  "mps2-an500",
+                                   "cpu":  "cortex-m7",
+                                   "kind":  "virtual_board",
+                                   "proves":  [
+                                                  "elf_loader",
+                                                  "app_runtime",
+                                                  "charm_app_api",
+                                                  "capability_backend",
+                                                  "received_image",
+                                                  "packetstream",
+                                                  "store_v1_semantics"
+                                              ],
+                                   "does_not_prove":  [
+                                                          "h747_usb_cdc",
+                                                          "h747_qspi",
+                                                          "h747_emmc",
+                                                          "h747_fmc_sdram",
+                                                          "h747_hal_init",
+                                                          "h747_mpu_cache",
+                                                          "h747_pinmux"
+                                                      ],
+                                   "app_model":  "CharmAppApi",
+                                   "image_format":  "elf",
+                                   "run_region":  {
+                                                      "base":  "0x20080000",
+                                                      "size":  65536,
+                                                      "execute":  true
+                                                  },
+                                   "stage_cache":  {
+                                                       "bytes":  16384
+                                                   },
+                                   "store_media":  "memory",
+                                   "capability_provider":  {
+                                                               "kind":  "smoke_local_virtual_backend",
+                                                               "capabilities":  [
+                                                                                    "console",
+                                                                                    "time",
+                                                                                    "display",
+                                                                                    "input",
+                                                                                    "storage",
+                                                                                    "app_exit"
+                                                                                ],
+                                                               "storage":  "readonly",
+                                                               "afe":  "unsupported"
+                                                           }
+                               },
     "elf_run_evidence_matrix":  [
                                     {
                                         "name":  "hello_app",

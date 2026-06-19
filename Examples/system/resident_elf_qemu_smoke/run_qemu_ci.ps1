@@ -2265,6 +2265,58 @@ function Get-BackendContractFromText {
     }
 }
 
+function Get-QemuRuntimeDomainProfile {
+    param(
+        [string]$RuntimeDomain,
+        [string]$Machine,
+        [string]$Cpu,
+        [object]$BackendContract
+    )
+
+    return [pscustomobject]@{
+        schema = "charm.resident_elf_qemu.runtime_domain_profile.v1"
+        domain = $RuntimeDomain
+        machine = $Machine
+        cpu = $Cpu
+        kind = "virtual_board"
+        proves = @(
+            "elf_loader",
+            "app_runtime",
+            "charm_app_api",
+            "capability_backend",
+            "received_image",
+            "packetstream",
+            "store_v1_semantics"
+        )
+        does_not_prove = @(
+            "h747_usb_cdc",
+            "h747_qspi",
+            "h747_emmc",
+            "h747_fmc_sdram",
+            "h747_hal_init",
+            "h747_mpu_cache",
+            "h747_pinmux"
+        )
+        app_model = "CharmAppApi"
+        image_format = "elf"
+        run_region = [pscustomobject]@{
+            base = "0x20080000"
+            size = 65536
+            execute = $true
+        }
+        stage_cache = [pscustomobject]@{
+            bytes = 16384
+        }
+        store_media = "memory"
+        capability_provider = [pscustomobject]@{
+            kind = "smoke_local_virtual_backend"
+            capabilities = @($BackendContract.capabilities)
+            storage = $BackendContract.storage
+            afe = $BackendContract.afe
+        }
+    }
+}
+
 function Get-AppRunSummaryFromText {
     param([string]$Text)
 
@@ -3217,6 +3269,11 @@ function Write-DomainSummaryCapture {
         -StorageTraceCount $StorageTraceCount
     $NegativeCases = Get-QemuNegativeCases
     $FailureTaxonomy = Get-QemuFailureTaxonomy -NegativeCases $NegativeCases
+    $RuntimeDomainProfile = Get-QemuRuntimeDomainProfile `
+        -RuntimeDomain $BackendIdentity.runtime_domain `
+        -Machine $BackendIdentity.machine `
+        -Cpu $BackendIdentity.cpu `
+        -BackendContract $BackendContract
 
     $Summary = [pscustomobject]@{
         schema = "charm.resident_elf_qemu.domain_summary.v1"
@@ -3228,6 +3285,7 @@ function Write-DomainSummaryCapture {
         backend_contract = $BackendContract
         backend_readiness = $BackendReadiness
         backend_capability_matrix = $BackendCapabilityMatrix
+        runtime_domain_profile = $RuntimeDomainProfile
         elf_run_evidence_matrix = $ElfRunEvidenceMatrix
         failure_taxonomy = $FailureTaxonomy
         artifacts = $ArtifactSummary
@@ -4013,6 +4071,85 @@ function Assert-DomainBackendCapabilityMatrix {
         -Runs @("unsupported_caps_app", "afe_error_app", "store:afe_error_app")
 }
 
+function Assert-DomainRuntimeDomainProfile {
+    param(
+        [object]$Profile,
+        [object]$BackendContract
+    )
+
+    if ($null -eq $Profile -or $Profile.schema -ne "charm.resident_elf_qemu.runtime_domain_profile.v1") {
+        throw "domain_summary_validate_failed: bad runtime domain profile schema"
+    }
+    if ($Profile.domain -ne "virtual_m7" -or
+        $Profile.machine -ne "mps2-an500" -or
+        $Profile.cpu -ne "cortex-m7" -or
+        $Profile.kind -ne "virtual_board" -or
+        $Profile.app_model -ne "CharmAppApi" -or
+        $Profile.image_format -ne "elf") {
+        throw "domain_summary_validate_failed: bad runtime domain profile identity"
+    }
+
+    $Proves = @($Profile.proves)
+    foreach ($Item in @(
+            "elf_loader",
+            "app_runtime",
+            "charm_app_api",
+            "capability_backend",
+            "received_image",
+            "packetstream",
+            "store_v1_semantics"
+        )) {
+        if (-not ($Proves -contains $Item)) {
+            throw "domain_summary_validate_failed: runtime domain profile proves missing $Item"
+        }
+    }
+    if ($Proves.Count -ne 7) {
+        throw "domain_summary_validate_failed: runtime domain profile proves count=$($Proves.Count)"
+    }
+
+    $DoesNotProve = @($Profile.does_not_prove)
+    foreach ($Item in @(
+            "h747_usb_cdc",
+            "h747_qspi",
+            "h747_emmc",
+            "h747_fmc_sdram",
+            "h747_hal_init",
+            "h747_mpu_cache",
+            "h747_pinmux"
+        )) {
+        if (-not ($DoesNotProve -contains $Item)) {
+            throw "domain_summary_validate_failed: runtime domain profile does_not_prove missing $Item"
+        }
+    }
+    if ($DoesNotProve.Count -ne 7) {
+        throw "domain_summary_validate_failed: runtime domain profile does_not_prove count=$($DoesNotProve.Count)"
+    }
+
+    if ($Profile.run_region.base -ne "0x20080000" -or
+        [int]$Profile.run_region.size -ne 65536 -or
+        -not [bool]$Profile.run_region.execute) {
+        throw "domain_summary_validate_failed: bad runtime domain profile run region"
+    }
+    if ([int]$Profile.stage_cache.bytes -ne 16384 -or $Profile.store_media -ne "memory") {
+        throw "domain_summary_validate_failed: bad runtime domain profile storage/stage"
+    }
+    if ($Profile.capability_provider.kind -ne "smoke_local_virtual_backend" -or
+        $Profile.capability_provider.storage -ne "readonly" -or
+        $Profile.capability_provider.afe -ne "unsupported") {
+        throw "domain_summary_validate_failed: bad runtime domain profile capability provider"
+    }
+    $ProfileCapabilities = @($Profile.capability_provider.capabilities)
+    $BackendCapabilities = @($BackendContract.capabilities)
+    if ($ProfileCapabilities.Count -ne $BackendCapabilities.Count) {
+        throw "domain_summary_validate_failed: runtime domain profile capability count mismatch"
+    }
+    foreach ($Capability in $BackendCapabilities) {
+        if (-not ($ProfileCapabilities -contains $Capability)) {
+            throw "domain_summary_validate_failed: runtime domain profile capability missing $Capability"
+        }
+    }
+}
+
 function Get-DomainElfRunEvidence {
     param(
         [object[]]$Matrix,
@@ -4362,6 +4499,7 @@ function Validate-DomainSummaryFile {
     }
     Assert-DomainBackendReadiness -Readiness $Summary.backend_readiness
     Assert-DomainBackendCapabilityMatrix -Matrix @($Summary.backend_capability_matrix)
+    Assert-DomainRuntimeDomainProfile -Profile $Summary.runtime_domain_profile -BackendContract $Summary.backend_contract
     $ElfRunEvidenceMatrix = @($Summary.elf_run_evidence_matrix)
     Assert-DomainCount -Name "elf_run_evidence_matrix" -Actual $ElfRunEvidenceMatrix.Count -Expected 88
     if ($Summary.run_region.base -ne "0x20080000" -or $Summary.run_region.expected -ne "0x20080000" -or [int]$Summary.run_region.size -ne 65536) {
@@ -5334,6 +5472,10 @@ function Invoke-SelfTest {
     Assert-BadDomainSummaryRejected -SourcePath $GoldenDomainSummaryFile -Label "backend_capability_matrix_storage" -Mutate {
         param($Summary)
         ($Summary.backend_capability_matrix | Where-Object { $_.capability -eq "storage" }).policy = "write=allowed"
+    }
+    Assert-BadDomainSummaryRejected -SourcePath $GoldenDomainSummaryFile -Label "runtime_domain_profile_h747_boundary" -Mutate {
+        param($Summary)
+        $Summary.runtime_domain_profile.does_not_prove = @($Summary.runtime_domain_profile.does_not_prove | Where-Object { $_ -ne "h747_qspi" })
     }
     Assert-BadDomainSummaryRejected -SourcePath $GoldenDomainSummaryFile -Label "elf_run_evidence_matrix_store" -Mutate {
         param($Summary)

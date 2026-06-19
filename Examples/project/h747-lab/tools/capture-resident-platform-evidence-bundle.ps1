@@ -201,6 +201,7 @@ function Invoke-SelfTest {
     foreach ($RequiredToken in @(
         "qemu_elf_backend_readiness=",
         "qemu_elf_capability_matrix=",
+        "qemu_elf_runtime_domain_profile=",
         "qemu_elf_run_evidence_matrix=",
         "qemu_elf_failure_taxonomy=",
         "qemu_elf_run_budget_match=",
@@ -448,6 +449,32 @@ function Invoke-SelfTest {
             [pscustomobject]@{ capability = "app_exit"; provider = "notification_counter"; policy = "overrides_return=0"; evidence = @("run_log", "capability_counters"); runs = @("exit_app", "exit_error_app", "exit_negative_app", "return_negative_app") },
             [pscustomobject]@{ capability = "afe"; provider = "unsupported_stub"; policy = "configure/read=unsupported:preserve_buffer=1"; evidence = @("run_log", "capability_counters"); runs = @("unsupported_caps_app", "afe_error_app", "store:afe_error_app") }
         )
+        runtime_domain_profile = [pscustomobject]@{
+            schema = "charm.resident_elf_qemu.runtime_domain_profile.v1"
+            domain = "virtual_m7"
+            machine = "mps2-an500"
+            cpu = "cortex-m7"
+            kind = "virtual_board"
+            proves = @("elf_loader", "app_runtime", "charm_app_api", "capability_backend", "received_image", "packetstream", "store_v1_semantics")
+            does_not_prove = @("h747_usb_cdc", "h747_qspi", "h747_emmc", "h747_fmc_sdram", "h747_hal_init", "h747_mpu_cache", "h747_pinmux")
+            app_model = "CharmAppApi"
+            image_format = "elf"
+            run_region = [pscustomobject]@{
+                base = "0x20080000"
+                size = 65536
+                execute = $true
+            }
+            stage_cache = [pscustomobject]@{
+                bytes = 16384
+            }
+            store_media = "memory"
+            capability_provider = [pscustomobject]@{
+                kind = "smoke_local_virtual_backend"
+                capabilities = @("console", "time", "display", "input", "storage", "app_exit")
+                storage = "readonly"
+                afe = "unsupported"
+            }
+        }
         run_region = [pscustomobject]@{
             base = "0x20080000"
             expected = "0x20080000"
@@ -1129,6 +1156,7 @@ function Invoke-SelfTest {
             $ParsedQemu.Backend -ne "virtual:virtual_m7:console,time,display,input,storage,app_exit:storage=readonly:afe=unsupported" -or
             $ParsedQemu.BackendReadiness -ne "status=ready:elf_loader=1:app_runtime=1:received=1:packetstream=1:store=1:equivalent_sources=1:gui=1:storage=1:input=1:unsupported=1" -or
             $ParsedQemu.BackendCapabilityMatrix.IndexOf("storage=virtual_readonly_files:files=3:fd=3+4:write=unsupported:evidence=storage_trace,capability_counters:runs=storage_app,storage_catalog_app,storage_fd_exhaustion_app,storage_write_error_app", [System.StringComparison]::Ordinal) -lt 0 -or
+            $ParsedQemu.RuntimeDomainProfile -ne "virtual_m7:mps2-an500/cortex-m7:kind=virtual_board:proves=elf_loader,app_runtime,charm_app_api,capability_backend,received_image,packetstream,store_v1_semantics:does_not_prove=h747_usb_cdc,h747_qspi,h747_emmc,h747_fmc_sdram,h747_hal_init,h747_mpu_cache,h747_pinmux:run=0x20080000+65536:stage=16384:store=memory:caps=console,time,display,input,storage,app_exit:storage=readonly:afe=unsupported" -or
             $ParsedQemu.RunEvidenceMatrix.IndexOf("packetstream:hello_app=packetstream:hello_app:launch_ready/ok:load=ok:run=exit/ok", [System.StringComparison]::Ordinal) -lt 0 -or
             $ParsedQemu.RunEvidenceMatrix.IndexOf("too_large_app=direct:too_large_app:image/ok:load=load_buffer_too_small:run=load/load_failed", [System.StringComparison]::Ordinal) -lt 0 -or
             $ParsedQemu.BackendContract -ne "time=deterministic_tick:1000+17:reset=1;display=framebuffer:16x16:argb8888:stride=64:frame=1024:evidence=frame_signatures,frame_dumps,frame_ppm,gui_timeline;input=deterministic_sequence:samples=4:max=15,15:wraps=1:evidence=input_trace,gui_timeline;storage=virtual_readonly_files:files=3:fd=3+4:write=unsupported:evidence=storage_trace;app_exit=notification_counter:overrides_return=0" -or
@@ -1175,6 +1203,7 @@ function Invoke-SelfTest {
         Test-BadQemuSummary -Label "backend_contract_time" -Mutate { param($Summary) $Summary.backend_contract.time.step_ms = 16 }
         Test-BadQemuSummary -Label "backend_readiness" -Mutate { param($Summary) $Summary.backend_readiness.gui = $false }
         Test-BadQemuSummary -Label "backend_capability_matrix" -Mutate { param($Summary) ($Summary.backend_capability_matrix | Where-Object { $_.capability -eq "storage" }).policy = "write=allowed" }
+        Test-BadQemuSummary -Label "runtime_domain_profile" -Mutate { param($Summary) $Summary.runtime_domain_profile.does_not_prove = @($Summary.runtime_domain_profile.does_not_prove | Where-Object { $_ -ne "h747_qspi" }) }
         Test-BadQemuSummary -Label "elf_run_evidence_matrix" -Mutate { param($Summary) ($Summary.elf_run_evidence_matrix | Where-Object { $_.name -eq "store:hello_app" }).run_code = "load_failed" }
         Test-BadQemuSummary -Label "run_budget" -Mutate { param($Summary) $Summary.run_budget.timeout_sec = 0 }
         Test-BadQemuSummary -Label "run_region" -Mutate { param($Summary) $Summary.run_region.size = 32768 }
@@ -1733,6 +1762,83 @@ function Assert-QemuElfCapabilityMatrix {
     return ($Parts -join ";")
 }
 
+function Assert-QemuElfRuntimeDomainProfile {
+    param(
+        [object]$Profile,
+        [object]$BackendContract
+    )
+
+    if ($null -eq $Profile -or $Profile.schema -ne "charm.resident_elf_qemu.runtime_domain_profile.v1") {
+        throw "qemu_elf_summary_invalid: bad runtime domain profile schema"
+    }
+    if ($Profile.domain -ne "virtual_m7" -or
+        $Profile.machine -ne "mps2-an500" -or
+        $Profile.cpu -ne "cortex-m7" -or
+        $Profile.kind -ne "virtual_board" -or
+        $Profile.app_model -ne "CharmAppApi" -or
+        $Profile.image_format -ne "elf") {
+        throw "qemu_elf_summary_invalid: bad runtime domain profile identity"
+    }
+
+    $Proves = @($Profile.proves)
+    foreach ($Item in @("elf_loader", "app_runtime", "charm_app_api", "capability_backend", "received_image", "packetstream", "store_v1_semantics")) {
+        if (-not ($Proves -contains $Item)) {
+            throw "qemu_elf_summary_invalid: runtime domain profile proves missing $Item"
+        }
+    }
+    if ($Proves.Count -ne 7) {
+        throw "qemu_elf_summary_invalid: runtime domain profile proves count=$($Proves.Count)"
+    }
+
+    $DoesNotProve = @($Profile.does_not_prove)
+    foreach ($Item in @("h747_usb_cdc", "h747_qspi", "h747_emmc", "h747_fmc_sdram", "h747_hal_init", "h747_mpu_cache", "h747_pinmux")) {
+        if (-not ($DoesNotProve -contains $Item)) {
+            throw "qemu_elf_summary_invalid: runtime domain profile does_not_prove missing $Item"
+        }
+    }
+    if ($DoesNotProve.Count -ne 7) {
+        throw "qemu_elf_summary_invalid: runtime domain profile does_not_prove count=$($DoesNotProve.Count)"
+    }
+    if ($Profile.run_region.base -ne "0x20080000" -or
+        [int]$Profile.run_region.size -ne 65536 -or
+        -not [bool]$Profile.run_region.execute) {
+        throw "qemu_elf_summary_invalid: bad runtime domain profile run region"
+    }
+    if ([int]$Profile.stage_cache.bytes -ne 16384 -or $Profile.store_media -ne "memory") {
+        throw "qemu_elf_summary_invalid: bad runtime domain profile storage/stage"
+    }
+    if ($Profile.capability_provider.kind -ne "smoke_local_virtual_backend" -or
+        $Profile.capability_provider.storage -ne "readonly" -or
+        $Profile.capability_provider.afe -ne "unsupported") {
+        throw "qemu_elf_summary_invalid: bad runtime domain profile capability provider"
+    }
+    $ProfileCapabilities = @($Profile.capability_provider.capabilities)
+    $BackendCapabilities = @($BackendContract.capabilities)
+    if ($ProfileCapabilities.Count -ne $BackendCapabilities.Count) {
+        throw "qemu_elf_summary_invalid: runtime domain profile capability count mismatch"
+    }
+    foreach ($Capability in $BackendCapabilities) {
+        if (-not ($ProfileCapabilities -contains $Capability)) {
+            throw "qemu_elf_summary_invalid: runtime domain profile capability missing $Capability"
+        }
+    }
+
+    return ("{0}:{1}/{2}:kind={3}:proves={4}:does_not_prove={5}:run={6}+{7}:stage={8}:store={9}:caps={10}:storage={11}:afe={12}" -f `
+        ([string]$Profile.domain), `
+        ([string]$Profile.machine), `
+        ([string]$Profile.cpu), `
+        ([string]$Profile.kind), `
+        ($Proves -join ","), `
+        ($DoesNotProve -join ","), `
+        ([string]$Profile.run_region.base), `
+        ([int]$Profile.run_region.size), `
+        ([int]$Profile.stage_cache.bytes), `
+        ([string]$Profile.store_media), `
+        ($ProfileCapabilities -join ","), `
+        ([string]$Profile.capability_provider.storage), `
+        ([string]$Profile.capability_provider.afe))
+}
+
 function Get-QemuElfFailureTaxonomyStage {
     param(
         [object[]]$Stages,
@@ -1950,6 +2056,9 @@ function Read-QemuElfDomainSummary {
     }
     $BackendReadiness = Assert-QemuElfBackendReadiness -Readiness $Summary.backend_readiness
     $BackendCapabilityMatrix = Assert-QemuElfCapabilityMatrix -Matrix @($Summary.backend_capability_matrix)
+    $RuntimeDomainProfile = Assert-QemuElfRuntimeDomainProfile `
+        -Profile $Summary.runtime_domain_profile `
+        -BackendContract $Summary.backend_contract
     if ($Summary.run_region.base -ne "0x20080000" -or
         $Summary.run_region.expected -ne "0x20080000" -or
         [int]$Summary.run_region.size -ne 65536) {
@@ -2272,6 +2381,7 @@ function Read-QemuElfDomainSummary {
             ([string]$Summary.backend_contract.afe))
         BackendReadiness = $BackendReadiness
         BackendCapabilityMatrix = $BackendCapabilityMatrix
+        RuntimeDomainProfile = $RuntimeDomainProfile
         RunEvidenceMatrix = $RunEvidenceSummary
         BackendContract = ("time={0}:{1}+{2}:reset={3};display={4}:{5}x{6}:{7}:stride={8}:frame={9}:evidence={10};input={11}:samples={12}:max={13},{14}:wraps={15}:evidence={16};storage={17}:files={18}:fd={19}+{20}:write={21}:evidence={22};app_exit={23}:overrides_return={24}" -f `
             ([string]$Summary.backend_contract.time.kind), `
@@ -2389,6 +2499,7 @@ function Write-QemuElfSummaryLines {
         Write-BundleLine -Lines $Lines -Text "qemu_elf_backend=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_backend_readiness=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_capability_matrix=skipped"
+        Write-BundleLine -Lines $Lines -Text "qemu_elf_runtime_domain_profile=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_run_evidence_matrix=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_backend_contract=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_run_budget=skipped"
@@ -2418,6 +2529,7 @@ function Write-QemuElfSummaryLines {
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_backend={0}" -f $QemuElfSummary.Backend)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_backend_readiness={0}" -f $QemuElfSummary.BackendReadiness)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_capability_matrix={0}" -f $QemuElfSummary.BackendCapabilityMatrix)
+    Write-BundleLine -Lines $Lines -Text ("qemu_elf_runtime_domain_profile={0}" -f $QemuElfSummary.RuntimeDomainProfile)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_run_evidence_matrix={0}" -f $QemuElfSummary.RunEvidenceMatrix)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_backend_contract={0}" -f $QemuElfSummary.BackendContract)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_run_budget={0}" -f $QemuElfSummary.RunBudget)

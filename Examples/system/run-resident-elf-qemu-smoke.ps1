@@ -194,6 +194,7 @@ function Invoke-WrapperSelfTest {
         "[int]`$QemuElfTailLines",
         "qemu_elf_timeout_sec=",
         "qemu_elf_tail_lines=",
+        "qemu_elf_runtime_domain_profile=",
         "qemu_elf_failure_taxonomy=",
         '"-TimeoutSec"',
         '"-TailLines"'

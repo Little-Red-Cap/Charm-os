@@ -38,13 +38,13 @@
                 },
     "store":  {
                   "format":  "store_v1",
-                  "entries":  30,
-                  "bytes":  168400,
+                  "entries":  31,
+                  "bytes":  173184,
                   "media":  {
                                 "kind":  "memory",
-                                "bytes":  168400,
-                                "read_calls":  555,
-                                "read_bytes":  169180,
+                                "bytes":  173184,
+                                "read_calls":  589,
+                                "read_bytes":  175332,
                                 "read_failures":  0
                             }
               },
@@ -181,6 +181,18 @@
                                       "stage":  "exit",
                                       "code":  "ok",
                                       "exit":  0
+                                  },
+                                  {
+                                      "name":  "return_negative_app",
+                                      "stage":  "exit",
+                                      "code":  "ok",
+                                      "exit":  -5
+                                  },
+                                  {
+                                      "name":  "store:return_negative_app",
+                                      "stage":  "exit",
+                                      "code":  "ok",
+                                      "exit":  -5
                                   },
                                   {
                                       "name":  "unsupported_caps_app",
@@ -619,6 +631,12 @@
                                     {
                                         "source":  "store",
                                         "name":  "exit_negative_app",
+                                        "code":  "ok",
+                                        "expected":  ""
+                                    },
+                                    {
+                                        "source":  "store",
+                                        "name":  "return_negative_app",
                                         "code":  "ok",
                                         "expected":  ""
                                     },
@@ -1086,6 +1104,34 @@
                                        "segments":  1,
                                        "needed":  24,
                                        "free":  65512,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   },
+                                   {
+                                       "name":  "return_negative_app",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "entry":  "0x20080001",
+                                       "entry_numeric":  537395201,
+                                       "span":  6,
+                                       "segments":  1,
+                                       "needed":  6,
+                                       "free":  65530,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   },
+                                   {
+                                       "name":  "store:return_negative_app",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "entry":  "0x20080001",
+                                       "entry_numeric":  537395201,
+                                       "span":  6,
+                                       "segments":  1,
+                                       "needed":  6,
+                                       "free":  65530,
                                        "fits":  true,
                                        "region":  65536,
                                        "capacity_probe":  "ok"
@@ -2230,6 +2276,22 @@
                                                              "stage":  "exit",
                                                              "code":  "ok",
                                                              "exit":  0
+                                                         },
+                                               "prepare":  null
+                                           },
+                                           {
+                                               "name":  "return_negative_app",
+                                               "direct":  {
+                                                              "stage":  "exit",
+                                                              "code":  "ok",
+                                                              "exit":  -5
+                                                          },
+                                               "received":  null,
+                                               "packetstream":  null,
+                                               "store":  {
+                                                             "stage":  "exit",
+                                                             "code":  "ok",
+                                                             "exit":  -5
                                                          },
                                                "prepare":  null
                                            },

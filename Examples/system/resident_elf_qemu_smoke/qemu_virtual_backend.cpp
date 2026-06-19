@@ -126,16 +126,6 @@ void write_hex_byte(unsigned char value) noexcept {
     write_byte(kHex[value & 0x0fU]);
 }
 
-void write_signed(int value) noexcept {
-    if (value < 0) {
-        write_byte('-');
-        const auto magnitude = static_cast<std::uint32_t>(-static_cast<std::int64_t>(value));
-        write_dec(magnitude);
-        return;
-    }
-    write_dec(static_cast<std::uint32_t>(value));
-}
-
 int console_write(const char* text, std::size_t len) {
     if (text == nullptr) {
         return CHARM_APP_STATUS_INVALID_ARGUMENT;
@@ -490,6 +480,16 @@ void write_dec(std::uint32_t value) noexcept {
         value /= 10U;
     } while (value != 0U);
     write(cursor);
+}
+
+void write_signed(int value) noexcept {
+    if (value < 0) {
+        write_byte('-');
+        const auto magnitude = static_cast<std::uint32_t>(-static_cast<std::int64_t>(value));
+        write_dec(magnitude);
+        return;
+    }
+    write_dec(static_cast<std::uint32_t>(value));
 }
 
 void log_line(const char* text) noexcept {

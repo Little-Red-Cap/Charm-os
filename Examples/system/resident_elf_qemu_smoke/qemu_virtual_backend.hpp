@@ -52,6 +52,7 @@ void write(const char* text) noexcept;
 void write(std::string_view text) noexcept;
 void write_hex32(std::uint32_t value) noexcept;
 void write_dec(std::uint32_t value) noexcept;
+void write_signed(int value) noexcept;
 void log_line(const char* text) noexcept;
 void log_view(std::string_view text) noexcept;
 

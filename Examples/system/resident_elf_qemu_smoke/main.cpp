@@ -25,6 +25,7 @@
 #include "input_wrap_app.elf.inc"
 #include "large_fit_app.elf.inc"
 #include "player_min.elf.inc"
+#include "return_negative_app.elf.inc"
 #include "storage_app.elf.inc"
 #include "storage_catalog_app.elf.inc"
 #include "storage_close_error_app.elf.inc"
@@ -481,7 +482,7 @@ bool run_image(std::string_view log_name,
     qemu_backend::write(" code=");
     qemu_backend::log_view(app_abi::code_name(result.code));
     qemu_backend::write(" exit=");
-    qemu_backend::write_dec(static_cast<std::uint32_t>(result.exit_code));
+    qemu_backend::write_signed(result.exit_code);
     qemu_backend::write("\n");
     qemu_backend::log_capability_counters(log_name);
 
@@ -1058,7 +1059,7 @@ bool expect_load_failure(std::string_view name,
     qemu_backend::write(" code=");
     qemu_backend::log_view(app_abi::code_name(result.code));
     qemu_backend::write(" exit=");
-    qemu_backend::write_dec(static_cast<std::uint32_t>(result.exit_code));
+    qemu_backend::write_signed(result.exit_code);
     qemu_backend::write("\n");
     qemu_backend::log_capability_counters(name);
 
@@ -1133,7 +1134,7 @@ bool expect_runtime_failure(std::string_view log_name,
     qemu_backend::write(" code=");
     qemu_backend::log_view(app_abi::code_name(result.code));
     qemu_backend::write(" exit=");
-    qemu_backend::write_dec(static_cast<std::uint32_t>(result.exit_code));
+    qemu_backend::write_signed(result.exit_code);
     qemu_backend::write("\n");
     qemu_backend::log_capability_counters(log_name);
 
@@ -1416,6 +1417,8 @@ extern "C" int resident_elf_qemu_main() {
     ok = run_store_app("exit_error_app", "", 42) && ok;
     ok = run_direct_app("exit_negative_app", exit_negative_app_elf, exit_negative_app_elf_len, "") && ok;
     ok = run_store_app("exit_negative_app", "") && ok;
+    ok = run_direct_app("return_negative_app", return_negative_app_elf, return_negative_app_elf_len, "", -5) && ok;
+    ok = run_store_app("return_negative_app", "", -5) && ok;
     ok = run_direct_app("unsupported_caps_app", unsupported_caps_app_elf, unsupported_caps_app_elf_len, "") && ok;
     ok = run_store_app("unsupported_caps_app", "") && ok;
     ok = run_direct_app("storage_app", storage_app_elf, storage_app_elf_len, "") && ok;

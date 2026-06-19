@@ -33,6 +33,7 @@ set(CHARM_QEMU_REQUIRED_INC_FILES
     input_wrap_app.elf.inc
     large_fit_app.elf.inc
     player_min.elf.inc
+    return_negative_app.elf.inc
     storage_app.elf.inc
     storage_catalog_app.elf.inc
     storage_close_error_app.elf.inc

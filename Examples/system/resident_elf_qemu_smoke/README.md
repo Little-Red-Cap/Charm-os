@@ -789,6 +789,11 @@ explicit `-QemuElf` switch:
 Examples/project/h747-lab/tools/capture-resident-platform-evidence-bundle.ps1 -QemuElf
 ```
 
+The bundle forwards the same QEMU run budget as the standalone wrapper. Use
+`-QemuElfTimeoutSec <seconds>` and `-QemuElfTailLines <lines>` to tune the QEMU
+wait timeout and failure log tail without bypassing the supported wrapper
+surface.
+
 When BSP/CubeMX source-list migration is blocking the H747 build-only step, the
 same bundle can be used as an off-board ELF/QEMU gate with:
 

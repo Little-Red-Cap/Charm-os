@@ -11,6 +11,8 @@ param(
     [int]$InterChunkDelayMs = 1,
     [switch]$QemuElf,
     [switch]$QemuElfValidateOnly,
+    [int]$QemuElfTimeoutSec = 15,
+    [int]$QemuElfTailLines = 80,
     [switch]$SkipH747Build,
     [switch]$DryRun,
     [switch]$SelfTest
@@ -188,6 +190,12 @@ function Invoke-SelfTest {
     }
     if ($QemuElfValidateOnly -and -not $QemuElf) {
         throw "selftest_failed: -QemuElfValidateOnly requires -QemuElf"
+    }
+    if ($QemuElfTimeoutSec -le 0) {
+        throw "selftest_failed: QemuElfTimeoutSec must be positive"
+    }
+    if ($QemuElfTailLines -le 0) {
+        throw "selftest_failed: QemuElfTailLines must be positive"
     }
     $ParsedMedia = Get-MediaList -RawMedia @("qspi,emmc")
     if ($ParsedMedia.Count -ne 2 -or $ParsedMedia[0] -ne "qspi" -or $ParsedMedia[1] -ne "emmc") {
@@ -1532,6 +1540,8 @@ function Write-Summary {
         [object[]]$SmokeResults,
         [string]$QemuElfStatus,
         [string]$QemuElfMode,
+        [int]$QemuElfTimeoutSec,
+        [int]$QemuElfTailLines,
         [string]$QemuElfLog,
         [string]$QemuElfDomainSummary,
         [string]$QemuElfFramePpm,
@@ -1554,6 +1564,8 @@ function Write-Summary {
     }
     Write-BundleLine -Lines $Lines -Text "qemu_elf=$QemuElfStatus"
     Write-BundleLine -Lines $Lines -Text "qemu_elf_mode=$QemuElfMode"
+    Write-BundleLine -Lines $Lines -Text "qemu_elf_timeout_sec=$QemuElfTimeoutSec"
+    Write-BundleLine -Lines $Lines -Text "qemu_elf_tail_lines=$QemuElfTailLines"
     if (-not [string]::IsNullOrWhiteSpace($QemuElfLog)) {
         Write-BundleLine -Lines $Lines -Text "qemu_elf_log=$QemuElfLog"
     } else {
@@ -1601,6 +1613,12 @@ $MediaList = Get-MediaList -RawMedia $Media
 if ($QemuElfValidateOnly -and -not $QemuElf) {
     throw "invalid_argument: -QemuElfValidateOnly requires -QemuElf"
 }
+if ($QemuElfTimeoutSec -le 0) {
+    throw "invalid_argument: -QemuElfTimeoutSec must be positive"
+}
+if ($QemuElfTailLines -le 0) {
+    throw "invalid_argument: -QemuElfTailLines must be positive"
+}
 $QemuElfMode = "skipped"
 if ($QemuElf) {
     if ($QemuElfValidateOnly) {
@@ -1644,6 +1662,8 @@ if ($DryRun) {
     Write-Host "qemu_elf=$($QemuElf.IsPresent)"
     Write-Host "qemu_elf_validate_only=$($QemuElfValidateOnly.IsPresent)"
     Write-Host "qemu_elf_mode=$QemuElfMode"
+    Write-Host "qemu_elf_timeout_sec=$QemuElfTimeoutSec"
+    Write-Host "qemu_elf_tail_lines=$QemuElfTailLines"
     Write-Host "skip_h747_build=$($SkipH747Build.IsPresent)"
     Write-Host "inspect_source=$InspectSource"
     Write-Host "host_smokes=resident_platform_inspect_smoke,resident_platform_artifact_smoke,dev_loader_packet_stream_smoke,dev_loader_store_install_handoff_smoke,app_abi_modulex_smoke"
@@ -1730,7 +1750,11 @@ try {
                 "Bypass",
                 "-File",
                 $QemuElfScript,
-                "-ValidateEvidenceBundle"
+                "-ValidateEvidenceBundle",
+                "-TimeoutSec",
+                ([string]$QemuElfTimeoutSec),
+                "-TailLines",
+                ([string]$QemuElfTailLines)
             )
         } else {
             Invoke-Logged -Lines $Lines -Label "resident ELF QEMU smoke selftest" -FilePath "powershell" -Arguments @(
@@ -1739,14 +1763,22 @@ try {
                 "Bypass",
                 "-File",
                 $QemuElfScript,
-                "-SelfTest"
+                "-SelfTest",
+                "-TimeoutSec",
+                ([string]$QemuElfTimeoutSec),
+                "-TailLines",
+                ([string]$QemuElfTailLines)
             )
             Invoke-Logged -Lines $Lines -Label "resident ELF QEMU smoke" -FilePath "powershell" -Arguments @(
                 "-NoProfile",
                 "-ExecutionPolicy",
                 "Bypass",
                 "-File",
-                $QemuElfScript
+                $QemuElfScript,
+                "-TimeoutSec",
+                ([string]$QemuElfTimeoutSec),
+                "-TailLines",
+                ([string]$QemuElfTailLines)
             )
         }
         $QemuElfStatus = "pass"
@@ -1858,6 +1890,8 @@ try {
         -SmokeResults $SmokeResults `
         -QemuElfStatus $QemuElfStatus `
         -QemuElfMode $QemuElfMode `
+        -QemuElfTimeoutSec $QemuElfTimeoutSec `
+        -QemuElfTailLines $QemuElfTailLines `
         -QemuElfLog $QemuElfLogResolved `
         -QemuElfDomainSummary $QemuElfDomainSummaryResolved `
         -QemuElfFramePpm $QemuElfFramePpmResolved `

@@ -3935,6 +3935,8 @@ function Invoke-SelfTest {
         "-SkipGoldenStorageTrace",
         "-SkipGoldenDomainSummary",
         "capture-resident-platform-evidence-bundle.ps1 -QemuElf",
+        "-QemuElfTimeoutSec <seconds>",
+        "-QemuElfTailLines <lines>",
         "wrapper owns the supported command-line surface",
         'direct script default at `-TimeoutSec 15`',
         "display mode is fixed at 16x16 ARGB8888",

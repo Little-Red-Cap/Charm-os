@@ -38,13 +38,13 @@
                 },
     "store":  {
                   "format":  "store_v1",
-                  "entries":  19,
-                  "bytes":  112544,
+                  "entries":  20,
+                  "bytes":  117504,
                   "media":  {
                                 "kind":  "memory",
-                                "bytes":  112544,
-                                "read_calls":  247,
-                                "read_bytes":  101092,
+                                "bytes":  117504,
+                                "read_calls":  270,
+                                "read_bytes":  106960,
                                 "read_failures":  0
                             }
               },
@@ -202,6 +202,18 @@
                                   },
                                   {
                                       "name":  "store:storage_error_app",
+                                      "stage":  "exit",
+                                      "code":  "ok",
+                                      "exit":  0
+                                  },
+                                  {
+                                      "name":  "display_describe_error_app",
+                                      "stage":  "exit",
+                                      "code":  "ok",
+                                      "exit":  0
+                                  },
+                                  {
+                                      "name":  "store:display_describe_error_app",
                                       "stage":  "exit",
                                       "code":  "ok",
                                       "exit":  0
@@ -499,6 +511,12 @@
                                     {
                                         "source":  "store",
                                         "name":  "storage_error_app",
+                                        "code":  "ok",
+                                        "expected":  ""
+                                    },
+                                    {
+                                        "source":  "store",
+                                        "name":  "display_describe_error_app",
                                         "code":  "ok",
                                         "expected":  ""
                                     },
@@ -944,6 +962,34 @@
                                        "segments":  2,
                                        "needed":  242,
                                        "free":  65294,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   },
+                                   {
+                                       "name":  "display_describe_error_app",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "entry":  "0x20080001",
+                                       "entry_numeric":  537395201,
+                                       "span":  100,
+                                       "segments":  2,
+                                       "needed":  100,
+                                       "free":  65436,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   },
+                                   {
+                                       "name":  "store:display_describe_error_app",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "entry":  "0x20080001",
+                                       "entry_numeric":  537395201,
+                                       "span":  100,
+                                       "segments":  2,
+                                       "needed":  100,
+                                       "free":  65436,
                                        "fits":  true,
                                        "region":  65536,
                                        "capacity_probe":  "ok"
@@ -1745,6 +1791,22 @@
                                            },
                                            {
                                                "name":  "storage_error_app",
+                                               "direct":  {
+                                                              "stage":  "exit",
+                                                              "code":  "ok",
+                                                              "exit":  0
+                                                          },
+                                               "received":  null,
+                                               "packetstream":  null,
+                                               "store":  {
+                                                             "stage":  "exit",
+                                                             "code":  "ok",
+                                                             "exit":  0
+                                                         },
+                                               "prepare":  null
+                                           },
+                                           {
+                                               "name":  "display_describe_error_app",
                                                "direct":  {
                                                               "stage":  "exit",
                                                               "code":  "ok",

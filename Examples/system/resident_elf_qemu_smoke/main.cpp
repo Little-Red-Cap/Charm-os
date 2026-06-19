@@ -1455,9 +1455,8 @@ extern "C" int resident_elf_qemu_main() {
     qemu_backend::backend_init();
     qemu_backend::reset_store_media_counters();
     qemu_backend::log_line("resident-elf-qemu: begin");
-    qemu_backend::log_line("resident-elf-qemu: backend=virtual_m7 machine=mps2-an500 cpu=cortex-m7");
-    qemu_backend::log_line(
-        "resident-elf-qemu: backend-capabilities capabilities=console,time,display,input,storage,app_exit storage=readonly afe=unsupported");
+    qemu_backend::log_backend_identity();
+    qemu_backend::log_backend_capabilities();
     qemu_backend::log_backend_contract();
     qemu_backend::write("resident-elf-qemu: run-region base=");
     qemu_backend::write_hex32(static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(g_elf_load_region)));

@@ -113,6 +113,14 @@ constexpr std::uint32_t kInputSequenceCount =
     static_cast<std::uint32_t>(sizeof(kInputSequence) / sizeof(kInputSequence[0]));
 
 constexpr VirtualBackendContract kBackendContract{
+    .identity = VirtualBackendContract::Identity{
+        .runtime_domain = "virtual_m7",
+        .machine = "mps2-an500",
+        .cpu = "cortex-m7",
+        .capabilities = "console,time,display,input,storage,app_exit",
+        .storage = "readonly",
+        .afe = "unsupported",
+    },
     .time = VirtualBackendContract::Time{
         .kind = "deterministic_tick",
         .start_ms = kTimeStartMs,
@@ -646,6 +654,28 @@ CharmAppApi make_virtual_app_api() noexcept {
     api.afe.read = afe_read;
     api.app.exit = app_exit;
     return api;
+}
+
+void log_backend_identity() noexcept {
+    const auto& identity = backend_contract().identity;
+    write("resident-elf-qemu: backend=");
+    write(identity.runtime_domain);
+    write(" machine=");
+    write(identity.machine);
+    write(" cpu=");
+    write(identity.cpu);
+    write("\n");
+}
+
+void log_backend_capabilities() noexcept {
+    const auto& identity = backend_contract().identity;
+    write("resident-elf-qemu: backend-capabilities capabilities=");
+    write(identity.capabilities);
+    write(" storage=");
+    write(identity.storage);
+    write(" afe=");
+    write(identity.afe);
+    write("\n");
 }
 
 void log_backend_contract() noexcept {

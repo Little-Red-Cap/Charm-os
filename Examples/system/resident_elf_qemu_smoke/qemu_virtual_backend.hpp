@@ -11,6 +11,15 @@
 namespace resident_elf_qemu {
 
 struct VirtualBackendContract {
+    struct Identity {
+        const char* runtime_domain;
+        const char* machine;
+        const char* cpu;
+        const char* capabilities;
+        const char* storage;
+        const char* afe;
+    };
+
     struct Time {
         const char* kind;
         std::uint32_t start_ms;
@@ -51,6 +60,7 @@ struct VirtualBackendContract {
         bool overrides_return;
     };
 
+    Identity identity;
     Time time;
     Display display;
     Input input;
@@ -110,6 +120,8 @@ const VirtualBackendContract& backend_contract() noexcept;
 void log_capability_counters(std::string_view name) noexcept;
 CharmAppApi make_virtual_app_api() noexcept;
 bool probe_unsupported_capabilities() noexcept;
+void log_backend_identity() noexcept;
+void log_backend_capabilities() noexcept;
 void log_backend_contract() noexcept;
 
 void reset_store_media_counters() noexcept;

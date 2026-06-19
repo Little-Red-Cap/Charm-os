@@ -38,13 +38,13 @@
                 },
     "store":  {
                   "format":  "store_v1",
-                  "entries":  18,
-                  "bytes":  107744,
+                  "entries":  19,
+                  "bytes":  112544,
                   "media":  {
                                 "kind":  "memory",
-                                "bytes":  107744,
-                                "read_calls":  225,
-                                "read_bytes":  95456,
+                                "bytes":  112544,
+                                "read_calls":  247,
+                                "read_bytes":  101092,
                                 "read_failures":  0
                             }
               },
@@ -145,6 +145,18 @@
                                       "stage":  "exit",
                                       "code":  "ok",
                                       "exit":  0
+                                  },
+                                  {
+                                      "name":  "exit_error_app",
+                                      "stage":  "exit",
+                                      "code":  "ok",
+                                      "exit":  42
+                                  },
+                                  {
+                                      "name":  "store:exit_error_app",
+                                      "stage":  "exit",
+                                      "code":  "ok",
+                                      "exit":  42
                                   },
                                   {
                                       "name":  "unsupported_caps_app",
@@ -457,6 +469,12 @@
                                     {
                                         "source":  "store",
                                         "name":  "exit_app",
+                                        "code":  "ok",
+                                        "expected":  ""
+                                    },
+                                    {
+                                        "source":  "store",
+                                        "name":  "exit_error_app",
                                         "code":  "ok",
                                         "expected":  ""
                                     },
@@ -778,6 +796,34 @@
                                    },
                                    {
                                        "name":  "store:exit_app",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "entry":  "0x20080001",
+                                       "entry_numeric":  537395201,
+                                       "span":  22,
+                                       "segments":  1,
+                                       "needed":  22,
+                                       "free":  65514,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   },
+                                   {
+                                       "name":  "exit_error_app",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "entry":  "0x20080001",
+                                       "entry_numeric":  537395201,
+                                       "span":  22,
+                                       "segments":  1,
+                                       "needed":  22,
+                                       "free":  65514,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   },
+                                   {
+                                       "name":  "store:exit_error_app",
                                        "format":  "elf",
                                        "probe":  "ok",
                                        "entry":  "0x20080001",
@@ -1630,6 +1676,22 @@
                                                              "stage":  "exit",
                                                              "code":  "ok",
                                                              "exit":  0
+                                                         },
+                                               "prepare":  null
+                                           },
+                                           {
+                                               "name":  "exit_error_app",
+                                               "direct":  {
+                                                              "stage":  "exit",
+                                                              "code":  "ok",
+                                                              "exit":  42
+                                                          },
+                                               "received":  null,
+                                               "packetstream":  null,
+                                               "store":  {
+                                                             "stage":  "exit",
+                                                             "code":  "ok",
+                                                             "exit":  42
                                                          },
                                                "prepare":  null
                                            },

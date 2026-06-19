@@ -14,6 +14,7 @@
 #include "display_error_app.elf.inc"
 #include "display_sequence_app.elf.inc"
 #include "exit_app.elf.inc"
+#include "exit_error_app.elf.inc"
 #include "hello_app.elf.inc"
 #include "input_error_app.elf.inc"
 #include "input_sequence_app.elf.inc"
@@ -41,7 +42,7 @@ namespace qemu_backend = resident_elf_qemu;
 inline constexpr std::uintptr_t kQemuRunRegionBase = 0x20080000U;
 inline constexpr std::size_t kQemuRunRegionSize = 64U * 1024U;
 inline constexpr std::size_t kQemuStageCacheSize = 16U * 1024U;
-inline constexpr std::uint32_t kQemuStoreEntryCount = 18U;
+inline constexpr std::uint32_t kQemuStoreEntryCount = 19U;
 
 alignas(16) __attribute__((section(".elf_load")))
 static std::byte g_elf_load_region[kQemuRunRegionSize];
@@ -424,7 +425,8 @@ void log_probe(std::string_view name, const app_abi::AppElfLoadBackend& backend)
 
 bool run_image(std::string_view log_name,
                const app_abi::AppImage& image,
-               std::string_view arg_text) noexcept {
+               std::string_view arg_text,
+               int expected_exit_code = 0) noexcept {
     clear_run_region();
     qemu_backend::reset_capability_counters();
 
@@ -464,14 +466,15 @@ bool run_image(std::string_view log_name,
     return result.stage == app_abi::AppRunStage::exit &&
            result.code == app_abi::AppRunCode::ok &&
            result.exited &&
-           result.exit_code == 0 &&
+           result.exit_code == expected_exit_code &&
            backend.last.plan.probe.code == app_abi::AppElfProbeCode::ok;
 }
 
 bool run_direct_app(std::string_view name,
                     const unsigned char* image_bytes,
                     std::size_t image_size,
-                    std::string_view arg_text) noexcept {
+                    std::string_view arg_text,
+                    int expected_exit_code = 0) noexcept {
     return run_image(name,
                      app_abi::AppImage{
                          .name = name,
@@ -479,7 +482,8 @@ bool run_direct_app(std::string_view name,
                          .image_base = image_bytes,
                          .image_size = image_size,
                      },
-                     arg_text);
+                     arg_text,
+                     expected_exit_code);
 }
 
 bool run_received_app(std::string_view name,
@@ -1229,7 +1233,9 @@ void log_format(app_abi::AppImageFormat format) noexcept {
     }
 }
 
-bool run_store_app(std::string_view name, std::string_view arg_text) noexcept {
+bool run_store_app(std::string_view name,
+                   std::string_view arg_text,
+                   int expected_exit_code = 0) noexcept {
     std::memset(g_stage_cache, 0, sizeof(g_stage_cache));
     auto media = make_qemu_store_media();
     auto reader = qemu_backend::make_virtual_store_reader(media);
@@ -1265,7 +1271,7 @@ bool run_store_app(std::string_view name, std::string_view arg_text) noexcept {
     for (std::size_t i = 0; i < copy_len; ++i) {
         store_name[cursor++] = name[i];
     }
-    return run_image(std::string_view{store_name, cursor}, staged.image, arg_text);
+    return run_image(std::string_view{store_name, cursor}, staged.image, arg_text, expected_exit_code);
 }
 
 bool expect_store_stage_failure(std::string_view name, app_abi::AppStoreReadCode expected_code) noexcept {
@@ -1382,6 +1388,8 @@ extern "C" int resident_elf_qemu_main() {
     ok = run_store_app("data_app", "") && ok;
     ok = run_direct_app("exit_app", exit_app_elf, exit_app_elf_len, "") && ok;
     ok = run_store_app("exit_app", "") && ok;
+    ok = run_direct_app("exit_error_app", exit_error_app_elf, exit_error_app_elf_len, "", 42) && ok;
+    ok = run_store_app("exit_error_app", "", 42) && ok;
     ok = run_direct_app("unsupported_caps_app", unsupported_caps_app_elf, unsupported_caps_app_elf_len, "") && ok;
     ok = run_store_app("unsupported_caps_app", "") && ok;
     ok = run_direct_app("storage_app", storage_app_elf, storage_app_elf_len, "") && ok;

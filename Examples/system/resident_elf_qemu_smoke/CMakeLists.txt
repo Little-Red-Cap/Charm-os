@@ -22,6 +22,7 @@ set(CHARM_QEMU_REQUIRED_INC_FILES
     display_error_app.elf.inc
     display_sequence_app.elf.inc
     exit_app.elf.inc
+    exit_error_app.elf.inc
     hello_app.elf.inc
     input_error_app.elf.inc
     input_sequence_app.elf.inc

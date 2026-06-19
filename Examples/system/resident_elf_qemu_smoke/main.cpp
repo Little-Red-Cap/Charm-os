@@ -141,6 +141,66 @@ bool mutate_elf_entry_outside_segment(const unsigned char* image_bytes, std::siz
     return true;
 }
 
+bool mutate_elf_bad_class(const unsigned char* image_bytes, std::size_t image_size) noexcept {
+    if (!copy_elf_for_mutation(image_bytes, image_size) || image_size < 5U) {
+        return false;
+    }
+    g_mutated_elf_payload[4] = 2U;
+    return true;
+}
+
+bool mutate_elf_bad_endian(const unsigned char* image_bytes, std::size_t image_size) noexcept {
+    if (!copy_elf_for_mutation(image_bytes, image_size) || image_size < 6U) {
+        return false;
+    }
+    g_mutated_elf_payload[5] = 2U;
+    return true;
+}
+
+bool mutate_elf_bad_program_header(const unsigned char* image_bytes, std::size_t image_size) noexcept {
+    if (!copy_elf_for_mutation(image_bytes, image_size) ||
+        image_size < sizeof(app_abi::AppElf32Header)) {
+        return false;
+    }
+
+    app_abi::AppElf32Header header{};
+    std::memcpy(&header, g_mutated_elf_payload, sizeof(header));
+    header.phoff = static_cast<std::uint32_t>(image_size + 1U);
+    std::memcpy(g_mutated_elf_payload, &header, sizeof(header));
+    return true;
+}
+
+bool mutate_elf_truncated_payload(const unsigned char* image_bytes, std::size_t image_size) noexcept {
+    if (!copy_elf_for_mutation(image_bytes, image_size) ||
+        image_size < sizeof(app_abi::AppElf32Header)) {
+        return false;
+    }
+
+    app_abi::AppElf32Header header{};
+    std::memcpy(&header, g_mutated_elf_payload, sizeof(header));
+    const auto ph_table_bytes =
+        static_cast<std::uint64_t>(header.phentsize) * static_cast<std::uint64_t>(header.phnum);
+    if (header.phoff > image_size ||
+        header.phentsize < sizeof(app_abi::AppElf32ProgramHeader) ||
+        static_cast<std::uint64_t>(header.phoff) + ph_table_bytes > image_size) {
+        return false;
+    }
+
+    for (std::uint16_t i = 0; i < header.phnum; ++i) {
+        const auto ph_offset = header.phoff + (static_cast<std::uint32_t>(header.phentsize) * i);
+        app_abi::AppElf32ProgramHeader ph{};
+        std::memcpy(&ph, g_mutated_elf_payload + ph_offset, sizeof(ph));
+        if (ph.type == app_abi::kAppElfPtLoad && ph.filesz != 0U) {
+            ph.offset = static_cast<std::uint32_t>(image_size);
+            ph.filesz = 1U;
+            ph.memsz = 1U;
+            std::memcpy(g_mutated_elf_payload + ph_offset, &ph, sizeof(ph));
+            return true;
+        }
+    }
+    return false;
+}
+
 bool mutate_elf_first_load_segment_rwx(const unsigned char* image_bytes, std::size_t image_size) noexcept {
     if (!copy_elf_for_mutation(image_bytes, image_size) ||
         image_size < sizeof(app_abi::AppElf32Header)) {
@@ -1200,6 +1260,18 @@ extern "C" int resident_elf_qemu_main() {
                                           g_bad_elf_magic_payload,
                                           sizeof(g_bad_elf_magic_payload),
                                           app_abi::AppElfProbeCode::bad_magic) && ok;
+    ok = expect_mutated_hello_load_failure("bad_class_app",
+                                           mutate_elf_bad_class,
+                                           app_abi::AppElfProbeCode::bad_class) && ok;
+    ok = expect_mutated_hello_load_failure("bad_endian_app",
+                                           mutate_elf_bad_endian,
+                                           app_abi::AppElfProbeCode::bad_endian) && ok;
+    ok = expect_mutated_hello_load_failure("bad_program_header_app",
+                                           mutate_elf_bad_program_header,
+                                           app_abi::AppElfProbeCode::bad_program_header) && ok;
+    ok = expect_mutated_hello_load_failure("truncated_payload_app",
+                                           mutate_elf_truncated_payload,
+                                           app_abi::AppElfProbeCode::truncated_payload) && ok;
     ok = expect_mutated_hello_load_failure("entry_outside_segment_app",
                                            mutate_elf_entry_outside_segment,
                                            app_abi::AppElfProbeCode::entry_outside_segment) && ok;

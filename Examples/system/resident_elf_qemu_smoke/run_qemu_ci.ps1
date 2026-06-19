@@ -358,6 +358,22 @@ function Get-ExpectedTokens {
         "resident-elf-qemu: load packetstream:packetstream_bad_elf_magic_app format=elf probe=bad_magic",
         "resident-elf-qemu: capacity packetstream:packetstream_bad_elf_magic_app needed=0 free=65536 fits=1 region=65536 probe=bad_magic",
         "resident-elf-qemu: caps packetstream:packetstream_bad_elf_magic_app console=0 time=0 describe=0 present=0 input=0 exit=0",
+        "resident-elf-qemu: app bad_class_app stage=load code=load_failed exit=0",
+        "resident-elf-qemu: load bad_class_app format=elf probe=bad_class",
+        "resident-elf-qemu: capacity bad_class_app needed=0 free=65536 fits=1 region=65536 probe=bad_class",
+        "resident-elf-qemu: caps bad_class_app console=0 time=0 describe=0 present=0 input=0 exit=0",
+        "resident-elf-qemu: app bad_endian_app stage=load code=load_failed exit=0",
+        "resident-elf-qemu: load bad_endian_app format=elf probe=bad_endian",
+        "resident-elf-qemu: capacity bad_endian_app needed=0 free=65536 fits=1 region=65536 probe=bad_endian",
+        "resident-elf-qemu: caps bad_endian_app console=0 time=0 describe=0 present=0 input=0 exit=0",
+        "resident-elf-qemu: app bad_program_header_app stage=load code=load_failed exit=0",
+        "resident-elf-qemu: load bad_program_header_app format=elf probe=bad_program_header",
+        "resident-elf-qemu: capacity bad_program_header_app needed=0 free=65536 fits=1 region=65536 probe=bad_program_header",
+        "resident-elf-qemu: caps bad_program_header_app console=0 time=0 describe=0 present=0 input=0 exit=0",
+        "resident-elf-qemu: app truncated_payload_app stage=load code=load_failed exit=0",
+        "resident-elf-qemu: load truncated_payload_app format=elf probe=truncated_payload",
+        "resident-elf-qemu: capacity truncated_payload_app needed=0 free=65536 fits=1 region=65536 probe=truncated_payload",
+        "resident-elf-qemu: caps truncated_payload_app console=0 time=0 describe=0 present=0 input=0 exit=0",
         "resident-elf-qemu: app entry_outside_segment_app stage=load code=load_failed exit=0",
         "resident-elf-qemu: load entry_outside_segment_app format=elf probe=entry_outside_segment",
         "resident-elf-qemu: capacity entry_outside_segment_app needed=0 free=65536 fits=1 region=65536 probe=entry_outside_segment",
@@ -2151,6 +2167,10 @@ function Write-DomainSummaryCapture {
                 [pscustomobject]@{ name = "too_large_store_app"; stage = "store_stage"; code = "image_too_large" },
                 [pscustomobject]@{ name = "bad_elf_magic_app"; stage = "load"; code = "load_failed" },
                 [pscustomobject]@{ name = "packetstream_bad_elf_magic_app"; stage = "load"; code = "load_failed" },
+                [pscustomobject]@{ name = "bad_class_app"; stage = "load"; code = "load_failed" },
+                [pscustomobject]@{ name = "bad_endian_app"; stage = "load"; code = "load_failed" },
+                [pscustomobject]@{ name = "bad_program_header_app"; stage = "load"; code = "load_failed" },
+                [pscustomobject]@{ name = "truncated_payload_app"; stage = "load"; code = "load_failed" },
                 [pscustomobject]@{ name = "entry_outside_segment_app"; stage = "load"; code = "load_failed" },
                 [pscustomobject]@{ name = "rwx_segment_app"; stage = "load"; code = "load_failed" },
                 [pscustomobject]@{ name = "too_large_app"; stage = "load"; code = "load_failed" },
@@ -2613,7 +2633,7 @@ function Validate-DomainSummaryFile {
     }
     Assert-DomainStoreMedia -Store $Summary.store
     $Runs = @($Summary.coverage.runs)
-    Assert-DomainCount -Name "runs" -Actual $Runs.Count -Expected 39
+    Assert-DomainCount -Name "runs" -Actual $Runs.Count -Expected 43
     Assert-DomainRun -Runs $Runs -Name "hello_app" -Stage "exit" -Code "ok"
     Assert-DomainRun -Runs $Runs -Name "received:hello_app" -Stage "exit" -Code "ok"
     Assert-DomainRun -Runs $Runs -Name "store:hello_app" -Stage "exit" -Code "ok"
@@ -2629,6 +2649,10 @@ function Validate-DomainSummaryFile {
     Assert-DomainRun -Runs $Runs -Name "store:data_app" -Stage "exit" -Code "ok"
     Assert-DomainRun -Runs $Runs -Name "bad_elf_magic_app" -Stage "load" -Code "load_failed"
     Assert-DomainRun -Runs $Runs -Name "packetstream:packetstream_bad_elf_magic_app" -Stage "load" -Code "load_failed"
+    Assert-DomainRun -Runs $Runs -Name "bad_class_app" -Stage "load" -Code "load_failed"
+    Assert-DomainRun -Runs $Runs -Name "bad_endian_app" -Stage "load" -Code "load_failed"
+    Assert-DomainRun -Runs $Runs -Name "bad_program_header_app" -Stage "load" -Code "load_failed"
+    Assert-DomainRun -Runs $Runs -Name "truncated_payload_app" -Stage "load" -Code "load_failed"
     Assert-DomainRun -Runs $Runs -Name "entry_outside_segment_app" -Stage "load" -Code "load_failed"
     Assert-DomainRun -Runs $Runs -Name "rwx_segment_app" -Stage "load" -Code "load_failed"
     Assert-DomainRun -Runs $Runs -Name "too_large_app" -Stage "load" -Code "load_failed"
@@ -2643,7 +2667,7 @@ function Validate-DomainSummaryFile {
     Assert-DomainStage -Stages $Stages -Source "store" -Name "large_fit_app" -Code "ok"
     Assert-DomainStage -Stages $Stages -Source "store" -Name "too_large_store_app" -Code "image_too_large"
     $Loads = @($Summary.coverage.loads)
-    Assert-DomainCount -Name "loads" -Actual $Loads.Count -Expected 40
+    Assert-DomainCount -Name "loads" -Actual $Loads.Count -Expected 44
     Assert-DomainLoad -Loads $Loads -Name "hello_app" -Probe "ok" -Fits $true -Region 65536 -MinSpan 1 -Segments 2
     Assert-DomainLoad -Loads $Loads -Name "received:hello_app" -Probe "ok" -Fits $true -Region 65536 -MinSpan 1 -Segments 2
     Assert-DomainLoad -Loads $Loads -Name "packetstream:hello_app" -Probe "ok" -Fits $true -Region 65536 -MinSpan 1 -Segments 2
@@ -2662,6 +2686,10 @@ function Validate-DomainSummaryFile {
     Assert-DomainLoad -Loads $Loads -Name "store:large_fit_app" -Probe "ok" -Fits $true -Region 65536 -MinSpan 60000 -Segments 3
     Assert-DomainLoad -Loads $Loads -Name "bad_elf_magic_app" -Probe "bad_magic" -Fits $true -Region 65536 -MinSpan 0 -Segments 0
     Assert-DomainLoad -Loads $Loads -Name "packetstream:packetstream_bad_elf_magic_app" -Probe "bad_magic" -Fits $true -Region 65536 -MinSpan 0 -Segments 0
+    Assert-DomainLoad -Loads $Loads -Name "bad_class_app" -Probe "bad_class" -Fits $true -Region 65536 -MinSpan 0 -Segments 0
+    Assert-DomainLoad -Loads $Loads -Name "bad_endian_app" -Probe "bad_endian" -Fits $true -Region 65536 -MinSpan 0 -Segments 0
+    Assert-DomainLoad -Loads $Loads -Name "bad_program_header_app" -Probe "bad_program_header" -Fits $true -Region 65536 -MinSpan 0 -Segments 0
+    Assert-DomainLoad -Loads $Loads -Name "truncated_payload_app" -Probe "truncated_payload" -Fits $true -Region 65536 -MinSpan 0 -Segments 0
     Assert-DomainLoad -Loads $Loads -Name "entry_outside_segment_app" -Probe "entry_outside_segment" -Fits $true -Region 65536 -MinSpan 0 -Segments 0
     Assert-DomainLoad -Loads $Loads -Name "rwx_segment_app" -Probe "rwx_segment" -Fits $true -Region 65536 -MinSpan 0 -Segments 0
     Assert-DomainLoad -Loads $Loads -Name "too_large_app" -Probe "load_buffer_too_small" -Fits $false -Region 65536 -MinSpan 65537 -Segments 2
@@ -2692,19 +2720,23 @@ function Validate-DomainSummaryFile {
         }
     }
     $NegativeCases = @($Summary.coverage.negative_cases)
-    Assert-DomainCount -Name "negative_cases" -Actual $NegativeCases.Count -Expected 10
+    Assert-DomainCount -Name "negative_cases" -Actual $NegativeCases.Count -Expected 14
     Assert-DomainNegativeCase -NegativeCases $NegativeCases -Name "packetstream_crc_mismatch" -Stage "packetstream_verify" -Code "crc_mismatch"
     Assert-DomainNegativeCase -NegativeCases $NegativeCases -Name "received_too_large_app" -Stage "received_stage" -Code "buffer_too_small"
     Assert-DomainNegativeCase -NegativeCases $NegativeCases -Name "too_large_store_app" -Stage "store_stage" -Code "image_too_large"
     Assert-DomainNegativeCase -NegativeCases $NegativeCases -Name "bad_elf_magic_app" -Stage "load" -Code "load_failed"
     Assert-DomainNegativeCase -NegativeCases $NegativeCases -Name "packetstream_bad_elf_magic_app" -Stage "load" -Code "load_failed"
+    Assert-DomainNegativeCase -NegativeCases $NegativeCases -Name "bad_class_app" -Stage "load" -Code "load_failed"
+    Assert-DomainNegativeCase -NegativeCases $NegativeCases -Name "bad_endian_app" -Stage "load" -Code "load_failed"
+    Assert-DomainNegativeCase -NegativeCases $NegativeCases -Name "bad_program_header_app" -Stage "load" -Code "load_failed"
+    Assert-DomainNegativeCase -NegativeCases $NegativeCases -Name "truncated_payload_app" -Stage "load" -Code "load_failed"
     Assert-DomainNegativeCase -NegativeCases $NegativeCases -Name "entry_outside_segment_app" -Stage "load" -Code "load_failed"
     Assert-DomainNegativeCase -NegativeCases $NegativeCases -Name "rwx_segment_app" -Stage "load" -Code "load_failed"
     Assert-DomainNegativeCase -NegativeCases $NegativeCases -Name "too_large_app" -Stage "load" -Code "load_failed"
     Assert-DomainNegativeCase -NegativeCases $NegativeCases -Name "argv_overflow_app" -Stage "argv" -Code "argv_overflow"
     Assert-DomainNegativeCase -NegativeCases $NegativeCases -Name "abi_mismatch_app" -Stage "abi" -Code "abi_mismatch"
     $SourceMatrix = @($Summary.coverage.source_matrix)
-    Assert-DomainCount -Name "source_matrix" -Actual $SourceMatrix.Count -Expected 20
+    Assert-DomainCount -Name "source_matrix" -Actual $SourceMatrix.Count -Expected 24
     Assert-SourceMatrixEntry -Matrix $SourceMatrix -Name "hello_app" -Sources @("direct", "received", "packetstream", "store")
     Assert-SourceMatrixEntry -Matrix $SourceMatrix -Name "large_fit_app" -Sources @("direct", "received", "packetstream", "store")
     Assert-SourceMatrixEntry -Matrix $SourceMatrix -Name "player_min" -Sources @("direct", "received", "packetstream", "store")
@@ -2714,6 +2746,10 @@ function Validate-DomainSummaryFile {
     Assert-SourceMatrixEntry -Matrix $SourceMatrix -Name "display_sequence_app" -Sources @("direct", "store")
     Assert-SourceMatrixEntry -Matrix $SourceMatrix -Name "input_sequence_app" -Sources @("direct", "store")
     Assert-SourceMatrixEntry -Matrix $SourceMatrix -Name "storage_catalog_app" -Sources @("direct", "store")
+    Assert-SourceMatrixFailure -Matrix $SourceMatrix -Name "bad_class_app" -Source "direct" -Stage "load" -Code "load_failed"
+    Assert-SourceMatrixFailure -Matrix $SourceMatrix -Name "bad_endian_app" -Source "direct" -Stage "load" -Code "load_failed"
+    Assert-SourceMatrixFailure -Matrix $SourceMatrix -Name "bad_program_header_app" -Source "direct" -Stage "load" -Code "load_failed"
+    Assert-SourceMatrixFailure -Matrix $SourceMatrix -Name "truncated_payload_app" -Source "direct" -Stage "load" -Code "load_failed"
     Assert-SourceMatrixFailure -Matrix $SourceMatrix -Name "entry_outside_segment_app" -Source "direct" -Stage "load" -Code "load_failed"
     Assert-SourceMatrixFailure -Matrix $SourceMatrix -Name "rwx_segment_app" -Source "direct" -Stage "load" -Code "load_failed"
     Assert-SourceMatrixFailure -Matrix $SourceMatrix -Name "too_large_app" -Source "direct" -Stage "load" -Code "load_failed"

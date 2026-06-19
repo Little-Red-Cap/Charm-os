@@ -34,6 +34,7 @@ set(CHARM_QEMU_REQUIRED_INC_FILES
     storage_close_error_app.elf.inc
     storage_error_app.elf.inc
     storage_open_error_app.elf.inc
+    storage_write_error_app.elf.inc
     time_app.elf.inc
     too_large_app.elf.inc
     unsupported_caps_app.elf.inc)

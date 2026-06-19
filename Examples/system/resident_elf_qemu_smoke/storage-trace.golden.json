@@ -1,7 +1,7 @@
 {
     "schema":  "charm.resident_elf_qemu.storage_trace.v1",
     "log":  "qemu-ci.log",
-    "event_count":  81,
+    "event_count":  94,
     "events":  [
                    {
                        "index":  1,
@@ -29,7 +29,7 @@
                    },
                    {
                        "index":  3,
-                       "op":  "close",
+                       "op":  "write",
                        "path":  "",
                        "fd":  -1,
                        "code":  "unsupported",
@@ -41,6 +41,18 @@
                    },
                    {
                        "index":  4,
+                       "op":  "close",
+                       "path":  "",
+                       "fd":  -1,
+                       "code":  "unsupported",
+                       "size":  0,
+                       "requested":  0,
+                       "count":  0,
+                       "offset":  0,
+                       "remaining":  0
+                   },
+                   {
+                       "index":  5,
                        "op":  "open",
                        "path":  "/missing",
                        "fd":  -1,
@@ -52,20 +64,8 @@
                        "remaining":  0
                    },
                    {
-                       "index":  5,
-                       "op":  "read",
-                       "path":  "",
-                       "fd":  -1,
-                       "code":  "unsupported",
-                       "size":  0,
-                       "requested":  0,
-                       "count":  0,
-                       "offset":  0,
-                       "remaining":  0
-                   },
-                   {
                        "index":  6,
-                       "op":  "close",
+                       "op":  "read",
                        "path":  "",
                        "fd":  -1,
                        "code":  "unsupported",
@@ -77,8 +77,8 @@
                    },
                    {
                        "index":  7,
-                       "op":  "open",
-                       "path":  "/missing",
+                       "op":  "write",
+                       "path":  "",
                        "fd":  -1,
                        "code":  "unsupported",
                        "size":  0,
@@ -89,7 +89,7 @@
                    },
                    {
                        "index":  8,
-                       "op":  "read",
+                       "op":  "close",
                        "path":  "",
                        "fd":  -1,
                        "code":  "unsupported",
@@ -101,6 +101,42 @@
                    },
                    {
                        "index":  9,
+                       "op":  "open",
+                       "path":  "/missing",
+                       "fd":  -1,
+                       "code":  "unsupported",
+                       "size":  0,
+                       "requested":  0,
+                       "count":  0,
+                       "offset":  0,
+                       "remaining":  0
+                   },
+                   {
+                       "index":  10,
+                       "op":  "read",
+                       "path":  "",
+                       "fd":  -1,
+                       "code":  "unsupported",
+                       "size":  0,
+                       "requested":  0,
+                       "count":  0,
+                       "offset":  0,
+                       "remaining":  0
+                   },
+                   {
+                       "index":  11,
+                       "op":  "write",
+                       "path":  "",
+                       "fd":  -1,
+                       "code":  "unsupported",
+                       "size":  0,
+                       "requested":  0,
+                       "count":  0,
+                       "offset":  0,
+                       "remaining":  0
+                   },
+                   {
+                       "index":  12,
                        "op":  "close",
                        "path":  "",
                        "fd":  -1,
@@ -112,7 +148,7 @@
                        "remaining":  0
                    },
                    {
-                       "index":  10,
+                       "index":  13,
                        "op":  "open",
                        "path":  "/virtual/readme.txt",
                        "fd":  3,
@@ -124,7 +160,7 @@
                        "remaining":  0
                    },
                    {
-                       "index":  11,
+                       "index":  14,
                        "op":  "read",
                        "path":  "",
                        "fd":  3,
@@ -136,7 +172,7 @@
                        "remaining":  19
                    },
                    {
-                       "index":  12,
+                       "index":  15,
                        "op":  "read",
                        "path":  "",
                        "fd":  3,
@@ -148,7 +184,7 @@
                        "remaining":  11
                    },
                    {
-                       "index":  13,
+                       "index":  16,
                        "op":  "read",
                        "path":  "",
                        "fd":  3,
@@ -160,7 +196,7 @@
                        "remaining":  3
                    },
                    {
-                       "index":  14,
+                       "index":  17,
                        "op":  "read",
                        "path":  "",
                        "fd":  3,
@@ -169,42 +205,6 @@
                        "requested":  8,
                        "count":  3,
                        "offset":  24,
-                       "remaining":  0
-                   },
-                   {
-                       "index":  15,
-                       "op":  "read",
-                       "path":  "",
-                       "fd":  3,
-                       "code":  "ok",
-                       "size":  0,
-                       "requested":  8,
-                       "count":  0,
-                       "offset":  27,
-                       "remaining":  0
-                   },
-                   {
-                       "index":  16,
-                       "op":  "close",
-                       "path":  "",
-                       "fd":  3,
-                       "code":  "ok",
-                       "size":  0,
-                       "requested":  0,
-                       "count":  0,
-                       "offset":  0,
-                       "remaining":  0
-                   },
-                   {
-                       "index":  17,
-                       "op":  "open",
-                       "path":  "/virtual/readme.txt",
-                       "fd":  3,
-                       "code":  "ok",
-                       "size":  27,
-                       "requested":  0,
-                       "count":  0,
-                       "offset":  0,
                        "remaining":  0
                    },
                    {
@@ -215,60 +215,12 @@
                        "code":  "ok",
                        "size":  0,
                        "requested":  8,
-                       "count":  8,
-                       "offset":  0,
-                       "remaining":  19
-                   },
-                   {
-                       "index":  19,
-                       "op":  "read",
-                       "path":  "",
-                       "fd":  3,
-                       "code":  "ok",
-                       "size":  0,
-                       "requested":  8,
-                       "count":  8,
-                       "offset":  8,
-                       "remaining":  11
-                   },
-                   {
-                       "index":  20,
-                       "op":  "read",
-                       "path":  "",
-                       "fd":  3,
-                       "code":  "ok",
-                       "size":  0,
-                       "requested":  8,
-                       "count":  8,
-                       "offset":  16,
-                       "remaining":  3
-                   },
-                   {
-                       "index":  21,
-                       "op":  "read",
-                       "path":  "",
-                       "fd":  3,
-                       "code":  "ok",
-                       "size":  0,
-                       "requested":  8,
-                       "count":  3,
-                       "offset":  24,
-                       "remaining":  0
-                   },
-                   {
-                       "index":  22,
-                       "op":  "read",
-                       "path":  "",
-                       "fd":  3,
-                       "code":  "ok",
-                       "size":  0,
-                       "requested":  8,
                        "count":  0,
                        "offset":  27,
                        "remaining":  0
                    },
                    {
-                       "index":  23,
+                       "index":  19,
                        "op":  "close",
                        "path":  "",
                        "fd":  3,
@@ -280,319 +232,7 @@
                        "remaining":  0
                    },
                    {
-                       "index":  24,
-                       "op":  "open",
-                       "path":  "/virtual/alpha.txt",
-                       "fd":  3,
-                       "code":  "ok",
-                       "size":  15,
-                       "requested":  0,
-                       "count":  0,
-                       "offset":  0,
-                       "remaining":  0
-                   },
-                   {
-                       "index":  25,
-                       "op":  "open",
-                       "path":  "/virtual/beta.bin",
-                       "fd":  4,
-                       "code":  "ok",
-                       "size":  16,
-                       "requested":  0,
-                       "count":  0,
-                       "offset":  0,
-                       "remaining":  0
-                   },
-                   {
-                       "index":  26,
-                       "op":  "read",
-                       "path":  "",
-                       "fd":  3,
-                       "code":  "ok",
-                       "size":  0,
-                       "requested":  5,
-                       "count":  5,
-                       "offset":  0,
-                       "remaining":  10
-                   },
-                   {
-                       "index":  27,
-                       "op":  "read",
-                       "path":  "",
-                       "fd":  3,
-                       "code":  "ok",
-                       "size":  0,
-                       "requested":  5,
-                       "count":  5,
-                       "offset":  5,
-                       "remaining":  5
-                   },
-                   {
-                       "index":  28,
-                       "op":  "read",
-                       "path":  "",
-                       "fd":  3,
-                       "code":  "ok",
-                       "size":  0,
-                       "requested":  5,
-                       "count":  5,
-                       "offset":  10,
-                       "remaining":  0
-                   },
-                   {
-                       "index":  29,
-                       "op":  "read",
-                       "path":  "",
-                       "fd":  3,
-                       "code":  "ok",
-                       "size":  0,
-                       "requested":  5,
-                       "count":  0,
-                       "offset":  15,
-                       "remaining":  0
-                   },
-                   {
-                       "index":  30,
-                       "op":  "read",
-                       "path":  "",
-                       "fd":  4,
-                       "code":  "ok",
-                       "size":  0,
-                       "requested":  5,
-                       "count":  5,
-                       "offset":  0,
-                       "remaining":  11
-                   },
-                   {
-                       "index":  31,
-                       "op":  "read",
-                       "path":  "",
-                       "fd":  4,
-                       "code":  "ok",
-                       "size":  0,
-                       "requested":  5,
-                       "count":  5,
-                       "offset":  5,
-                       "remaining":  6
-                   },
-                   {
-                       "index":  32,
-                       "op":  "read",
-                       "path":  "",
-                       "fd":  4,
-                       "code":  "ok",
-                       "size":  0,
-                       "requested":  5,
-                       "count":  5,
-                       "offset":  10,
-                       "remaining":  1
-                   },
-                   {
-                       "index":  33,
-                       "op":  "read",
-                       "path":  "",
-                       "fd":  4,
-                       "code":  "ok",
-                       "size":  0,
-                       "requested":  5,
-                       "count":  1,
-                       "offset":  15,
-                       "remaining":  0
-                   },
-                   {
-                       "index":  34,
-                       "op":  "read",
-                       "path":  "",
-                       "fd":  4,
-                       "code":  "ok",
-                       "size":  0,
-                       "requested":  5,
-                       "count":  0,
-                       "offset":  16,
-                       "remaining":  0
-                   },
-                   {
-                       "index":  35,
-                       "op":  "close",
-                       "path":  "",
-                       "fd":  4,
-                       "code":  "ok",
-                       "size":  0,
-                       "requested":  0,
-                       "count":  0,
-                       "offset":  0,
-                       "remaining":  0
-                   },
-                   {
-                       "index":  36,
-                       "op":  "close",
-                       "path":  "",
-                       "fd":  3,
-                       "code":  "ok",
-                       "size":  0,
-                       "requested":  0,
-                       "count":  0,
-                       "offset":  0,
-                       "remaining":  0
-                   },
-                   {
-                       "index":  37,
-                       "op":  "open",
-                       "path":  "/virtual/alpha.txt",
-                       "fd":  3,
-                       "code":  "ok",
-                       "size":  15,
-                       "requested":  0,
-                       "count":  0,
-                       "offset":  0,
-                       "remaining":  0
-                   },
-                   {
-                       "index":  38,
-                       "op":  "open",
-                       "path":  "/virtual/beta.bin",
-                       "fd":  4,
-                       "code":  "ok",
-                       "size":  16,
-                       "requested":  0,
-                       "count":  0,
-                       "offset":  0,
-                       "remaining":  0
-                   },
-                   {
-                       "index":  39,
-                       "op":  "read",
-                       "path":  "",
-                       "fd":  3,
-                       "code":  "ok",
-                       "size":  0,
-                       "requested":  5,
-                       "count":  5,
-                       "offset":  0,
-                       "remaining":  10
-                   },
-                   {
-                       "index":  40,
-                       "op":  "read",
-                       "path":  "",
-                       "fd":  3,
-                       "code":  "ok",
-                       "size":  0,
-                       "requested":  5,
-                       "count":  5,
-                       "offset":  5,
-                       "remaining":  5
-                   },
-                   {
-                       "index":  41,
-                       "op":  "read",
-                       "path":  "",
-                       "fd":  3,
-                       "code":  "ok",
-                       "size":  0,
-                       "requested":  5,
-                       "count":  5,
-                       "offset":  10,
-                       "remaining":  0
-                   },
-                   {
-                       "index":  42,
-                       "op":  "read",
-                       "path":  "",
-                       "fd":  3,
-                       "code":  "ok",
-                       "size":  0,
-                       "requested":  5,
-                       "count":  0,
-                       "offset":  15,
-                       "remaining":  0
-                   },
-                   {
-                       "index":  43,
-                       "op":  "read",
-                       "path":  "",
-                       "fd":  4,
-                       "code":  "ok",
-                       "size":  0,
-                       "requested":  5,
-                       "count":  5,
-                       "offset":  0,
-                       "remaining":  11
-                   },
-                   {
-                       "index":  44,
-                       "op":  "read",
-                       "path":  "",
-                       "fd":  4,
-                       "code":  "ok",
-                       "size":  0,
-                       "requested":  5,
-                       "count":  5,
-                       "offset":  5,
-                       "remaining":  6
-                   },
-                   {
-                       "index":  45,
-                       "op":  "read",
-                       "path":  "",
-                       "fd":  4,
-                       "code":  "ok",
-                       "size":  0,
-                       "requested":  5,
-                       "count":  5,
-                       "offset":  10,
-                       "remaining":  1
-                   },
-                   {
-                       "index":  46,
-                       "op":  "read",
-                       "path":  "",
-                       "fd":  4,
-                       "code":  "ok",
-                       "size":  0,
-                       "requested":  5,
-                       "count":  1,
-                       "offset":  15,
-                       "remaining":  0
-                   },
-                   {
-                       "index":  47,
-                       "op":  "read",
-                       "path":  "",
-                       "fd":  4,
-                       "code":  "ok",
-                       "size":  0,
-                       "requested":  5,
-                       "count":  0,
-                       "offset":  16,
-                       "remaining":  0
-                   },
-                   {
-                       "index":  48,
-                       "op":  "close",
-                       "path":  "",
-                       "fd":  4,
-                       "code":  "ok",
-                       "size":  0,
-                       "requested":  0,
-                       "count":  0,
-                       "offset":  0,
-                       "remaining":  0
-                   },
-                   {
-                       "index":  49,
-                       "op":  "close",
-                       "path":  "",
-                       "fd":  3,
-                       "code":  "ok",
-                       "size":  0,
-                       "requested":  0,
-                       "count":  0,
-                       "offset":  0,
-                       "remaining":  0
-                   },
-                   {
-                       "index":  50,
+                       "index":  20,
                        "op":  "open",
                        "path":  "/virtual/readme.txt",
                        "fd":  3,
@@ -604,10 +244,370 @@
                        "remaining":  0
                    },
                    {
-                       "index":  51,
+                       "index":  21,
+                       "op":  "read",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  0,
+                       "requested":  8,
+                       "count":  8,
+                       "offset":  0,
+                       "remaining":  19
+                   },
+                   {
+                       "index":  22,
+                       "op":  "read",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  0,
+                       "requested":  8,
+                       "count":  8,
+                       "offset":  8,
+                       "remaining":  11
+                   },
+                   {
+                       "index":  23,
+                       "op":  "read",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  0,
+                       "requested":  8,
+                       "count":  8,
+                       "offset":  16,
+                       "remaining":  3
+                   },
+                   {
+                       "index":  24,
+                       "op":  "read",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  0,
+                       "requested":  8,
+                       "count":  3,
+                       "offset":  24,
+                       "remaining":  0
+                   },
+                   {
+                       "index":  25,
+                       "op":  "read",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  0,
+                       "requested":  8,
+                       "count":  0,
+                       "offset":  27,
+                       "remaining":  0
+                   },
+                   {
+                       "index":  26,
                        "op":  "close",
                        "path":  "",
                        "fd":  3,
+                       "code":  "ok",
+                       "size":  0,
+                       "requested":  0,
+                       "count":  0,
+                       "offset":  0,
+                       "remaining":  0
+                   },
+                   {
+                       "index":  27,
+                       "op":  "open",
+                       "path":  "/virtual/alpha.txt",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  15,
+                       "requested":  0,
+                       "count":  0,
+                       "offset":  0,
+                       "remaining":  0
+                   },
+                   {
+                       "index":  28,
+                       "op":  "open",
+                       "path":  "/virtual/beta.bin",
+                       "fd":  4,
+                       "code":  "ok",
+                       "size":  16,
+                       "requested":  0,
+                       "count":  0,
+                       "offset":  0,
+                       "remaining":  0
+                   },
+                   {
+                       "index":  29,
+                       "op":  "read",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  0,
+                       "requested":  5,
+                       "count":  5,
+                       "offset":  0,
+                       "remaining":  10
+                   },
+                   {
+                       "index":  30,
+                       "op":  "read",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  0,
+                       "requested":  5,
+                       "count":  5,
+                       "offset":  5,
+                       "remaining":  5
+                   },
+                   {
+                       "index":  31,
+                       "op":  "read",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  0,
+                       "requested":  5,
+                       "count":  5,
+                       "offset":  10,
+                       "remaining":  0
+                   },
+                   {
+                       "index":  32,
+                       "op":  "read",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  0,
+                       "requested":  5,
+                       "count":  0,
+                       "offset":  15,
+                       "remaining":  0
+                   },
+                   {
+                       "index":  33,
+                       "op":  "read",
+                       "path":  "",
+                       "fd":  4,
+                       "code":  "ok",
+                       "size":  0,
+                       "requested":  5,
+                       "count":  5,
+                       "offset":  0,
+                       "remaining":  11
+                   },
+                   {
+                       "index":  34,
+                       "op":  "read",
+                       "path":  "",
+                       "fd":  4,
+                       "code":  "ok",
+                       "size":  0,
+                       "requested":  5,
+                       "count":  5,
+                       "offset":  5,
+                       "remaining":  6
+                   },
+                   {
+                       "index":  35,
+                       "op":  "read",
+                       "path":  "",
+                       "fd":  4,
+                       "code":  "ok",
+                       "size":  0,
+                       "requested":  5,
+                       "count":  5,
+                       "offset":  10,
+                       "remaining":  1
+                   },
+                   {
+                       "index":  36,
+                       "op":  "read",
+                       "path":  "",
+                       "fd":  4,
+                       "code":  "ok",
+                       "size":  0,
+                       "requested":  5,
+                       "count":  1,
+                       "offset":  15,
+                       "remaining":  0
+                   },
+                   {
+                       "index":  37,
+                       "op":  "read",
+                       "path":  "",
+                       "fd":  4,
+                       "code":  "ok",
+                       "size":  0,
+                       "requested":  5,
+                       "count":  0,
+                       "offset":  16,
+                       "remaining":  0
+                   },
+                   {
+                       "index":  38,
+                       "op":  "close",
+                       "path":  "",
+                       "fd":  4,
+                       "code":  "ok",
+                       "size":  0,
+                       "requested":  0,
+                       "count":  0,
+                       "offset":  0,
+                       "remaining":  0
+                   },
+                   {
+                       "index":  39,
+                       "op":  "close",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  0,
+                       "requested":  0,
+                       "count":  0,
+                       "offset":  0,
+                       "remaining":  0
+                   },
+                   {
+                       "index":  40,
+                       "op":  "open",
+                       "path":  "/virtual/alpha.txt",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  15,
+                       "requested":  0,
+                       "count":  0,
+                       "offset":  0,
+                       "remaining":  0
+                   },
+                   {
+                       "index":  41,
+                       "op":  "open",
+                       "path":  "/virtual/beta.bin",
+                       "fd":  4,
+                       "code":  "ok",
+                       "size":  16,
+                       "requested":  0,
+                       "count":  0,
+                       "offset":  0,
+                       "remaining":  0
+                   },
+                   {
+                       "index":  42,
+                       "op":  "read",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  0,
+                       "requested":  5,
+                       "count":  5,
+                       "offset":  0,
+                       "remaining":  10
+                   },
+                   {
+                       "index":  43,
+                       "op":  "read",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  0,
+                       "requested":  5,
+                       "count":  5,
+                       "offset":  5,
+                       "remaining":  5
+                   },
+                   {
+                       "index":  44,
+                       "op":  "read",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  0,
+                       "requested":  5,
+                       "count":  5,
+                       "offset":  10,
+                       "remaining":  0
+                   },
+                   {
+                       "index":  45,
+                       "op":  "read",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  0,
+                       "requested":  5,
+                       "count":  0,
+                       "offset":  15,
+                       "remaining":  0
+                   },
+                   {
+                       "index":  46,
+                       "op":  "read",
+                       "path":  "",
+                       "fd":  4,
+                       "code":  "ok",
+                       "size":  0,
+                       "requested":  5,
+                       "count":  5,
+                       "offset":  0,
+                       "remaining":  11
+                   },
+                   {
+                       "index":  47,
+                       "op":  "read",
+                       "path":  "",
+                       "fd":  4,
+                       "code":  "ok",
+                       "size":  0,
+                       "requested":  5,
+                       "count":  5,
+                       "offset":  5,
+                       "remaining":  6
+                   },
+                   {
+                       "index":  48,
+                       "op":  "read",
+                       "path":  "",
+                       "fd":  4,
+                       "code":  "ok",
+                       "size":  0,
+                       "requested":  5,
+                       "count":  5,
+                       "offset":  10,
+                       "remaining":  1
+                   },
+                   {
+                       "index":  49,
+                       "op":  "read",
+                       "path":  "",
+                       "fd":  4,
+                       "code":  "ok",
+                       "size":  0,
+                       "requested":  5,
+                       "count":  1,
+                       "offset":  15,
+                       "remaining":  0
+                   },
+                   {
+                       "index":  50,
+                       "op":  "read",
+                       "path":  "",
+                       "fd":  4,
+                       "code":  "ok",
+                       "size":  0,
+                       "requested":  5,
+                       "count":  0,
+                       "offset":  16,
+                       "remaining":  0
+                   },
+                   {
+                       "index":  51,
+                       "op":  "close",
+                       "path":  "",
+                       "fd":  4,
                        "code":  "ok",
                        "size":  0,
                        "requested":  0,
@@ -620,7 +620,7 @@
                        "op":  "close",
                        "path":  "",
                        "fd":  3,
-                       "code":  "unsupported",
+                       "code":  "ok",
                        "size":  0,
                        "requested":  0,
                        "count":  0,
@@ -641,22 +641,22 @@
                    },
                    {
                        "index":  54,
-                       "op":  "read",
+                       "op":  "close",
                        "path":  "",
                        "fd":  3,
                        "code":  "ok",
                        "size":  0,
-                       "requested":  1,
-                       "count":  1,
+                       "requested":  0,
+                       "count":  0,
                        "offset":  0,
-                       "remaining":  26
+                       "remaining":  0
                    },
                    {
                        "index":  55,
                        "op":  "close",
                        "path":  "",
                        "fd":  3,
-                       "code":  "ok",
+                       "code":  "unsupported",
                        "size":  0,
                        "requested":  0,
                        "count":  0,
@@ -677,22 +677,22 @@
                    },
                    {
                        "index":  57,
-                       "op":  "close",
+                       "op":  "read",
                        "path":  "",
                        "fd":  3,
                        "code":  "ok",
                        "size":  0,
-                       "requested":  0,
-                       "count":  0,
+                       "requested":  1,
+                       "count":  1,
                        "offset":  0,
-                       "remaining":  0
+                       "remaining":  26
                    },
                    {
                        "index":  58,
                        "op":  "close",
                        "path":  "",
                        "fd":  3,
-                       "code":  "unsupported",
+                       "code":  "ok",
                        "size":  0,
                        "requested":  0,
                        "count":  0,
@@ -713,22 +713,22 @@
                    },
                    {
                        "index":  60,
-                       "op":  "read",
+                       "op":  "close",
                        "path":  "",
                        "fd":  3,
                        "code":  "ok",
                        "size":  0,
-                       "requested":  1,
-                       "count":  1,
+                       "requested":  0,
+                       "count":  0,
                        "offset":  0,
-                       "remaining":  26
+                       "remaining":  0
                    },
                    {
                        "index":  61,
                        "op":  "close",
                        "path":  "",
                        "fd":  3,
-                       "code":  "ok",
+                       "code":  "unsupported",
                        "size":  0,
                        "requested":  0,
                        "count":  0,
@@ -752,27 +752,15 @@
                        "op":  "read",
                        "path":  "",
                        "fd":  3,
-                       "code":  "invalid_argument",
+                       "code":  "ok",
                        "size":  0,
-                       "requested":  4,
-                       "count":  0,
+                       "requested":  1,
+                       "count":  1,
                        "offset":  0,
-                       "remaining":  27
+                       "remaining":  26
                    },
                    {
                        "index":  64,
-                       "op":  "read",
-                       "path":  "",
-                       "fd":  3,
-                       "code":  "ok",
-                       "size":  0,
-                       "requested":  4,
-                       "count":  4,
-                       "offset":  0,
-                       "remaining":  23
-                   },
-                   {
-                       "index":  65,
                        "op":  "close",
                        "path":  "",
                        "fd":  3,
@@ -784,7 +772,7 @@
                        "remaining":  0
                    },
                    {
-                       "index":  66,
+                       "index":  65,
                        "op":  "open",
                        "path":  "/virtual/readme.txt",
                        "fd":  3,
@@ -796,7 +784,7 @@
                        "remaining":  0
                    },
                    {
-                       "index":  67,
+                       "index":  66,
                        "op":  "read",
                        "path":  "",
                        "fd":  3,
@@ -808,7 +796,7 @@
                        "remaining":  27
                    },
                    {
-                       "index":  68,
+                       "index":  67,
                        "op":  "read",
                        "path":  "",
                        "fd":  3,
@@ -820,7 +808,7 @@
                        "remaining":  23
                    },
                    {
-                       "index":  69,
+                       "index":  68,
                        "op":  "close",
                        "path":  "",
                        "fd":  3,
@@ -832,35 +820,47 @@
                        "remaining":  0
                    },
                    {
-                       "index":  70,
+                       "index":  69,
                        "op":  "open",
-                       "path":  "\u003cnull\u003e",
-                       "fd":  -1,
-                       "code":  "invalid_argument",
-                       "size":  0,
+                       "path":  "/virtual/readme.txt",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  27,
                        "requested":  0,
                        "count":  0,
                        "offset":  0,
                        "remaining":  0
+                   },
+                   {
+                       "index":  70,
+                       "op":  "read",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "invalid_argument",
+                       "size":  0,
+                       "requested":  4,
+                       "count":  0,
+                       "offset":  0,
+                       "remaining":  27
                    },
                    {
                        "index":  71,
-                       "op":  "open",
-                       "path":  "/virtual/readme.txt",
-                       "fd":  -1,
-                       "code":  "unsupported",
+                       "op":  "read",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "ok",
                        "size":  0,
-                       "requested":  0,
-                       "count":  0,
+                       "requested":  4,
+                       "count":  4,
                        "offset":  0,
-                       "remaining":  0
+                       "remaining":  23
                    },
                    {
                        "index":  72,
-                       "op":  "open",
-                       "path":  "/virtual/readme.txt",
-                       "fd":  -1,
-                       "code":  "unsupported",
+                       "op":  "close",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "ok",
                        "size":  0,
                        "requested":  0,
                        "count":  0,
@@ -870,6 +870,42 @@
                    {
                        "index":  73,
                        "op":  "open",
+                       "path":  "\u003cnull\u003e",
+                       "fd":  -1,
+                       "code":  "invalid_argument",
+                       "size":  0,
+                       "requested":  0,
+                       "count":  0,
+                       "offset":  0,
+                       "remaining":  0
+                   },
+                   {
+                       "index":  74,
+                       "op":  "open",
+                       "path":  "/virtual/readme.txt",
+                       "fd":  -1,
+                       "code":  "unsupported",
+                       "size":  0,
+                       "requested":  0,
+                       "count":  0,
+                       "offset":  0,
+                       "remaining":  0
+                   },
+                   {
+                       "index":  75,
+                       "op":  "open",
+                       "path":  "/virtual/readme.txt",
+                       "fd":  -1,
+                       "code":  "unsupported",
+                       "size":  0,
+                       "requested":  0,
+                       "count":  0,
+                       "offset":  0,
+                       "remaining":  0
+                   },
+                   {
+                       "index":  76,
+                       "op":  "open",
                        "path":  "/virtual/readme.txt",
                        "fd":  3,
                        "code":  "ok",
@@ -880,7 +916,7 @@
                        "remaining":  0
                    },
                    {
-                       "index":  74,
+                       "index":  77,
                        "op":  "read",
                        "path":  "",
                        "fd":  3,
@@ -892,7 +928,7 @@
                        "remaining":  26
                    },
                    {
-                       "index":  75,
+                       "index":  78,
                        "op":  "close",
                        "path":  "",
                        "fd":  3,
@@ -904,7 +940,7 @@
                        "remaining":  0
                    },
                    {
-                       "index":  76,
+                       "index":  79,
                        "op":  "open",
                        "path":  "\u003cnull\u003e",
                        "fd":  -1,
@@ -916,7 +952,7 @@
                        "remaining":  0
                    },
                    {
-                       "index":  77,
+                       "index":  80,
                        "op":  "open",
                        "path":  "/virtual/readme.txt",
                        "fd":  -1,
@@ -928,7 +964,7 @@
                        "remaining":  0
                    },
                    {
-                       "index":  78,
+                       "index":  81,
                        "op":  "open",
                        "path":  "/virtual/readme.txt",
                        "fd":  -1,
@@ -940,7 +976,7 @@
                        "remaining":  0
                    },
                    {
-                       "index":  79,
+                       "index":  82,
                        "op":  "open",
                        "path":  "/virtual/readme.txt",
                        "fd":  3,
@@ -952,7 +988,7 @@
                        "remaining":  0
                    },
                    {
-                       "index":  80,
+                       "index":  83,
                        "op":  "read",
                        "path":  "",
                        "fd":  3,
@@ -964,7 +1000,127 @@
                        "remaining":  26
                    },
                    {
-                       "index":  81,
+                       "index":  84,
+                       "op":  "close",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  0,
+                       "requested":  0,
+                       "count":  0,
+                       "offset":  0,
+                       "remaining":  0
+                   },
+                   {
+                       "index":  85,
+                       "op":  "open",
+                       "path":  "/virtual/readme.txt",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  27,
+                       "requested":  0,
+                       "count":  0,
+                       "offset":  0,
+                       "remaining":  0
+                   },
+                   {
+                       "index":  86,
+                       "op":  "read",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  0,
+                       "requested":  1,
+                       "count":  1,
+                       "offset":  0,
+                       "remaining":  26
+                   },
+                   {
+                       "index":  87,
+                       "op":  "write",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "unsupported",
+                       "size":  0,
+                       "requested":  1,
+                       "count":  0,
+                       "offset":  1,
+                       "remaining":  26
+                   },
+                   {
+                       "index":  88,
+                       "op":  "read",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  0,
+                       "requested":  1,
+                       "count":  1,
+                       "offset":  1,
+                       "remaining":  25
+                   },
+                   {
+                       "index":  89,
+                       "op":  "close",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  0,
+                       "requested":  0,
+                       "count":  0,
+                       "offset":  0,
+                       "remaining":  0
+                   },
+                   {
+                       "index":  90,
+                       "op":  "open",
+                       "path":  "/virtual/readme.txt",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  27,
+                       "requested":  0,
+                       "count":  0,
+                       "offset":  0,
+                       "remaining":  0
+                   },
+                   {
+                       "index":  91,
+                       "op":  "read",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  0,
+                       "requested":  1,
+                       "count":  1,
+                       "offset":  0,
+                       "remaining":  26
+                   },
+                   {
+                       "index":  92,
+                       "op":  "write",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "unsupported",
+                       "size":  0,
+                       "requested":  1,
+                       "count":  0,
+                       "offset":  1,
+                       "remaining":  26
+                   },
+                   {
+                       "index":  93,
+                       "op":  "read",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  0,
+                       "requested":  1,
+                       "count":  1,
+                       "offset":  1,
+                       "remaining":  25
+                   },
+                   {
+                       "index":  94,
                        "op":  "close",
                        "path":  "",
                        "fd":  3,
@@ -976,17 +1132,17 @@
                        "remaining":  0
                    }
                ],
-    "run_count":  12,
+    "run_count":  14,
     "runs":  [
                  {
                      "name":  "unsupported_caps_app",
                      "stage":  "exit",
                      "code":  "ok",
                      "exit":  0,
-                     "event_count":  3,
+                     "event_count":  4,
                      "events":  [
                                     {
-                                        "index":  4,
+                                        "index":  5,
                                         "op":  "open",
                                         "path":  "/missing",
                                         "fd":  -1,
@@ -998,7 +1154,7 @@
                                         "remaining":  0
                                     },
                                     {
-                                        "index":  5,
+                                        "index":  6,
                                         "op":  "read",
                                         "path":  "",
                                         "fd":  -1,
@@ -1010,7 +1166,19 @@
                                         "remaining":  0
                                     },
                                     {
-                                        "index":  6,
+                                        "index":  7,
+                                        "op":  "write",
+                                        "path":  "",
+                                        "fd":  -1,
+                                        "code":  "unsupported",
+                                        "size":  0,
+                                        "requested":  0,
+                                        "count":  0,
+                                        "offset":  0,
+                                        "remaining":  0
+                                    },
+                                    {
+                                        "index":  8,
                                         "op":  "close",
                                         "path":  "",
                                         "fd":  -1,
@@ -1028,10 +1196,10 @@
                      "stage":  "exit",
                      "code":  "ok",
                      "exit":  0,
-                     "event_count":  3,
+                     "event_count":  4,
                      "events":  [
                                     {
-                                        "index":  7,
+                                        "index":  9,
                                         "op":  "open",
                                         "path":  "/missing",
                                         "fd":  -1,
@@ -1043,7 +1211,7 @@
                                         "remaining":  0
                                     },
                                     {
-                                        "index":  8,
+                                        "index":  10,
                                         "op":  "read",
                                         "path":  "",
                                         "fd":  -1,
@@ -1055,7 +1223,19 @@
                                         "remaining":  0
                                     },
                                     {
-                                        "index":  9,
+                                        "index":  11,
+                                        "op":  "write",
+                                        "path":  "",
+                                        "fd":  -1,
+                                        "code":  "unsupported",
+                                        "size":  0,
+                                        "requested":  0,
+                                        "count":  0,
+                                        "offset":  0,
+                                        "remaining":  0
+                                    },
+                                    {
+                                        "index":  12,
                                         "op":  "close",
                                         "path":  "",
                                         "fd":  -1,
@@ -1076,7 +1256,7 @@
                      "event_count":  7,
                      "events":  [
                                     {
-                                        "index":  10,
+                                        "index":  13,
                                         "op":  "open",
                                         "path":  "/virtual/readme.txt",
                                         "fd":  3,
@@ -1088,7 +1268,7 @@
                                         "remaining":  0
                                     },
                                     {
-                                        "index":  11,
+                                        "index":  14,
                                         "op":  "read",
                                         "path":  "",
                                         "fd":  3,
@@ -1100,7 +1280,7 @@
                                         "remaining":  19
                                     },
                                     {
-                                        "index":  12,
+                                        "index":  15,
                                         "op":  "read",
                                         "path":  "",
                                         "fd":  3,
@@ -1112,7 +1292,7 @@
                                         "remaining":  11
                                     },
                                     {
-                                        "index":  13,
+                                        "index":  16,
                                         "op":  "read",
                                         "path":  "",
                                         "fd":  3,
@@ -1124,7 +1304,7 @@
                                         "remaining":  3
                                     },
                                     {
-                                        "index":  14,
+                                        "index":  17,
                                         "op":  "read",
                                         "path":  "",
                                         "fd":  3,
@@ -1136,7 +1316,7 @@
                                         "remaining":  0
                                     },
                                     {
-                                        "index":  15,
+                                        "index":  18,
                                         "op":  "read",
                                         "path":  "",
                                         "fd":  3,
@@ -1148,7 +1328,7 @@
                                         "remaining":  0
                                     },
                                     {
-                                        "index":  16,
+                                        "index":  19,
                                         "op":  "close",
                                         "path":  "",
                                         "fd":  3,
@@ -1169,7 +1349,7 @@
                      "event_count":  7,
                      "events":  [
                                     {
-                                        "index":  17,
+                                        "index":  20,
                                         "op":  "open",
                                         "path":  "/virtual/readme.txt",
                                         "fd":  3,
@@ -1181,7 +1361,7 @@
                                         "remaining":  0
                                     },
                                     {
-                                        "index":  18,
+                                        "index":  21,
                                         "op":  "read",
                                         "path":  "",
                                         "fd":  3,
@@ -1193,7 +1373,7 @@
                                         "remaining":  19
                                     },
                                     {
-                                        "index":  19,
+                                        "index":  22,
                                         "op":  "read",
                                         "path":  "",
                                         "fd":  3,
@@ -1205,7 +1385,7 @@
                                         "remaining":  11
                                     },
                                     {
-                                        "index":  20,
+                                        "index":  23,
                                         "op":  "read",
                                         "path":  "",
                                         "fd":  3,
@@ -1217,7 +1397,7 @@
                                         "remaining":  3
                                     },
                                     {
-                                        "index":  21,
+                                        "index":  24,
                                         "op":  "read",
                                         "path":  "",
                                         "fd":  3,
@@ -1229,7 +1409,7 @@
                                         "remaining":  0
                                     },
                                     {
-                                        "index":  22,
+                                        "index":  25,
                                         "op":  "read",
                                         "path":  "",
                                         "fd":  3,
@@ -1241,7 +1421,7 @@
                                         "remaining":  0
                                     },
                                     {
-                                        "index":  23,
+                                        "index":  26,
                                         "op":  "close",
                                         "path":  "",
                                         "fd":  3,
@@ -1262,7 +1442,7 @@
                      "event_count":  13,
                      "events":  [
                                     {
-                                        "index":  24,
+                                        "index":  27,
                                         "op":  "open",
                                         "path":  "/virtual/alpha.txt",
                                         "fd":  3,
@@ -1274,7 +1454,7 @@
                                         "remaining":  0
                                     },
                                     {
-                                        "index":  25,
+                                        "index":  28,
                                         "op":  "open",
                                         "path":  "/virtual/beta.bin",
                                         "fd":  4,
@@ -1286,7 +1466,7 @@
                                         "remaining":  0
                                     },
                                     {
-                                        "index":  26,
+                                        "index":  29,
                                         "op":  "read",
                                         "path":  "",
                                         "fd":  3,
@@ -1298,7 +1478,7 @@
                                         "remaining":  10
                                     },
                                     {
-                                        "index":  27,
+                                        "index":  30,
                                         "op":  "read",
                                         "path":  "",
                                         "fd":  3,
@@ -1310,7 +1490,7 @@
                                         "remaining":  5
                                     },
                                     {
-                                        "index":  28,
+                                        "index":  31,
                                         "op":  "read",
                                         "path":  "",
                                         "fd":  3,
@@ -1322,7 +1502,7 @@
                                         "remaining":  0
                                     },
                                     {
-                                        "index":  29,
+                                        "index":  32,
                                         "op":  "read",
                                         "path":  "",
                                         "fd":  3,
@@ -1334,7 +1514,7 @@
                                         "remaining":  0
                                     },
                                     {
-                                        "index":  30,
+                                        "index":  33,
                                         "op":  "read",
                                         "path":  "",
                                         "fd":  4,
@@ -1346,7 +1526,7 @@
                                         "remaining":  11
                                     },
                                     {
-                                        "index":  31,
+                                        "index":  34,
                                         "op":  "read",
                                         "path":  "",
                                         "fd":  4,
@@ -1358,7 +1538,7 @@
                                         "remaining":  6
                                     },
                                     {
-                                        "index":  32,
+                                        "index":  35,
                                         "op":  "read",
                                         "path":  "",
                                         "fd":  4,
@@ -1370,7 +1550,7 @@
                                         "remaining":  1
                                     },
                                     {
-                                        "index":  33,
+                                        "index":  36,
                                         "op":  "read",
                                         "path":  "",
                                         "fd":  4,
@@ -1382,7 +1562,7 @@
                                         "remaining":  0
                                     },
                                     {
-                                        "index":  34,
+                                        "index":  37,
                                         "op":  "read",
                                         "path":  "",
                                         "fd":  4,
@@ -1394,7 +1574,7 @@
                                         "remaining":  0
                                     },
                                     {
-                                        "index":  35,
+                                        "index":  38,
                                         "op":  "close",
                                         "path":  "",
                                         "fd":  4,
@@ -1406,7 +1586,7 @@
                                         "remaining":  0
                                     },
                                     {
-                                        "index":  36,
+                                        "index":  39,
                                         "op":  "close",
                                         "path":  "",
                                         "fd":  3,
@@ -1427,7 +1607,7 @@
                      "event_count":  13,
                      "events":  [
                                     {
-                                        "index":  37,
+                                        "index":  40,
                                         "op":  "open",
                                         "path":  "/virtual/alpha.txt",
                                         "fd":  3,
@@ -1439,7 +1619,7 @@
                                         "remaining":  0
                                     },
                                     {
-                                        "index":  38,
+                                        "index":  41,
                                         "op":  "open",
                                         "path":  "/virtual/beta.bin",
                                         "fd":  4,
@@ -1451,7 +1631,7 @@
                                         "remaining":  0
                                     },
                                     {
-                                        "index":  39,
+                                        "index":  42,
                                         "op":  "read",
                                         "path":  "",
                                         "fd":  3,
@@ -1463,7 +1643,7 @@
                                         "remaining":  10
                                     },
                                     {
-                                        "index":  40,
+                                        "index":  43,
                                         "op":  "read",
                                         "path":  "",
                                         "fd":  3,
@@ -1475,7 +1655,7 @@
                                         "remaining":  5
                                     },
                                     {
-                                        "index":  41,
+                                        "index":  44,
                                         "op":  "read",
                                         "path":  "",
                                         "fd":  3,
@@ -1487,7 +1667,7 @@
                                         "remaining":  0
                                     },
                                     {
-                                        "index":  42,
+                                        "index":  45,
                                         "op":  "read",
                                         "path":  "",
                                         "fd":  3,
@@ -1499,7 +1679,7 @@
                                         "remaining":  0
                                     },
                                     {
-                                        "index":  43,
+                                        "index":  46,
                                         "op":  "read",
                                         "path":  "",
                                         "fd":  4,
@@ -1511,7 +1691,7 @@
                                         "remaining":  11
                                     },
                                     {
-                                        "index":  44,
+                                        "index":  47,
                                         "op":  "read",
                                         "path":  "",
                                         "fd":  4,
@@ -1523,7 +1703,7 @@
                                         "remaining":  6
                                     },
                                     {
-                                        "index":  45,
+                                        "index":  48,
                                         "op":  "read",
                                         "path":  "",
                                         "fd":  4,
@@ -1535,7 +1715,7 @@
                                         "remaining":  1
                                     },
                                     {
-                                        "index":  46,
+                                        "index":  49,
                                         "op":  "read",
                                         "path":  "",
                                         "fd":  4,
@@ -1547,7 +1727,7 @@
                                         "remaining":  0
                                     },
                                     {
-                                        "index":  47,
+                                        "index":  50,
                                         "op":  "read",
                                         "path":  "",
                                         "fd":  4,
@@ -1559,7 +1739,7 @@
                                         "remaining":  0
                                     },
                                     {
-                                        "index":  48,
+                                        "index":  51,
                                         "op":  "close",
                                         "path":  "",
                                         "fd":  4,
@@ -1571,7 +1751,7 @@
                                         "remaining":  0
                                     },
                                     {
-                                        "index":  49,
+                                        "index":  52,
                                         "op":  "close",
                                         "path":  "",
                                         "fd":  3,
@@ -1592,42 +1772,6 @@
                      "event_count":  6,
                      "events":  [
                                     {
-                                        "index":  50,
-                                        "op":  "open",
-                                        "path":  "/virtual/readme.txt",
-                                        "fd":  3,
-                                        "code":  "ok",
-                                        "size":  27,
-                                        "requested":  0,
-                                        "count":  0,
-                                        "offset":  0,
-                                        "remaining":  0
-                                    },
-                                    {
-                                        "index":  51,
-                                        "op":  "close",
-                                        "path":  "",
-                                        "fd":  3,
-                                        "code":  "ok",
-                                        "size":  0,
-                                        "requested":  0,
-                                        "count":  0,
-                                        "offset":  0,
-                                        "remaining":  0
-                                    },
-                                    {
-                                        "index":  52,
-                                        "op":  "close",
-                                        "path":  "",
-                                        "fd":  3,
-                                        "code":  "unsupported",
-                                        "size":  0,
-                                        "requested":  0,
-                                        "count":  0,
-                                        "offset":  0,
-                                        "remaining":  0
-                                    },
-                                    {
                                         "index":  53,
                                         "op":  "open",
                                         "path":  "/virtual/readme.txt",
@@ -1641,6 +1785,42 @@
                                     },
                                     {
                                         "index":  54,
+                                        "op":  "close",
+                                        "path":  "",
+                                        "fd":  3,
+                                        "code":  "ok",
+                                        "size":  0,
+                                        "requested":  0,
+                                        "count":  0,
+                                        "offset":  0,
+                                        "remaining":  0
+                                    },
+                                    {
+                                        "index":  55,
+                                        "op":  "close",
+                                        "path":  "",
+                                        "fd":  3,
+                                        "code":  "unsupported",
+                                        "size":  0,
+                                        "requested":  0,
+                                        "count":  0,
+                                        "offset":  0,
+                                        "remaining":  0
+                                    },
+                                    {
+                                        "index":  56,
+                                        "op":  "open",
+                                        "path":  "/virtual/readme.txt",
+                                        "fd":  3,
+                                        "code":  "ok",
+                                        "size":  27,
+                                        "requested":  0,
+                                        "count":  0,
+                                        "offset":  0,
+                                        "remaining":  0
+                                    },
+                                    {
+                                        "index":  57,
                                         "op":  "read",
                                         "path":  "",
                                         "fd":  3,
@@ -1652,7 +1832,7 @@
                                         "remaining":  26
                                     },
                                     {
-                                        "index":  55,
+                                        "index":  58,
                                         "op":  "close",
                                         "path":  "",
                                         "fd":  3,
@@ -1673,42 +1853,6 @@
                      "event_count":  6,
                      "events":  [
                                     {
-                                        "index":  56,
-                                        "op":  "open",
-                                        "path":  "/virtual/readme.txt",
-                                        "fd":  3,
-                                        "code":  "ok",
-                                        "size":  27,
-                                        "requested":  0,
-                                        "count":  0,
-                                        "offset":  0,
-                                        "remaining":  0
-                                    },
-                                    {
-                                        "index":  57,
-                                        "op":  "close",
-                                        "path":  "",
-                                        "fd":  3,
-                                        "code":  "ok",
-                                        "size":  0,
-                                        "requested":  0,
-                                        "count":  0,
-                                        "offset":  0,
-                                        "remaining":  0
-                                    },
-                                    {
-                                        "index":  58,
-                                        "op":  "close",
-                                        "path":  "",
-                                        "fd":  3,
-                                        "code":  "unsupported",
-                                        "size":  0,
-                                        "requested":  0,
-                                        "count":  0,
-                                        "offset":  0,
-                                        "remaining":  0
-                                    },
-                                    {
                                         "index":  59,
                                         "op":  "open",
                                         "path":  "/virtual/readme.txt",
@@ -1722,6 +1866,42 @@
                                     },
                                     {
                                         "index":  60,
+                                        "op":  "close",
+                                        "path":  "",
+                                        "fd":  3,
+                                        "code":  "ok",
+                                        "size":  0,
+                                        "requested":  0,
+                                        "count":  0,
+                                        "offset":  0,
+                                        "remaining":  0
+                                    },
+                                    {
+                                        "index":  61,
+                                        "op":  "close",
+                                        "path":  "",
+                                        "fd":  3,
+                                        "code":  "unsupported",
+                                        "size":  0,
+                                        "requested":  0,
+                                        "count":  0,
+                                        "offset":  0,
+                                        "remaining":  0
+                                    },
+                                    {
+                                        "index":  62,
+                                        "op":  "open",
+                                        "path":  "/virtual/readme.txt",
+                                        "fd":  3,
+                                        "code":  "ok",
+                                        "size":  27,
+                                        "requested":  0,
+                                        "count":  0,
+                                        "offset":  0,
+                                        "remaining":  0
+                                    },
+                                    {
+                                        "index":  63,
                                         "op":  "read",
                                         "path":  "",
                                         "fd":  3,
@@ -1733,7 +1913,7 @@
                                         "remaining":  26
                                     },
                                     {
-                                        "index":  61,
+                                        "index":  64,
                                         "op":  "close",
                                         "path":  "",
                                         "fd":  3,
@@ -1754,7 +1934,7 @@
                      "event_count":  4,
                      "events":  [
                                     {
-                                        "index":  62,
+                                        "index":  65,
                                         "op":  "open",
                                         "path":  "/virtual/readme.txt",
                                         "fd":  3,
@@ -1766,7 +1946,7 @@
                                         "remaining":  0
                                     },
                                     {
-                                        "index":  63,
+                                        "index":  66,
                                         "op":  "read",
                                         "path":  "",
                                         "fd":  3,
@@ -1778,7 +1958,7 @@
                                         "remaining":  27
                                     },
                                     {
-                                        "index":  64,
+                                        "index":  67,
                                         "op":  "read",
                                         "path":  "",
                                         "fd":  3,
@@ -1790,7 +1970,7 @@
                                         "remaining":  23
                                     },
                                     {
-                                        "index":  65,
+                                        "index":  68,
                                         "op":  "close",
                                         "path":  "",
                                         "fd":  3,
@@ -1811,7 +1991,7 @@
                      "event_count":  4,
                      "events":  [
                                     {
-                                        "index":  66,
+                                        "index":  69,
                                         "op":  "open",
                                         "path":  "/virtual/readme.txt",
                                         "fd":  3,
@@ -1823,7 +2003,7 @@
                                         "remaining":  0
                                     },
                                     {
-                                        "index":  67,
+                                        "index":  70,
                                         "op":  "read",
                                         "path":  "",
                                         "fd":  3,
@@ -1835,7 +2015,7 @@
                                         "remaining":  27
                                     },
                                     {
-                                        "index":  68,
+                                        "index":  71,
                                         "op":  "read",
                                         "path":  "",
                                         "fd":  3,
@@ -1847,7 +2027,7 @@
                                         "remaining":  23
                                     },
                                     {
-                                        "index":  69,
+                                        "index":  72,
                                         "op":  "close",
                                         "path":  "",
                                         "fd":  3,
@@ -1868,7 +2048,7 @@
                      "event_count":  6,
                      "events":  [
                                     {
-                                        "index":  70,
+                                        "index":  73,
                                         "op":  "open",
                                         "path":  "\u003cnull\u003e",
                                         "fd":  -1,
@@ -1880,7 +2060,7 @@
                                         "remaining":  0
                                     },
                                     {
-                                        "index":  71,
+                                        "index":  74,
                                         "op":  "open",
                                         "path":  "/virtual/readme.txt",
                                         "fd":  -1,
@@ -1892,7 +2072,7 @@
                                         "remaining":  0
                                     },
                                     {
-                                        "index":  72,
+                                        "index":  75,
                                         "op":  "open",
                                         "path":  "/virtual/readme.txt",
                                         "fd":  -1,
@@ -1904,7 +2084,7 @@
                                         "remaining":  0
                                     },
                                     {
-                                        "index":  73,
+                                        "index":  76,
                                         "op":  "open",
                                         "path":  "/virtual/readme.txt",
                                         "fd":  3,
@@ -1916,7 +2096,7 @@
                                         "remaining":  0
                                     },
                                     {
-                                        "index":  74,
+                                        "index":  77,
                                         "op":  "read",
                                         "path":  "",
                                         "fd":  3,
@@ -1928,7 +2108,7 @@
                                         "remaining":  26
                                     },
                                     {
-                                        "index":  75,
+                                        "index":  78,
                                         "op":  "close",
                                         "path":  "",
                                         "fd":  3,
@@ -1949,7 +2129,7 @@
                      "event_count":  6,
                      "events":  [
                                     {
-                                        "index":  76,
+                                        "index":  79,
                                         "op":  "open",
                                         "path":  "\u003cnull\u003e",
                                         "fd":  -1,
@@ -1961,7 +2141,7 @@
                                         "remaining":  0
                                     },
                                     {
-                                        "index":  77,
+                                        "index":  80,
                                         "op":  "open",
                                         "path":  "/virtual/readme.txt",
                                         "fd":  -1,
@@ -1973,7 +2153,7 @@
                                         "remaining":  0
                                     },
                                     {
-                                        "index":  78,
+                                        "index":  81,
                                         "op":  "open",
                                         "path":  "/virtual/readme.txt",
                                         "fd":  -1,
@@ -1985,7 +2165,7 @@
                                         "remaining":  0
                                     },
                                     {
-                                        "index":  79,
+                                        "index":  82,
                                         "op":  "open",
                                         "path":  "/virtual/readme.txt",
                                         "fd":  3,
@@ -1997,7 +2177,7 @@
                                         "remaining":  0
                                     },
                                     {
-                                        "index":  80,
+                                        "index":  83,
                                         "op":  "read",
                                         "path":  "",
                                         "fd":  3,
@@ -2009,7 +2189,145 @@
                                         "remaining":  26
                                     },
                                     {
-                                        "index":  81,
+                                        "index":  84,
+                                        "op":  "close",
+                                        "path":  "",
+                                        "fd":  3,
+                                        "code":  "ok",
+                                        "size":  0,
+                                        "requested":  0,
+                                        "count":  0,
+                                        "offset":  0,
+                                        "remaining":  0
+                                    }
+                                ]
+                 },
+                 {
+                     "name":  "storage_write_error_app",
+                     "stage":  "exit",
+                     "code":  "ok",
+                     "exit":  0,
+                     "event_count":  5,
+                     "events":  [
+                                    {
+                                        "index":  85,
+                                        "op":  "open",
+                                        "path":  "/virtual/readme.txt",
+                                        "fd":  3,
+                                        "code":  "ok",
+                                        "size":  27,
+                                        "requested":  0,
+                                        "count":  0,
+                                        "offset":  0,
+                                        "remaining":  0
+                                    },
+                                    {
+                                        "index":  86,
+                                        "op":  "read",
+                                        "path":  "",
+                                        "fd":  3,
+                                        "code":  "ok",
+                                        "size":  0,
+                                        "requested":  1,
+                                        "count":  1,
+                                        "offset":  0,
+                                        "remaining":  26
+                                    },
+                                    {
+                                        "index":  87,
+                                        "op":  "write",
+                                        "path":  "",
+                                        "fd":  3,
+                                        "code":  "unsupported",
+                                        "size":  0,
+                                        "requested":  1,
+                                        "count":  0,
+                                        "offset":  1,
+                                        "remaining":  26
+                                    },
+                                    {
+                                        "index":  88,
+                                        "op":  "read",
+                                        "path":  "",
+                                        "fd":  3,
+                                        "code":  "ok",
+                                        "size":  0,
+                                        "requested":  1,
+                                        "count":  1,
+                                        "offset":  1,
+                                        "remaining":  25
+                                    },
+                                    {
+                                        "index":  89,
+                                        "op":  "close",
+                                        "path":  "",
+                                        "fd":  3,
+                                        "code":  "ok",
+                                        "size":  0,
+                                        "requested":  0,
+                                        "count":  0,
+                                        "offset":  0,
+                                        "remaining":  0
+                                    }
+                                ]
+                 },
+                 {
+                     "name":  "store:storage_write_error_app",
+                     "stage":  "exit",
+                     "code":  "ok",
+                     "exit":  0,
+                     "event_count":  5,
+                     "events":  [
+                                    {
+                                        "index":  90,
+                                        "op":  "open",
+                                        "path":  "/virtual/readme.txt",
+                                        "fd":  3,
+                                        "code":  "ok",
+                                        "size":  27,
+                                        "requested":  0,
+                                        "count":  0,
+                                        "offset":  0,
+                                        "remaining":  0
+                                    },
+                                    {
+                                        "index":  91,
+                                        "op":  "read",
+                                        "path":  "",
+                                        "fd":  3,
+                                        "code":  "ok",
+                                        "size":  0,
+                                        "requested":  1,
+                                        "count":  1,
+                                        "offset":  0,
+                                        "remaining":  26
+                                    },
+                                    {
+                                        "index":  92,
+                                        "op":  "write",
+                                        "path":  "",
+                                        "fd":  3,
+                                        "code":  "unsupported",
+                                        "size":  0,
+                                        "requested":  1,
+                                        "count":  0,
+                                        "offset":  1,
+                                        "remaining":  26
+                                    },
+                                    {
+                                        "index":  93,
+                                        "op":  "read",
+                                        "path":  "",
+                                        "fd":  3,
+                                        "code":  "ok",
+                                        "size":  0,
+                                        "requested":  1,
+                                        "count":  1,
+                                        "offset":  1,
+                                        "remaining":  25
+                                    },
+                                    {
+                                        "index":  94,
                                         "op":  "close",
                                         "path":  "",
                                         "fd":  3,

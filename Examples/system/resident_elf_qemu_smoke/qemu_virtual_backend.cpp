@@ -370,8 +370,28 @@ int storage_read(int fd, void* buf, std::size_t len) {
     return static_cast<int>(count);
 }
 
-int storage_write(int, const void*, std::size_t) {
+int storage_write(int fd, const void*, std::size_t len) {
     ++g_capability_counters.storage_write;
+    const int slot = fd - kVirtualStorageFdBase;
+    std::size_t offset = 0U;
+    std::size_t remaining = 0U;
+    if (slot >= 0 &&
+        static_cast<std::size_t>(slot) < (sizeof(g_storage_open_files) / sizeof(g_storage_open_files[0])) &&
+        g_storage_open_files[slot].open) {
+        const auto& open_file = g_storage_open_files[slot];
+        const auto& file = kVirtualStorageFiles[open_file.file_index];
+        offset = open_file.cursor;
+        remaining = file.size - open_file.cursor;
+    }
+    write("resident-elf-qemu: storage write fd=");
+    write_signed(fd);
+    write(" code=unsupported requested=");
+    write_dec(static_cast<std::uint32_t>(len));
+    write(" count=0 offset=");
+    write_dec(static_cast<std::uint32_t>(offset));
+    write(" remaining=");
+    write_dec(static_cast<std::uint32_t>(remaining));
+    write("\n");
     return CHARM_APP_STATUS_UNSUPPORTED;
 }
 

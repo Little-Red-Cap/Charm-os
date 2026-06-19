@@ -26,6 +26,7 @@
 #include "storage_close_error_app.elf.inc"
 #include "storage_error_app.elf.inc"
 #include "storage_open_error_app.elf.inc"
+#include "storage_write_error_app.elf.inc"
 #include "time_app.elf.inc"
 #include "too_large_app.elf.inc"
 #include "unsupported_caps_app.elf.inc"
@@ -45,7 +46,7 @@ namespace qemu_backend = resident_elf_qemu;
 inline constexpr std::uintptr_t kQemuRunRegionBase = 0x20080000U;
 inline constexpr std::size_t kQemuRunRegionSize = 64U * 1024U;
 inline constexpr std::size_t kQemuStageCacheSize = 16U * 1024U;
-inline constexpr std::uint32_t kQemuStoreEntryCount = 22U;
+inline constexpr std::uint32_t kQemuStoreEntryCount = 23U;
 
 alignas(16) __attribute__((section(".elf_load")))
 static std::byte g_elf_load_region[kQemuRunRegionSize];
@@ -1405,6 +1406,8 @@ extern "C" int resident_elf_qemu_main() {
     ok = run_store_app("storage_error_app", "") && ok;
     ok = run_direct_app("storage_open_error_app", storage_open_error_app_elf, storage_open_error_app_elf_len, "") && ok;
     ok = run_store_app("storage_open_error_app", "") && ok;
+    ok = run_direct_app("storage_write_error_app", storage_write_error_app_elf, storage_write_error_app_elf_len, "") && ok;
+    ok = run_store_app("storage_write_error_app", "") && ok;
     ok = run_direct_app("display_describe_error_app", display_describe_error_app_elf, display_describe_error_app_elf_len, "") && ok;
     ok = run_store_app("display_describe_error_app", "") && ok;
     ok = run_direct_app("display_error_app", display_error_app_elf, display_error_app_elf_len, "") && ok;

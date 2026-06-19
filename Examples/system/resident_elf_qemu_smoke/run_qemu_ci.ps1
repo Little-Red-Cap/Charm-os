@@ -222,6 +222,7 @@ function Get-QemuAppNames {
         "storage_fd_exhaustion_app",
         "storage_open_error_app",
         "storage_write_error_app",
+        "storage_zero_io_app",
         "time_app",
         "time_sequence_app",
         "too_large_app"
@@ -244,7 +245,7 @@ function Get-ExpectedTokens {
         "resident-elf-qemu: backend-capabilities capabilities=console,time,display,input,storage,app_exit storage=readonly afe=unsupported",
         "resident-elf-qemu: run-region base=0x20080000 expected=0x20080000 size=65536",
         "resident-elf-qemu: stage-cache bytes=16384",
-        "resident-elf-qemu: store entries=28 bytes=",
+        "resident-elf-qemu: store entries=29 bytes=",
         "resident-elf-qemu: store-media kind=memory bytes=",
         "resident-elf-qemu: unsupported storage_open=1 storage_read=1 storage_write=1 storage_close=1 afe_configure=1 afe_read=1 storage_count=1/1/1/1 afe_count=1/1",
         "hello_app: charm_app_main entered",
@@ -363,6 +364,13 @@ function Get-ExpectedTokens {
         "resident-elf-qemu: caps storage_write_error_app console=57 time=0 describe=0 present=0 input=0 exit=0 display_checksum=0 display_checksum_total=0 storage=1/2/1/1 storage_bytes=2",
         "resident-elf-qemu: app store:storage_write_error_app stage=exit code=ok exit=0",
         "resident-elf-qemu: caps store:storage_write_error_app console=57 time=0 describe=0 present=0 input=0 exit=0 display_checksum=0 display_checksum_total=0 storage=1/2/1/1 storage_bytes=2",
+        "storage_zero_io_app: zero io preserved cursor",
+        "resident-elf-qemu: storage read fd=3 code=ok requested=0 count=0 offset=0 remaining=27",
+        "resident-elf-qemu: storage write fd=3 code=unsupported requested=0 count=0 offset=1 remaining=26",
+        "resident-elf-qemu: app storage_zero_io_app stage=exit code=ok exit=0",
+        "resident-elf-qemu: caps storage_zero_io_app console=46 time=0 describe=0 present=0 input=0 exit=0 display_checksum=0 display_checksum_total=0 storage=1/3/1/1 storage_bytes=2",
+        "resident-elf-qemu: app store:storage_zero_io_app stage=exit code=ok exit=0",
+        "resident-elf-qemu: caps store:storage_zero_io_app console=46 time=0 describe=0 present=0 input=0 exit=0 display_checksum=0 display_checksum_total=0 storage=1/3/1/1 storage_bytes=2",
         "display_describe_error_app: null describe rejected",
         "resident-elf-qemu: app display_describe_error_app stage=exit code=ok exit=0",
         "resident-elf-qemu: caps display_describe_error_app console=51 time=0 describe=0 present=0 input=0 exit=0",
@@ -893,7 +901,9 @@ function Get-StorageTraceFromText {
                 "storage_open_error_app",
                 "store:storage_open_error_app",
                 "storage_write_error_app",
-                "store:storage_write_error_app"
+                "store:storage_write_error_app",
+                "storage_zero_io_app",
+                "store:storage_zero_io_app"
             )
             if (-not ($StorageRunNames -contains $AppName)) {
                 $PendingEvents = @()
@@ -1443,12 +1453,12 @@ function Validate-StorageTraceFile {
     if ($Capture.schema -ne "charm.resident_elf_qemu.storage_trace.v1") {
         throw "storage_trace_validate_failed: bad schema: $($Capture.schema)"
     }
-    if ([int]$Capture.event_count -ne 118 -or [int]$Capture.run_count -ne 16) {
+    if ([int]$Capture.event_count -ne 130 -or [int]$Capture.run_count -ne 18) {
         throw "storage_trace_validate_failed: event/run count mismatch"
     }
     $Events = @($Capture.events)
-    if ($Events.Count -ne 118) {
-        throw "storage_trace_validate_failed: events array count=$($Events.Count), expected 118"
+    if ($Events.Count -ne 130) {
+        throw "storage_trace_validate_failed: events array count=$($Events.Count), expected 130"
     }
     $Runs = @($Capture.runs)
     $ReadmeOps = @("open", "read", "read", "read", "read", "read", "close")
@@ -1514,6 +1524,16 @@ function Validate-StorageTraceFile {
     $StorageWriteErrorRemainings = @(0, 26, 26, 25, 0)
     Assert-StorageTraceRun -Runs $Runs -Name "storage_write_error_app" -Ops $StorageWriteErrorOps -Paths $StorageWriteErrorPaths -Fds $StorageWriteErrorFds -Counts $StorageWriteErrorCounts -Codes $StorageWriteErrorCodes -Offsets $StorageWriteErrorOffsets -Remainings $StorageWriteErrorRemainings
     Assert-StorageTraceRun -Runs $Runs -Name "store:storage_write_error_app" -Ops $StorageWriteErrorOps -Paths $StorageWriteErrorPaths -Fds $StorageWriteErrorFds -Counts $StorageWriteErrorCounts -Codes $StorageWriteErrorCodes -Offsets $StorageWriteErrorOffsets -Remainings $StorageWriteErrorRemainings
+
+    $StorageZeroIoOps = @("open", "read", "read", "write", "read", "close")
+    $StorageZeroIoPaths = @("/virtual/readme.txt", "", "", "", "", "")
+    $StorageZeroIoFds = @(3, 3, 3, 3, 3, 3)
+    $StorageZeroIoCounts = @(0, 0, 1, 0, 1, 0)
+    $StorageZeroIoCodes = @("ok", "ok", "ok", "unsupported", "ok", "ok")
+    $StorageZeroIoOffsets = @(0, 0, 0, 1, 1, 0)
+    $StorageZeroIoRemainings = @(0, 27, 26, 26, 25, 0)
+    Assert-StorageTraceRun -Runs $Runs -Name "storage_zero_io_app" -Ops $StorageZeroIoOps -Paths $StorageZeroIoPaths -Fds $StorageZeroIoFds -Counts $StorageZeroIoCounts -Codes $StorageZeroIoCodes -Offsets $StorageZeroIoOffsets -Remainings $StorageZeroIoRemainings
+    Assert-StorageTraceRun -Runs $Runs -Name "store:storage_zero_io_app" -Ops $StorageZeroIoOps -Paths $StorageZeroIoPaths -Fds $StorageZeroIoFds -Counts $StorageZeroIoCounts -Codes $StorageZeroIoCodes -Offsets $StorageZeroIoOffsets -Remainings $StorageZeroIoRemainings
 
     foreach ($Name in @("unsupported_caps_app", "store:unsupported_caps_app")) {
         $UnsupportedOps = @("open", "read", "write", "close")
@@ -2662,7 +2682,7 @@ function Assert-DomainNegativeCase {
 function Assert-DomainStoreMedia {
     param([object]$Store)
 
-    if ($Store.format -ne "store_v1" -or [int]$Store.entries -ne 28 -or [int]$Store.bytes -le 0) {
+    if ($Store.format -ne "store_v1" -or [int]$Store.entries -ne 29 -or [int]$Store.bytes -le 0) {
         throw "domain_summary_validate_failed: bad store summary"
     }
     if ($Store.media.kind -ne "memory" -or
@@ -2897,7 +2917,7 @@ function Validate-DomainSummaryFile {
     }
     Assert-DomainStoreMedia -Store $Summary.store
     $Runs = @($Summary.coverage.runs)
-    Assert-DomainCount -Name "runs" -Actual $Runs.Count -Expected 80
+    Assert-DomainCount -Name "runs" -Actual $Runs.Count -Expected 82
     Assert-DomainRun -Runs $Runs -Name "hello_app" -Stage "exit" -Code "ok"
     Assert-DomainRun -Runs $Runs -Name "received:hello_app" -Stage "exit" -Code "ok"
     Assert-DomainRun -Runs $Runs -Name "store:hello_app" -Stage "exit" -Code "ok"
@@ -2931,6 +2951,8 @@ function Validate-DomainSummaryFile {
     Assert-DomainRun -Runs $Runs -Name "store:storage_open_error_app" -Stage "exit" -Code "ok"
     Assert-DomainRun -Runs $Runs -Name "storage_write_error_app" -Stage "exit" -Code "ok"
     Assert-DomainRun -Runs $Runs -Name "store:storage_write_error_app" -Stage "exit" -Code "ok"
+    Assert-DomainRun -Runs $Runs -Name "storage_zero_io_app" -Stage "exit" -Code "ok"
+    Assert-DomainRun -Runs $Runs -Name "store:storage_zero_io_app" -Stage "exit" -Code "ok"
     Assert-DomainRun -Runs $Runs -Name "storage_close_error_app" -Stage "exit" -Code "ok"
     Assert-DomainRun -Runs $Runs -Name "store:storage_close_error_app" -Stage "exit" -Code "ok"
     Assert-DomainRun -Runs $Runs -Name "exit_error_app" -Stage "exit" -Code "ok"
@@ -2960,7 +2982,7 @@ function Validate-DomainSummaryFile {
     Assert-DomainRun -Runs $Runs -Name "argv_overflow_app" -Stage "argv" -Code "argv_overflow"
     Assert-DomainRun -Runs $Runs -Name "abi_mismatch_app" -Stage "abi" -Code "abi_mismatch"
     $Stages = @($Summary.coverage.stages)
-    Assert-DomainCount -Name "stages" -Actual $Stages.Count -Expected 33
+    Assert-DomainCount -Name "stages" -Actual $Stages.Count -Expected 34
     Assert-DomainStage -Stages $Stages -Source "received" -Name "hello_app" -Code "ok"
     Assert-DomainStage -Stages $Stages -Source "received" -Name "large_fit_app" -Code "ok"
     Assert-DomainStage -Stages $Stages -Source "store" -Name "hello_app" -Code "ok"
@@ -2976,13 +2998,14 @@ function Validate-DomainSummaryFile {
     Assert-DomainStage -Stages $Stages -Source "store" -Name "storage_fd_exhaustion_app" -Code "ok"
     Assert-DomainStage -Stages $Stages -Source "store" -Name "storage_open_error_app" -Code "ok"
     Assert-DomainStage -Stages $Stages -Source "store" -Name "storage_write_error_app" -Code "ok"
+    Assert-DomainStage -Stages $Stages -Source "store" -Name "storage_zero_io_app" -Code "ok"
     Assert-DomainStage -Stages $Stages -Source "store" -Name "exit_error_app" -Code "ok"
     Assert-DomainStage -Stages $Stages -Source "store" -Name "display_describe_error_app" -Code "ok"
     Assert-DomainStage -Stages $Stages -Source "store" -Name "time_sequence_app" -Code "ok"
     Assert-DomainStage -Stages $Stages -Source "store" -Name "large_fit_app" -Code "ok"
     Assert-DomainStage -Stages $Stages -Source "store" -Name "too_large_store_app" -Code "image_too_large"
     $Loads = @($Summary.coverage.loads)
-    Assert-DomainCount -Name "loads" -Actual $Loads.Count -Expected 81
+    Assert-DomainCount -Name "loads" -Actual $Loads.Count -Expected 83
     Assert-DomainLoad -Loads $Loads -Name "hello_app" -Probe "ok" -Fits $true -Region 65536 -MinSpan 1 -Segments 2
     Assert-DomainLoad -Loads $Loads -Name "received:hello_app" -Probe "ok" -Fits $true -Region 65536 -MinSpan 1 -Segments 2
     Assert-DomainLoad -Loads $Loads -Name "packetstream:hello_app" -Probe "ok" -Fits $true -Region 65536 -MinSpan 1 -Segments 2
@@ -3013,6 +3036,8 @@ function Validate-DomainSummaryFile {
     Assert-DomainLoad -Loads $Loads -Name "store:storage_open_error_app" -Probe "ok" -Fits $true -Region 65536 -MinSpan 1 -Segments 2
     Assert-DomainLoad -Loads $Loads -Name "storage_write_error_app" -Probe "ok" -Fits $true -Region 65536 -MinSpan 1 -Segments 2
     Assert-DomainLoad -Loads $Loads -Name "store:storage_write_error_app" -Probe "ok" -Fits $true -Region 65536 -MinSpan 1 -Segments 2
+    Assert-DomainLoad -Loads $Loads -Name "storage_zero_io_app" -Probe "ok" -Fits $true -Region 65536 -MinSpan 1 -Segments 2
+    Assert-DomainLoad -Loads $Loads -Name "store:storage_zero_io_app" -Probe "ok" -Fits $true -Region 65536 -MinSpan 1 -Segments 2
     Assert-DomainLoad -Loads $Loads -Name "storage_close_error_app" -Probe "ok" -Fits $true -Region 65536 -MinSpan 1 -Segments 2
     Assert-DomainLoad -Loads $Loads -Name "store:storage_close_error_app" -Probe "ok" -Fits $true -Region 65536 -MinSpan 1 -Segments 2
     Assert-DomainLoad -Loads $Loads -Name "exit_error_app" -Probe "ok" -Fits $true -Region 65536 -MinSpan 1 -Segments 1
@@ -3095,7 +3120,7 @@ function Validate-DomainSummaryFile {
     Assert-DomainNegativeCase -NegativeCases $NegativeCases -Name "argv_overflow_app" -Stage "argv" -Code "argv_overflow"
     Assert-DomainNegativeCase -NegativeCases $NegativeCases -Name "abi_mismatch_app" -Stage "abi" -Code "abi_mismatch"
     $SourceMatrix = @($Summary.coverage.source_matrix)
-    Assert-DomainCount -Name "source_matrix" -Actual $SourceMatrix.Count -Expected 47
+    Assert-DomainCount -Name "source_matrix" -Actual $SourceMatrix.Count -Expected 48
     Assert-SourceMatrixEntry -Matrix $SourceMatrix -Name "hello_app" -Sources @("direct", "received", "packetstream", "store")
     Assert-SourceMatrixEntry -Matrix $SourceMatrix -Name "large_fit_app" -Sources @("direct", "received", "packetstream", "store")
     Assert-SourceMatrixEntry -Matrix $SourceMatrix -Name "player_min" -Sources @("direct", "received", "packetstream", "store")
@@ -3117,6 +3142,7 @@ function Validate-DomainSummaryFile {
     Assert-SourceMatrixEntry -Matrix $SourceMatrix -Name "storage_fd_exhaustion_app" -Sources @("direct", "store")
     Assert-SourceMatrixEntry -Matrix $SourceMatrix -Name "storage_open_error_app" -Sources @("direct", "store")
     Assert-SourceMatrixEntry -Matrix $SourceMatrix -Name "storage_write_error_app" -Sources @("direct", "store")
+    Assert-SourceMatrixEntry -Matrix $SourceMatrix -Name "storage_zero_io_app" -Sources @("direct", "store")
     Assert-SourceMatrixEntry -Matrix $SourceMatrix -Name "time_sequence_app" -Sources @("direct", "store")
     Assert-SourceMatrixExit -Matrix $SourceMatrix -Name "exit_error_app" -Sources @("direct", "store") -Exit 42
     Assert-SourceMatrixFailure -Matrix $SourceMatrix -Name "bad_header_app" -Source "direct" -Stage "load" -Code "load_failed"
@@ -3161,7 +3187,7 @@ function Validate-DomainSummaryFile {
     if ([int]$Summary.evidence.input_trace_event_count -ne 24 -or [int]$Summary.evidence.input_trace_run_count -ne 8) {
         throw "domain_summary_validate_failed: bad input trace evidence"
     }
-    if ([int]$Summary.evidence.storage_trace_event_count -ne 118 -or [int]$Summary.evidence.storage_trace_run_count -ne 16) {
+    if ([int]$Summary.evidence.storage_trace_event_count -ne 130 -or [int]$Summary.evidence.storage_trace_run_count -ne 18) {
         throw "domain_summary_validate_failed: bad storage trace evidence"
     }
     Write-Host "resident-elf-qemu domain summary validation ok"
@@ -3281,7 +3307,7 @@ function Invoke-SelfTest {
     }
     $GoodStoreSummary = [pscustomobject]@{
         format = "store_v1"
-        entries = 28
+        entries = 29
         bytes = 87584
         media = [pscustomobject]@{
             kind = "memory"
@@ -3294,7 +3320,7 @@ function Invoke-SelfTest {
     Assert-DomainStoreMedia -Store $GoodStoreSummary
     $BadStoreSummary = [pscustomobject]@{
         format = "store_v1"
-        entries = 28
+        entries = 29
         bytes = 87584
         media = [pscustomobject]@{
             kind = "memory"
@@ -3543,6 +3569,7 @@ function Invoke-SelfTest {
         "coverage.gui_timeline",
         "storage_fd_exhaustion_app",
         "storage_write_error_app",
+        "storage_zero_io_app",
         "virtual_m7"
     )) {
         if (-not $ReadmeText.Contains($RequiredReadmeToken)) {
@@ -3584,6 +3611,7 @@ function Invoke-SelfTest {
         (Join-Path $PSScriptRoot "storage_fd_exhaustion_app.c"),
         (Join-Path $PSScriptRoot "storage_open_error_app.c"),
         (Join-Path $PSScriptRoot "storage_write_error_app.c"),
+        (Join-Path $PSScriptRoot "storage_zero_io_app.c"),
         (Join-Path $PSScriptRoot "unsupported_caps_app.c"),
         (Join-Path $PSScriptRoot "frame-signatures.golden.json"),
         (Join-Path $PSScriptRoot "input-trace.golden.json"),
@@ -3810,7 +3838,7 @@ $ldflags = @(
 )
 
 foreach ($name in (Get-QemuAppNames)) {
-    if ($name -eq "too_large_app" -or $name -eq "afe_error_app" -or $name -eq "argv_app" -or $name -eq "bss_app" -or $name -eq "console_error_app" -or $name -eq "data_app" -or $name -eq "display_describe_error_app" -or $name -eq "display_error_app" -or $name -eq "display_null_present_app" -or $name -eq "display_sequence_app" -or $name -eq "exit_app" -or $name -eq "exit_error_app" -or $name -eq "input_error_app" -or $name -eq "input_sequence_app" -or $name -eq "input_wrap_app" -or $name -eq "large_fit_app" -or $name -eq "unsupported_caps_app" -or $name -eq "storage_app" -or $name -eq "storage_catalog_app" -or $name -eq "storage_close_error_app" -or $name -eq "storage_error_app" -or $name -eq "storage_fd_exhaustion_app" -or $name -eq "storage_open_error_app" -or $name -eq "storage_write_error_app" -or $name -eq "time_app" -or $name -eq "time_sequence_app") {
+    if ($name -eq "too_large_app" -or $name -eq "afe_error_app" -or $name -eq "argv_app" -or $name -eq "bss_app" -or $name -eq "console_error_app" -or $name -eq "data_app" -or $name -eq "display_describe_error_app" -or $name -eq "display_error_app" -or $name -eq "display_null_present_app" -or $name -eq "display_sequence_app" -or $name -eq "exit_app" -or $name -eq "exit_error_app" -or $name -eq "input_error_app" -or $name -eq "input_sequence_app" -or $name -eq "input_wrap_app" -or $name -eq "large_fit_app" -or $name -eq "unsupported_caps_app" -or $name -eq "storage_app" -or $name -eq "storage_catalog_app" -or $name -eq "storage_close_error_app" -or $name -eq "storage_error_app" -or $name -eq "storage_fd_exhaustion_app" -or $name -eq "storage_open_error_app" -or $name -eq "storage_write_error_app" -or $name -eq "storage_zero_io_app" -or $name -eq "time_app" -or $name -eq "time_sequence_app") {
         $src = Join-Path $PSScriptRoot "too_large_app.c"
         if ($name -eq "afe_error_app") {
             $src = Join-Path $PSScriptRoot "afe_error_app.c"
@@ -3881,6 +3909,9 @@ foreach ($name in (Get-QemuAppNames)) {
         if ($name -eq "storage_write_error_app") {
             $src = Join-Path $PSScriptRoot "storage_write_error_app.c"
         }
+        if ($name -eq "storage_zero_io_app") {
+            $src = Join-Path $PSScriptRoot "storage_zero_io_app.c"
+        }
         if ($name -eq "time_app") {
             $src = Join-Path $PSScriptRoot "time_app.c"
         }
@@ -3942,6 +3973,7 @@ Invoke-Checked -FilePath $storePackExe -Arguments @(
     ("storage_fd_exhaustion_app={0}" -f (Join-Path $appOut "storage_fd_exhaustion_app.elf")),
     ("storage_open_error_app={0}" -f (Join-Path $appOut "storage_open_error_app.elf")),
     ("storage_write_error_app={0}" -f (Join-Path $appOut "storage_write_error_app.elf")),
+    ("storage_zero_io_app={0}" -f (Join-Path $appOut "storage_zero_io_app.elf")),
     ("time_app={0}" -f (Join-Path $appOut "time_app.elf")),
     ("time_sequence_app={0}" -f (Join-Path $appOut "time_sequence_app.elf")),
     ("large_fit_app={0}" -f (Join-Path $appOut "large_fit_app.elf")),

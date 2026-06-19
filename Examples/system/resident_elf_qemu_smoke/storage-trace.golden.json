@@ -1,7 +1,7 @@
 {
     "schema":  "charm.resident_elf_qemu.storage_trace.v1",
     "log":  "qemu-ci.log",
-    "event_count":  118,
+    "event_count":  130,
     "events":  [
                    {
                        "index":  1,
@@ -1418,9 +1418,153 @@
                        "count":  0,
                        "offset":  0,
                        "remaining":  0
+                   },
+                   {
+                       "index":  119,
+                       "op":  "open",
+                       "path":  "/virtual/readme.txt",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  27,
+                       "requested":  0,
+                       "count":  0,
+                       "offset":  0,
+                       "remaining":  0
+                   },
+                   {
+                       "index":  120,
+                       "op":  "read",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  0,
+                       "requested":  0,
+                       "count":  0,
+                       "offset":  0,
+                       "remaining":  27
+                   },
+                   {
+                       "index":  121,
+                       "op":  "read",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  0,
+                       "requested":  1,
+                       "count":  1,
+                       "offset":  0,
+                       "remaining":  26
+                   },
+                   {
+                       "index":  122,
+                       "op":  "write",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "unsupported",
+                       "size":  0,
+                       "requested":  0,
+                       "count":  0,
+                       "offset":  1,
+                       "remaining":  26
+                   },
+                   {
+                       "index":  123,
+                       "op":  "read",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  0,
+                       "requested":  1,
+                       "count":  1,
+                       "offset":  1,
+                       "remaining":  25
+                   },
+                   {
+                       "index":  124,
+                       "op":  "close",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  0,
+                       "requested":  0,
+                       "count":  0,
+                       "offset":  0,
+                       "remaining":  0
+                   },
+                   {
+                       "index":  125,
+                       "op":  "open",
+                       "path":  "/virtual/readme.txt",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  27,
+                       "requested":  0,
+                       "count":  0,
+                       "offset":  0,
+                       "remaining":  0
+                   },
+                   {
+                       "index":  126,
+                       "op":  "read",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  0,
+                       "requested":  0,
+                       "count":  0,
+                       "offset":  0,
+                       "remaining":  27
+                   },
+                   {
+                       "index":  127,
+                       "op":  "read",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  0,
+                       "requested":  1,
+                       "count":  1,
+                       "offset":  0,
+                       "remaining":  26
+                   },
+                   {
+                       "index":  128,
+                       "op":  "write",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "unsupported",
+                       "size":  0,
+                       "requested":  0,
+                       "count":  0,
+                       "offset":  1,
+                       "remaining":  26
+                   },
+                   {
+                       "index":  129,
+                       "op":  "read",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  0,
+                       "requested":  1,
+                       "count":  1,
+                       "offset":  1,
+                       "remaining":  25
+                   },
+                   {
+                       "index":  130,
+                       "op":  "close",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  0,
+                       "requested":  0,
+                       "count":  0,
+                       "offset":  0,
+                       "remaining":  0
                    }
                ],
-    "run_count":  16,
+    "run_count":  18,
     "runs":  [
                  {
                      "name":  "unsupported_caps_app",
@@ -2922,6 +3066,168 @@
                                     },
                                     {
                                         "index":  118,
+                                        "op":  "close",
+                                        "path":  "",
+                                        "fd":  3,
+                                        "code":  "ok",
+                                        "size":  0,
+                                        "requested":  0,
+                                        "count":  0,
+                                        "offset":  0,
+                                        "remaining":  0
+                                    }
+                                ]
+                 },
+                 {
+                     "name":  "storage_zero_io_app",
+                     "stage":  "exit",
+                     "code":  "ok",
+                     "exit":  0,
+                     "event_count":  6,
+                     "events":  [
+                                    {
+                                        "index":  119,
+                                        "op":  "open",
+                                        "path":  "/virtual/readme.txt",
+                                        "fd":  3,
+                                        "code":  "ok",
+                                        "size":  27,
+                                        "requested":  0,
+                                        "count":  0,
+                                        "offset":  0,
+                                        "remaining":  0
+                                    },
+                                    {
+                                        "index":  120,
+                                        "op":  "read",
+                                        "path":  "",
+                                        "fd":  3,
+                                        "code":  "ok",
+                                        "size":  0,
+                                        "requested":  0,
+                                        "count":  0,
+                                        "offset":  0,
+                                        "remaining":  27
+                                    },
+                                    {
+                                        "index":  121,
+                                        "op":  "read",
+                                        "path":  "",
+                                        "fd":  3,
+                                        "code":  "ok",
+                                        "size":  0,
+                                        "requested":  1,
+                                        "count":  1,
+                                        "offset":  0,
+                                        "remaining":  26
+                                    },
+                                    {
+                                        "index":  122,
+                                        "op":  "write",
+                                        "path":  "",
+                                        "fd":  3,
+                                        "code":  "unsupported",
+                                        "size":  0,
+                                        "requested":  0,
+                                        "count":  0,
+                                        "offset":  1,
+                                        "remaining":  26
+                                    },
+                                    {
+                                        "index":  123,
+                                        "op":  "read",
+                                        "path":  "",
+                                        "fd":  3,
+                                        "code":  "ok",
+                                        "size":  0,
+                                        "requested":  1,
+                                        "count":  1,
+                                        "offset":  1,
+                                        "remaining":  25
+                                    },
+                                    {
+                                        "index":  124,
+                                        "op":  "close",
+                                        "path":  "",
+                                        "fd":  3,
+                                        "code":  "ok",
+                                        "size":  0,
+                                        "requested":  0,
+                                        "count":  0,
+                                        "offset":  0,
+                                        "remaining":  0
+                                    }
+                                ]
+                 },
+                 {
+                     "name":  "store:storage_zero_io_app",
+                     "stage":  "exit",
+                     "code":  "ok",
+                     "exit":  0,
+                     "event_count":  6,
+                     "events":  [
+                                    {
+                                        "index":  125,
+                                        "op":  "open",
+                                        "path":  "/virtual/readme.txt",
+                                        "fd":  3,
+                                        "code":  "ok",
+                                        "size":  27,
+                                        "requested":  0,
+                                        "count":  0,
+                                        "offset":  0,
+                                        "remaining":  0
+                                    },
+                                    {
+                                        "index":  126,
+                                        "op":  "read",
+                                        "path":  "",
+                                        "fd":  3,
+                                        "code":  "ok",
+                                        "size":  0,
+                                        "requested":  0,
+                                        "count":  0,
+                                        "offset":  0,
+                                        "remaining":  27
+                                    },
+                                    {
+                                        "index":  127,
+                                        "op":  "read",
+                                        "path":  "",
+                                        "fd":  3,
+                                        "code":  "ok",
+                                        "size":  0,
+                                        "requested":  1,
+                                        "count":  1,
+                                        "offset":  0,
+                                        "remaining":  26
+                                    },
+                                    {
+                                        "index":  128,
+                                        "op":  "write",
+                                        "path":  "",
+                                        "fd":  3,
+                                        "code":  "unsupported",
+                                        "size":  0,
+                                        "requested":  0,
+                                        "count":  0,
+                                        "offset":  1,
+                                        "remaining":  26
+                                    },
+                                    {
+                                        "index":  129,
+                                        "op":  "read",
+                                        "path":  "",
+                                        "fd":  3,
+                                        "code":  "ok",
+                                        "size":  0,
+                                        "requested":  1,
+                                        "count":  1,
+                                        "offset":  1,
+                                        "remaining":  25
+                                    },
+                                    {
+                                        "index":  130,
                                         "op":  "close",
                                         "path":  "",
                                         "fd":  3,

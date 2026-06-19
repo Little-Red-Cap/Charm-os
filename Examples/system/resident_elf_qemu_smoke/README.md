@@ -225,6 +225,11 @@ The smoke logs `resident-elf-qemu: backend-capabilities ...` and
 is the virtual-board evidence contract for this smoke: runtime domain
 `virtual_m7`, virtual capabilities `console,time,display,input,storage,app_exit`,
 read-only storage, and unsupported AFE. It is not a product backend registry.
+`domain-summary.json` also records a derived `backend_readiness` section. That
+section is intentionally redundant with lower-level coverage: it must report
+`status=ready` and true gates for ELF loader, AppRuntime, received bytes,
+packetstream, Store, equivalent sources, GUI evidence, storage, input, and the
+unsupported-capability boundary.
 The runtime log and machine-readable summary both pin smoke-local backend
 semantics: deterministic time starts at `1000 ms` and advances by `17 ms`,
 display is a 16x16 ARGB8888 framebuffer with frame signature/dump/PPM evidence,
@@ -751,7 +756,10 @@ canonicalizes those local runner values so temporary timeout tuning does not
 look like a backend semantic change. Its `backend_contract` section records the smoke-local
 virtual capabilities, unsupported AFE boundary, deterministic time tick,
 framebuffer display evidence, deterministic input sequence, read-only virtual
-storage media, and `app.exit` return-value semantics. Its `display` section
+storage media, and `app.exit` return-value semantics. Its `backend_readiness`
+section is the derived readiness summary that confirms the same run proved the
+ELF loader, AppRuntime, received/packetstream/Store ingress, source equivalence,
+GUI, storage, input, and unsupported-boundary gates. Its `display` section
 records the fixed virtual display mode so GUI evidence drift is caught before
 frame hashes are interpreted. Its evidence section records frame signature, full
 dump, visual PPM, input trace, and storage trace counts. Its `coverage.loads` section records the ELF loader/probe/capacity
@@ -840,7 +848,8 @@ meaning. QEMU evidence is off-board semantic evidence for the ELF/AppRuntime
 chain; it does not replace real-board USB, Store, SDRAM, eMMC, or HAL evidence.
 When `-QemuElf` is enabled, the bundle summary expands `domain-summary.json`
 into `qemu_elf_mode`, `qemu_elf_domain`, `qemu_elf_app_model`,
-`qemu_elf_backend`, `qemu_elf_backend_contract`, `qemu_elf_run_budget`,
+`qemu_elf_backend`, `qemu_elf_backend_readiness`,
+`qemu_elf_backend_contract`, `qemu_elf_run_budget`,
 `qemu_elf_run_budget_match`, `qemu_elf_memory`, `qemu_elf_store`,
 `qemu_elf_display`, `qemu_elf_evidence`,
 `qemu_elf_capacity`, `qemu_elf_artifacts`, `qemu_elf_loads`,
@@ -851,7 +860,7 @@ into `qemu_elf_mode`, `qemu_elf_domain`, `qemu_elf_app_model`,
 rebuilt and launched (`build_and_run`) or reused from an existing capture
 (`validate_existing_evidence`), plus the fixed App model
 (`format=elf:model=CharmAppApi`), virtual backend identity, detailed backend
-contract, recorded QEMU run budget, whether the requested bundle budget matches
+contract, backend readiness status/gates, recorded QEMU run budget, whether the requested bundle budget matches
 the captured `domain-summary.json` budget, ELF load memory boundary,
 packetstream buffer boundary (`storage/transport/stream/received`), Store media, frame/input/storage evidence counts,
 near-limit/over-limit ELF capacity, QEMU-local artifact counts and representative

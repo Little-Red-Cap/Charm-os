@@ -64,6 +64,19 @@
                                               "overrides_return":  false
                                           }
                          },
+    "backend_readiness":  {
+                              "status":  "ready",
+                              "elf_loader":  true,
+                              "app_runtime":  true,
+                              "received":  true,
+                              "packetstream":  true,
+                              "store":  true,
+                              "equivalent_sources":  true,
+                              "gui":  true,
+                              "storage":  true,
+                              "input":  true,
+                              "unsupported_boundary":  true
+                          },
     "artifacts":  {
                       "directory":  "out-qemu",
                       "app_count":  31,

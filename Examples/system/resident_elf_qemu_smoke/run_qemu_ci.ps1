@@ -2540,6 +2540,170 @@ function Get-GuiTimelineSummary {
     return @($Entries.Values | ForEach-Object { [pscustomobject]$_ })
 }
 
+function Test-QemuSummaryRun {
+    param(
+        [object[]]$Runs,
+        [string]$Name,
+        [string]$Stage,
+        [string]$Code
+    )
+
+    return (@($Runs | Where-Object {
+                $_.name -eq $Name -and $_.stage -eq $Stage -and $_.code -eq $Code
+            }).Count -gt 0)
+}
+
+function Test-QemuSummaryStage {
+    param(
+        [object[]]$Stages,
+        [string]$Source,
+        [string]$Name,
+        [string]$Code
+    )
+
+    return (@($Stages | Where-Object {
+                $_.source -eq $Source -and $_.name -eq $Name -and $_.code -eq $Code
+            }).Count -gt 0)
+}
+
+function Test-QemuSummaryLoad {
+    param(
+        [object[]]$Loads,
+        [string]$Name,
+        [string]$Probe,
+        [bool]$Fits
+    )
+
+    return (@($Loads | Where-Object {
+                $_.name -eq $Name -and $_.probe -eq $Probe -and [bool]$_.fits -eq $Fits
+            }).Count -gt 0)
+}
+
+function Test-QemuSummaryPacketstream {
+    param(
+        [object[]]$Packetstreams,
+        [string]$Name,
+        [string]$ReceiveStage,
+        [string]$ReceiveCode
+    )
+
+    return (@($Packetstreams | Where-Object {
+                $_.name -eq $Name -and $_.receive_stage -eq $ReceiveStage -and $_.receive_code -eq $ReceiveCode
+            }).Count -gt 0)
+}
+
+function Test-QemuSummarySourceMatrixEntry {
+    param(
+        [object[]]$Matrix,
+        [string]$Name,
+        [string[]]$Sources
+    )
+
+    $Matches = @($Matrix | Where-Object { $_.name -eq $Name })
+    if ($Matches.Count -ne 1) {
+        return $false
+    }
+    $Entry = $Matches[0]
+    foreach ($Source in $Sources) {
+        $Value = $Entry.$Source
+        if ($null -eq $Value -or $Value.stage -ne "exit" -or $Value.code -ne "ok") {
+            return $false
+        }
+    }
+    return $true
+}
+
+function Get-QemuBackendReadiness {
+    param(
+        [object]$BackendContract,
+        [object]$Store,
+        [object[]]$Runs,
+        [object[]]$Stages,
+        [object[]]$Loads,
+        [object[]]$Packetstreams,
+        [object[]]$SourceMatrix,
+        [object[]]$GuiTimeline,
+        [object]$Capabilities,
+        [int]$FrameSignatureCount,
+        [int]$FrameDumpCount,
+        [int]$FramePpmCount,
+        [int]$InputTraceCount,
+        [int]$StorageTraceCount
+    )
+
+    $ElfLoaderReady =
+        (Test-QemuSummaryLoad -Loads $Loads -Name "hello_app" -Probe "ok" -Fits $true) -and
+        (Test-QemuSummaryLoad -Loads $Loads -Name "large_fit_app" -Probe "ok" -Fits $true) -and
+        (Test-QemuSummaryLoad -Loads $Loads -Name "too_large_app" -Probe "load_buffer_too_small" -Fits $false) -and
+        (Test-QemuSummaryLoad -Loads $Loads -Name "bad_header_app" -Probe "bad_header" -Fits $true)
+    $AppRuntimeReady =
+        (Test-QemuSummaryRun -Runs $Runs -Name "hello_app" -Stage "exit" -Code "ok") -and
+        (Test-QemuSummaryRun -Runs $Runs -Name "player_min" -Stage "exit" -Code "ok") -and
+        (Test-QemuSummaryRun -Runs $Runs -Name "argv_overflow_app" -Stage "argv" -Code "argv_overflow") -and
+        (Test-QemuSummaryRun -Runs $Runs -Name "abi_mismatch_app" -Stage "abi" -Code "abi_mismatch")
+    $ReceivedReady =
+        (Test-QemuSummaryStage -Stages $Stages -Source "received" -Name "hello_app" -Code "ok") -and
+        (Test-QemuSummaryRun -Runs $Runs -Name "received:hello_app" -Stage "exit" -Code "ok")
+    $PacketstreamReady =
+        (Test-QemuSummaryPacketstream -Packetstreams $Packetstreams -Name "hello_app" -ReceiveStage "launch_ready" -ReceiveCode "ok") -and
+        (Test-QemuSummaryPacketstream -Packetstreams $Packetstreams -Name "packetstream_crc_mismatch" -ReceiveStage "failed" -ReceiveCode "crc_mismatch")
+    $StoreReady =
+        $Store.format -eq "store_v1" -and
+        $Store.media.kind -eq "memory" -and
+        [int]$Store.entries -eq 31 -and
+        [int]$Store.media.read_failures -eq 0 -and
+        (Test-QemuSummaryStage -Stages $Stages -Source "store" -Name "hello_app" -Code "ok") -and
+        (Test-QemuSummaryRun -Runs $Runs -Name "store:hello_app" -Stage "exit" -Code "ok")
+    $EquivalentSourcesReady = $true
+    foreach ($Name in @("hello_app", "large_fit_app", "player_min")) {
+        if (-not (Test-QemuSummarySourceMatrixEntry -Matrix $SourceMatrix -Name $Name -Sources @("direct", "received", "packetstream", "store"))) {
+            $EquivalentSourcesReady = $false
+        }
+    }
+    $GuiReady =
+        [int]$FrameSignatureCount -eq 8 -and
+        [int]$FrameDumpCount -eq 8 -and
+        [int]$FramePpmCount -eq 8 -and
+        (@($GuiTimeline | Where-Object { $_.name -eq "player_min" -and [int]$_.frames -eq 1 -and [int]$_.inputs -eq 1 }).Count -eq 1)
+    $StorageReady =
+        $BackendContract.storage_media.kind -eq "virtual_readonly_files" -and
+        [int]$StorageTraceCount -eq 130 -and
+        [bool]$Capabilities.storage
+    $InputReady =
+        $BackendContract.input.kind -eq "deterministic_sequence" -and
+        [int]$InputTraceCount -eq 24 -and
+        [bool]$Capabilities.input
+    $UnsupportedReady =
+        [bool]$Capabilities.unsupported -and
+        $BackendContract.afe -eq "unsupported" -and
+        $BackendContract.storage -eq "readonly"
+
+    $Ready = $ElfLoaderReady -and
+        $AppRuntimeReady -and
+        $ReceivedReady -and
+        $PacketstreamReady -and
+        $StoreReady -and
+        $EquivalentSourcesReady -and
+        $GuiReady -and
+        $StorageReady -and
+        $InputReady -and
+        $UnsupportedReady
+
+    return [pscustomobject]@{
+        status = if ($Ready) { "ready" } else { "incomplete" }
+        elf_loader = $ElfLoaderReady
+        app_runtime = $AppRuntimeReady
+        received = $ReceivedReady
+        packetstream = $PacketstreamReady
+        store = $StoreReady
+        equivalent_sources = $EquivalentSourcesReady
+        gui = $GuiReady
+        storage = $StorageReady
+        input = $InputReady
+        unsupported_boundary = $UnsupportedReady
+    }
+}
+
 function Write-DomainSummaryCapture {
     param(
         [string]$LogPath,
@@ -2662,6 +2826,41 @@ function Write-DomainSummaryCapture {
         $StorageTraceRunCount = [int]$StorageTraceCapture.run_count
     }
 
+    $StoreSummary = [pscustomobject]@{
+        format = "store_v1"
+        entries = $StoreEntries
+        bytes = $StoreBytes
+        media = [pscustomobject]@{
+            kind = $StoreMediaKind
+            bytes = $StoreMediaBytes
+            read_calls = $StoreMediaReadCalls
+            read_bytes = $StoreMediaReadBytes
+            read_failures = $StoreMediaReadFailures
+        }
+    }
+    $Runs = Get-AppRunSummaryFromText -Text $Text
+    $Stages = Get-StageSummaryFromText -Text $Text
+    $Loads = Get-ElfLoadSummaryFromText -Text $Text
+    $Packetstreams = Get-PacketstreamSummaryFromText -Text $Text
+    $SourceMatrix = Get-SourceMatrixFromText -Text $Text
+    $GuiTimeline = Get-GuiTimelineSummary -FrameSignatureCapture $FrameSignatureCapture -InputTraceCapture $InputTraceCapture
+    $Capabilities = Get-CapabilitySummaryFromText -Text $Text
+    $BackendReadiness = Get-QemuBackendReadiness `
+        -BackendContract $BackendContract `
+        -Store $StoreSummary `
+        -Runs $Runs `
+        -Stages $Stages `
+        -Loads $Loads `
+        -Packetstreams $Packetstreams `
+        -SourceMatrix $SourceMatrix `
+        -GuiTimeline $GuiTimeline `
+        -Capabilities $Capabilities `
+        -FrameSignatureCount $FrameSignatureCount `
+        -FrameDumpCount $FrameDumpCount `
+        -FramePpmCount $FramePpmCount `
+        -InputTraceCount $InputTraceCount `
+        -StorageTraceCount $StorageTraceCount
+
     $Summary = [pscustomobject]@{
         schema = "charm.resident_elf_qemu.domain_summary.v1"
         domain = $BackendIdentity.runtime_domain
@@ -2670,6 +2869,7 @@ function Write-DomainSummaryCapture {
         image_format = "elf"
         app_model = "CharmAppApi"
         backend_contract = $BackendContract
+        backend_readiness = $BackendReadiness
         artifacts = $ArtifactSummary
         run_budget = [pscustomobject]@{
             timeout_sec = $TimeoutSec
@@ -2698,25 +2898,14 @@ function Write-DomainSummaryCapture {
             frame_bytes = $DisplayFrameBytes
             pixel_bytes = 4
         }
-        store = [pscustomobject]@{
-            format = "store_v1"
-            entries = $StoreEntries
-            bytes = $StoreBytes
-            media = [pscustomobject]@{
-                kind = $StoreMediaKind
-                bytes = $StoreMediaBytes
-                read_calls = $StoreMediaReadCalls
-                read_bytes = $StoreMediaReadBytes
-                read_failures = $StoreMediaReadFailures
-            }
-        }
+        store = $StoreSummary
         coverage = [pscustomobject]@{
-            runs = Get-AppRunSummaryFromText -Text $Text
-            stages = Get-StageSummaryFromText -Text $Text
-            loads = Get-ElfLoadSummaryFromText -Text $Text
-            packetstreams = Get-PacketstreamSummaryFromText -Text $Text
-            source_matrix = Get-SourceMatrixFromText -Text $Text
-            gui_timeline = Get-GuiTimelineSummary -FrameSignatureCapture $FrameSignatureCapture -InputTraceCapture $InputTraceCapture
+            runs = $Runs
+            stages = $Stages
+            loads = $Loads
+            packetstreams = $Packetstreams
+            source_matrix = $SourceMatrix
+            gui_timeline = $GuiTimeline
             prepare = [pscustomobject]@{
                 name = "prepare:argv_app"
                 stage = "start"
@@ -2725,7 +2914,7 @@ function Write-DomainSummaryCapture {
                 argc = $PrepareArgc
                 capability_calls = 0
             }
-            capabilities = Get-CapabilitySummaryFromText -Text $Text
+            capabilities = $Capabilities
             negative_cases = @(
                 [pscustomobject]@{ name = "packetstream_crc_mismatch"; stage = "packetstream_verify"; code = "crc_mismatch" },
                 [pscustomobject]@{ name = "received_too_large_app"; stage = "received_stage"; code = "buffer_too_small" },
@@ -3181,6 +3370,55 @@ function Assert-DomainArtifacts {
     }
 }
 
+function Assert-DomainBackendReadiness {
+    param([object]$Readiness)
+
+    if ($null -eq $Readiness) {
+        throw "domain_summary_validate_failed: missing backend readiness"
+    }
+    $ExpectedProperties = @(
+        "status",
+        "elf_loader",
+        "app_runtime",
+        "received",
+        "packetstream",
+        "store",
+        "equivalent_sources",
+        "gui",
+        "storage",
+        "input",
+        "unsupported_boundary"
+    )
+    $ActualProperties = @($Readiness.PSObject.Properties | ForEach-Object { $_.Name })
+    foreach ($Property in $ExpectedProperties) {
+        if (-not ($ActualProperties -contains $Property)) {
+            throw "domain_summary_validate_failed: backend readiness missing $Property"
+        }
+    }
+    if ($ActualProperties.Count -ne $ExpectedProperties.Count) {
+        throw "domain_summary_validate_failed: unexpected backend readiness property count"
+    }
+    if ($Readiness.status -ne "ready") {
+        throw "domain_summary_validate_failed: backend readiness status=$($Readiness.status)"
+    }
+    foreach ($Property in @(
+            "elf_loader",
+            "app_runtime",
+            "received",
+            "packetstream",
+            "store",
+            "equivalent_sources",
+            "gui",
+            "storage",
+            "input",
+            "unsupported_boundary"
+        )) {
+        if (-not [bool]$Readiness.$Property) {
+            throw "domain_summary_validate_failed: backend readiness $Property is false"
+        }
+    }
+}
+
 function Assert-DomainCount {
     param(
         [string]$Name,
@@ -3442,6 +3680,7 @@ function Validate-DomainSummaryFile {
         [bool]$Summary.backend_contract.app_exit.overrides_return) {
         throw "domain_summary_validate_failed: bad app_exit backend contract"
     }
+    Assert-DomainBackendReadiness -Readiness $Summary.backend_readiness
     if ($Summary.run_region.base -ne "0x20080000" -or $Summary.run_region.expected -ne "0x20080000" -or [int]$Summary.run_region.size -ne 65536) {
         throw "domain_summary_validate_failed: bad run region"
     }
@@ -4302,6 +4541,10 @@ function Invoke-SelfTest {
     Assert-BadDomainSummaryRejected -SourcePath $GoldenDomainSummaryFile -Label "equivalent_entry_load_span" -Mutate {
         param($Summary)
         ($Summary.coverage.loads | Where-Object { $_.name -eq "store:hello_app" }).span = 1
+    }
+    Assert-BadDomainSummaryRejected -SourcePath $GoldenDomainSummaryFile -Label "backend_readiness_gui" -Mutate {
+        param($Summary)
+        $Summary.backend_readiness.gui = $false
     }
 
     $CMakePath = Resolve-ToolPath -Tool $CMakeExe

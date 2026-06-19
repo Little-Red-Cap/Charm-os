@@ -199,6 +199,7 @@ function Invoke-SelfTest {
     }
     $ScriptText = Get-Content -LiteralPath $PSCommandPath -Raw -Encoding UTF8
     foreach ($RequiredToken in @(
+        "qemu_elf_backend_readiness=",
         "qemu_elf_run_budget_match=",
         "qemu_elf_run_budget_mismatch:",
         "-QemuElfRunBudgetMatch `$QemuElfRunBudgetMatch"
@@ -367,6 +368,19 @@ function Invoke-SelfTest {
                 kind = "notification_counter"
                 overrides_return = $false
             }
+        }
+        backend_readiness = [pscustomobject]@{
+            status = "ready"
+            elf_loader = $true
+            app_runtime = $true
+            received = $true
+            packetstream = $true
+            store = $true
+            equivalent_sources = $true
+            gui = $true
+            storage = $true
+            input = $true
+            unsupported_boundary = $true
         }
         run_region = [pscustomobject]@{
             base = "0x20080000"
@@ -961,6 +975,7 @@ function Invoke-SelfTest {
         if ($ParsedQemu.Domain -ne "virtual_m7" -or
             $ParsedQemu.AppModel -ne "format=elf:model=CharmAppApi" -or
             $ParsedQemu.Backend -ne "virtual:virtual_m7:console,time,display,input,storage,app_exit:storage=readonly:afe=unsupported" -or
+            $ParsedQemu.BackendReadiness -ne "status=ready:elf_loader=1:app_runtime=1:received=1:packetstream=1:store=1:equivalent_sources=1:gui=1:storage=1:input=1:unsupported=1" -or
             $ParsedQemu.BackendContract -ne "time=deterministic_tick:1000+17:reset=1;display=framebuffer:16x16:argb8888:stride=64:frame=1024:evidence=frame_signatures,frame_dumps,frame_ppm,gui_timeline;input=deterministic_sequence:samples=4:max=15,15:wraps=1:evidence=input_trace,gui_timeline;storage=virtual_readonly_files:files=3:fd=3+4:write=unsupported:evidence=storage_trace;app_exit=notification_counter:overrides_return=0" -or
             $ParsedQemu.RunBudget -ne "timeout_sec=15:tail_lines=80" -or
             $ParsedQemu.Memory -ne "run_base=0x20080000:run_size=65536:stage_cache=16384:packetstream=16384/2048/32768/16384" -or
@@ -1002,6 +1017,7 @@ function Invoke-SelfTest {
         Test-BadQemuSummary -Label "app_model" -Mutate { param($Summary) $Summary.app_model = "RawJump" }
         Test-BadQemuSummary -Label "backend_contract" -Mutate { param($Summary) $Summary.backend_contract.storage = "writeable" }
         Test-BadQemuSummary -Label "backend_contract_time" -Mutate { param($Summary) $Summary.backend_contract.time.step_ms = 16 }
+        Test-BadQemuSummary -Label "backend_readiness" -Mutate { param($Summary) $Summary.backend_readiness.gui = $false }
         Test-BadQemuSummary -Label "run_budget" -Mutate { param($Summary) $Summary.run_budget.timeout_sec = 0 }
         Test-BadQemuSummary -Label "run_region" -Mutate { param($Summary) $Summary.run_region.size = 32768 }
         Test-BadQemuSummary -Label "stage_cache" -Mutate { param($Summary) $Summary.stage_cache.bytes = 8192 }
@@ -1266,6 +1282,76 @@ function Read-QemuElfDomainGoldenStatusFromLines {
     return (Read-QemuElfDomainGoldenStatusFromText -Text ([string]::Join("`n", $Lines)))
 }
 
+function ConvertTo-QemuElfBoolToken {
+    param([object]$Value)
+
+    if ([bool]$Value) {
+        return "1"
+    }
+    return "0"
+}
+
+function Assert-QemuElfBackendReadiness {
+    param([object]$Readiness)
+
+    if ($null -eq $Readiness) {
+        throw "qemu_elf_summary_invalid: missing backend readiness"
+    }
+    $ExpectedProperties = @(
+        "status",
+        "elf_loader",
+        "app_runtime",
+        "received",
+        "packetstream",
+        "store",
+        "equivalent_sources",
+        "gui",
+        "storage",
+        "input",
+        "unsupported_boundary"
+    )
+    $ActualProperties = @($Readiness.PSObject.Properties | ForEach-Object { $_.Name })
+    foreach ($Property in $ExpectedProperties) {
+        if (-not ($ActualProperties -contains $Property)) {
+            throw "qemu_elf_summary_invalid: backend readiness missing $Property"
+        }
+    }
+    if ($ActualProperties.Count -ne $ExpectedProperties.Count) {
+        throw "qemu_elf_summary_invalid: unexpected backend readiness property count"
+    }
+    if ($Readiness.status -ne "ready") {
+        throw "qemu_elf_summary_invalid: backend readiness status=$($Readiness.status)"
+    }
+    foreach ($Property in @(
+            "elf_loader",
+            "app_runtime",
+            "received",
+            "packetstream",
+            "store",
+            "equivalent_sources",
+            "gui",
+            "storage",
+            "input",
+            "unsupported_boundary"
+        )) {
+        if (-not [bool]$Readiness.$Property) {
+            throw "qemu_elf_summary_invalid: backend readiness $Property is false"
+        }
+    }
+    return ("status={0}:elf_loader={1}:app_runtime={2}:received={3}:packetstream={4}:store={5}:equivalent_sources={6}:gui={7}:storage={8}:input={9}:unsupported={10}" -f `
+        ([string]$Readiness.status), `
+        (ConvertTo-QemuElfBoolToken $Readiness.elf_loader), `
+        (ConvertTo-QemuElfBoolToken $Readiness.app_runtime), `
+        (ConvertTo-QemuElfBoolToken $Readiness.received), `
+        (ConvertTo-QemuElfBoolToken $Readiness.packetstream), `
+        (ConvertTo-QemuElfBoolToken $Readiness.store), `
+        (ConvertTo-QemuElfBoolToken $Readiness.equivalent_sources), `
+        (ConvertTo-QemuElfBoolToken $Readiness.gui), `
+        (ConvertTo-QemuElfBoolToken $Readiness.storage), `
+        (ConvertTo-QemuElfBoolToken $Readiness.input), `
+        (ConvertTo-QemuElfBoolToken $Readiness.unsupported_boundary))
+}
+
 function Read-QemuElfDomainSummary {
     param([string]$Path)
 
@@ -1341,6 +1427,7 @@ function Read-QemuElfDomainSummary {
         [bool]$Summary.backend_contract.app_exit.overrides_return) {
         throw "qemu_elf_summary_invalid: bad app_exit backend_contract"
     }
+    $BackendReadiness = Assert-QemuElfBackendReadiness -Readiness $Summary.backend_readiness
     if ($Summary.run_region.base -ne "0x20080000" -or
         $Summary.run_region.expected -ne "0x20080000" -or
         [int]$Summary.run_region.size -ne 65536) {
@@ -1655,6 +1742,7 @@ function Read-QemuElfDomainSummary {
             ($BackendCapabilities -join ","), `
             ([string]$Summary.backend_contract.storage), `
             ([string]$Summary.backend_contract.afe))
+        BackendReadiness = $BackendReadiness
         BackendContract = ("time={0}:{1}+{2}:reset={3};display={4}:{5}x{6}:{7}:stride={8}:frame={9}:evidence={10};input={11}:samples={12}:max={13},{14}:wraps={15}:evidence={16};storage={17}:files={18}:fd={19}+{20}:write={21}:evidence={22};app_exit={23}:overrides_return={24}" -f `
             ([string]$Summary.backend_contract.time.kind), `
             ([int]$Summary.backend_contract.time.start_ms), `
@@ -1768,6 +1856,7 @@ function Write-QemuElfSummaryLines {
         Write-BundleLine -Lines $Lines -Text "qemu_elf_domain=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_app_model=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_backend=skipped"
+        Write-BundleLine -Lines $Lines -Text "qemu_elf_backend_readiness=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_backend_contract=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_run_budget=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_memory=skipped"
@@ -1793,6 +1882,7 @@ function Write-QemuElfSummaryLines {
         $QemuElfSummary.Cpu)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_app_model={0}" -f $QemuElfSummary.AppModel)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_backend={0}" -f $QemuElfSummary.Backend)
+    Write-BundleLine -Lines $Lines -Text ("qemu_elf_backend_readiness={0}" -f $QemuElfSummary.BackendReadiness)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_backend_contract={0}" -f $QemuElfSummary.BackendContract)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_run_budget={0}" -f $QemuElfSummary.RunBudget)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_memory={0}" -f $QemuElfSummary.Memory)

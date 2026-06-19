@@ -830,7 +830,8 @@ chain; it does not replace real-board USB, Store, SDRAM, eMMC, or HAL evidence.
 When `-QemuElf` is enabled, the bundle summary expands `domain-summary.json`
 into `qemu_elf_mode`, `qemu_elf_domain`, `qemu_elf_app_model`,
 `qemu_elf_backend`, `qemu_elf_backend_contract`, `qemu_elf_run_budget`,
-`qemu_elf_memory`, `qemu_elf_store`, `qemu_elf_display`, `qemu_elf_evidence`,
+`qemu_elf_run_budget_match`, `qemu_elf_memory`, `qemu_elf_store`,
+`qemu_elf_display`, `qemu_elf_evidence`,
 `qemu_elf_capacity`, `qemu_elf_loads`, `qemu_elf_equivalent_sources`,
 `qemu_elf_packetstreams`, `qemu_elf_domain_golden`, `qemu_elf_sources`,
 `qemu_elf_coverage`, and
@@ -838,8 +839,9 @@ into `qemu_elf_mode`, `qemu_elf_domain`, `qemu_elf_app_model`,
 rebuilt and launched (`build_and_run`) or reused from an existing capture
 (`validate_existing_evidence`), plus the fixed App model
 (`format=elf:model=CharmAppApi`), virtual backend identity, detailed backend
-contract, recorded QEMU run budget, ELF load memory boundary, packetstream buffer boundary
-(`storage/transport/stream/received`), Store media, frame/input/storage evidence counts,
+contract, recorded QEMU run budget, whether the requested bundle budget matches
+the captured `domain-summary.json` budget, ELF load memory boundary,
+packetstream buffer boundary (`storage/transport/stream/received`), Store media, frame/input/storage evidence counts,
 near-limit/over-limit ELF capacity, representative ELF loader
 entry/span/segment/fits facts, direct/received/packetstream/Store equivalent
 ELF load facts for `hello_app`, `large_fit_app`, and `player_min`,

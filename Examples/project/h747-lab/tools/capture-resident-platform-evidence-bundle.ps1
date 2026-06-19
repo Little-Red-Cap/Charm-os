@@ -197,6 +197,16 @@ function Invoke-SelfTest {
     if ($QemuElfTailLines -le 0) {
         throw "selftest_failed: QemuElfTailLines must be positive"
     }
+    $ScriptText = Get-Content -LiteralPath $PSCommandPath -Raw -Encoding UTF8
+    foreach ($RequiredToken in @(
+        "qemu_elf_run_budget_match=",
+        "qemu_elf_run_budget_mismatch:",
+        "-QemuElfRunBudgetMatch `$QemuElfRunBudgetMatch"
+    )) {
+        if (-not $ScriptText.Contains($RequiredToken)) {
+            throw "selftest_failed: evidence bundle script missing token $RequiredToken"
+        }
+    }
     $ParsedMedia = Get-MediaList -RawMedia @("qspi,emmc")
     if ($ParsedMedia.Count -ne 2 -or $ParsedMedia[0] -ne "qspi" -or $ParsedMedia[1] -ne "emmc") {
         throw "selftest_failed: comma media parsing failed"
@@ -1726,6 +1736,7 @@ function Write-Summary {
         [string]$QemuElfMode,
         [int]$QemuElfTimeoutSec,
         [int]$QemuElfTailLines,
+        [string]$QemuElfRunBudgetMatch,
         [string]$QemuElfLog,
         [string]$QemuElfDomainSummary,
         [string]$QemuElfFramePpm,
@@ -1750,6 +1761,7 @@ function Write-Summary {
     Write-BundleLine -Lines $Lines -Text "qemu_elf_mode=$QemuElfMode"
     Write-BundleLine -Lines $Lines -Text "qemu_elf_timeout_sec=$QemuElfTimeoutSec"
     Write-BundleLine -Lines $Lines -Text "qemu_elf_tail_lines=$QemuElfTailLines"
+    Write-BundleLine -Lines $Lines -Text "qemu_elf_run_budget_match=$QemuElfRunBudgetMatch"
     if (-not [string]::IsNullOrWhiteSpace($QemuElfLog)) {
         Write-BundleLine -Lines $Lines -Text "qemu_elf_log=$QemuElfLog"
     } else {
@@ -1926,6 +1938,7 @@ try {
     $QemuElfFramePpmResolved = ""
     $QemuElfSummary = $null
     $QemuElfDomainGolden = "skipped"
+    $QemuElfRunBudgetMatch = "skipped"
     if ($QemuElf) {
         if ($QemuElfValidateOnly) {
             Invoke-Logged -Lines $Lines -Label "resident ELF QEMU evidence validate" -FilePath "powershell" -Arguments @(
@@ -1978,6 +1991,11 @@ try {
             $QemuElfFramePpmResolved = (Resolve-Path -LiteralPath $QemuElfFramePpm).Path
         }
         $QemuElfSummary = Read-QemuElfDomainSummary -Path $QemuElfDomainSummaryResolved
+        $QemuElfRunBudgetExpected = ("timeout_sec={0}:tail_lines={1}" -f $QemuElfTimeoutSec, $QemuElfTailLines)
+        $QemuElfRunBudgetMatch = if ($QemuElfSummary.RunBudget -eq $QemuElfRunBudgetExpected) { "1" } else { "0" }
+        if (-not $QemuElfValidateOnly -and $QemuElfRunBudgetMatch -ne "1") {
+            throw "qemu_elf_run_budget_mismatch: requested=$QemuElfRunBudgetExpected captured=$($QemuElfSummary.RunBudget)"
+        }
         $QemuElfDomainGolden = Read-QemuElfDomainGoldenStatusFromLines -Lines $Lines
         Write-BundleLine -Lines $Lines -Text "== resident ELF QEMU summary =="
         Write-QemuElfSummaryLines -Lines $Lines -QemuElfSummary $QemuElfSummary -QemuElfDomainGolden $QemuElfDomainGolden
@@ -2076,6 +2094,7 @@ try {
         -QemuElfMode $QemuElfMode `
         -QemuElfTimeoutSec $QemuElfTimeoutSec `
         -QemuElfTailLines $QemuElfTailLines `
+        -QemuElfRunBudgetMatch $QemuElfRunBudgetMatch `
         -QemuElfLog $QemuElfLogResolved `
         -QemuElfDomainSummary $QemuElfDomainSummaryResolved `
         -QemuElfFramePpm $QemuElfFramePpmResolved `

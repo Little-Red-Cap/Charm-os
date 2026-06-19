@@ -306,6 +306,8 @@ function Invoke-SelfTest {
         domain = "virtual_m7"
         machine = "mps2-an500"
         cpu = "cortex-m7"
+        image_format = "elf"
+        app_model = "CharmAppApi"
         backend_contract = [pscustomobject]@{
             kind = "virtual"
             runtime_domain = "virtual_m7"
@@ -418,6 +420,7 @@ function Invoke-SelfTest {
         $ParsedQemu = Read-QemuElfDomainSummary -Path $TempSummary
         $DomainGolden = Read-QemuElfDomainGoldenStatus -LogPath $TempQemuLog
         if ($ParsedQemu.Domain -ne "virtual_m7" -or
+            $ParsedQemu.AppModel -ne "format=elf:model=CharmAppApi" -or
             $ParsedQemu.Backend -ne "virtual:virtual_m7:console,time,display,input,storage,app_exit:storage=readonly:afe=unsupported" -or
             $ParsedQemu.Memory -ne "run_base=0x20080000:run_size=65536:stage_cache=16384" -or
             $ParsedQemu.Store -ne "store_v1:entries=13:bytes=81888:media=memory:reads=130:read_bytes=66044:failures=0" -or
@@ -451,6 +454,7 @@ function Invoke-SelfTest {
         }
 
         Test-BadQemuSummary -Label "schema" -Mutate { param($Summary) $Summary.schema = "bad" }
+        Test-BadQemuSummary -Label "app_model" -Mutate { param($Summary) $Summary.app_model = "RawJump" }
         Test-BadQemuSummary -Label "backend_contract" -Mutate { param($Summary) $Summary.backend_contract.storage = "writeable" }
         Test-BadQemuSummary -Label "run_region" -Mutate { param($Summary) $Summary.run_region.size = 32768 }
         Test-BadQemuSummary -Label "stage_cache" -Mutate { param($Summary) $Summary.stage_cache.bytes = 8192 }
@@ -613,6 +617,9 @@ function Read-QemuElfDomainSummary {
     $Summary = Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json
     if ($Summary.schema -ne "charm.resident_elf_qemu.domain_summary.v1") {
         throw "qemu_elf_summary_invalid: bad schema: $($Summary.schema)"
+    }
+    if ($Summary.image_format -ne "elf" -or $Summary.app_model -ne "CharmAppApi") {
+        throw "qemu_elf_summary_invalid: bad app model"
     }
     if ($Summary.backend_contract.kind -ne "virtual" -or
         $Summary.backend_contract.runtime_domain -ne "virtual_m7" -or
@@ -778,6 +785,9 @@ function Read-QemuElfDomainSummary {
         Domain = [string]$Summary.domain
         Machine = [string]$Summary.machine
         Cpu = [string]$Summary.cpu
+        AppModel = ("format={0}:model={1}" -f `
+            ([string]$Summary.image_format), `
+            ([string]$Summary.app_model))
         Backend = ("{0}:{1}:{2}:storage={3}:afe={4}" -f `
             ([string]$Summary.backend_contract.kind), `
             ([string]$Summary.backend_contract.runtime_domain), `
@@ -842,6 +852,7 @@ function Write-QemuElfSummaryLines {
 
     if ($null -eq $QemuElfSummary) {
         Write-BundleLine -Lines $Lines -Text "qemu_elf_domain=skipped"
+        Write-BundleLine -Lines $Lines -Text "qemu_elf_app_model=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_backend=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_memory=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_store=skipped"
@@ -860,6 +871,7 @@ function Write-QemuElfSummaryLines {
         $QemuElfSummary.Domain, `
         $QemuElfSummary.Machine, `
         $QemuElfSummary.Cpu)
+    Write-BundleLine -Lines $Lines -Text ("qemu_elf_app_model={0}" -f $QemuElfSummary.AppModel)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_backend={0}" -f $QemuElfSummary.Backend)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_memory={0}" -f $QemuElfSummary.Memory)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_store={0}" -f $QemuElfSummary.Store)

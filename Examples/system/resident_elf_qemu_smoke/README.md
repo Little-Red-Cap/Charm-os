@@ -44,9 +44,11 @@ succeed, and only the ELF loader rejects the payload as `bad_magic`.
 `entry_outside_segment_app` and `rwx_segment_app` mutate a known-good ELF in
 memory and prove that the QEMU resident domain rejects unsafe ELF structure at
 the loader boundary. `bad_header_app`, `bad_class_app`, `bad_endian_app`,
-`bad_program_header_app`, `truncated_payload_app`, `no_load_segment_app`, and
-`overlapping_segments_app` extend the same mutation matrix to ELF header,
-program-header, payload-boundary, load-segment, and segment-overlap failures.
+`bad_ident_version_app`, `bad_type_app`, `bad_machine_app`, `bad_version_app`,
+`bad_ehsize_app`, `bad_phentsize_app`, `bad_program_header_app`,
+`truncated_payload_app`, `no_load_segment_app`, and `overlapping_segments_app`
+extend the same mutation matrix to ELF header ABI, program-header,
+payload-boundary, load-segment, and segment-overlap failures.
 `too_large_app` remains the ELF load-span negative case. `bad_elf_magic_app`
 validates malformed ELF rejection at AppRuntime load stage without entering the
 App or touching capabilities.
@@ -136,8 +138,9 @@ Malformed App ELF
 Unsafe App ELF structure
 -> AppImage(format=elf)
 -> ELF loader bad_class / bad_endian / bad_program_header / truncated_payload
-   / no_load_segment / entry_outside_segment / overlapping_segments
-   / rwx_segment
+   / bad_ident_version / bad_type / bad_machine / bad_version / bad_ehsize
+   / bad_phentsize / no_load_segment / entry_outside_segment
+   / overlapping_segments / rwx_segment
 -> AppRuntime load-stage failure
 -> no capability calls
 
@@ -405,6 +408,30 @@ firmware, launches QEMU, and checks these tokens:
 - `resident-elf-qemu: capacity bad_endian_app needed=0 free=65536 fits=1 region=65536 probe=bad_endian`
 - `resident-elf-qemu: app bad_endian_app stage=load code=load_failed exit=0`
 - `resident-elf-qemu: caps bad_endian_app console=0 time=0 describe=0 present=0 input=0 exit=0`
+- `resident-elf-qemu: load bad_ident_version_app format=elf probe=bad_header`
+- `resident-elf-qemu: capacity bad_ident_version_app needed=0 free=65536 fits=1 region=65536 probe=bad_header`
+- `resident-elf-qemu: app bad_ident_version_app stage=load code=load_failed exit=0`
+- `resident-elf-qemu: caps bad_ident_version_app console=0 time=0 describe=0 present=0 input=0 exit=0`
+- `resident-elf-qemu: load bad_type_app format=elf probe=bad_header`
+- `resident-elf-qemu: capacity bad_type_app needed=0 free=65536 fits=1 region=65536 probe=bad_header`
+- `resident-elf-qemu: app bad_type_app stage=load code=load_failed exit=0`
+- `resident-elf-qemu: caps bad_type_app console=0 time=0 describe=0 present=0 input=0 exit=0`
+- `resident-elf-qemu: load bad_machine_app format=elf probe=bad_header`
+- `resident-elf-qemu: capacity bad_machine_app needed=0 free=65536 fits=1 region=65536 probe=bad_header`
+- `resident-elf-qemu: app bad_machine_app stage=load code=load_failed exit=0`
+- `resident-elf-qemu: caps bad_machine_app console=0 time=0 describe=0 present=0 input=0 exit=0`
+- `resident-elf-qemu: load bad_version_app format=elf probe=bad_header`
+- `resident-elf-qemu: capacity bad_version_app needed=0 free=65536 fits=1 region=65536 probe=bad_header`
+- `resident-elf-qemu: app bad_version_app stage=load code=load_failed exit=0`
+- `resident-elf-qemu: caps bad_version_app console=0 time=0 describe=0 present=0 input=0 exit=0`
+- `resident-elf-qemu: load bad_ehsize_app format=elf probe=bad_header`
+- `resident-elf-qemu: capacity bad_ehsize_app needed=0 free=65536 fits=1 region=65536 probe=bad_header`
+- `resident-elf-qemu: app bad_ehsize_app stage=load code=load_failed exit=0`
+- `resident-elf-qemu: caps bad_ehsize_app console=0 time=0 describe=0 present=0 input=0 exit=0`
+- `resident-elf-qemu: load bad_phentsize_app format=elf probe=bad_program_header`
+- `resident-elf-qemu: capacity bad_phentsize_app needed=0 free=65536 fits=1 region=65536 probe=bad_program_header`
+- `resident-elf-qemu: app bad_phentsize_app stage=load code=load_failed exit=0`
+- `resident-elf-qemu: caps bad_phentsize_app console=0 time=0 describe=0 present=0 input=0 exit=0`
 - `resident-elf-qemu: load bad_program_header_app format=elf probe=bad_program_header`
 - `resident-elf-qemu: capacity bad_program_header_app needed=0 free=65536 fits=1 region=65536 probe=bad_program_header`
 - `resident-elf-qemu: app bad_program_header_app stage=load code=load_failed exit=0`

@@ -84,6 +84,10 @@ struct AppElf32ProgramHeader {
 inline constexpr std::uint32_t kAppElfPtLoad = 1U;
 inline constexpr std::uint32_t kAppElfPfX = 0x1U;
 inline constexpr std::uint32_t kAppElfPfW = 0x2U;
+inline constexpr std::uint8_t kAppElfIdentVersionCurrent = 1U;
+inline constexpr std::uint16_t kAppElfTypeExecutable = 2U;
+inline constexpr std::uint16_t kAppElfMachineArm = 40U;
+inline constexpr std::uint32_t kAppElfVersionCurrent = 1U;
 
 [[nodiscard]] constexpr std::string_view app_elf_probe_code_name(AppElfProbeCode code) noexcept {
     using namespace std::literals::string_view_literals;
@@ -190,10 +194,23 @@ inline constexpr std::uint32_t kAppElfPfW = 0x2U;
         result.code = AppElfProbeCode::bad_endian;
         return result;
     }
+    if (raw[6] != kAppElfIdentVersionCurrent) {
+        result.code = AppElfProbeCode::bad_header;
+        return result;
+    }
 
     auto header = AppElf32Header{};
     std::memcpy(&header, image.image_base, sizeof(header));
-    if (header.phoff > image.image_size || header.phentsize < sizeof(AppElf32ProgramHeader) ||
+    if (header.type != kAppElfTypeExecutable ||
+        header.machine != kAppElfMachineArm ||
+        header.version != kAppElfVersionCurrent ||
+        header.ehsize != sizeof(AppElf32Header)) {
+        result.code = AppElfProbeCode::bad_header;
+        return result;
+    }
+    if (header.phoff < header.ehsize ||
+        header.phoff > image.image_size ||
+        header.phentsize != sizeof(AppElf32ProgramHeader) ||
         header.phnum == 0U) {
         result.code = AppElfProbeCode::bad_program_header;
         return result;

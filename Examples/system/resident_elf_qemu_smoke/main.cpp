@@ -165,6 +165,79 @@ bool mutate_elf_bad_endian(const unsigned char* image_bytes, std::size_t image_s
     return true;
 }
 
+bool mutate_elf_bad_ident_version(const unsigned char* image_bytes, std::size_t image_size) noexcept {
+    if (!copy_elf_for_mutation(image_bytes, image_size) || image_size < 7U) {
+        return false;
+    }
+    g_mutated_elf_payload[6] = 0U;
+    return true;
+}
+
+bool mutate_elf_bad_type(const unsigned char* image_bytes, std::size_t image_size) noexcept {
+    if (!copy_elf_for_mutation(image_bytes, image_size) ||
+        image_size < sizeof(app_abi::AppElf32Header)) {
+        return false;
+    }
+
+    app_abi::AppElf32Header header{};
+    std::memcpy(&header, g_mutated_elf_payload, sizeof(header));
+    header.type = 1U;
+    std::memcpy(g_mutated_elf_payload, &header, sizeof(header));
+    return true;
+}
+
+bool mutate_elf_bad_machine(const unsigned char* image_bytes, std::size_t image_size) noexcept {
+    if (!copy_elf_for_mutation(image_bytes, image_size) ||
+        image_size < sizeof(app_abi::AppElf32Header)) {
+        return false;
+    }
+
+    app_abi::AppElf32Header header{};
+    std::memcpy(&header, g_mutated_elf_payload, sizeof(header));
+    header.machine = 3U;
+    std::memcpy(g_mutated_elf_payload, &header, sizeof(header));
+    return true;
+}
+
+bool mutate_elf_bad_version(const unsigned char* image_bytes, std::size_t image_size) noexcept {
+    if (!copy_elf_for_mutation(image_bytes, image_size) ||
+        image_size < sizeof(app_abi::AppElf32Header)) {
+        return false;
+    }
+
+    app_abi::AppElf32Header header{};
+    std::memcpy(&header, g_mutated_elf_payload, sizeof(header));
+    header.version = 0U;
+    std::memcpy(g_mutated_elf_payload, &header, sizeof(header));
+    return true;
+}
+
+bool mutate_elf_bad_ehsize(const unsigned char* image_bytes, std::size_t image_size) noexcept {
+    if (!copy_elf_for_mutation(image_bytes, image_size) ||
+        image_size < sizeof(app_abi::AppElf32Header)) {
+        return false;
+    }
+
+    app_abi::AppElf32Header header{};
+    std::memcpy(&header, g_mutated_elf_payload, sizeof(header));
+    header.ehsize = static_cast<std::uint16_t>(sizeof(app_abi::AppElf32Header) - 1U);
+    std::memcpy(g_mutated_elf_payload, &header, sizeof(header));
+    return true;
+}
+
+bool mutate_elf_bad_phentsize(const unsigned char* image_bytes, std::size_t image_size) noexcept {
+    if (!copy_elf_for_mutation(image_bytes, image_size) ||
+        image_size < sizeof(app_abi::AppElf32Header)) {
+        return false;
+    }
+
+    app_abi::AppElf32Header header{};
+    std::memcpy(&header, g_mutated_elf_payload, sizeof(header));
+    header.phentsize = static_cast<std::uint16_t>(sizeof(app_abi::AppElf32ProgramHeader) + 4U);
+    std::memcpy(g_mutated_elf_payload, &header, sizeof(header));
+    return true;
+}
+
 bool mutate_elf_bad_program_header(const unsigned char* image_bytes, std::size_t image_size) noexcept {
     if (!copy_elf_for_mutation(image_bytes, image_size) ||
         image_size < sizeof(app_abi::AppElf32Header)) {
@@ -1346,6 +1419,24 @@ extern "C" int resident_elf_qemu_main() {
     ok = expect_mutated_hello_load_failure("bad_endian_app",
                                            mutate_elf_bad_endian,
                                            app_abi::AppElfProbeCode::bad_endian) && ok;
+    ok = expect_mutated_hello_load_failure("bad_ident_version_app",
+                                           mutate_elf_bad_ident_version,
+                                           app_abi::AppElfProbeCode::bad_header) && ok;
+    ok = expect_mutated_hello_load_failure("bad_type_app",
+                                           mutate_elf_bad_type,
+                                           app_abi::AppElfProbeCode::bad_header) && ok;
+    ok = expect_mutated_hello_load_failure("bad_machine_app",
+                                           mutate_elf_bad_machine,
+                                           app_abi::AppElfProbeCode::bad_header) && ok;
+    ok = expect_mutated_hello_load_failure("bad_version_app",
+                                           mutate_elf_bad_version,
+                                           app_abi::AppElfProbeCode::bad_header) && ok;
+    ok = expect_mutated_hello_load_failure("bad_ehsize_app",
+                                           mutate_elf_bad_ehsize,
+                                           app_abi::AppElfProbeCode::bad_header) && ok;
+    ok = expect_mutated_hello_load_failure("bad_phentsize_app",
+                                           mutate_elf_bad_phentsize,
+                                           app_abi::AppElfProbeCode::bad_program_header) && ok;
     ok = expect_mutated_hello_load_failure("bad_program_header_app",
                                            mutate_elf_bad_program_header,
                                            app_abi::AppElfProbeCode::bad_program_header) && ok;

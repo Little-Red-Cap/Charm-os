@@ -286,6 +286,7 @@ std::vector<std::byte> make_minimal_elf(std::uint32_t entry = 0x24070000U,
     header.ident[3] = 'F';
     header.ident[4] = 1;
     header.ident[5] = 1;
+    header.ident[6] = app_abi::kAppElfIdentVersionCurrent;
     header.type = 2;
     header.machine = 40;
     header.version = 1;
@@ -331,6 +332,7 @@ std::vector<std::byte> make_segmented_elf(std::span<const SyntheticSegment> segm
     header.ident[3] = 'F';
     header.ident[4] = 1;
     header.ident[5] = 1;
+    header.ident[6] = app_abi::kAppElfIdentVersionCurrent;
     header.type = 2;
     header.machine = 40;
     header.version = 1;

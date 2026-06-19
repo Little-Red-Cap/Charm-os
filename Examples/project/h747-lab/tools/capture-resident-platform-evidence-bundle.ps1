@@ -750,6 +750,7 @@ function Write-Summary {
         [string]$InspectStatus,
         [object[]]$SmokeResults,
         [string]$QemuElfStatus,
+        [string]$QemuElfMode,
         [string]$QemuElfLog,
         [string]$QemuElfDomainSummary,
         [string]$QemuElfFramePpm,
@@ -771,6 +772,7 @@ function Write-Summary {
         Write-BundleLine -Lines $Lines -Text "smoke $($Result.Name)=$($Result.Status)"
     }
     Write-BundleLine -Lines $Lines -Text "qemu_elf=$QemuElfStatus"
+    Write-BundleLine -Lines $Lines -Text "qemu_elf_mode=$QemuElfMode"
     if (-not [string]::IsNullOrWhiteSpace($QemuElfLog)) {
         Write-BundleLine -Lines $Lines -Text "qemu_elf_log=$QemuElfLog"
     } else {
@@ -818,6 +820,14 @@ $MediaList = Get-MediaList -RawMedia $Media
 if ($QemuElfValidateOnly -and -not $QemuElf) {
     throw "invalid_argument: -QemuElfValidateOnly requires -QemuElf"
 }
+$QemuElfMode = "skipped"
+if ($QemuElf) {
+    if ($QemuElfValidateOnly) {
+        $QemuElfMode = "validate_existing_evidence"
+    } else {
+        $QemuElfMode = "build_and_run"
+    }
+}
 
 $ArtifactManifest = [System.IO.Path]::GetFullPath($ArtifactManifest)
 $Log = [System.IO.Path]::GetFullPath($Log)
@@ -852,6 +862,7 @@ if ($DryRun) {
     Write-Host "installed_store_matrix=$($InstalledStoreMatrix.IsPresent)"
     Write-Host "qemu_elf=$($QemuElf.IsPresent)"
     Write-Host "qemu_elf_validate_only=$($QemuElfValidateOnly.IsPresent)"
+    Write-Host "qemu_elf_mode=$QemuElfMode"
     Write-Host "skip_h747_build=$($SkipH747Build.IsPresent)"
     Write-Host "inspect_source=$InspectSource"
     Write-Host "host_smokes=resident_platform_inspect_smoke,resident_platform_artifact_smoke,dev_loader_packet_stream_smoke,dev_loader_store_install_handoff_smoke,app_abi_modulex_smoke"
@@ -862,11 +873,6 @@ if ($DryRun) {
     }
     if ($QemuElf) {
         Write-Host "qemu_elf_script=$QemuElfScript"
-        if ($QemuElfValidateOnly) {
-            Write-Host "qemu_elf_mode=validate_existing_evidence"
-        } else {
-            Write-Host "qemu_elf_mode=build_and_run"
-        }
         Write-Host "qemu_elf_log=$QemuElfLog"
         Write-Host "qemu_elf_domain_summary=$QemuElfDomainSummary"
         Write-Host "qemu_elf_frame_ppm=$QemuElfFramePpm"
@@ -1070,6 +1076,7 @@ try {
         -InspectStatus $InspectStatus `
         -SmokeResults $SmokeResults `
         -QemuElfStatus $QemuElfStatus `
+        -QemuElfMode $QemuElfMode `
         -QemuElfLog $QemuElfLogResolved `
         -QemuElfDomainSummary $QemuElfDomainSummaryResolved `
         -QemuElfFramePpm $QemuElfFramePpmResolved `

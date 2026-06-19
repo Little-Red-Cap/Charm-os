@@ -449,15 +449,17 @@ Board validation helpers:
 - Run the same evidence bundle and append the off-board QEMU ELF virtual-board smoke:
   `powershell -ExecutionPolicy Bypass -File tools/capture-resident-platform-evidence-bundle.ps1 -QemuElf`
   The bundle summary expands the generated QEMU `domain-summary.json` into
-  `qemu_elf_domain`, `qemu_elf_backend`, `qemu_elf_memory`,
+  `qemu_elf_mode`, `qemu_elf_domain`, `qemu_elf_backend`, `qemu_elf_memory`,
   `qemu_elf_store`, `qemu_elf_display`, `qemu_elf_evidence`,
   `qemu_elf_capacity`, `qemu_elf_domain_golden`, `qemu_elf_sources`,
   `qemu_elf_coverage`, and `qemu_elf_player_min_gui` tokens so the archived
-  evidence shows the virtual runtime domain, capability contract, ELF load
-  memory boundary, Store media, fixed display mode, frame/input/storage evidence
-  counts, near-limit and over-limit ELF capacity, domain-summary golden
-  comparison, direct/received/packetstream/store source matrix coverage,
-  coverage counts, and GUI timeline without opening the JSON manually.
+  evidence shows whether QEMU was rebuilt and launched (`build_and_run`) or
+  reused from an existing capture (`validate_existing_evidence`), plus the
+  virtual runtime domain, capability contract, ELF load memory boundary, Store
+  media, fixed display mode, frame/input/storage evidence counts, near-limit
+  and over-limit ELF capacity, domain-summary golden comparison,
+  direct/received/packetstream/store source matrix coverage, coverage counts,
+  and GUI timeline without opening the JSON manually.
 - Run the off-board artifact/inspect/host-smoke/QEMU ELF evidence path without
   requiring the H747 build preset:
   `powershell -ExecutionPolicy Bypass -File tools/capture-resident-platform-evidence-bundle.ps1 -QemuElf -SkipH747Build`
@@ -468,7 +470,8 @@ Board validation helpers:
   rebuilding or launching QEMU:
   `powershell -ExecutionPolicy Bypass -File tools/capture-resident-platform-evidence-bundle.ps1 -QemuElf -QemuElfValidateOnly -SkipH747Build`
   This still validates `qemu-ci.log`, traces, PPM frames, `domain-summary.json`,
-  and golden comparisons before expanding the `qemu_elf_*` summary tokens.
+  and golden comparisons before expanding the `qemu_elf_*` summary tokens with
+  `qemu_elf_mode=validate_existing_evidence`.
 - Run only the off-board QEMU ELF virtual-board smoke:
   `powershell -ExecutionPolicy Bypass -File ../../system/run-resident-elf-qemu-smoke.ps1`
   The QEMU smoke covers direct App ELF plus QEMU-local Store v1 staging into the

@@ -501,17 +501,19 @@ Examples/project/h747-lab/tools/capture-resident-platform-evidence-bundle.ps1 -Q
 
 That mode still validates `qemu-ci.log`, traces, PPM frames,
 `domain-summary.json`, and golden comparisons before writing the `qemu_elf_*`
-summary tokens.
+summary tokens with `qemu_elf_mode=validate_existing_evidence`.
 
 The switch is opt-in so the default H747 evidence bundle keeps its existing
 meaning. QEMU evidence is off-board semantic evidence for the ELF/AppRuntime
 chain; it does not replace real-board USB, Store, SDRAM, eMMC, or HAL evidence.
 When `-QemuElf` is enabled, the bundle summary expands `domain-summary.json`
-into `qemu_elf_domain`, `qemu_elf_backend`, `qemu_elf_memory`,
+into `qemu_elf_mode`, `qemu_elf_domain`, `qemu_elf_backend`, `qemu_elf_memory`,
 `qemu_elf_store`, `qemu_elf_display`, `qemu_elf_evidence`,
 `qemu_elf_capacity`, `qemu_elf_domain_golden`, `qemu_elf_sources`,
 `qemu_elf_coverage`, and `qemu_elf_player_min_gui` tokens so archived logs
-expose the virtual backend contract, ELF load memory boundary, Store media,
-frame/input/storage evidence counts, near-limit/over-limit ELF capacity,
-domain-summary golden comparison, and the direct/received/packetstream/store
-source matrix without opening the JSON file.
+expose whether QEMU was rebuilt and launched (`build_and_run`) or reused from
+an existing capture (`validate_existing_evidence`), plus the virtual backend
+contract, ELF load memory boundary, Store media, frame/input/storage evidence
+counts, near-limit/over-limit ELF capacity, domain-summary golden comparison,
+and the direct/received/packetstream/store source matrix without opening the
+JSON file.

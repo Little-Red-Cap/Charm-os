@@ -492,6 +492,17 @@ same bundle can be used as an off-board ELF/QEMU gate with:
 Examples/project/h747-lab/tools/capture-resident-platform-evidence-bundle.ps1 -QemuElf -SkipH747Build
 ```
 
+To reuse an existing QEMU capture in the same bundle without rebuilding or
+launching QEMU, add `-QemuElfValidateOnly`:
+
+```powershell
+Examples/project/h747-lab/tools/capture-resident-platform-evidence-bundle.ps1 -QemuElf -QemuElfValidateOnly -SkipH747Build
+```
+
+That mode still validates `qemu-ci.log`, traces, PPM frames,
+`domain-summary.json`, and golden comparisons before writing the `qemu_elf_*`
+summary tokens.
+
 The switch is opt-in so the default H747 evidence bundle keeps its existing
 meaning. QEMU evidence is off-board semantic evidence for the ELF/AppRuntime
 chain; it does not replace real-board USB, Store, SDRAM, eMMC, or HAL evidence.

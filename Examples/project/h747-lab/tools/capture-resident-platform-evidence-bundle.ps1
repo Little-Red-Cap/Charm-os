@@ -10,6 +10,7 @@ param(
     [int]$WriteChunkSize = 256,
     [int]$InterChunkDelayMs = 1,
     [switch]$QemuElf,
+    [switch]$QemuElfValidateOnly,
     [switch]$SkipH747Build,
     [switch]$DryRun,
     [switch]$SelfTest
@@ -184,6 +185,9 @@ function Invoke-SelfTest {
     }
     if (-not (Test-Path -LiteralPath (Join-Path $RepoRoot "Examples\system\run-resident-elf-qemu-smoke.ps1"))) {
         throw "selftest_failed: resident ELF QEMU smoke entry is missing"
+    }
+    if ($QemuElfValidateOnly -and -not $QemuElf) {
+        throw "selftest_failed: -QemuElfValidateOnly requires -QemuElf"
     }
     $ParsedMedia = Get-MediaList -RawMedia @("qspi,emmc")
     if ($ParsedMedia.Count -ne 2 -or $ParsedMedia[0] -ne "qspi" -or $ParsedMedia[1] -ne "emmc") {
@@ -811,6 +815,9 @@ if ([string]::IsNullOrWhiteSpace($Log)) {
     $Log = Get-DefaultBundleLog
 }
 $MediaList = Get-MediaList -RawMedia $Media
+if ($QemuElfValidateOnly -and -not $QemuElf) {
+    throw "invalid_argument: -QemuElfValidateOnly requires -QemuElf"
+}
 
 $ArtifactManifest = [System.IO.Path]::GetFullPath($ArtifactManifest)
 $Log = [System.IO.Path]::GetFullPath($Log)
@@ -844,6 +851,7 @@ if ($DryRun) {
     Write-Host "board_matrix=$($BoardMatrix.IsPresent)"
     Write-Host "installed_store_matrix=$($InstalledStoreMatrix.IsPresent)"
     Write-Host "qemu_elf=$($QemuElf.IsPresent)"
+    Write-Host "qemu_elf_validate_only=$($QemuElfValidateOnly.IsPresent)"
     Write-Host "skip_h747_build=$($SkipH747Build.IsPresent)"
     Write-Host "inspect_source=$InspectSource"
     Write-Host "host_smokes=resident_platform_inspect_smoke,resident_platform_artifact_smoke,dev_loader_packet_stream_smoke,dev_loader_store_install_handoff_smoke,app_abi_modulex_smoke"
@@ -854,6 +862,11 @@ if ($DryRun) {
     }
     if ($QemuElf) {
         Write-Host "qemu_elf_script=$QemuElfScript"
+        if ($QemuElfValidateOnly) {
+            Write-Host "qemu_elf_mode=validate_existing_evidence"
+        } else {
+            Write-Host "qemu_elf_mode=build_and_run"
+        }
         Write-Host "qemu_elf_log=$QemuElfLog"
         Write-Host "qemu_elf_domain_summary=$QemuElfDomainSummary"
         Write-Host "qemu_elf_frame_ppm=$QemuElfFramePpm"
@@ -923,21 +936,32 @@ try {
     $QemuElfSummary = $null
     $QemuElfDomainGolden = "skipped"
     if ($QemuElf) {
-        Invoke-Logged -Lines $Lines -Label "resident ELF QEMU smoke selftest" -FilePath "powershell" -Arguments @(
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-            $QemuElfScript,
-            "-SelfTest"
-        )
-        Invoke-Logged -Lines $Lines -Label "resident ELF QEMU smoke" -FilePath "powershell" -Arguments @(
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-            $QemuElfScript
-        )
+        if ($QemuElfValidateOnly) {
+            Invoke-Logged -Lines $Lines -Label "resident ELF QEMU evidence validate" -FilePath "powershell" -Arguments @(
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                $QemuElfScript,
+                "-ValidateEvidenceBundle"
+            )
+        } else {
+            Invoke-Logged -Lines $Lines -Label "resident ELF QEMU smoke selftest" -FilePath "powershell" -Arguments @(
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                $QemuElfScript,
+                "-SelfTest"
+            )
+            Invoke-Logged -Lines $Lines -Label "resident ELF QEMU smoke" -FilePath "powershell" -Arguments @(
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                $QemuElfScript
+            )
+        }
         $QemuElfStatus = "pass"
         if (Test-Path -LiteralPath $QemuElfLog) {
             $QemuElfLogResolved = (Resolve-Path -LiteralPath $QemuElfLog).Path

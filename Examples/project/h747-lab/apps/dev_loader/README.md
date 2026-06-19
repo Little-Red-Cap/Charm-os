@@ -464,6 +464,11 @@ Board validation helpers:
   Use this when BSP/CubeMX source-list migration is being debugged and the goal
   is to gate the resident ELF virtual backend. It does not replace the default
   H747 build-only or board-matrix evidence.
+- Reuse an existing QEMU capture inside the same evidence bundle, without
+  rebuilding or launching QEMU:
+  `powershell -ExecutionPolicy Bypass -File tools/capture-resident-platform-evidence-bundle.ps1 -QemuElf -QemuElfValidateOnly -SkipH747Build`
+  This still validates `qemu-ci.log`, traces, PPM frames, `domain-summary.json`,
+  and golden comparisons before expanding the `qemu_elf_*` summary tokens.
 - Run only the off-board QEMU ELF virtual-board smoke:
   `powershell -ExecutionPolicy Bypass -File ../../system/run-resident-elf-qemu-smoke.ps1`
   The QEMU smoke covers direct App ELF plus QEMU-local Store v1 staging into the

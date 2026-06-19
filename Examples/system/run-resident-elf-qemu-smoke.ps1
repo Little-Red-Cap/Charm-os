@@ -182,6 +182,25 @@ function Invoke-WrapperSelfTest {
             throw "selftest_failed: required QEMU smoke file is missing: $Required"
         }
     }
+    $EvidenceBundle = Join-Path $PSScriptRoot "..\project\h747-lab\tools\capture-resident-platform-evidence-bundle.ps1"
+    if (-not (Test-Path -LiteralPath $EvidenceBundle)) {
+        throw "selftest_failed: resident platform evidence bundle is missing: $EvidenceBundle"
+    }
+    $EvidenceBundleText = Get-Content -LiteralPath $EvidenceBundle -Raw -Encoding UTF8
+    foreach ($RequiredBundleToken in @(
+        "[switch]`$QemuElf",
+        "[switch]`$QemuElfValidateOnly",
+        "[int]`$QemuElfTimeoutSec",
+        "[int]`$QemuElfTailLines",
+        "qemu_elf_timeout_sec=",
+        "qemu_elf_tail_lines=",
+        '"-TimeoutSec"',
+        '"-TailLines"'
+    )) {
+        if (-not $EvidenceBundleText.Contains($RequiredBundleToken)) {
+            throw "selftest_failed: evidence bundle does not expose QEMU wrapper token $RequiredBundleToken"
+        }
+    }
 
     $Forwarded = New-QemuSmokeArguments -ForceSelfTest $true
     foreach ($RequiredArg in @("-File", $Script, "-CMakeExe", "-QemuExe", "-ToolchainPrefix", "-HostCompiler", "-ElfBase", "-SelfTest")) {

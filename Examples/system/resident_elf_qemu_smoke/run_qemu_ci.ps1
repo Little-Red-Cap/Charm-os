@@ -2831,6 +2831,67 @@ function Assert-DomainLoad {
     }
 }
 
+function Assert-EquivalentElfEntrySources {
+    param(
+        [object[]]$Runs,
+        [object[]]$Loads,
+        [string]$Name,
+        [string[]]$Sources
+    )
+
+    $DirectRuns = @($Runs | Where-Object { $_.name -eq $Name })
+    if ($DirectRuns.Count -lt 1) {
+        throw "domain_summary_validate_failed: equivalent ELF source $Name missing direct run"
+    }
+    $ExpectedRun = $DirectRuns[0]
+
+    $DirectLoads = @($Loads | Where-Object { $_.name -eq $Name })
+    if ($DirectLoads.Count -lt 1) {
+        throw "domain_summary_validate_failed: equivalent ELF source $Name missing direct load"
+    }
+    $ExpectedLoad = $DirectLoads[0]
+
+    foreach ($Source in $Sources) {
+        $RunName = if ($Source -eq "direct") { $Name } else { "$($Source):$Name" }
+        $RunMatches = @($Runs | Where-Object { $_.name -eq $RunName })
+        if ($RunMatches.Count -lt 1) {
+            throw "domain_summary_validate_failed: equivalent ELF source $RunName missing run"
+        }
+        $Run = $RunMatches[0]
+        if ($Run.stage -ne $ExpectedRun.stage -or
+            $Run.code -ne $ExpectedRun.code -or
+            [int]$Run.exit -ne [int]$ExpectedRun.exit) {
+            throw "domain_summary_validate_failed: equivalent ELF source $RunName run differs from direct"
+        }
+
+        $LoadMatches = @($Loads | Where-Object { $_.name -eq $RunName })
+        if ($LoadMatches.Count -lt 1) {
+            throw "domain_summary_validate_failed: equivalent ELF source $RunName missing load"
+        }
+        $Load = $LoadMatches[0]
+        foreach ($Property in @(
+            "format",
+            "probe",
+            "link_base",
+            "expected_base",
+            "entry",
+            "entry_vaddr",
+            "span",
+            "segments",
+            "base_match",
+            "needed",
+            "free",
+            "fits",
+            "region",
+            "capacity_probe"
+        )) {
+            if ($Load.$Property -ne $ExpectedLoad.$Property) {
+                throw "domain_summary_validate_failed: equivalent ELF source $RunName load $Property differs from direct"
+            }
+        }
+    }
+}
+
 function Assert-DomainPacketstream {
     param(
         [object[]]$Packetstreams,
@@ -3363,6 +3424,9 @@ function Validate-DomainSummaryFile {
     Assert-DomainLoad -Loads $Loads -Name "received:large_fit_app" -Probe "ok" -Fits $true -Region 65536 -MinSpan 60000 -Segments 3
     Assert-DomainLoad -Loads $Loads -Name "packetstream:large_fit_app" -Probe "ok" -Fits $true -Region 65536 -MinSpan 60000 -Segments 3
     Assert-DomainLoad -Loads $Loads -Name "store:large_fit_app" -Probe "ok" -Fits $true -Region 65536 -MinSpan 60000 -Segments 3
+    foreach ($EquivalentName in @("hello_app", "player_min", "large_fit_app")) {
+        Assert-EquivalentElfEntrySources -Runs $Runs -Loads $Loads -Name $EquivalentName -Sources @("direct", "received", "packetstream", "store")
+    }
     Assert-DomainLoad -Loads $Loads -Name "bad_elf_magic_app" -Probe "bad_magic" -Fits $true -Region 65536 -MinSpan 0 -Segments 0
     Assert-DomainLoad -Loads $Loads -Name "packetstream:packetstream_bad_elf_magic_app" -Probe "bad_magic" -Fits $true -Region 65536 -MinSpan 0 -Segments 0
     Assert-DomainLoad -Loads $Loads -Name "bad_header_app" -Probe "bad_header" -Fits $true -Region 65536 -MinSpan 0 -Segments 0
@@ -4049,6 +4113,10 @@ function Invoke-SelfTest {
     Assert-BadDomainSummaryRejected -SourcePath $GoldenDomainSummaryFile -Label "packetstream_crc" -Mutate {
         param($Summary)
         ($Summary.coverage.packetstreams | Where-Object { $_.name -eq "packetstream_crc_mismatch" }).read_code = "ok"
+    }
+    Assert-BadDomainSummaryRejected -SourcePath $GoldenDomainSummaryFile -Label "equivalent_entry_load_span" -Mutate {
+        param($Summary)
+        ($Summary.coverage.loads | Where-Object { $_.name -eq "store:hello_app" }).span = 1
     }
 
     $CMakePath = Resolve-ToolPath -Tool $CMakeExe

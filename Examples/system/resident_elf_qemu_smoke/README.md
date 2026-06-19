@@ -765,8 +765,12 @@ but fails later in the AppRuntime load stage.
 Its `coverage.source_matrix` section summarizes the resident-platform entry
 coverage per App. For example, `hello_app`, `large_fit_app`, and `player_min`
 must all prove equivalent direct, received, packetstream, and Store-backed ELF
-runs; `argv_app` also proves the prepare-only path; negative entries retain the
-source where the stable failure stage was observed.
+runs. Validation now also compares those representative Apps' ELF load metadata
+across the four sources: format, probe result, link base, expected base, entry,
+entry vaddr, load span, segment count, capacity needed/free, fit result, run
+region, and capacity probe must match the direct run. `argv_app` also proves the
+prepare-only path; negative entries retain the source where the stable failure
+stage was observed.
 Its `coverage.gui_timeline` section merges display frames and input polls by App
 run name. `player_min`, `received:player_min`, `packetstream:player_min`, and
 `store:player_min` must each prove `frames=1 inputs=1` with the same frame hash

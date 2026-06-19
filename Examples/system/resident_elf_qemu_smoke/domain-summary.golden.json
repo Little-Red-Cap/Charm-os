@@ -38,13 +38,13 @@
                 },
     "store":  {
                   "format":  "store_v1",
-                  "entries":  25,
-                  "bytes":  143008,
+                  "entries":  26,
+                  "bytes":  148416,
                   "media":  {
                                 "kind":  "memory",
-                                "bytes":  143008,
-                                "read_calls":  400,
-                                "read_bytes":  137576,
+                                "bytes":  148416,
+                                "read_calls":  429,
+                                "read_bytes":  144140,
                                 "read_failures":  0
                             }
               },
@@ -310,6 +310,18 @@
                                   },
                                   {
                                       "name":  "store:input_sequence_app",
+                                      "stage":  "exit",
+                                      "code":  "ok",
+                                      "exit":  0
+                                  },
+                                  {
+                                      "name":  "input_wrap_app",
+                                      "stage":  "exit",
+                                      "code":  "ok",
+                                      "exit":  0
+                                  },
+                                  {
+                                      "name":  "store:input_wrap_app",
                                       "stage":  "exit",
                                       "code":  "ok",
                                       "exit":  0
@@ -625,6 +637,12 @@
                                     {
                                         "source":  "store",
                                         "name":  "input_sequence_app",
+                                        "code":  "ok",
+                                        "expected":  ""
+                                    },
+                                    {
+                                        "source":  "store",
+                                        "name":  "input_wrap_app",
                                         "code":  "ok",
                                         "expected":  ""
                                     },
@@ -1304,6 +1322,34 @@
                                        "segments":  2,
                                        "needed":  174,
                                        "free":  65362,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   },
+                                   {
+                                       "name":  "input_wrap_app",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "entry":  "0x20080001",
+                                       "entry_numeric":  537395201,
+                                       "span":  356,
+                                       "segments":  2,
+                                       "needed":  356,
+                                       "free":  65180,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   },
+                                   {
+                                       "name":  "store:input_wrap_app",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "entry":  "0x20080001",
+                                       "entry_numeric":  537395201,
+                                       "span":  356,
+                                       "segments":  2,
+                                       "needed":  356,
+                                       "free":  65180,
                                        "fits":  true,
                                        "region":  65536,
                                        "capacity_probe":  "ok"
@@ -2180,6 +2226,22 @@
                                                "prepare":  null
                                            },
                                            {
+                                               "name":  "input_wrap_app",
+                                               "direct":  {
+                                                              "stage":  "exit",
+                                                              "code":  "ok",
+                                                              "exit":  0
+                                                          },
+                                               "received":  null,
+                                               "packetstream":  null,
+                                               "store":  {
+                                                             "stage":  "exit",
+                                                             "code":  "ok",
+                                                             "exit":  0
+                                                         },
+                                               "prepare":  null
+                                           },
+                                           {
                                                "name":  "time_app",
                                                "direct":  {
                                                               "stage":  "exit",
@@ -2556,6 +2618,26 @@
                                               "inputs":  4,
                                               "last_frame_hash":  "",
                                               "last_input":  "6,8,0"
+                                          },
+                                          {
+                                              "name":  "input_wrap_app",
+                                              "stage":  "exit",
+                                              "code":  "ok",
+                                              "exit":  0,
+                                              "frames":  0,
+                                              "inputs":  6,
+                                              "last_frame_hash":  "",
+                                              "last_input":  "4,6,1"
+                                          },
+                                          {
+                                              "name":  "store:input_wrap_app",
+                                              "stage":  "exit",
+                                              "code":  "ok",
+                                              "exit":  0,
+                                              "frames":  0,
+                                              "inputs":  6,
+                                              "last_frame_hash":  "",
+                                              "last_input":  "4,6,1"
                                           }
                                       ],
                      "prepare":  {
@@ -2705,8 +2787,8 @@
                      "frame_ppm_count":  8,
                      "frame_ppm_run_count":  6,
                      "input_trace":  "input-trace.json",
-                     "input_trace_event_count":  12,
-                     "input_trace_run_count":  6,
+                     "input_trace_event_count":  24,
+                     "input_trace_run_count":  8,
                      "storage_trace":  "storage-trace.json",
                      "storage_trace_event_count":  118,
                      "storage_trace_run_count":  16

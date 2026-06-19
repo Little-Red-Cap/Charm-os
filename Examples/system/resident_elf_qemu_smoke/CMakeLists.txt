@@ -27,6 +27,7 @@ set(CHARM_QEMU_REQUIRED_INC_FILES
     hello_app.elf.inc
     input_error_app.elf.inc
     input_sequence_app.elf.inc
+    input_wrap_app.elf.inc
     large_fit_app.elf.inc
     player_min.elf.inc
     storage_app.elf.inc

@@ -64,6 +64,10 @@
                                               "overrides_return":  false
                                           }
                          },
+    "run_budget":  {
+                       "timeout_sec":  15,
+                       "tail_lines":  80
+                   },
     "run_region":  {
                        "base":  "0x20080000",
                        "expected":  "0x20080000",

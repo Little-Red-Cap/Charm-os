@@ -2460,7 +2460,9 @@ function Write-DomainSummaryCapture {
         [string]$FramePpmPath,
         [string]$InputTracePath,
         [string]$StorageTracePath,
-        [string]$OutputPath
+        [string]$OutputPath,
+        [int]$TimeoutSec,
+        [int]$TailLines
     )
 
     if ([string]::IsNullOrWhiteSpace($OutputPath)) {
@@ -2575,6 +2577,10 @@ function Write-DomainSummaryCapture {
         image_format = "elf"
         app_model = "CharmAppApi"
         backend_contract = $BackendContract
+        run_budget = [pscustomobject]@{
+            timeout_sec = $TimeoutSec
+            tail_lines = $TailLines
+        }
         run_region = [pscustomobject]@{
             base = $RunRegionBase
             expected = $RunRegionExpected
@@ -2694,6 +2700,10 @@ function ConvertTo-CanonicalDomainSummary {
                 $Property.Value = [System.IO.Path]::GetFileName([string]$Property.Value)
             }
         }
+    }
+    if ($null -ne $Canonical.run_budget) {
+        $Canonical.run_budget.timeout_sec = 0
+        $Canonical.run_budget.tail_lines = 0
     }
     return $Canonical
 }
@@ -3117,6 +3127,11 @@ function Validate-DomainSummaryFile {
     }
     if ($Summary.image_format -ne "elf" -or $Summary.app_model -ne "CharmAppApi") {
         throw "domain_summary_validate_failed: bad app model"
+    }
+    if ($null -eq $Summary.run_budget -or
+        [int]$Summary.run_budget.timeout_sec -le 0 -or
+        [int]$Summary.run_budget.tail_lines -le 0) {
+        throw "domain_summary_validate_failed: bad run budget"
     }
     if ($Summary.backend_contract.kind -ne "virtual" -or
         $Summary.backend_contract.runtime_domain -ne "virtual_m7" -or
@@ -4027,6 +4042,10 @@ function Invoke-SelfTest {
         param($Summary)
         $Summary.backend_contract.storage_media.fd_slots = 3
     }
+    Assert-BadDomainSummaryRejected -SourcePath $GoldenDomainSummaryFile -Label "run_budget" -Mutate {
+        param($Summary)
+        $Summary.run_budget.timeout_sec = 0
+    }
     Assert-BadDomainSummaryRejected -SourcePath $GoldenDomainSummaryFile -Label "packetstream_crc" -Mutate {
         param($Summary)
         ($Summary.coverage.packetstreams | Where-Object { $_.name -eq "packetstream_crc_mismatch" }).read_code = "ok"
@@ -4384,7 +4403,9 @@ Write-DomainSummaryCapture -LogPath $outFile `
     -FramePpmPath $FramePpmOut `
     -InputTracePath $InputTraceOut `
     -StorageTracePath $StorageTraceOut `
-    -OutputPath $DomainSummaryOut
+    -OutputPath $DomainSummaryOut `
+    -TimeoutSec $TimeoutSec `
+    -TailLines $TailLines
 if (-not [string]::IsNullOrWhiteSpace($DomainSummaryOut)) {
     $ResolvedDomainSummaryOut = Resolve-ScriptPath -Path $DomainSummaryOut
     [void](Validate-DomainSummaryFile -Path $ResolvedDomainSummaryOut)

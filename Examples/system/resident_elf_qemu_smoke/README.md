@@ -739,7 +739,10 @@ proof that the QEMU run is a `virtual_m7` runtime domain with run region
 `0x20080000..0x20090000`, 16 KiB stage cache, fixed packetstream
 storage/transport/stream/received buffers, Store v1 staging, direct/received/
 packetstream/Store ELF runs, prepare-only coverage, capability coverage, and the
-expected negative cases. Its `backend_contract` section records the smoke-local
+expected negative cases. Its `run_budget` section records the effective QEMU
+timeout and failure-tail settings for auditability; golden comparison
+canonicalizes those local runner values so temporary timeout tuning does not
+look like a backend semantic change. Its `backend_contract` section records the smoke-local
 virtual capabilities, unsupported AFE boundary, deterministic time tick,
 framebuffer display evidence, deterministic input sequence, read-only virtual
 storage media, and `app.exit` return-value semantics. Its `display` section

@@ -519,4 +519,6 @@ rebuilt and launched (`build_and_run`) or reused from an existing capture
 boundary, Store media, frame/input/storage evidence counts,
 near-limit/over-limit ELF capacity, packetstream payload/CRC and
 failure-boundary facts, domain-summary golden comparison, and the
-direct/received/packetstream/store source matrix without opening the JSON file.
+direct/received/packetstream/store source matrix plus full coverage counts
+(`runs/stages/loads/packetstreams/source_matrix/gui_timeline/prepare/
+capabilities/negative_cases`) without opening the JSON file.

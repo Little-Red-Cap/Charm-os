@@ -461,8 +461,9 @@ Board validation helpers:
   mode, frame/input/storage evidence counts, near-limit and over-limit ELF
   capacity, packetstream payload/CRC and failure-boundary facts,
   domain-summary golden comparison, direct/received/packetstream/store source
-  matrix coverage, coverage counts, and GUI timeline without opening the JSON
-  manually.
+  matrix coverage, full coverage counts (`runs/stages/loads/packetstreams/
+  source_matrix/gui_timeline/prepare/capabilities/negative_cases`), and GUI
+  timeline without opening the JSON manually.
 - Run the off-board artifact/inspect/host-smoke/QEMU ELF evidence path without
   requiring the H747 build preset:
   `powershell -ExecutionPolicy Bypass -File tools/capture-resident-platform-evidence-bundle.ps1 -QemuElf -SkipH747Build`

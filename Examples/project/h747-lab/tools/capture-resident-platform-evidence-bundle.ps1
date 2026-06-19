@@ -344,6 +344,7 @@ function Invoke-SelfTest {
         }
         coverage = [pscustomobject]@{
             runs = 1..35
+            stages = 1..18
             source_matrix = @(
                 (New-SelfTestQemuSourceCase -Name "hello_app" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Received (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Packetstream (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok")),
                 (New-SelfTestQemuSourceCase -Name "argv_app" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Prepare (New-SelfTestQemuPrepare)),
@@ -394,6 +395,23 @@ function Invoke-SelfTest {
                     capacity_probe = "load_buffer_too_small"
                 }
             )
+            prepare = [pscustomobject]@{
+                name = "prepare:argv_app"
+                stage = "start"
+                code = "ok"
+                ready = $true
+                argc = 4
+            }
+            capabilities = [pscustomobject]@{
+                console = $true
+                time = $true
+                display = $true
+                input = $true
+                storage = $true
+                app_exit = $true
+                unsupported = $true
+            }
+            negative_cases = 1..8
             gui_timeline = @(
                 [pscustomobject]@{ name = "player_min"; frames = 1; inputs = 1; last_frame_hash = "0xfac53a05"; last_input = "3,5,0" },
                 [pscustomobject]@{ name = "received:player_min"; frames = 1; inputs = 1; last_frame_hash = "0xfac53a05"; last_input = "3,5,0" },
@@ -430,6 +448,7 @@ function Invoke-SelfTest {
             $ParsedQemu.Packetstreams -ne "hello_app=payload:5132:stream:5776:packets:23:crc:0xb3b7bcc5;large_fit_app=payload:5168:stream:5840:packets:24:crc:0xdffdfba1;packetstream_bad_elf_magic_app=payload:64:stream:176:packets:4:crc:0xbd40f3c7;player_min=payload:5168:stream:5840:packets:24:crc:0xba5eb94a;packetstream_crc_mismatch=stage:failed/crc_mismatch:dispatch:22/23:crc:0x7d9c7647->0xb3b7bcc5:read:0:stage_bytes:0" -or
             $ParsedQemu.Sources -ne "hello_app=direct,received,packetstream,store:exit/ok;large_fit_app=direct,received,packetstream,store:exit/ok;player_min=direct,received,packetstream,store:exit/ok;argv_app=direct,store:exit/ok:prepare=start/ok:argc=4;negatives=argv_overflow_app:direct=argv/argv_overflow,abi_mismatch_app:direct=abi/abi_mismatch,bad_elf_magic_app:direct=load/load_failed,packetstream_bad_elf_magic_app:packetstream=load/load_failed,too_large_app:direct=load/load_failed" -or
             $DomainGolden -ne "ok" -or
+            $ParsedQemu.Coverage -ne "runs=35:stages=18:loads=2:packetstreams=5:source_matrix=17:gui_timeline=4:prepare=1:capabilities=7:negative_cases=8" -or
             $ParsedQemu.GuiTimeline -ne 4 -or
             $ParsedQemu.PlayerMin.IndexOf("packetstream:player_min:frames=1,inputs=1", [System.StringComparison]::Ordinal) -lt 0) {
             throw "selftest_failed: qemu summary parse result is unexpected"
@@ -737,6 +756,16 @@ function Read-QemuElfDomainSummary {
     if ($SourceMatrix.Count -ne 17) {
         throw "qemu_elf_summary_invalid: bad source matrix count"
     }
+    $CoverageStages = @($Summary.coverage.stages).Count
+    $CoveragePrepare = if ($null -ne $Summary.coverage.prepare) { 1 } else { 0 }
+    $CoverageCapabilities = @($Summary.coverage.capabilities.PSObject.Properties | Where-Object { [bool]$_.Value }).Count
+    $CoverageNegativeCases = @($Summary.coverage.negative_cases).Count
+    if ($CoverageStages -ne 18 -or
+        $CoveragePrepare -ne 1 -or
+        $CoverageCapabilities -ne 7 -or
+        $CoverageNegativeCases -ne 8) {
+        throw "qemu_elf_summary_invalid: bad coverage counts"
+    }
     $SourceSummaryParts = @()
     foreach ($Name in @("hello_app", "large_fit_app", "player_min")) {
         $Case = Get-QemuElfSourceMatrixCase -Matrix $SourceMatrix -Name $Name
@@ -830,9 +859,25 @@ function Read-QemuElfDomainSummary {
             ([string]$TooLargeLoad.capacity_probe))
         Packetstreams = ($PacketstreamSummaryParts -join ";")
         Runs = @($Summary.coverage.runs).Count
+        Stages = $CoverageStages
+        Loads = @($Summary.coverage.loads).Count
+        PacketstreamCount = $Packetstreams.Count
         SourceMatrix = @($Summary.coverage.source_matrix).Count
         Sources = ($SourceSummaryParts -join ";")
         GuiTimeline = $Timeline.Count
+        Prepare = $CoveragePrepare
+        Capabilities = $CoverageCapabilities
+        NegativeCases = $CoverageNegativeCases
+        Coverage = ("runs={0}:stages={1}:loads={2}:packetstreams={3}:source_matrix={4}:gui_timeline={5}:prepare={6}:capabilities={7}:negative_cases={8}" -f `
+            @($Summary.coverage.runs).Count, `
+            $CoverageStages, `
+            @($Summary.coverage.loads).Count, `
+            $Packetstreams.Count, `
+            @($Summary.coverage.source_matrix).Count, `
+            $Timeline.Count, `
+            $CoveragePrepare, `
+            $CoverageCapabilities, `
+            $CoverageNegativeCases)
         Display = ("{0}x{1}:{2}:stride={3}:frame={4}" -f `
             ([int]$Summary.display.width), `
             ([int]$Summary.display.height), `
@@ -881,10 +926,16 @@ function Write-QemuElfSummaryLines {
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_packetstreams={0}" -f $QemuElfSummary.Packetstreams)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_domain_golden={0}" -f $QemuElfDomainGolden)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_sources={0}" -f $QemuElfSummary.Sources)
-    Write-BundleLine -Lines $Lines -Text ("qemu_elf_coverage runs={0} source_matrix={1} gui_timeline={2}" -f `
+    Write-BundleLine -Lines $Lines -Text ("qemu_elf_coverage runs={0} stages={1} loads={2} packetstreams={3} source_matrix={4} gui_timeline={5} prepare={6} capabilities={7} negative_cases={8}" -f `
         $QemuElfSummary.Runs, `
+        $QemuElfSummary.Stages, `
+        $QemuElfSummary.Loads, `
+        $QemuElfSummary.PacketstreamCount, `
         $QemuElfSummary.SourceMatrix, `
-        $QemuElfSummary.GuiTimeline)
+        $QemuElfSummary.GuiTimeline, `
+        $QemuElfSummary.Prepare, `
+        $QemuElfSummary.Capabilities, `
+        $QemuElfSummary.NegativeCases)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_player_min_gui={0}" -f $QemuElfSummary.PlayerMin)
 }
 

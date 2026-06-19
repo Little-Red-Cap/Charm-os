@@ -201,6 +201,7 @@ function Invoke-SelfTest {
     foreach ($RequiredToken in @(
         "qemu_elf_backend_readiness=",
         "qemu_elf_capability_matrix=",
+        "qemu_elf_run_evidence_matrix=",
         "qemu_elf_run_budget_match=",
         "qemu_elf_run_budget_mismatch:",
         "-QemuElfRunBudgetMatch `$QemuElfRunBudgetMatch"
@@ -316,6 +317,60 @@ function Invoke-SelfTest {
             app_stage_code = $AppStageCode
             app_stage_format = $AppStageFormat
             app_stage_bytes = $AppStageBytes
+        }
+    }
+
+    function New-SelfTestQemuRunEvidenceFromLoad {
+        param([object]$Load)
+
+        $Name = [string]$Load.name
+        $Source = "direct"
+        $App = $Name
+        if ($Name.Contains(":")) {
+            $Parts = $Name.Split(":", 2)
+            $Source = $Parts[0]
+            $App = $Parts[1]
+        }
+        $SourceStage = "image"
+        $SourceCode = "ok"
+        if ($Source -eq "received" -or $Source -eq "store") {
+            $SourceStage = "stage"
+        } elseif ($Source -eq "packetstream") {
+            $SourceStage = "launch_ready"
+        } elseif ($Source -eq "prepare") {
+            $SourceStage = "start"
+        }
+
+        $RunStage = if ($Source -eq "prepare") { "start" } else { "exit" }
+        $RunCode = "ok"
+        $Ready = $true
+        if ([string]$Load.probe -ne "ok" -or $Name -eq "wrong_link_base_app") {
+            $RunStage = "load"
+            $RunCode = "load_failed"
+            $Ready = $false
+        }
+
+        return [pscustomobject]@{
+            name = $Name
+            app = $App
+            source = $Source
+            source_stage = $SourceStage
+            source_code = $SourceCode
+            format = [string]$Load.format
+            load_probe = [string]$Load.probe
+            load_stage = "load"
+            entry = [string]$Load.entry
+            span = [int]$Load.span
+            segments = [int]$Load.segments
+            needed = [int]$Load.needed
+            free = [int]$Load.free
+            fits = [bool]$Load.fits
+            region = [int]$Load.region
+            capacity_probe = [string]$Load.capacity_probe
+            run_stage = $RunStage
+            run_code = $RunCode
+            exit = 0
+            ready = $Ready
         }
     }
 
@@ -563,6 +618,19 @@ function Invoke-SelfTest {
                     capacity_probe = "ok"
                 },
                 [pscustomobject]@{
+                    name = "prepare:argv_app"
+                    format = "elf"
+                    probe = "ok"
+                    entry = "0x20080021"
+                    span = 396
+                    segments = 2
+                    needed = 396
+                    free = 65140
+                    fits = $true
+                    region = 65536
+                    capacity_probe = "ok"
+                },
+                [pscustomobject]@{
                     name = "store:hello_app"
                     format = "elf"
                     probe = "ok"
@@ -681,6 +749,19 @@ function Invoke-SelfTest {
                 },
                 [pscustomobject]@{
                     name = "bad_elf_magic_app"
+                    format = "elf"
+                    probe = "bad_magic"
+                    entry = "0x00000000"
+                    span = 0
+                    segments = 0
+                    needed = 0
+                    free = 65536
+                    fits = $true
+                    region = 65536
+                    capacity_probe = "bad_magic"
+                },
+                [pscustomobject]@{
+                    name = "packetstream:packetstream_bad_elf_magic_app"
                     format = "elf"
                     probe = "bad_magic"
                     entry = "0x00000000"
@@ -977,6 +1058,10 @@ function Invoke-SelfTest {
         $Load | Add-Member -NotePropertyName "entry_vaddr" -NotePropertyValue $EntryVaddr -Force
         $Load | Add-Member -NotePropertyName "base_match" -NotePropertyValue $BaseMatch -Force
     }
+    $GoodSummary | Add-Member `
+        -NotePropertyName "elf_run_evidence_matrix" `
+        -NotePropertyValue @($GoodSummary.coverage.loads | ForEach-Object { New-SelfTestQemuRunEvidenceFromLoad -Load $_ }) `
+        -Force
     [System.IO.File]::WriteAllText($TempSummary, (($GoodSummary | ConvertTo-Json -Depth 8) + "`n"), [System.Text.UTF8Encoding]::new($false))
     [System.IO.File]::WriteAllText($TempQemuLog, "resident-elf-qemu domain summary comparison ok`n  expected=domain-summary.golden.json`n", [System.Text.UTF8Encoding]::new($false))
     try {
@@ -987,6 +1072,8 @@ function Invoke-SelfTest {
             $ParsedQemu.Backend -ne "virtual:virtual_m7:console,time,display,input,storage,app_exit:storage=readonly:afe=unsupported" -or
             $ParsedQemu.BackendReadiness -ne "status=ready:elf_loader=1:app_runtime=1:received=1:packetstream=1:store=1:equivalent_sources=1:gui=1:storage=1:input=1:unsupported=1" -or
             $ParsedQemu.BackendCapabilityMatrix.IndexOf("storage=virtual_readonly_files:files=3:fd=3+4:write=unsupported:evidence=storage_trace,capability_counters:runs=storage_app,storage_catalog_app,storage_fd_exhaustion_app,storage_write_error_app", [System.StringComparison]::Ordinal) -lt 0 -or
+            $ParsedQemu.RunEvidenceMatrix.IndexOf("packetstream:hello_app=packetstream:hello_app:launch_ready/ok:load=ok:run=exit/ok", [System.StringComparison]::Ordinal) -lt 0 -or
+            $ParsedQemu.RunEvidenceMatrix.IndexOf("too_large_app=direct:too_large_app:image/ok:load=load_buffer_too_small:run=load/load_failed", [System.StringComparison]::Ordinal) -lt 0 -or
             $ParsedQemu.BackendContract -ne "time=deterministic_tick:1000+17:reset=1;display=framebuffer:16x16:argb8888:stride=64:frame=1024:evidence=frame_signatures,frame_dumps,frame_ppm,gui_timeline;input=deterministic_sequence:samples=4:max=15,15:wraps=1:evidence=input_trace,gui_timeline;storage=virtual_readonly_files:files=3:fd=3+4:write=unsupported:evidence=storage_trace;app_exit=notification_counter:overrides_return=0" -or
             $ParsedQemu.RunBudget -ne "timeout_sec=15:tail_lines=80" -or
             $ParsedQemu.Memory -ne "run_base=0x20080000:run_size=65536:stage_cache=16384:packetstream=16384/2048/32768/16384" -or
@@ -1000,7 +1087,7 @@ function Invoke-SelfTest {
             $ParsedQemu.EquivalentSources -ne "hello_app=direct,received,packetstream,store:entry:0x20080021:span:270:segments:2:fits:1:probe:ok;large_fit_app=direct,received,packetstream,store:entry:0x20080019:span:61696:segments:3:fits:1:probe:ok;player_min=direct,received,packetstream,store:entry:0x20080001:span:1280:segments:3:fits:1:probe:ok" -or
             $ParsedQemu.Sources.IndexOf("wrong_link_base_app:direct=load/load_failed", [System.StringComparison]::Ordinal) -lt 0 -or
             $DomainGolden -ne "ok" -or
-            $ParsedQemu.Coverage -ne "runs=87:stages=36:loads=30:packetstreams=5:source_matrix=51:gui_timeline=4:prepare=1:capabilities=7:negative_cases=24" -or
+            $ParsedQemu.Coverage -ne "runs=87:stages=36:loads=32:packetstreams=5:source_matrix=51:gui_timeline=4:prepare=1:capabilities=7:negative_cases=24" -or
             $ParsedQemu.GuiTimeline -ne 4 -or
             $ParsedQemu.PlayerMin.IndexOf("packetstream:player_min:frames=1,inputs=1", [System.StringComparison]::Ordinal) -lt 0) {
             throw "selftest_failed: qemu summary parse result is unexpected"
@@ -1030,6 +1117,7 @@ function Invoke-SelfTest {
         Test-BadQemuSummary -Label "backend_contract_time" -Mutate { param($Summary) $Summary.backend_contract.time.step_ms = 16 }
         Test-BadQemuSummary -Label "backend_readiness" -Mutate { param($Summary) $Summary.backend_readiness.gui = $false }
         Test-BadQemuSummary -Label "backend_capability_matrix" -Mutate { param($Summary) ($Summary.backend_capability_matrix | Where-Object { $_.capability -eq "storage" }).policy = "write=allowed" }
+        Test-BadQemuSummary -Label "elf_run_evidence_matrix" -Mutate { param($Summary) ($Summary.elf_run_evidence_matrix | Where-Object { $_.name -eq "store:hello_app" }).run_code = "load_failed" }
         Test-BadQemuSummary -Label "run_budget" -Mutate { param($Summary) $Summary.run_budget.timeout_sec = 0 }
         Test-BadQemuSummary -Label "run_region" -Mutate { param($Summary) $Summary.run_region.size = 32768 }
         Test-BadQemuSummary -Label "stage_cache" -Mutate { param($Summary) $Summary.stage_cache.bytes = 8192 }
@@ -1262,6 +1350,132 @@ function Assert-QemuElfEquivalentSourceLoads {
         ([int]$Expected.segments), `
         $FitToken, `
         ([string]$Expected.probe))
+}
+
+function Get-QemuElfRunEvidenceCase {
+    param(
+        [object[]]$Matrix,
+        [string]$Name
+    )
+
+    $Matches = @($Matrix | Where-Object { $_.name -eq $Name })
+    if ($Matches.Count -ne 1) {
+        throw "qemu_elf_summary_invalid: missing ELF run evidence $Name"
+    }
+    return $Matches[0]
+}
+
+function Assert-QemuElfRunEvidence {
+    param(
+        [object]$Entry,
+        [string]$Source,
+        [string]$App,
+        [string]$SourceStage,
+        [string]$SourceCode,
+        [string]$LoadProbe,
+        [string]$RunStage,
+        [string]$RunCode,
+        [bool]$Ready,
+        [bool]$Fits,
+        [int]$Region = 65536
+    )
+
+    if ($Entry.source -ne $Source -or
+        $Entry.app -ne $App -or
+        $Entry.source_stage -ne $SourceStage -or
+        $Entry.source_code -ne $SourceCode -or
+        $Entry.format -ne "elf" -or
+        $Entry.load_probe -ne $LoadProbe -or
+        $Entry.capacity_probe -ne $LoadProbe -or
+        $Entry.run_stage -ne $RunStage -or
+        $Entry.run_code -ne $RunCode -or
+        [bool]$Entry.ready -ne $Ready -or
+        [bool]$Entry.fits -ne $Fits -or
+        [int]$Entry.region -ne $Region) {
+        throw "qemu_elf_summary_invalid: bad ELF run evidence $($Entry.name)"
+    }
+    if ([int]$Entry.needed -ne [int]$Entry.span) {
+        throw "qemu_elf_summary_invalid: bad ELF run evidence needed/span $($Entry.name)"
+    }
+    if ($Fits -and [int]$Entry.free -ne ($Region - [int]$Entry.span)) {
+        throw "qemu_elf_summary_invalid: bad ELF run evidence free $($Entry.name)"
+    }
+    if (-not $Fits -and [int]$Entry.free -ne 0) {
+        throw "qemu_elf_summary_invalid: bad ELF run evidence overflow free $($Entry.name)"
+    }
+    $ReadyToken = if ([bool]$Entry.ready) { "1" } else { "0" }
+    $FitsToken = if ([bool]$Entry.fits) { "1" } else { "0" }
+    return ("{0}={1}:{2}:{3}/{4}:load={5}:run={6}/{7}:entry={8}:span={9}:fits={10}:ready={11}" -f `
+        ([string]$Entry.name), `
+        ([string]$Entry.source), `
+        ([string]$Entry.app), `
+        ([string]$Entry.source_stage), `
+        ([string]$Entry.source_code), `
+        ([string]$Entry.load_probe), `
+        ([string]$Entry.run_stage), `
+        ([string]$Entry.run_code), `
+        ([string]$Entry.entry), `
+        ([int]$Entry.span), `
+        $FitsToken, `
+        $ReadyToken)
+}
+
+function Assert-QemuElfRunEvidenceMatrix {
+    param(
+        [object[]]$Matrix,
+        [object[]]$Loads
+    )
+
+    if ($Matrix.Count -ne $Loads.Count) {
+        throw "qemu_elf_summary_invalid: ELF run evidence count=$($Matrix.Count), expected $($Loads.Count)"
+    }
+    foreach ($Load in @($Loads)) {
+        $Entry = Get-QemuElfRunEvidenceCase -Matrix $Matrix -Name ([string]$Load.name)
+        foreach ($Property in @(
+                "format",
+                "entry",
+                "span",
+                "segments",
+                "needed",
+                "free",
+                "fits",
+                "region",
+                "capacity_probe"
+            )) {
+            if ($Entry.$Property -ne $Load.$Property) {
+                throw "qemu_elf_summary_invalid: ELF run evidence $($Load.name) $Property differs from load"
+            }
+        }
+        if ($Entry.load_probe -ne $Load.probe) {
+            throw "qemu_elf_summary_invalid: ELF run evidence $($Load.name) probe differs from load"
+        }
+    }
+
+    $Parts = @()
+    foreach ($Expected in @(
+            [pscustomobject]@{ name = "hello_app"; source = "direct"; app = "hello_app"; source_stage = "image"; source_code = "ok"; probe = "ok"; run_stage = "exit"; run_code = "ok"; ready = $true; fits = $true },
+            [pscustomobject]@{ name = "received:hello_app"; source = "received"; app = "hello_app"; source_stage = "stage"; source_code = "ok"; probe = "ok"; run_stage = "exit"; run_code = "ok"; ready = $true; fits = $true },
+            [pscustomobject]@{ name = "packetstream:hello_app"; source = "packetstream"; app = "hello_app"; source_stage = "launch_ready"; source_code = "ok"; probe = "ok"; run_stage = "exit"; run_code = "ok"; ready = $true; fits = $true },
+            [pscustomobject]@{ name = "store:hello_app"; source = "store"; app = "hello_app"; source_stage = "stage"; source_code = "ok"; probe = "ok"; run_stage = "exit"; run_code = "ok"; ready = $true; fits = $true },
+            [pscustomobject]@{ name = "prepare:argv_app"; source = "prepare"; app = "argv_app"; source_stage = "start"; source_code = "ok"; probe = "ok"; run_stage = "start"; run_code = "ok"; ready = $true; fits = $true },
+            [pscustomobject]@{ name = "bad_elf_magic_app"; source = "direct"; app = "bad_elf_magic_app"; source_stage = "image"; source_code = "ok"; probe = "bad_magic"; run_stage = "load"; run_code = "load_failed"; ready = $false; fits = $true },
+            [pscustomobject]@{ name = "packetstream:packetstream_bad_elf_magic_app"; source = "packetstream"; app = "packetstream_bad_elf_magic_app"; source_stage = "launch_ready"; source_code = "ok"; probe = "bad_magic"; run_stage = "load"; run_code = "load_failed"; ready = $false; fits = $true },
+            [pscustomobject]@{ name = "wrong_link_base_app"; source = "direct"; app = "wrong_link_base_app"; source_stage = "image"; source_code = "ok"; probe = "ok"; run_stage = "load"; run_code = "load_failed"; ready = $false; fits = $true },
+            [pscustomobject]@{ name = "too_large_app"; source = "direct"; app = "too_large_app"; source_stage = "image"; source_code = "ok"; probe = "load_buffer_too_small"; run_stage = "load"; run_code = "load_failed"; ready = $false; fits = $false }
+        )) {
+        $Parts += (Assert-QemuElfRunEvidence `
+                -Entry (Get-QemuElfRunEvidenceCase -Matrix $Matrix -Name $Expected.name) `
+                -Source $Expected.source `
+                -App $Expected.app `
+                -SourceStage $Expected.source_stage `
+                -SourceCode $Expected.source_code `
+                -LoadProbe $Expected.probe `
+                -RunStage $Expected.run_stage `
+                -RunCode $Expected.run_code `
+                -Ready $Expected.ready `
+                -Fits $Expected.fits)
+    }
+    return ($Parts -join ";")
 }
 
 function Read-QemuElfDomainGoldenStatusFromText {
@@ -1721,6 +1935,9 @@ function Read-QemuElfDomainSummary {
     foreach ($Name in @("hello_app", "large_fit_app", "player_min")) {
         $EquivalentSourceSummaryParts += (Assert-QemuElfEquivalentSourceLoads -Loads @($Summary.coverage.loads) -Name $Name)
     }
+    $RunEvidenceSummary = Assert-QemuElfRunEvidenceMatrix `
+        -Matrix @($Summary.elf_run_evidence_matrix) `
+        -Loads @($Summary.coverage.loads)
     $Packetstreams = @($Summary.coverage.packetstreams)
     if ($Packetstreams.Count -ne 5) {
         throw "qemu_elf_summary_invalid: bad packetstream count"
@@ -1853,6 +2070,7 @@ function Read-QemuElfDomainSummary {
             ([string]$Summary.backend_contract.afe))
         BackendReadiness = $BackendReadiness
         BackendCapabilityMatrix = $BackendCapabilityMatrix
+        RunEvidenceMatrix = $RunEvidenceSummary
         BackendContract = ("time={0}:{1}+{2}:reset={3};display={4}:{5}x{6}:{7}:stride={8}:frame={9}:evidence={10};input={11}:samples={12}:max={13},{14}:wraps={15}:evidence={16};storage={17}:files={18}:fd={19}+{20}:write={21}:evidence={22};app_exit={23}:overrides_return={24}" -f `
             ([string]$Summary.backend_contract.time.kind), `
             ([int]$Summary.backend_contract.time.start_ms), `
@@ -1968,6 +2186,7 @@ function Write-QemuElfSummaryLines {
         Write-BundleLine -Lines $Lines -Text "qemu_elf_backend=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_backend_readiness=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_capability_matrix=skipped"
+        Write-BundleLine -Lines $Lines -Text "qemu_elf_run_evidence_matrix=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_backend_contract=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_run_budget=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_memory=skipped"
@@ -1995,6 +2214,7 @@ function Write-QemuElfSummaryLines {
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_backend={0}" -f $QemuElfSummary.Backend)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_backend_readiness={0}" -f $QemuElfSummary.BackendReadiness)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_capability_matrix={0}" -f $QemuElfSummary.BackendCapabilityMatrix)
+    Write-BundleLine -Lines $Lines -Text ("qemu_elf_run_evidence_matrix={0}" -f $QemuElfSummary.RunEvidenceMatrix)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_backend_contract={0}" -f $QemuElfSummary.BackendContract)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_run_budget={0}" -f $QemuElfSummary.RunBudget)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_memory={0}" -f $QemuElfSummary.Memory)

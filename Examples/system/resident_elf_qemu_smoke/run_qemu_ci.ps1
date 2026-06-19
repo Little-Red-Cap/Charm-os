@@ -2459,6 +2459,181 @@ function Get-SourceMatrixFromText {
     return @($Matrix.Values | ForEach-Object { [pscustomobject]$_ })
 }
 
+function Split-QemuRunName {
+    param([string]$Name)
+
+    $Source = "direct"
+    $App = $Name
+    if ($Name.Contains(":")) {
+        $Parts = $Name.Split(":", 2)
+        $Source = $Parts[0]
+        $App = $Parts[1]
+    }
+    return [pscustomobject]@{
+        source = $Source
+        app = $App
+    }
+}
+
+function Get-QemuRunByName {
+    param(
+        [object[]]$Runs,
+        [string]$Name
+    )
+
+    $Matches = @($Runs | Where-Object { $_.name -eq $Name })
+    if ($Matches.Count -eq 0) {
+        return $null
+    }
+    return $Matches[0]
+}
+
+function Get-QemuStageBySourceName {
+    param(
+        [object[]]$Stages,
+        [string]$Source,
+        [string]$Name
+    )
+
+    $Matches = @($Stages | Where-Object { $_.source -eq $Source -and $_.name -eq $Name })
+    if ($Matches.Count -eq 0) {
+        return $null
+    }
+    return $Matches[0]
+}
+
+function Get-QemuPacketstreamByName {
+    param(
+        [object[]]$Packetstreams,
+        [string]$Name
+    )
+
+    $Matches = @($Packetstreams | Where-Object { $_.name -eq $Name })
+    if ($Matches.Count -eq 0) {
+        return $null
+    }
+    return $Matches[0]
+}
+
+function Get-QemuPrepareSummaryByName {
+    param(
+        [object]$Prepare,
+        [string]$Name
+    )
+
+    if ($null -ne $Prepare -and [string]$Prepare.name -eq $Name) {
+        return $Prepare
+    }
+    return $null
+}
+
+function Get-ElfRunEvidenceMatrix {
+    param(
+        [object[]]$Runs,
+        [object[]]$Stages,
+        [object[]]$Loads,
+        [object[]]$Packetstreams,
+        [object]$Prepare
+    )
+
+    $Evidence = @()
+    foreach ($Load in @($Loads)) {
+        $Name = [string]$Load.name
+        $Parts = Split-QemuRunName -Name $Name
+        $Source = [string]$Parts.source
+        $App = [string]$Parts.app
+        $Run = Get-QemuRunByName -Runs $Runs -Name $Name
+        $Stage = if ($Source -eq "received" -or $Source -eq "store") {
+            Get-QemuStageBySourceName -Stages $Stages -Source $Source -Name $App
+        } else {
+            $null
+        }
+        $Packetstream = if ($Source -eq "packetstream") {
+            Get-QemuPacketstreamByName -Packetstreams $Packetstreams -Name $App
+        } else {
+            $null
+        }
+        $PrepareRun = if ($Source -eq "prepare") {
+            Get-QemuPrepareSummaryByName -Prepare $Prepare -Name $Name
+        } else {
+            $null
+        }
+
+        $SourceStage = if ($Source -eq "direct") {
+            "image"
+        } elseif ($Source -eq "prepare") {
+            if ($null -ne $PrepareRun) { [string]$PrepareRun.stage } else { "" }
+        } elseif ($Source -eq "packetstream") {
+            if ($null -ne $Packetstream) { [string]$Packetstream.receive_stage } else { "" }
+        } elseif ($null -ne $Stage) {
+            "stage"
+        } else {
+            ""
+        }
+        $SourceCode = if ($Source -eq "direct") {
+            "ok"
+        } elseif ($Source -eq "prepare") {
+            if ($null -ne $PrepareRun) { [string]$PrepareRun.code } else { "" }
+        } elseif ($Source -eq "packetstream") {
+            if ($null -ne $Packetstream) { [string]$Packetstream.receive_code } else { "" }
+        } elseif ($null -ne $Stage) {
+            [string]$Stage.code
+        } else {
+            ""
+        }
+        $RunStage = if ($null -ne $Run) {
+            [string]$Run.stage
+        } elseif ($null -ne $PrepareRun) {
+            [string]$PrepareRun.stage
+        } else {
+            ""
+        }
+        $RunCode = if ($null -ne $Run) {
+            [string]$Run.code
+        } elseif ($null -ne $PrepareRun) {
+            [string]$PrepareRun.code
+        } else {
+            ""
+        }
+        $Exit = if ($null -ne $Run) { [int]$Run.exit } else { 0 }
+        $Ready = if ($null -ne $Run) {
+            ($Run.stage -eq "exit" -and $Run.code -eq "ok")
+        } elseif ($null -ne $PrepareRun) {
+            [bool]$PrepareRun.ready
+        } else {
+            $false
+        }
+
+        $Evidence += [pscustomobject]@{
+            name = $Name
+            app = $App
+            source = $Source
+            source_stage = $SourceStage
+            source_code = $SourceCode
+            format = [string]$Load.format
+            load_probe = [string]$Load.probe
+            load_stage = "load"
+            link_base = [string]$Load.link_base
+            expected_base = [string]$Load.expected_base
+            entry = [string]$Load.entry
+            entry_vaddr = [string]$Load.entry_vaddr
+            span = [int]$Load.span
+            segments = [int]$Load.segments
+            base_match = [bool]$Load.base_match
+            needed = [int]$Load.needed
+            free = [int]$Load.free
+            fits = [bool]$Load.fits
+            region = [int]$Load.region
+            capacity_probe = [string]$Load.capacity_probe
+            run_stage = $RunStage
+            run_code = $RunCode
+            exit = $Exit
+            ready = $Ready
+        }
+    }
+    return @($Evidence)
+}
+
 function Get-CapabilitySummaryFromText {
     param([string]$Text)
 
@@ -2926,6 +3101,20 @@ function Write-DomainSummaryCapture {
     $Loads = Get-ElfLoadSummaryFromText -Text $Text
     $Packetstreams = Get-PacketstreamSummaryFromText -Text $Text
     $SourceMatrix = Get-SourceMatrixFromText -Text $Text
+    $PrepareSummary = [pscustomobject]@{
+        name = "prepare:argv_app"
+        stage = "start"
+        code = "ok"
+        ready = $true
+        argc = $PrepareArgc
+        capability_calls = 0
+    }
+    $ElfRunEvidenceMatrix = Get-ElfRunEvidenceMatrix `
+        -Runs $Runs `
+        -Stages $Stages `
+        -Loads $Loads `
+        -Packetstreams $Packetstreams `
+        -Prepare $PrepareSummary
     $GuiTimeline = Get-GuiTimelineSummary -FrameSignatureCapture $FrameSignatureCapture -InputTraceCapture $InputTraceCapture
     $Capabilities = Get-CapabilitySummaryFromText -Text $Text
     $BackendCapabilityMatrix = Get-QemuBackendCapabilityMatrix -BackendContract $BackendContract
@@ -2955,6 +3144,7 @@ function Write-DomainSummaryCapture {
         backend_contract = $BackendContract
         backend_readiness = $BackendReadiness
         backend_capability_matrix = $BackendCapabilityMatrix
+        elf_run_evidence_matrix = $ElfRunEvidenceMatrix
         artifacts = $ArtifactSummary
         run_budget = [pscustomobject]@{
             timeout_sec = $TimeoutSec
@@ -2991,14 +3181,7 @@ function Write-DomainSummaryCapture {
             packetstreams = $Packetstreams
             source_matrix = $SourceMatrix
             gui_timeline = $GuiTimeline
-            prepare = [pscustomobject]@{
-                name = "prepare:argv_app"
-                stage = "start"
-                code = "ok"
-                ready = $true
-                argc = $PrepareArgc
-                capability_calls = 0
-            }
+            prepare = $PrepareSummary
             capabilities = $Capabilities
             negative_cases = @(
                 [pscustomobject]@{ name = "packetstream_crc_mismatch"; stage = "packetstream_verify"; code = "crc_mismatch" },
@@ -3592,6 +3775,92 @@ function Assert-DomainBackendCapabilityMatrix {
         -Runs @("unsupported_caps_app", "afe_error_app", "store:afe_error_app")
 }
 
+function Get-DomainElfRunEvidence {
+    param(
+        [object[]]$Matrix,
+        [string]$Name
+    )
+
+    $Matches = @($Matrix | Where-Object { $_.name -eq $Name })
+    if ($Matches.Count -ne 1) {
+        throw "domain_summary_validate_failed: ELF run evidence missing or duplicate $Name"
+    }
+    return $Matches[0]
+}
+
+function Assert-DomainElfRunEvidence {
+    param(
+        [object]$Entry,
+        [string]$Source,
+        [string]$App,
+        [string]$SourceStage,
+        [string]$SourceCode,
+        [string]$LoadProbe,
+        [string]$RunStage,
+        [string]$RunCode,
+        [bool]$Ready,
+        [bool]$Fits,
+        [int]$Region = 65536
+    )
+
+    if ($Entry.source -ne $Source -or
+        $Entry.app -ne $App -or
+        $Entry.source_stage -ne $SourceStage -or
+        $Entry.source_code -ne $SourceCode -or
+        $Entry.format -ne "elf" -or
+        $Entry.load_probe -ne $LoadProbe -or
+        $Entry.capacity_probe -ne $LoadProbe -or
+        $Entry.run_stage -ne $RunStage -or
+        $Entry.run_code -ne $RunCode -or
+        [bool]$Entry.ready -ne $Ready -or
+        [bool]$Entry.fits -ne $Fits -or
+        [int]$Entry.region -ne $Region) {
+        throw "domain_summary_validate_failed: bad ELF run evidence $($Entry.name)"
+    }
+    if ([int]$Entry.needed -ne [int]$Entry.span) {
+        throw "domain_summary_validate_failed: bad ELF run evidence needed/span $($Entry.name)"
+    }
+    if ($Fits -and [int]$Entry.free -ne ($Region - [int]$Entry.span)) {
+        throw "domain_summary_validate_failed: bad ELF run evidence free $($Entry.name)"
+    }
+    if (-not $Fits -and [int]$Entry.free -ne 0) {
+        throw "domain_summary_validate_failed: bad ELF run evidence overflow free $($Entry.name)"
+    }
+}
+
+function Assert-DomainElfRunEvidenceMatchesLoad {
+    param(
+        [object[]]$Matrix,
+        [object[]]$Loads
+    )
+
+    foreach ($Load in @($Loads)) {
+        $Entry = Get-DomainElfRunEvidence -Matrix $Matrix -Name ([string]$Load.name)
+        foreach ($Property in @(
+                "format",
+                "link_base",
+                "expected_base",
+                "entry",
+                "entry_vaddr",
+                "span",
+                "segments",
+                "base_match",
+                "needed",
+                "free",
+                "fits",
+                "region",
+                "capacity_probe"
+            )) {
+            if ($Entry.$Property -ne $Load.$Property) {
+                throw "domain_summary_validate_failed: ELF run evidence $($Load.name) $Property differs from load"
+            }
+        }
+        if ($Entry.load_probe -ne $Load.probe) {
+            throw "domain_summary_validate_failed: ELF run evidence $($Load.name) probe differs from load"
+        }
+    }
+}
+
 function Assert-DomainCount {
     param(
         [string]$Name,
@@ -3855,6 +4124,8 @@ function Validate-DomainSummaryFile {
     }
     Assert-DomainBackendReadiness -Readiness $Summary.backend_readiness
     Assert-DomainBackendCapabilityMatrix -Matrix @($Summary.backend_capability_matrix)
+    $ElfRunEvidenceMatrix = @($Summary.elf_run_evidence_matrix)
+    Assert-DomainCount -Name "elf_run_evidence_matrix" -Actual $ElfRunEvidenceMatrix.Count -Expected 88
     if ($Summary.run_region.base -ne "0x20080000" -or $Summary.run_region.expected -ne "0x20080000" -or [int]$Summary.run_region.size -ne 65536) {
         throw "domain_summary_validate_failed: bad run region"
     }
@@ -4044,6 +4315,106 @@ function Validate-DomainSummaryFile {
     Assert-DomainLoad -Loads $Loads -Name "rwx_segment_app" -Probe "rwx_segment" -Fits $true -Region 65536 -MinSpan 0 -Segments 0
     Assert-DomainLoad -Loads $Loads -Name "wrong_link_base_app" -Probe "ok" -Fits $true -Region 65536 -MinSpan 1 -Segments 2 -ExpectedBase "0x20080000" -ExpectedLinkBase "0x20081000" -ExpectBaseMatch $false
     Assert-DomainLoad -Loads $Loads -Name "too_large_app" -Probe "load_buffer_too_small" -Fits $false -Region 65536 -MinSpan 65537 -Segments 2
+    Assert-DomainElfRunEvidenceMatchesLoad -Matrix $ElfRunEvidenceMatrix -Loads $Loads
+    Assert-DomainElfRunEvidence `
+        -Entry (Get-DomainElfRunEvidence -Matrix $ElfRunEvidenceMatrix -Name "hello_app") `
+        -Source "direct" `
+        -App "hello_app" `
+        -SourceStage "image" `
+        -SourceCode "ok" `
+        -LoadProbe "ok" `
+        -RunStage "exit" `
+        -RunCode "ok" `
+        -Ready $true `
+        -Fits $true
+    Assert-DomainElfRunEvidence `
+        -Entry (Get-DomainElfRunEvidence -Matrix $ElfRunEvidenceMatrix -Name "received:hello_app") `
+        -Source "received" `
+        -App "hello_app" `
+        -SourceStage "stage" `
+        -SourceCode "ok" `
+        -LoadProbe "ok" `
+        -RunStage "exit" `
+        -RunCode "ok" `
+        -Ready $true `
+        -Fits $true
+    Assert-DomainElfRunEvidence `
+        -Entry (Get-DomainElfRunEvidence -Matrix $ElfRunEvidenceMatrix -Name "packetstream:hello_app") `
+        -Source "packetstream" `
+        -App "hello_app" `
+        -SourceStage "launch_ready" `
+        -SourceCode "ok" `
+        -LoadProbe "ok" `
+        -RunStage "exit" `
+        -RunCode "ok" `
+        -Ready $true `
+        -Fits $true
+    Assert-DomainElfRunEvidence `
+        -Entry (Get-DomainElfRunEvidence -Matrix $ElfRunEvidenceMatrix -Name "store:hello_app") `
+        -Source "store" `
+        -App "hello_app" `
+        -SourceStage "stage" `
+        -SourceCode "ok" `
+        -LoadProbe "ok" `
+        -RunStage "exit" `
+        -RunCode "ok" `
+        -Ready $true `
+        -Fits $true
+    Assert-DomainElfRunEvidence `
+        -Entry (Get-DomainElfRunEvidence -Matrix $ElfRunEvidenceMatrix -Name "prepare:argv_app") `
+        -Source "prepare" `
+        -App "argv_app" `
+        -SourceStage "start" `
+        -SourceCode "ok" `
+        -LoadProbe "ok" `
+        -RunStage "start" `
+        -RunCode "ok" `
+        -Ready $true `
+        -Fits $true
+    Assert-DomainElfRunEvidence `
+        -Entry (Get-DomainElfRunEvidence -Matrix $ElfRunEvidenceMatrix -Name "bad_elf_magic_app") `
+        -Source "direct" `
+        -App "bad_elf_magic_app" `
+        -SourceStage "image" `
+        -SourceCode "ok" `
+        -LoadProbe "bad_magic" `
+        -RunStage "load" `
+        -RunCode "load_failed" `
+        -Ready $false `
+        -Fits $true
+    Assert-DomainElfRunEvidence `
+        -Entry (Get-DomainElfRunEvidence -Matrix $ElfRunEvidenceMatrix -Name "packetstream:packetstream_bad_elf_magic_app") `
+        -Source "packetstream" `
+        -App "packetstream_bad_elf_magic_app" `
+        -SourceStage "launch_ready" `
+        -SourceCode "ok" `
+        -LoadProbe "bad_magic" `
+        -RunStage "load" `
+        -RunCode "load_failed" `
+        -Ready $false `
+        -Fits $true
+    Assert-DomainElfRunEvidence `
+        -Entry (Get-DomainElfRunEvidence -Matrix $ElfRunEvidenceMatrix -Name "wrong_link_base_app") `
+        -Source "direct" `
+        -App "wrong_link_base_app" `
+        -SourceStage "image" `
+        -SourceCode "ok" `
+        -LoadProbe "ok" `
+        -RunStage "load" `
+        -RunCode "load_failed" `
+        -Ready $false `
+        -Fits $true
+    Assert-DomainElfRunEvidence `
+        -Entry (Get-DomainElfRunEvidence -Matrix $ElfRunEvidenceMatrix -Name "too_large_app") `
+        -Source "direct" `
+        -App "too_large_app" `
+        -SourceStage "image" `
+        -SourceCode "ok" `
+        -LoadProbe "load_buffer_too_small" `
+        -RunStage "load" `
+        -RunCode "load_failed" `
+        -Ready $false `
+        -Fits $false
     $Packetstreams = @($Summary.coverage.packetstreams)
     Assert-DomainCount -Name "packetstreams" -Actual $Packetstreams.Count -Expected 5
     Assert-DomainPacketstream -Packetstreams $Packetstreams -Name "hello_app" -Payload 5132
@@ -4621,6 +4992,7 @@ function Invoke-SelfTest {
         'direct script default at `-TimeoutSec 15`',
         "display mode is fixed at 16x16 ARGB8888",
         "coverage.gui_timeline",
+        "elf_run_evidence_matrix",
         "storage_fd_exhaustion_app",
         "storage_write_error_app",
         "storage_zero_io_app",
@@ -4723,6 +5095,10 @@ function Invoke-SelfTest {
     Assert-BadDomainSummaryRejected -SourcePath $GoldenDomainSummaryFile -Label "backend_capability_matrix_storage" -Mutate {
         param($Summary)
         ($Summary.backend_capability_matrix | Where-Object { $_.capability -eq "storage" }).policy = "write=allowed"
+    }
+    Assert-BadDomainSummaryRejected -SourcePath $GoldenDomainSummaryFile -Label "elf_run_evidence_matrix_store" -Mutate {
+        param($Summary)
+        ($Summary.elf_run_evidence_matrix | Where-Object { $_.name -eq "store:hello_app" }).run_code = "load_failed"
     }
 
     $CMakePath = Resolve-ToolPath -Tool $CMakeExe

@@ -765,7 +765,12 @@ section is the derived readiness summary that confirms the same run proved the
 ELF loader, AppRuntime, received/packetstream/Store ingress, source equivalence,
 GUI, storage, input, and unsupported-boundary gates. Its
 `backend_capability_matrix` section maps each smoke-local capability to its
-virtual provider, policy, evidence source, and representative run set. Its `display` section
+virtual provider, policy, evidence source, and representative run set. Its
+`elf_run_evidence_matrix` section indexes every ELF load by run name and binds
+source (`direct`, `received`, `packetstream`, `store`, or `prepare`), source
+stage/code, ELF load probe/capacity, AppRuntime stage/code/exit, and readiness
+into one record. This is the QEMU-local evidence index for the resident ELF
+main chain; it is not a public backend/profile schema. Its `display` section
 records the fixed virtual display mode so GUI evidence drift is caught before
 frame hashes are interpreted. Its evidence section records frame signature, full
 dump, visual PPM, input trace, and storage trace counts. Its `coverage.loads` section records the ELF loader/probe/capacity
@@ -856,6 +861,7 @@ When `-QemuElf` is enabled, the bundle summary expands `domain-summary.json`
 into `qemu_elf_mode`, `qemu_elf_domain`, `qemu_elf_app_model`,
 `qemu_elf_backend`, `qemu_elf_backend_readiness`,
 `qemu_elf_capability_matrix`,
+`qemu_elf_run_evidence_matrix`,
 `qemu_elf_backend_contract`, `qemu_elf_run_budget`,
 `qemu_elf_run_budget_match`, `qemu_elf_memory`, `qemu_elf_store`,
 `qemu_elf_display`, `qemu_elf_evidence`,
@@ -868,7 +874,7 @@ rebuilt and launched (`build_and_run`) or reused from an existing capture
 (`validate_existing_evidence`), plus the fixed App model
 (`format=elf:model=CharmAppApi`), virtual backend identity, detailed backend
 contract, backend readiness status/gates, capability matrix, recorded QEMU run budget, whether the requested bundle budget matches
-the captured `domain-summary.json` budget, ELF load memory boundary,
+the captured `domain-summary.json` budget, ELF run evidence matrix, ELF load memory boundary,
 packetstream buffer boundary (`storage/transport/stream/received`), Store media, frame/input/storage evidence counts,
 near-limit/over-limit ELF capacity, QEMU-local artifact counts and representative
 ELF/Store CRCs, representative ELF loader

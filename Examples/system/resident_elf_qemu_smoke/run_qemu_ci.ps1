@@ -2005,6 +2005,118 @@ function Convert-HexToInt64 {
     return [System.Convert]::ToInt64($Hex, 16)
 }
 
+function Convert-BackendContractFlag {
+    param(
+        [string]$Value,
+        [string]$Field
+    )
+
+    if ($Value -eq "1") {
+        return $true
+    }
+    if ($Value -eq "0") {
+        return $false
+    }
+    throw "domain_summary_failed: bad backend contract flag $Field=$Value"
+}
+
+function Split-BackendContractEvidence {
+    param([string]$Value)
+
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        return @()
+    }
+    return @($Value -split "," | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+}
+
+function Get-BackendContractFromText {
+    param(
+        [string]$Text,
+        [string]$Capabilities,
+        [string]$StorageMode,
+        [string]$AfeMode
+    )
+
+    $TimeKind = Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: backend-contract time=([a-z0-9_]+)' -ErrorPrefix "domain_summary_failed"
+    $TimeStartMs = [int](Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: backend-contract time=[a-z0-9_]+ start_ms=(\d+)' -ErrorPrefix "domain_summary_failed")
+    $TimeStepMs = [int](Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: backend-contract time=[a-z0-9_]+ start_ms=\d+ step_ms=(\d+)' -ErrorPrefix "domain_summary_failed")
+    $TimeReset = Convert-BackendContractFlag `
+        -Value (Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: backend-contract time=[a-z0-9_]+ start_ms=\d+ step_ms=\d+ reset_per_run=([01])' -ErrorPrefix "domain_summary_failed") `
+        -Field "time.reset_per_run"
+
+    $DisplayKind = Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: backend-contract display=([a-z0-9_]+)' -ErrorPrefix "domain_summary_failed"
+    $DisplayWidth = [int](Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: backend-contract display=[a-z0-9_]+ width=(\d+)' -ErrorPrefix "domain_summary_failed")
+    $DisplayHeight = [int](Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: backend-contract display=[a-z0-9_]+ width=\d+ height=(\d+)' -ErrorPrefix "domain_summary_failed")
+    $DisplayStride = [int](Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: backend-contract display=[a-z0-9_]+ width=\d+ height=\d+ stride=(\d+)' -ErrorPrefix "domain_summary_failed")
+    $DisplayFormat = Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: backend-contract display=[a-z0-9_]+ width=\d+ height=\d+ stride=\d+ format=([a-z0-9_]+)' -ErrorPrefix "domain_summary_failed"
+    $DisplayFrameBytes = [int](Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: backend-contract display=[a-z0-9_]+ width=\d+ height=\d+ stride=\d+ format=[a-z0-9_]+ frame_bytes=(\d+)' -ErrorPrefix "domain_summary_failed")
+    $DisplayEvidence = Split-BackendContractEvidence -Value (Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: backend-contract display=[a-z0-9_]+ width=\d+ height=\d+ stride=\d+ format=[a-z0-9_]+ frame_bytes=\d+ evidence=([a-z0-9_,]+)' -ErrorPrefix "domain_summary_failed")
+
+    $InputKind = Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: backend-contract input=([a-z0-9_]+)' -ErrorPrefix "domain_summary_failed"
+    $InputSampleCount = [int](Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: backend-contract input=[a-z0-9_]+ sample_count=(\d+)' -ErrorPrefix "domain_summary_failed")
+    $InputPointerMaxX = [int](Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: backend-contract input=[a-z0-9_]+ sample_count=\d+ pointer_max=(\d+),' -ErrorPrefix "domain_summary_failed")
+    $InputPointerMaxY = [int](Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: backend-contract input=[a-z0-9_]+ sample_count=\d+ pointer_max=\d+,(\d+)' -ErrorPrefix "domain_summary_failed")
+    $InputWraps = Convert-BackendContractFlag `
+        -Value (Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: backend-contract input=[a-z0-9_]+ sample_count=\d+ pointer_max=\d+,\d+ wraps=([01])' -ErrorPrefix "domain_summary_failed") `
+        -Field "input.wraps"
+    $InputEvidence = Split-BackendContractEvidence -Value (Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: backend-contract input=[a-z0-9_]+ sample_count=\d+ pointer_max=\d+,\d+ wraps=[01] evidence=([a-z0-9_,]+)' -ErrorPrefix "domain_summary_failed")
+
+    $StorageKind = Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: backend-contract storage=([a-z0-9_]+)' -ErrorPrefix "domain_summary_failed"
+    $StorageFileCount = [int](Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: backend-contract storage=[a-z0-9_]+ file_count=(\d+)' -ErrorPrefix "domain_summary_failed")
+    $StorageFdBase = [int](Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: backend-contract storage=[a-z0-9_]+ file_count=\d+ fd_base=(\d+)' -ErrorPrefix "domain_summary_failed")
+    $StorageFdSlots = [int](Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: backend-contract storage=[a-z0-9_]+ file_count=\d+ fd_base=\d+ fd_slots=(\d+)' -ErrorPrefix "domain_summary_failed")
+    $StorageWritePolicy = Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: backend-contract storage=[a-z0-9_]+ file_count=\d+ fd_base=\d+ fd_slots=\d+ write_policy=([a-z0-9_]+)' -ErrorPrefix "domain_summary_failed"
+    $StorageEvidence = Split-BackendContractEvidence -Value (Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: backend-contract storage=[a-z0-9_]+ file_count=\d+ fd_base=\d+ fd_slots=\d+ write_policy=[a-z0-9_]+ evidence=([a-z0-9_,]+)' -ErrorPrefix "domain_summary_failed")
+
+    $AppExitKind = Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: backend-contract app_exit=([a-z0-9_]+)' -ErrorPrefix "domain_summary_failed"
+    $AppExitOverridesReturn = Convert-BackendContractFlag `
+        -Value (Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: backend-contract app_exit=[a-z0-9_]+ overrides_return=([01])' -ErrorPrefix "domain_summary_failed") `
+        -Field "app_exit.overrides_return"
+
+    return [pscustomobject]@{
+        kind = "virtual"
+        runtime_domain = "virtual_m7"
+        capabilities = @($Capabilities -split ",")
+        storage = $StorageMode
+        afe = $AfeMode
+        time = [pscustomobject]@{
+            kind = $TimeKind
+            start_ms = $TimeStartMs
+            step_ms = $TimeStepMs
+            reset_per_run = $TimeReset
+        }
+        display = [pscustomobject]@{
+            kind = $DisplayKind
+            width = $DisplayWidth
+            height = $DisplayHeight
+            stride_bytes = $DisplayStride
+            format = $DisplayFormat
+            frame_bytes = $DisplayFrameBytes
+            evidence = @($DisplayEvidence)
+        }
+        input = [pscustomobject]@{
+            kind = $InputKind
+            sample_count = $InputSampleCount
+            pointer_max_x = $InputPointerMaxX
+            pointer_max_y = $InputPointerMaxY
+            wraps = $InputWraps
+            evidence = @($InputEvidence)
+        }
+        storage_media = [pscustomobject]@{
+            kind = $StorageKind
+            file_count = $StorageFileCount
+            fd_base = $StorageFdBase
+            fd_slots = $StorageFdSlots
+            write_policy = $StorageWritePolicy
+            evidence = @($StorageEvidence)
+        }
+        app_exit = [pscustomobject]@{
+            kind = $AppExitKind
+            overrides_return = $AppExitOverridesReturn
+        }
+    }
+}
+
 function Get-AppRunSummaryFromText {
     param([string]$Text)
 
@@ -2325,6 +2437,17 @@ function Write-DomainSummaryCapture {
     $DisplayFormat = Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: display describe width=\d+ height=\d+ stride=\d+ format=([a-z0-9_]+)' -ErrorPrefix "domain_summary_failed"
     $DisplayFrameBytes = [int](Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: display describe width=\d+ height=\d+ stride=\d+ format=[a-z0-9_]+ frame_bytes=(\d+)' -ErrorPrefix "domain_summary_failed")
     $PrepareArgc = [int](Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: prepare prepare:argv_app stage=start code=ok ready=1 argc=(\d+)' -ErrorPrefix "domain_summary_failed")
+    $BackendContract = Get-BackendContractFromText -Text $Text `
+        -Capabilities $BackendCapabilities `
+        -StorageMode $BackendStorageMode `
+        -AfeMode $BackendAfeMode
+    if ([int]$BackendContract.display.width -ne $DisplayWidth -or
+        [int]$BackendContract.display.height -ne $DisplayHeight -or
+        [int]$BackendContract.display.stride_bytes -ne $DisplayStride -or
+        [string]$BackendContract.display.format -ne $DisplayFormat -or
+        [int]$BackendContract.display.frame_bytes -ne $DisplayFrameBytes) {
+        throw "domain_summary_failed: display describe does not match backend contract"
+    }
 
     $FrameSignatureResolved = ""
     $FrameSignatureCount = 0
@@ -2388,48 +2511,7 @@ function Write-DomainSummaryCapture {
         cpu = "cortex-m7"
         image_format = "elf"
         app_model = "CharmAppApi"
-        backend_contract = [pscustomobject]@{
-            kind = "virtual"
-            runtime_domain = "virtual_m7"
-            capabilities = @($BackendCapabilities -split ",")
-            storage = $BackendStorageMode
-            afe = $BackendAfeMode
-            time = [pscustomobject]@{
-                kind = "deterministic_tick"
-                start_ms = 1000
-                step_ms = 17
-                reset_per_run = $true
-            }
-            display = [pscustomobject]@{
-                kind = "framebuffer"
-                width = $DisplayWidth
-                height = $DisplayHeight
-                stride_bytes = $DisplayStride
-                format = $DisplayFormat
-                frame_bytes = $DisplayFrameBytes
-                evidence = @("frame_signatures", "frame_dumps", "frame_ppm", "gui_timeline")
-            }
-            input = [pscustomobject]@{
-                kind = "deterministic_sequence"
-                sample_count = 4
-                pointer_max_x = 15
-                pointer_max_y = 15
-                wraps = $true
-                evidence = @("input_trace", "gui_timeline")
-            }
-            storage_media = [pscustomobject]@{
-                kind = "virtual_readonly_files"
-                file_count = 3
-                fd_base = 3
-                fd_slots = 4
-                write_policy = "unsupported"
-                evidence = @("storage_trace")
-            }
-            app_exit = [pscustomobject]@{
-                kind = "notification_counter"
-                overrides_return = $false
-            }
-        }
+        backend_contract = $BackendContract
         run_region = [pscustomobject]@{
             base = $RunRegionBase
             expected = $RunRegionExpected
@@ -3515,6 +3597,24 @@ function Invoke-SelfTest {
     $ForbiddenLog = (Get-SyntheticPassingLog) + "`nresident-elf-qemu: fail"
     if (Test-LogText -Text $ForbiddenLog) {
         throw "selftest_failed: synthetic forbidden log validated unexpectedly"
+    }
+    $SyntheticBackendContract = Get-BackendContractFromText -Text (Get-SyntheticPassingLog) `
+        -Capabilities "console,time,display,input,storage,app_exit" `
+        -StorageMode "readonly" `
+        -AfeMode "unsupported"
+    if ($SyntheticBackendContract.time.kind -ne "deterministic_tick" -or
+        [int]$SyntheticBackendContract.time.step_ms -ne 17 -or
+        [int]$SyntheticBackendContract.display.frame_bytes -ne 1024 -or
+        [int]$SyntheticBackendContract.input.pointer_max_x -ne 15 -or
+        [int]$SyntheticBackendContract.storage_media.fd_slots -ne 4 -or
+        [bool]$SyntheticBackendContract.app_exit.overrides_return) {
+        throw "selftest_failed: synthetic backend contract parse returned unexpected values"
+    }
+    $BadBackendFlagLog = (Get-SyntheticPassingLog).Replace(
+        "resident-elf-qemu: backend-contract app_exit=notification_counter overrides_return=0",
+        "resident-elf-qemu: backend-contract app_exit=notification_counter overrides_return=2")
+    if (-not (Test-SelfTestThrowsLike -Prefix "domain_summary_failed:" -Script { Get-BackendContractFromText -Text $BadBackendFlagLog -Capabilities "console,time,display,input,storage,app_exit" -StorageMode "readonly" -AfeMode "unsupported" })) {
+        throw "selftest_failed: bad backend contract flag parsed unexpectedly"
     }
     $SyntheticFrameLog = @(
         "resident-elf-qemu: display present bytes=1024 checksum=1024 hash=0x373fb1c5 frame=1",

@@ -211,6 +211,7 @@ function Get-QemuAppNames {
         "unsupported_caps_app",
         "storage_app",
         "storage_catalog_app",
+        "storage_error_app",
         "time_app",
         "too_large_app"
     )
@@ -232,7 +233,7 @@ function Get-ExpectedTokens {
         "resident-elf-qemu: backend-capabilities capabilities=console,time,display,input,storage,app_exit storage=readonly afe=unsupported",
         "resident-elf-qemu: run-region base=0x20080000 expected=0x20080000 size=65536",
         "resident-elf-qemu: stage-cache bytes=16384",
-        "resident-elf-qemu: store entries=16 bytes=",
+        "resident-elf-qemu: store entries=17 bytes=",
         "resident-elf-qemu: store-media kind=memory bytes=",
         "resident-elf-qemu: unsupported storage_open=1 storage_read=1 storage_write=1 storage_close=1 afe_configure=1 afe_read=1 storage_count=1/1/1/1 afe_count=1/1",
         "hello_app: charm_app_main entered",
@@ -304,6 +305,12 @@ function Get-ExpectedTokens {
         "resident-elf-qemu: caps storage_catalog_app console=52 time=0 describe=0 present=0 input=0 exit=0 display_checksum=0 display_checksum_total=0 storage=2/9/0/2 storage_bytes=31",
         "resident-elf-qemu: app store:storage_catalog_app stage=exit code=ok exit=0",
         "resident-elf-qemu: caps store:storage_catalog_app console=52 time=0 describe=0 present=0 input=0 exit=0 display_checksum=0 display_checksum_total=0 storage=2/9/0/2 storage_bytes=31",
+        "storage_error_app: invalid read preserved cursor",
+        "resident-elf-qemu: storage read fd=3 code=invalid_argument requested=4 count=0 offset=0 remaining=27",
+        "resident-elf-qemu: app storage_error_app stage=exit code=ok exit=0",
+        "resident-elf-qemu: caps storage_error_app console=49 time=0 describe=0 present=0 input=0 exit=0 display_checksum=0 display_checksum_total=0 storage=1/2/0/1 storage_bytes=4",
+        "resident-elf-qemu: app store:storage_error_app stage=exit code=ok exit=0",
+        "resident-elf-qemu: caps store:storage_error_app console=49 time=0 describe=0 present=0 input=0 exit=0 display_checksum=0 display_checksum_total=0 storage=1/2/0/1 storage_bytes=4",
         "display_error_app: invalid present rejected",
         "resident-elf-qemu: display present bytes=1020 code=invalid_argument expected=1024",
         "resident-elf-qemu: app display_error_app stage=exit code=ok exit=0",
@@ -784,7 +791,9 @@ function Get-StorageTraceFromText {
                 "storage_app",
                 "store:storage_app",
                 "storage_catalog_app",
-                "store:storage_catalog_app"
+                "store:storage_catalog_app",
+                "storage_error_app",
+                "store:storage_error_app"
             )
             if (-not ($StorageRunNames -contains $AppName)) {
                 $PendingEvents = @()
@@ -1278,7 +1287,10 @@ function Assert-StorageTraceRun {
         [string[]]$Ops,
         [string[]]$Paths,
         [int[]]$Fds,
-        [int[]]$Counts
+        [int[]]$Counts,
+        [string[]]$Codes = @(),
+        [int[]]$Offsets = @(),
+        [int[]]$Remainings = @()
     )
 
     $Matches = @($Runs | Where-Object { $_.name -eq $Name })
@@ -1292,14 +1304,21 @@ function Assert-StorageTraceRun {
     }
     for ($i = 0; $i -lt $Ops.Count; ++$i) {
         $Event = $Events[$i]
+        $ExpectedCode = if ($Codes.Count -gt $i) { $Codes[$i] } else { "ok" }
         if ([string]$Event.op -ne $Ops[$i] -or
             [int]$Event.fd -ne $Fds[$i] -or
             [int]$Event.count -ne $Counts[$i] -or
-            [string]$Event.code -ne "ok") {
+            [string]$Event.code -ne $ExpectedCode) {
             throw "storage_trace_validate_failed: run $Name event $($i + 1) mismatch"
         }
         if (-not [string]::IsNullOrWhiteSpace($Paths[$i]) -and [string]$Event.path -ne $Paths[$i]) {
             throw "storage_trace_validate_failed: run $Name event $($i + 1) path=$($Event.path), expected $($Paths[$i])"
+        }
+        if ($Offsets.Count -gt $i -and [int]$Event.offset -ne $Offsets[$i]) {
+            throw "storage_trace_validate_failed: run $Name event $($i + 1) offset=$($Event.offset), expected $($Offsets[$i])"
+        }
+        if ($Remainings.Count -gt $i -and [int]$Event.remaining -ne $Remainings[$i]) {
+            throw "storage_trace_validate_failed: run $Name event $($i + 1) remaining=$($Event.remaining), expected $($Remainings[$i])"
         }
     }
 }
@@ -1318,12 +1337,12 @@ function Validate-StorageTraceFile {
     if ($Capture.schema -ne "charm.resident_elf_qemu.storage_trace.v1") {
         throw "storage_trace_validate_failed: bad schema: $($Capture.schema)"
     }
-    if ([int]$Capture.event_count -ne 49 -or [int]$Capture.run_count -ne 6) {
+    if ([int]$Capture.event_count -ne 57 -or [int]$Capture.run_count -ne 8) {
         throw "storage_trace_validate_failed: event/run count mismatch"
     }
     $Events = @($Capture.events)
-    if ($Events.Count -ne 49) {
-        throw "storage_trace_validate_failed: events array count=$($Events.Count), expected 49"
+    if ($Events.Count -ne 57) {
+        throw "storage_trace_validate_failed: events array count=$($Events.Count), expected 57"
     }
     $Runs = @($Capture.runs)
     $ReadmeOps = @("open", "read", "read", "read", "read", "read", "close")
@@ -1339,6 +1358,16 @@ function Validate-StorageTraceFile {
     $CatalogCounts = @(0, 0, 5, 5, 5, 0, 5, 5, 5, 1, 0, 0, 0)
     Assert-StorageTraceRun -Runs $Runs -Name "storage_catalog_app" -Ops $CatalogOps -Paths $CatalogPaths -Fds $CatalogFds -Counts $CatalogCounts
     Assert-StorageTraceRun -Runs $Runs -Name "store:storage_catalog_app" -Ops $CatalogOps -Paths $CatalogPaths -Fds $CatalogFds -Counts $CatalogCounts
+
+    $StorageErrorOps = @("open", "read", "read", "close")
+    $StorageErrorPaths = @("/virtual/readme.txt", "", "", "")
+    $StorageErrorFds = @(3, 3, 3, 3)
+    $StorageErrorCounts = @(0, 0, 4, 0)
+    $StorageErrorCodes = @("ok", "invalid_argument", "ok", "ok")
+    $StorageErrorOffsets = @(0, 0, 0, 0)
+    $StorageErrorRemainings = @(0, 27, 23, 0)
+    Assert-StorageTraceRun -Runs $Runs -Name "storage_error_app" -Ops $StorageErrorOps -Paths $StorageErrorPaths -Fds $StorageErrorFds -Counts $StorageErrorCounts -Codes $StorageErrorCodes -Offsets $StorageErrorOffsets -Remainings $StorageErrorRemainings
+    Assert-StorageTraceRun -Runs $Runs -Name "store:storage_error_app" -Ops $StorageErrorOps -Paths $StorageErrorPaths -Fds $StorageErrorFds -Counts $StorageErrorCounts -Codes $StorageErrorCodes -Offsets $StorageErrorOffsets -Remainings $StorageErrorRemainings
 
     foreach ($Name in @("unsupported_caps_app", "store:unsupported_caps_app")) {
         $Matches = @($Runs | Where-Object { $_.name -eq $Name })
@@ -2483,7 +2512,7 @@ function Assert-DomainNegativeCase {
 function Assert-DomainStoreMedia {
     param([object]$Store)
 
-    if ($Store.format -ne "store_v1" -or [int]$Store.entries -ne 16 -or [int]$Store.bytes -le 0) {
+    if ($Store.format -ne "store_v1" -or [int]$Store.entries -ne 17 -or [int]$Store.bytes -le 0) {
         throw "domain_summary_validate_failed: bad store summary"
     }
     if ($Store.media.kind -ne "memory" -or
@@ -2694,7 +2723,7 @@ function Validate-DomainSummaryFile {
     }
     Assert-DomainStoreMedia -Store $Summary.store
     $Runs = @($Summary.coverage.runs)
-    Assert-DomainCount -Name "runs" -Actual $Runs.Count -Expected 56
+    Assert-DomainCount -Name "runs" -Actual $Runs.Count -Expected 58
     Assert-DomainRun -Runs $Runs -Name "hello_app" -Stage "exit" -Code "ok"
     Assert-DomainRun -Runs $Runs -Name "received:hello_app" -Stage "exit" -Code "ok"
     Assert-DomainRun -Runs $Runs -Name "store:hello_app" -Stage "exit" -Code "ok"
@@ -2712,6 +2741,8 @@ function Validate-DomainSummaryFile {
     Assert-DomainRun -Runs $Runs -Name "store:display_error_app" -Stage "exit" -Code "ok"
     Assert-DomainRun -Runs $Runs -Name "input_error_app" -Stage "exit" -Code "ok"
     Assert-DomainRun -Runs $Runs -Name "store:input_error_app" -Stage "exit" -Code "ok"
+    Assert-DomainRun -Runs $Runs -Name "storage_error_app" -Stage "exit" -Code "ok"
+    Assert-DomainRun -Runs $Runs -Name "store:storage_error_app" -Stage "exit" -Code "ok"
     Assert-DomainRun -Runs $Runs -Name "bad_elf_magic_app" -Stage "load" -Code "load_failed"
     Assert-DomainRun -Runs $Runs -Name "packetstream:packetstream_bad_elf_magic_app" -Stage "load" -Code "load_failed"
     Assert-DomainRun -Runs $Runs -Name "bad_header_app" -Stage "load" -Code "load_failed"
@@ -2733,17 +2764,18 @@ function Validate-DomainSummaryFile {
     Assert-DomainRun -Runs $Runs -Name "argv_overflow_app" -Stage "argv" -Code "argv_overflow"
     Assert-DomainRun -Runs $Runs -Name "abi_mismatch_app" -Stage "abi" -Code "abi_mismatch"
     $Stages = @($Summary.coverage.stages)
-    Assert-DomainCount -Name "stages" -Actual $Stages.Count -Expected 21
+    Assert-DomainCount -Name "stages" -Actual $Stages.Count -Expected 22
     Assert-DomainStage -Stages $Stages -Source "received" -Name "hello_app" -Code "ok"
     Assert-DomainStage -Stages $Stages -Source "received" -Name "large_fit_app" -Code "ok"
     Assert-DomainStage -Stages $Stages -Source "store" -Name "hello_app" -Code "ok"
     Assert-DomainStage -Stages $Stages -Source "store" -Name "data_app" -Code "ok"
     Assert-DomainStage -Stages $Stages -Source "store" -Name "display_error_app" -Code "ok"
     Assert-DomainStage -Stages $Stages -Source "store" -Name "input_error_app" -Code "ok"
+    Assert-DomainStage -Stages $Stages -Source "store" -Name "storage_error_app" -Code "ok"
     Assert-DomainStage -Stages $Stages -Source "store" -Name "large_fit_app" -Code "ok"
     Assert-DomainStage -Stages $Stages -Source "store" -Name "too_large_store_app" -Code "image_too_large"
     $Loads = @($Summary.coverage.loads)
-    Assert-DomainCount -Name "loads" -Actual $Loads.Count -Expected 57
+    Assert-DomainCount -Name "loads" -Actual $Loads.Count -Expected 59
     Assert-DomainLoad -Loads $Loads -Name "hello_app" -Probe "ok" -Fits $true -Region 65536 -MinSpan 1 -Segments 2
     Assert-DomainLoad -Loads $Loads -Name "received:hello_app" -Probe "ok" -Fits $true -Region 65536 -MinSpan 1 -Segments 2
     Assert-DomainLoad -Loads $Loads -Name "packetstream:hello_app" -Probe "ok" -Fits $true -Region 65536 -MinSpan 1 -Segments 2
@@ -2760,6 +2792,8 @@ function Validate-DomainSummaryFile {
     Assert-DomainLoad -Loads $Loads -Name "store:display_error_app" -Probe "ok" -Fits $true -Region 65536 -MinSpan 1 -Segments 3
     Assert-DomainLoad -Loads $Loads -Name "input_error_app" -Probe "ok" -Fits $true -Region 65536 -MinSpan 1 -Segments 2
     Assert-DomainLoad -Loads $Loads -Name "store:input_error_app" -Probe "ok" -Fits $true -Region 65536 -MinSpan 1 -Segments 2
+    Assert-DomainLoad -Loads $Loads -Name "storage_error_app" -Probe "ok" -Fits $true -Region 65536 -MinSpan 1 -Segments 2
+    Assert-DomainLoad -Loads $Loads -Name "store:storage_error_app" -Probe "ok" -Fits $true -Region 65536 -MinSpan 1 -Segments 2
     Assert-DomainLoad -Loads $Loads -Name "large_fit_app" -Probe "ok" -Fits $true -Region 65536 -MinSpan 60000 -Segments 3
     Assert-DomainLoad -Loads $Loads -Name "received:large_fit_app" -Probe "ok" -Fits $true -Region 65536 -MinSpan 60000 -Segments 3
     Assert-DomainLoad -Loads $Loads -Name "packetstream:large_fit_app" -Probe "ok" -Fits $true -Region 65536 -MinSpan 60000 -Segments 3
@@ -2834,7 +2868,7 @@ function Validate-DomainSummaryFile {
     Assert-DomainNegativeCase -NegativeCases $NegativeCases -Name "argv_overflow_app" -Stage "argv" -Code "argv_overflow"
     Assert-DomainNegativeCase -NegativeCases $NegativeCases -Name "abi_mismatch_app" -Stage "abi" -Code "abi_mismatch"
     $SourceMatrix = @($Summary.coverage.source_matrix)
-    Assert-DomainCount -Name "source_matrix" -Actual $SourceMatrix.Count -Expected 35
+    Assert-DomainCount -Name "source_matrix" -Actual $SourceMatrix.Count -Expected 36
     Assert-SourceMatrixEntry -Matrix $SourceMatrix -Name "hello_app" -Sources @("direct", "received", "packetstream", "store")
     Assert-SourceMatrixEntry -Matrix $SourceMatrix -Name "large_fit_app" -Sources @("direct", "received", "packetstream", "store")
     Assert-SourceMatrixEntry -Matrix $SourceMatrix -Name "player_min" -Sources @("direct", "received", "packetstream", "store")
@@ -2846,6 +2880,7 @@ function Validate-DomainSummaryFile {
     Assert-SourceMatrixEntry -Matrix $SourceMatrix -Name "input_error_app" -Sources @("direct", "store")
     Assert-SourceMatrixEntry -Matrix $SourceMatrix -Name "input_sequence_app" -Sources @("direct", "store")
     Assert-SourceMatrixEntry -Matrix $SourceMatrix -Name "storage_catalog_app" -Sources @("direct", "store")
+    Assert-SourceMatrixEntry -Matrix $SourceMatrix -Name "storage_error_app" -Sources @("direct", "store")
     Assert-SourceMatrixFailure -Matrix $SourceMatrix -Name "bad_header_app" -Source "direct" -Stage "load" -Code "load_failed"
     Assert-SourceMatrixFailure -Matrix $SourceMatrix -Name "bad_class_app" -Source "direct" -Stage "load" -Code "load_failed"
     Assert-SourceMatrixFailure -Matrix $SourceMatrix -Name "bad_endian_app" -Source "direct" -Stage "load" -Code "load_failed"
@@ -2886,7 +2921,7 @@ function Validate-DomainSummaryFile {
     if ([int]$Summary.evidence.input_trace_event_count -ne 12 -or [int]$Summary.evidence.input_trace_run_count -ne 6) {
         throw "domain_summary_validate_failed: bad input trace evidence"
     }
-    if ([int]$Summary.evidence.storage_trace_event_count -ne 49 -or [int]$Summary.evidence.storage_trace_run_count -ne 6) {
+    if ([int]$Summary.evidence.storage_trace_event_count -ne 57 -or [int]$Summary.evidence.storage_trace_run_count -ne 8) {
         throw "domain_summary_validate_failed: bad storage trace evidence"
     }
     Write-Host "resident-elf-qemu domain summary validation ok"
@@ -3006,7 +3041,7 @@ function Invoke-SelfTest {
     }
     $GoodStoreSummary = [pscustomobject]@{
         format = "store_v1"
-        entries = 16
+        entries = 17
         bytes = 87584
         media = [pscustomobject]@{
             kind = "memory"
@@ -3019,7 +3054,7 @@ function Invoke-SelfTest {
     Assert-DomainStoreMedia -Store $GoodStoreSummary
     $BadStoreSummary = [pscustomobject]@{
         format = "store_v1"
-        entries = 16
+        entries = 17
         bytes = 87584
         media = [pscustomobject]@{
             kind = "memory"
@@ -3131,6 +3166,27 @@ function Invoke-SelfTest {
         -Paths @("/virtual/readme.txt", "", "", "", "", "", "") `
         -Fds @(3, 3, 3, 3, 3, 3, 3) `
         -Counts @(0, 8, 8, 8, 3, 0, 0)
+    $SyntheticStorageErrorLog = @(
+        "resident-elf-qemu: storage open path=/virtual/readme.txt code=ok fd=3 size=27",
+        "resident-elf-qemu: storage read fd=3 code=invalid_argument requested=4 count=0 offset=0 remaining=27",
+        "resident-elf-qemu: storage read fd=3 code=ok requested=4 count=4 offset=0 remaining=23",
+        "resident-elf-qemu: storage close fd=3 code=ok",
+        "resident-elf-qemu: app storage_error_app stage=exit code=ok exit=0"
+    ) -join "`n"
+    $SyntheticStorageErrorTrace = Get-StorageTraceFromText -Text $SyntheticStorageErrorLog
+    $SyntheticStorageErrorRuns = @($SyntheticStorageErrorTrace.runs)
+    if (@($SyntheticStorageErrorTrace.events).Count -ne 4 -or $SyntheticStorageErrorRuns.Count -ne 1) {
+        throw "selftest_failed: synthetic storage error trace grouping failed"
+    }
+    Assert-StorageTraceRun -Runs $SyntheticStorageErrorRuns `
+        -Name "storage_error_app" `
+        -Ops @("open", "read", "read", "close") `
+        -Paths @("/virtual/readme.txt", "", "", "") `
+        -Fds @(3, 3, 3, 3) `
+        -Counts @(0, 0, 4, 0) `
+        -Codes @("ok", "invalid_argument", "ok", "ok") `
+        -Offsets @(0, 0, 0, 0) `
+        -Remainings @(0, 27, 23, 0)
     $SyntheticDumpLog = @(
         "resident-elf-qemu: display dump bytes=1024 checksum=1024 hash=0x373fb1c5 frame=1 hex=00",
         "resident-elf-qemu: display dump bytes=1024 checksum=2048 hash=0xa9b09dc5 frame=2 hex=11",
@@ -3196,6 +3252,7 @@ function Invoke-SelfTest {
         (Join-Path $PSScriptRoot "too_large_app.c"),
         (Join-Path $PSScriptRoot "storage_app.c"),
         (Join-Path $PSScriptRoot "storage_catalog_app.c"),
+        (Join-Path $PSScriptRoot "storage_error_app.c"),
         (Join-Path $PSScriptRoot "unsupported_caps_app.c"),
         (Join-Path $PSScriptRoot "frame-signatures.golden.json"),
         (Join-Path $PSScriptRoot "input-trace.golden.json"),
@@ -3422,7 +3479,7 @@ $ldflags = @(
 )
 
 foreach ($name in (Get-QemuAppNames)) {
-    if ($name -eq "too_large_app" -or $name -eq "argv_app" -or $name -eq "bss_app" -or $name -eq "data_app" -or $name -eq "display_error_app" -or $name -eq "display_sequence_app" -or $name -eq "exit_app" -or $name -eq "input_error_app" -or $name -eq "input_sequence_app" -or $name -eq "large_fit_app" -or $name -eq "unsupported_caps_app" -or $name -eq "storage_app" -or $name -eq "storage_catalog_app" -or $name -eq "time_app") {
+    if ($name -eq "too_large_app" -or $name -eq "argv_app" -or $name -eq "bss_app" -or $name -eq "data_app" -or $name -eq "display_error_app" -or $name -eq "display_sequence_app" -or $name -eq "exit_app" -or $name -eq "input_error_app" -or $name -eq "input_sequence_app" -or $name -eq "large_fit_app" -or $name -eq "unsupported_caps_app" -or $name -eq "storage_app" -or $name -eq "storage_catalog_app" -or $name -eq "storage_error_app" -or $name -eq "time_app") {
         $src = Join-Path $PSScriptRoot "too_large_app.c"
         if ($name -eq "argv_app") {
             $src = Join-Path $PSScriptRoot "argv_app.c"
@@ -3459,6 +3516,9 @@ foreach ($name in (Get-QemuAppNames)) {
         }
         if ($name -eq "storage_catalog_app") {
             $src = Join-Path $PSScriptRoot "storage_catalog_app.c"
+        }
+        if ($name -eq "storage_error_app") {
+            $src = Join-Path $PSScriptRoot "storage_error_app.c"
         }
         if ($name -eq "time_app") {
             $src = Join-Path $PSScriptRoot "time_app.c"
@@ -3507,6 +3567,7 @@ Invoke-Checked -FilePath $storePackExe -Arguments @(
     ("unsupported_caps_app={0}" -f (Join-Path $appOut "unsupported_caps_app.elf")),
     ("storage_app={0}" -f (Join-Path $appOut "storage_app.elf")),
     ("storage_catalog_app={0}" -f (Join-Path $appOut "storage_catalog_app.elf")),
+    ("storage_error_app={0}" -f (Join-Path $appOut "storage_error_app.elf")),
     ("time_app={0}" -f (Join-Path $appOut "time_app.elf")),
     ("large_fit_app={0}" -f (Join-Path $appOut "large_fit_app.elf")),
     ("too_large_store_app={0}" -f $tooLargeStoreElf)

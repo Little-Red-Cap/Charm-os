@@ -332,16 +332,22 @@ int storage_read(int fd, void* buf, std::size_t len) {
         write(" count=0 offset=0 remaining=0\n");
         return CHARM_APP_STATUS_UNSUPPORTED;
     }
+    auto& open_file = g_storage_open_files[slot];
+    const auto& file = kVirtualStorageFiles[open_file.file_index];
     if (buf == nullptr && len != 0U) {
+        const auto offset = open_file.cursor;
+        const std::size_t remaining = file.size - open_file.cursor;
         write("resident-elf-qemu: storage read fd=");
         write_signed(fd);
         write(" code=invalid_argument requested=");
         write_dec(static_cast<std::uint32_t>(len));
-        write(" count=0 offset=0 remaining=0\n");
+        write(" count=0 offset=");
+        write_dec(static_cast<std::uint32_t>(offset));
+        write(" remaining=");
+        write_dec(static_cast<std::uint32_t>(remaining));
+        write("\n");
         return CHARM_APP_STATUS_INVALID_ARGUMENT;
     }
-    auto& open_file = g_storage_open_files[slot];
-    const auto& file = kVirtualStorageFiles[open_file.file_index];
     const auto offset = open_file.cursor;
     const std::size_t remaining = file.size - open_file.cursor;
     const std::size_t count = remaining < len ? remaining : len;

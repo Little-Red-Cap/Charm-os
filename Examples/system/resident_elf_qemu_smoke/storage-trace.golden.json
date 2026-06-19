@@ -1,7 +1,7 @@
 {
     "schema":  "charm.resident_elf_qemu.storage_trace.v1",
     "log":  "",
-    "event_count":  49,
+    "event_count":  57,
     "events":  [
                    {
                        "index":  1,
@@ -590,9 +590,105 @@
                        "count":  0,
                        "offset":  0,
                        "remaining":  0
+                   },
+                   {
+                       "index":  50,
+                       "op":  "open",
+                       "path":  "/virtual/readme.txt",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  27,
+                       "requested":  0,
+                       "count":  0,
+                       "offset":  0,
+                       "remaining":  0
+                   },
+                   {
+                       "index":  51,
+                       "op":  "read",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "invalid_argument",
+                       "size":  0,
+                       "requested":  4,
+                       "count":  0,
+                       "offset":  0,
+                       "remaining":  27
+                   },
+                   {
+                       "index":  52,
+                       "op":  "read",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  0,
+                       "requested":  4,
+                       "count":  4,
+                       "offset":  0,
+                       "remaining":  23
+                   },
+                   {
+                       "index":  53,
+                       "op":  "close",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  0,
+                       "requested":  0,
+                       "count":  0,
+                       "offset":  0,
+                       "remaining":  0
+                   },
+                   {
+                       "index":  54,
+                       "op":  "open",
+                       "path":  "/virtual/readme.txt",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  27,
+                       "requested":  0,
+                       "count":  0,
+                       "offset":  0,
+                       "remaining":  0
+                   },
+                   {
+                       "index":  55,
+                       "op":  "read",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "invalid_argument",
+                       "size":  0,
+                       "requested":  4,
+                       "count":  0,
+                       "offset":  0,
+                       "remaining":  27
+                   },
+                   {
+                       "index":  56,
+                       "op":  "read",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  0,
+                       "requested":  4,
+                       "count":  4,
+                       "offset":  0,
+                       "remaining":  23
+                   },
+                   {
+                       "index":  57,
+                       "op":  "close",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  0,
+                       "requested":  0,
+                       "count":  0,
+                       "offset":  0,
+                       "remaining":  0
                    }
                ],
-    "run_count":  6,
+    "run_count":  8,
     "runs":  [
                  {
                      "name":  "unsupported_caps_app",
@@ -1188,6 +1284,120 @@
                                     },
                                     {
                                         "index":  49,
+                                        "op":  "close",
+                                        "path":  "",
+                                        "fd":  3,
+                                        "code":  "ok",
+                                        "size":  0,
+                                        "requested":  0,
+                                        "count":  0,
+                                        "offset":  0,
+                                        "remaining":  0
+                                    }
+                                ]
+                 },
+                 {
+                     "name":  "storage_error_app",
+                     "stage":  "exit",
+                     "code":  "ok",
+                     "exit":  0,
+                     "event_count":  4,
+                     "events":  [
+                                    {
+                                        "index":  50,
+                                        "op":  "open",
+                                        "path":  "/virtual/readme.txt",
+                                        "fd":  3,
+                                        "code":  "ok",
+                                        "size":  27,
+                                        "requested":  0,
+                                        "count":  0,
+                                        "offset":  0,
+                                        "remaining":  0
+                                    },
+                                    {
+                                        "index":  51,
+                                        "op":  "read",
+                                        "path":  "",
+                                        "fd":  3,
+                                        "code":  "invalid_argument",
+                                        "size":  0,
+                                        "requested":  4,
+                                        "count":  0,
+                                        "offset":  0,
+                                        "remaining":  27
+                                    },
+                                    {
+                                        "index":  52,
+                                        "op":  "read",
+                                        "path":  "",
+                                        "fd":  3,
+                                        "code":  "ok",
+                                        "size":  0,
+                                        "requested":  4,
+                                        "count":  4,
+                                        "offset":  0,
+                                        "remaining":  23
+                                    },
+                                    {
+                                        "index":  53,
+                                        "op":  "close",
+                                        "path":  "",
+                                        "fd":  3,
+                                        "code":  "ok",
+                                        "size":  0,
+                                        "requested":  0,
+                                        "count":  0,
+                                        "offset":  0,
+                                        "remaining":  0
+                                    }
+                                ]
+                 },
+                 {
+                     "name":  "store:storage_error_app",
+                     "stage":  "exit",
+                     "code":  "ok",
+                     "exit":  0,
+                     "event_count":  4,
+                     "events":  [
+                                    {
+                                        "index":  54,
+                                        "op":  "open",
+                                        "path":  "/virtual/readme.txt",
+                                        "fd":  3,
+                                        "code":  "ok",
+                                        "size":  27,
+                                        "requested":  0,
+                                        "count":  0,
+                                        "offset":  0,
+                                        "remaining":  0
+                                    },
+                                    {
+                                        "index":  55,
+                                        "op":  "read",
+                                        "path":  "",
+                                        "fd":  3,
+                                        "code":  "invalid_argument",
+                                        "size":  0,
+                                        "requested":  4,
+                                        "count":  0,
+                                        "offset":  0,
+                                        "remaining":  27
+                                    },
+                                    {
+                                        "index":  56,
+                                        "op":  "read",
+                                        "path":  "",
+                                        "fd":  3,
+                                        "code":  "ok",
+                                        "size":  0,
+                                        "requested":  4,
+                                        "count":  4,
+                                        "offset":  0,
+                                        "remaining":  23
+                                    },
+                                    {
+                                        "index":  57,
                                         "op":  "close",
                                         "path":  "",
                                         "fd":  3,

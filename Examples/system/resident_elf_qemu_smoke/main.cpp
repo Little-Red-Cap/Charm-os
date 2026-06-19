@@ -81,13 +81,6 @@ alignas(16) static const unsigned char g_bad_elf_short_header_payload[8]{
     1,
 };
 
-app_abi::AppLoadResult load_elf(void* ctx,
-                                const app_abi::AppImage& image,
-                                const app_abi::AppLoadBuffer& buffer) noexcept {
-    auto* backend = static_cast<app_abi::AppElfLoadBackend*>(ctx);
-    return app_abi::app_elf_load_image(backend, image, buffer);
-}
-
 struct MemoryStorage {
     std::byte* data{nullptr};
     std::size_t size{0};
@@ -407,6 +400,43 @@ bool mutate_elf_first_load_segment_rwx(const unsigned char* image_bytes, std::si
     return false;
 }
 
+bool mutate_elf_wrong_link_base(const unsigned char* image_bytes, std::size_t image_size) noexcept {
+    if (!copy_elf_for_mutation(image_bytes, image_size) ||
+        image_size < sizeof(app_abi::AppElf32Header)) {
+        return false;
+    }
+
+    app_abi::AppElf32Header header{};
+    std::memcpy(&header, g_mutated_elf_payload, sizeof(header));
+    if (header.phoff < header.ehsize ||
+        header.phoff > image_size ||
+        header.phentsize != sizeof(app_abi::AppElf32ProgramHeader) ||
+        header.phnum == 0U) {
+        return false;
+    }
+    const auto ph_table_bytes =
+        static_cast<std::uint64_t>(header.phentsize) * static_cast<std::uint64_t>(header.phnum);
+    if (static_cast<std::uint64_t>(header.phoff) + ph_table_bytes > image_size) {
+        return false;
+    }
+
+    constexpr std::uint32_t kLinkBaseDelta = 0x1000U;
+    header.entry += kLinkBaseDelta;
+    std::memcpy(g_mutated_elf_payload, &header, sizeof(header));
+
+    for (std::uint16_t i = 0; i < header.phnum; ++i) {
+        const auto ph_offset = header.phoff + (static_cast<std::uint32_t>(header.phentsize) * i);
+        app_abi::AppElf32ProgramHeader ph{};
+        std::memcpy(&ph, g_mutated_elf_payload + ph_offset, sizeof(ph));
+        if (ph.type == app_abi::kAppElfPtLoad && (ph.memsz != 0U || ph.filesz != 0U)) {
+            ph.vaddr += kLinkBaseDelta;
+            ph.paddr += kLinkBaseDelta;
+            std::memcpy(g_mutated_elf_payload + ph_offset, &ph, sizeof(ph));
+        }
+    }
+    return true;
+}
+
 bool expect_mutated_hello_load_failure(std::string_view name,
                                        bool (*mutate)(const unsigned char*, std::size_t) noexcept,
                                        app_abi::AppElfProbeCode expected_probe) noexcept;
@@ -462,6 +492,29 @@ ElfLinkFacts read_elf_link_facts(const app_abi::AppImage& image) noexcept {
     facts.entry_vaddr = header.entry;
     facts.valid = true;
     return facts;
+}
+
+app_abi::AppLoadResult load_elf(void* ctx,
+                                const app_abi::AppImage& image,
+                                const app_abi::AppLoadBuffer& buffer) noexcept {
+    auto* backend = static_cast<app_abi::AppElfLoadBackend*>(ctx);
+    const auto result = app_abi::app_elf_load_image(backend, image, buffer);
+    if (backend == nullptr ||
+        result.code != app_abi::AppRunCode::ok ||
+        backend->last.plan.probe.code != app_abi::AppElfProbeCode::ok) {
+        return result;
+    }
+
+    const auto facts = read_elf_link_facts(image);
+    if (!facts.valid || facts.link_base != static_cast<std::uint32_t>(kQemuRunRegionBase)) {
+        backend->last.code = app_abi::AppRunCode::load_failed;
+        backend->last.backend_error = -1;
+        return app_abi::AppLoadResult{
+            .code = app_abi::AppRunCode::load_failed,
+            .backend_error = backend->last.backend_error,
+        };
+    }
+    return result;
 }
 
 void log_format(app_abi::AppImageFormat format) noexcept;
@@ -1588,6 +1641,9 @@ extern "C" int resident_elf_qemu_main() {
     ok = expect_mutated_hello_load_failure("rwx_segment_app",
                                            mutate_elf_first_load_segment_rwx,
                                            app_abi::AppElfProbeCode::rwx_segment) && ok;
+    ok = expect_mutated_hello_load_failure("wrong_link_base_app",
+                                           mutate_elf_wrong_link_base,
+                                           app_abi::AppElfProbeCode::ok) && ok;
     ok = expect_load_failure("too_large_app",
                              too_large_app_elf,
                              too_large_app_elf_len,

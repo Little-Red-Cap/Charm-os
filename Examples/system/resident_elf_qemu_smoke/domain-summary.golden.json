@@ -537,6 +537,12 @@
                                       "exit":  0
                                   },
                                   {
+                                      "name":  "wrong_link_base_app",
+                                      "stage":  "load",
+                                      "code":  "load_failed",
+                                      "exit":  0
+                                  },
+                                  {
                                       "name":  "too_large_app",
                                       "stage":  "load",
                                       "code":  "load_failed",
@@ -2509,6 +2515,27 @@
                                        "capacity_probe":  "rwx_segment"
                                    },
                                    {
+                                       "name":  "wrong_link_base_app",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "link_base":  "0x20081000",
+                                       "link_base_numeric":  537399296,
+                                       "expected_base":  "0x20080000",
+                                       "expected_base_numeric":  537395200,
+                                       "entry":  "0x20080021",
+                                       "entry_numeric":  537395233,
+                                       "entry_vaddr":  "0x20081021",
+                                       "entry_vaddr_numeric":  537399329,
+                                       "span":  270,
+                                       "segments":  2,
+                                       "base_match":  false,
+                                       "needed":  270,
+                                       "free":  65266,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   },
+                                   {
                                        "name":  "too_large_app",
                                        "format":  "elf",
                                        "probe":  "load_buffer_too_small",
@@ -3421,6 +3448,18 @@
                                                "prepare":  null
                                            },
                                            {
+                                               "name":  "wrong_link_base_app",
+                                               "direct":  {
+                                                              "stage":  "load",
+                                                              "code":  "load_failed",
+                                                              "exit":  0
+                                                          },
+                                               "received":  null,
+                                               "packetstream":  null,
+                                               "store":  null,
+                                               "prepare":  null
+                                           },
+                                           {
                                                "name":  "too_large_app",
                                                "direct":  {
                                                               "stage":  "load",
@@ -3674,6 +3713,11 @@
                                             },
                                             {
                                                 "name":  "rwx_segment_app",
+                                                "stage":  "load",
+                                                "code":  "load_failed"
+                                            },
+                                            {
+                                                "name":  "wrong_link_base_app",
                                                 "stage":  "load",
                                                 "code":  "load_failed"
                                             },

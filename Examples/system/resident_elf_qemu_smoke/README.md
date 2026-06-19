@@ -91,6 +91,9 @@ the loader boundary. `bad_header_app`, `bad_class_app`, `bad_endian_app`,
 `truncated_payload_app`, `no_load_segment_app`, and `overlapping_segments_app`
 extend the same mutation matrix to ELF header ABI, program-header,
 payload-boundary, load-segment, and segment-overlap failures.
+`wrong_link_base_app` keeps the ELF structurally valid but shifts its `PT_LOAD`
+virtual addresses away from the QEMU domain run region; probe still reports
+`ok`, but the QEMU load backend must reject it before AppRuntime reaches start.
 `too_large_app` remains the ELF load-span negative case. `bad_elf_magic_app`
 validates malformed ELF rejection at AppRuntime load stage without entering the
 App or touching capabilities.
@@ -606,6 +609,11 @@ firmware, launches QEMU, and checks these tokens:
 - `resident-elf-qemu: capacity rwx_segment_app needed=0 free=65536 fits=1 region=65536 probe=rwx_segment`
 - `resident-elf-qemu: app rwx_segment_app stage=load code=load_failed exit=0`
 - `resident-elf-qemu: caps rwx_segment_app console=0 time=0 describe=0 present=0 input=0 exit=0`
+- `resident-elf-qemu: load wrong_link_base_app format=elf probe=ok link_base=0x20081000 expected_base=0x20080000`
+- `base_match=0`
+- `resident-elf-qemu: capacity wrong_link_base_app needed=270 free=65266 fits=1 region=65536 probe=ok`
+- `resident-elf-qemu: app wrong_link_base_app stage=load code=load_failed exit=0`
+- `resident-elf-qemu: caps wrong_link_base_app console=0 time=0 describe=0 present=0 input=0 exit=0`
 - `resident-elf-qemu: load too_large_app format=elf probe=load_buffer_too_small`
 - `resident-elf-qemu: capacity too_large_app needed=82176 free=0 fits=0 region=65536 probe=load_buffer_too_small`
 - `resident-elf-qemu: app too_large_app stage=load code=load_failed exit=0`

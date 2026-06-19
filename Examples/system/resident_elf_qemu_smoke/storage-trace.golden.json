@@ -1,7 +1,7 @@
 {
     "schema":  "charm.resident_elf_qemu.storage_trace.v1",
-    "log":  "",
-    "event_count":  57,
+    "log":  "qemu-ci.log",
+    "event_count":  69,
     "events":  [
                    {
                        "index":  1,
@@ -605,30 +605,6 @@
                    },
                    {
                        "index":  51,
-                       "op":  "read",
-                       "path":  "",
-                       "fd":  3,
-                       "code":  "invalid_argument",
-                       "size":  0,
-                       "requested":  4,
-                       "count":  0,
-                       "offset":  0,
-                       "remaining":  27
-                   },
-                   {
-                       "index":  52,
-                       "op":  "read",
-                       "path":  "",
-                       "fd":  3,
-                       "code":  "ok",
-                       "size":  0,
-                       "requested":  4,
-                       "count":  4,
-                       "offset":  0,
-                       "remaining":  23
-                   },
-                   {
-                       "index":  53,
                        "op":  "close",
                        "path":  "",
                        "fd":  3,
@@ -640,7 +616,19 @@
                        "remaining":  0
                    },
                    {
-                       "index":  54,
+                       "index":  52,
+                       "op":  "close",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "unsupported",
+                       "size":  0,
+                       "requested":  0,
+                       "count":  0,
+                       "offset":  0,
+                       "remaining":  0
+                   },
+                   {
+                       "index":  53,
                        "op":  "open",
                        "path":  "/virtual/readme.txt",
                        "fd":  3,
@@ -652,28 +640,40 @@
                        "remaining":  0
                    },
                    {
-                       "index":  55,
-                       "op":  "read",
-                       "path":  "",
-                       "fd":  3,
-                       "code":  "invalid_argument",
-                       "size":  0,
-                       "requested":  4,
-                       "count":  0,
-                       "offset":  0,
-                       "remaining":  27
-                   },
-                   {
-                       "index":  56,
+                       "index":  54,
                        "op":  "read",
                        "path":  "",
                        "fd":  3,
                        "code":  "ok",
                        "size":  0,
-                       "requested":  4,
-                       "count":  4,
+                       "requested":  1,
+                       "count":  1,
                        "offset":  0,
-                       "remaining":  23
+                       "remaining":  26
+                   },
+                   {
+                       "index":  55,
+                       "op":  "close",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  0,
+                       "requested":  0,
+                       "count":  0,
+                       "offset":  0,
+                       "remaining":  0
+                   },
+                   {
+                       "index":  56,
+                       "op":  "open",
+                       "path":  "/virtual/readme.txt",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  27,
+                       "requested":  0,
+                       "count":  0,
+                       "offset":  0,
+                       "remaining":  0
                    },
                    {
                        "index":  57,
@@ -686,9 +686,153 @@
                        "count":  0,
                        "offset":  0,
                        "remaining":  0
+                   },
+                   {
+                       "index":  58,
+                       "op":  "close",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "unsupported",
+                       "size":  0,
+                       "requested":  0,
+                       "count":  0,
+                       "offset":  0,
+                       "remaining":  0
+                   },
+                   {
+                       "index":  59,
+                       "op":  "open",
+                       "path":  "/virtual/readme.txt",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  27,
+                       "requested":  0,
+                       "count":  0,
+                       "offset":  0,
+                       "remaining":  0
+                   },
+                   {
+                       "index":  60,
+                       "op":  "read",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  0,
+                       "requested":  1,
+                       "count":  1,
+                       "offset":  0,
+                       "remaining":  26
+                   },
+                   {
+                       "index":  61,
+                       "op":  "close",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  0,
+                       "requested":  0,
+                       "count":  0,
+                       "offset":  0,
+                       "remaining":  0
+                   },
+                   {
+                       "index":  62,
+                       "op":  "open",
+                       "path":  "/virtual/readme.txt",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  27,
+                       "requested":  0,
+                       "count":  0,
+                       "offset":  0,
+                       "remaining":  0
+                   },
+                   {
+                       "index":  63,
+                       "op":  "read",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "invalid_argument",
+                       "size":  0,
+                       "requested":  4,
+                       "count":  0,
+                       "offset":  0,
+                       "remaining":  27
+                   },
+                   {
+                       "index":  64,
+                       "op":  "read",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  0,
+                       "requested":  4,
+                       "count":  4,
+                       "offset":  0,
+                       "remaining":  23
+                   },
+                   {
+                       "index":  65,
+                       "op":  "close",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  0,
+                       "requested":  0,
+                       "count":  0,
+                       "offset":  0,
+                       "remaining":  0
+                   },
+                   {
+                       "index":  66,
+                       "op":  "open",
+                       "path":  "/virtual/readme.txt",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  27,
+                       "requested":  0,
+                       "count":  0,
+                       "offset":  0,
+                       "remaining":  0
+                   },
+                   {
+                       "index":  67,
+                       "op":  "read",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "invalid_argument",
+                       "size":  0,
+                       "requested":  4,
+                       "count":  0,
+                       "offset":  0,
+                       "remaining":  27
+                   },
+                   {
+                       "index":  68,
+                       "op":  "read",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  0,
+                       "requested":  4,
+                       "count":  4,
+                       "offset":  0,
+                       "remaining":  23
+                   },
+                   {
+                       "index":  69,
+                       "op":  "close",
+                       "path":  "",
+                       "fd":  3,
+                       "code":  "ok",
+                       "size":  0,
+                       "requested":  0,
+                       "count":  0,
+                       "offset":  0,
+                       "remaining":  0
                    }
                ],
-    "run_count":  8,
+    "run_count":  10,
     "runs":  [
                  {
                      "name":  "unsupported_caps_app",
@@ -1297,11 +1441,11 @@
                                 ]
                  },
                  {
-                     "name":  "storage_error_app",
+                     "name":  "storage_close_error_app",
                      "stage":  "exit",
                      "code":  "ok",
                      "exit":  0,
-                     "event_count":  4,
+                     "event_count":  6,
                      "events":  [
                                     {
                                         "index":  50,
@@ -1317,6 +1461,168 @@
                                     },
                                     {
                                         "index":  51,
+                                        "op":  "close",
+                                        "path":  "",
+                                        "fd":  3,
+                                        "code":  "ok",
+                                        "size":  0,
+                                        "requested":  0,
+                                        "count":  0,
+                                        "offset":  0,
+                                        "remaining":  0
+                                    },
+                                    {
+                                        "index":  52,
+                                        "op":  "close",
+                                        "path":  "",
+                                        "fd":  3,
+                                        "code":  "unsupported",
+                                        "size":  0,
+                                        "requested":  0,
+                                        "count":  0,
+                                        "offset":  0,
+                                        "remaining":  0
+                                    },
+                                    {
+                                        "index":  53,
+                                        "op":  "open",
+                                        "path":  "/virtual/readme.txt",
+                                        "fd":  3,
+                                        "code":  "ok",
+                                        "size":  27,
+                                        "requested":  0,
+                                        "count":  0,
+                                        "offset":  0,
+                                        "remaining":  0
+                                    },
+                                    {
+                                        "index":  54,
+                                        "op":  "read",
+                                        "path":  "",
+                                        "fd":  3,
+                                        "code":  "ok",
+                                        "size":  0,
+                                        "requested":  1,
+                                        "count":  1,
+                                        "offset":  0,
+                                        "remaining":  26
+                                    },
+                                    {
+                                        "index":  55,
+                                        "op":  "close",
+                                        "path":  "",
+                                        "fd":  3,
+                                        "code":  "ok",
+                                        "size":  0,
+                                        "requested":  0,
+                                        "count":  0,
+                                        "offset":  0,
+                                        "remaining":  0
+                                    }
+                                ]
+                 },
+                 {
+                     "name":  "store:storage_close_error_app",
+                     "stage":  "exit",
+                     "code":  "ok",
+                     "exit":  0,
+                     "event_count":  6,
+                     "events":  [
+                                    {
+                                        "index":  56,
+                                        "op":  "open",
+                                        "path":  "/virtual/readme.txt",
+                                        "fd":  3,
+                                        "code":  "ok",
+                                        "size":  27,
+                                        "requested":  0,
+                                        "count":  0,
+                                        "offset":  0,
+                                        "remaining":  0
+                                    },
+                                    {
+                                        "index":  57,
+                                        "op":  "close",
+                                        "path":  "",
+                                        "fd":  3,
+                                        "code":  "ok",
+                                        "size":  0,
+                                        "requested":  0,
+                                        "count":  0,
+                                        "offset":  0,
+                                        "remaining":  0
+                                    },
+                                    {
+                                        "index":  58,
+                                        "op":  "close",
+                                        "path":  "",
+                                        "fd":  3,
+                                        "code":  "unsupported",
+                                        "size":  0,
+                                        "requested":  0,
+                                        "count":  0,
+                                        "offset":  0,
+                                        "remaining":  0
+                                    },
+                                    {
+                                        "index":  59,
+                                        "op":  "open",
+                                        "path":  "/virtual/readme.txt",
+                                        "fd":  3,
+                                        "code":  "ok",
+                                        "size":  27,
+                                        "requested":  0,
+                                        "count":  0,
+                                        "offset":  0,
+                                        "remaining":  0
+                                    },
+                                    {
+                                        "index":  60,
+                                        "op":  "read",
+                                        "path":  "",
+                                        "fd":  3,
+                                        "code":  "ok",
+                                        "size":  0,
+                                        "requested":  1,
+                                        "count":  1,
+                                        "offset":  0,
+                                        "remaining":  26
+                                    },
+                                    {
+                                        "index":  61,
+                                        "op":  "close",
+                                        "path":  "",
+                                        "fd":  3,
+                                        "code":  "ok",
+                                        "size":  0,
+                                        "requested":  0,
+                                        "count":  0,
+                                        "offset":  0,
+                                        "remaining":  0
+                                    }
+                                ]
+                 },
+                 {
+                     "name":  "storage_error_app",
+                     "stage":  "exit",
+                     "code":  "ok",
+                     "exit":  0,
+                     "event_count":  4,
+                     "events":  [
+                                    {
+                                        "index":  62,
+                                        "op":  "open",
+                                        "path":  "/virtual/readme.txt",
+                                        "fd":  3,
+                                        "code":  "ok",
+                                        "size":  27,
+                                        "requested":  0,
+                                        "count":  0,
+                                        "offset":  0,
+                                        "remaining":  0
+                                    },
+                                    {
+                                        "index":  63,
                                         "op":  "read",
                                         "path":  "",
                                         "fd":  3,
@@ -1328,7 +1634,7 @@
                                         "remaining":  27
                                     },
                                     {
-                                        "index":  52,
+                                        "index":  64,
                                         "op":  "read",
                                         "path":  "",
                                         "fd":  3,
@@ -1340,7 +1646,7 @@
                                         "remaining":  23
                                     },
                                     {
-                                        "index":  53,
+                                        "index":  65,
                                         "op":  "close",
                                         "path":  "",
                                         "fd":  3,
@@ -1361,7 +1667,7 @@
                      "event_count":  4,
                      "events":  [
                                     {
-                                        "index":  54,
+                                        "index":  66,
                                         "op":  "open",
                                         "path":  "/virtual/readme.txt",
                                         "fd":  3,
@@ -1373,7 +1679,7 @@
                                         "remaining":  0
                                     },
                                     {
-                                        "index":  55,
+                                        "index":  67,
                                         "op":  "read",
                                         "path":  "",
                                         "fd":  3,
@@ -1385,7 +1691,7 @@
                                         "remaining":  27
                                     },
                                     {
-                                        "index":  56,
+                                        "index":  68,
                                         "op":  "read",
                                         "path":  "",
                                         "fd":  3,
@@ -1397,7 +1703,7 @@
                                         "remaining":  23
                                     },
                                     {
-                                        "index":  57,
+                                        "index":  69,
                                         "op":  "close",
                                         "path":  "",
                                         "fd":  3,

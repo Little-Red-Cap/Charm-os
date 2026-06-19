@@ -31,6 +31,7 @@ set(CHARM_QEMU_REQUIRED_INC_FILES
     player_min.elf.inc
     storage_app.elf.inc
     storage_catalog_app.elf.inc
+    storage_close_error_app.elf.inc
     storage_error_app.elf.inc
     time_app.elf.inc
     too_large_app.elf.inc

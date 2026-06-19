@@ -38,13 +38,13 @@
                 },
     "store":  {
                   "format":  "store_v1",
-                  "entries":  20,
-                  "bytes":  117504,
+                  "entries":  21,
+                  "bytes":  122624,
                   "media":  {
                                 "kind":  "memory",
-                                "bytes":  117504,
-                                "read_calls":  270,
-                                "read_bytes":  106960,
+                                "bytes":  122624,
+                                "read_calls":  294,
+                                "read_bytes":  113008,
                                 "read_failures":  0
                             }
               },
@@ -190,6 +190,18 @@
                                   },
                                   {
                                       "name":  "store:storage_catalog_app",
+                                      "stage":  "exit",
+                                      "code":  "ok",
+                                      "exit":  0
+                                  },
+                                  {
+                                      "name":  "storage_close_error_app",
+                                      "stage":  "exit",
+                                      "code":  "ok",
+                                      "exit":  0
+                                  },
+                                  {
+                                      "name":  "store:storage_close_error_app",
                                       "stage":  "exit",
                                       "code":  "ok",
                                       "exit":  0
@@ -505,6 +517,12 @@
                                     {
                                         "source":  "store",
                                         "name":  "storage_catalog_app",
+                                        "code":  "ok",
+                                        "expected":  ""
+                                    },
+                                    {
+                                        "source":  "store",
+                                        "name":  "storage_close_error_app",
                                         "code":  "ok",
                                         "expected":  ""
                                     },
@@ -934,6 +952,34 @@
                                        "segments":  2,
                                        "needed":  454,
                                        "free":  65082,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   },
+                                   {
+                                       "name":  "storage_close_error_app",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "entry":  "0x20080001",
+                                       "entry_numeric":  537395201,
+                                       "span":  237,
+                                       "segments":  2,
+                                       "needed":  237,
+                                       "free":  65299,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   },
+                                   {
+                                       "name":  "store:storage_close_error_app",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "entry":  "0x20080001",
+                                       "entry_numeric":  537395201,
+                                       "span":  237,
+                                       "segments":  2,
+                                       "needed":  237,
+                                       "free":  65299,
                                        "fits":  true,
                                        "region":  65536,
                                        "capacity_probe":  "ok"
@@ -1790,6 +1836,22 @@
                                                "prepare":  null
                                            },
                                            {
+                                               "name":  "storage_close_error_app",
+                                               "direct":  {
+                                                              "stage":  "exit",
+                                                              "code":  "ok",
+                                                              "exit":  0
+                                                          },
+                                               "received":  null,
+                                               "packetstream":  null,
+                                               "store":  {
+                                                             "stage":  "exit",
+                                                             "code":  "ok",
+                                                             "exit":  0
+                                                         },
+                                               "prepare":  null
+                                           },
+                                           {
                                                "name":  "storage_error_app",
                                                "direct":  {
                                                               "stage":  "exit",
@@ -2398,7 +2460,7 @@
                      "input_trace_event_count":  12,
                      "input_trace_run_count":  6,
                      "storage_trace":  "storage-trace.json",
-                     "storage_trace_event_count":  57,
-                     "storage_trace_run_count":  8
+                     "storage_trace_event_count":  69,
+                     "storage_trace_run_count":  10
                  }
 }

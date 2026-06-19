@@ -2389,6 +2389,41 @@ function Write-DomainSummaryCapture {
             capabilities = @($BackendCapabilities -split ",")
             storage = $BackendStorageMode
             afe = $BackendAfeMode
+            time = [pscustomobject]@{
+                kind = "deterministic_tick"
+                start_ms = 1000
+                step_ms = 17
+                reset_per_run = $true
+            }
+            display = [pscustomobject]@{
+                kind = "framebuffer"
+                width = $DisplayWidth
+                height = $DisplayHeight
+                stride_bytes = $DisplayStride
+                format = $DisplayFormat
+                frame_bytes = $DisplayFrameBytes
+                evidence = @("frame_signatures", "frame_dumps", "frame_ppm", "gui_timeline")
+            }
+            input = [pscustomobject]@{
+                kind = "deterministic_sequence"
+                sample_count = 4
+                pointer_max_x = 15
+                pointer_max_y = 15
+                wraps = $true
+                evidence = @("input_trace", "gui_timeline")
+            }
+            storage_media = [pscustomobject]@{
+                kind = "virtual_readonly_files"
+                file_count = 3
+                fd_base = 3
+                fd_slots = 4
+                write_policy = "unsupported"
+                evidence = @("storage_trace")
+            }
+            app_exit = [pscustomobject]@{
+                kind = "notification_counter"
+                overrides_return = $false
+            }
         }
         run_region = [pscustomobject]@{
             base = $RunRegionBase
@@ -2941,6 +2976,55 @@ function Validate-DomainSummaryFile {
     }
     if ($BackendCapabilities.Count -ne 6) {
         throw "domain_summary_validate_failed: unexpected backend capability count"
+    }
+    if ($Summary.backend_contract.time.kind -ne "deterministic_tick" -or
+        [int]$Summary.backend_contract.time.start_ms -ne 1000 -or
+        [int]$Summary.backend_contract.time.step_ms -ne 17 -or
+        -not [bool]$Summary.backend_contract.time.reset_per_run) {
+        throw "domain_summary_validate_failed: bad time backend contract"
+    }
+    $BackendDisplayEvidence = @($Summary.backend_contract.display.evidence)
+    foreach ($Evidence in @("frame_signatures", "frame_dumps", "frame_ppm", "gui_timeline")) {
+        if (-not ($BackendDisplayEvidence -contains $Evidence)) {
+            throw "domain_summary_validate_failed: display backend evidence missing $Evidence"
+        }
+    }
+    if ($Summary.backend_contract.display.kind -ne "framebuffer" -or
+        [int]$Summary.backend_contract.display.width -ne 16 -or
+        [int]$Summary.backend_contract.display.height -ne 16 -or
+        [int]$Summary.backend_contract.display.stride_bytes -ne 64 -or
+        $Summary.backend_contract.display.format -ne "argb8888" -or
+        [int]$Summary.backend_contract.display.frame_bytes -ne 1024 -or
+        $BackendDisplayEvidence.Count -ne 4) {
+        throw "domain_summary_validate_failed: bad display backend contract"
+    }
+    $BackendInputEvidence = @($Summary.backend_contract.input.evidence)
+    foreach ($Evidence in @("input_trace", "gui_timeline")) {
+        if (-not ($BackendInputEvidence -contains $Evidence)) {
+            throw "domain_summary_validate_failed: input backend evidence missing $Evidence"
+        }
+    }
+    if ($Summary.backend_contract.input.kind -ne "deterministic_sequence" -or
+        [int]$Summary.backend_contract.input.sample_count -ne 4 -or
+        [int]$Summary.backend_contract.input.pointer_max_x -ne 15 -or
+        [int]$Summary.backend_contract.input.pointer_max_y -ne 15 -or
+        -not [bool]$Summary.backend_contract.input.wraps -or
+        $BackendInputEvidence.Count -ne 2) {
+        throw "domain_summary_validate_failed: bad input backend contract"
+    }
+    $BackendStorageEvidence = @($Summary.backend_contract.storage_media.evidence)
+    if ($Summary.backend_contract.storage_media.kind -ne "virtual_readonly_files" -or
+        [int]$Summary.backend_contract.storage_media.file_count -ne 3 -or
+        [int]$Summary.backend_contract.storage_media.fd_base -ne 3 -or
+        [int]$Summary.backend_contract.storage_media.fd_slots -ne 4 -or
+        $Summary.backend_contract.storage_media.write_policy -ne "unsupported" -or
+        $BackendStorageEvidence.Count -ne 1 -or
+        -not ($BackendStorageEvidence -contains "storage_trace")) {
+        throw "domain_summary_validate_failed: bad storage backend contract"
+    }
+    if ($Summary.backend_contract.app_exit.kind -ne "notification_counter" -or
+        [bool]$Summary.backend_contract.app_exit.overrides_return) {
+        throw "domain_summary_validate_failed: bad app_exit backend contract"
     }
     if ($Summary.run_region.base -ne "0x20080000" -or $Summary.run_region.expected -ne "0x20080000" -or [int]$Summary.run_region.size -ne 65536) {
         throw "domain_summary_validate_failed: bad run region"
@@ -3704,6 +3788,10 @@ function Invoke-SelfTest {
     Assert-BadDomainSummaryRejected -SourcePath $GoldenDomainSummaryFile -Label "app_model" -Mutate {
         param($Summary)
         $Summary.app_model = "RawJump"
+    }
+    Assert-BadDomainSummaryRejected -SourcePath $GoldenDomainSummaryFile -Label "backend_contract_storage_slots" -Mutate {
+        param($Summary)
+        $Summary.backend_contract.storage_media.fd_slots = 3
     }
     Assert-BadDomainSummaryRejected -SourcePath $GoldenDomainSummaryFile -Label "packetstream_crc" -Mutate {
         param($Summary)

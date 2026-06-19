@@ -224,6 +224,12 @@ The smoke logs `resident-elf-qemu: backend-capabilities ...`, and
 is the virtual-board evidence contract for this smoke: runtime domain
 `virtual_m7`, virtual capabilities `console,time,display,input,storage,app_exit`,
 read-only storage, and unsupported AFE. It is not a product backend registry.
+The same section also pins smoke-local backend semantics in machine-readable
+form: deterministic time starts at `1000 ms` and advances by `17 ms`, display is
+a 16x16 ARGB8888 framebuffer with frame signature/dump/PPM evidence, input is a
+four-sample wrapping deterministic sequence, storage is a three-file read-only
+virtual media with fd base `3` and four fd slots, and `app.exit` is a
+notification counter that does not override the App return value.
 
 The QEMU-local Store path is exposed through a smoke-local virtual memory media
 reader owned by `qemu_virtual_backend`. Its counters are logged as
@@ -709,10 +715,12 @@ proof that the QEMU run is a `virtual_m7` runtime domain with run region
 `0x20080000..0x20090000`, 16 KiB stage cache, Store v1 staging, direct/received/
 packetstream/Store ELF runs, prepare-only coverage, capability coverage, and the
 expected negative cases. Its `backend_contract` section records the smoke-local
-virtual capabilities and unsupported AFE boundary. Its `display` section records
-the fixed virtual display mode so GUI evidence drift is caught before frame
-hashes are interpreted. Its evidence section records frame signature, full dump,
-visual PPM, input trace, and storage trace counts. Its `coverage.loads` section records the ELF loader/probe/capacity
+virtual capabilities, unsupported AFE boundary, deterministic time tick,
+framebuffer display evidence, deterministic input sequence, read-only virtual
+storage media, and `app.exit` return-value semantics. Its `display` section
+records the fixed virtual display mode so GUI evidence drift is caught before
+frame hashes are interpreted. Its evidence section records frame signature, full
+dump, visual PPM, input trace, and storage trace counts. Its `coverage.loads` section records the ELF loader/probe/capacity
 facts for each loaded image: format, probe code, ELF link base, expected domain
 base, materialized entry, original entry vaddr, span, segment count,
 needed/free bytes, fit result, base match, and run region. It is an off-board evidence

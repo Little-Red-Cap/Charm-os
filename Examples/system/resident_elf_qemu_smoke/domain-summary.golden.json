@@ -17,7 +17,52 @@
                                                   "app_exit"
                                               ],
                              "storage":  "readonly",
-                             "afe":  "unsupported"
+                             "afe":  "unsupported",
+                             "time":  {
+                                          "kind":  "deterministic_tick",
+                                          "start_ms":  1000,
+                                          "step_ms":  17,
+                                          "reset_per_run":  true
+                                      },
+                             "display":  {
+                                             "kind":  "framebuffer",
+                                             "width":  16,
+                                             "height":  16,
+                                             "stride_bytes":  64,
+                                             "format":  "argb8888",
+                                             "frame_bytes":  1024,
+                                             "evidence":  [
+                                                              "frame_signatures",
+                                                              "frame_dumps",
+                                                              "frame_ppm",
+                                                              "gui_timeline"
+                                                          ]
+                                         },
+                             "input":  {
+                                           "kind":  "deterministic_sequence",
+                                           "sample_count":  4,
+                                           "pointer_max_x":  15,
+                                           "pointer_max_y":  15,
+                                           "wraps":  true,
+                                           "evidence":  [
+                                                            "input_trace",
+                                                            "gui_timeline"
+                                                        ]
+                                       },
+                             "storage_media":  {
+                                                   "kind":  "virtual_readonly_files",
+                                                   "file_count":  3,
+                                                   "fd_base":  3,
+                                                   "fd_slots":  4,
+                                                   "write_policy":  "unsupported",
+                                                   "evidence":  [
+                                                                    "storage_trace"
+                                                                ]
+                                               },
+                             "app_exit":  {
+                                              "kind":  "notification_counter",
+                                              "overrides_return":  false
+                                          }
                          },
     "run_region":  {
                        "base":  "0x20080000",

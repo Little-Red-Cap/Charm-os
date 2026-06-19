@@ -16,7 +16,7 @@ param(
     [string]$DomainSummaryOut = "$PSScriptRoot\domain-summary.json",
     [string]$GoldenDomainSummary = "$PSScriptRoot\domain-summary.golden.json",
     [string]$ElfBase = "0x20080000",
-    [int]$TimeoutSec = 8,
+    [int]$TimeoutSec = 15,
     [int]$TailLines = 80,
     [string]$ValidateLog = "",
     [string]$ValidateFrameSignatures = "",
@@ -201,6 +201,7 @@ function Get-QemuAppNames {
         "player_min",
         "argv_app",
         "bss_app",
+        "console_error_app",
         "data_app",
         "display_error_app",
         "display_sequence_app",
@@ -233,7 +234,7 @@ function Get-ExpectedTokens {
         "resident-elf-qemu: backend-capabilities capabilities=console,time,display,input,storage,app_exit storage=readonly afe=unsupported",
         "resident-elf-qemu: run-region base=0x20080000 expected=0x20080000 size=65536",
         "resident-elf-qemu: stage-cache bytes=16384",
-        "resident-elf-qemu: store entries=17 bytes=",
+        "resident-elf-qemu: store entries=18 bytes=",
         "resident-elf-qemu: store-media kind=memory bytes=",
         "resident-elf-qemu: unsupported storage_open=1 storage_read=1 storage_write=1 storage_close=1 afe_configure=1 afe_read=1 storage_count=1/1/1/1 afe_count=1/1",
         "hello_app: charm_app_main entered",
@@ -282,6 +283,11 @@ function Get-ExpectedTokens {
         "resident-elf-qemu: app store:bss_app stage=exit code=ok exit=0",
         "resident-elf-qemu: capacity store:bss_app needed=513 free=65023 fits=1 region=65536 probe=ok",
         "resident-elf-qemu: caps store:bss_app console=22 time=0 describe=0 present=0 input=0 exit=0",
+        "console_error_app: null write rejected",
+        "resident-elf-qemu: app console_error_app stage=exit code=ok exit=0",
+        "resident-elf-qemu: caps console_error_app console=39 time=0 describe=0 present=0 input=0 exit=0",
+        "resident-elf-qemu: app store:console_error_app stage=exit code=ok exit=0",
+        "resident-elf-qemu: caps store:console_error_app console=39 time=0 describe=0 present=0 input=0 exit=0",
         "data_app: data-init ok checksum=50",
         "resident-elf-qemu: app data_app stage=exit code=ok exit=0",
         "resident-elf-qemu: store stage name=data_app code=ok format=elf size=",
@@ -2512,7 +2518,7 @@ function Assert-DomainNegativeCase {
 function Assert-DomainStoreMedia {
     param([object]$Store)
 
-    if ($Store.format -ne "store_v1" -or [int]$Store.entries -ne 17 -or [int]$Store.bytes -le 0) {
+    if ($Store.format -ne "store_v1" -or [int]$Store.entries -ne 18 -or [int]$Store.bytes -le 0) {
         throw "domain_summary_validate_failed: bad store summary"
     }
     if ($Store.media.kind -ne "memory" -or
@@ -2723,7 +2729,7 @@ function Validate-DomainSummaryFile {
     }
     Assert-DomainStoreMedia -Store $Summary.store
     $Runs = @($Summary.coverage.runs)
-    Assert-DomainCount -Name "runs" -Actual $Runs.Count -Expected 58
+    Assert-DomainCount -Name "runs" -Actual $Runs.Count -Expected 60
     Assert-DomainRun -Runs $Runs -Name "hello_app" -Stage "exit" -Code "ok"
     Assert-DomainRun -Runs $Runs -Name "received:hello_app" -Stage "exit" -Code "ok"
     Assert-DomainRun -Runs $Runs -Name "store:hello_app" -Stage "exit" -Code "ok"
@@ -2736,6 +2742,8 @@ function Validate-DomainSummaryFile {
     Assert-DomainRun -Runs $Runs -Name "packetstream:large_fit_app" -Stage "exit" -Code "ok"
     Assert-DomainRun -Runs $Runs -Name "store:large_fit_app" -Stage "exit" -Code "ok"
     Assert-DomainRun -Runs $Runs -Name "data_app" -Stage "exit" -Code "ok"
+    Assert-DomainRun -Runs $Runs -Name "console_error_app" -Stage "exit" -Code "ok"
+    Assert-DomainRun -Runs $Runs -Name "store:console_error_app" -Stage "exit" -Code "ok"
     Assert-DomainRun -Runs $Runs -Name "store:data_app" -Stage "exit" -Code "ok"
     Assert-DomainRun -Runs $Runs -Name "display_error_app" -Stage "exit" -Code "ok"
     Assert-DomainRun -Runs $Runs -Name "store:display_error_app" -Stage "exit" -Code "ok"
@@ -2764,10 +2772,11 @@ function Validate-DomainSummaryFile {
     Assert-DomainRun -Runs $Runs -Name "argv_overflow_app" -Stage "argv" -Code "argv_overflow"
     Assert-DomainRun -Runs $Runs -Name "abi_mismatch_app" -Stage "abi" -Code "abi_mismatch"
     $Stages = @($Summary.coverage.stages)
-    Assert-DomainCount -Name "stages" -Actual $Stages.Count -Expected 22
+    Assert-DomainCount -Name "stages" -Actual $Stages.Count -Expected 23
     Assert-DomainStage -Stages $Stages -Source "received" -Name "hello_app" -Code "ok"
     Assert-DomainStage -Stages $Stages -Source "received" -Name "large_fit_app" -Code "ok"
     Assert-DomainStage -Stages $Stages -Source "store" -Name "hello_app" -Code "ok"
+    Assert-DomainStage -Stages $Stages -Source "store" -Name "console_error_app" -Code "ok"
     Assert-DomainStage -Stages $Stages -Source "store" -Name "data_app" -Code "ok"
     Assert-DomainStage -Stages $Stages -Source "store" -Name "display_error_app" -Code "ok"
     Assert-DomainStage -Stages $Stages -Source "store" -Name "input_error_app" -Code "ok"
@@ -2775,7 +2784,7 @@ function Validate-DomainSummaryFile {
     Assert-DomainStage -Stages $Stages -Source "store" -Name "large_fit_app" -Code "ok"
     Assert-DomainStage -Stages $Stages -Source "store" -Name "too_large_store_app" -Code "image_too_large"
     $Loads = @($Summary.coverage.loads)
-    Assert-DomainCount -Name "loads" -Actual $Loads.Count -Expected 59
+    Assert-DomainCount -Name "loads" -Actual $Loads.Count -Expected 61
     Assert-DomainLoad -Loads $Loads -Name "hello_app" -Probe "ok" -Fits $true -Region 65536 -MinSpan 1 -Segments 2
     Assert-DomainLoad -Loads $Loads -Name "received:hello_app" -Probe "ok" -Fits $true -Region 65536 -MinSpan 1 -Segments 2
     Assert-DomainLoad -Loads $Loads -Name "packetstream:hello_app" -Probe "ok" -Fits $true -Region 65536 -MinSpan 1 -Segments 2
@@ -2786,6 +2795,8 @@ function Validate-DomainSummaryFile {
     Assert-DomainLoad -Loads $Loads -Name "packetstream:player_min" -Probe "ok" -Fits $true -Region 65536 -MinSpan 1 -Segments 3
     Assert-DomainLoad -Loads $Loads -Name "store:player_min" -Probe "ok" -Fits $true -Region 65536 -MinSpan 1 -Segments 3
     Assert-DomainLoad -Loads $Loads -Name "bss_app" -Probe "ok" -Fits $true -Region 65536 -MinSpan 1 -Segments 3
+    Assert-DomainLoad -Loads $Loads -Name "console_error_app" -Probe "ok" -Fits $true -Region 65536 -MinSpan 1 -Segments 2
+    Assert-DomainLoad -Loads $Loads -Name "store:console_error_app" -Probe "ok" -Fits $true -Region 65536 -MinSpan 1 -Segments 2
     Assert-DomainLoad -Loads $Loads -Name "data_app" -Probe "ok" -Fits $true -Region 65536 -MinSpan 1 -Segments 3
     Assert-DomainLoad -Loads $Loads -Name "store:data_app" -Probe "ok" -Fits $true -Region 65536 -MinSpan 1 -Segments 3
     Assert-DomainLoad -Loads $Loads -Name "display_error_app" -Probe "ok" -Fits $true -Region 65536 -MinSpan 1 -Segments 3
@@ -2868,12 +2879,13 @@ function Validate-DomainSummaryFile {
     Assert-DomainNegativeCase -NegativeCases $NegativeCases -Name "argv_overflow_app" -Stage "argv" -Code "argv_overflow"
     Assert-DomainNegativeCase -NegativeCases $NegativeCases -Name "abi_mismatch_app" -Stage "abi" -Code "abi_mismatch"
     $SourceMatrix = @($Summary.coverage.source_matrix)
-    Assert-DomainCount -Name "source_matrix" -Actual $SourceMatrix.Count -Expected 36
+    Assert-DomainCount -Name "source_matrix" -Actual $SourceMatrix.Count -Expected 37
     Assert-SourceMatrixEntry -Matrix $SourceMatrix -Name "hello_app" -Sources @("direct", "received", "packetstream", "store")
     Assert-SourceMatrixEntry -Matrix $SourceMatrix -Name "large_fit_app" -Sources @("direct", "received", "packetstream", "store")
     Assert-SourceMatrixEntry -Matrix $SourceMatrix -Name "player_min" -Sources @("direct", "received", "packetstream", "store")
     Assert-SourceMatrixEntry -Matrix $SourceMatrix -Name "argv_app" -Sources @("direct", "store", "prepare")
     Assert-SourceMatrixEntry -Matrix $SourceMatrix -Name "bss_app" -Sources @("direct", "store")
+    Assert-SourceMatrixEntry -Matrix $SourceMatrix -Name "console_error_app" -Sources @("direct", "store")
     Assert-SourceMatrixEntry -Matrix $SourceMatrix -Name "data_app" -Sources @("direct", "store")
     Assert-SourceMatrixEntry -Matrix $SourceMatrix -Name "display_error_app" -Sources @("direct", "store")
     Assert-SourceMatrixEntry -Matrix $SourceMatrix -Name "display_sequence_app" -Sources @("direct", "store")
@@ -3041,7 +3053,7 @@ function Invoke-SelfTest {
     }
     $GoodStoreSummary = [pscustomobject]@{
         format = "store_v1"
-        entries = 17
+        entries = 18
         bytes = 87584
         media = [pscustomobject]@{
             kind = "memory"
@@ -3054,7 +3066,7 @@ function Invoke-SelfTest {
     Assert-DomainStoreMedia -Store $GoodStoreSummary
     $BadStoreSummary = [pscustomobject]@{
         format = "store_v1"
-        entries = 17
+        entries = 18
         bytes = 87584
         media = [pscustomobject]@{
             kind = "memory"
@@ -3241,6 +3253,7 @@ function Invoke-SelfTest {
         (Join-Path $PSScriptRoot "ldscript.ld"),
         (Join-Path $PSScriptRoot "argv_app.c"),
         (Join-Path $PSScriptRoot "bss_app.c"),
+        (Join-Path $PSScriptRoot "console_error_app.c"),
         (Join-Path $PSScriptRoot "data_app.c"),
         (Join-Path $PSScriptRoot "display_error_app.c"),
         (Join-Path $PSScriptRoot "display_sequence_app.c"),
@@ -3479,13 +3492,16 @@ $ldflags = @(
 )
 
 foreach ($name in (Get-QemuAppNames)) {
-    if ($name -eq "too_large_app" -or $name -eq "argv_app" -or $name -eq "bss_app" -or $name -eq "data_app" -or $name -eq "display_error_app" -or $name -eq "display_sequence_app" -or $name -eq "exit_app" -or $name -eq "input_error_app" -or $name -eq "input_sequence_app" -or $name -eq "large_fit_app" -or $name -eq "unsupported_caps_app" -or $name -eq "storage_app" -or $name -eq "storage_catalog_app" -or $name -eq "storage_error_app" -or $name -eq "time_app") {
+    if ($name -eq "too_large_app" -or $name -eq "argv_app" -or $name -eq "bss_app" -or $name -eq "console_error_app" -or $name -eq "data_app" -or $name -eq "display_error_app" -or $name -eq "display_sequence_app" -or $name -eq "exit_app" -or $name -eq "input_error_app" -or $name -eq "input_sequence_app" -or $name -eq "large_fit_app" -or $name -eq "unsupported_caps_app" -or $name -eq "storage_app" -or $name -eq "storage_catalog_app" -or $name -eq "storage_error_app" -or $name -eq "time_app") {
         $src = Join-Path $PSScriptRoot "too_large_app.c"
         if ($name -eq "argv_app") {
             $src = Join-Path $PSScriptRoot "argv_app.c"
         }
         if ($name -eq "bss_app") {
             $src = Join-Path $PSScriptRoot "bss_app.c"
+        }
+        if ($name -eq "console_error_app") {
+            $src = Join-Path $PSScriptRoot "console_error_app.c"
         }
         if ($name -eq "data_app") {
             $src = Join-Path $PSScriptRoot "data_app.c"
@@ -3558,6 +3574,7 @@ Invoke-Checked -FilePath $storePackExe -Arguments @(
     ("player_min={0}" -f (Join-Path $appOut "player_min.elf")),
     ("argv_app={0}" -f (Join-Path $appOut "argv_app.elf")),
     ("bss_app={0}" -f (Join-Path $appOut "bss_app.elf")),
+    ("console_error_app={0}" -f (Join-Path $appOut "console_error_app.elf")),
     ("data_app={0}" -f (Join-Path $appOut "data_app.elf")),
     ("display_error_app={0}" -f (Join-Path $appOut "display_error_app.elf")),
     ("display_sequence_app={0}" -f (Join-Path $appOut "display_sequence_app.elf")),

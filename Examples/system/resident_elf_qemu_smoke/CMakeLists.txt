@@ -17,6 +17,7 @@ set(CHARM_QEMU_REQUIRED_INC_FILES
     appstore.bin.inc
     argv_app.elf.inc
     bss_app.elf.inc
+    console_error_app.elf.inc
     data_app.elf.inc
     display_error_app.elf.inc
     display_sequence_app.elf.inc

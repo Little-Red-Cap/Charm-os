@@ -252,6 +252,7 @@ function Get-ExpectedTokens {
         "resident-elf-qemu: backend-contract app_exit=notification_counter overrides_return=0",
         "resident-elf-qemu: run-region base=0x20080000 expected=0x20080000 size=65536",
         "resident-elf-qemu: stage-cache bytes=16384",
+        "resident-elf-qemu: packetstream-buffers storage=16384 transport=2048 stream=32768 received=16384",
         "resident-elf-qemu: store entries=31 bytes=",
         "resident-elf-qemu: store-media kind=memory bytes=",
         "resident-elf-qemu: unsupported storage_open=1 storage_read=1 storage_write=1 storage_close=1 afe_configure=1 afe_read=1 storage_count=1/1/1/1 afe_count=1/1",
@@ -2443,6 +2444,10 @@ function Write-DomainSummaryCapture {
     $RunRegionExpected = Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: run-region base=0x[0-9a-f]+ expected=(0x[0-9a-f]+)' -ErrorPrefix "domain_summary_failed"
     $RunRegionSize = [int](Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: run-region base=0x[0-9a-f]+ expected=0x[0-9a-f]+ size=(\d+)' -ErrorPrefix "domain_summary_failed")
     $StageCacheBytes = [int](Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: stage-cache bytes=(\d+)' -ErrorPrefix "domain_summary_failed")
+    $PacketstreamStorageBytes = [int](Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: packetstream-buffers storage=(\d+)' -ErrorPrefix "domain_summary_failed")
+    $PacketstreamTransportBytes = [int](Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: packetstream-buffers storage=\d+ transport=(\d+)' -ErrorPrefix "domain_summary_failed")
+    $PacketstreamStreamBytes = [int](Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: packetstream-buffers storage=\d+ transport=\d+ stream=(\d+)' -ErrorPrefix "domain_summary_failed")
+    $PacketstreamReceivedBytes = [int](Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: packetstream-buffers storage=\d+ transport=\d+ stream=\d+ received=(\d+)' -ErrorPrefix "domain_summary_failed")
     $StoreEntries = [int](Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: store entries=(\d+)' -ErrorPrefix "domain_summary_failed")
     $StoreBytes = [int](Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: store entries=\d+ bytes=(\d+)' -ErrorPrefix "domain_summary_failed")
     $StoreMediaKind = Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: store-media kind=([a-z0-9_]+)' -ErrorPrefix "domain_summary_failed"
@@ -2540,6 +2545,12 @@ function Write-DomainSummaryCapture {
         }
         stage_cache = [pscustomobject]@{
             bytes = $StageCacheBytes
+        }
+        packetstream_buffers = [pscustomobject]@{
+            storage_bytes = $PacketstreamStorageBytes
+            transport_bytes = $PacketstreamTransportBytes
+            stream_bytes = $PacketstreamStreamBytes
+            received_bytes = $PacketstreamReceivedBytes
         }
         display = [pscustomobject]@{
             width = $DisplayWidth
@@ -3138,6 +3149,12 @@ function Validate-DomainSummaryFile {
     }
     if ([int]$Summary.stage_cache.bytes -ne 16384) {
         throw "domain_summary_validate_failed: bad stage cache size"
+    }
+    if ([int]$Summary.packetstream_buffers.storage_bytes -ne 16384 -or
+        [int]$Summary.packetstream_buffers.transport_bytes -ne 2048 -or
+        [int]$Summary.packetstream_buffers.stream_bytes -ne 32768 -or
+        [int]$Summary.packetstream_buffers.received_bytes -ne 16384) {
+        throw "domain_summary_validate_failed: bad packetstream buffer sizes"
     }
     if ([int]$Summary.display.width -ne 16 -or
         [int]$Summary.display.height -ne 16 -or

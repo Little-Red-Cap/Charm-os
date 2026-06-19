@@ -73,6 +73,12 @@
     "stage_cache":  {
                         "bytes":  16384
                     },
+    "packetstream_buffers":  {
+                                 "storage_bytes":  16384,
+                                 "transport_bytes":  2048,
+                                 "stream_bytes":  32768,
+                                 "received_bytes":  16384
+                             },
     "display":  {
                     "width":  16,
                     "height":  16,

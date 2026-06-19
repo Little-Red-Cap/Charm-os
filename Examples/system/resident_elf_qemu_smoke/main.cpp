@@ -1478,6 +1478,15 @@ extern "C" int resident_elf_qemu_main() {
     qemu_backend::write("resident-elf-qemu: stage-cache bytes=");
     qemu_backend::write_dec(static_cast<std::uint32_t>(sizeof(g_stage_cache)));
     qemu_backend::write("\n");
+    qemu_backend::write("resident-elf-qemu: packetstream-buffers storage=");
+    qemu_backend::write_dec(static_cast<std::uint32_t>(sizeof(g_packetstream_storage)));
+    qemu_backend::write(" transport=");
+    qemu_backend::write_dec(static_cast<std::uint32_t>(sizeof(g_packetstream_transport_buffer)));
+    qemu_backend::write(" stream=");
+    qemu_backend::write_dec(static_cast<std::uint32_t>(sizeof(g_packetstream_stream)));
+    qemu_backend::write(" received=");
+    qemu_backend::write_dec(static_cast<std::uint32_t>(sizeof(g_packetstream_received_cache)));
+    qemu_backend::write("\n");
     qemu_backend::write("resident-elf-qemu: store entries=");
     qemu_backend::write_dec(qemu_store_entry_count());
     qemu_backend::write(" bytes=");

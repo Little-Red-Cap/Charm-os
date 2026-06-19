@@ -358,6 +358,12 @@ function Invoke-SelfTest {
         stage_cache = [pscustomobject]@{
             bytes = 16384
         }
+        packetstream_buffers = [pscustomobject]@{
+            storage_bytes = 16384
+            transport_bytes = 2048
+            stream_bytes = 32768
+            received_bytes = 16384
+        }
         display = [pscustomobject]@{
             width = 16
             height = 16
@@ -787,7 +793,7 @@ function Invoke-SelfTest {
             $ParsedQemu.AppModel -ne "format=elf:model=CharmAppApi" -or
             $ParsedQemu.Backend -ne "virtual:virtual_m7:console,time,display,input,storage,app_exit:storage=readonly:afe=unsupported" -or
             $ParsedQemu.BackendContract -ne "time=deterministic_tick:1000+17:reset=1;display=framebuffer:16x16:argb8888:stride=64:frame=1024:evidence=frame_signatures,frame_dumps,frame_ppm,gui_timeline;input=deterministic_sequence:samples=4:max=15,15:wraps=1:evidence=input_trace,gui_timeline;storage=virtual_readonly_files:files=3:fd=3+4:write=unsupported:evidence=storage_trace;app_exit=notification_counter:overrides_return=0" -or
-            $ParsedQemu.Memory -ne "run_base=0x20080000:run_size=65536:stage_cache=16384" -or
+            $ParsedQemu.Memory -ne "run_base=0x20080000:run_size=65536:stage_cache=16384:packetstream=16384/2048/32768/16384" -or
             $ParsedQemu.Store -ne "store_v1:entries=31:bytes=173184:media=memory:reads=589:read_bytes=175332:failures=0" -or
             $ParsedQemu.Display -ne "16x16:argb8888:stride=64:frame=1024" -or
             $ParsedQemu.Evidence -ne "frames=8/6:dumps=8/6:ppm=8/6:input=24/8:storage=130/18" -or
@@ -1128,6 +1134,12 @@ function Read-QemuElfDomainSummary {
     if ([int]$Summary.stage_cache.bytes -ne 16384) {
         throw "qemu_elf_summary_invalid: bad stage_cache"
     }
+    if ([int]$Summary.packetstream_buffers.storage_bytes -ne 16384 -or
+        [int]$Summary.packetstream_buffers.transport_bytes -ne 2048 -or
+        [int]$Summary.packetstream_buffers.stream_bytes -ne 32768 -or
+        [int]$Summary.packetstream_buffers.received_bytes -ne 16384) {
+        throw "qemu_elf_summary_invalid: bad packetstream buffers"
+    }
     if ($Summary.store.format -ne "store_v1" -or
         [int]$Summary.store.entries -ne 31 -or
         [int]$Summary.store.bytes -le 0 -or
@@ -1384,10 +1396,14 @@ function Read-QemuElfDomainSummary {
             ($BackendStorageEvidence -join ","), `
             ([string]$Summary.backend_contract.app_exit.kind), `
             $AppExitOverridesToken)
-        Memory = ("run_base={0}:run_size={1}:stage_cache={2}" -f `
+        Memory = ("run_base={0}:run_size={1}:stage_cache={2}:packetstream={3}/{4}/{5}/{6}" -f `
             ([string]$Summary.run_region.base), `
             ([int]$Summary.run_region.size), `
-            ([int]$Summary.stage_cache.bytes))
+            ([int]$Summary.stage_cache.bytes), `
+            ([int]$Summary.packetstream_buffers.storage_bytes), `
+            ([int]$Summary.packetstream_buffers.transport_bytes), `
+            ([int]$Summary.packetstream_buffers.stream_bytes), `
+            ([int]$Summary.packetstream_buffers.received_bytes))
         Store = ("{0}:entries={1}:bytes={2}:media={3}:reads={4}:read_bytes={5}:failures={6}" -f `
             ([string]$Summary.store.format), `
             ([int]$Summary.store.entries), `

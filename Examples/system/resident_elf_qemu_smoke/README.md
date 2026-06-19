@@ -718,7 +718,8 @@ embedded in any App Store payload.
 The script also writes `domain-summary.json` with schema
 `charm.resident_elf_qemu.domain_summary.v1`. This is the compact machine-readable
 proof that the QEMU run is a `virtual_m7` runtime domain with run region
-`0x20080000..0x20090000`, 16 KiB stage cache, Store v1 staging, direct/received/
+`0x20080000..0x20090000`, 16 KiB stage cache, fixed packetstream
+storage/transport/stream/received buffers, Store v1 staging, direct/received/
 packetstream/Store ELF runs, prepare-only coverage, capability coverage, and the
 expected negative cases. Its `backend_contract` section records the smoke-local
 virtual capabilities, unsupported AFE boundary, deterministic time tick,
@@ -806,7 +807,8 @@ into `qemu_elf_mode`, `qemu_elf_domain`, `qemu_elf_app_model`,
 rebuilt and launched (`build_and_run`) or reused from an existing capture
 (`validate_existing_evidence`), plus the fixed App model
 (`format=elf:model=CharmAppApi`), virtual backend identity, detailed backend
-contract, ELF load memory boundary, Store media, frame/input/storage evidence counts,
+contract, ELF load memory boundary, packetstream buffer boundary
+(`storage/transport/stream/received`), Store media, frame/input/storage evidence counts,
 near-limit/over-limit ELF capacity, representative ELF loader
 entry/span/segment/fits facts, packetstream payload/CRC and failure-boundary
 facts, domain-summary golden comparison, and the

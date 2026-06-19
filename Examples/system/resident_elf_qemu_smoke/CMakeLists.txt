@@ -33,6 +33,7 @@ set(CHARM_QEMU_REQUIRED_INC_FILES
     storage_catalog_app.elf.inc
     storage_close_error_app.elf.inc
     storage_error_app.elf.inc
+    storage_fd_exhaustion_app.elf.inc
     storage_open_error_app.elf.inc
     storage_write_error_app.elf.inc
     time_app.elf.inc

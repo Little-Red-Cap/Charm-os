@@ -38,13 +38,13 @@
                 },
     "store":  {
                   "format":  "store_v1",
-                  "entries":  26,
-                  "bytes":  148416,
+                  "entries":  27,
+                  "bytes":  153456,
                   "media":  {
                                 "kind":  "memory",
-                                "bytes":  148416,
-                                "read_calls":  429,
-                                "read_bytes":  144140,
+                                "bytes":  153456,
+                                "read_calls":  459,
+                                "read_bytes":  150368,
                                 "read_failures":  0
                             }
               },
@@ -274,6 +274,18 @@
                                   },
                                   {
                                       "name":  "store:display_error_app",
+                                      "stage":  "exit",
+                                      "code":  "ok",
+                                      "exit":  0
+                                  },
+                                  {
+                                      "name":  "display_null_present_app",
+                                      "stage":  "exit",
+                                      "code":  "ok",
+                                      "exit":  0
+                                  },
+                                  {
+                                      "name":  "store:display_null_present_app",
                                       "stage":  "exit",
                                       "code":  "ok",
                                       "exit":  0
@@ -619,6 +631,12 @@
                                     {
                                         "source":  "store",
                                         "name":  "display_error_app",
+                                        "code":  "ok",
+                                        "expected":  ""
+                                    },
+                                    {
+                                        "source":  "store",
+                                        "name":  "display_null_present_app",
                                         "code":  "ok",
                                         "expected":  ""
                                     },
@@ -1238,6 +1256,34 @@
                                        "segments":  3,
                                        "needed":  1280,
                                        "free":  64256,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   },
+                                   {
+                                       "name":  "display_null_present_app",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "entry":  "0x20080001",
+                                       "entry_numeric":  537395201,
+                                       "span":  153,
+                                       "segments":  2,
+                                       "needed":  153,
+                                       "free":  65383,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "ok"
+                                   },
+                                   {
+                                       "name":  "store:display_null_present_app",
+                                       "format":  "elf",
+                                       "probe":  "ok",
+                                       "entry":  "0x20080001",
+                                       "entry_numeric":  537395201,
+                                       "span":  153,
+                                       "segments":  2,
+                                       "needed":  153,
+                                       "free":  65383,
                                        "fits":  true,
                                        "region":  65536,
                                        "capacity_probe":  "ok"
@@ -2163,6 +2209,22 @@
                                            },
                                            {
                                                "name":  "display_error_app",
+                                               "direct":  {
+                                                              "stage":  "exit",
+                                                              "code":  "ok",
+                                                              "exit":  0
+                                                          },
+                                               "received":  null,
+                                               "packetstream":  null,
+                                               "store":  {
+                                                             "stage":  "exit",
+                                                             "code":  "ok",
+                                                             "exit":  0
+                                                         },
+                                               "prepare":  null
+                                           },
+                                           {
+                                               "name":  "display_null_present_app",
                                                "direct":  {
                                                               "stage":  "exit",
                                                               "code":  "ok",

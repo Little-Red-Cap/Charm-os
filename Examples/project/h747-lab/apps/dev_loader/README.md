@@ -452,14 +452,16 @@ Board validation helpers:
   `qemu_elf_mode`, `qemu_elf_domain`, `qemu_elf_app_model`,
   `qemu_elf_backend`, `qemu_elf_memory`, `qemu_elf_store`,
   `qemu_elf_display`, `qemu_elf_evidence`, `qemu_elf_capacity`,
-  `qemu_elf_packetstreams`, `qemu_elf_domain_golden`, `qemu_elf_sources`,
-  `qemu_elf_coverage`, and `qemu_elf_player_min_gui` tokens so the archived
+  `qemu_elf_loads`, `qemu_elf_packetstreams`, `qemu_elf_domain_golden`,
+  `qemu_elf_sources`, `qemu_elf_coverage`, and `qemu_elf_player_min_gui`
+  tokens so the archived
   evidence shows whether QEMU was rebuilt and launched (`build_and_run`) or
   reused from an existing capture (`validate_existing_evidence`), plus the
   virtual runtime domain, fixed App model (`format=elf:model=CharmAppApi`),
   capability contract, ELF load memory boundary, Store media, fixed display
   mode, frame/input/storage evidence counts, near-limit and over-limit ELF
-  capacity, packetstream payload/CRC and failure-boundary facts,
+  capacity, representative ELF loader entry/span/segment/fits facts,
+  packetstream payload/CRC and failure-boundary facts,
   domain-summary golden comparison, direct/received/packetstream/store source
   matrix coverage, full coverage counts (`runs/stages/loads/packetstreams/
   source_matrix/gui_timeline/prepare/capabilities/negative_cases`), and GUI

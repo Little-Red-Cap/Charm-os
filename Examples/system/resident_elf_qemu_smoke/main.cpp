@@ -51,18 +51,30 @@ namespace app_abi = charm::app_abi;
 namespace loader = charm::dev_loader;
 namespace qemu_backend = resident_elf_qemu;
 
-inline constexpr std::uintptr_t kQemuRunRegionBase = 0x20080000U;
-inline constexpr std::size_t kQemuRunRegionSize = 64U * 1024U;
-inline constexpr std::size_t kQemuStageCacheSize = 16U * 1024U;
+struct QemuRuntimeDomainMemory {
+    std::uintptr_t run_region_base;
+    std::size_t run_region_size;
+    std::size_t stage_cache_size;
+    std::size_t packetstream_transport_buffer_size;
+    std::size_t packetstream_stream_size;
+};
+
+inline constexpr QemuRuntimeDomainMemory kQemuMemory{
+    .run_region_base = 0x20080000U,
+    .run_region_size = 64U * 1024U,
+    .stage_cache_size = 16U * 1024U,
+    .packetstream_transport_buffer_size = 2048U,
+    .packetstream_stream_size = 32768U,
+};
 
 alignas(16) __attribute__((section(".elf_load")))
-static std::byte g_elf_load_region[kQemuRunRegionSize];
-alignas(16) static std::byte g_stage_cache[kQemuStageCacheSize];
-alignas(16) static std::byte g_packetstream_storage[kQemuStageCacheSize];
-alignas(16) static std::byte g_packetstream_transport_buffer[2048];
-alignas(16) static std::byte g_packetstream_stream[32768];
-alignas(16) static std::byte g_packetstream_received_cache[kQemuStageCacheSize];
-alignas(16) static const std::byte g_received_oversized_payload[kQemuStageCacheSize + 1U]{};
+static std::byte g_elf_load_region[kQemuMemory.run_region_size];
+alignas(16) static std::byte g_stage_cache[kQemuMemory.stage_cache_size];
+alignas(16) static std::byte g_packetstream_storage[kQemuMemory.stage_cache_size];
+alignas(16) static std::byte g_packetstream_transport_buffer[kQemuMemory.packetstream_transport_buffer_size];
+alignas(16) static std::byte g_packetstream_stream[kQemuMemory.packetstream_stream_size];
+alignas(16) static std::byte g_packetstream_received_cache[kQemuMemory.stage_cache_size];
+alignas(16) static const std::byte g_received_oversized_payload[kQemuMemory.stage_cache_size + 1U]{};
 alignas(16) static unsigned char g_mutated_elf_payload[8192];
 alignas(16) static const unsigned char g_bad_elf_magic_payload[64]{
     'N',
@@ -115,7 +127,7 @@ bool memory_read_storage(void* ctx, std::uint32_t offset, std::span<std::byte> b
 loader::Storage make_loader_storage(MemoryStorage& storage) noexcept {
     return loader::Storage{
         .ctx = &storage,
-        .base_address = static_cast<std::uint32_t>(kQemuRunRegionBase),
+        .base_address = static_cast<std::uint32_t>(kQemuMemory.run_region_base),
         .capacity_bytes = static_cast<std::uint32_t>(storage.size),
         .write = memory_write_storage,
         .read = memory_read_storage,
@@ -143,6 +155,13 @@ std::uint32_t qemu_store_entry_count() noexcept {
 
 void clear_run_region() noexcept {
     std::memset(g_elf_load_region, 0, sizeof(g_elf_load_region));
+}
+
+void reset_packetstream_buffers() noexcept {
+    std::memset(g_packetstream_storage, 0, sizeof(g_packetstream_storage));
+    std::memset(g_packetstream_transport_buffer, 0, sizeof(g_packetstream_transport_buffer));
+    std::memset(g_packetstream_stream, 0, sizeof(g_packetstream_stream));
+    std::memset(g_packetstream_received_cache, 0, sizeof(g_packetstream_received_cache));
 }
 
 bool copy_elf_for_mutation(const unsigned char* image_bytes, std::size_t image_size) noexcept {
@@ -506,7 +525,7 @@ app_abi::AppLoadResult load_elf(void* ctx,
     }
 
     const auto facts = read_elf_link_facts(image);
-    if (!facts.valid || facts.link_base != static_cast<std::uint32_t>(kQemuRunRegionBase)) {
+    if (!facts.valid || facts.link_base != static_cast<std::uint32_t>(kQemuMemory.run_region_base)) {
         backend->last.code = app_abi::AppRunCode::load_failed;
         backend->last.backend_error = -1;
         return app_abi::AppLoadResult{
@@ -524,7 +543,7 @@ void log_probe(std::string_view name, const app_abi::AppImage& image, const app_
     const auto facts = read_elf_link_facts(image);
     const auto link_base = facts.valid ? facts.link_base : 0U;
     const auto entry_vaddr = facts.valid ? facts.entry_vaddr : 0U;
-    const auto base_match = facts.valid && link_base == static_cast<std::uint32_t>(kQemuRunRegionBase);
+    const auto base_match = facts.valid && link_base == static_cast<std::uint32_t>(kQemuMemory.run_region_base);
     qemu_backend::write("resident-elf-qemu: load ");
     qemu_backend::log_view(name);
     qemu_backend::write(" format=elf probe=");
@@ -532,7 +551,7 @@ void log_probe(std::string_view name, const app_abi::AppImage& image, const app_
     qemu_backend::write(" link_base=");
     qemu_backend::write_hex32(link_base);
     qemu_backend::write(" expected_base=");
-    qemu_backend::write_hex32(static_cast<std::uint32_t>(kQemuRunRegionBase));
+    qemu_backend::write_hex32(static_cast<std::uint32_t>(kQemuMemory.run_region_base));
     qemu_backend::write(" entry=");
     qemu_backend::write_hex32(static_cast<std::uint32_t>(backend.last.plan.entry_address));
     qemu_backend::write(" entry_vaddr=");
@@ -545,9 +564,9 @@ void log_probe(std::string_view name, const app_abi::AppImage& image, const app_
     qemu_backend::write_dec(base_match ? 1U : 0U);
     qemu_backend::write("\n");
 
-    const bool fits = probe.load_span <= kQemuRunRegionSize;
+    const bool fits = probe.load_span <= kQemuMemory.run_region_size;
     const auto free = fits
-        ? static_cast<std::uint32_t>(kQemuRunRegionSize - probe.load_span)
+        ? static_cast<std::uint32_t>(kQemuMemory.run_region_size - probe.load_span)
         : 0U;
     qemu_backend::write("resident-elf-qemu: capacity ");
     qemu_backend::log_view(name);
@@ -558,7 +577,7 @@ void log_probe(std::string_view name, const app_abi::AppImage& image, const app_
     qemu_backend::write(" fits=");
     qemu_backend::write_dec(fits ? 1U : 0U);
     qemu_backend::write(" region=");
-    qemu_backend::write_dec(static_cast<std::uint32_t>(kQemuRunRegionSize));
+    qemu_backend::write_dec(static_cast<std::uint32_t>(kQemuMemory.run_region_size));
     qemu_backend::write(" probe=");
     qemu_backend::log_view(app_abi::app_elf_probe_code_name(probe.code));
     qemu_backend::write("\n");
@@ -609,7 +628,7 @@ bool run_image(std::string_view log_name,
            result.exited &&
            result.exit_code == expected_exit_code &&
            backend.last.plan.probe.code == app_abi::AppElfProbeCode::ok &&
-           read_elf_link_facts(image).link_base == static_cast<std::uint32_t>(kQemuRunRegionBase);
+           read_elf_link_facts(image).link_base == static_cast<std::uint32_t>(kQemuMemory.run_region_base);
 }
 
 bool run_direct_app(std::string_view name,
@@ -679,10 +698,7 @@ bool run_packetstream_received_app(std::string_view name,
                                    std::size_t image_size,
                                    std::string_view arg_text) noexcept {
     std::memset(g_stage_cache, 0, sizeof(g_stage_cache));
-    std::memset(g_packetstream_storage, 0, sizeof(g_packetstream_storage));
-    std::memset(g_packetstream_transport_buffer, 0, sizeof(g_packetstream_transport_buffer));
-    std::memset(g_packetstream_stream, 0, sizeof(g_packetstream_stream));
-    std::memset(g_packetstream_received_cache, 0, sizeof(g_packetstream_received_cache));
+    reset_packetstream_buffers();
 
     const std::span<const std::byte> payload{
         reinterpret_cast<const std::byte*>(image_bytes),
@@ -831,10 +847,7 @@ bool expect_packetstream_load_failure(std::string_view name,
                                       std::size_t image_size,
                                       app_abi::AppElfProbeCode expected_probe) noexcept {
     std::memset(g_stage_cache, 0, sizeof(g_stage_cache));
-    std::memset(g_packetstream_storage, 0, sizeof(g_packetstream_storage));
-    std::memset(g_packetstream_transport_buffer, 0, sizeof(g_packetstream_transport_buffer));
-    std::memset(g_packetstream_stream, 0, sizeof(g_packetstream_stream));
-    std::memset(g_packetstream_received_cache, 0, sizeof(g_packetstream_received_cache));
+    reset_packetstream_buffers();
 
     const std::span<const std::byte> payload{
         reinterpret_cast<const std::byte*>(image_bytes),
@@ -980,10 +993,7 @@ bool expect_packetstream_load_failure(std::string_view name,
 bool expect_packetstream_crc_mismatch(std::string_view name,
                                       const unsigned char* image_bytes,
                                       std::size_t image_size) noexcept {
-    std::memset(g_packetstream_storage, 0, sizeof(g_packetstream_storage));
-    std::memset(g_packetstream_transport_buffer, 0, sizeof(g_packetstream_transport_buffer));
-    std::memset(g_packetstream_stream, 0, sizeof(g_packetstream_stream));
-    std::memset(g_packetstream_received_cache, 0, sizeof(g_packetstream_received_cache));
+    reset_packetstream_buffers();
     qemu_backend::reset_capability_counters();
 
     const std::span<const std::byte> payload{
@@ -1461,7 +1471,7 @@ extern "C" int resident_elf_qemu_main() {
     qemu_backend::write("resident-elf-qemu: run-region base=");
     qemu_backend::write_hex32(static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(g_elf_load_region)));
     qemu_backend::write(" expected=");
-    qemu_backend::write_hex32(static_cast<std::uint32_t>(kQemuRunRegionBase));
+    qemu_backend::write_hex32(static_cast<std::uint32_t>(kQemuMemory.run_region_base));
     qemu_backend::write(" size=");
     qemu_backend::write_dec(static_cast<std::uint32_t>(sizeof(g_elf_load_region)));
     qemu_backend::write("\n");
@@ -1474,7 +1484,7 @@ extern "C" int resident_elf_qemu_main() {
     qemu_backend::write_dec(qemu_appstore_bin_len);
     qemu_backend::write("\n");
 
-    bool ok = reinterpret_cast<std::uintptr_t>(g_elf_load_region) == kQemuRunRegionBase;
+    bool ok = reinterpret_cast<std::uintptr_t>(g_elf_load_region) == kQemuMemory.run_region_base;
     ok = qemu_backend::probe_unsupported_capabilities() && ok;
     ok = run_direct_app("hello_app", hello_app_elf, hello_app_elf_len, "alpha beta") && ok;
     ok = run_received_app("hello_app", hello_app_elf, hello_app_elf_len, "alpha beta") && ok;

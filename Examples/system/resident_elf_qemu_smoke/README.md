@@ -40,10 +40,12 @@ validates that a corrupted packetstream stops at packet verify with no
 `received_image_read()`, no App staging, no AppRuntime entry, and no capability
 calls. `packetstream_bad_elf_magic_app` validates the opposite boundary: the
 packetstream reaches `launch_ready`, `received_image_read()` and staging both
-succeed, and only the ELF loader rejects the payload as `bad_magic`. `too_large_app`
-remains the ELF load-span negative case. `bad_elf_magic_app` validates malformed
-ELF rejection at AppRuntime load stage without entering the App or touching
-capabilities.
+succeed, and only the ELF loader rejects the payload as `bad_magic`.
+`entry_outside_segment_app` and `rwx_segment_app` mutate a known-good ELF in
+memory and prove that the QEMU resident domain rejects unsafe ELF structure at
+the loader boundary. `too_large_app` remains the ELF load-span negative case.
+`bad_elf_magic_app` validates malformed ELF rejection at AppRuntime load stage
+without entering the App or touching capabilities.
 
 The purpose is to validate the architecture seam:
 
@@ -124,6 +126,12 @@ Oversized App ELF
 Malformed App ELF
 -> AppImage(format=elf)
 -> ELF loader bad_magic
+-> AppRuntime load-stage failure
+-> no capability calls
+
+Unsafe App ELF structure
+-> AppImage(format=elf)
+-> ELF loader entry_outside_segment / rwx_segment
 -> AppRuntime load-stage failure
 -> no capability calls
 
@@ -379,6 +387,14 @@ firmware, launches QEMU, and checks these tokens:
 - `resident-elf-qemu: capacity packetstream:packetstream_bad_elf_magic_app needed=0 free=65536 fits=1 region=65536 probe=bad_magic`
 - `resident-elf-qemu: app packetstream:packetstream_bad_elf_magic_app stage=load code=load_failed exit=0`
 - `resident-elf-qemu: caps packetstream:packetstream_bad_elf_magic_app console=0 time=0 describe=0 present=0 input=0 exit=0`
+- `resident-elf-qemu: load entry_outside_segment_app format=elf probe=entry_outside_segment`
+- `resident-elf-qemu: capacity entry_outside_segment_app needed=0 free=65536 fits=1 region=65536 probe=entry_outside_segment`
+- `resident-elf-qemu: app entry_outside_segment_app stage=load code=load_failed exit=0`
+- `resident-elf-qemu: caps entry_outside_segment_app console=0 time=0 describe=0 present=0 input=0 exit=0`
+- `resident-elf-qemu: load rwx_segment_app format=elf probe=rwx_segment`
+- `resident-elf-qemu: capacity rwx_segment_app needed=0 free=65536 fits=1 region=65536 probe=rwx_segment`
+- `resident-elf-qemu: app rwx_segment_app stage=load code=load_failed exit=0`
+- `resident-elf-qemu: caps rwx_segment_app console=0 time=0 describe=0 present=0 input=0 exit=0`
 - `resident-elf-qemu: load too_large_app format=elf probe=load_buffer_too_small`
 - `resident-elf-qemu: capacity too_large_app needed=82176 free=0 fits=0 region=65536 probe=load_buffer_too_small`
 - `resident-elf-qemu: app too_large_app stage=load code=load_failed exit=0`

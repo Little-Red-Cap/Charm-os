@@ -358,6 +358,14 @@ function Get-ExpectedTokens {
         "resident-elf-qemu: load packetstream:packetstream_bad_elf_magic_app format=elf probe=bad_magic",
         "resident-elf-qemu: capacity packetstream:packetstream_bad_elf_magic_app needed=0 free=65536 fits=1 region=65536 probe=bad_magic",
         "resident-elf-qemu: caps packetstream:packetstream_bad_elf_magic_app console=0 time=0 describe=0 present=0 input=0 exit=0",
+        "resident-elf-qemu: app entry_outside_segment_app stage=load code=load_failed exit=0",
+        "resident-elf-qemu: load entry_outside_segment_app format=elf probe=entry_outside_segment",
+        "resident-elf-qemu: capacity entry_outside_segment_app needed=0 free=65536 fits=1 region=65536 probe=entry_outside_segment",
+        "resident-elf-qemu: caps entry_outside_segment_app console=0 time=0 describe=0 present=0 input=0 exit=0",
+        "resident-elf-qemu: app rwx_segment_app stage=load code=load_failed exit=0",
+        "resident-elf-qemu: load rwx_segment_app format=elf probe=rwx_segment",
+        "resident-elf-qemu: capacity rwx_segment_app needed=0 free=65536 fits=1 region=65536 probe=rwx_segment",
+        "resident-elf-qemu: caps rwx_segment_app console=0 time=0 describe=0 present=0 input=0 exit=0",
         "resident-elf-qemu: app too_large_app stage=load code=load_failed exit=0",
         "resident-elf-qemu: load too_large_app format=elf probe=load_buffer_too_small",
         "resident-elf-qemu: capacity too_large_app needed=82176 free=0 fits=0 region=65536 probe=load_buffer_too_small",
@@ -2143,6 +2151,8 @@ function Write-DomainSummaryCapture {
                 [pscustomobject]@{ name = "too_large_store_app"; stage = "store_stage"; code = "image_too_large" },
                 [pscustomobject]@{ name = "bad_elf_magic_app"; stage = "load"; code = "load_failed" },
                 [pscustomobject]@{ name = "packetstream_bad_elf_magic_app"; stage = "load"; code = "load_failed" },
+                [pscustomobject]@{ name = "entry_outside_segment_app"; stage = "load"; code = "load_failed" },
+                [pscustomobject]@{ name = "rwx_segment_app"; stage = "load"; code = "load_failed" },
                 [pscustomobject]@{ name = "too_large_app"; stage = "load"; code = "load_failed" },
                 [pscustomobject]@{ name = "argv_overflow_app"; stage = "argv"; code = "argv_overflow" },
                 [pscustomobject]@{ name = "abi_mismatch_app"; stage = "abi"; code = "abi_mismatch" }
@@ -2603,7 +2613,7 @@ function Validate-DomainSummaryFile {
     }
     Assert-DomainStoreMedia -Store $Summary.store
     $Runs = @($Summary.coverage.runs)
-    Assert-DomainCount -Name "runs" -Actual $Runs.Count -Expected 37
+    Assert-DomainCount -Name "runs" -Actual $Runs.Count -Expected 39
     Assert-DomainRun -Runs $Runs -Name "hello_app" -Stage "exit" -Code "ok"
     Assert-DomainRun -Runs $Runs -Name "received:hello_app" -Stage "exit" -Code "ok"
     Assert-DomainRun -Runs $Runs -Name "store:hello_app" -Stage "exit" -Code "ok"
@@ -2619,6 +2629,8 @@ function Validate-DomainSummaryFile {
     Assert-DomainRun -Runs $Runs -Name "store:data_app" -Stage "exit" -Code "ok"
     Assert-DomainRun -Runs $Runs -Name "bad_elf_magic_app" -Stage "load" -Code "load_failed"
     Assert-DomainRun -Runs $Runs -Name "packetstream:packetstream_bad_elf_magic_app" -Stage "load" -Code "load_failed"
+    Assert-DomainRun -Runs $Runs -Name "entry_outside_segment_app" -Stage "load" -Code "load_failed"
+    Assert-DomainRun -Runs $Runs -Name "rwx_segment_app" -Stage "load" -Code "load_failed"
     Assert-DomainRun -Runs $Runs -Name "too_large_app" -Stage "load" -Code "load_failed"
     Assert-DomainRun -Runs $Runs -Name "argv_overflow_app" -Stage "argv" -Code "argv_overflow"
     Assert-DomainRun -Runs $Runs -Name "abi_mismatch_app" -Stage "abi" -Code "abi_mismatch"
@@ -2631,7 +2643,7 @@ function Validate-DomainSummaryFile {
     Assert-DomainStage -Stages $Stages -Source "store" -Name "large_fit_app" -Code "ok"
     Assert-DomainStage -Stages $Stages -Source "store" -Name "too_large_store_app" -Code "image_too_large"
     $Loads = @($Summary.coverage.loads)
-    Assert-DomainCount -Name "loads" -Actual $Loads.Count -Expected 38
+    Assert-DomainCount -Name "loads" -Actual $Loads.Count -Expected 40
     Assert-DomainLoad -Loads $Loads -Name "hello_app" -Probe "ok" -Fits $true -Region 65536 -MinSpan 1 -Segments 2
     Assert-DomainLoad -Loads $Loads -Name "received:hello_app" -Probe "ok" -Fits $true -Region 65536 -MinSpan 1 -Segments 2
     Assert-DomainLoad -Loads $Loads -Name "packetstream:hello_app" -Probe "ok" -Fits $true -Region 65536 -MinSpan 1 -Segments 2
@@ -2650,6 +2662,8 @@ function Validate-DomainSummaryFile {
     Assert-DomainLoad -Loads $Loads -Name "store:large_fit_app" -Probe "ok" -Fits $true -Region 65536 -MinSpan 60000 -Segments 3
     Assert-DomainLoad -Loads $Loads -Name "bad_elf_magic_app" -Probe "bad_magic" -Fits $true -Region 65536 -MinSpan 0 -Segments 0
     Assert-DomainLoad -Loads $Loads -Name "packetstream:packetstream_bad_elf_magic_app" -Probe "bad_magic" -Fits $true -Region 65536 -MinSpan 0 -Segments 0
+    Assert-DomainLoad -Loads $Loads -Name "entry_outside_segment_app" -Probe "entry_outside_segment" -Fits $true -Region 65536 -MinSpan 0 -Segments 0
+    Assert-DomainLoad -Loads $Loads -Name "rwx_segment_app" -Probe "rwx_segment" -Fits $true -Region 65536 -MinSpan 0 -Segments 0
     Assert-DomainLoad -Loads $Loads -Name "too_large_app" -Probe "load_buffer_too_small" -Fits $false -Region 65536 -MinSpan 65537 -Segments 2
     $Packetstreams = @($Summary.coverage.packetstreams)
     Assert-DomainCount -Name "packetstreams" -Actual $Packetstreams.Count -Expected 5
@@ -2678,17 +2692,19 @@ function Validate-DomainSummaryFile {
         }
     }
     $NegativeCases = @($Summary.coverage.negative_cases)
-    Assert-DomainCount -Name "negative_cases" -Actual $NegativeCases.Count -Expected 8
+    Assert-DomainCount -Name "negative_cases" -Actual $NegativeCases.Count -Expected 10
     Assert-DomainNegativeCase -NegativeCases $NegativeCases -Name "packetstream_crc_mismatch" -Stage "packetstream_verify" -Code "crc_mismatch"
     Assert-DomainNegativeCase -NegativeCases $NegativeCases -Name "received_too_large_app" -Stage "received_stage" -Code "buffer_too_small"
     Assert-DomainNegativeCase -NegativeCases $NegativeCases -Name "too_large_store_app" -Stage "store_stage" -Code "image_too_large"
     Assert-DomainNegativeCase -NegativeCases $NegativeCases -Name "bad_elf_magic_app" -Stage "load" -Code "load_failed"
     Assert-DomainNegativeCase -NegativeCases $NegativeCases -Name "packetstream_bad_elf_magic_app" -Stage "load" -Code "load_failed"
+    Assert-DomainNegativeCase -NegativeCases $NegativeCases -Name "entry_outside_segment_app" -Stage "load" -Code "load_failed"
+    Assert-DomainNegativeCase -NegativeCases $NegativeCases -Name "rwx_segment_app" -Stage "load" -Code "load_failed"
     Assert-DomainNegativeCase -NegativeCases $NegativeCases -Name "too_large_app" -Stage "load" -Code "load_failed"
     Assert-DomainNegativeCase -NegativeCases $NegativeCases -Name "argv_overflow_app" -Stage "argv" -Code "argv_overflow"
     Assert-DomainNegativeCase -NegativeCases $NegativeCases -Name "abi_mismatch_app" -Stage "abi" -Code "abi_mismatch"
     $SourceMatrix = @($Summary.coverage.source_matrix)
-    Assert-DomainCount -Name "source_matrix" -Actual $SourceMatrix.Count -Expected 18
+    Assert-DomainCount -Name "source_matrix" -Actual $SourceMatrix.Count -Expected 20
     Assert-SourceMatrixEntry -Matrix $SourceMatrix -Name "hello_app" -Sources @("direct", "received", "packetstream", "store")
     Assert-SourceMatrixEntry -Matrix $SourceMatrix -Name "large_fit_app" -Sources @("direct", "received", "packetstream", "store")
     Assert-SourceMatrixEntry -Matrix $SourceMatrix -Name "player_min" -Sources @("direct", "received", "packetstream", "store")
@@ -2698,6 +2714,8 @@ function Validate-DomainSummaryFile {
     Assert-SourceMatrixEntry -Matrix $SourceMatrix -Name "display_sequence_app" -Sources @("direct", "store")
     Assert-SourceMatrixEntry -Matrix $SourceMatrix -Name "input_sequence_app" -Sources @("direct", "store")
     Assert-SourceMatrixEntry -Matrix $SourceMatrix -Name "storage_catalog_app" -Sources @("direct", "store")
+    Assert-SourceMatrixFailure -Matrix $SourceMatrix -Name "entry_outside_segment_app" -Source "direct" -Stage "load" -Code "load_failed"
+    Assert-SourceMatrixFailure -Matrix $SourceMatrix -Name "rwx_segment_app" -Source "direct" -Stage "load" -Code "load_failed"
     Assert-SourceMatrixFailure -Matrix $SourceMatrix -Name "too_large_app" -Source "direct" -Stage "load" -Code "load_failed"
     Assert-SourceMatrixFailure -Matrix $SourceMatrix -Name "packetstream_bad_elf_magic_app" -Source "packetstream" -Stage "load" -Code "load_failed"
     Assert-SourceMatrixFailure -Matrix $SourceMatrix -Name "argv_overflow_app" -Source "direct" -Stage "argv" -Code "argv_overflow"

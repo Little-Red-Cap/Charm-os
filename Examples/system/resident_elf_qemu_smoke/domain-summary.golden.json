@@ -243,6 +243,18 @@
                                       "exit":  0
                                   },
                                   {
+                                      "name":  "entry_outside_segment_app",
+                                      "stage":  "load",
+                                      "code":  "load_failed",
+                                      "exit":  0
+                                  },
+                                  {
+                                      "name":  "rwx_segment_app",
+                                      "stage":  "load",
+                                      "code":  "load_failed",
+                                      "exit":  0
+                                  },
+                                  {
                                       "name":  "too_large_app",
                                       "stage":  "load",
                                       "code":  "load_failed",
@@ -853,6 +865,34 @@
                                        "capacity_probe":  "bad_magic"
                                    },
                                    {
+                                       "name":  "entry_outside_segment_app",
+                                       "format":  "elf",
+                                       "probe":  "entry_outside_segment",
+                                       "entry":  "0x00000000",
+                                       "entry_numeric":  0,
+                                       "span":  0,
+                                       "segments":  0,
+                                       "needed":  0,
+                                       "free":  65536,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "entry_outside_segment"
+                                   },
+                                   {
+                                       "name":  "rwx_segment_app",
+                                       "format":  "elf",
+                                       "probe":  "rwx_segment",
+                                       "entry":  "0x00000000",
+                                       "entry_numeric":  0,
+                                       "span":  0,
+                                       "segments":  0,
+                                       "needed":  0,
+                                       "free":  65536,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "rwx_segment"
+                                   },
+                                   {
                                        "name":  "too_large_app",
                                        "format":  "elf",
                                        "probe":  "load_buffer_too_small",
@@ -1278,6 +1318,30 @@
                                                "prepare":  null
                                            },
                                            {
+                                               "name":  "entry_outside_segment_app",
+                                               "direct":  {
+                                                              "stage":  "load",
+                                                              "code":  "load_failed",
+                                                              "exit":  0
+                                                          },
+                                               "received":  null,
+                                               "packetstream":  null,
+                                               "store":  null,
+                                               "prepare":  null
+                                           },
+                                           {
+                                               "name":  "rwx_segment_app",
+                                               "direct":  {
+                                                              "stage":  "load",
+                                                              "code":  "load_failed",
+                                                              "exit":  0
+                                                          },
+                                               "received":  null,
+                                               "packetstream":  null,
+                                               "store":  null,
+                                               "prepare":  null
+                                           },
+                                           {
                                                "name":  "too_large_app",
                                                "direct":  {
                                                               "stage":  "load",
@@ -1436,6 +1500,16 @@
                                             },
                                             {
                                                 "name":  "packetstream_bad_elf_magic_app",
+                                                "stage":  "load",
+                                                "code":  "load_failed"
+                                            },
+                                            {
+                                                "name":  "entry_outside_segment_app",
+                                                "stage":  "load",
+                                                "code":  "load_failed"
+                                            },
+                                            {
+                                                "name":  "rwx_segment_app",
                                                 "stage":  "load",
                                                 "code":  "load_failed"
                                             },

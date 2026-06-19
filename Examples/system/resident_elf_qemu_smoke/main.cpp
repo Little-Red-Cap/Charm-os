@@ -47,6 +47,7 @@ alignas(16) static std::byte g_packetstream_transport_buffer[2048];
 alignas(16) static std::byte g_packetstream_stream[32768];
 alignas(16) static std::byte g_packetstream_received_cache[kQemuStageCacheSize];
 alignas(16) static const std::byte g_received_oversized_payload[kQemuStageCacheSize + 1U]{};
+alignas(16) static unsigned char g_mutated_elf_payload[8192];
 alignas(16) static const unsigned char g_bad_elf_magic_payload[64]{
     'N',
     'O',
@@ -114,6 +115,64 @@ qemu_backend::VirtualStoreMedia make_qemu_store_media() noexcept {
 void clear_run_region() noexcept {
     std::memset(g_elf_load_region, 0, sizeof(g_elf_load_region));
 }
+
+bool copy_elf_for_mutation(const unsigned char* image_bytes, std::size_t image_size) noexcept {
+    if (image_bytes == nullptr || image_size == 0U || image_size > sizeof(g_mutated_elf_payload)) {
+        qemu_backend::write("resident-elf-qemu: mutate-elf code=image_too_large size=");
+        qemu_backend::write_dec(static_cast<std::uint32_t>(image_size));
+        qemu_backend::write("\n");
+        return false;
+    }
+    std::memset(g_mutated_elf_payload, 0, sizeof(g_mutated_elf_payload));
+    std::memcpy(g_mutated_elf_payload, image_bytes, image_size);
+    return true;
+}
+
+bool mutate_elf_entry_outside_segment(const unsigned char* image_bytes, std::size_t image_size) noexcept {
+    if (!copy_elf_for_mutation(image_bytes, image_size) ||
+        image_size < sizeof(app_abi::AppElf32Header)) {
+        return false;
+    }
+
+    app_abi::AppElf32Header header{};
+    std::memcpy(&header, g_mutated_elf_payload, sizeof(header));
+    header.entry = 0xffffffffU;
+    std::memcpy(g_mutated_elf_payload, &header, sizeof(header));
+    return true;
+}
+
+bool mutate_elf_first_load_segment_rwx(const unsigned char* image_bytes, std::size_t image_size) noexcept {
+    if (!copy_elf_for_mutation(image_bytes, image_size) ||
+        image_size < sizeof(app_abi::AppElf32Header)) {
+        return false;
+    }
+
+    app_abi::AppElf32Header header{};
+    std::memcpy(&header, g_mutated_elf_payload, sizeof(header));
+    const auto ph_table_bytes =
+        static_cast<std::uint64_t>(header.phentsize) * static_cast<std::uint64_t>(header.phnum);
+    if (header.phoff > image_size ||
+        header.phentsize < sizeof(app_abi::AppElf32ProgramHeader) ||
+        static_cast<std::uint64_t>(header.phoff) + ph_table_bytes > image_size) {
+        return false;
+    }
+
+    for (std::uint16_t i = 0; i < header.phnum; ++i) {
+        const auto ph_offset = header.phoff + (static_cast<std::uint32_t>(header.phentsize) * i);
+        app_abi::AppElf32ProgramHeader ph{};
+        std::memcpy(&ph, g_mutated_elf_payload + ph_offset, sizeof(ph));
+        if (ph.type == app_abi::kAppElfPtLoad && (ph.memsz != 0U || ph.filesz != 0U)) {
+            ph.flags |= app_abi::kAppElfPfW | app_abi::kAppElfPfX;
+            std::memcpy(g_mutated_elf_payload + ph_offset, &ph, sizeof(ph));
+            return true;
+        }
+    }
+    return false;
+}
+
+bool expect_mutated_hello_load_failure(std::string_view name,
+                                       bool (*mutate)(const unsigned char*, std::size_t) noexcept,
+                                       app_abi::AppElfProbeCode expected_probe) noexcept;
 
 void log_format(app_abi::AppImageFormat format) noexcept;
 
@@ -778,6 +837,21 @@ bool expect_load_failure(std::string_view name,
            counters.app_exit == 0U;
 }
 
+bool expect_mutated_hello_load_failure(std::string_view name,
+                                       bool (*mutate)(const unsigned char*, std::size_t) noexcept,
+                                       app_abi::AppElfProbeCode expected_probe) noexcept {
+    if (mutate == nullptr || !mutate(hello_app_elf, hello_app_elf_len)) {
+        qemu_backend::write("resident-elf-qemu: mutate-elf name=");
+        qemu_backend::log_view(name);
+        qemu_backend::write(" code=failed\n");
+        return false;
+    }
+    return expect_load_failure(name,
+                               g_mutated_elf_payload,
+                               hello_app_elf_len,
+                               expected_probe);
+}
+
 bool expect_runtime_failure(std::string_view log_name,
                             const app_abi::AppImage& image,
                             std::string_view arg_text,
@@ -1126,6 +1200,12 @@ extern "C" int resident_elf_qemu_main() {
                                           g_bad_elf_magic_payload,
                                           sizeof(g_bad_elf_magic_payload),
                                           app_abi::AppElfProbeCode::bad_magic) && ok;
+    ok = expect_mutated_hello_load_failure("entry_outside_segment_app",
+                                           mutate_elf_entry_outside_segment,
+                                           app_abi::AppElfProbeCode::entry_outside_segment) && ok;
+    ok = expect_mutated_hello_load_failure("rwx_segment_app",
+                                           mutate_elf_first_load_segment_rwx,
+                                           app_abi::AppElfProbeCode::rwx_segment) && ok;
     ok = expect_load_failure("too_large_app",
                              too_large_app_elf,
                              too_large_app_elf_len,

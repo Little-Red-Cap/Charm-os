@@ -239,12 +239,14 @@ function Invoke-WrapperSelfTest {
     $OriginalValidateDomainSummary = $ValidateDomainSummary
     $OriginalCompareDomainSummary = $CompareDomainSummary
     $OriginalActualDomainSummary = $ActualDomainSummary
+    $OriginalDryRun = $DryRun
     $script:ValidateFrameSignatures = "frame-signatures.json"
     $script:CompareFrameSignatures = "frame-signatures.golden.json"
     $script:ActualFrameSignatures = "frame-signatures.json"
     $script:ValidateDomainSummary = "domain-summary.json"
     $script:CompareDomainSummary = "domain-summary.golden.json"
     $script:ActualDomainSummary = "domain-summary.json"
+    $script:DryRun = $true
     try {
         $ProbeEvidence = New-QemuSmokeArguments
         foreach ($ExpectedForward in @(
@@ -259,6 +261,9 @@ function Invoke-WrapperSelfTest {
                 throw "selftest_failed: wrapper did not forward $($ExpectedForward.Name)"
             }
         }
+        if (-not (Test-ArgumentPresent -Arguments $ProbeEvidence -Name "-DryRun")) {
+            throw "selftest_failed: wrapper did not forward -DryRun"
+        }
     } finally {
         $script:ValidateFrameSignatures = $OriginalValidateFrameSignatures
         $script:CompareFrameSignatures = $OriginalCompareFrameSignatures
@@ -266,6 +271,7 @@ function Invoke-WrapperSelfTest {
         $script:ValidateDomainSummary = $OriginalValidateDomainSummary
         $script:CompareDomainSummary = $OriginalCompareDomainSummary
         $script:ActualDomainSummary = $OriginalActualDomainSummary
+        $script:DryRun = $OriginalDryRun
     }
 
     & powershell @Forwarded

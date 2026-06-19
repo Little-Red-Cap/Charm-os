@@ -3929,6 +3929,7 @@ function Invoke-SelfTest {
     $ReadmePath = Join-Path $PSScriptRoot "README.md"
     $ReadmeText = Get-Content -LiteralPath $ReadmePath -Raw -Encoding UTF8
     foreach ($RequiredReadmeToken in @(
+        "..\run-resident-elf-qemu-smoke.ps1 -DryRun",
         "..\run-resident-elf-qemu-smoke.ps1 -SelfTest",
         "-SkipGoldenFrameSignatures",
         "-SkipGoldenInputTrace",

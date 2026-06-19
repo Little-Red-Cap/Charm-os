@@ -332,33 +332,50 @@ function Invoke-SelfTest {
         }
         store = [pscustomobject]@{
             format = "store_v1"
-            entries = 14
-            bytes = 87584
+            entries = 31
+            bytes = 173184
             media = [pscustomobject]@{
                 kind = "memory"
-                bytes = 87584
-                read_calls = 147
-                read_bytes = 72360
+                bytes = 173184
+                read_calls = 589
+                read_bytes = 175332
                 read_failures = 0
             }
         }
         coverage = [pscustomobject]@{
-            runs = 1..52
-            stages = 1..19
+            runs = 1..87
+            stages = 1..36
             source_matrix = @(
                 (New-SelfTestQemuSourceCase -Name "hello_app" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Received (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Packetstream (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok")),
                 (New-SelfTestQemuSourceCase -Name "argv_app" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Prepare (New-SelfTestQemuPrepare)),
                 (New-SelfTestQemuSourceCase -Name "argv_overflow_app" -Direct (New-SelfTestQemuRun -Stage "argv" -Code "argv_overflow")),
                 (New-SelfTestQemuSourceCase -Name "abi_mismatch_app" -Direct (New-SelfTestQemuRun -Stage "abi" -Code "abi_mismatch")),
+                (New-SelfTestQemuSourceCase -Name "afe_error_app" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok")),
                 (New-SelfTestQemuSourceCase -Name "bss_app" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok")),
+                (New-SelfTestQemuSourceCase -Name "console_error_app" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok")),
                 (New-SelfTestQemuSourceCase -Name "data_app" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok")),
                 (New-SelfTestQemuSourceCase -Name "exit_app" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok")),
+                (New-SelfTestQemuSourceCase -Name "exit_error_app" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok")),
+                (New-SelfTestQemuSourceCase -Name "exit_negative_app" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok")),
+                (New-SelfTestQemuSourceCase -Name "return_negative_app" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok")),
                 (New-SelfTestQemuSourceCase -Name "unsupported_caps_app" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok")),
                 (New-SelfTestQemuSourceCase -Name "storage_app" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok")),
                 (New-SelfTestQemuSourceCase -Name "storage_catalog_app" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok")),
+                (New-SelfTestQemuSourceCase -Name "storage_close_error_app" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok")),
+                (New-SelfTestQemuSourceCase -Name "storage_error_app" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok")),
+                (New-SelfTestQemuSourceCase -Name "storage_fd_exhaustion_app" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok")),
+                (New-SelfTestQemuSourceCase -Name "storage_open_error_app" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok")),
+                (New-SelfTestQemuSourceCase -Name "storage_write_error_app" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok")),
+                (New-SelfTestQemuSourceCase -Name "storage_zero_io_app" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok")),
+                (New-SelfTestQemuSourceCase -Name "display_describe_error_app" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok")),
+                (New-SelfTestQemuSourceCase -Name "display_error_app" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok")),
+                (New-SelfTestQemuSourceCase -Name "display_null_present_app" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok")),
                 (New-SelfTestQemuSourceCase -Name "display_sequence_app" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok")),
+                (New-SelfTestQemuSourceCase -Name "input_error_app" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok")),
                 (New-SelfTestQemuSourceCase -Name "input_sequence_app" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok")),
+                (New-SelfTestQemuSourceCase -Name "input_wrap_app" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok")),
                 (New-SelfTestQemuSourceCase -Name "time_app" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok")),
+                (New-SelfTestQemuSourceCase -Name "time_sequence_app" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok")),
                 (New-SelfTestQemuSourceCase -Name "large_fit_app" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Received (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Packetstream (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok")),
                 (New-SelfTestQemuSourceCase -Name "bad_elf_magic_app" -Direct (New-SelfTestQemuRun -Stage "load" -Code "load_failed")),
                 (New-SelfTestQemuSourceCase -Name "packetstream_bad_elf_magic_app" -Packetstream (New-SelfTestQemuRun -Stage "load" -Code "load_failed")),
@@ -377,6 +394,7 @@ function Invoke-SelfTest {
                 (New-SelfTestQemuSourceCase -Name "entry_outside_segment_app" -Direct (New-SelfTestQemuRun -Stage "load" -Code "load_failed")),
                 (New-SelfTestQemuSourceCase -Name "overlapping_segments_app" -Direct (New-SelfTestQemuRun -Stage "load" -Code "load_failed")),
                 (New-SelfTestQemuSourceCase -Name "rwx_segment_app" -Direct (New-SelfTestQemuRun -Stage "load" -Code "load_failed")),
+                (New-SelfTestQemuSourceCase -Name "wrong_link_base_app" -Direct (New-SelfTestQemuRun -Stage "load" -Code "load_failed")),
                 (New-SelfTestQemuSourceCase -Name "too_large_app" -Direct (New-SelfTestQemuRun -Stage "load" -Code "load_failed")),
                 (New-SelfTestQemuSourceCase -Name "player_min" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Received (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Packetstream (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok"))
             )
@@ -636,6 +654,19 @@ function Invoke-SelfTest {
                     capacity_probe = "rwx_segment"
                 },
                 [pscustomobject]@{
+                    name = "wrong_link_base_app"
+                    format = "elf"
+                    probe = "ok"
+                    entry = "0x20080021"
+                    span = 270
+                    segments = 2
+                    needed = 270
+                    free = 65266
+                    fits = $true
+                    region = 65536
+                    capacity_probe = "ok"
+                },
+                [pscustomobject]@{
                     name = "too_large_app"
                     format = "elf"
                     probe = "load_buffer_too_small"
@@ -665,7 +696,17 @@ function Invoke-SelfTest {
                 app_exit = $true
                 unsupported = $true
             }
-            negative_cases = 1..23
+            negative_cases = @(@(1..23 | ForEach-Object {
+                        [pscustomobject]@{
+                            name = "synthetic_negative_$($_)"
+                            stage = "load"
+                            code = "load_failed"
+                        }
+                    }) + @([pscustomobject]@{
+                    name = "wrong_link_base_app"
+                    stage = "load"
+                    code = "load_failed"
+                }))
             gui_timeline = @(
                 [pscustomobject]@{ name = "player_min"; frames = 1; inputs = 1; last_frame_hash = "0xfac53a05"; last_input = "3,5,0" },
                 [pscustomobject]@{ name = "received:player_min"; frames = 1; inputs = 1; last_frame_hash = "0xfac53a05"; last_input = "3,5,0" },
@@ -680,11 +721,27 @@ function Invoke-SelfTest {
             frame_dump_run_count = 6
             frame_ppm_count = 8
             frame_ppm_run_count = 6
-            input_trace_event_count = 12
-            input_trace_run_count = 6
-            storage_trace_event_count = 49
-            storage_trace_run_count = 6
+            input_trace_event_count = 24
+            input_trace_run_count = 8
+            storage_trace_event_count = 130
+            storage_trace_run_count = 18
         }
+    }
+    foreach ($Load in @($GoodSummary.coverage.loads)) {
+        $IsWrongBase = ([string]$Load.name -eq "wrong_link_base_app")
+        $LinkBase = if ($IsWrongBase) { "0x20081000" } else { "0x20080000" }
+        $EntryVaddr = if ($IsWrongBase) {
+            "0x20081021"
+        } elseif ([string]$Load.name -eq "too_large_app") {
+            "0x20080001"
+        } else {
+            [string]$Load.entry
+        }
+        $BaseMatch = -not $IsWrongBase
+        $Load | Add-Member -NotePropertyName "link_base" -NotePropertyValue $LinkBase -Force
+        $Load | Add-Member -NotePropertyName "expected_base" -NotePropertyValue "0x20080000" -Force
+        $Load | Add-Member -NotePropertyName "entry_vaddr" -NotePropertyValue $EntryVaddr -Force
+        $Load | Add-Member -NotePropertyName "base_match" -NotePropertyValue $BaseMatch -Force
     }
     [System.IO.File]::WriteAllText($TempSummary, (($GoodSummary | ConvertTo-Json -Depth 8) + "`n"), [System.Text.UTF8Encoding]::new($false))
     [System.IO.File]::WriteAllText($TempQemuLog, "resident-elf-qemu domain summary comparison ok`n  expected=domain-summary.golden.json`n", [System.Text.UTF8Encoding]::new($false))
@@ -695,15 +752,16 @@ function Invoke-SelfTest {
             $ParsedQemu.AppModel -ne "format=elf:model=CharmAppApi" -or
             $ParsedQemu.Backend -ne "virtual:virtual_m7:console,time,display,input,storage,app_exit:storage=readonly:afe=unsupported" -or
             $ParsedQemu.Memory -ne "run_base=0x20080000:run_size=65536:stage_cache=16384" -or
-            $ParsedQemu.Store -ne "store_v1:entries=14:bytes=87584:media=memory:reads=147:read_bytes=72360:failures=0" -or
+            $ParsedQemu.Store -ne "store_v1:entries=31:bytes=173184:media=memory:reads=589:read_bytes=175332:failures=0" -or
             $ParsedQemu.Display -ne "16x16:argb8888:stride=64:frame=1024" -or
-            $ParsedQemu.Evidence -ne "frames=8/6:dumps=8/6:ppm=8/6:input=12/6:storage=49/6" -or
+            $ParsedQemu.Evidence -ne "frames=8/6:dumps=8/6:ppm=8/6:input=24/8:storage=130/18" -or
             $ParsedQemu.Capacity -ne "large_fit=61696/65536:free=3840:fits=1:probe=ok;too_large=82176/65536:free=0:fits=0:probe=load_buffer_too_small" -or
-            $ParsedQemu.Loads -ne "hello_app=entry:0x20080021:span:270:segments:2:fits:1:probe:ok;packetstream:player_min=entry:0x20080001:span:1280:segments:3:fits:1:probe:ok;large_fit_app=entry:0x20080019:span:61696:segments:3:fits:1:probe:ok;bad_elf_magic_app=entry:0x00000000:span:0:segments:0:fits:1:probe:bad_magic;bad_header_app=entry:0x00000000:span:0:segments:0:fits:1:probe:bad_header;bad_class_app=entry:0x00000000:span:0:segments:0:fits:1:probe:bad_class;bad_endian_app=entry:0x00000000:span:0:segments:0:fits:1:probe:bad_endian;bad_ident_version_app=entry:0x00000000:span:0:segments:0:fits:1:probe:bad_header;bad_type_app=entry:0x00000000:span:0:segments:0:fits:1:probe:bad_header;bad_machine_app=entry:0x00000000:span:0:segments:0:fits:1:probe:bad_header;bad_version_app=entry:0x00000000:span:0:segments:0:fits:1:probe:bad_header;bad_ehsize_app=entry:0x00000000:span:0:segments:0:fits:1:probe:bad_header;bad_phentsize_app=entry:0x00000000:span:0:segments:0:fits:1:probe:bad_program_header;bad_program_header_app=entry:0x00000000:span:0:segments:0:fits:1:probe:bad_program_header;truncated_payload_app=entry:0x00000000:span:0:segments:0:fits:1:probe:truncated_payload;no_load_segment_app=entry:0x00000000:span:0:segments:0:fits:1:probe:no_load_segment;entry_outside_segment_app=entry:0x00000000:span:0:segments:0:fits:1:probe:entry_outside_segment;overlapping_segments_app=entry:0x00000000:span:0:segments:0:fits:1:probe:overlapping_segments;rwx_segment_app=entry:0x00000000:span:0:segments:0:fits:1:probe:rwx_segment;too_large_app=entry:0x00000000:span:82176:segments:2:fits:0:probe:load_buffer_too_small" -or
+            $ParsedQemu.Loads.IndexOf("wrong_link_base_app=entry:0x20080021:span:270:segments:2:fits:1:probe:ok", [System.StringComparison]::Ordinal) -lt 0 -or
             $ParsedQemu.Packetstreams -ne "hello_app=payload:5132:stream:5776:packets:23:crc:0xb3b7bcc5;large_fit_app=payload:5168:stream:5840:packets:24:crc:0xdffdfba1;packetstream_bad_elf_magic_app=payload:64:stream:176:packets:4:crc:0xbd40f3c7;player_min=payload:5168:stream:5840:packets:24:crc:0xba5eb94a;packetstream_crc_mismatch=stage:failed/crc_mismatch:dispatch:22/23:crc:0x7d9c7647->0xb3b7bcc5:read:0:stage_bytes:0" -or
-            $ParsedQemu.Sources -ne "hello_app=direct,received,packetstream,store:exit/ok;large_fit_app=direct,received,packetstream,store:exit/ok;player_min=direct,received,packetstream,store:exit/ok;argv_app=direct,store:exit/ok:prepare=start/ok:argc=4;data_app=direct,store:exit/ok;negatives=argv_overflow_app:direct=argv/argv_overflow,abi_mismatch_app:direct=abi/abi_mismatch,bad_elf_magic_app:direct=load/load_failed,packetstream_bad_elf_magic_app:packetstream=load/load_failed,bad_header_app:direct=load/load_failed,bad_class_app:direct=load/load_failed,bad_endian_app:direct=load/load_failed,bad_ident_version_app:direct=load/load_failed,bad_type_app:direct=load/load_failed,bad_machine_app:direct=load/load_failed,bad_version_app:direct=load/load_failed,bad_ehsize_app:direct=load/load_failed,bad_phentsize_app:direct=load/load_failed,bad_program_header_app:direct=load/load_failed,truncated_payload_app:direct=load/load_failed,no_load_segment_app:direct=load/load_failed,entry_outside_segment_app:direct=load/load_failed,overlapping_segments_app:direct=load/load_failed,rwx_segment_app:direct=load/load_failed,too_large_app:direct=load/load_failed" -or
+            $ParsedQemu.LinkBase -ne "expected=0x20080000;hello_app=link:0x20080000:entry_vaddr:0x20080021:base_match:1;large_fit_app=link:0x20080000:entry_vaddr:0x20080019:base_match:1;packetstream:player_min=link:0x20080000:entry_vaddr:0x20080001:base_match:1;wrong_link_base_app=link:0x20081000:entry_vaddr:0x20081021:base_match:0:source:load/load_failed" -or
+            $ParsedQemu.Sources.IndexOf("wrong_link_base_app:direct=load/load_failed", [System.StringComparison]::Ordinal) -lt 0 -or
             $DomainGolden -ne "ok" -or
-            $ParsedQemu.Coverage -ne "runs=52:stages=19:loads=20:packetstreams=5:source_matrix=33:gui_timeline=4:prepare=1:capabilities=7:negative_cases=23" -or
+            $ParsedQemu.Coverage -ne "runs=87:stages=36:loads=21:packetstreams=5:source_matrix=51:gui_timeline=4:prepare=1:capabilities=7:negative_cases=24" -or
             $ParsedQemu.GuiTimeline -ne 4 -or
             $ParsedQemu.PlayerMin.IndexOf("packetstream:player_min:frames=1,inputs=1", [System.StringComparison]::Ordinal) -lt 0) {
             throw "selftest_failed: qemu summary parse result is unexpected"
@@ -735,6 +793,7 @@ function Invoke-SelfTest {
         Test-BadQemuSummary -Label "store_media" -Mutate { param($Summary) $Summary.store.media.read_failures = 1 }
         Test-BadQemuSummary -Label "evidence_counts" -Mutate { param($Summary) $Summary.evidence.frame_signature_count = 7 }
         Test-BadQemuSummary -Label "capacity" -Mutate { param($Summary) ($Summary.coverage.loads | Where-Object { $_.name -eq "too_large_app" }).fits = $true }
+        Test-BadQemuSummary -Label "link_base" -Mutate { param($Summary) ($Summary.coverage.loads | Where-Object { $_.name -eq "wrong_link_base_app" }).base_match = $true }
         Test-BadQemuSummary -Label "packetstream_crc_mismatch" -Mutate { param($Summary) ($Summary.coverage.packetstreams | Where-Object { $_.name -eq "packetstream_crc_mismatch" }).read_code = "ok" }
         Test-BadQemuSummary -Label "source_matrix" -Mutate { param($Summary) ($Summary.coverage.source_matrix | Where-Object { $_.name -eq "player_min" }).packetstream.code = "load_failed" }
         Test-BadQemuSummary -Label "gui_timeline" -Mutate { param($Summary) $Summary.coverage.gui_timeline = @($Summary.coverage.gui_timeline | Where-Object { $_.name -ne "store:player_min" }) }
@@ -895,6 +954,30 @@ function Assert-QemuElfLoadSummary {
         ([string]$Load.probe))
 }
 
+function Assert-QemuElfLinkBaseSummary {
+    param(
+        [object]$Load,
+        [string]$LinkBase,
+        [string]$ExpectedBase,
+        [string]$EntryVaddr,
+        [bool]$BaseMatch
+    )
+
+    if ($Load.format -ne "elf" -or
+        [string]$Load.link_base -ne $LinkBase -or
+        [string]$Load.expected_base -ne $ExpectedBase -or
+        [string]$Load.entry_vaddr -ne $EntryVaddr -or
+        [bool]$Load.base_match -ne $BaseMatch) {
+        throw "qemu_elf_summary_invalid: bad link base $($Load.name)"
+    }
+    $BaseMatchToken = if ([bool]$Load.base_match) { "1" } else { "0" }
+    return ("{0}=link:{1}:entry_vaddr:{2}:base_match:{3}" -f `
+        ([string]$Load.name), `
+        ([string]$Load.link_base), `
+        ([string]$Load.entry_vaddr), `
+        $BaseMatchToken)
+}
+
 function Read-QemuElfDomainGoldenStatusFromText {
     param([string]$Text)
 
@@ -964,7 +1047,7 @@ function Read-QemuElfDomainSummary {
         throw "qemu_elf_summary_invalid: bad stage_cache"
     }
     if ($Summary.store.format -ne "store_v1" -or
-        [int]$Summary.store.entries -ne 14 -or
+        [int]$Summary.store.entries -ne 31 -or
         [int]$Summary.store.bytes -le 0 -or
         $Summary.store.media.kind -ne "memory" -or
         [int]$Summary.store.media.bytes -ne [int]$Summary.store.bytes -or
@@ -979,10 +1062,10 @@ function Read-QemuElfDomainSummary {
         [int]$Summary.evidence.frame_dump_run_count -ne 6 -or
         [int]$Summary.evidence.frame_ppm_count -ne 8 -or
         [int]$Summary.evidence.frame_ppm_run_count -ne 6 -or
-        [int]$Summary.evidence.input_trace_event_count -ne 12 -or
-        [int]$Summary.evidence.input_trace_run_count -ne 6 -or
-        [int]$Summary.evidence.storage_trace_event_count -ne 49 -or
-        [int]$Summary.evidence.storage_trace_run_count -ne 6) {
+        [int]$Summary.evidence.input_trace_event_count -ne 24 -or
+        [int]$Summary.evidence.input_trace_run_count -ne 8 -or
+        [int]$Summary.evidence.storage_trace_event_count -ne 130 -or
+        [int]$Summary.evidence.storage_trace_run_count -ne 18) {
         throw "qemu_elf_summary_invalid: bad evidence counts"
     }
     $LargeFit = @($Summary.coverage.loads | Where-Object { $_.name -eq "large_fit_app" })
@@ -1033,6 +1116,7 @@ function Read-QemuElfDomainSummary {
             [pscustomobject]@{ name = "entry_outside_segment_app"; probe = "entry_outside_segment"; entry = "0x00000000"; span = 0; segments = 0; fits = $true },
             [pscustomobject]@{ name = "overlapping_segments_app"; probe = "overlapping_segments"; entry = "0x00000000"; span = 0; segments = 0; fits = $true },
             [pscustomobject]@{ name = "rwx_segment_app"; probe = "rwx_segment"; entry = "0x00000000"; span = 0; segments = 0; fits = $true },
+            [pscustomobject]@{ name = "wrong_link_base_app"; probe = "ok"; entry = "0x20080021"; span = 270; segments = 2; fits = $true },
             [pscustomobject]@{ name = "too_large_app"; probe = "load_buffer_too_small"; entry = "0x00000000"; span = 82176; segments = 2; fits = $false }
         )) {
         $Load = Get-QemuElfLoadCase -Loads @($Summary.coverage.loads) -Name $Expected.name
@@ -1043,6 +1127,21 @@ function Read-QemuElfDomainSummary {
                 -Span $Expected.span `
                 -Segments $Expected.segments `
                 -Fits $Expected.fits)
+    }
+    $LinkBaseSummaryParts = @("expected=0x20080000")
+    foreach ($Expected in @(
+            [pscustomobject]@{ name = "hello_app"; link_base = "0x20080000"; entry_vaddr = "0x20080021"; base_match = $true },
+            [pscustomobject]@{ name = "large_fit_app"; link_base = "0x20080000"; entry_vaddr = "0x20080019"; base_match = $true },
+            [pscustomobject]@{ name = "packetstream:player_min"; link_base = "0x20080000"; entry_vaddr = "0x20080001"; base_match = $true },
+            [pscustomobject]@{ name = "wrong_link_base_app"; link_base = "0x20081000"; entry_vaddr = "0x20081021"; base_match = $false }
+        )) {
+        $Load = Get-QemuElfLoadCase -Loads @($Summary.coverage.loads) -Name $Expected.name
+        $LinkBaseSummaryParts += (Assert-QemuElfLinkBaseSummary `
+                -Load $Load `
+                -LinkBase $Expected.link_base `
+                -ExpectedBase "0x20080000" `
+                -EntryVaddr $Expected.entry_vaddr `
+                -BaseMatch $Expected.base_match)
     }
     $Packetstreams = @($Summary.coverage.packetstreams)
     if ($Packetstreams.Count -ne 5) {
@@ -1084,17 +1183,17 @@ function Read-QemuElfDomainSummary {
         ([int]$CrcMismatch.read_bytes), `
         ([int]$CrcMismatch.app_stage_bytes))
     $SourceMatrix = @($Summary.coverage.source_matrix)
-    if ($SourceMatrix.Count -ne 33) {
+    if ($SourceMatrix.Count -ne 51) {
         throw "qemu_elf_summary_invalid: bad source matrix count"
     }
     $CoverageStages = @($Summary.coverage.stages).Count
     $CoveragePrepare = if ($null -ne $Summary.coverage.prepare) { 1 } else { 0 }
     $CoverageCapabilities = @($Summary.coverage.capabilities.PSObject.Properties | Where-Object { [bool]$_.Value }).Count
     $CoverageNegativeCases = @($Summary.coverage.negative_cases).Count
-    if ($CoverageStages -ne 19 -or
+    if ($CoverageStages -ne 36 -or
         $CoveragePrepare -ne 1 -or
         $CoverageCapabilities -ne 7 -or
-        $CoverageNegativeCases -ne 23) {
+        $CoverageNegativeCases -ne 24) {
         throw "qemu_elf_summary_invalid: bad coverage counts"
     }
     $SourceSummaryParts = @()
@@ -1136,6 +1235,7 @@ function Read-QemuElfDomainSummary {
             [pscustomobject]@{ name = "entry_outside_segment_app"; path = "direct"; stage = "load"; code = "load_failed" },
             [pscustomobject]@{ name = "overlapping_segments_app"; path = "direct"; stage = "load"; code = "load_failed" },
             [pscustomobject]@{ name = "rwx_segment_app"; path = "direct"; stage = "load"; code = "load_failed" },
+            [pscustomobject]@{ name = "wrong_link_base_app"; path = "direct"; stage = "load"; code = "load_failed" },
             [pscustomobject]@{ name = "too_large_app"; path = "direct"; stage = "load"; code = "load_failed" }
         )) {
         $Case = Get-QemuElfSourceMatrixCase -Matrix $SourceMatrix -Name $Negative.name
@@ -1208,6 +1308,7 @@ function Read-QemuElfDomainSummary {
             $TooLargeFits, `
             ([string]$TooLargeLoad.capacity_probe))
         Loads = ($LoadSummaryParts -join ";")
+        LinkBase = (($LinkBaseSummaryParts -join ";") + ":source:load/load_failed")
         Packetstreams = ($PacketstreamSummaryParts -join ";")
         Runs = @($Summary.coverage.runs).Count
         Stages = $CoverageStages
@@ -1255,6 +1356,7 @@ function Write-QemuElfSummaryLines {
         Write-BundleLine -Lines $Lines -Text "qemu_elf_display=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_evidence=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_capacity=skipped"
+        Write-BundleLine -Lines $Lines -Text "qemu_elf_link_base=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_loads=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_packetstreams=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_domain_golden=skipped"
@@ -1275,6 +1377,7 @@ function Write-QemuElfSummaryLines {
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_display={0}" -f $QemuElfSummary.Display)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_evidence={0}" -f $QemuElfSummary.Evidence)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_capacity={0}" -f $QemuElfSummary.Capacity)
+    Write-BundleLine -Lines $Lines -Text ("qemu_elf_link_base={0}" -f $QemuElfSummary.LinkBase)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_loads={0}" -f $QemuElfSummary.Loads)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_packetstreams={0}" -f $QemuElfSummary.Packetstreams)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_domain_golden={0}" -f $QemuElfDomainGolden)

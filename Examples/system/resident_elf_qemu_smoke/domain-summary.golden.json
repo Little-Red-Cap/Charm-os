@@ -77,6 +77,114 @@
                               "input":  true,
                               "unsupported_boundary":  true
                           },
+    "backend_capability_matrix":  [
+                                      {
+                                          "capability":  "console",
+                                          "provider":  "cmsdk_uart",
+                                          "policy":  "write_only_log_sink",
+                                          "evidence":  [
+                                                           "run_log",
+                                                           "capability_counters"
+                                                       ],
+                                          "runs":  [
+                                                       "hello_app",
+                                                       "console_error_app",
+                                                       "store:console_error_app"
+                                                   ]
+                                      },
+                                      {
+                                          "capability":  "time",
+                                          "provider":  "deterministic_tick",
+                                          "policy":  "start=1000:step=17:reset_per_run=1",
+                                          "evidence":  [
+                                                           "run_log",
+                                                           "capability_counters"
+                                                       ],
+                                          "runs":  [
+                                                       "time_app",
+                                                       "time_sequence_app",
+                                                       "store:time_sequence_app"
+                                                   ]
+                                      },
+                                      {
+                                          "capability":  "display",
+                                          "provider":  "framebuffer",
+                                          "policy":  "16x16:argb8888:stride=64:frame=1024",
+                                          "evidence":  [
+                                                           "frame_signatures",
+                                                           "frame_dumps",
+                                                           "frame_ppm",
+                                                           "gui_timeline",
+                                                           "capability_counters"
+                                                       ],
+                                          "runs":  [
+                                                       "player_min",
+                                                       "display_sequence_app",
+                                                       "display_error_app",
+                                                       "display_null_present_app"
+                                                   ]
+                                      },
+                                      {
+                                          "capability":  "input",
+                                          "provider":  "deterministic_sequence",
+                                          "policy":  "samples=4:max=15,15:wraps=1",
+                                          "evidence":  [
+                                                           "input_trace",
+                                                           "gui_timeline",
+                                                           "capability_counters"
+                                                       ],
+                                          "runs":  [
+                                                       "player_min",
+                                                       "input_sequence_app",
+                                                       "input_wrap_app",
+                                                       "input_error_app"
+                                                   ]
+                                      },
+                                      {
+                                          "capability":  "storage",
+                                          "provider":  "virtual_readonly_files",
+                                          "policy":  "files=3:fd=3+4:write=unsupported",
+                                          "evidence":  [
+                                                           "storage_trace",
+                                                           "capability_counters"
+                                                       ],
+                                          "runs":  [
+                                                       "storage_app",
+                                                       "storage_catalog_app",
+                                                       "storage_fd_exhaustion_app",
+                                                       "storage_write_error_app"
+                                                   ]
+                                      },
+                                      {
+                                          "capability":  "app_exit",
+                                          "provider":  "notification_counter",
+                                          "policy":  "overrides_return=0",
+                                          "evidence":  [
+                                                           "run_log",
+                                                           "capability_counters"
+                                                       ],
+                                          "runs":  [
+                                                       "exit_app",
+                                                       "exit_error_app",
+                                                       "exit_negative_app",
+                                                       "return_negative_app"
+                                                   ]
+                                      },
+                                      {
+                                          "capability":  "afe",
+                                          "provider":  "unsupported_stub",
+                                          "policy":  "configure/read=unsupported:preserve_buffer=1",
+                                          "evidence":  [
+                                                           "run_log",
+                                                           "capability_counters"
+                                                       ],
+                                          "runs":  [
+                                                       "unsupported_caps_app",
+                                                       "afe_error_app",
+                                                       "store:afe_error_app"
+                                                   ]
+                                      }
+                                  ],
     "artifacts":  {
                       "directory":  "out-qemu",
                       "app_count":  31,

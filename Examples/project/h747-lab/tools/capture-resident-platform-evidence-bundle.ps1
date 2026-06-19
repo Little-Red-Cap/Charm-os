@@ -200,6 +200,7 @@ function Invoke-SelfTest {
     $ScriptText = Get-Content -LiteralPath $PSCommandPath -Raw -Encoding UTF8
     foreach ($RequiredToken in @(
         "qemu_elf_backend_readiness=",
+        "qemu_elf_capability_matrix=",
         "qemu_elf_run_budget_match=",
         "qemu_elf_run_budget_mismatch:",
         "-QemuElfRunBudgetMatch `$QemuElfRunBudgetMatch"
@@ -382,6 +383,15 @@ function Invoke-SelfTest {
             input = $true
             unsupported_boundary = $true
         }
+        backend_capability_matrix = @(
+            [pscustomobject]@{ capability = "console"; provider = "cmsdk_uart"; policy = "write_only_log_sink"; evidence = @("run_log", "capability_counters"); runs = @("hello_app", "console_error_app", "store:console_error_app") },
+            [pscustomobject]@{ capability = "time"; provider = "deterministic_tick"; policy = "start=1000:step=17:reset_per_run=1"; evidence = @("run_log", "capability_counters"); runs = @("time_app", "time_sequence_app", "store:time_sequence_app") },
+            [pscustomobject]@{ capability = "display"; provider = "framebuffer"; policy = "16x16:argb8888:stride=64:frame=1024"; evidence = @("frame_signatures", "frame_dumps", "frame_ppm", "gui_timeline", "capability_counters"); runs = @("player_min", "display_sequence_app", "display_error_app", "display_null_present_app") },
+            [pscustomobject]@{ capability = "input"; provider = "deterministic_sequence"; policy = "samples=4:max=15,15:wraps=1"; evidence = @("input_trace", "gui_timeline", "capability_counters"); runs = @("player_min", "input_sequence_app", "input_wrap_app", "input_error_app") },
+            [pscustomobject]@{ capability = "storage"; provider = "virtual_readonly_files"; policy = "files=3:fd=3+4:write=unsupported"; evidence = @("storage_trace", "capability_counters"); runs = @("storage_app", "storage_catalog_app", "storage_fd_exhaustion_app", "storage_write_error_app") },
+            [pscustomobject]@{ capability = "app_exit"; provider = "notification_counter"; policy = "overrides_return=0"; evidence = @("run_log", "capability_counters"); runs = @("exit_app", "exit_error_app", "exit_negative_app", "return_negative_app") },
+            [pscustomobject]@{ capability = "afe"; provider = "unsupported_stub"; policy = "configure/read=unsupported:preserve_buffer=1"; evidence = @("run_log", "capability_counters"); runs = @("unsupported_caps_app", "afe_error_app", "store:afe_error_app") }
+        )
         run_region = [pscustomobject]@{
             base = "0x20080000"
             expected = "0x20080000"
@@ -976,6 +986,7 @@ function Invoke-SelfTest {
             $ParsedQemu.AppModel -ne "format=elf:model=CharmAppApi" -or
             $ParsedQemu.Backend -ne "virtual:virtual_m7:console,time,display,input,storage,app_exit:storage=readonly:afe=unsupported" -or
             $ParsedQemu.BackendReadiness -ne "status=ready:elf_loader=1:app_runtime=1:received=1:packetstream=1:store=1:equivalent_sources=1:gui=1:storage=1:input=1:unsupported=1" -or
+            $ParsedQemu.BackendCapabilityMatrix.IndexOf("storage=virtual_readonly_files:files=3:fd=3+4:write=unsupported:evidence=storage_trace,capability_counters:runs=storage_app,storage_catalog_app,storage_fd_exhaustion_app,storage_write_error_app", [System.StringComparison]::Ordinal) -lt 0 -or
             $ParsedQemu.BackendContract -ne "time=deterministic_tick:1000+17:reset=1;display=framebuffer:16x16:argb8888:stride=64:frame=1024:evidence=frame_signatures,frame_dumps,frame_ppm,gui_timeline;input=deterministic_sequence:samples=4:max=15,15:wraps=1:evidence=input_trace,gui_timeline;storage=virtual_readonly_files:files=3:fd=3+4:write=unsupported:evidence=storage_trace;app_exit=notification_counter:overrides_return=0" -or
             $ParsedQemu.RunBudget -ne "timeout_sec=15:tail_lines=80" -or
             $ParsedQemu.Memory -ne "run_base=0x20080000:run_size=65536:stage_cache=16384:packetstream=16384/2048/32768/16384" -or
@@ -1018,6 +1029,7 @@ function Invoke-SelfTest {
         Test-BadQemuSummary -Label "backend_contract" -Mutate { param($Summary) $Summary.backend_contract.storage = "writeable" }
         Test-BadQemuSummary -Label "backend_contract_time" -Mutate { param($Summary) $Summary.backend_contract.time.step_ms = 16 }
         Test-BadQemuSummary -Label "backend_readiness" -Mutate { param($Summary) $Summary.backend_readiness.gui = $false }
+        Test-BadQemuSummary -Label "backend_capability_matrix" -Mutate { param($Summary) ($Summary.backend_capability_matrix | Where-Object { $_.capability -eq "storage" }).policy = "write=allowed" }
         Test-BadQemuSummary -Label "run_budget" -Mutate { param($Summary) $Summary.run_budget.timeout_sec = 0 }
         Test-BadQemuSummary -Label "run_region" -Mutate { param($Summary) $Summary.run_region.size = 32768 }
         Test-BadQemuSummary -Label "stage_cache" -Mutate { param($Summary) $Summary.stage_cache.bytes = 8192 }
@@ -1352,6 +1364,102 @@ function Assert-QemuElfBackendReadiness {
         (ConvertTo-QemuElfBoolToken $Readiness.unsupported_boundary))
 }
 
+function Assert-QemuElfCapabilityMatrixEntry {
+    param(
+        [object[]]$Matrix,
+        [string]$Capability,
+        [string]$Provider,
+        [string]$Policy,
+        [string[]]$Evidence,
+        [string[]]$Runs
+    )
+
+    $Matches = @($Matrix | Where-Object { $_.capability -eq $Capability })
+    if ($Matches.Count -ne 1) {
+        throw "qemu_elf_summary_invalid: backend capability matrix missing or duplicate $Capability"
+    }
+    $Entry = $Matches[0]
+    if ($Entry.provider -ne $Provider -or $Entry.policy -ne $Policy) {
+        throw "qemu_elf_summary_invalid: backend capability matrix $Capability bad provider/policy"
+    }
+    $ActualEvidence = @($Entry.evidence)
+    if ($ActualEvidence.Count -ne $Evidence.Count) {
+        throw "qemu_elf_summary_invalid: backend capability matrix $Capability bad evidence count"
+    }
+    foreach ($Item in $Evidence) {
+        if (-not ($ActualEvidence -contains $Item)) {
+            throw "qemu_elf_summary_invalid: backend capability matrix $Capability missing evidence $Item"
+        }
+    }
+    $ActualRuns = @($Entry.runs)
+    if ($ActualRuns.Count -ne $Runs.Count) {
+        throw "qemu_elf_summary_invalid: backend capability matrix $Capability bad run count"
+    }
+    foreach ($Item in $Runs) {
+        if (-not ($ActualRuns -contains $Item)) {
+            throw "qemu_elf_summary_invalid: backend capability matrix $Capability missing run $Item"
+        }
+    }
+    return ("{0}={1}:{2}:evidence={3}:runs={4}" -f `
+        $Capability, `
+        $Provider, `
+        $Policy, `
+        ($Evidence -join ","), `
+        ($Runs -join ","))
+}
+
+function Assert-QemuElfCapabilityMatrix {
+    param([object[]]$Matrix)
+
+    if ($Matrix.Count -ne 7) {
+        throw "qemu_elf_summary_invalid: backend capability matrix count=$($Matrix.Count), expected 7"
+    }
+    $Parts = @()
+    $Parts += (Assert-QemuElfCapabilityMatrixEntry -Matrix $Matrix `
+            -Capability "console" `
+            -Provider "cmsdk_uart" `
+            -Policy "write_only_log_sink" `
+            -Evidence @("run_log", "capability_counters") `
+            -Runs @("hello_app", "console_error_app", "store:console_error_app"))
+    $Parts += (Assert-QemuElfCapabilityMatrixEntry -Matrix $Matrix `
+            -Capability "time" `
+            -Provider "deterministic_tick" `
+            -Policy "start=1000:step=17:reset_per_run=1" `
+            -Evidence @("run_log", "capability_counters") `
+            -Runs @("time_app", "time_sequence_app", "store:time_sequence_app"))
+    $Parts += (Assert-QemuElfCapabilityMatrixEntry -Matrix $Matrix `
+            -Capability "display" `
+            -Provider "framebuffer" `
+            -Policy "16x16:argb8888:stride=64:frame=1024" `
+            -Evidence @("frame_signatures", "frame_dumps", "frame_ppm", "gui_timeline", "capability_counters") `
+            -Runs @("player_min", "display_sequence_app", "display_error_app", "display_null_present_app"))
+    $Parts += (Assert-QemuElfCapabilityMatrixEntry -Matrix $Matrix `
+            -Capability "input" `
+            -Provider "deterministic_sequence" `
+            -Policy "samples=4:max=15,15:wraps=1" `
+            -Evidence @("input_trace", "gui_timeline", "capability_counters") `
+            -Runs @("player_min", "input_sequence_app", "input_wrap_app", "input_error_app"))
+    $Parts += (Assert-QemuElfCapabilityMatrixEntry -Matrix $Matrix `
+            -Capability "storage" `
+            -Provider "virtual_readonly_files" `
+            -Policy "files=3:fd=3+4:write=unsupported" `
+            -Evidence @("storage_trace", "capability_counters") `
+            -Runs @("storage_app", "storage_catalog_app", "storage_fd_exhaustion_app", "storage_write_error_app"))
+    $Parts += (Assert-QemuElfCapabilityMatrixEntry -Matrix $Matrix `
+            -Capability "app_exit" `
+            -Provider "notification_counter" `
+            -Policy "overrides_return=0" `
+            -Evidence @("run_log", "capability_counters") `
+            -Runs @("exit_app", "exit_error_app", "exit_negative_app", "return_negative_app"))
+    $Parts += (Assert-QemuElfCapabilityMatrixEntry -Matrix $Matrix `
+            -Capability "afe" `
+            -Provider "unsupported_stub" `
+            -Policy "configure/read=unsupported:preserve_buffer=1" `
+            -Evidence @("run_log", "capability_counters") `
+            -Runs @("unsupported_caps_app", "afe_error_app", "store:afe_error_app"))
+    return ($Parts -join ";")
+}
+
 function Read-QemuElfDomainSummary {
     param([string]$Path)
 
@@ -1428,6 +1536,7 @@ function Read-QemuElfDomainSummary {
         throw "qemu_elf_summary_invalid: bad app_exit backend_contract"
     }
     $BackendReadiness = Assert-QemuElfBackendReadiness -Readiness $Summary.backend_readiness
+    $BackendCapabilityMatrix = Assert-QemuElfCapabilityMatrix -Matrix @($Summary.backend_capability_matrix)
     if ($Summary.run_region.base -ne "0x20080000" -or
         $Summary.run_region.expected -ne "0x20080000" -or
         [int]$Summary.run_region.size -ne 65536) {
@@ -1743,6 +1852,7 @@ function Read-QemuElfDomainSummary {
             ([string]$Summary.backend_contract.storage), `
             ([string]$Summary.backend_contract.afe))
         BackendReadiness = $BackendReadiness
+        BackendCapabilityMatrix = $BackendCapabilityMatrix
         BackendContract = ("time={0}:{1}+{2}:reset={3};display={4}:{5}x{6}:{7}:stride={8}:frame={9}:evidence={10};input={11}:samples={12}:max={13},{14}:wraps={15}:evidence={16};storage={17}:files={18}:fd={19}+{20}:write={21}:evidence={22};app_exit={23}:overrides_return={24}" -f `
             ([string]$Summary.backend_contract.time.kind), `
             ([int]$Summary.backend_contract.time.start_ms), `
@@ -1857,6 +1967,7 @@ function Write-QemuElfSummaryLines {
         Write-BundleLine -Lines $Lines -Text "qemu_elf_app_model=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_backend=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_backend_readiness=skipped"
+        Write-BundleLine -Lines $Lines -Text "qemu_elf_capability_matrix=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_backend_contract=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_run_budget=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_memory=skipped"
@@ -1883,6 +1994,7 @@ function Write-QemuElfSummaryLines {
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_app_model={0}" -f $QemuElfSummary.AppModel)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_backend={0}" -f $QemuElfSummary.Backend)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_backend_readiness={0}" -f $QemuElfSummary.BackendReadiness)
+    Write-BundleLine -Lines $Lines -Text ("qemu_elf_capability_matrix={0}" -f $QemuElfSummary.BackendCapabilityMatrix)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_backend_contract={0}" -f $QemuElfSummary.BackendContract)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_run_budget={0}" -f $QemuElfSummary.RunBudget)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_memory={0}" -f $QemuElfSummary.Memory)

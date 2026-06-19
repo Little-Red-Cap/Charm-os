@@ -2704,6 +2704,89 @@ function Get-QemuBackendReadiness {
     }
 }
 
+function New-QemuBackendCapabilityMatrixEntry {
+    param(
+        [string]$Capability,
+        [string]$Provider,
+        [string]$Policy,
+        [string[]]$Evidence,
+        [string[]]$Runs
+    )
+
+    return [pscustomobject]@{
+        capability = $Capability
+        provider = $Provider
+        policy = $Policy
+        evidence = @($Evidence)
+        runs = @($Runs)
+    }
+}
+
+function Get-QemuBackendCapabilityMatrix {
+    param([object]$BackendContract)
+
+    return @(
+        (New-QemuBackendCapabilityMatrixEntry `
+            -Capability "console" `
+            -Provider "cmsdk_uart" `
+            -Policy "write_only_log_sink" `
+            -Evidence @("run_log", "capability_counters") `
+            -Runs @("hello_app", "console_error_app", "store:console_error_app")),
+        (New-QemuBackendCapabilityMatrixEntry `
+            -Capability "time" `
+            -Provider ([string]$BackendContract.time.kind) `
+            -Policy ("start={0}:step={1}:reset_per_run={2}" -f `
+                ([int]$BackendContract.time.start_ms), `
+                ([int]$BackendContract.time.step_ms), `
+                ($(if ([bool]$BackendContract.time.reset_per_run) { "1" } else { "0" }))) `
+            -Evidence @("run_log", "capability_counters") `
+            -Runs @("time_app", "time_sequence_app", "store:time_sequence_app")),
+        (New-QemuBackendCapabilityMatrixEntry `
+            -Capability "display" `
+            -Provider ([string]$BackendContract.display.kind) `
+            -Policy ("{0}x{1}:{2}:stride={3}:frame={4}" -f `
+                ([int]$BackendContract.display.width), `
+                ([int]$BackendContract.display.height), `
+                ([string]$BackendContract.display.format), `
+                ([int]$BackendContract.display.stride_bytes), `
+                ([int]$BackendContract.display.frame_bytes)) `
+            -Evidence @("frame_signatures", "frame_dumps", "frame_ppm", "gui_timeline", "capability_counters") `
+            -Runs @("player_min", "display_sequence_app", "display_error_app", "display_null_present_app")),
+        (New-QemuBackendCapabilityMatrixEntry `
+            -Capability "input" `
+            -Provider ([string]$BackendContract.input.kind) `
+            -Policy ("samples={0}:max={1},{2}:wraps={3}" -f `
+                ([int]$BackendContract.input.sample_count), `
+                ([int]$BackendContract.input.pointer_max_x), `
+                ([int]$BackendContract.input.pointer_max_y), `
+                ($(if ([bool]$BackendContract.input.wraps) { "1" } else { "0" }))) `
+            -Evidence @("input_trace", "gui_timeline", "capability_counters") `
+            -Runs @("player_min", "input_sequence_app", "input_wrap_app", "input_error_app")),
+        (New-QemuBackendCapabilityMatrixEntry `
+            -Capability "storage" `
+            -Provider ([string]$BackendContract.storage_media.kind) `
+            -Policy ("files={0}:fd={1}+{2}:write={3}" -f `
+                ([int]$BackendContract.storage_media.file_count), `
+                ([int]$BackendContract.storage_media.fd_base), `
+                ([int]$BackendContract.storage_media.fd_slots), `
+                ([string]$BackendContract.storage_media.write_policy)) `
+            -Evidence @("storage_trace", "capability_counters") `
+            -Runs @("storage_app", "storage_catalog_app", "storage_fd_exhaustion_app", "storage_write_error_app")),
+        (New-QemuBackendCapabilityMatrixEntry `
+            -Capability "app_exit" `
+            -Provider ([string]$BackendContract.app_exit.kind) `
+            -Policy ("overrides_return={0}" -f ($(if ([bool]$BackendContract.app_exit.overrides_return) { "1" } else { "0" }))) `
+            -Evidence @("run_log", "capability_counters") `
+            -Runs @("exit_app", "exit_error_app", "exit_negative_app", "return_negative_app")),
+        (New-QemuBackendCapabilityMatrixEntry `
+            -Capability "afe" `
+            -Provider "unsupported_stub" `
+            -Policy "configure/read=unsupported:preserve_buffer=1" `
+            -Evidence @("run_log", "capability_counters") `
+            -Runs @("unsupported_caps_app", "afe_error_app", "store:afe_error_app"))
+    )
+}
+
 function Write-DomainSummaryCapture {
     param(
         [string]$LogPath,
@@ -2845,6 +2928,7 @@ function Write-DomainSummaryCapture {
     $SourceMatrix = Get-SourceMatrixFromText -Text $Text
     $GuiTimeline = Get-GuiTimelineSummary -FrameSignatureCapture $FrameSignatureCapture -InputTraceCapture $InputTraceCapture
     $Capabilities = Get-CapabilitySummaryFromText -Text $Text
+    $BackendCapabilityMatrix = Get-QemuBackendCapabilityMatrix -BackendContract $BackendContract
     $BackendReadiness = Get-QemuBackendReadiness `
         -BackendContract $BackendContract `
         -Store $StoreSummary `
@@ -2870,6 +2954,7 @@ function Write-DomainSummaryCapture {
         app_model = "CharmAppApi"
         backend_contract = $BackendContract
         backend_readiness = $BackendReadiness
+        backend_capability_matrix = $BackendCapabilityMatrix
         artifacts = $ArtifactSummary
         run_budget = [pscustomobject]@{
             timeout_sec = $TimeoutSec
@@ -3419,6 +3504,94 @@ function Assert-DomainBackendReadiness {
     }
 }
 
+function Assert-DomainBackendCapabilityMatrixEntry {
+    param(
+        [object[]]$Matrix,
+        [string]$Capability,
+        [string]$Provider,
+        [string]$Policy,
+        [string[]]$Evidence,
+        [string[]]$Runs
+    )
+
+    $Matches = @($Matrix | Where-Object { $_.capability -eq $Capability })
+    if ($Matches.Count -ne 1) {
+        throw "domain_summary_validate_failed: backend capability matrix missing or duplicate $Capability"
+    }
+    $Entry = $Matches[0]
+    if ($Entry.provider -ne $Provider -or $Entry.policy -ne $Policy) {
+        throw "domain_summary_validate_failed: backend capability matrix $Capability bad provider/policy"
+    }
+    $ActualEvidence = @($Entry.evidence)
+    if ($ActualEvidence.Count -ne $Evidence.Count) {
+        throw "domain_summary_validate_failed: backend capability matrix $Capability bad evidence count"
+    }
+    foreach ($Item in $Evidence) {
+        if (-not ($ActualEvidence -contains $Item)) {
+            throw "domain_summary_validate_failed: backend capability matrix $Capability missing evidence $Item"
+        }
+    }
+    $ActualRuns = @($Entry.runs)
+    if ($ActualRuns.Count -ne $Runs.Count) {
+        throw "domain_summary_validate_failed: backend capability matrix $Capability bad run count"
+    }
+    foreach ($Item in $Runs) {
+        if (-not ($ActualRuns -contains $Item)) {
+            throw "domain_summary_validate_failed: backend capability matrix $Capability missing run $Item"
+        }
+    }
+}
+
+function Assert-DomainBackendCapabilityMatrix {
+    param([object[]]$Matrix)
+
+    if ($Matrix.Count -ne 7) {
+        throw "domain_summary_validate_failed: backend capability matrix count=$($Matrix.Count), expected 7"
+    }
+    Assert-DomainBackendCapabilityMatrixEntry -Matrix $Matrix `
+        -Capability "console" `
+        -Provider "cmsdk_uart" `
+        -Policy "write_only_log_sink" `
+        -Evidence @("run_log", "capability_counters") `
+        -Runs @("hello_app", "console_error_app", "store:console_error_app")
+    Assert-DomainBackendCapabilityMatrixEntry -Matrix $Matrix `
+        -Capability "time" `
+        -Provider "deterministic_tick" `
+        -Policy "start=1000:step=17:reset_per_run=1" `
+        -Evidence @("run_log", "capability_counters") `
+        -Runs @("time_app", "time_sequence_app", "store:time_sequence_app")
+    Assert-DomainBackendCapabilityMatrixEntry -Matrix $Matrix `
+        -Capability "display" `
+        -Provider "framebuffer" `
+        -Policy "16x16:argb8888:stride=64:frame=1024" `
+        -Evidence @("frame_signatures", "frame_dumps", "frame_ppm", "gui_timeline", "capability_counters") `
+        -Runs @("player_min", "display_sequence_app", "display_error_app", "display_null_present_app")
+    Assert-DomainBackendCapabilityMatrixEntry -Matrix $Matrix `
+        -Capability "input" `
+        -Provider "deterministic_sequence" `
+        -Policy "samples=4:max=15,15:wraps=1" `
+        -Evidence @("input_trace", "gui_timeline", "capability_counters") `
+        -Runs @("player_min", "input_sequence_app", "input_wrap_app", "input_error_app")
+    Assert-DomainBackendCapabilityMatrixEntry -Matrix $Matrix `
+        -Capability "storage" `
+        -Provider "virtual_readonly_files" `
+        -Policy "files=3:fd=3+4:write=unsupported" `
+        -Evidence @("storage_trace", "capability_counters") `
+        -Runs @("storage_app", "storage_catalog_app", "storage_fd_exhaustion_app", "storage_write_error_app")
+    Assert-DomainBackendCapabilityMatrixEntry -Matrix $Matrix `
+        -Capability "app_exit" `
+        -Provider "notification_counter" `
+        -Policy "overrides_return=0" `
+        -Evidence @("run_log", "capability_counters") `
+        -Runs @("exit_app", "exit_error_app", "exit_negative_app", "return_negative_app")
+    Assert-DomainBackendCapabilityMatrixEntry -Matrix $Matrix `
+        -Capability "afe" `
+        -Provider "unsupported_stub" `
+        -Policy "configure/read=unsupported:preserve_buffer=1" `
+        -Evidence @("run_log", "capability_counters") `
+        -Runs @("unsupported_caps_app", "afe_error_app", "store:afe_error_app")
+}
+
 function Assert-DomainCount {
     param(
         [string]$Name,
@@ -3681,6 +3854,7 @@ function Validate-DomainSummaryFile {
         throw "domain_summary_validate_failed: bad app_exit backend contract"
     }
     Assert-DomainBackendReadiness -Readiness $Summary.backend_readiness
+    Assert-DomainBackendCapabilityMatrix -Matrix @($Summary.backend_capability_matrix)
     if ($Summary.run_region.base -ne "0x20080000" -or $Summary.run_region.expected -ne "0x20080000" -or [int]$Summary.run_region.size -ne 65536) {
         throw "domain_summary_validate_failed: bad run region"
     }
@@ -4545,6 +4719,10 @@ function Invoke-SelfTest {
     Assert-BadDomainSummaryRejected -SourcePath $GoldenDomainSummaryFile -Label "backend_readiness_gui" -Mutate {
         param($Summary)
         $Summary.backend_readiness.gui = $false
+    }
+    Assert-BadDomainSummaryRejected -SourcePath $GoldenDomainSummaryFile -Label "backend_capability_matrix_storage" -Mutate {
+        param($Summary)
+        ($Summary.backend_capability_matrix | Where-Object { $_.capability -eq "storage" }).policy = "write=allowed"
     }
 
     $CMakePath = Resolve-ToolPath -Tool $CMakeExe

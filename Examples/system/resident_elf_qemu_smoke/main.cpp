@@ -18,6 +18,7 @@
 #include "display_sequence_app.elf.inc"
 #include "exit_app.elf.inc"
 #include "exit_error_app.elf.inc"
+#include "exit_negative_app.elf.inc"
 #include "hello_app.elf.inc"
 #include "input_error_app.elf.inc"
 #include "input_sequence_app.elf.inc"
@@ -52,7 +53,6 @@ namespace qemu_backend = resident_elf_qemu;
 inline constexpr std::uintptr_t kQemuRunRegionBase = 0x20080000U;
 inline constexpr std::size_t kQemuRunRegionSize = 64U * 1024U;
 inline constexpr std::size_t kQemuStageCacheSize = 16U * 1024U;
-inline constexpr std::uint32_t kQemuStoreEntryCount = 29U;
 
 alignas(16) __attribute__((section(".elf_load")))
 static std::byte g_elf_load_region[kQemuRunRegionSize];
@@ -133,6 +133,18 @@ qemu_backend::VirtualStoreMedia make_qemu_store_media() noexcept {
         .data = reinterpret_cast<const std::byte*>(qemu_appstore_bin),
         .size = qemu_appstore_bin_len,
     };
+}
+
+std::uint32_t qemu_store_entry_count() noexcept {
+    if (qemu_appstore_bin_len < sizeof(app_abi::AppStoreHeader)) {
+        return 0U;
+    }
+    app_abi::AppStoreHeader header{};
+    std::memcpy(&header, qemu_appstore_bin, sizeof(header));
+    if (!app_abi::app_store_header_valid(header)) {
+        return 0U;
+    }
+    return header.entry_count;
 }
 
 void clear_run_region() noexcept {
@@ -1337,7 +1349,7 @@ extern "C" int resident_elf_qemu_main() {
     qemu_backend::write_dec(static_cast<std::uint32_t>(sizeof(g_stage_cache)));
     qemu_backend::write("\n");
     qemu_backend::write("resident-elf-qemu: store entries=");
-    qemu_backend::write_dec(kQemuStoreEntryCount);
+    qemu_backend::write_dec(qemu_store_entry_count());
     qemu_backend::write(" bytes=");
     qemu_backend::write_dec(qemu_appstore_bin_len);
     qemu_backend::write("\n");
@@ -1402,6 +1414,8 @@ extern "C" int resident_elf_qemu_main() {
     ok = run_store_app("exit_app", "") && ok;
     ok = run_direct_app("exit_error_app", exit_error_app_elf, exit_error_app_elf_len, "", 42) && ok;
     ok = run_store_app("exit_error_app", "", 42) && ok;
+    ok = run_direct_app("exit_negative_app", exit_negative_app_elf, exit_negative_app_elf_len, "") && ok;
+    ok = run_store_app("exit_negative_app", "") && ok;
     ok = run_direct_app("unsupported_caps_app", unsupported_caps_app_elf, unsupported_caps_app_elf_len, "") && ok;
     ok = run_store_app("unsupported_caps_app", "") && ok;
     ok = run_direct_app("storage_app", storage_app_elf, storage_app_elf_len, "") && ok;

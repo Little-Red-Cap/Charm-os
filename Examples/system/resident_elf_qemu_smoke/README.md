@@ -24,6 +24,8 @@ same no-entry/no-capability rule for invalid `CharmAppApi` metadata. `exit_app`
 validates the QEMU `app.exit` capability in both direct and Store-backed paths.
 `exit_error_app` validates that `app.exit(7)` is a capability notification and
 does not override the `charm_app_main` return value recorded by AppRuntime.
+`exit_negative_app` validates signed `app.exit` diagnostics: `app.exit(-3)` is
+printed as a signed code while AppRuntime still records the App return value.
 `unsupported_caps_app` validates from App code
 that unsupported QEMU storage/AFE calls are explicit `UNSUPPORTED` stubs.
 `afe_error_app` validates the AFE unsupported boundary independently from
@@ -386,6 +388,11 @@ firmware, launches QEMU, and checks these tokens:
 - `resident-elf-qemu: caps exit_error_app console=0 time=0 describe=0 present=0 input=0 exit=1`
 - `resident-elf-qemu: app store:exit_error_app stage=exit code=ok exit=42`
 - `resident-elf-qemu: caps store:exit_error_app console=0 time=0 describe=0 present=0 input=0 exit=1`
+- `resident-elf-qemu: app.exit code=-3`
+- `resident-elf-qemu: app exit_negative_app stage=exit code=ok exit=0`
+- `resident-elf-qemu: caps exit_negative_app console=0 time=0 describe=0 present=0 input=0 exit=1`
+- `resident-elf-qemu: app store:exit_negative_app stage=exit code=ok exit=0`
+- `resident-elf-qemu: caps store:exit_negative_app console=0 time=0 describe=0 present=0 input=0 exit=1`
 - `resident-elf-qemu: app unsupported_caps_app stage=exit code=ok exit=0`
 - `resident-elf-qemu: caps unsupported_caps_app console=0 time=0 describe=0 present=0 input=0 exit=0`
 - `resident-elf-qemu: app store:unsupported_caps_app stage=exit code=ok exit=0`

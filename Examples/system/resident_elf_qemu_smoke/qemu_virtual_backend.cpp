@@ -129,7 +129,8 @@ void write_hex_byte(unsigned char value) noexcept {
 void write_signed(int value) noexcept {
     if (value < 0) {
         write_byte('-');
-        write_dec(static_cast<std::uint32_t>(-value));
+        const auto magnitude = static_cast<std::uint32_t>(-static_cast<std::int64_t>(value));
+        write_dec(magnitude);
         return;
     }
     write_dec(static_cast<std::uint32_t>(value));
@@ -426,7 +427,7 @@ int afe_read(void*, std::size_t) {
 void app_exit(int code) {
     ++g_capability_counters.app_exit;
     write("resident-elf-qemu: app.exit code=");
-    write_dec(static_cast<std::uint32_t>(code));
+    write_signed(code);
     write("\n");
 }
 

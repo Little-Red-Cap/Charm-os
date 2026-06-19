@@ -56,6 +56,14 @@ alignas(16) static const unsigned char g_bad_elf_magic_payload[64]{
     'L',
     'F',
 };
+alignas(16) static const unsigned char g_bad_elf_short_header_payload[8]{
+    0x7f,
+    'E',
+    'L',
+    'F',
+    1,
+    1,
+};
 
 app_abi::AppLoadResult load_elf(void* ctx,
                                 const app_abi::AppImage& image,
@@ -197,6 +205,74 @@ bool mutate_elf_truncated_payload(const unsigned char* image_bytes, std::size_t 
             std::memcpy(g_mutated_elf_payload + ph_offset, &ph, sizeof(ph));
             return true;
         }
+    }
+    return false;
+}
+
+bool mutate_elf_no_load_segment(const unsigned char* image_bytes, std::size_t image_size) noexcept {
+    if (!copy_elf_for_mutation(image_bytes, image_size) ||
+        image_size < sizeof(app_abi::AppElf32Header)) {
+        return false;
+    }
+
+    app_abi::AppElf32Header header{};
+    std::memcpy(&header, g_mutated_elf_payload, sizeof(header));
+    const auto ph_table_bytes =
+        static_cast<std::uint64_t>(header.phentsize) * static_cast<std::uint64_t>(header.phnum);
+    if (header.phoff > image_size ||
+        header.phentsize < sizeof(app_abi::AppElf32ProgramHeader) ||
+        static_cast<std::uint64_t>(header.phoff) + ph_table_bytes > image_size) {
+        return false;
+    }
+
+    bool mutated = false;
+    for (std::uint16_t i = 0; i < header.phnum; ++i) {
+        const auto ph_offset = header.phoff + (static_cast<std::uint32_t>(header.phentsize) * i);
+        app_abi::AppElf32ProgramHeader ph{};
+        std::memcpy(&ph, g_mutated_elf_payload + ph_offset, sizeof(ph));
+        if (ph.type == app_abi::kAppElfPtLoad) {
+            ph.type = 0U;
+            std::memcpy(g_mutated_elf_payload + ph_offset, &ph, sizeof(ph));
+            mutated = true;
+        }
+    }
+    return mutated;
+}
+
+bool mutate_elf_overlapping_segments(const unsigned char* image_bytes, std::size_t image_size) noexcept {
+    if (!copy_elf_for_mutation(image_bytes, image_size) ||
+        image_size < sizeof(app_abi::AppElf32Header)) {
+        return false;
+    }
+
+    app_abi::AppElf32Header header{};
+    std::memcpy(&header, g_mutated_elf_payload, sizeof(header));
+    const auto ph_table_bytes =
+        static_cast<std::uint64_t>(header.phentsize) * static_cast<std::uint64_t>(header.phnum);
+    if (header.phoff > image_size ||
+        header.phentsize < sizeof(app_abi::AppElf32ProgramHeader) ||
+        static_cast<std::uint64_t>(header.phoff) + ph_table_bytes > image_size) {
+        return false;
+    }
+
+    bool first_set = false;
+    app_abi::AppElf32ProgramHeader first{};
+    for (std::uint16_t i = 0; i < header.phnum; ++i) {
+        const auto ph_offset = header.phoff + (static_cast<std::uint32_t>(header.phentsize) * i);
+        app_abi::AppElf32ProgramHeader ph{};
+        std::memcpy(&ph, g_mutated_elf_payload + ph_offset, sizeof(ph));
+        if (ph.type != app_abi::kAppElfPtLoad || (ph.memsz == 0U && ph.filesz == 0U)) {
+            continue;
+        }
+        if (!first_set) {
+            first = ph;
+            first_set = true;
+            continue;
+        }
+        ph.vaddr = first.vaddr;
+        ph.align = 0U;
+        std::memcpy(g_mutated_elf_payload + ph_offset, &ph, sizeof(ph));
+        return true;
     }
     return false;
 }
@@ -1260,6 +1336,10 @@ extern "C" int resident_elf_qemu_main() {
                                           g_bad_elf_magic_payload,
                                           sizeof(g_bad_elf_magic_payload),
                                           app_abi::AppElfProbeCode::bad_magic) && ok;
+    ok = expect_load_failure("bad_header_app",
+                             g_bad_elf_short_header_payload,
+                             sizeof(g_bad_elf_short_header_payload),
+                             app_abi::AppElfProbeCode::bad_header) && ok;
     ok = expect_mutated_hello_load_failure("bad_class_app",
                                            mutate_elf_bad_class,
                                            app_abi::AppElfProbeCode::bad_class) && ok;
@@ -1272,9 +1352,15 @@ extern "C" int resident_elf_qemu_main() {
     ok = expect_mutated_hello_load_failure("truncated_payload_app",
                                            mutate_elf_truncated_payload,
                                            app_abi::AppElfProbeCode::truncated_payload) && ok;
+    ok = expect_mutated_hello_load_failure("no_load_segment_app",
+                                           mutate_elf_no_load_segment,
+                                           app_abi::AppElfProbeCode::no_load_segment) && ok;
     ok = expect_mutated_hello_load_failure("entry_outside_segment_app",
                                            mutate_elf_entry_outside_segment,
                                            app_abi::AppElfProbeCode::entry_outside_segment) && ok;
+    ok = expect_mutated_hello_load_failure("overlapping_segments_app",
+                                           mutate_elf_overlapping_segments,
+                                           app_abi::AppElfProbeCode::overlapping_segments) && ok;
     ok = expect_mutated_hello_load_failure("rwx_segment_app",
                                            mutate_elf_first_load_segment_rwx,
                                            app_abi::AppElfProbeCode::rwx_segment) && ok;

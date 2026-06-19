@@ -243,6 +243,12 @@
                                       "exit":  0
                                   },
                                   {
+                                      "name":  "bad_header_app",
+                                      "stage":  "load",
+                                      "code":  "load_failed",
+                                      "exit":  0
+                                  },
+                                  {
                                       "name":  "bad_class_app",
                                       "stage":  "load",
                                       "code":  "load_failed",
@@ -267,7 +273,19 @@
                                       "exit":  0
                                   },
                                   {
+                                      "name":  "no_load_segment_app",
+                                      "stage":  "load",
+                                      "code":  "load_failed",
+                                      "exit":  0
+                                  },
+                                  {
                                       "name":  "entry_outside_segment_app",
+                                      "stage":  "load",
+                                      "code":  "load_failed",
+                                      "exit":  0
+                                  },
+                                  {
+                                      "name":  "overlapping_segments_app",
                                       "stage":  "load",
                                       "code":  "load_failed",
                                       "exit":  0
@@ -889,6 +907,20 @@
                                        "capacity_probe":  "bad_magic"
                                    },
                                    {
+                                       "name":  "bad_header_app",
+                                       "format":  "elf",
+                                       "probe":  "bad_header",
+                                       "entry":  "0x00000000",
+                                       "entry_numeric":  0,
+                                       "span":  0,
+                                       "segments":  0,
+                                       "needed":  0,
+                                       "free":  65536,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "bad_header"
+                                   },
+                                   {
                                        "name":  "bad_class_app",
                                        "format":  "elf",
                                        "probe":  "bad_class",
@@ -945,6 +977,20 @@
                                        "capacity_probe":  "truncated_payload"
                                    },
                                    {
+                                       "name":  "no_load_segment_app",
+                                       "format":  "elf",
+                                       "probe":  "no_load_segment",
+                                       "entry":  "0x00000000",
+                                       "entry_numeric":  0,
+                                       "span":  0,
+                                       "segments":  0,
+                                       "needed":  0,
+                                       "free":  65536,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "no_load_segment"
+                                   },
+                                   {
                                        "name":  "entry_outside_segment_app",
                                        "format":  "elf",
                                        "probe":  "entry_outside_segment",
@@ -957,6 +1003,20 @@
                                        "fits":  true,
                                        "region":  65536,
                                        "capacity_probe":  "entry_outside_segment"
+                                   },
+                                   {
+                                       "name":  "overlapping_segments_app",
+                                       "format":  "elf",
+                                       "probe":  "overlapping_segments",
+                                       "entry":  "0x00000000",
+                                       "entry_numeric":  0,
+                                       "span":  0,
+                                       "segments":  0,
+                                       "needed":  0,
+                                       "free":  65536,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "overlapping_segments"
                                    },
                                    {
                                        "name":  "rwx_segment_app",
@@ -1398,6 +1458,18 @@
                                                "prepare":  null
                                            },
                                            {
+                                               "name":  "bad_header_app",
+                                               "direct":  {
+                                                              "stage":  "load",
+                                                              "code":  "load_failed",
+                                                              "exit":  0
+                                                          },
+                                               "received":  null,
+                                               "packetstream":  null,
+                                               "store":  null,
+                                               "prepare":  null
+                                           },
+                                           {
                                                "name":  "bad_class_app",
                                                "direct":  {
                                                               "stage":  "load",
@@ -1446,7 +1518,31 @@
                                                "prepare":  null
                                            },
                                            {
+                                               "name":  "no_load_segment_app",
+                                               "direct":  {
+                                                              "stage":  "load",
+                                                              "code":  "load_failed",
+                                                              "exit":  0
+                                                          },
+                                               "received":  null,
+                                               "packetstream":  null,
+                                               "store":  null,
+                                               "prepare":  null
+                                           },
+                                           {
                                                "name":  "entry_outside_segment_app",
+                                               "direct":  {
+                                                              "stage":  "load",
+                                                              "code":  "load_failed",
+                                                              "exit":  0
+                                                          },
+                                               "received":  null,
+                                               "packetstream":  null,
+                                               "store":  null,
+                                               "prepare":  null
+                                           },
+                                           {
+                                               "name":  "overlapping_segments_app",
                                                "direct":  {
                                                               "stage":  "load",
                                                               "code":  "load_failed",
@@ -1632,6 +1728,11 @@
                                                 "code":  "load_failed"
                                             },
                                             {
+                                                "name":  "bad_header_app",
+                                                "stage":  "load",
+                                                "code":  "load_failed"
+                                            },
+                                            {
                                                 "name":  "bad_class_app",
                                                 "stage":  "load",
                                                 "code":  "load_failed"
@@ -1652,7 +1753,17 @@
                                                 "code":  "load_failed"
                                             },
                                             {
+                                                "name":  "no_load_segment_app",
+                                                "stage":  "load",
+                                                "code":  "load_failed"
+                                            },
+                                            {
                                                 "name":  "entry_outside_segment_app",
+                                                "stage":  "load",
+                                                "code":  "load_failed"
+                                            },
+                                            {
+                                                "name":  "overlapping_segments_app",
                                                 "stage":  "load",
                                                 "code":  "load_failed"
                                             },

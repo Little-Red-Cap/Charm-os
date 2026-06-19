@@ -43,9 +43,10 @@ packetstream reaches `launch_ready`, `received_image_read()` and staging both
 succeed, and only the ELF loader rejects the payload as `bad_magic`.
 `entry_outside_segment_app` and `rwx_segment_app` mutate a known-good ELF in
 memory and prove that the QEMU resident domain rejects unsafe ELF structure at
-the loader boundary. `bad_class_app`, `bad_endian_app`,
-`bad_program_header_app`, and `truncated_payload_app` extend the same mutation
-matrix to ELF header, program-header, and payload-boundary failures.
+the loader boundary. `bad_header_app`, `bad_class_app`, `bad_endian_app`,
+`bad_program_header_app`, `truncated_payload_app`, `no_load_segment_app`, and
+`overlapping_segments_app` extend the same mutation matrix to ELF header,
+program-header, payload-boundary, load-segment, and segment-overlap failures.
 `too_large_app` remains the ELF load-span negative case. `bad_elf_magic_app`
 validates malformed ELF rejection at AppRuntime load stage without entering the
 App or touching capabilities.
@@ -135,7 +136,8 @@ Malformed App ELF
 Unsafe App ELF structure
 -> AppImage(format=elf)
 -> ELF loader bad_class / bad_endian / bad_program_header / truncated_payload
-   / entry_outside_segment / rwx_segment
+   / no_load_segment / entry_outside_segment / overlapping_segments
+   / rwx_segment
 -> AppRuntime load-stage failure
 -> no capability calls
 
@@ -391,6 +393,10 @@ firmware, launches QEMU, and checks these tokens:
 - `resident-elf-qemu: capacity packetstream:packetstream_bad_elf_magic_app needed=0 free=65536 fits=1 region=65536 probe=bad_magic`
 - `resident-elf-qemu: app packetstream:packetstream_bad_elf_magic_app stage=load code=load_failed exit=0`
 - `resident-elf-qemu: caps packetstream:packetstream_bad_elf_magic_app console=0 time=0 describe=0 present=0 input=0 exit=0`
+- `resident-elf-qemu: load bad_header_app format=elf probe=bad_header`
+- `resident-elf-qemu: capacity bad_header_app needed=0 free=65536 fits=1 region=65536 probe=bad_header`
+- `resident-elf-qemu: app bad_header_app stage=load code=load_failed exit=0`
+- `resident-elf-qemu: caps bad_header_app console=0 time=0 describe=0 present=0 input=0 exit=0`
 - `resident-elf-qemu: load bad_class_app format=elf probe=bad_class`
 - `resident-elf-qemu: capacity bad_class_app needed=0 free=65536 fits=1 region=65536 probe=bad_class`
 - `resident-elf-qemu: app bad_class_app stage=load code=load_failed exit=0`
@@ -407,10 +413,18 @@ firmware, launches QEMU, and checks these tokens:
 - `resident-elf-qemu: capacity truncated_payload_app needed=0 free=65536 fits=1 region=65536 probe=truncated_payload`
 - `resident-elf-qemu: app truncated_payload_app stage=load code=load_failed exit=0`
 - `resident-elf-qemu: caps truncated_payload_app console=0 time=0 describe=0 present=0 input=0 exit=0`
+- `resident-elf-qemu: load no_load_segment_app format=elf probe=no_load_segment`
+- `resident-elf-qemu: capacity no_load_segment_app needed=0 free=65536 fits=1 region=65536 probe=no_load_segment`
+- `resident-elf-qemu: app no_load_segment_app stage=load code=load_failed exit=0`
+- `resident-elf-qemu: caps no_load_segment_app console=0 time=0 describe=0 present=0 input=0 exit=0`
 - `resident-elf-qemu: load entry_outside_segment_app format=elf probe=entry_outside_segment`
 - `resident-elf-qemu: capacity entry_outside_segment_app needed=0 free=65536 fits=1 region=65536 probe=entry_outside_segment`
 - `resident-elf-qemu: app entry_outside_segment_app stage=load code=load_failed exit=0`
 - `resident-elf-qemu: caps entry_outside_segment_app console=0 time=0 describe=0 present=0 input=0 exit=0`
+- `resident-elf-qemu: load overlapping_segments_app format=elf probe=overlapping_segments`
+- `resident-elf-qemu: capacity overlapping_segments_app needed=0 free=65536 fits=1 region=65536 probe=overlapping_segments`
+- `resident-elf-qemu: app overlapping_segments_app stage=load code=load_failed exit=0`
+- `resident-elf-qemu: caps overlapping_segments_app console=0 time=0 describe=0 present=0 input=0 exit=0`
 - `resident-elf-qemu: load rwx_segment_app format=elf probe=rwx_segment`
 - `resident-elf-qemu: capacity rwx_segment_app needed=0 free=65536 fits=1 region=65536 probe=rwx_segment`
 - `resident-elf-qemu: app rwx_segment_app stage=load code=load_failed exit=0`

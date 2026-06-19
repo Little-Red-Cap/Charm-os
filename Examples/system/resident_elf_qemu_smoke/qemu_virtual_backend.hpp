@@ -61,6 +61,7 @@ const VirtualCapabilityCounters& capability_counters() noexcept;
 void log_capability_counters(std::string_view name) noexcept;
 CharmAppApi make_virtual_app_api() noexcept;
 bool probe_unsupported_capabilities() noexcept;
+void log_backend_contract() noexcept;
 
 void reset_store_media_counters() noexcept;
 const VirtualStoreMediaCounters& store_media_counters() noexcept;

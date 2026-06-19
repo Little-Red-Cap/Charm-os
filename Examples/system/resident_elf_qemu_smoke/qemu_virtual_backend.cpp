@@ -584,6 +584,14 @@ CharmAppApi make_virtual_app_api() noexcept {
     return api;
 }
 
+void log_backend_contract() noexcept {
+    write("resident-elf-qemu: backend-contract time=deterministic_tick start_ms=1000 step_ms=17 reset_per_run=1\n");
+    write("resident-elf-qemu: backend-contract display=framebuffer width=16 height=16 stride=64 format=argb8888 frame_bytes=1024 evidence=frame_signatures,frame_dumps,frame_ppm,gui_timeline\n");
+    write("resident-elf-qemu: backend-contract input=deterministic_sequence sample_count=4 pointer_max=15,15 wraps=1 evidence=input_trace,gui_timeline\n");
+    write("resident-elf-qemu: backend-contract storage=virtual_readonly_files file_count=3 fd_base=3 fd_slots=4 write_policy=unsupported evidence=storage_trace\n");
+    write("resident-elf-qemu: backend-contract app_exit=notification_counter overrides_return=0\n");
+}
+
 bool probe_unsupported_capabilities() noexcept {
     reset_capability_counters();
     CharmAppApi api = make_virtual_app_api();

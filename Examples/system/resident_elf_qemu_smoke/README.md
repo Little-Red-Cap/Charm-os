@@ -806,7 +806,12 @@ but fails later in the AppRuntime load stage.
 Its `artifacts` section records the QEMU-local generated ELF, Store, and
 generated include artifacts used for the run. Artifact paths are canonicalized
 for golden comparison, while sizes and CRCs remain exact gates so stale
-`out-qemu` inputs are caught before QEMU evidence is archived.
+`out-qemu` inputs are caught before QEMU evidence is archived. The same section
+also records `store_manifest`: a parsed Store v1 header and entry list with
+entry name, offset, size, flags, format bits, and payload CRC. Domain-summary
+validation cross-checks every Store entry against the generated ELF artifacts so
+wrong Store flags, stale payload bytes, or size drift fail before QEMU evidence
+is treated as valid.
 
 Its `coverage.source_matrix` section summarizes the resident-platform entry
 coverage per App. For example, `hello_app`, `large_fit_app`, and `player_min`
@@ -891,7 +896,7 @@ into `qemu_elf_mode`, `qemu_elf_doctor`, `qemu_elf_doctor_versions`,
 `qemu_elf_run_evidence_matrix`,
 `qemu_elf_backend_contract`, `qemu_elf_run_budget`,
 `qemu_elf_run_budget_match`, `qemu_elf_memory`, `qemu_elf_store`,
-`qemu_elf_display`, `qemu_elf_evidence`,
+`qemu_elf_store_manifest`, `qemu_elf_display`, `qemu_elf_evidence`,
 `qemu_elf_capacity`, `qemu_elf_artifacts`, `qemu_elf_loads`,
 `qemu_elf_equivalent_sources`,
 `qemu_elf_packetstreams`, `qemu_elf_failure_taxonomy`,
@@ -903,8 +908,9 @@ rebuilt and launched (`build_and_run`) or reused from an existing capture
 contract, backend readiness status/gates, capability matrix, recorded QEMU run budget, whether the requested bundle budget matches
 the captured `domain-summary.json` budget, runtime-domain scope boundary, ELF run evidence matrix, ELF load memory boundary,
 packetstream buffer boundary (`storage/transport/stream/received`), Store media, frame/input/storage evidence counts,
-near-limit/over-limit ELF capacity, QEMU-local artifact counts and representative
-ELF/Store CRCs, representative ELF loader
+parsed Store v1 entry flags/size/CRC self-consistency, near-limit/over-limit
+ELF capacity, QEMU-local artifact counts and representative ELF/Store CRCs,
+representative ELF loader
 entry/span/segment/fits facts, direct/received/packetstream/Store equivalent
 ELF load facts for `hello_app`, `large_fit_app`, and `player_min`,
 packetstream payload/CRC and failure-boundary facts, domain-summary golden

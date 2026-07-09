@@ -575,6 +575,33 @@ function Invoke-SelfTest {
                 size = 173184
                 crc32 = "0xd5cc3f4e"
             }
+            store_manifest = [pscustomobject]@{
+                header = [pscustomobject]@{
+                    magic = "0x50415043"
+                    version = 1
+                    header_size = 16
+                    entry_count = 31
+                    entry_size = 44
+                }
+                entries = @(
+                    [pscustomobject]@{ index = 0; name = "hello_app"; format = "elf"; format_bits = 0; flags = "0x00000000"; offset = 160; size = 5132; payload_crc32 = "0xb3b7bcc5" },
+                    [pscustomobject]@{ index = 1; name = "player_min"; format = "elf"; format_bits = 0; flags = "0x00000000"; offset = 5296; size = 5168; payload_crc32 = "0xba5eb94a" },
+                    [pscustomobject]@{ index = 2; name = "large_fit_app"; format = "elf"; format_bits = 0; flags = "0x00000000"; offset = 10464; size = 5168; payload_crc32 = "0xdffdfba1" }
+                ) + @(1..27 | ForEach-Object {
+                        [pscustomobject]@{
+                            index = ($_ + 2)
+                            name = "synthetic_$_.elf"
+                            format = "elf"
+                            format_bits = 0
+                            flags = "0x00000000"
+                            offset = (20000 + ($_ * 16))
+                            size = 1
+                            payload_crc32 = "0x00000001"
+                        }
+                    }) + @(
+                    [pscustomobject]@{ index = 30; name = "too_large_store_app"; format = "elf"; format_bits = 0; flags = "0x00000000"; offset = 30000; size = 20000; payload_crc32 = "0x47d77d3c" }
+                )
+            }
             includes = @(
                 [pscustomobject]@{ name = "appstore.bin"; kind = "generated_inc"; path = "appstore.bin.inc"; size = 1111376; crc32 = "0x5d3f9465" },
                 [pscustomobject]@{ name = "hello_app.elf"; kind = "generated_inc"; path = "hello_app.elf.inc"; size = 33034; crc32 = "0x82bd53fa" }
@@ -2211,6 +2238,37 @@ function Read-QemuElfDomainSummary {
             throw "qemu_elf_summary_invalid: bad include artifact $ExpectedInclude"
         }
     }
+    $StoreManifest = $Summary.artifacts.store_manifest
+    if ($null -eq $StoreManifest -or
+        $StoreManifest.header.magic -ne "0x50415043" -or
+        [int]$StoreManifest.header.version -ne 1 -or
+        [int]$StoreManifest.header.header_size -ne 16 -or
+        [int]$StoreManifest.header.entry_count -ne [int]$Summary.store.entries -or
+        [int]$StoreManifest.header.entry_size -ne 44) {
+        throw "qemu_elf_summary_invalid: bad Store manifest header"
+    }
+    $StoreManifestEntries = @($StoreManifest.entries)
+    if ($StoreManifestEntries.Count -ne [int]$Summary.store.entries) {
+        throw "qemu_elf_summary_invalid: bad Store manifest entry count"
+    }
+    if (@($StoreManifestEntries | Where-Object { $_.format -ne "elf" -or [int]$_.format_bits -ne 0 -or $_.flags -ne "0x00000000" }).Count -ne 0) {
+        throw "qemu_elf_summary_invalid: Store manifest contains non-ELF entries"
+    }
+    $StoreManifestSummaryParts = @(
+        ("entries={0}" -f $StoreManifestEntries.Count),
+        ("flags=elf:0x00000000")
+    )
+    foreach ($Name in @("hello_app", "player_min", "large_fit_app", "too_large_store_app")) {
+        $Entry = @($StoreManifestEntries | Where-Object { $_.name -eq $Name })
+        $Artifact = @(@($ArtifactApps) + @($ArtifactExtra) | Where-Object { $_.name -eq $Name })
+        if ($Entry.Count -ne 1 -or $Artifact.Count -ne 1) {
+            throw "qemu_elf_summary_invalid: missing Store manifest representative $Name"
+        }
+        if ([int]$Entry[0].size -ne [int]$Artifact[0].size -or [string]$Entry[0].payload_crc32 -ne [string]$Artifact[0].crc32) {
+            throw "qemu_elf_summary_invalid: Store manifest representative $Name does not match artifact"
+        }
+        $StoreManifestSummaryParts += ("{0}={1}:{2}" -f $Name, ([int]$Entry[0].size), ([string]$Entry[0].payload_crc32))
+    }
     if ([int]$Summary.evidence.frame_signature_count -ne 8 -or
         [int]$Summary.evidence.frame_signature_run_count -ne 6 -or
         [int]$Summary.evidence.frame_dump_count -ne 8 -or
@@ -2504,6 +2562,7 @@ function Read-QemuElfDomainSummary {
             ([int]$Summary.store.media.read_calls), `
             ([int]$Summary.store.media.read_bytes), `
             ([int]$Summary.store.media.read_failures))
+        StoreManifest = ($StoreManifestSummaryParts -join ";")
         Evidence = ("frames={0}/{1}:dumps={2}/{3}:ppm={4}/{5}:input={6}/{7}:storage={8}/{9}" -f `
             ([int]$Summary.evidence.frame_signature_count), `
             ([int]$Summary.evidence.frame_signature_run_count), `
@@ -2581,6 +2640,7 @@ function Write-QemuElfSummaryLines {
         Write-BundleLine -Lines $Lines -Text "qemu_elf_run_budget=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_memory=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_store=skipped"
+        Write-BundleLine -Lines $Lines -Text "qemu_elf_store_manifest=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_display=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_evidence=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_capacity=skipped"
@@ -2611,6 +2671,7 @@ function Write-QemuElfSummaryLines {
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_run_budget={0}" -f $QemuElfSummary.RunBudget)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_memory={0}" -f $QemuElfSummary.Memory)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_store={0}" -f $QemuElfSummary.Store)
+    Write-BundleLine -Lines $Lines -Text ("qemu_elf_store_manifest={0}" -f $QemuElfSummary.StoreManifest)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_display={0}" -f $QemuElfSummary.Display)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_evidence={0}" -f $QemuElfSummary.Evidence)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_capacity={0}" -f $QemuElfSummary.Capacity)

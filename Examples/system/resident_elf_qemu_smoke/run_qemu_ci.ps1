@@ -146,6 +146,135 @@ function Format-QemuArtifactHex32 {
     return ("0x{0:x8}" -f $Value)
 }
 
+function Read-QemuStoreUInt16Le {
+    param(
+        [byte[]]$Bytes,
+        [int]$Offset
+    )
+
+    if ($Offset -lt 0 -or ($Offset + 2) -gt $Bytes.Length) {
+        throw "domain_summary_failed: store uint16 read out of range offset=$Offset"
+    }
+    return [BitConverter]::ToUInt16($Bytes, $Offset)
+}
+
+function Read-QemuStoreUInt32Le {
+    param(
+        [byte[]]$Bytes,
+        [int]$Offset
+    )
+
+    if ($Offset -lt 0 -or ($Offset + 4) -gt $Bytes.Length) {
+        throw "domain_summary_failed: store uint32 read out of range offset=$Offset"
+    }
+    return [BitConverter]::ToUInt32($Bytes, $Offset)
+}
+
+function Read-QemuStoreEntryName {
+    param(
+        [byte[]]$Bytes,
+        [int]$Offset
+    )
+
+    if ($Offset -lt 0 -or ($Offset + 32) -gt $Bytes.Length) {
+        throw "domain_summary_failed: store entry name out of range offset=$Offset"
+    }
+    $Length = 0
+    while ($Length -lt 32 -and $Bytes[$Offset + $Length] -ne 0) {
+        ++$Length
+    }
+    return [System.Text.Encoding]::ASCII.GetString($Bytes, $Offset, $Length)
+}
+
+function Get-QemuStoreEntryFormatName {
+    param([uint32]$Flags)
+
+    $FormatBits = $Flags -band 0x0000000f
+    if ($FormatBits -eq 0) {
+        return "elf"
+    }
+    if ($FormatBits -eq 1) {
+        return "modulex"
+    }
+    return "unknown"
+}
+
+function Get-QemuStorePayloadCrc32 {
+    param(
+        [byte[]]$Bytes,
+        [uint32]$Offset,
+        [uint32]$Size
+    )
+
+    $End = [uint64]$Offset + [uint64]$Size
+    if ($Size -eq 0 -or $End -gt [uint64]$Bytes.Length) {
+        throw "domain_summary_failed: store payload out of range offset=$Offset size=$Size"
+    }
+    $Payload = New-Object byte[] ([int]$Size)
+    [Array]::Copy($Bytes, [int]$Offset, $Payload, 0, [int]$Size)
+    return (Format-QemuArtifactHex32 -Value (Get-QemuArtifactCrc32 -Bytes $Payload))
+}
+
+function Get-QemuStoreEntryManifest {
+    param([string]$StorePath)
+
+    if ([string]::IsNullOrWhiteSpace($StorePath) -or -not (Test-Path -LiteralPath $StorePath)) {
+        throw "domain_summary_failed: store artifact missing for entry manifest: $StorePath"
+    }
+    $ResolvedPath = (Resolve-Path -LiteralPath $StorePath).Path
+    $Bytes = [System.IO.File]::ReadAllBytes($ResolvedPath)
+    if ($Bytes.Length -lt 16) {
+        throw "domain_summary_failed: store image too small for header"
+    }
+
+    $Magic = Read-QemuStoreUInt32Le -Bytes $Bytes -Offset 0
+    $Version = Read-QemuStoreUInt16Le -Bytes $Bytes -Offset 4
+    $HeaderSize = Read-QemuStoreUInt16Le -Bytes $Bytes -Offset 6
+    $EntryCount = Read-QemuStoreUInt32Le -Bytes $Bytes -Offset 8
+    $EntrySize = Read-QemuStoreUInt32Le -Bytes $Bytes -Offset 12
+    if ($Magic -ne 0x50415043 -or $Version -ne 1 -or $HeaderSize -lt 16 -or $EntrySize -lt 44 -or $EntryCount -gt 128) {
+        throw "domain_summary_failed: invalid Store v1 header in $ResolvedPath"
+    }
+    $TableEnd = [uint64]$HeaderSize + ([uint64]$EntryCount * [uint64]$EntrySize)
+    if ($TableEnd -gt [uint64]$Bytes.Length) {
+        throw "domain_summary_failed: Store entry table exceeds artifact size"
+    }
+
+    $Entries = @()
+    for ($Index = 0; $Index -lt [int]$EntryCount; ++$Index) {
+        $EntryOffset = [int]($HeaderSize + ([uint32]$Index * $EntrySize))
+        $Name = Read-QemuStoreEntryName -Bytes $Bytes -Offset $EntryOffset
+        $PayloadOffset = Read-QemuStoreUInt32Le -Bytes $Bytes -Offset ($EntryOffset + 32)
+        $PayloadSize = Read-QemuStoreUInt32Le -Bytes $Bytes -Offset ($EntryOffset + 36)
+        $Flags = Read-QemuStoreUInt32Le -Bytes $Bytes -Offset ($EntryOffset + 40)
+        $PayloadEnd = [uint64]$PayloadOffset + [uint64]$PayloadSize
+        if ([string]::IsNullOrWhiteSpace($Name) -or $PayloadSize -eq 0 -or $PayloadEnd -gt [uint64]$Bytes.Length) {
+            throw "domain_summary_failed: invalid Store entry index=$Index name=$Name offset=$PayloadOffset size=$PayloadSize"
+        }
+        $Entries += [pscustomobject]@{
+            index = $Index
+            name = $Name
+            format = Get-QemuStoreEntryFormatName -Flags $Flags
+            format_bits = [int]($Flags -band 0x0000000f)
+            flags = (Format-QemuArtifactHex32 -Value $Flags)
+            offset = [int]$PayloadOffset
+            size = [int]$PayloadSize
+            payload_crc32 = Get-QemuStorePayloadCrc32 -Bytes $Bytes -Offset $PayloadOffset -Size $PayloadSize
+        }
+    }
+
+    return [pscustomobject]@{
+        header = [pscustomobject]@{
+            magic = (Format-QemuArtifactHex32 -Value $Magic)
+            version = [int]$Version
+            header_size = [int]$HeaderSize
+            entry_count = [int]$EntryCount
+            entry_size = [int]$EntrySize
+        }
+        entries = @($Entries)
+    }
+}
+
 function New-QemuArtifactRecord {
     param(
         [string]$Name,
@@ -190,6 +319,7 @@ function Get-QemuArtifactSummary {
         -Name "appstore" `
         -Kind "store_v1" `
         -Path (Join-Path $ResolvedOut "appstore.bin")
+    $StoreManifest = Get-QemuStoreEntryManifest -StorePath $Store.path
     $Includes = @()
     foreach ($Inc in (Get-QemuRequiredIncFiles)) {
         $Includes += New-QemuArtifactRecord `
@@ -206,6 +336,7 @@ function Get-QemuArtifactSummary {
         apps = @($Apps)
         extra = @($TooLargeStore)
         store = $Store
+        store_manifest = $StoreManifest
         includes = @($Includes)
     }
 }
@@ -4031,6 +4162,75 @@ function Assert-DomainArtifactRecord {
     return $Artifact
 }
 
+function Find-DomainArtifactRecord {
+    param(
+        [object[]]$Artifacts,
+        [string]$Name
+    )
+
+    $Matches = @($Artifacts | Where-Object { $_.name -eq $Name })
+    if ($Matches.Count -ne 1) {
+        throw "domain_summary_validate_failed: missing or duplicate artifact for Store entry $Name"
+    }
+    return $Matches[0]
+}
+
+function Assert-DomainStoreEntryManifest {
+    param(
+        [object]$StoreManifest,
+        [object]$Artifacts,
+        [object]$Store
+    )
+
+    if ($null -eq $StoreManifest -or $null -eq $StoreManifest.header) {
+        throw "domain_summary_validate_failed: missing Store entry manifest"
+    }
+    if ($StoreManifest.header.magic -ne "0x50415043" -or
+        [int]$StoreManifest.header.version -ne 1 -or
+        [int]$StoreManifest.header.header_size -ne 16 -or
+        [int]$StoreManifest.header.entry_count -ne [int]$Store.entries -or
+        [int]$StoreManifest.header.entry_size -ne 44) {
+        throw "domain_summary_validate_failed: bad Store manifest header"
+    }
+
+    $Entries = @($StoreManifest.entries)
+    if ($Entries.Count -ne [int]$Store.entries) {
+        throw "domain_summary_validate_failed: Store manifest entry count mismatch"
+    }
+    $ArtifactPayloads = @(@($Artifacts.apps | Where-Object { $_.name -ne "too_large_app" }) + @($Artifacts.extra))
+    if ($ArtifactPayloads.Count -ne $Entries.Count) {
+        throw "domain_summary_validate_failed: Store manifest payload count mismatch"
+    }
+
+    $PreviousOffset = 0
+    foreach ($Entry in $Entries) {
+        $Name = [string]$Entry.name
+        $Artifact = Find-DomainArtifactRecord -Artifacts $ArtifactPayloads -Name $Name
+        if ([string]$Entry.format -ne "elf" -or
+            [int]$Entry.format_bits -ne 0 -or
+            [string]$Entry.flags -ne "0x00000000") {
+            throw "domain_summary_validate_failed: Store entry $Name has unexpected format/flags"
+        }
+        if ([int]$Entry.size -ne [int]$Artifact.size) {
+            throw "domain_summary_validate_failed: Store entry $Name size=$($Entry.size), artifact size=$($Artifact.size)"
+        }
+        if ([string]$Entry.payload_crc32 -ne [string]$Artifact.crc32) {
+            throw "domain_summary_validate_failed: Store entry $Name crc=$($Entry.payload_crc32), artifact crc=$($Artifact.crc32)"
+        }
+        if ([int]$Entry.offset -le $PreviousOffset -or ([int]$Entry.offset % 16) -ne 0) {
+            throw "domain_summary_validate_failed: Store entry $Name offset is not monotonic/aligned"
+        }
+        $PreviousOffset = [int]$Entry.offset
+    }
+
+    foreach ($Artifact in $ArtifactPayloads) {
+        $Matches = @($Entries | Where-Object { $_.name -eq $Artifact.name })
+        if ($Matches.Count -ne 1) {
+            throw "domain_summary_validate_failed: Store manifest missing artifact payload $($Artifact.name)"
+        }
+    }
+}
+
 function Assert-DomainArtifacts {
     param(
         [object]$Artifacts,
@@ -4066,6 +4266,7 @@ function Assert-DomainArtifacts {
     if ([int]$StoreArtifact.size -ne [int]$Store.media.bytes) {
         throw "domain_summary_validate_failed: store artifact size does not match media bytes"
     }
+    Assert-DomainStoreEntryManifest -StoreManifest $Artifacts.store_manifest -Artifacts $Artifacts -Store $Store
 }
 
 function Assert-DomainBackendReadiness {
@@ -5604,6 +5805,7 @@ function Invoke-SelfTest {
         "storage_zero_io_app",
         "exit_negative_app",
         "return_negative_app",
+        "store_manifest",
         "Get-QemuAppSpecs",
         "CHARM_QEMU_REQUIRED_INC_FILES",
         "virtual_m7"
@@ -5662,6 +5864,14 @@ function Invoke-SelfTest {
     Assert-BadDomainSummaryRejected -SourcePath $GoldenDomainSummaryFile -Label "elf_run_evidence_matrix_store" -Mutate {
         param($Summary)
         ($Summary.elf_run_evidence_matrix | Where-Object { $_.name -eq "store:hello_app" }).run_code = "load_failed"
+    }
+    Assert-BadDomainSummaryRejected -SourcePath $GoldenDomainSummaryFile -Label "store_manifest_flags" -Mutate {
+        param($Summary)
+        ($Summary.artifacts.store_manifest.entries | Where-Object { $_.name -eq "hello_app" }).flags = "0x00000001"
+    }
+    Assert-BadDomainSummaryRejected -SourcePath $GoldenDomainSummaryFile -Label "store_manifest_crc" -Mutate {
+        param($Summary)
+        ($Summary.artifacts.store_manifest.entries | Where-Object { $_.name -eq "hello_app" }).payload_crc32 = "0x00000000"
     }
 
     $CMakePath = Resolve-ToolPath -Tool $CMakeExe

@@ -2886,6 +2886,327 @@
                                     "size":  173184,
                                     "crc32":  "0xce0c212a"
                                 },
+                      "store_manifest":  {
+                                             "header":  {
+                                                            "magic":  "0x50415043",
+                                                            "version":  1,
+                                                            "header_size":  16,
+                                                            "entry_count":  31,
+                                                            "entry_size":  44
+                                                        },
+                                             "entries":  [
+                                                             {
+                                                                 "index":  0,
+                                                                 "name":  "afe_error_app",
+                                                                 "format":  "elf",
+                                                                 "format_bits":  0,
+                                                                 "flags":  "0x00000000",
+                                                                 "offset":  1392,
+                                                                 "size":  4972,
+                                                                 "payload_crc32":  "0x8e289811"
+                                                             },
+                                                             {
+                                                                 "index":  1,
+                                                                 "name":  "hello_app",
+                                                                 "format":  "elf",
+                                                                 "format_bits":  0,
+                                                                 "flags":  "0x00000000",
+                                                                 "offset":  6368,
+                                                                 "size":  5132,
+                                                                 "payload_crc32":  "0xb3b7bcc5"
+                                                             },
+                                                             {
+                                                                 "index":  2,
+                                                                 "name":  "player_min",
+                                                                 "format":  "elf",
+                                                                 "format_bits":  0,
+                                                                 "flags":  "0x00000000",
+                                                                 "offset":  11504,
+                                                                 "size":  5168,
+                                                                 "payload_crc32":  "0xba5eb94a"
+                                                             },
+                                                             {
+                                                                 "index":  3,
+                                                                 "name":  "argv_app",
+                                                                 "format":  "elf",
+                                                                 "format_bits":  0,
+                                                                 "flags":  "0x00000000",
+                                                                 "offset":  16672,
+                                                                 "size":  5392,
+                                                                 "payload_crc32":  "0x40c58f7d"
+                                                             },
+                                                             {
+                                                                 "index":  4,
+                                                                 "name":  "bss_app",
+                                                                 "format":  "elf",
+                                                                 "format_bits":  0,
+                                                                 "flags":  "0x00000000",
+                                                                 "offset":  22064,
+                                                                 "size":  5140,
+                                                                 "payload_crc32":  "0xd503d15f"
+                                                             },
+                                                             {
+                                                                 "index":  5,
+                                                                 "name":  "console_error_app",
+                                                                 "format":  "elf",
+                                                                 "format_bits":  0,
+                                                                 "flags":  "0x00000000",
+                                                                 "offset":  27216,
+                                                                 "size":  4908,
+                                                                 "payload_crc32":  "0xe33a07dd"
+                                                             },
+                                                             {
+                                                                 "index":  6,
+                                                                 "name":  "data_app",
+                                                                 "format":  "elf",
+                                                                 "format_bits":  0,
+                                                                 "flags":  "0x00000000",
+                                                                 "offset":  32128,
+                                                                 "size":  5640,
+                                                                 "payload_crc32":  "0x85ccb28b"
+                                                             },
+                                                             {
+                                                                 "index":  7,
+                                                                 "name":  "display_describe_error_app",
+                                                                 "format":  "elf",
+                                                                 "format_bits":  0,
+                                                                 "flags":  "0x00000000",
+                                                                 "offset":  37776,
+                                                                 "size":  4928,
+                                                                 "payload_crc32":  "0x91b401ff"
+                                                             },
+                                                             {
+                                                                 "index":  8,
+                                                                 "name":  "display_error_app",
+                                                                 "format":  "elf",
+                                                                 "format_bits":  0,
+                                                                 "flags":  "0x00000000",
+                                                                 "offset":  42704,
+                                                                 "size":  5076,
+                                                                 "payload_crc32":  "0x0349d397"
+                                                             },
+                                                             {
+                                                                 "index":  9,
+                                                                 "name":  "display_null_present_app",
+                                                                 "format":  "elf",
+                                                                 "format_bits":  0,
+                                                                 "flags":  "0x00000000",
+                                                                 "offset":  47792,
+                                                                 "size":  4980,
+                                                                 "payload_crc32":  "0x2f3d4f2b"
+                                                             },
+                                                             {
+                                                                 "index":  10,
+                                                                 "name":  "display_sequence_app",
+                                                                 "format":  "elf",
+                                                                 "format_bits":  0,
+                                                                 "flags":  "0x00000000",
+                                                                 "offset":  52784,
+                                                                 "size":  5120,
+                                                                 "payload_crc32":  "0xca4a0b94"
+                                                             },
+                                                             {
+                                                                 "index":  11,
+                                                                 "name":  "exit_app",
+                                                                 "format":  "elf",
+                                                                 "format_bits":  0,
+                                                                 "flags":  "0x00000000",
+                                                                 "offset":  57904,
+                                                                 "size":  4736,
+                                                                 "payload_crc32":  "0xa904ce5d"
+                                                             },
+                                                             {
+                                                                 "index":  12,
+                                                                 "name":  "exit_error_app",
+                                                                 "format":  "elf",
+                                                                 "format_bits":  0,
+                                                                 "flags":  "0x00000000",
+                                                                 "offset":  62640,
+                                                                 "size":  4740,
+                                                                 "payload_crc32":  "0xc3a75243"
+                                                             },
+                                                             {
+                                                                 "index":  13,
+                                                                 "name":  "exit_negative_app",
+                                                                 "format":  "elf",
+                                                                 "format_bits":  0,
+                                                                 "flags":  "0x00000000",
+                                                                 "offset":  67392,
+                                                                 "size":  4744,
+                                                                 "payload_crc32":  "0x310651bf"
+                                                             },
+                                                             {
+                                                                 "index":  14,
+                                                                 "name":  "input_error_app",
+                                                                 "format":  "elf",
+                                                                 "format_bits":  0,
+                                                                 "flags":  "0x00000000",
+                                                                 "offset":  72144,
+                                                                 "size":  4904,
+                                                                 "payload_crc32":  "0x3aa05d3f"
+                                                             },
+                                                             {
+                                                                 "index":  15,
+                                                                 "name":  "input_sequence_app",
+                                                                 "format":  "elf",
+                                                                 "format_bits":  0,
+                                                                 "flags":  "0x00000000",
+                                                                 "offset":  77056,
+                                                                 "size":  4996,
+                                                                 "payload_crc32":  "0x4ce5557e"
+                                                             },
+                                                             {
+                                                                 "index":  16,
+                                                                 "name":  "input_wrap_app",
+                                                                 "format":  "elf",
+                                                                 "format_bits":  0,
+                                                                 "flags":  "0x00000000",
+                                                                 "offset":  82064,
+                                                                 "size":  5360,
+                                                                 "payload_crc32":  "0x13d61a65"
+                                                             },
+                                                             {
+                                                                 "index":  17,
+                                                                 "name":  "large_fit_app",
+                                                                 "format":  "elf",
+                                                                 "format_bits":  0,
+                                                                 "flags":  "0x00000000",
+                                                                 "offset":  87424,
+                                                                 "size":  5168,
+                                                                 "payload_crc32":  "0xdffdfba1"
+                                                             },
+                                                             {
+                                                                 "index":  18,
+                                                                 "name":  "return_negative_app",
+                                                                 "format":  "elf",
+                                                                 "format_bits":  0,
+                                                                 "flags":  "0x00000000",
+                                                                 "offset":  92592,
+                                                                 "size":  4728,
+                                                                 "payload_crc32":  "0xdb1d1cdf"
+                                                             },
+                                                             {
+                                                                 "index":  19,
+                                                                 "name":  "unsupported_caps_app",
+                                                                 "format":  "elf",
+                                                                 "format_bits":  0,
+                                                                 "flags":  "0x00000000",
+                                                                 "offset":  97328,
+                                                                 "size":  4988,
+                                                                 "payload_crc32":  "0x338e5522"
+                                                             },
+                                                             {
+                                                                 "index":  20,
+                                                                 "name":  "storage_app",
+                                                                 "format":  "elf",
+                                                                 "format_bits":  0,
+                                                                 "flags":  "0x00000000",
+                                                                 "offset":  102320,
+                                                                 "size":  5236,
+                                                                 "payload_crc32":  "0x2a7cc9c1"
+                                                             },
+                                                             {
+                                                                 "index":  21,
+                                                                 "name":  "storage_catalog_app",
+                                                                 "format":  "elf",
+                                                                 "format_bits":  0,
+                                                                 "flags":  "0x00000000",
+                                                                 "offset":  107568,
+                                                                 "size":  5420,
+                                                                 "payload_crc32":  "0x9add1c8b"
+                                                             },
+                                                             {
+                                                                 "index":  22,
+                                                                 "name":  "storage_close_error_app",
+                                                                 "format":  "elf",
+                                                                 "format_bits":  0,
+                                                                 "flags":  "0x00000000",
+                                                                 "offset":  112992,
+                                                                 "size":  5064,
+                                                                 "payload_crc32":  "0x13a0ccf3"
+                                                             },
+                                                             {
+                                                                 "index":  23,
+                                                                 "name":  "storage_error_app",
+                                                                 "format":  "elf",
+                                                                 "format_bits":  0,
+                                                                 "flags":  "0x00000000",
+                                                                 "offset":  118064,
+                                                                 "size":  5064,
+                                                                 "payload_crc32":  "0xc0182a17"
+                                                             },
+                                                             {
+                                                                 "index":  24,
+                                                                 "name":  "storage_fd_exhaustion_app",
+                                                                 "format":  "elf",
+                                                                 "format_bits":  0,
+                                                                 "flags":  "0x00000000",
+                                                                 "offset":  123136,
+                                                                 "size":  5212,
+                                                                 "payload_crc32":  "0xe8bc40ac"
+                                                             },
+                                                             {
+                                                                 "index":  25,
+                                                                 "name":  "storage_open_error_app",
+                                                                 "format":  "elf",
+                                                                 "format_bits":  0,
+                                                                 "flags":  "0x00000000",
+                                                                 "offset":  128352,
+                                                                 "size":  5084,
+                                                                 "payload_crc32":  "0x475d24f7"
+                                                             },
+                                                             {
+                                                                 "index":  26,
+                                                                 "name":  "storage_write_error_app",
+                                                                 "format":  "elf",
+                                                                 "format_bits":  0,
+                                                                 "flags":  "0x00000000",
+                                                                 "offset":  133440,
+                                                                 "size":  5096,
+                                                                 "payload_crc32":  "0x18ad4f95"
+                                                             },
+                                                             {
+                                                                 "index":  27,
+                                                                 "name":  "storage_zero_io_app",
+                                                                 "format":  "elf",
+                                                                 "format_bits":  0,
+                                                                 "flags":  "0x00000000",
+                                                                 "offset":  138544,
+                                                                 "size":  5088,
+                                                                 "payload_crc32":  "0xf7140e39"
+                                                             },
+                                                             {
+                                                                 "index":  28,
+                                                                 "name":  "time_app",
+                                                                 "format":  "elf",
+                                                                 "format_bits":  0,
+                                                                 "flags":  "0x00000000",
+                                                                 "offset":  143632,
+                                                                 "size":  4748,
+                                                                 "payload_crc32":  "0x38015ef3"
+                                                             },
+                                                             {
+                                                                 "index":  29,
+                                                                 "name":  "time_sequence_app",
+                                                                 "format":  "elf",
+                                                                 "format_bits":  0,
+                                                                 "flags":  "0x00000000",
+                                                                 "offset":  148384,
+                                                                 "size":  4800,
+                                                                 "payload_crc32":  "0xc9485c49"
+                                                             },
+                                                             {
+                                                                 "index":  30,
+                                                                 "name":  "too_large_store_app",
+                                                                 "format":  "elf",
+                                                                 "format_bits":  0,
+                                                                 "flags":  "0x00000000",
+                                                                 "offset":  153184,
+                                                                 "size":  20000,
+                                                                 "payload_crc32":  "0xf6b0c577"
+                                                             }
+                                                         ]
+                                         },
                       "includes":  [
                                        {
                                            "name":  "appstore.bin",

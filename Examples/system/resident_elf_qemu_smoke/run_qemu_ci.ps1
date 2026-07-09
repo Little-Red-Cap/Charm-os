@@ -80,6 +80,47 @@ function Invoke-Checked {
     }
 }
 
+function Acquire-QemuEvidenceLock {
+    param([int]$TimeoutSec = 120)
+
+    $LockPath = Join-Path $PSScriptRoot "qemu-evidence.lock"
+    $Deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSec)
+    while ($true) {
+        try {
+            $Stream = [System.IO.File]::Open(
+                $LockPath,
+                [System.IO.FileMode]::OpenOrCreate,
+                [System.IO.FileAccess]::ReadWrite,
+                [System.IO.FileShare]::None)
+            $Text = "pid=$PID acquired=$(Get-Date -Format o)`n"
+            $Bytes = [System.Text.Encoding]::UTF8.GetBytes($Text)
+            $Stream.SetLength(0)
+            $Stream.Write($Bytes, 0, $Bytes.Length)
+            $Stream.Flush()
+            Write-Host "resident-elf-qemu evidence lock acquired path=$LockPath"
+            return $Stream
+        } catch [System.IO.IOException] {
+            if ([DateTime]::UtcNow -ge $Deadline) {
+                throw "qemu_evidence_lock_timeout: $LockPath"
+            }
+            Start-Sleep -Milliseconds 200
+        }
+    }
+}
+
+function Release-QemuEvidenceLock {
+    param([object]$Lock)
+
+    if ($null -ne $Lock) {
+        $LockPath = $Lock.Name
+        $Lock.Dispose()
+        if (-not [string]::IsNullOrWhiteSpace($LockPath)) {
+            Remove-Item -LiteralPath $LockPath -Force -ErrorAction SilentlyContinue
+        }
+        Write-Host "resident-elf-qemu evidence lock released"
+    }
+}
+
 function Write-IncFile {
     param(
         [string]$InputPath,
@@ -3071,6 +3112,348 @@ function Get-CapabilitySummaryFromText {
     return [pscustomobject]$Caps
 }
 
+function Get-CapabilityCounterSummaryFromText {
+    param([string]$Text)
+
+    $CapsRegex = [System.Text.RegularExpressions.Regex]::new(
+        'resident-elf-qemu: caps ([^ ]+) console=(\d+) time=(\d+) describe=(\d+) present=(\d+) input=(\d+) exit=(\d+)(?: display_checksum=(\d+) display_checksum_total=(\d+) storage=(\d+)/(\d+)/(\d+)/(\d+) storage_bytes=(\d+)(?: afe=(\d+)/(\d+) input_checksum=(\d+) input_last=(-?\d+),(-?\d+),(\d+) display_hash=(0x[0-9a-fA-F]+) display_hash_total=(0x[0-9a-fA-F]+) display_frame=(\d+))?)?')
+    $Counters = @()
+    foreach ($Match in $CapsRegex.Matches($Text)) {
+        $HasExtendedCounters = $Match.Groups[8].Success -and -not [string]::IsNullOrWhiteSpace($Match.Groups[8].Value)
+        $HasResetCounters = $Match.Groups[15].Success -and -not [string]::IsNullOrWhiteSpace($Match.Groups[15].Value)
+        $Counters += [pscustomobject]@{
+            name = $Match.Groups[1].Value
+            console = [int]$Match.Groups[2].Value
+            time = [int]$Match.Groups[3].Value
+            describe = [int]$Match.Groups[4].Value
+            present = [int]$Match.Groups[5].Value
+            input = [int]$Match.Groups[6].Value
+            exit = [int]$Match.Groups[7].Value
+            display_checksum = if ($HasExtendedCounters) { [int]$Match.Groups[8].Value } else { 0 }
+            display_checksum_total = if ($HasExtendedCounters) { [int]$Match.Groups[9].Value } else { 0 }
+            storage_open = if ($HasExtendedCounters) { [int]$Match.Groups[10].Value } else { 0 }
+            storage_read = if ($HasExtendedCounters) { [int]$Match.Groups[11].Value } else { 0 }
+            storage_write = if ($HasExtendedCounters) { [int]$Match.Groups[12].Value } else { 0 }
+            storage_close = if ($HasExtendedCounters) { [int]$Match.Groups[13].Value } else { 0 }
+            storage_bytes = if ($HasExtendedCounters) { [int]$Match.Groups[14].Value } else { 0 }
+            afe_configure = if ($HasResetCounters) { [int]$Match.Groups[15].Value } else { 0 }
+            afe_read = if ($HasResetCounters) { [int]$Match.Groups[16].Value } else { 0 }
+            input_checksum = if ($HasResetCounters) { [int]$Match.Groups[17].Value } else { 0 }
+            input_last_x = if ($HasResetCounters) { [int]$Match.Groups[18].Value } else { 0 }
+            input_last_y = if ($HasResetCounters) { [int]$Match.Groups[19].Value } else { 0 }
+            input_last_down = if ($HasResetCounters) { [int]$Match.Groups[20].Value } else { 0 }
+            input_last = if ($HasResetCounters) { "{0},{1},{2}" -f ([int]$Match.Groups[18].Value), ([int]$Match.Groups[19].Value), ([int]$Match.Groups[20].Value) } else { "0,0,0" }
+            display_hash = if ($HasResetCounters) { ([string]$Match.Groups[21].Value).ToLowerInvariant() } else { "0x00000000" }
+            display_hash_total = if ($HasResetCounters) { ([string]$Match.Groups[22].Value).ToLowerInvariant() } else { "0x00000000" }
+            display_frame = if ($HasResetCounters) { [int]$Match.Groups[23].Value } else { 0 }
+        }
+    }
+    return @($Counters)
+}
+
+function Get-QemuCapsByName {
+    param(
+        [object[]]$CapabilityCounters,
+        [string]$Name
+    )
+
+    $Matches = @($CapabilityCounters | Where-Object { $_.name -eq $Name })
+    if ($Matches.Count -eq 0) {
+        return $null
+    }
+    return $Matches[0]
+}
+
+function Test-QemuCapsEqual {
+    param(
+        [object]$Left,
+        [object]$Right,
+        [string[]]$Properties
+    )
+
+    if ($null -eq $Left -or $null -eq $Right) {
+        return $false
+    }
+    foreach ($Property in $Properties) {
+        if ([string]$Left.$Property -ne [string]$Right.$Property) {
+            return $false
+        }
+    }
+    return $true
+}
+
+function Test-QemuCapsExpected {
+    param(
+        [object]$Caps,
+        [hashtable]$Expected
+    )
+
+    if ($null -eq $Caps) {
+        return $false
+    }
+    foreach ($Key in $Expected.Keys) {
+        if ([string]$Caps.$Key -ne [string]$Expected[$Key]) {
+            return $false
+        }
+    }
+    return $true
+}
+
+function Test-QemuRunExitOk {
+    param(
+        [object[]]$Runs,
+        [string]$Name
+    )
+
+    $Run = Get-QemuRunByName -Runs $Runs -Name $Name
+    return ($null -ne $Run -and $Run.stage -eq "exit" -and $Run.code -eq "ok" -and [int]$Run.exit -eq 0)
+}
+
+function Get-QemuTraceRunByName {
+    param(
+        [object]$Trace,
+        [string]$Name
+    )
+
+    if ($null -eq $Trace) {
+        return $null
+    }
+    $Matches = @(@($Trace.runs) | Where-Object { $_.name -eq $Name })
+    if ($Matches.Count -eq 0) {
+        return $null
+    }
+    return $Matches[0]
+}
+
+function Test-QemuStorageFdResetTraceRun {
+    param([object]$Run)
+
+    if ($null -eq $Run -or $Run.stage -ne "exit" -or $Run.code -ne "ok" -or [int]$Run.exit -ne 0) {
+        return $false
+    }
+    $Events = @($Run.events)
+    if ([int]$Run.event_count -ne 12 -or $Events.Count -ne 12) {
+        return $false
+    }
+    $Expected = @(
+        [pscustomobject]@{ index = 0; op = "open"; fd = 3; code = "ok"; path = "/virtual/readme.txt"; count = 0 },
+        [pscustomobject]@{ index = 1; op = "open"; fd = 4; code = "ok"; path = "/virtual/readme.txt"; count = 0 },
+        [pscustomobject]@{ index = 2; op = "open"; fd = 5; code = "ok"; path = "/virtual/alpha.txt"; count = 0 },
+        [pscustomobject]@{ index = 3; op = "open"; fd = 6; code = "ok"; path = "/virtual/beta.bin"; count = 0 },
+        [pscustomobject]@{ index = 4; op = "open"; fd = -1; code = "io_error"; path = "/virtual/readme.txt"; count = 0 },
+        [pscustomobject]@{ index = 5; op = "close"; fd = 4; code = "ok"; path = ""; count = 0 },
+        [pscustomobject]@{ index = 6; op = "open"; fd = 4; code = "ok"; path = "/virtual/readme.txt"; count = 0 },
+        [pscustomobject]@{ index = 7; op = "read"; fd = 4; code = "ok"; path = ""; count = 1 },
+        [pscustomobject]@{ index = 8; op = "close"; fd = 4; code = "ok"; path = ""; count = 0 },
+        [pscustomobject]@{ index = 9; op = "close"; fd = 6; code = "ok"; path = ""; count = 0 },
+        [pscustomobject]@{ index = 10; op = "close"; fd = 5; code = "ok"; path = ""; count = 0 },
+        [pscustomobject]@{ index = 11; op = "close"; fd = 3; code = "ok"; path = ""; count = 0 }
+    )
+    foreach ($Item in $Expected) {
+        $Event = $Events[[int]$Item.index]
+        if ($Event.op -ne $Item.op -or
+            [int]$Event.fd -ne [int]$Item.fd -or
+            $Event.code -ne $Item.code -or
+            $Event.path -ne $Item.path -or
+            [int]$Event.count -ne [int]$Item.count) {
+            return $false
+        }
+    }
+    return $true
+}
+
+function Get-QemuRuntimeResetDeterminism {
+    param(
+        [object[]]$Runs,
+        [object[]]$Loads,
+        [object[]]$SourceMatrix,
+        [object[]]$GuiTimeline,
+        [object[]]$CapabilityCounters,
+        [object]$InputTraceCapture,
+        [object]$StorageTraceCapture
+    )
+
+    $CounterProperties = @(
+        "console",
+        "time",
+        "describe",
+        "present",
+        "input",
+        "exit",
+        "display_checksum",
+        "display_checksum_total",
+        "storage_open",
+        "storage_read",
+        "storage_write",
+        "storage_close",
+        "storage_bytes",
+        "afe_configure",
+        "afe_read",
+        "input_checksum",
+        "input_last_x",
+        "input_last_y",
+        "input_last_down",
+        "display_hash",
+        "display_hash_total",
+        "display_frame"
+    )
+
+    $PairNames = @(
+        @("bss_app", "store:bss_app"),
+        @("data_app", "store:data_app"),
+        @("time_sequence_app", "store:time_sequence_app"),
+        @("input_sequence_app", "store:input_sequence_app"),
+        @("display_sequence_app", "store:display_sequence_app"),
+        @("storage_fd_exhaustion_app", "store:storage_fd_exhaustion_app")
+    )
+    $CapabilityCountersReset = $true
+    foreach ($Pair in $PairNames) {
+        $Left = Get-QemuCapsByName -CapabilityCounters $CapabilityCounters -Name $Pair[0]
+        $Right = Get-QemuCapsByName -CapabilityCounters $CapabilityCounters -Name $Pair[1]
+        if (-not (Test-QemuRunExitOk -Runs $Runs -Name $Pair[0]) -or
+            -not (Test-QemuRunExitOk -Runs $Runs -Name $Pair[1]) -or
+            -not (Test-QemuCapsEqual -Left $Left -Right $Right -Properties $CounterProperties)) {
+            $CapabilityCountersReset = $false
+        }
+    }
+
+    $PlayerCaps = Get-QemuCapsByName -CapabilityCounters $CapabilityCounters -Name "player_min"
+    foreach ($Name in @("received:player_min", "packetstream:player_min", "store:player_min")) {
+        if (-not (Test-QemuRunExitOk -Runs $Runs -Name $Name) -or
+            -not (Test-QemuCapsEqual -Left $PlayerCaps -Right (Get-QemuCapsByName -CapabilityCounters $CapabilityCounters -Name $Name) -Properties $CounterProperties)) {
+            $CapabilityCountersReset = $false
+        }
+    }
+
+    $BssCaps = Get-QemuCapsByName -CapabilityCounters $CapabilityCounters -Name "bss_app"
+    $StoreBssCaps = Get-QemuCapsByName -CapabilityCounters $CapabilityCounters -Name "store:bss_app"
+    $BssZeroFill = (Test-QemuRunExitOk -Runs $Runs -Name "bss_app") -and
+        (Test-QemuRunExitOk -Runs $Runs -Name "store:bss_app") -and
+        (Test-QemuCapsExpected -Caps $BssCaps -Expected @{ console = 22; time = 0; input = 0; present = 0; storage_open = 0; display_frame = 0 }) -and
+        (Test-QemuCapsEqual -Left $BssCaps -Right $StoreBssCaps -Properties $CounterProperties)
+
+    $DataCaps = Get-QemuCapsByName -CapabilityCounters $CapabilityCounters -Name "data_app"
+    $StoreDataCaps = Get-QemuCapsByName -CapabilityCounters $CapabilityCounters -Name "store:data_app"
+    $DataReinitialized = (Test-QemuRunExitOk -Runs $Runs -Name "data_app") -and
+        (Test-QemuRunExitOk -Runs $Runs -Name "store:data_app") -and
+        (Test-QemuCapsExpected -Caps $DataCaps -Expected @{ console = 35; time = 0; input = 0; present = 0; storage_open = 0; display_frame = 0 }) -and
+        (Test-QemuCapsEqual -Left $DataCaps -Right $StoreDataCaps -Properties $CounterProperties)
+
+    $TimeCaps = Get-QemuCapsByName -CapabilityCounters $CapabilityCounters -Name "time_sequence_app"
+    $StoreTimeCaps = Get-QemuCapsByName -CapabilityCounters $CapabilityCounters -Name "store:time_sequence_app"
+    $TimeReset = (Test-QemuRunExitOk -Runs $Runs -Name "time_sequence_app") -and
+        (Test-QemuRunExitOk -Runs $Runs -Name "store:time_sequence_app") -and
+        (Test-QemuCapsExpected -Caps $TimeCaps -Expected @{ console = 0; time = 4; input = 0; present = 0; storage_open = 0; display_frame = 0 }) -and
+        (Test-QemuCapsEqual -Left $TimeCaps -Right $StoreTimeCaps -Properties $CounterProperties)
+
+    $InputCaps = Get-QemuCapsByName -CapabilityCounters $CapabilityCounters -Name "input_sequence_app"
+    $StoreInputCaps = Get-QemuCapsByName -CapabilityCounters $CapabilityCounters -Name "store:input_sequence_app"
+    $InputReset = (Test-QemuRunExitOk -Runs $Runs -Name "input_sequence_app") -and
+        (Test-QemuRunExitOk -Runs $Runs -Name "store:input_sequence_app") -and
+        (Test-QemuCapsExpected -Caps $InputCaps -Expected @{ console = 41; input = 4; input_checksum = 114; input_last = "6,8,0"; present = 0 }) -and
+        (Test-QemuCapsEqual -Left $InputCaps -Right $StoreInputCaps -Properties $CounterProperties)
+    foreach ($Name in @("player_min", "received:player_min", "packetstream:player_min", "store:player_min")) {
+        $Caps = Get-QemuCapsByName -CapabilityCounters $CapabilityCounters -Name $Name
+        if (-not (Test-QemuRunExitOk -Runs $Runs -Name $Name) -or
+            -not (Test-QemuCapsExpected -Caps $Caps -Expected @{ input = 1; input_checksum = 26; input_last = "3,5,0" })) {
+            $InputReset = $false
+        }
+    }
+    foreach ($Name in @("input_sequence_app", "store:input_sequence_app")) {
+        $TraceRun = Get-QemuTraceRunByName -Trace $InputTraceCapture -Name $Name
+        if ($null -eq $TraceRun -or [int]$TraceRun.event_count -ne 4) {
+            $InputReset = $false
+        }
+    }
+
+    $DisplayCaps = Get-QemuCapsByName -CapabilityCounters $CapabilityCounters -Name "display_sequence_app"
+    $StoreDisplayCaps = Get-QemuCapsByName -CapabilityCounters $CapabilityCounters -Name "store:display_sequence_app"
+    $DisplayReset = (Test-QemuRunExitOk -Runs $Runs -Name "display_sequence_app") -and
+        (Test-QemuRunExitOk -Runs $Runs -Name "store:display_sequence_app") -and
+        (Test-QemuCapsExpected -Caps $DisplayCaps -Expected @{ console = 45; describe = 1; present = 2; display_checksum_total = 3072; display_hash = "0xa9b09dc5"; display_frame = 2 }) -and
+        (Test-QemuCapsEqual -Left $DisplayCaps -Right $StoreDisplayCaps -Properties $CounterProperties)
+    foreach ($Name in @("player_min", "received:player_min", "packetstream:player_min", "store:player_min")) {
+        $Caps = Get-QemuCapsByName -CapabilityCounters $CapabilityCounters -Name $Name
+        if (-not (Test-QemuRunExitOk -Runs $Runs -Name $Name) -or
+            -not (Test-QemuCapsExpected -Caps $Caps -Expected @{ describe = 1; present = 1; display_checksum_total = 174720; display_hash = "0xfac53a05"; display_frame = 1 })) {
+            $DisplayReset = $false
+        }
+    }
+    foreach ($Name in @("display_sequence_app", "store:display_sequence_app")) {
+        $Timeline = @($GuiTimeline | Where-Object { $_.name -eq $Name })
+        if ($Timeline.Count -ne 1 -or [int]$Timeline[0].frames -ne 2 -or [string]$Timeline[0].last_frame_hash -ne "0xa9b09dc5") {
+            $DisplayReset = $false
+        }
+    }
+
+    $StorageCaps = Get-QemuCapsByName -CapabilityCounters $CapabilityCounters -Name "storage_fd_exhaustion_app"
+    $StoreStorageCaps = Get-QemuCapsByName -CapabilityCounters $CapabilityCounters -Name "store:storage_fd_exhaustion_app"
+    $StorageFdReset = (Test-QemuRunExitOk -Runs $Runs -Name "storage_fd_exhaustion_app") -and
+        (Test-QemuRunExitOk -Runs $Runs -Name "store:storage_fd_exhaustion_app") -and
+        (Test-QemuCapsExpected -Caps $StorageCaps -Expected @{ console = 57; storage_open = 6; storage_read = 1; storage_write = 0; storage_close = 5; storage_bytes = 1 }) -and
+        (Test-QemuCapsEqual -Left $StorageCaps -Right $StoreStorageCaps -Properties $CounterProperties) -and
+        (Test-QemuStorageFdResetTraceRun -Run (Get-QemuTraceRunByName -Trace $StorageTraceCapture -Name "storage_fd_exhaustion_app")) -and
+        (Test-QemuStorageFdResetTraceRun -Run (Get-QemuTraceRunByName -Trace $StorageTraceCapture -Name "store:storage_fd_exhaustion_app"))
+
+    $SourceEquivalence = $true
+    foreach ($Name in @("hello_app", "large_fit_app", "player_min")) {
+        if (-not (Test-QemuSummarySourceMatrixEntry -Matrix $SourceMatrix -Name $Name -Sources @("direct", "received", "packetstream", "store"))) {
+            $SourceEquivalence = $false
+        }
+    }
+
+    $RunRegionCleared = $BssZeroFill -and $DataReinitialized
+    $Ready = $RunRegionCleared -and
+        $CapabilityCountersReset -and
+        $TimeReset -and
+        $InputReset -and
+        $DisplayReset -and
+        $StorageFdReset -and
+        $BssZeroFill -and
+        $DataReinitialized -and
+        $SourceEquivalence
+
+    return [pscustomobject]@{
+        schema = "charm.resident_elf_qemu.runtime_reset_determinism.v1"
+        status = if ($Ready) { "ok" } else { "failed" }
+        run_region_cleared = $RunRegionCleared
+        capability_counters_reset = $CapabilityCountersReset
+        time_reset = $TimeReset
+        input_reset = $InputReset
+        display_reset = $DisplayReset
+        storage_fd_reset = $StorageFdReset
+        bss_zero_fill = $BssZeroFill
+        data_reinitialized = $DataReinitialized
+        source_equivalence = $SourceEquivalence
+        evidence_runs = @(
+            "bss_app",
+            "store:bss_app",
+            "data_app",
+            "store:data_app",
+            "time_sequence_app",
+            "store:time_sequence_app",
+            "input_sequence_app",
+            "store:input_sequence_app",
+            "display_sequence_app",
+            "store:display_sequence_app",
+            "storage_fd_exhaustion_app",
+            "store:storage_fd_exhaustion_app",
+            "player_min",
+            "received:player_min",
+            "packetstream:player_min",
+            "store:player_min",
+            "hello_app",
+            "received:hello_app",
+            "packetstream:hello_app",
+            "store:hello_app",
+            "large_fit_app",
+            "received:large_fit_app",
+            "packetstream:large_fit_app",
+            "store:large_fit_app"
+        )
+    }
+}
+
 function Get-GuiTimelineSummary {
     param(
         [object]$FrameSignatureCapture,
@@ -3204,7 +3587,8 @@ function Get-QemuBackendReadiness {
         [int]$FrameDumpCount,
         [int]$FramePpmCount,
         [int]$InputTraceCount,
-        [int]$StorageTraceCount
+        [int]$StorageTraceCount,
+        [object]$RuntimeResetDeterminism
     )
 
     $ElfLoaderReady =
@@ -3253,6 +3637,19 @@ function Get-QemuBackendReadiness {
         [bool]$Capabilities.unsupported -and
         $BackendContract.afe -eq "unsupported" -and
         $BackendContract.storage -eq "readonly"
+    $RuntimeResetReady =
+        $null -ne $RuntimeResetDeterminism -and
+        $RuntimeResetDeterminism.schema -eq "charm.resident_elf_qemu.runtime_reset_determinism.v1" -and
+        $RuntimeResetDeterminism.status -eq "ok" -and
+        [bool]$RuntimeResetDeterminism.run_region_cleared -and
+        [bool]$RuntimeResetDeterminism.capability_counters_reset -and
+        [bool]$RuntimeResetDeterminism.time_reset -and
+        [bool]$RuntimeResetDeterminism.input_reset -and
+        [bool]$RuntimeResetDeterminism.display_reset -and
+        [bool]$RuntimeResetDeterminism.storage_fd_reset -and
+        [bool]$RuntimeResetDeterminism.bss_zero_fill -and
+        [bool]$RuntimeResetDeterminism.data_reinitialized -and
+        [bool]$RuntimeResetDeterminism.source_equivalence
 
     $Ready = $ElfLoaderReady -and
         $AppRuntimeReady -and
@@ -3263,7 +3660,8 @@ function Get-QemuBackendReadiness {
         $GuiReady -and
         $StorageReady -and
         $InputReady -and
-        $UnsupportedReady
+        $UnsupportedReady -and
+        $RuntimeResetReady
 
     return [pscustomobject]@{
         status = if ($Ready) { "ready" } else { "incomplete" }
@@ -3277,6 +3675,7 @@ function Get-QemuBackendReadiness {
         storage = $StorageReady
         input = $InputReady
         unsupported_boundary = $UnsupportedReady
+        runtime_reset = $RuntimeResetReady
     }
 }
 
@@ -3518,6 +3917,15 @@ function Write-DomainSummaryCapture {
         -Prepare $PrepareSummary
     $GuiTimeline = Get-GuiTimelineSummary -FrameSignatureCapture $FrameSignatureCapture -InputTraceCapture $InputTraceCapture
     $Capabilities = Get-CapabilitySummaryFromText -Text $Text
+    $CapabilityCounters = Get-CapabilityCounterSummaryFromText -Text $Text
+    $RuntimeResetDeterminism = Get-QemuRuntimeResetDeterminism `
+        -Runs $Runs `
+        -Loads $Loads `
+        -SourceMatrix $SourceMatrix `
+        -GuiTimeline $GuiTimeline `
+        -CapabilityCounters $CapabilityCounters `
+        -InputTraceCapture $InputTraceCapture `
+        -StorageTraceCapture $StorageTraceCapture
     $BackendCapabilityMatrix = Get-QemuBackendCapabilityMatrix -BackendContract $BackendContract
     $BackendReadiness = Get-QemuBackendReadiness `
         -BackendContract $BackendContract `
@@ -3533,7 +3941,8 @@ function Write-DomainSummaryCapture {
         -FrameDumpCount $FrameDumpCount `
         -FramePpmCount $FramePpmCount `
         -InputTraceCount $InputTraceCount `
-        -StorageTraceCount $StorageTraceCount
+        -StorageTraceCount $StorageTraceCount `
+        -RuntimeResetDeterminism $RuntimeResetDeterminism
     $NegativeCases = Get-QemuNegativeCases
     $FailureTaxonomy = Get-QemuFailureTaxonomy -NegativeCases $NegativeCases
     $RuntimeDomainProfile = Get-QemuRuntimeDomainProfile `
@@ -3553,6 +3962,7 @@ function Write-DomainSummaryCapture {
         backend_readiness = $BackendReadiness
         backend_capability_matrix = $BackendCapabilityMatrix
         runtime_domain_profile = $RuntimeDomainProfile
+        runtime_reset_determinism = $RuntimeResetDeterminism
         elf_run_evidence_matrix = $ElfRunEvidenceMatrix
         failure_taxonomy = $FailureTaxonomy
         artifacts = $ArtifactSummary
@@ -3593,6 +4003,7 @@ function Write-DomainSummaryCapture {
             gui_timeline = $GuiTimeline
             prepare = $PrepareSummary
             capabilities = $Capabilities
+            capability_counters = $CapabilityCounters
             negative_cases = $NegativeCases
         }
         evidence = [pscustomobject]@{
@@ -4288,7 +4699,8 @@ function Assert-DomainBackendReadiness {
         "gui",
         "storage",
         "input",
-        "unsupported_boundary"
+        "unsupported_boundary",
+        "runtime_reset"
     )
     $ActualProperties = @($Readiness.PSObject.Properties | ForEach-Object { $_.Name })
     foreach ($Property in $ExpectedProperties) {
@@ -4312,11 +4724,73 @@ function Assert-DomainBackendReadiness {
             "gui",
             "storage",
             "input",
-            "unsupported_boundary"
+            "unsupported_boundary",
+            "runtime_reset"
         )) {
         if (-not [bool]$Readiness.$Property) {
             throw "domain_summary_validate_failed: backend readiness $Property is false"
         }
+    }
+}
+
+function Assert-DomainRuntimeResetDeterminism {
+    param([object]$Reset)
+
+    if ($null -eq $Reset -or $Reset.schema -ne "charm.resident_elf_qemu.runtime_reset_determinism.v1") {
+        throw "domain_summary_validate_failed: bad runtime reset determinism schema"
+    }
+    if ($Reset.status -ne "ok") {
+        throw "domain_summary_validate_failed: runtime reset determinism status=$($Reset.status)"
+    }
+    foreach ($Property in @(
+            "run_region_cleared",
+            "capability_counters_reset",
+            "time_reset",
+            "input_reset",
+            "display_reset",
+            "storage_fd_reset",
+            "bss_zero_fill",
+            "data_reinitialized",
+            "source_equivalence"
+        )) {
+        if (-not [bool]$Reset.$Property) {
+            throw "domain_summary_validate_failed: runtime reset determinism $Property is false"
+        }
+    }
+
+    $EvidenceRuns = @($Reset.evidence_runs)
+    foreach ($Name in @(
+            "bss_app",
+            "store:bss_app",
+            "data_app",
+            "store:data_app",
+            "time_sequence_app",
+            "store:time_sequence_app",
+            "input_sequence_app",
+            "store:input_sequence_app",
+            "display_sequence_app",
+            "store:display_sequence_app",
+            "storage_fd_exhaustion_app",
+            "store:storage_fd_exhaustion_app",
+            "player_min",
+            "received:player_min",
+            "packetstream:player_min",
+            "store:player_min",
+            "hello_app",
+            "received:hello_app",
+            "packetstream:hello_app",
+            "store:hello_app",
+            "large_fit_app",
+            "received:large_fit_app",
+            "packetstream:large_fit_app",
+            "store:large_fit_app"
+        )) {
+        if (-not ($EvidenceRuns -contains $Name)) {
+            throw "domain_summary_validate_failed: runtime reset determinism missing evidence run $Name"
+        }
+    }
+    if ($EvidenceRuns.Count -ne 24) {
+        throw "domain_summary_validate_failed: runtime reset determinism evidence count=$($EvidenceRuns.Count)"
     }
 }
 
@@ -4837,6 +5311,7 @@ function Validate-DomainSummaryFile {
     Assert-DomainBackendReadiness -Readiness $Summary.backend_readiness
     Assert-DomainBackendCapabilityMatrix -Matrix @($Summary.backend_capability_matrix)
     Assert-DomainRuntimeDomainProfile -Profile $Summary.runtime_domain_profile -BackendContract $Summary.backend_contract
+    Assert-DomainRuntimeResetDeterminism -Reset $Summary.runtime_reset_determinism
     $ElfRunEvidenceMatrix = @($Summary.elf_run_evidence_matrix)
     Assert-DomainCount -Name "elf_run_evidence_matrix" -Actual $ElfRunEvidenceMatrix.Count -Expected 88
     if ($Summary.run_region.base -ne "0x20080000" -or $Summary.run_region.expected -ne "0x20080000" -or [int]$Summary.run_region.size -ne 65536) {
@@ -5152,6 +5627,36 @@ function Validate-DomainSummaryFile {
     foreach ($Capability in @("console", "time", "display", "input", "storage", "app_exit", "unsupported")) {
         if (-not [bool]$Summary.coverage.capabilities.$Capability) {
             throw "domain_summary_validate_failed: capability coverage missing $Capability"
+        }
+    }
+    $CapabilityCounters = @($Summary.coverage.capability_counters)
+    Assert-DomainCount -Name "capability_counters" -Actual $CapabilityCounters.Count -Expected 92
+    foreach ($ExpectedCounter in @(
+            [pscustomobject]@{ name = "bss_app"; console = 22; time = 0; input = 0; present = 0; storage_open = 0; display_frame = 0 },
+            [pscustomobject]@{ name = "store:bss_app"; console = 22; time = 0; input = 0; present = 0; storage_open = 0; display_frame = 0 },
+            [pscustomobject]@{ name = "data_app"; console = 35; time = 0; input = 0; present = 0; storage_open = 0; display_frame = 0 },
+            [pscustomobject]@{ name = "store:data_app"; console = 35; time = 0; input = 0; present = 0; storage_open = 0; display_frame = 0 },
+            [pscustomobject]@{ name = "time_sequence_app"; console = 0; time = 4; input = 0; present = 0; storage_open = 0; display_frame = 0 },
+            [pscustomobject]@{ name = "store:time_sequence_app"; console = 0; time = 4; input = 0; present = 0; storage_open = 0; display_frame = 0 },
+            [pscustomobject]@{ name = "input_sequence_app"; console = 41; time = 0; input = 4; present = 0; storage_open = 0; input_checksum = 114; display_frame = 0 },
+            [pscustomobject]@{ name = "store:input_sequence_app"; console = 41; time = 0; input = 4; present = 0; storage_open = 0; input_checksum = 114; display_frame = 0 },
+            [pscustomobject]@{ name = "display_sequence_app"; console = 45; time = 0; input = 0; present = 2; storage_open = 0; display_checksum_total = 3072; display_frame = 2 },
+            [pscustomobject]@{ name = "store:display_sequence_app"; console = 45; time = 0; input = 0; present = 2; storage_open = 0; display_checksum_total = 3072; display_frame = 2 },
+            [pscustomobject]@{ name = "storage_fd_exhaustion_app"; console = 57; time = 0; input = 0; present = 0; storage_open = 6; storage_read = 1; storage_close = 5; storage_bytes = 1; display_frame = 0 },
+            [pscustomobject]@{ name = "store:storage_fd_exhaustion_app"; console = 57; time = 0; input = 0; present = 0; storage_open = 6; storage_read = 1; storage_close = 5; storage_bytes = 1; display_frame = 0 },
+            [pscustomobject]@{ name = "player_min"; console = 32; time = 1; input = 1; present = 1; input_checksum = 26; display_checksum_total = 174720; display_frame = 1 },
+            [pscustomobject]@{ name = "received:player_min"; console = 32; time = 1; input = 1; present = 1; input_checksum = 26; display_checksum_total = 174720; display_frame = 1 },
+            [pscustomobject]@{ name = "packetstream:player_min"; console = 32; time = 1; input = 1; present = 1; input_checksum = 26; display_checksum_total = 174720; display_frame = 1 },
+            [pscustomobject]@{ name = "store:player_min"; console = 32; time = 1; input = 1; present = 1; input_checksum = 26; display_checksum_total = 174720; display_frame = 1 }
+        )) {
+        $Counter = Get-QemuCapsByName -CapabilityCounters $CapabilityCounters -Name $ExpectedCounter.name
+        if ($null -eq $Counter) {
+            throw "domain_summary_validate_failed: missing capability counter $($ExpectedCounter.name)"
+        }
+        foreach ($Property in @($ExpectedCounter.PSObject.Properties | ForEach-Object { $_.Name } | Where-Object { $_ -ne "name" })) {
+            if ([string]$Counter.$Property -ne [string]$ExpectedCounter.$Property) {
+                throw "domain_summary_validate_failed: bad capability counter $($ExpectedCounter.name).$Property"
+            }
         }
     }
     $NegativeCases = @($Summary.coverage.negative_cases)
@@ -5806,6 +6311,10 @@ function Invoke-SelfTest {
         'direct script default at `-TimeoutSec 15`',
         "display mode is fixed at 16x16 ARGB8888",
         "coverage.gui_timeline",
+        "runtime_reset_determinism",
+        "qemu_elf_runtime_reset",
+        "qemu-evidence.lock",
+        'evidence files (`qemu-ci.log`',
         "frame-dumps.golden.json",
         "elf_run_evidence_matrix",
         "storage_fd_exhaustion_app",
@@ -5862,6 +6371,14 @@ function Invoke-SelfTest {
     Assert-BadDomainSummaryRejected -SourcePath $GoldenDomainSummaryFile -Label "backend_readiness_gui" -Mutate {
         param($Summary)
         $Summary.backend_readiness.gui = $false
+    }
+    Assert-BadDomainSummaryRejected -SourcePath $GoldenDomainSummaryFile -Label "backend_readiness_runtime_reset" -Mutate {
+        param($Summary)
+        $Summary.backend_readiness.runtime_reset = $false
+    }
+    Assert-BadDomainSummaryRejected -SourcePath $GoldenDomainSummaryFile -Label "runtime_reset_determinism_time" -Mutate {
+        param($Summary)
+        $Summary.runtime_reset_determinism.time_reset = $false
     }
     Assert-BadDomainSummaryRejected -SourcePath $GoldenDomainSummaryFile -Label "backend_capability_matrix_storage" -Mutate {
         param($Summary)
@@ -5937,7 +6454,12 @@ if ($Doctor) {
 }
 
 if ($ValidateEvidenceBundle) {
-    exit (Invoke-EvidenceBundleValidation)
+    $EvidenceLock = Acquire-QemuEvidenceLock
+    try {
+        exit (Invoke-EvidenceBundleValidation)
+    } finally {
+        Release-QemuEvidenceLock -Lock $EvidenceLock
+    }
 }
 
 if (-not [string]::IsNullOrWhiteSpace($ValidateLog)) {
@@ -5993,6 +6515,9 @@ if (-not [string]::IsNullOrWhiteSpace($CompareFrameDumps) -or
     exit (Compare-FrameDumpFiles -ExpectedPath $CompareFrameDumps -ActualPath $ActualFrameDumps)
 }
 
+$EvidenceLock = $null
+
+try {
 $cmake = Resolve-ToolPath -Tool $CMakeExe
 $qemu = Resolve-ToolPath -Tool $QemuExe
 $cc = Resolve-ToolPath -Tool "${ToolchainPrefix}gcc"
@@ -6052,6 +6577,8 @@ if ($DryRun) {
     Write-Host "[dry-run] validate_evidence_bundle=$($ValidateEvidenceBundle.IsPresent)"
     exit 0
 }
+
+$EvidenceLock = Acquire-QemuEvidenceLock
 
 if (-not (Test-Path $appOut)) {
     New-Item -ItemType Directory -Path $appOut | Out-Null
@@ -6265,3 +6792,6 @@ if (-not [string]::IsNullOrWhiteSpace($DomainSummaryOut)) {
     }
 }
 Write-Host "[ok] resident ELF QEMU smoke detected"
+} finally {
+    Release-QemuEvidenceLock -Lock $EvidenceLock
+}

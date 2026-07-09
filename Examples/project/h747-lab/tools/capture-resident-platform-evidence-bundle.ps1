@@ -204,6 +204,7 @@ function Invoke-SelfTest {
     $ScriptText = Get-Content -LiteralPath $PSCommandPath -Raw -Encoding UTF8
     foreach ($RequiredToken in @(
         "qemu_elf_backend_readiness=",
+        "qemu_elf_runtime_reset=",
         "qemu_elf_capability_matrix=",
         "qemu_elf_runtime_domain_profile=",
         "qemu_elf_doctor=",
@@ -494,6 +495,7 @@ function Invoke-SelfTest {
             storage = $true
             input = $true
             unsupported_boundary = $true
+            runtime_reset = $true
         }
         backend_capability_matrix = @(
             [pscustomobject]@{ capability = "console"; provider = "cmsdk_uart"; policy = "write_only_log_sink"; evidence = @("run_log", "capability_counters"); runs = @("hello_app", "console_error_app", "store:console_error_app") },
@@ -1187,7 +1189,7 @@ function Invoke-SelfTest {
         -NotePropertyName "elf_run_evidence_matrix" `
         -NotePropertyValue @($GoodSummary.coverage.loads | ForEach-Object { New-SelfTestQemuRunEvidenceFromLoad -Load $_ }) `
         -Force
-    $GoodSummary | Add-Member `
+        $GoodSummary | Add-Member `
         -NotePropertyName "failure_taxonomy" `
         -NotePropertyValue ([pscustomobject]@{
             schema = "charm.resident_elf_qemu.failure_taxonomy.v1"
@@ -1228,6 +1230,48 @@ function Invoke-SelfTest {
             )
         }) `
         -Force
+    $GoodSummary | Add-Member `
+        -NotePropertyName "runtime_reset_determinism" `
+        -NotePropertyValue ([pscustomobject]@{
+            schema = "charm.resident_elf_qemu.runtime_reset_determinism.v1"
+            status = "ok"
+            run_region_cleared = $true
+            capability_counters_reset = $true
+            time_reset = $true
+            input_reset = $true
+            display_reset = $true
+            storage_fd_reset = $true
+            bss_zero_fill = $true
+            data_reinitialized = $true
+            source_equivalence = $true
+            evidence_runs = @(
+                "bss_app",
+                "store:bss_app",
+                "data_app",
+                "store:data_app",
+                "time_sequence_app",
+                "store:time_sequence_app",
+                "input_sequence_app",
+                "store:input_sequence_app",
+                "display_sequence_app",
+                "store:display_sequence_app",
+                "storage_fd_exhaustion_app",
+                "store:storage_fd_exhaustion_app",
+                "player_min",
+                "received:player_min",
+                "packetstream:player_min",
+                "store:player_min",
+                "hello_app",
+                "received:hello_app",
+                "packetstream:hello_app",
+                "store:hello_app",
+                "large_fit_app",
+                "received:large_fit_app",
+                "packetstream:large_fit_app",
+                "store:large_fit_app"
+            )
+        }) `
+        -Force
     [System.IO.File]::WriteAllText($TempSummary, (($GoodSummary | ConvertTo-Json -Depth 8) + "`n"), [System.Text.UTF8Encoding]::new($false))
     [System.IO.File]::WriteAllText($TempQemuLog, (@(
                 "resident-elf-qemu frame signature comparison ok",
@@ -1258,7 +1302,8 @@ function Invoke-SelfTest {
         if ($ParsedQemu.Domain -ne "virtual_m7" -or
             $ParsedQemu.AppModel -ne "format=elf:model=CharmAppApi" -or
             $ParsedQemu.Backend -ne "virtual:virtual_m7:console,time,display,input,storage,app_exit:storage=readonly:afe=unsupported" -or
-            $ParsedQemu.BackendReadiness -ne "status=ready:elf_loader=1:app_runtime=1:received=1:packetstream=1:store=1:equivalent_sources=1:gui=1:storage=1:input=1:unsupported=1" -or
+            $ParsedQemu.BackendReadiness -ne "status=ready:elf_loader=1:app_runtime=1:received=1:packetstream=1:store=1:equivalent_sources=1:gui=1:storage=1:input=1:unsupported=1:runtime_reset=1" -or
+            $ParsedQemu.RuntimeResetDeterminism -ne "status=ok:run_region=1:caps=1:time=1:input=1:display=1:storage_fd=1:bss=1:data=1:sources=1:runs=24" -or
             $ParsedQemu.BackendCapabilityMatrix.IndexOf("storage=virtual_readonly_files:files=3:fd=3+4:write=unsupported:evidence=storage_trace,capability_counters:runs=storage_app,storage_catalog_app,storage_fd_exhaustion_app,storage_write_error_app", [System.StringComparison]::Ordinal) -lt 0 -or
             $ParsedQemu.RuntimeDomainProfile -ne "virtual_m7:mps2-an500/cortex-m7:kind=virtual_board:proves=elf_loader,app_runtime,charm_app_api,capability_backend,received_image,packetstream,store_v1_semantics:does_not_prove=h747_usb_cdc,h747_qspi,h747_emmc,h747_fmc_sdram,h747_hal_init,h747_mpu_cache,h747_pinmux:run=0x20080000+65536:stage=16384:store=memory:caps=console,time,display,input,storage,app_exit:storage=readonly:afe=unsupported" -or
             $ParsedQemu.RunEvidenceMatrix.IndexOf("packetstream:hello_app=packetstream:hello_app:launch_ready/ok:load=ok:run=exit/ok", [System.StringComparison]::Ordinal) -lt 0 -or
@@ -1311,6 +1356,8 @@ function Invoke-SelfTest {
         Test-BadQemuSummary -Label "backend_contract" -Mutate { param($Summary) $Summary.backend_contract.storage = "writeable" }
         Test-BadQemuSummary -Label "backend_contract_time" -Mutate { param($Summary) $Summary.backend_contract.time.step_ms = 16 }
         Test-BadQemuSummary -Label "backend_readiness" -Mutate { param($Summary) $Summary.backend_readiness.gui = $false }
+        Test-BadQemuSummary -Label "backend_readiness_runtime_reset" -Mutate { param($Summary) $Summary.backend_readiness.runtime_reset = $false }
+        Test-BadQemuSummary -Label "runtime_reset_determinism_time" -Mutate { param($Summary) $Summary.runtime_reset_determinism.time_reset = $false }
         Test-BadQemuSummary -Label "backend_capability_matrix" -Mutate { param($Summary) ($Summary.backend_capability_matrix | Where-Object { $_.capability -eq "storage" }).policy = "write=allowed" }
         Test-BadQemuSummary -Label "runtime_domain_profile" -Mutate { param($Summary) $Summary.runtime_domain_profile.does_not_prove = @($Summary.runtime_domain_profile.does_not_prove | Where-Object { $_ -ne "h747_qspi" }) }
         Test-BadQemuSummary -Label "elf_run_evidence_matrix" -Mutate { param($Summary) ($Summary.elf_run_evidence_matrix | Where-Object { $_.name -eq "store:hello_app" }).run_code = "load_failed" }
@@ -1929,7 +1976,8 @@ function Assert-QemuElfBackendReadiness {
         "gui",
         "storage",
         "input",
-        "unsupported_boundary"
+        "unsupported_boundary",
+        "runtime_reset"
     )
     $ActualProperties = @($Readiness.PSObject.Properties | ForEach-Object { $_.Name })
     foreach ($Property in $ExpectedProperties) {
@@ -1953,13 +2001,14 @@ function Assert-QemuElfBackendReadiness {
             "gui",
             "storage",
             "input",
-            "unsupported_boundary"
+            "unsupported_boundary",
+            "runtime_reset"
         )) {
         if (-not [bool]$Readiness.$Property) {
             throw "qemu_elf_summary_invalid: backend readiness $Property is false"
         }
     }
-    return ("status={0}:elf_loader={1}:app_runtime={2}:received={3}:packetstream={4}:store={5}:equivalent_sources={6}:gui={7}:storage={8}:input={9}:unsupported={10}" -f `
+    return ("status={0}:elf_loader={1}:app_runtime={2}:received={3}:packetstream={4}:store={5}:equivalent_sources={6}:gui={7}:storage={8}:input={9}:unsupported={10}:runtime_reset={11}" -f `
         ([string]$Readiness.status), `
         (ConvertTo-QemuElfBoolToken $Readiness.elf_loader), `
         (ConvertTo-QemuElfBoolToken $Readiness.app_runtime), `
@@ -1970,7 +2019,82 @@ function Assert-QemuElfBackendReadiness {
         (ConvertTo-QemuElfBoolToken $Readiness.gui), `
         (ConvertTo-QemuElfBoolToken $Readiness.storage), `
         (ConvertTo-QemuElfBoolToken $Readiness.input), `
-        (ConvertTo-QemuElfBoolToken $Readiness.unsupported_boundary))
+        (ConvertTo-QemuElfBoolToken $Readiness.unsupported_boundary), `
+        (ConvertTo-QemuElfBoolToken $Readiness.runtime_reset))
+}
+
+function Assert-QemuElfRuntimeResetDeterminism {
+    param([object]$Reset)
+
+    if ($null -eq $Reset -or $Reset.schema -ne "charm.resident_elf_qemu.runtime_reset_determinism.v1") {
+        throw "qemu_elf_summary_invalid: bad runtime reset determinism schema"
+    }
+    if ($Reset.status -ne "ok") {
+        throw "qemu_elf_summary_invalid: runtime reset determinism status=$($Reset.status)"
+    }
+    foreach ($Property in @(
+            "run_region_cleared",
+            "capability_counters_reset",
+            "time_reset",
+            "input_reset",
+            "display_reset",
+            "storage_fd_reset",
+            "bss_zero_fill",
+            "data_reinitialized",
+            "source_equivalence"
+        )) {
+        if (-not [bool]$Reset.$Property) {
+            throw "qemu_elf_summary_invalid: runtime reset determinism $Property is false"
+        }
+    }
+
+    $EvidenceRuns = @($Reset.evidence_runs)
+    foreach ($Name in @(
+            "bss_app",
+            "store:bss_app",
+            "data_app",
+            "store:data_app",
+            "time_sequence_app",
+            "store:time_sequence_app",
+            "input_sequence_app",
+            "store:input_sequence_app",
+            "display_sequence_app",
+            "store:display_sequence_app",
+            "storage_fd_exhaustion_app",
+            "store:storage_fd_exhaustion_app",
+            "player_min",
+            "received:player_min",
+            "packetstream:player_min",
+            "store:player_min",
+            "hello_app",
+            "received:hello_app",
+            "packetstream:hello_app",
+            "store:hello_app",
+            "large_fit_app",
+            "received:large_fit_app",
+            "packetstream:large_fit_app",
+            "store:large_fit_app"
+        )) {
+        if (-not ($EvidenceRuns -contains $Name)) {
+            throw "qemu_elf_summary_invalid: runtime reset determinism missing evidence run $Name"
+        }
+    }
+    if ($EvidenceRuns.Count -ne 24) {
+        throw "qemu_elf_summary_invalid: runtime reset determinism evidence count=$($EvidenceRuns.Count)"
+    }
+
+    return ("status={0}:run_region={1}:caps={2}:time={3}:input={4}:display={5}:storage_fd={6}:bss={7}:data={8}:sources={9}:runs={10}" -f `
+        ([string]$Reset.status), `
+        (ConvertTo-QemuElfBoolToken $Reset.run_region_cleared), `
+        (ConvertTo-QemuElfBoolToken $Reset.capability_counters_reset), `
+        (ConvertTo-QemuElfBoolToken $Reset.time_reset), `
+        (ConvertTo-QemuElfBoolToken $Reset.input_reset), `
+        (ConvertTo-QemuElfBoolToken $Reset.display_reset), `
+        (ConvertTo-QemuElfBoolToken $Reset.storage_fd_reset), `
+        (ConvertTo-QemuElfBoolToken $Reset.bss_zero_fill), `
+        (ConvertTo-QemuElfBoolToken $Reset.data_reinitialized), `
+        (ConvertTo-QemuElfBoolToken $Reset.source_equivalence), `
+        $EvidenceRuns.Count)
 }
 
 function Assert-QemuElfCapabilityMatrixEntry {
@@ -2362,6 +2486,7 @@ function Read-QemuElfDomainSummary {
         throw "qemu_elf_summary_invalid: bad app_exit backend_contract"
     }
     $BackendReadiness = Assert-QemuElfBackendReadiness -Readiness $Summary.backend_readiness
+    $RuntimeResetDeterminism = Assert-QemuElfRuntimeResetDeterminism -Reset $Summary.runtime_reset_determinism
     $BackendCapabilityMatrix = Assert-QemuElfCapabilityMatrix -Matrix @($Summary.backend_capability_matrix)
     $RuntimeDomainProfile = Assert-QemuElfRuntimeDomainProfile `
         -Profile $Summary.runtime_domain_profile `
@@ -2718,6 +2843,7 @@ function Read-QemuElfDomainSummary {
             ([string]$Summary.backend_contract.storage), `
             ([string]$Summary.backend_contract.afe))
         BackendReadiness = $BackendReadiness
+        RuntimeResetDeterminism = $RuntimeResetDeterminism
         BackendCapabilityMatrix = $BackendCapabilityMatrix
         RuntimeDomainProfile = $RuntimeDomainProfile
         RunEvidenceMatrix = $RunEvidenceSummary
@@ -2837,6 +2963,7 @@ function Write-QemuElfSummaryLines {
         Write-BundleLine -Lines $Lines -Text "qemu_elf_app_model=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_backend=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_backend_readiness=skipped"
+        Write-BundleLine -Lines $Lines -Text "qemu_elf_runtime_reset=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_capability_matrix=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_runtime_domain_profile=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_run_evidence_matrix=skipped"
@@ -2868,6 +2995,7 @@ function Write-QemuElfSummaryLines {
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_app_model={0}" -f $QemuElfSummary.AppModel)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_backend={0}" -f $QemuElfSummary.Backend)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_backend_readiness={0}" -f $QemuElfSummary.BackendReadiness)
+    Write-BundleLine -Lines $Lines -Text ("qemu_elf_runtime_reset={0}" -f $QemuElfSummary.RuntimeResetDeterminism)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_capability_matrix={0}" -f $QemuElfSummary.BackendCapabilityMatrix)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_runtime_domain_profile={0}" -f $QemuElfSummary.RuntimeDomainProfile)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_run_evidence_matrix={0}" -f $QemuElfSummary.RunEvidenceMatrix)

@@ -364,6 +364,13 @@ App count, generated include count, and representative size/CRC facts for
 actual ELF/Store inputs it executed instead of only recording the runtime
 result.
 
+The full smoke and `-ValidateEvidenceBundle` both consume the same shared
+evidence files (`qemu-ci.log`, trace JSON, frame dumps, PPM frames, and
+`domain-summary.json`). `run_qemu_ci.ps1` serializes those two whole-evidence
+paths with `qemu-evidence.lock` so a full QEMU run cannot rewrite the log while
+an evidence-bundle validation is reading it. Single-file validators, doctor,
+selftest, and dry-run do not take this lock.
+
 The QEMU App artifact list is owned by `Get-QemuAppSpecs` in
 `run_qemu_ci.ps1`. The same specs drive source selection, generated `.elf.inc`
 requirements, and Store pack arguments. `CMakeLists.txt` only consumes the
@@ -774,7 +781,7 @@ framebuffer display evidence, deterministic input sequence, read-only virtual
 storage media, and `app.exit` return-value semantics. Its `backend_readiness`
 section is the derived readiness summary that confirms the same run proved the
 ELF loader, AppRuntime, received/packetstream/Store ingress, source equivalence,
-GUI, storage, input, and unsupported-boundary gates. Its
+GUI, storage, input, unsupported-boundary, and runtime-reset gates. Its
 `backend_capability_matrix` section maps each smoke-local capability to its
 virtual provider, policy, evidence source, and representative run set. Its
 `runtime_domain_profile` section names the smoke as a `virtual_m7` virtual-board
@@ -790,6 +797,12 @@ main chain; it is not a public backend/profile schema. Its `failure_taxonomy`
 section derives a compact negative-path index from `coverage.negative_cases`:
 transport (`packetstream_verify`), stage (`received_stage`/`store_stage`), load,
 and runtime (`argv`/`abi`) failures must keep their expected counts and cases.
+Its `runtime_reset_determinism` section records the QEMU-local reset evidence
+that each App run starts from a cleared run region, reset capability counters,
+deterministic time/input/display/storage state, zero-filled BSS,
+reinitialized data, and equivalent direct/received/packetstream/Store source
+runs. This proves the virtual runtime domain reset contract, not H747 peripheral
+reset or board power sequencing.
 Its `display` section
 records the fixed virtual display mode so GUI evidence drift is caught before
 frame hashes are interpreted. Its evidence section records frame signature, full
@@ -895,6 +908,7 @@ chain; it does not replace real-board USB, Store, SDRAM, eMMC, or HAL evidence.
 When `-QemuElf` is enabled, the bundle summary expands `domain-summary.json`
 into `qemu_elf_mode`, `qemu_elf_doctor`, `qemu_elf_doctor_versions`,
 `qemu_elf_domain`, `qemu_elf_app_model`, `qemu_elf_backend`, `qemu_elf_backend_readiness`,
+`qemu_elf_runtime_reset`,
 `qemu_elf_capability_matrix`,
 `qemu_elf_runtime_domain_profile`,
 `qemu_elf_run_evidence_matrix`,
@@ -918,7 +932,7 @@ rebuilt and launched (`build_and_run`) or reused from an existing capture
 (`validate_existing_evidence`), plus the fixed App model
 (`format=elf:model=CharmAppApi`), virtual backend identity, detailed backend
 contract, backend readiness status/gates, capability matrix, recorded QEMU run budget, whether the requested bundle budget matches
-the captured `domain-summary.json` budget, runtime-domain scope boundary, ELF run evidence matrix, ELF load memory boundary,
+the captured `domain-summary.json` budget, runtime-reset determinism, runtime-domain scope boundary, ELF run evidence matrix, ELF load memory boundary,
 packetstream buffer boundary (`storage/transport/stream/received`), Store media,
 QEMU trace capture/golden paths and gate status for frame signatures, full
 frame dumps, input trace, and storage trace, frame PPM visual artifact

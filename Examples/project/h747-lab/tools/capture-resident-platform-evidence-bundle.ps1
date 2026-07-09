@@ -207,6 +207,7 @@ function Invoke-SelfTest {
         "qemu_elf_capability_matrix=",
         "qemu_elf_runtime_domain_profile=",
         "qemu_elf_doctor=",
+        "qemu_elf_doctor_versions=",
         "qemu_elf_run_evidence_matrix=",
         "qemu_elf_failure_taxonomy=",
         "qemu_elf_run_budget_match=",
@@ -215,6 +216,40 @@ function Invoke-SelfTest {
     )) {
         if (-not $ScriptText.Contains($RequiredToken)) {
             throw "selftest_failed: evidence bundle script missing token $RequiredToken"
+        }
+    }
+    $DoctorLines = New-Object System.Collections.Generic.List[string]
+    foreach ($Line in @(
+        "resident-elf-qemu doctor:",
+        "  qemu_version=QEMU emulator version test",
+        "  cmake_version=cmake version test",
+        "  cc_version=arm-none-eabi-gcc version test",
+        "  host_compiler_version=g++ version test",
+        "[resident-elf-qemu] doctor ok"
+    )) {
+        [void]$DoctorLines.Add($Line)
+    }
+    $DoctorVersions = Read-QemuElfDoctorVersionsFromLines -Lines $DoctorLines -DoctorStatus "pass"
+    if ($DoctorVersions -ne "qemu=QEMU emulator version test;cmake=cmake version test;cc=arm-none-eabi-gcc version test;host=g++ version test") {
+        throw "selftest_failed: QEMU doctor version summary is unexpected: $DoctorVersions"
+    }
+    if ((Read-QemuElfDoctorVersionsFromLines -Lines $DoctorLines -DoctorStatus "skipped") -ne "skipped") {
+        throw "selftest_failed: skipped QEMU doctor versions did not return skipped"
+    }
+    $BadDoctorLines = New-Object System.Collections.Generic.List[string]
+    foreach ($Line in @(
+        "resident-elf-qemu doctor:",
+        "  qemu_version=QEMU emulator version test",
+        "[resident-elf-qemu] doctor ok"
+    )) {
+        [void]$BadDoctorLines.Add($Line)
+    }
+    try {
+        Read-QemuElfDoctorVersionsFromLines -Lines $BadDoctorLines -DoctorStatus "pass" | Out-Null
+        throw "selftest_failed: bad QEMU doctor versions did not fail"
+    } catch {
+        if (-not $_.Exception.Message.StartsWith("qemu_elf_doctor_invalid:", [System.StringComparison]::Ordinal)) {
+            throw "selftest_failed: bad QEMU doctor versions reported unexpected error: $($_.Exception.Message)"
         }
     }
     $ParsedMedia = Get-MediaList -RawMedia @("qspi,emmc")
@@ -1601,6 +1636,42 @@ function Read-QemuElfDomainGoldenStatusFromLines {
     return (Read-QemuElfDomainGoldenStatusFromText -Text ([string]::Join("`n", $Lines)))
 }
 
+function Read-QemuElfDoctorVersionValue {
+    param(
+        [string]$Text,
+        [string]$Name
+    )
+
+    $Pattern = "(?m)^\s*" + [regex]::Escape($Name) + "=(.+?)\s*$"
+    $Match = [regex]::Match($Text, $Pattern)
+    if (-not $Match.Success -or [string]::IsNullOrWhiteSpace($Match.Groups[1].Value)) {
+        throw "qemu_elf_doctor_invalid: missing $Name"
+    }
+    return $Match.Groups[1].Value.Trim()
+}
+
+function Read-QemuElfDoctorVersionsFromLines {
+    param(
+        [System.Collections.Generic.List[string]]$Lines,
+        [string]$DoctorStatus
+    )
+
+    if ($DoctorStatus -eq "skipped") {
+        return "skipped"
+    }
+    $Text = [string]::Join("`n", $Lines)
+    if ($Text.IndexOf("resident-elf-qemu doctor:", [System.StringComparison]::Ordinal) -lt 0 -or
+        $Text.IndexOf("[resident-elf-qemu] doctor ok", [System.StringComparison]::Ordinal) -lt 0) {
+        throw "qemu_elf_doctor_invalid: missing doctor success block"
+    }
+
+    return ("qemu={0};cmake={1};cc={2};host={3}" -f `
+        (Read-QemuElfDoctorVersionValue -Text $Text -Name "qemu_version"), `
+        (Read-QemuElfDoctorVersionValue -Text $Text -Name "cmake_version"), `
+        (Read-QemuElfDoctorVersionValue -Text $Text -Name "cc_version"), `
+        (Read-QemuElfDoctorVersionValue -Text $Text -Name "host_compiler_version"))
+}
+
 function ConvertTo-QemuElfBoolToken {
     param([object]$Value)
 
@@ -2573,6 +2644,7 @@ function Write-Summary {
         [string]$QemuElfStatus,
         [string]$QemuElfMode,
         [string]$QemuElfDoctorStatus,
+        [string]$QemuElfDoctorVersions,
         [int]$QemuElfTimeoutSec,
         [int]$QemuElfTailLines,
         [string]$QemuElfRunBudgetMatch,
@@ -2599,6 +2671,7 @@ function Write-Summary {
     Write-BundleLine -Lines $Lines -Text "qemu_elf=$QemuElfStatus"
     Write-BundleLine -Lines $Lines -Text "qemu_elf_mode=$QemuElfMode"
     Write-BundleLine -Lines $Lines -Text "qemu_elf_doctor=$QemuElfDoctorStatus"
+    Write-BundleLine -Lines $Lines -Text "qemu_elf_doctor_versions=$QemuElfDoctorVersions"
     Write-BundleLine -Lines $Lines -Text "qemu_elf_timeout_sec=$QemuElfTimeoutSec"
     Write-BundleLine -Lines $Lines -Text "qemu_elf_tail_lines=$QemuElfTailLines"
     Write-BundleLine -Lines $Lines -Text "qemu_elf_run_budget_match=$QemuElfRunBudgetMatch"
@@ -2784,6 +2857,7 @@ try {
     $QemuElfDomainGolden = "skipped"
     $QemuElfRunBudgetMatch = "skipped"
     $QemuElfDoctorStatus = "skipped"
+    $QemuElfDoctorVersions = "skipped"
     if ($QemuElf) {
         if ($QemuElfDoctor) {
             Invoke-Logged -Lines $Lines -Label "resident ELF QEMU doctor" -FilePath "powershell" -Arguments @(
@@ -2799,6 +2873,7 @@ try {
                 ([string]$QemuElfTailLines)
             )
             $QemuElfDoctorStatus = "pass"
+            $QemuElfDoctorVersions = Read-QemuElfDoctorVersionsFromLines -Lines $Lines -DoctorStatus $QemuElfDoctorStatus
         }
         if ($QemuElfValidateOnly) {
             Invoke-Logged -Lines $Lines -Label "resident ELF QEMU evidence validate" -FilePath "powershell" -Arguments @(
@@ -2953,6 +3028,7 @@ try {
         -QemuElfStatus $QemuElfStatus `
         -QemuElfMode $QemuElfMode `
         -QemuElfDoctorStatus $QemuElfDoctorStatus `
+        -QemuElfDoctorVersions $QemuElfDoctorVersions `
         -QemuElfTimeoutSec $QemuElfTimeoutSec `
         -QemuElfTailLines $QemuElfTailLines `
         -QemuElfRunBudgetMatch $QemuElfRunBudgetMatch `

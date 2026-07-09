@@ -209,6 +209,9 @@ function Invoke-SelfTest {
         "qemu_elf_doctor=",
         "qemu_elf_doctor_versions=",
         "qemu_elf_run_evidence_matrix=",
+        "qemu_elf_frame_dumps=",
+        "qemu_elf_frame_dumps_golden=",
+        "qemu_elf_frame_dump_gate=",
         "qemu_elf_failure_taxonomy=",
         "qemu_elf_run_budget_match=",
         "qemu_elf_run_budget_mismatch:",
@@ -1214,10 +1217,17 @@ function Invoke-SelfTest {
         }) `
         -Force
     [System.IO.File]::WriteAllText($TempSummary, (($GoodSummary | ConvertTo-Json -Depth 8) + "`n"), [System.Text.UTF8Encoding]::new($false))
-    [System.IO.File]::WriteAllText($TempQemuLog, "resident-elf-qemu domain summary comparison ok`n  expected=domain-summary.golden.json`n", [System.Text.UTF8Encoding]::new($false))
+    [System.IO.File]::WriteAllText($TempQemuLog, (@(
+                "resident-elf-qemu frame dump comparison ok",
+                "  expected=frame-dumps.golden.json",
+                "  actual=frame-dumps.json",
+                "resident-elf-qemu domain summary comparison ok",
+                "  expected=domain-summary.golden.json"
+            ) -join "`n"), [System.Text.UTF8Encoding]::new($false))
     try {
         $ParsedQemu = Read-QemuElfDomainSummary -Path $TempSummary
         $DomainGolden = Read-QemuElfDomainGoldenStatus -LogPath $TempQemuLog
+        $FrameDumpGolden = Read-QemuElfFrameDumpGoldenStatusFromText -Text (Get-Content -LiteralPath $TempQemuLog -Raw -Encoding UTF8)
         if ($ParsedQemu.Domain -ne "virtual_m7" -or
             $ParsedQemu.AppModel -ne "format=elf:model=CharmAppApi" -or
             $ParsedQemu.Backend -ne "virtual:virtual_m7:console,time,display,input,storage,app_exit:storage=readonly:afe=unsupported" -or
@@ -1240,6 +1250,7 @@ function Invoke-SelfTest {
             $ParsedQemu.EquivalentSources -ne "hello_app=direct,received,packetstream,store:entry:0x20080021:span:270:segments:2:fits:1:probe:ok;large_fit_app=direct,received,packetstream,store:entry:0x20080019:span:61696:segments:3:fits:1:probe:ok;player_min=direct,received,packetstream,store:entry:0x20080001:span:1280:segments:3:fits:1:probe:ok" -or
             $ParsedQemu.Sources.IndexOf("wrong_link_base_app:direct=load/load_failed", [System.StringComparison]::Ordinal) -lt 0 -or
             $DomainGolden -ne "ok" -or
+            $FrameDumpGolden -ne "ok" -or
             $ParsedQemu.Coverage -ne "runs=87:stages=36:loads=32:packetstreams=5:source_matrix=51:gui_timeline=4:prepare=1:capabilities=7:negative_cases=24" -or
             $ParsedQemu.GuiTimeline -ne 4 -or
             $ParsedQemu.PlayerMin.IndexOf("packetstream:player_min:frames=1,inputs=1", [System.StringComparison]::Ordinal) -lt 0) {
@@ -1291,6 +1302,15 @@ function Invoke-SelfTest {
         } catch {
             if ($_.Exception.Message.IndexOf("qemu_elf_summary_invalid", [System.StringComparison]::Ordinal) -lt 0) {
                 throw "selftest_failed: bad qemu domain golden log did not report qemu_elf_summary_invalid: $($_.Exception.Message)"
+            }
+        }
+        [System.IO.File]::WriteAllText($TempQemuLog, "resident-elf-qemu frame dump validation ok`n  path=frame-dumps.json`n", [System.Text.UTF8Encoding]::new($false))
+        try {
+            Read-QemuElfFrameDumpGoldenStatusFromText -Text (Get-Content -LiteralPath $TempQemuLog -Raw -Encoding UTF8) | Out-Null
+            throw "selftest_failed: bad qemu frame dump golden log validated unexpectedly"
+        } catch {
+            if ($_.Exception.Message.IndexOf("qemu_elf_summary_invalid", [System.StringComparison]::Ordinal) -lt 0) {
+                throw "selftest_failed: bad qemu frame dump golden log did not report qemu_elf_summary_invalid: $($_.Exception.Message)"
             }
         }
     } finally {
@@ -1661,6 +1681,30 @@ function Read-QemuElfDomainGoldenStatusFromLines {
     param([System.Collections.Generic.List[string]]$Lines)
 
     return (Read-QemuElfDomainGoldenStatusFromText -Text ([string]::Join("`n", $Lines)))
+}
+
+function Read-QemuElfFrameDumpGoldenStatusFromText {
+    param([string]$Text)
+
+    if ([string]::IsNullOrWhiteSpace($Text)) {
+        throw "qemu_elf_summary_invalid: missing frame dump golden comparison"
+    }
+    if ($Text.IndexOf("resident-elf-qemu frame dump comparison ok", [System.StringComparison]::Ordinal) -lt 0) {
+        throw "qemu_elf_summary_invalid: missing frame dump golden comparison"
+    }
+    if ($Text.IndexOf("frame-dumps.golden.json", [System.StringComparison]::OrdinalIgnoreCase) -lt 0) {
+        throw "qemu_elf_summary_invalid: missing frame dump golden path"
+    }
+    if ($Text.IndexOf("frame-dumps.json", [System.StringComparison]::OrdinalIgnoreCase) -lt 0) {
+        throw "qemu_elf_summary_invalid: missing frame dump capture path"
+    }
+    return "ok"
+}
+
+function Read-QemuElfFrameDumpGoldenStatusFromLines {
+    param([System.Collections.Generic.List[string]]$Lines)
+
+    return (Read-QemuElfFrameDumpGoldenStatusFromText -Text ([string]::Join("`n", $Lines)))
 }
 
 function Read-QemuElfDoctorVersionValue {
@@ -2711,9 +2755,12 @@ function Write-Summary {
         [string]$QemuElfRunBudgetMatch,
         [string]$QemuElfLog,
         [string]$QemuElfDomainSummary,
+        [string]$QemuElfFrameDumps,
+        [string]$QemuElfFrameDumpsGolden,
         [string]$QemuElfFramePpm,
         [object]$QemuElfSummary,
         [string]$QemuElfDomainGolden,
+        [string]$QemuElfFrameDumpGolden,
         [string]$FirmwareSize,
         [string]$BoardMatrixLog,
         [string]$InstalledStoreMatrixLog
@@ -2746,6 +2793,17 @@ function Write-Summary {
     } else {
         Write-BundleLine -Lines $Lines -Text "qemu_elf_domain_summary=skipped"
     }
+    if (-not [string]::IsNullOrWhiteSpace($QemuElfFrameDumps)) {
+        Write-BundleLine -Lines $Lines -Text "qemu_elf_frame_dumps=$QemuElfFrameDumps"
+    } else {
+        Write-BundleLine -Lines $Lines -Text "qemu_elf_frame_dumps=skipped"
+    }
+    if (-not [string]::IsNullOrWhiteSpace($QemuElfFrameDumpsGolden)) {
+        Write-BundleLine -Lines $Lines -Text "qemu_elf_frame_dumps_golden=$QemuElfFrameDumpsGolden"
+    } else {
+        Write-BundleLine -Lines $Lines -Text "qemu_elf_frame_dumps_golden=skipped"
+    }
+    Write-BundleLine -Lines $Lines -Text "qemu_elf_frame_dump_gate=$QemuElfFrameDumpGolden"
     if (-not [string]::IsNullOrWhiteSpace($QemuElfFramePpm)) {
         Write-BundleLine -Lines $Lines -Text "qemu_elf_frame_ppm=$QemuElfFramePpm"
     } else {
@@ -2820,6 +2878,8 @@ $ModuleXSmokeBuild = Get-CmakeBuildDir -SourceDir $ModuleXSmokeSource -BuildName
 $QemuElfScript = Join-Path $RepoRoot "Examples\system\run-resident-elf-qemu-smoke.ps1"
 $QemuElfLog = Join-Path $RepoRoot "Examples\system\resident_elf_qemu_smoke\qemu-ci.log"
 $QemuElfDomainSummary = Join-Path $RepoRoot "Examples\system\resident_elf_qemu_smoke\domain-summary.json"
+$QemuElfFrameDumps = Join-Path $RepoRoot "Examples\system\resident_elf_qemu_smoke\frame-dumps.json"
+$QemuElfFrameDumpsGolden = Join-Path $RepoRoot "Examples\system\resident_elf_qemu_smoke\frame-dumps.golden.json"
 $QemuElfFramePpm = Join-Path $RepoRoot "Examples\system\resident_elf_qemu_smoke\frame-ppm"
 
 $BoardMatrixLog = Join-Path $H747Root "cmake-build-h747-lab-debug\resident_platform_board_matrix_from_bundle.log"
@@ -2850,6 +2910,8 @@ if ($DryRun) {
         Write-Host "qemu_elf_script=$QemuElfScript"
         Write-Host "qemu_elf_log=$QemuElfLog"
         Write-Host "qemu_elf_domain_summary=$QemuElfDomainSummary"
+        Write-Host "qemu_elf_frame_dumps=$QemuElfFrameDumps"
+        Write-Host "qemu_elf_frame_dumps_golden=$QemuElfFrameDumpsGolden"
         Write-Host "qemu_elf_frame_ppm=$QemuElfFramePpm"
     }
     if ($BoardMatrix) {
@@ -2877,9 +2939,12 @@ try {
     $QemuElfStatus = "skipped"
     $QemuElfLogResolved = ""
     $QemuElfDomainSummaryResolved = ""
+    $QemuElfFrameDumpsResolved = ""
+    $QemuElfFrameDumpsGoldenResolved = ""
     $QemuElfFramePpmResolved = ""
     $QemuElfSummary = $null
     $QemuElfDomainGolden = "skipped"
+    $QemuElfFrameDumpGolden = "skipped"
     $QemuElfRunBudgetMatch = "skipped"
     $QemuElfDoctorStatus = "skipped"
     $QemuElfDoctorVersions = "skipped"
@@ -2987,6 +3052,12 @@ try {
         if (Test-Path -LiteralPath $QemuElfFramePpm) {
             $QemuElfFramePpmResolved = (Resolve-Path -LiteralPath $QemuElfFramePpm).Path
         }
+        if (Test-Path -LiteralPath $QemuElfFrameDumps) {
+            $QemuElfFrameDumpsResolved = (Resolve-Path -LiteralPath $QemuElfFrameDumps).Path
+        }
+        if (Test-Path -LiteralPath $QemuElfFrameDumpsGolden) {
+            $QemuElfFrameDumpsGoldenResolved = (Resolve-Path -LiteralPath $QemuElfFrameDumpsGolden).Path
+        }
         $QemuElfSummary = Read-QemuElfDomainSummary -Path $QemuElfDomainSummaryResolved
         $QemuElfRunBudgetExpected = ("timeout_sec={0}:tail_lines={1}" -f $QemuElfTimeoutSec, $QemuElfTailLines)
         $QemuElfRunBudgetMatch = if ($QemuElfSummary.RunBudget -eq $QemuElfRunBudgetExpected) { "1" } else { "0" }
@@ -2994,6 +3065,7 @@ try {
             throw "qemu_elf_run_budget_mismatch: requested=$QemuElfRunBudgetExpected captured=$($QemuElfSummary.RunBudget)"
         }
         $QemuElfDomainGolden = Read-QemuElfDomainGoldenStatusFromLines -Lines $Lines
+        $QemuElfFrameDumpGolden = Read-QemuElfFrameDumpGoldenStatusFromLines -Lines $Lines
         Write-BundleLine -Lines $Lines -Text "== resident ELF QEMU summary =="
         Write-QemuElfSummaryLines -Lines $Lines -QemuElfSummary $QemuElfSummary -QemuElfDomainGolden $QemuElfDomainGolden
     }
@@ -3096,9 +3168,12 @@ try {
         -QemuElfRunBudgetMatch $QemuElfRunBudgetMatch `
         -QemuElfLog $QemuElfLogResolved `
         -QemuElfDomainSummary $QemuElfDomainSummaryResolved `
+        -QemuElfFrameDumps $QemuElfFrameDumpsResolved `
+        -QemuElfFrameDumpsGolden $QemuElfFrameDumpsGoldenResolved `
         -QemuElfFramePpm $QemuElfFramePpmResolved `
         -QemuElfSummary $QemuElfSummary `
         -QemuElfDomainGolden $QemuElfDomainGolden `
+        -QemuElfFrameDumpGolden $QemuElfFrameDumpGolden `
         -FirmwareSize $FirmwareSize `
         -BoardMatrixLog $BoardLogResolved `
         -InstalledStoreMatrixLog $InstalledStoreLogResolved

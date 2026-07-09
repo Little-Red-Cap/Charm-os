@@ -900,8 +900,9 @@ into `qemu_elf_mode`, `qemu_elf_doctor`, `qemu_elf_doctor_versions`,
 `qemu_elf_run_evidence_matrix`,
 `qemu_elf_backend_contract`, `qemu_elf_run_budget`,
 `qemu_elf_run_budget_match`, `qemu_elf_memory`, `qemu_elf_store`,
-`qemu_elf_store_manifest`, `qemu_elf_display`, `qemu_elf_evidence`,
-`qemu_elf_capacity`, `qemu_elf_artifacts`, `qemu_elf_loads`,
+`qemu_elf_store_manifest`, `qemu_elf_display`, `qemu_elf_frame_dumps`,
+`qemu_elf_frame_dumps_golden`, `qemu_elf_frame_dump_gate`,
+`qemu_elf_evidence`, `qemu_elf_capacity`, `qemu_elf_artifacts`, `qemu_elf_loads`,
 `qemu_elf_equivalent_sources`,
 `qemu_elf_packetstreams`, `qemu_elf_failure_taxonomy`,
 `qemu_elf_domain_golden`, `qemu_elf_sources`, `qemu_elf_coverage`, and
@@ -911,7 +912,8 @@ rebuilt and launched (`build_and_run`) or reused from an existing capture
 (`format=elf:model=CharmAppApi`), virtual backend identity, detailed backend
 contract, backend readiness status/gates, capability matrix, recorded QEMU run budget, whether the requested bundle budget matches
 the captured `domain-summary.json` budget, runtime-domain scope boundary, ELF run evidence matrix, ELF load memory boundary,
-packetstream buffer boundary (`storage/transport/stream/received`), Store media, frame/input/storage evidence counts,
+packetstream buffer boundary (`storage/transport/stream/received`), Store media,
+frame dump capture/golden paths and gate status, frame/input/storage evidence counts,
 parsed Store v1 entry flags/size/CRC self-consistency, near-limit/over-limit
 ELF capacity, QEMU-local artifact counts and representative ELF/Store CRCs,
 representative ELF loader

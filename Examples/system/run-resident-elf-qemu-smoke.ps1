@@ -40,6 +40,7 @@ param(
     [switch]$SkipGoldenStorageTrace,
     [switch]$SkipGoldenDomainSummary,
     [switch]$ValidateEvidenceBundle,
+    [switch]$Doctor,
     [switch]$DryRun,
     [switch]$SelfTest
 )
@@ -140,6 +141,7 @@ function New-QemuSmokeArguments {
     Add-OptionalSwitchArgument -Arguments $Arguments -Name "-SkipGoldenStorageTrace" -Enabled $SkipGoldenStorageTrace.IsPresent
     Add-OptionalSwitchArgument -Arguments $Arguments -Name "-SkipGoldenDomainSummary" -Enabled $SkipGoldenDomainSummary.IsPresent
     Add-OptionalSwitchArgument -Arguments $Arguments -Name "-ValidateEvidenceBundle" -Enabled $ValidateEvidenceBundle.IsPresent
+    Add-OptionalSwitchArgument -Arguments $Arguments -Name "-Doctor" -Enabled $Doctor.IsPresent
     Add-OptionalSwitchArgument -Arguments $Arguments -Name "-DryRun" -Enabled $DryRun.IsPresent
     Add-OptionalSwitchArgument -Arguments $Arguments -Name "-SelfTest" -Enabled ($SelfTest.IsPresent -or $ForceSelfTest)
 
@@ -234,6 +236,9 @@ function Invoke-WrapperSelfTest {
     if ($ValidateEvidenceBundle -and -not (Test-ArgumentPresent -Arguments $Forwarded -Name "-ValidateEvidenceBundle")) {
         throw "selftest_failed: wrapper did not forward -ValidateEvidenceBundle"
     }
+    if ($Doctor -and -not (Test-ArgumentPresent -Arguments $Forwarded -Name "-Doctor")) {
+        throw "selftest_failed: wrapper did not forward -Doctor"
+    }
 
     $OriginalValidateFrameSignatures = $ValidateFrameSignatures
     $OriginalCompareFrameSignatures = $CompareFrameSignatures
@@ -241,6 +246,7 @@ function Invoke-WrapperSelfTest {
     $OriginalValidateDomainSummary = $ValidateDomainSummary
     $OriginalCompareDomainSummary = $CompareDomainSummary
     $OriginalActualDomainSummary = $ActualDomainSummary
+    $OriginalDoctor = $Doctor
     $OriginalDryRun = $DryRun
     $script:ValidateFrameSignatures = "frame-signatures.json"
     $script:CompareFrameSignatures = "frame-signatures.golden.json"
@@ -266,6 +272,11 @@ function Invoke-WrapperSelfTest {
         if (-not (Test-ArgumentPresent -Arguments $ProbeEvidence -Name "-DryRun")) {
             throw "selftest_failed: wrapper did not forward -DryRun"
         }
+        $script:Doctor = [System.Management.Automation.SwitchParameter]::Present
+        $ProbeDoctor = New-QemuSmokeArguments
+        if (-not (Test-ArgumentPresent -Arguments $ProbeDoctor -Name "-Doctor")) {
+            throw "selftest_failed: wrapper did not forward -Doctor"
+        }
     } finally {
         $script:ValidateFrameSignatures = $OriginalValidateFrameSignatures
         $script:CompareFrameSignatures = $OriginalCompareFrameSignatures
@@ -273,6 +284,7 @@ function Invoke-WrapperSelfTest {
         $script:ValidateDomainSummary = $OriginalValidateDomainSummary
         $script:CompareDomainSummary = $OriginalCompareDomainSummary
         $script:ActualDomainSummary = $OriginalActualDomainSummary
+        $script:Doctor = $OriginalDoctor
         $script:DryRun = $OriginalDryRun
     }
 

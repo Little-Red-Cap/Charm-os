@@ -294,9 +294,14 @@ debugging. Both `-SelfTest` and `-DryRun` print the effective `timeout_sec` and
 `tail_lines` values so standalone QEMU runs expose the same run-budget evidence
 as the resident platform evidence bundle.
 
-Use `..\run-resident-elf-qemu-smoke.ps1 -DryRun` as the cheapest supported
-entry check: it resolves the QEMU, compiler, generated artifact, evidence, and
-run-budget paths without building or launching QEMU. Use
+Use `..\run-resident-elf-qemu-smoke.ps1 -Doctor` as the supported host
+environment check before occupying the QEMU run path. It resolves CMake, QEMU,
+Arm GCC, the host compiler, QEMU source inputs, golden evidence files, output
+paths, and confirms that the local QEMU build advertises `mps2-an500`; it does
+not build, launch firmware, or validate runtime evidence. Use
+`..\run-resident-elf-qemu-smoke.ps1 -DryRun` as the cheapest supported command
+expansion check: it resolves the QEMU, compiler, generated artifact, evidence,
+and run-budget paths without building or launching QEMU. Use
 `..\run-resident-elf-qemu-smoke.ps1 -SelfTest` for a fast preflight that
 checks the local CMake, QEMU, Arm GCC, sample source, linker script, and QEMU
 `ELF_BASE` assumptions without building or launching QEMU. It also exercises

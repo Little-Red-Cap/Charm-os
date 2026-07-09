@@ -40,6 +40,7 @@ param(
     [switch]$SkipGoldenStorageTrace,
     [switch]$SkipGoldenDomainSummary,
     [switch]$ValidateEvidenceBundle,
+    [switch]$Doctor,
     [switch]$DryRun,
     [switch]$SelfTest
 )
@@ -357,6 +358,55 @@ function Get-QemuStorePackArguments {
     return $args
 }
 
+function Get-QemuRequiredSourcePaths {
+    param([string]$AppSampleDir)
+
+    return @(
+        (Join-Path $PSScriptRoot "afe_error_app.c"),
+        (Join-Path $PSScriptRoot "CMakeLists.txt"),
+        (Join-Path $PSScriptRoot "README.md"),
+        (Join-Path $PSScriptRoot "main.cpp"),
+        (Join-Path $PSScriptRoot "qemu_virtual_backend.hpp"),
+        (Join-Path $PSScriptRoot "qemu_virtual_backend.cpp"),
+        (Join-Path $PSScriptRoot "startup.cpp"),
+        (Join-Path $PSScriptRoot "syscalls.cpp"),
+        (Join-Path $PSScriptRoot "ldscript.ld"),
+        (Join-Path $PSScriptRoot "argv_app.c"),
+        (Join-Path $PSScriptRoot "bss_app.c"),
+        (Join-Path $PSScriptRoot "console_error_app.c"),
+        (Join-Path $PSScriptRoot "data_app.c"),
+        (Join-Path $PSScriptRoot "display_describe_error_app.c"),
+        (Join-Path $PSScriptRoot "display_error_app.c"),
+        (Join-Path $PSScriptRoot "display_null_present_app.c"),
+        (Join-Path $PSScriptRoot "display_sequence_app.c"),
+        (Join-Path $PSScriptRoot "exit_app.c"),
+        (Join-Path $PSScriptRoot "exit_error_app.c"),
+        (Join-Path $PSScriptRoot "exit_negative_app.c"),
+        (Join-Path $PSScriptRoot "input_error_app.c"),
+        (Join-Path $PSScriptRoot "input_sequence_app.c"),
+        (Join-Path $PSScriptRoot "input_wrap_app.c"),
+        (Join-Path $PSScriptRoot "large_fit_app.c"),
+        (Join-Path $PSScriptRoot "return_negative_app.c"),
+        (Join-Path $PSScriptRoot "time_app.c"),
+        (Join-Path $PSScriptRoot "time_sequence_app.c"),
+        (Join-Path $PSScriptRoot "too_large_app.c"),
+        (Join-Path $PSScriptRoot "storage_app.c"),
+        (Join-Path $PSScriptRoot "storage_catalog_app.c"),
+        (Join-Path $PSScriptRoot "storage_close_error_app.c"),
+        (Join-Path $PSScriptRoot "storage_error_app.c"),
+        (Join-Path $PSScriptRoot "storage_fd_exhaustion_app.c"),
+        (Join-Path $PSScriptRoot "storage_open_error_app.c"),
+        (Join-Path $PSScriptRoot "storage_write_error_app.c"),
+        (Join-Path $PSScriptRoot "storage_zero_io_app.c"),
+        (Join-Path $PSScriptRoot "unsupported_caps_app.c"),
+        (Join-Path $AppSampleDir "app_elf.ld"),
+        (Join-Path $AppSampleDir "hello_app.c"),
+        (Join-Path $AppSampleDir "player_min.c"),
+        (Join-Path $PSScriptRoot "..\app_abi_store_pack_tool\CMakeLists.txt"),
+        (Join-Path $PSScriptRoot "..\..\kernel\posix\qemu\arm-none-eabi-m7.cmake")
+    )
+}
+
 function Resolve-ScriptPath {
     param([string]$Path)
 
@@ -364,6 +414,61 @@ function Resolve-ScriptPath {
         return [System.IO.Path]::GetFullPath($Path)
     }
     return [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot $Path))
+}
+
+function Resolve-QemuDoctorToolPath {
+    param(
+        [string]$Name,
+        [string]$Tool
+    )
+
+    try {
+        return Resolve-ToolPath -Tool $Tool
+    } catch {
+        throw "doctor_failed: missing tool $Name ($Tool): $($_.Exception.Message)"
+    }
+}
+
+function Assert-QemuDoctorMachineSupport {
+    param(
+        [string]$MachineHelp,
+        [string]$Machine = "mps2-an500"
+    )
+
+    if ([string]::IsNullOrWhiteSpace($MachineHelp) -or
+        $MachineHelp.IndexOf($Machine, [System.StringComparison]::OrdinalIgnoreCase) -lt 0) {
+        throw "doctor_failed: qemu machine not supported: $Machine"
+    }
+}
+
+function Assert-QemuDoctorRequiredPath {
+    param(
+        [string]$Label,
+        [string]$Path
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Path) -or -not (Test-Path -LiteralPath $Path)) {
+        throw "doctor_failed: missing required path: $Label path=$Path"
+    }
+    return (Resolve-Path -LiteralPath $Path).Path
+}
+
+function Write-QemuDoctorOptionalPath {
+    param(
+        [string]$Label,
+        [string]$Path,
+        [bool]$Required = $false
+    )
+
+    $Resolved = Resolve-ScriptPath -Path $Path
+    if (Test-Path -LiteralPath $Resolved) {
+        Write-Host ("  {0}=present:{1}" -f $Label, $Resolved)
+        return
+    }
+    if ($Required) {
+        throw "doctor_failed: missing required path: $Label path=$Resolved"
+    }
+    Write-Host ("  {0}=missing:{1}" -f $Label, $Resolved)
 }
 
 function Get-ExpectedTokens {
@@ -4990,6 +5095,85 @@ function Invoke-EvidenceBundleValidation {
     return 0
 }
 
+function Invoke-Doctor {
+    if ($ElfBase -ne "0x20080000") {
+        throw "doctor_failed: QEMU ELF base must remain 0x20080000, got $ElfBase"
+    }
+    if ($TimeoutSec -le 0) {
+        throw "doctor_failed: TimeoutSec must be positive"
+    }
+    if ($TailLines -le 0) {
+        throw "doctor_failed: TailLines must be positive"
+    }
+
+    $CMakePath = Resolve-QemuDoctorToolPath -Name "cmake" -Tool $CMakeExe
+    $QemuPath = Resolve-QemuDoctorToolPath -Name "qemu-system-arm" -Tool $QemuExe
+    $CcPath = Resolve-QemuDoctorToolPath -Name "arm-none-eabi-gcc" -Tool "${ToolchainPrefix}gcc"
+    $HostCompilerPath = Resolve-QemuDoctorToolPath -Name "host compiler" -Tool $HostCompiler
+
+    $MachineHelp = & $QemuPath -machine help 2>&1 | Out-String
+    if ($LASTEXITCODE -ne 0) {
+        throw "doctor_failed: qemu machine help failed exit=$LASTEXITCODE"
+    }
+    Assert-QemuDoctorMachineSupport -MachineHelp $MachineHelp -Machine "mps2-an500"
+
+    $AppSampleDir = Assert-QemuDoctorRequiredPath `
+        -Label "app sample dir" `
+        -Path (Join-Path $PSScriptRoot "..\..\app_abi\elf_samples")
+    $ToolchainPath = Assert-QemuDoctorRequiredPath `
+        -Label "qemu toolchain file" `
+        -Path (Join-Path $PSScriptRoot "..\..\kernel\posix\qemu\arm-none-eabi-m7.cmake")
+
+    $RequiredPaths = @(Get-QemuRequiredSourcePaths -AppSampleDir $AppSampleDir)
+    foreach ($Required in $RequiredPaths) {
+        [void](Assert-QemuDoctorRequiredPath -Label ([System.IO.Path]::GetFileName($Required)) -Path $Required)
+    }
+
+    $QemuAppSpecs = @(Get-QemuAppSpecs)
+    $QemuAppNames = @($QemuAppSpecs | ForEach-Object { $_.Name })
+    if (@($QemuAppNames | Sort-Object -Unique).Count -ne $QemuAppNames.Count) {
+        throw "doctor_failed: duplicate QEMU App specs"
+    }
+    foreach ($Spec in $QemuAppSpecs) {
+        $ExpectedSource = Resolve-QemuAppSource -Spec $Spec -AppSampleDir $AppSampleDir
+        [void](Assert-QemuDoctorRequiredPath -Label "app source $($Spec.Name)" -Path $ExpectedSource)
+    }
+    $StoreAppCount = @($QemuAppSpecs | Where-Object { [bool]$_.Store }).Count
+    $RequiredIncCount = @(Get-QemuRequiredIncFiles).Count
+    if ($RequiredIncCount -ne ($QemuAppSpecs.Count + 1)) {
+        throw "doctor_failed: unexpected generated include count: $RequiredIncCount"
+    }
+
+    Write-Host "resident-elf-qemu doctor:"
+    Write-Host "  status=ok"
+    Write-Host "  domain=virtual_m7 machine=mps2-an500 cpu=cortex-m7"
+    Write-Host "  qemu=$QemuPath"
+    Write-Host "  cmake=$CMakePath"
+    Write-Host "  cc=$CcPath"
+    Write-Host "  host_compiler=$HostCompilerPath"
+    Write-Host "  toolchain=$ToolchainPath"
+    Write-Host "  app_sample_dir=$AppSampleDir"
+    Write-Host "  build=$(Resolve-ScriptPath -Path $BuildDir)"
+    Write-Host "  app_out=$(Resolve-ScriptPath -Path $AppOutDir)"
+    Write-Host "  elf_base=$ElfBase"
+    Write-Host "  timeout_sec=$TimeoutSec"
+    Write-Host "  tail_lines=$TailLines"
+    Write-Host "  qemu_machine=mps2-an500 supported=1"
+    Write-Host "  app_specs=$($QemuAppSpecs.Count) store_apps=$StoreAppCount generated_includes=$RequiredIncCount"
+    Write-Host "  source_paths=$($RequiredPaths.Count)"
+    Write-QemuDoctorOptionalPath -Label "frame_signatures" -Path $FrameSignatureOut
+    Write-QemuDoctorOptionalPath -Label "golden_frame_signatures" -Path $GoldenFrameSignatures -Required (-not $SkipGoldenFrameSignatures.IsPresent)
+    Write-QemuDoctorOptionalPath -Label "frame_dumps" -Path $FrameDumpOut
+    Write-QemuDoctorOptionalPath -Label "frame_ppm" -Path $FramePpmOut
+    Write-QemuDoctorOptionalPath -Label "input_trace" -Path $InputTraceOut
+    Write-QemuDoctorOptionalPath -Label "golden_input_trace" -Path $GoldenInputTrace -Required (-not $SkipGoldenInputTrace.IsPresent)
+    Write-QemuDoctorOptionalPath -Label "storage_trace" -Path $StorageTraceOut
+    Write-QemuDoctorOptionalPath -Label "golden_storage_trace" -Path $GoldenStorageTrace -Required (-not $SkipGoldenStorageTrace.IsPresent)
+    Write-QemuDoctorOptionalPath -Label "domain_summary" -Path $DomainSummaryOut
+    Write-QemuDoctorOptionalPath -Label "golden_domain_summary" -Path $GoldenDomainSummary -Required (-not $SkipGoldenDomainSummary.IsPresent)
+    Write-Host "[resident-elf-qemu] doctor ok"
+}
+
 function Invoke-SelfTest {
     if ($ElfBase -ne "0x20080000") {
         throw "selftest_failed: QEMU ELF base must remain 0x20080000, got $ElfBase"
@@ -5360,6 +5544,7 @@ function Invoke-SelfTest {
         "-SkipGoldenInputTrace",
         "-SkipGoldenStorageTrace",
         "-SkipGoldenDomainSummary",
+        "..\run-resident-elf-qemu-smoke.ps1 -Doctor",
         "capture-resident-platform-evidence-bundle.ps1 -QemuElf",
         "-QemuElfTimeoutSec <seconds>",
         "-QemuElfTailLines <lines>",
@@ -5384,54 +5569,7 @@ function Invoke-SelfTest {
         }
     }
 
-    foreach ($Required in @(
-        (Join-Path $PSScriptRoot "afe_error_app.c"),
-        (Join-Path $PSScriptRoot "CMakeLists.txt"),
-        (Join-Path $PSScriptRoot "README.md"),
-        (Join-Path $PSScriptRoot "main.cpp"),
-        (Join-Path $PSScriptRoot "qemu_virtual_backend.hpp"),
-        (Join-Path $PSScriptRoot "qemu_virtual_backend.cpp"),
-        (Join-Path $PSScriptRoot "startup.cpp"),
-        (Join-Path $PSScriptRoot "syscalls.cpp"),
-        (Join-Path $PSScriptRoot "ldscript.ld"),
-        (Join-Path $PSScriptRoot "argv_app.c"),
-        (Join-Path $PSScriptRoot "bss_app.c"),
-        (Join-Path $PSScriptRoot "console_error_app.c"),
-        (Join-Path $PSScriptRoot "data_app.c"),
-        (Join-Path $PSScriptRoot "display_describe_error_app.c"),
-        (Join-Path $PSScriptRoot "display_error_app.c"),
-        (Join-Path $PSScriptRoot "display_null_present_app.c"),
-        (Join-Path $PSScriptRoot "display_sequence_app.c"),
-        (Join-Path $PSScriptRoot "exit_app.c"),
-        (Join-Path $PSScriptRoot "exit_error_app.c"),
-        (Join-Path $PSScriptRoot "exit_negative_app.c"),
-        (Join-Path $PSScriptRoot "input_error_app.c"),
-        (Join-Path $PSScriptRoot "input_sequence_app.c"),
-        (Join-Path $PSScriptRoot "input_wrap_app.c"),
-        (Join-Path $PSScriptRoot "large_fit_app.c"),
-        (Join-Path $PSScriptRoot "return_negative_app.c"),
-        (Join-Path $PSScriptRoot "time_app.c"),
-        (Join-Path $PSScriptRoot "time_sequence_app.c"),
-        (Join-Path $PSScriptRoot "too_large_app.c"),
-        (Join-Path $PSScriptRoot "storage_app.c"),
-        (Join-Path $PSScriptRoot "storage_catalog_app.c"),
-        (Join-Path $PSScriptRoot "storage_close_error_app.c"),
-        (Join-Path $PSScriptRoot "storage_error_app.c"),
-        (Join-Path $PSScriptRoot "storage_fd_exhaustion_app.c"),
-        (Join-Path $PSScriptRoot "storage_open_error_app.c"),
-        (Join-Path $PSScriptRoot "storage_write_error_app.c"),
-        (Join-Path $PSScriptRoot "storage_zero_io_app.c"),
-        (Join-Path $PSScriptRoot "unsupported_caps_app.c"),
-        (Join-Path $PSScriptRoot "frame-signatures.golden.json"),
-        (Join-Path $PSScriptRoot "input-trace.golden.json"),
-        (Join-Path $PSScriptRoot "storage-trace.golden.json"),
-        (Join-Path $PSScriptRoot "domain-summary.golden.json"),
-        (Join-Path $AppSampleDir "app_elf.ld"),
-        (Join-Path $AppSampleDir "hello_app.c"),
-        (Join-Path $AppSampleDir "player_min.c"),
-        (Join-Path $PSScriptRoot "..\app_abi_store_pack_tool\CMakeLists.txt"),
-        (Join-Path $PSScriptRoot "..\..\kernel\posix\qemu\arm-none-eabi-m7.cmake")
-    )) {
+    foreach ($Required in (Get-QemuRequiredSourcePaths -AppSampleDir $AppSampleDir)) {
         if (-not (Test-Path -LiteralPath $Required)) {
             throw "selftest_failed: required path is missing: $Required"
         }
@@ -5524,6 +5662,11 @@ function Invoke-SelfTest {
 
 if ($SelfTest) {
     Invoke-SelfTest
+    exit 0
+}
+
+if ($Doctor) {
+    Invoke-Doctor
     exit 0
 }
 

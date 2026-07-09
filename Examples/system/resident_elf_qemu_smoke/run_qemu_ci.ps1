@@ -441,6 +441,35 @@ function Assert-QemuDoctorMachineSupport {
     }
 }
 
+function Get-QemuDoctorVersionLineFromText {
+    param(
+        [string]$Text,
+        [string]$Label
+    )
+
+    foreach ($Line in ($Text -split "\r?\n")) {
+        $Trimmed = $Line.Trim()
+        if (-not [string]::IsNullOrWhiteSpace($Trimmed)) {
+            return $Trimmed
+        }
+    }
+    throw "doctor_failed: empty version output: $Label"
+}
+
+function Get-QemuDoctorToolVersionLine {
+    param(
+        [string]$Name,
+        [string]$FilePath,
+        [string[]]$Arguments
+    )
+
+    $Output = & $FilePath @Arguments 2>&1 | Out-String
+    if ($LASTEXITCODE -ne 0) {
+        throw "doctor_failed: version probe failed for $Name exit=$LASTEXITCODE"
+    }
+    return (Get-QemuDoctorVersionLineFromText -Text $Output -Label $Name)
+}
+
 function Assert-QemuDoctorRequiredPath {
     param(
         [string]$Label,
@@ -5110,6 +5139,10 @@ function Invoke-Doctor {
     $QemuPath = Resolve-QemuDoctorToolPath -Name "qemu-system-arm" -Tool $QemuExe
     $CcPath = Resolve-QemuDoctorToolPath -Name "arm-none-eabi-gcc" -Tool "${ToolchainPrefix}gcc"
     $HostCompilerPath = Resolve-QemuDoctorToolPath -Name "host compiler" -Tool $HostCompiler
+    $CMakeVersion = Get-QemuDoctorToolVersionLine -Name "cmake" -FilePath $CMakePath -Arguments @("--version")
+    $QemuVersion = Get-QemuDoctorToolVersionLine -Name "qemu-system-arm" -FilePath $QemuPath -Arguments @("--version")
+    $CcVersion = Get-QemuDoctorToolVersionLine -Name "arm-none-eabi-gcc" -FilePath $CcPath -Arguments @("--version")
+    $HostCompilerVersion = Get-QemuDoctorToolVersionLine -Name "host compiler" -FilePath $HostCompilerPath -Arguments @("--version")
 
     $MachineHelp = & $QemuPath -machine help 2>&1 | Out-String
     if ($LASTEXITCODE -ne 0) {
@@ -5148,9 +5181,13 @@ function Invoke-Doctor {
     Write-Host "  status=ok"
     Write-Host "  domain=virtual_m7 machine=mps2-an500 cpu=cortex-m7"
     Write-Host "  qemu=$QemuPath"
+    Write-Host "  qemu_version=$QemuVersion"
     Write-Host "  cmake=$CMakePath"
+    Write-Host "  cmake_version=$CMakeVersion"
     Write-Host "  cc=$CcPath"
+    Write-Host "  cc_version=$CcVersion"
     Write-Host "  host_compiler=$HostCompilerPath"
+    Write-Host "  host_compiler_version=$HostCompilerVersion"
     Write-Host "  toolchain=$ToolchainPath"
     Write-Host "  app_sample_dir=$AppSampleDir"
     Write-Host "  build=$(Resolve-ScriptPath -Path $BuildDir)"
@@ -5186,6 +5223,12 @@ function Invoke-SelfTest {
     }
     if (-not (Test-SelfTestThrowsLike -Prefix "missing_tool:" -Script { Resolve-ToolPath "__charm_missing_qemu_tool__" })) {
         throw "selftest_failed: missing tool did not report missing_tool"
+    }
+    if ((Get-QemuDoctorVersionLineFromText -Text "`nqemu-system-arm version test`nsecond line" -Label "qemu") -ne "qemu-system-arm version test") {
+        throw "selftest_failed: doctor version line parser returned unexpected value"
+    }
+    if (-not (Test-SelfTestThrowsLike -Prefix "doctor_failed:" -Script { Get-QemuDoctorVersionLineFromText -Text "" -Label "empty" })) {
+        throw "selftest_failed: empty doctor version output did not report doctor_failed"
     }
     if (-not (Test-SelfTestThrowsLike -Prefix "frame_signature_compare_failed:" -Script { Compare-FrameSignatureFiles -ExpectedPath "" -ActualPath "" })) {
         throw "selftest_failed: frame signature compare did not report frame_signature_compare_failed"
@@ -5545,6 +5588,7 @@ function Invoke-SelfTest {
         "-SkipGoldenStorageTrace",
         "-SkipGoldenDomainSummary",
         "..\run-resident-elf-qemu-smoke.ps1 -Doctor",
+        "qemu_version",
         "capture-resident-platform-evidence-bundle.ps1 -QemuElf",
         "-QemuElfTimeoutSec <seconds>",
         "-QemuElfTailLines <lines>",

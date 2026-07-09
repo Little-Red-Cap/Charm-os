@@ -298,7 +298,9 @@ Use `..\run-resident-elf-qemu-smoke.ps1 -Doctor` as the supported host
 environment check before occupying the QEMU run path. It resolves CMake, QEMU,
 Arm GCC, the host compiler, QEMU source inputs, golden evidence files, output
 paths, and confirms that the local QEMU build advertises `mps2-an500`; it does
-not build, launch firmware, or validate runtime evidence. Use
+not build, launch firmware, or validate runtime evidence. The doctor also prints
+`qemu_version`, `cmake_version`, `cc_version`, and `host_compiler_version` so
+environment drift is visible in captured logs. Use
 `..\run-resident-elf-qemu-smoke.ps1 -DryRun` as the cheapest supported command
 expansion check: it resolves the QEMU, compiler, generated artifact, evidence,
 and run-budget paths without building or launching QEMU. Use

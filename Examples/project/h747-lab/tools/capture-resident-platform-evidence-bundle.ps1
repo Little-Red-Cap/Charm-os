@@ -11,6 +11,7 @@ param(
     [int]$InterChunkDelayMs = 1,
     [switch]$QemuElf,
     [switch]$QemuElfValidateOnly,
+    [switch]$QemuElfDoctor,
     [int]$QemuElfTimeoutSec = 15,
     [int]$QemuElfTailLines = 80,
     [switch]$SkipH747Build,
@@ -191,6 +192,9 @@ function Invoke-SelfTest {
     if ($QemuElfValidateOnly -and -not $QemuElf) {
         throw "selftest_failed: -QemuElfValidateOnly requires -QemuElf"
     }
+    if ($QemuElfDoctor -and -not $QemuElf) {
+        throw "selftest_failed: -QemuElfDoctor requires -QemuElf"
+    }
     if ($QemuElfTimeoutSec -le 0) {
         throw "selftest_failed: QemuElfTimeoutSec must be positive"
     }
@@ -202,6 +206,7 @@ function Invoke-SelfTest {
         "qemu_elf_backend_readiness=",
         "qemu_elf_capability_matrix=",
         "qemu_elf_runtime_domain_profile=",
+        "qemu_elf_doctor=",
         "qemu_elf_run_evidence_matrix=",
         "qemu_elf_failure_taxonomy=",
         "qemu_elf_run_budget_match=",
@@ -2567,6 +2572,7 @@ function Write-Summary {
         [object[]]$SmokeResults,
         [string]$QemuElfStatus,
         [string]$QemuElfMode,
+        [string]$QemuElfDoctorStatus,
         [int]$QemuElfTimeoutSec,
         [int]$QemuElfTailLines,
         [string]$QemuElfRunBudgetMatch,
@@ -2592,6 +2598,7 @@ function Write-Summary {
     }
     Write-BundleLine -Lines $Lines -Text "qemu_elf=$QemuElfStatus"
     Write-BundleLine -Lines $Lines -Text "qemu_elf_mode=$QemuElfMode"
+    Write-BundleLine -Lines $Lines -Text "qemu_elf_doctor=$QemuElfDoctorStatus"
     Write-BundleLine -Lines $Lines -Text "qemu_elf_timeout_sec=$QemuElfTimeoutSec"
     Write-BundleLine -Lines $Lines -Text "qemu_elf_tail_lines=$QemuElfTailLines"
     Write-BundleLine -Lines $Lines -Text "qemu_elf_run_budget_match=$QemuElfRunBudgetMatch"
@@ -2642,6 +2649,9 @@ $MediaList = Get-MediaList -RawMedia $Media
 if ($QemuElfValidateOnly -and -not $QemuElf) {
     throw "invalid_argument: -QemuElfValidateOnly requires -QemuElf"
 }
+if ($QemuElfDoctor -and -not $QemuElf) {
+    throw "invalid_argument: -QemuElfDoctor requires -QemuElf"
+}
 if ($QemuElfTimeoutSec -le 0) {
     throw "invalid_argument: -QemuElfTimeoutSec must be positive"
 }
@@ -2690,6 +2700,7 @@ if ($DryRun) {
     Write-Host "installed_store_matrix=$($InstalledStoreMatrix.IsPresent)"
     Write-Host "qemu_elf=$($QemuElf.IsPresent)"
     Write-Host "qemu_elf_validate_only=$($QemuElfValidateOnly.IsPresent)"
+    Write-Host "qemu_elf_doctor=$($QemuElfDoctor.IsPresent)"
     Write-Host "qemu_elf_mode=$QemuElfMode"
     Write-Host "qemu_elf_timeout_sec=$QemuElfTimeoutSec"
     Write-Host "qemu_elf_tail_lines=$QemuElfTailLines"
@@ -2772,7 +2783,23 @@ try {
     $QemuElfSummary = $null
     $QemuElfDomainGolden = "skipped"
     $QemuElfRunBudgetMatch = "skipped"
+    $QemuElfDoctorStatus = "skipped"
     if ($QemuElf) {
+        if ($QemuElfDoctor) {
+            Invoke-Logged -Lines $Lines -Label "resident ELF QEMU doctor" -FilePath "powershell" -Arguments @(
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                $QemuElfScript,
+                "-Doctor",
+                "-TimeoutSec",
+                ([string]$QemuElfTimeoutSec),
+                "-TailLines",
+                ([string]$QemuElfTailLines)
+            )
+            $QemuElfDoctorStatus = "pass"
+        }
         if ($QemuElfValidateOnly) {
             Invoke-Logged -Lines $Lines -Label "resident ELF QEMU evidence validate" -FilePath "powershell" -Arguments @(
                 "-NoProfile",
@@ -2925,6 +2952,7 @@ try {
         -SmokeResults $SmokeResults `
         -QemuElfStatus $QemuElfStatus `
         -QemuElfMode $QemuElfMode `
+        -QemuElfDoctorStatus $QemuElfDoctorStatus `
         -QemuElfTimeoutSec $QemuElfTimeoutSec `
         -QemuElfTailLines $QemuElfTailLines `
         -QemuElfRunBudgetMatch $QemuElfRunBudgetMatch `

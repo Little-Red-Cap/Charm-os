@@ -849,6 +849,15 @@ The bundle forwards the same QEMU run budget as the standalone wrapper. Use
 `-QemuElfTimeoutSec <seconds>` and `-QemuElfTailLines <lines>` to tune the QEMU
 wait timeout and failure log tail without bypassing the supported wrapper
 surface.
+Add `-QemuElfDoctor` when the bundle should run the QEMU host-environment
+doctor before either a full QEMU run or existing-evidence validation:
+
+```powershell
+Examples/project/h747-lab/tools/capture-resident-platform-evidence-bundle.ps1 -QemuElf -QemuElfDoctor
+```
+
+This is explicit rather than default so `-QemuElfValidateOnly` can still be used
+on hosts that only need to validate an already captured evidence set.
 
 When BSP/CubeMX source-list migration is blocking the H747 build-only step, the
 same bundle can be used as an off-board ELF/QEMU gate with:
@@ -872,7 +881,7 @@ The switch is opt-in so the default H747 evidence bundle keeps its existing
 meaning. QEMU evidence is off-board semantic evidence for the ELF/AppRuntime
 chain; it does not replace real-board USB, Store, SDRAM, eMMC, or HAL evidence.
 When `-QemuElf` is enabled, the bundle summary expands `domain-summary.json`
-into `qemu_elf_mode`, `qemu_elf_domain`, `qemu_elf_app_model`,
+into `qemu_elf_mode`, `qemu_elf_doctor`, `qemu_elf_domain`, `qemu_elf_app_model`,
 `qemu_elf_backend`, `qemu_elf_backend_readiness`,
 `qemu_elf_capability_matrix`,
 `qemu_elf_runtime_domain_profile`,

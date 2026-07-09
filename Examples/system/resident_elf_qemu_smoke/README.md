@@ -852,7 +852,8 @@ The bundle forwards the same QEMU run budget as the standalone wrapper. Use
 wait timeout and failure log tail without bypassing the supported wrapper
 surface.
 Add `-QemuElfDoctor` when the bundle should run the QEMU host-environment
-doctor before either a full QEMU run or existing-evidence validation:
+doctor before artifact generation, host smokes, a full QEMU run, or
+existing-evidence validation:
 
 ```powershell
 Examples/project/h747-lab/tools/capture-resident-platform-evidence-bundle.ps1 -QemuElf -QemuElfDoctor

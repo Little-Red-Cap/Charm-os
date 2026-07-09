@@ -2813,6 +2813,32 @@ try {
     Write-BundleLine -Lines $Lines -Text "repo=$RepoRoot"
     Write-BundleLine -Lines $Lines -Text "artifact_manifest=$ArtifactManifest"
 
+    $QemuElfStatus = "skipped"
+    $QemuElfLogResolved = ""
+    $QemuElfDomainSummaryResolved = ""
+    $QemuElfFramePpmResolved = ""
+    $QemuElfSummary = $null
+    $QemuElfDomainGolden = "skipped"
+    $QemuElfRunBudgetMatch = "skipped"
+    $QemuElfDoctorStatus = "skipped"
+    $QemuElfDoctorVersions = "skipped"
+    if ($QemuElf -and $QemuElfDoctor) {
+        Invoke-Logged -Lines $Lines -Label "resident ELF QEMU doctor" -FilePath "powershell" -Arguments @(
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            $QemuElfScript,
+            "-Doctor",
+            "-TimeoutSec",
+            ([string]$QemuElfTimeoutSec),
+            "-TailLines",
+            ([string]$QemuElfTailLines)
+        )
+        $QemuElfDoctorStatus = "pass"
+        $QemuElfDoctorVersions = Read-QemuElfDoctorVersionsFromLines -Lines $Lines -DoctorStatus $QemuElfDoctorStatus
+    }
+
     Invoke-Logged -Lines $Lines -Label "build resident platform artifacts" -FilePath "powershell" -Arguments @(
         "-NoProfile",
         "-ExecutionPolicy",
@@ -2849,32 +2875,7 @@ try {
         }
     }
 
-    $QemuElfStatus = "skipped"
-    $QemuElfLogResolved = ""
-    $QemuElfDomainSummaryResolved = ""
-    $QemuElfFramePpmResolved = ""
-    $QemuElfSummary = $null
-    $QemuElfDomainGolden = "skipped"
-    $QemuElfRunBudgetMatch = "skipped"
-    $QemuElfDoctorStatus = "skipped"
-    $QemuElfDoctorVersions = "skipped"
     if ($QemuElf) {
-        if ($QemuElfDoctor) {
-            Invoke-Logged -Lines $Lines -Label "resident ELF QEMU doctor" -FilePath "powershell" -Arguments @(
-                "-NoProfile",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-File",
-                $QemuElfScript,
-                "-Doctor",
-                "-TimeoutSec",
-                ([string]$QemuElfTimeoutSec),
-                "-TailLines",
-                ([string]$QemuElfTailLines)
-            )
-            $QemuElfDoctorStatus = "pass"
-            $QemuElfDoctorVersions = Read-QemuElfDoctorVersionsFromLines -Lines $Lines -DoctorStatus $QemuElfDoctorStatus
-        }
         if ($QemuElfValidateOnly) {
             Invoke-Logged -Lines $Lines -Label "resident ELF QEMU evidence validate" -FilePath "powershell" -Arguments @(
                 "-NoProfile",

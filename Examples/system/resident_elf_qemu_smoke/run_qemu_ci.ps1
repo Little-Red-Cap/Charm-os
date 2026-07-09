@@ -8,6 +8,7 @@ param(
     [string]$FrameSignatureOut = "$PSScriptRoot\frame-signatures.json",
     [string]$GoldenFrameSignatures = "$PSScriptRoot\frame-signatures.golden.json",
     [string]$FrameDumpOut = "$PSScriptRoot\frame-dumps.json",
+    [string]$GoldenFrameDumps = "$PSScriptRoot\frame-dumps.golden.json",
     [string]$FramePpmOut = "$PSScriptRoot\frame-ppm",
     [string]$InputTraceOut = "$PSScriptRoot\input-trace.json",
     [string]$GoldenInputTrace = "$PSScriptRoot\input-trace.golden.json",
@@ -36,6 +37,7 @@ param(
     [string]$CompareFrameDumps = "",
     [string]$ActualFrameDumps = "",
     [switch]$SkipGoldenFrameSignatures,
+    [switch]$SkipGoldenFrameDumps,
     [switch]$SkipGoldenInputTrace,
     [switch]$SkipGoldenStorageTrace,
     [switch]$SkipGoldenDomainSummary,
@@ -5290,7 +5292,11 @@ function Invoke-EvidenceBundleValidation {
     }
 
     if (-not [string]::IsNullOrWhiteSpace($FrameDumpOut)) {
-        Assert-ValidationOk -Name "frame_dumps" -Code (Validate-FrameDumpFile -Path (Resolve-ScriptPath -Path $FrameDumpOut))
+        $ResolvedFrameDumpOut = Resolve-ScriptPath -Path $FrameDumpOut
+        Assert-ValidationOk -Name "frame_dumps" -Code (Validate-FrameDumpFile -Path $ResolvedFrameDumpOut)
+        if (-not $SkipGoldenFrameDumps -and -not [string]::IsNullOrWhiteSpace($GoldenFrameDumps)) {
+            Assert-ValidationOk -Name "frame_dumps_golden" -Code (Compare-FrameDumpFiles -ExpectedPath (Resolve-ScriptPath -Path $GoldenFrameDumps) -ActualPath $ResolvedFrameDumpOut)
+        }
     }
 
     if (-not [string]::IsNullOrWhiteSpace($FramePpmOut)) {
@@ -5402,6 +5408,7 @@ function Invoke-Doctor {
     Write-QemuDoctorOptionalPath -Label "frame_signatures" -Path $FrameSignatureOut
     Write-QemuDoctorOptionalPath -Label "golden_frame_signatures" -Path $GoldenFrameSignatures -Required (-not $SkipGoldenFrameSignatures.IsPresent)
     Write-QemuDoctorOptionalPath -Label "frame_dumps" -Path $FrameDumpOut
+    Write-QemuDoctorOptionalPath -Label "golden_frame_dumps" -Path $GoldenFrameDumps -Required (-not $SkipGoldenFrameDumps.IsPresent)
     Write-QemuDoctorOptionalPath -Label "frame_ppm" -Path $FramePpmOut
     Write-QemuDoctorOptionalPath -Label "input_trace" -Path $InputTraceOut
     Write-QemuDoctorOptionalPath -Label "golden_input_trace" -Path $GoldenInputTrace -Required (-not $SkipGoldenInputTrace.IsPresent)
@@ -5799,6 +5806,7 @@ function Invoke-SelfTest {
         'direct script default at `-TimeoutSec 15`',
         "display mode is fixed at 16x16 ARGB8888",
         "coverage.gui_timeline",
+        "frame-dumps.golden.json",
         "elf_run_evidence_matrix",
         "storage_fd_exhaustion_app",
         "storage_write_error_app",
@@ -5822,10 +5830,12 @@ function Invoke-SelfTest {
     }
 
     $GoldenFrameSignatureFile = Join-Path $PSScriptRoot "frame-signatures.golden.json"
+    $GoldenFrameDumpFile = Join-Path $PSScriptRoot "frame-dumps.golden.json"
     $GoldenInputTraceFile = Join-Path $PSScriptRoot "input-trace.golden.json"
     $GoldenStorageTraceFile = Join-Path $PSScriptRoot "storage-trace.golden.json"
     $GoldenDomainSummaryFile = Join-Path $PSScriptRoot "domain-summary.golden.json"
     [void](Validate-FrameSignatureFile -Path $GoldenFrameSignatureFile)
+    [void](Validate-FrameDumpFile -Path $GoldenFrameDumpFile)
     [void](Validate-InputTraceFile -Path $GoldenInputTraceFile)
     [void](Validate-StorageTraceFile -Path $GoldenStorageTraceFile)
     [void](Validate-DomainSummaryFile -Path $GoldenDomainSummaryFile)
@@ -5883,6 +5893,7 @@ function Invoke-SelfTest {
     $FrameSignaturePath = Resolve-ScriptPath -Path $FrameSignatureOut
     $GoldenFrameSignaturePath = if ($SkipGoldenFrameSignatures) { "skipped" } else { Resolve-ScriptPath -Path $GoldenFrameSignatures }
     $FrameDumpPath = Resolve-ScriptPath -Path $FrameDumpOut
+    $GoldenFrameDumpPath = if ($SkipGoldenFrameDumps) { "skipped" } else { Resolve-ScriptPath -Path $GoldenFrameDumps }
     $FramePpmPath = Resolve-ScriptPath -Path $FramePpmOut
     $InputTracePath = Resolve-ScriptPath -Path $InputTraceOut
     $GoldenInputTracePath = if ($SkipGoldenInputTrace) { "skipped" } else { Resolve-ScriptPath -Path $GoldenInputTrace }
@@ -5901,6 +5912,7 @@ function Invoke-SelfTest {
     Write-Host "  frame_signatures=$FrameSignaturePath"
     Write-Host "  golden_frame_signatures=$GoldenFrameSignaturePath"
     Write-Host "  frame_dumps=$FrameDumpPath"
+    Write-Host "  golden_frame_dumps=$GoldenFrameDumpPath"
     Write-Host "  frame_ppm=$FramePpmPath"
     Write-Host "  input_trace=$InputTracePath"
     Write-Host "  golden_input_trace=$GoldenInputTracePath"
@@ -6011,6 +6023,11 @@ if ($DryRun) {
         Write-Host "[dry-run] golden_frame_signatures=$(Resolve-ScriptPath -Path $GoldenFrameSignatures)"
     }
     Write-Host "[dry-run] frame_dumps=$(Resolve-ScriptPath -Path $FrameDumpOut)"
+    if ($SkipGoldenFrameDumps) {
+        Write-Host "[dry-run] golden_frame_dumps=skipped"
+    } else {
+        Write-Host "[dry-run] golden_frame_dumps=$(Resolve-ScriptPath -Path $GoldenFrameDumps)"
+    }
     Write-Host "[dry-run] frame_ppm=$(Resolve-ScriptPath -Path $FramePpmOut)"
     Write-Host "[dry-run] input_trace=$(Resolve-ScriptPath -Path $InputTraceOut)"
     if ($SkipGoldenInputTrace) {
@@ -6197,6 +6214,10 @@ Write-FrameDumpCapture -LogPath $outFile -OutputPath $FrameDumpOut
 if (-not [string]::IsNullOrWhiteSpace($FrameDumpOut)) {
     $ResolvedFrameDumpOut = Resolve-ScriptPath -Path $FrameDumpOut
     [void](Validate-FrameDumpFile -Path $ResolvedFrameDumpOut)
+    if (-not $SkipGoldenFrameDumps -and -not [string]::IsNullOrWhiteSpace($GoldenFrameDumps)) {
+        $ResolvedGoldenFrameDumps = Resolve-ScriptPath -Path $GoldenFrameDumps
+        Assert-ValidationOk -Name "frame_dumps_golden" -Code (Compare-FrameDumpFiles -ExpectedPath $ResolvedGoldenFrameDumps -ActualPath $ResolvedFrameDumpOut)
+    }
 }
 if (-not [string]::IsNullOrWhiteSpace($FramePpmOut)) {
     if ([string]::IsNullOrWhiteSpace($FrameDumpOut)) {

@@ -8,6 +8,7 @@ param(
     [string]$FrameSignatureOut = "",
     [string]$GoldenFrameSignatures = "",
     [string]$FrameDumpOut = "",
+    [string]$GoldenFrameDumps = "",
     [string]$FramePpmOut = "",
     [string]$InputTraceOut = "",
     [string]$GoldenInputTrace = "",
@@ -36,6 +37,7 @@ param(
     [string]$CompareFrameDumps = "",
     [string]$ActualFrameDumps = "",
     [switch]$SkipGoldenFrameSignatures,
+    [switch]$SkipGoldenFrameDumps,
     [switch]$SkipGoldenInputTrace,
     [switch]$SkipGoldenStorageTrace,
     [switch]$SkipGoldenDomainSummary,
@@ -112,6 +114,7 @@ function New-QemuSmokeArguments {
     Add-OptionalStringArgument -Arguments $Arguments -Name "-FrameSignatureOut" -Value $FrameSignatureOut
     Add-OptionalStringArgument -Arguments $Arguments -Name "-GoldenFrameSignatures" -Value $GoldenFrameSignatures
     Add-OptionalStringArgument -Arguments $Arguments -Name "-FrameDumpOut" -Value $FrameDumpOut
+    Add-OptionalStringArgument -Arguments $Arguments -Name "-GoldenFrameDumps" -Value $GoldenFrameDumps
     Add-OptionalStringArgument -Arguments $Arguments -Name "-FramePpmOut" -Value $FramePpmOut
     Add-OptionalStringArgument -Arguments $Arguments -Name "-InputTraceOut" -Value $InputTraceOut
     Add-OptionalStringArgument -Arguments $Arguments -Name "-GoldenInputTrace" -Value $GoldenInputTrace
@@ -137,6 +140,7 @@ function New-QemuSmokeArguments {
     Add-OptionalStringArgument -Arguments $Arguments -Name "-CompareFrameDumps" -Value $CompareFrameDumps
     Add-OptionalStringArgument -Arguments $Arguments -Name "-ActualFrameDumps" -Value $ActualFrameDumps
     Add-OptionalSwitchArgument -Arguments $Arguments -Name "-SkipGoldenFrameSignatures" -Enabled $SkipGoldenFrameSignatures.IsPresent
+    Add-OptionalSwitchArgument -Arguments $Arguments -Name "-SkipGoldenFrameDumps" -Enabled $SkipGoldenFrameDumps.IsPresent
     Add-OptionalSwitchArgument -Arguments $Arguments -Name "-SkipGoldenInputTrace" -Enabled $SkipGoldenInputTrace.IsPresent
     Add-OptionalSwitchArgument -Arguments $Arguments -Name "-SkipGoldenStorageTrace" -Enabled $SkipGoldenStorageTrace.IsPresent
     Add-OptionalSwitchArgument -Arguments $Arguments -Name "-SkipGoldenDomainSummary" -Enabled $SkipGoldenDomainSummary.IsPresent
@@ -224,6 +228,9 @@ function Invoke-WrapperSelfTest {
     if ($SkipGoldenFrameSignatures -and -not (Test-ArgumentPresent -Arguments $Forwarded -Name "-SkipGoldenFrameSignatures")) {
         throw "selftest_failed: wrapper did not forward -SkipGoldenFrameSignatures"
     }
+    if ($SkipGoldenFrameDumps -and -not (Test-ArgumentPresent -Arguments $Forwarded -Name "-SkipGoldenFrameDumps")) {
+        throw "selftest_failed: wrapper did not forward -SkipGoldenFrameDumps"
+    }
     if ($SkipGoldenInputTrace -and -not (Test-ArgumentPresent -Arguments $Forwarded -Name "-SkipGoldenInputTrace")) {
         throw "selftest_failed: wrapper did not forward -SkipGoldenInputTrace"
     }
@@ -243,6 +250,9 @@ function Invoke-WrapperSelfTest {
     $OriginalValidateFrameSignatures = $ValidateFrameSignatures
     $OriginalCompareFrameSignatures = $CompareFrameSignatures
     $OriginalActualFrameSignatures = $ActualFrameSignatures
+    $OriginalValidateFrameDumps = $ValidateFrameDumps
+    $OriginalCompareFrameDumps = $CompareFrameDumps
+    $OriginalActualFrameDumps = $ActualFrameDumps
     $OriginalValidateDomainSummary = $ValidateDomainSummary
     $OriginalCompareDomainSummary = $CompareDomainSummary
     $OriginalActualDomainSummary = $ActualDomainSummary
@@ -251,6 +261,9 @@ function Invoke-WrapperSelfTest {
     $script:ValidateFrameSignatures = "frame-signatures.json"
     $script:CompareFrameSignatures = "frame-signatures.golden.json"
     $script:ActualFrameSignatures = "frame-signatures.json"
+    $script:ValidateFrameDumps = "frame-dumps.json"
+    $script:CompareFrameDumps = "frame-dumps.golden.json"
+    $script:ActualFrameDumps = "frame-dumps.json"
     $script:ValidateDomainSummary = "domain-summary.json"
     $script:CompareDomainSummary = "domain-summary.golden.json"
     $script:ActualDomainSummary = "domain-summary.json"
@@ -261,6 +274,9 @@ function Invoke-WrapperSelfTest {
             @{ Name = "-ValidateFrameSignatures"; Value = "frame-signatures.json" },
             @{ Name = "-CompareFrameSignatures"; Value = "frame-signatures.golden.json" },
             @{ Name = "-ActualFrameSignatures"; Value = "frame-signatures.json" },
+            @{ Name = "-ValidateFrameDumps"; Value = "frame-dumps.json" },
+            @{ Name = "-CompareFrameDumps"; Value = "frame-dumps.golden.json" },
+            @{ Name = "-ActualFrameDumps"; Value = "frame-dumps.json" },
             @{ Name = "-ValidateDomainSummary"; Value = "domain-summary.json" },
             @{ Name = "-CompareDomainSummary"; Value = "domain-summary.golden.json" },
             @{ Name = "-ActualDomainSummary"; Value = "domain-summary.json" }
@@ -281,6 +297,9 @@ function Invoke-WrapperSelfTest {
         $script:ValidateFrameSignatures = $OriginalValidateFrameSignatures
         $script:CompareFrameSignatures = $OriginalCompareFrameSignatures
         $script:ActualFrameSignatures = $OriginalActualFrameSignatures
+        $script:ValidateFrameDumps = $OriginalValidateFrameDumps
+        $script:CompareFrameDumps = $OriginalCompareFrameDumps
+        $script:ActualFrameDumps = $OriginalActualFrameDumps
         $script:ValidateDomainSummary = $OriginalValidateDomainSummary
         $script:CompareDomainSummary = $OriginalCompareDomainSummary
         $script:ActualDomainSummary = $OriginalActualDomainSummary

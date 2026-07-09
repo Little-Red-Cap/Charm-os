@@ -325,7 +325,10 @@ compares the generated frame signatures with
 `frame-signatures.golden.json`; pass `-SkipGoldenFrameSignatures` only for
 temporary experiments where visual-output drift is expected. Use
 `-ValidateFrameDumps resident_elf_qemu_smoke/frame-dumps.json` to validate the
-full hex framebuffer dump capture. Use
+full hex framebuffer dump capture. The default full smoke also compares the
+generated frame dumps with `frame-dumps.golden.json`; pass
+`-SkipGoldenFrameDumps` only for temporary experiments where pixel-level output
+drift is expected. Use
 `-ValidateFramePpm resident_elf_qemu_smoke/frame-ppm` to validate the generated
 visual PPM frame files and their manifest. Use
 `-ValidateInputTrace resident_elf_qemu_smoke/input-trace.json` to validate the
@@ -745,8 +748,9 @@ not a filesystem format, block-device trace, or App Store metadata.
 The script also writes `frame-dumps.json`, which contains the same run grouping
 plus the full 16x16 ARGB8888 frame bytes encoded as hex. This remains a
 smoke-level capture format for deterministic regression comparison, not a public
-GUI backend API. Frame dump comparison ignores absolute log paths and compares
-the run/frame structure plus frame bytes.
+GUI backend API. `frame-dumps.golden.json` is the checked-in expected pixel dump
+set. Frame dump comparison ignores absolute log paths and compares the run/frame
+structure plus frame bytes.
 
 The script also materializes those frame dumps into `frame-ppm/`. Each generated
 PPM is a tiny 16x16 RGB888 image derived from the QEMU ARGB8888 payload, and

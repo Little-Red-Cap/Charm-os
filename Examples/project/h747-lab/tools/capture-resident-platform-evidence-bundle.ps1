@@ -221,6 +221,9 @@ function Invoke-SelfTest {
         "qemu_elf_storage_trace=",
         "qemu_elf_storage_trace_golden=",
         "qemu_elf_storage_trace_gate=",
+        "qemu_elf_frame_ppm=",
+        "qemu_elf_frame_ppm_gate=",
+        "qemu_elf_domain_summary_golden=",
         "qemu_elf_failure_taxonomy=",
         "qemu_elf_run_budget_match=",
         "qemu_elf_run_budget_mismatch:",
@@ -1233,6 +1236,8 @@ function Invoke-SelfTest {
                 "resident-elf-qemu frame dump comparison ok",
                 "  expected=frame-dumps.golden.json",
                 "  actual=frame-dumps.json",
+                "resident-elf-qemu frame ppm validation ok",
+                "  path=frame-ppm",
                 "resident-elf-qemu input trace comparison ok",
                 "  expected=input-trace.golden.json",
                 "  actual=input-trace.json",
@@ -1247,6 +1252,7 @@ function Invoke-SelfTest {
         $DomainGolden = Read-QemuElfDomainGoldenStatus -LogPath $TempQemuLog
         $FrameSignatureGolden = Read-QemuElfFrameSignatureGoldenStatusFromText -Text (Get-Content -LiteralPath $TempQemuLog -Raw -Encoding UTF8)
         $FrameDumpGolden = Read-QemuElfFrameDumpGoldenStatusFromText -Text (Get-Content -LiteralPath $TempQemuLog -Raw -Encoding UTF8)
+        $FramePpmGate = Read-QemuElfFramePpmStatusFromText -Text (Get-Content -LiteralPath $TempQemuLog -Raw -Encoding UTF8)
         $InputTraceGolden = Read-QemuElfInputTraceGoldenStatusFromText -Text (Get-Content -LiteralPath $TempQemuLog -Raw -Encoding UTF8)
         $StorageTraceGolden = Read-QemuElfStorageTraceGoldenStatusFromText -Text (Get-Content -LiteralPath $TempQemuLog -Raw -Encoding UTF8)
         if ($ParsedQemu.Domain -ne "virtual_m7" -or
@@ -1273,6 +1279,7 @@ function Invoke-SelfTest {
             $DomainGolden -ne "ok" -or
             $FrameSignatureGolden -ne "ok" -or
             $FrameDumpGolden -ne "ok" -or
+            $FramePpmGate -ne "ok" -or
             $InputTraceGolden -ne "ok" -or
             $StorageTraceGolden -ne "ok" -or
             $ParsedQemu.Coverage -ne "runs=87:stages=36:loads=32:packetstreams=5:source_matrix=51:gui_timeline=4:prepare=1:capabilities=7:negative_cases=24" -or
@@ -1344,6 +1351,15 @@ function Invoke-SelfTest {
         } catch {
             if ($_.Exception.Message.IndexOf("qemu_elf_summary_invalid", [System.StringComparison]::Ordinal) -lt 0) {
                 throw "selftest_failed: bad qemu frame dump golden log did not report qemu_elf_summary_invalid: $($_.Exception.Message)"
+            }
+        }
+        [System.IO.File]::WriteAllText($TempQemuLog, "resident-elf-qemu frame dump comparison ok`n  expected=frame-dumps.golden.json`n  actual=frame-dumps.json`n", [System.Text.UTF8Encoding]::new($false))
+        try {
+            Read-QemuElfFramePpmStatusFromText -Text (Get-Content -LiteralPath $TempQemuLog -Raw -Encoding UTF8) | Out-Null
+            throw "selftest_failed: bad qemu frame ppm log validated unexpectedly"
+        } catch {
+            if ($_.Exception.Message.IndexOf("qemu_elf_summary_invalid", [System.StringComparison]::Ordinal) -lt 0) {
+                throw "selftest_failed: bad qemu frame ppm log did not report qemu_elf_summary_invalid: $($_.Exception.Message)"
             }
         }
         [System.IO.File]::WriteAllText($TempQemuLog, "resident-elf-qemu input trace validation ok`n  path=input-trace.json`n", [System.Text.UTF8Encoding]::new($false))
@@ -1780,6 +1796,27 @@ function Read-QemuElfFrameDumpGoldenStatusFromLines {
     param([System.Collections.Generic.List[string]]$Lines)
 
     return (Read-QemuElfFrameDumpGoldenStatusFromText -Text ([string]::Join("`n", $Lines)))
+}
+
+function Read-QemuElfFramePpmStatusFromText {
+    param([string]$Text)
+
+    if ([string]::IsNullOrWhiteSpace($Text)) {
+        throw "qemu_elf_summary_invalid: missing frame PPM validation"
+    }
+    if ($Text.IndexOf("resident-elf-qemu frame ppm validation ok", [System.StringComparison]::Ordinal) -lt 0) {
+        throw "qemu_elf_summary_invalid: missing frame PPM validation"
+    }
+    if ($Text.IndexOf("frame-ppm", [System.StringComparison]::OrdinalIgnoreCase) -lt 0) {
+        throw "qemu_elf_summary_invalid: missing frame PPM path"
+    }
+    return "ok"
+}
+
+function Read-QemuElfFramePpmStatusFromLines {
+    param([System.Collections.Generic.List[string]]$Lines)
+
+    return (Read-QemuElfFramePpmStatusFromText -Text ([string]::Join("`n", $Lines)))
 }
 
 function Read-QemuElfInputTraceGoldenStatusFromText {
@@ -2878,6 +2915,7 @@ function Write-Summary {
         [string]$QemuElfRunBudgetMatch,
         [string]$QemuElfLog,
         [string]$QemuElfDomainSummary,
+        [string]$QemuElfDomainSummaryGolden,
         [string]$QemuElfFrameSignatures,
         [string]$QemuElfFrameSignaturesGolden,
         [string]$QemuElfFrameDumps,
@@ -2891,6 +2929,7 @@ function Write-Summary {
         [string]$QemuElfDomainGolden,
         [string]$QemuElfFrameSignatureGolden,
         [string]$QemuElfFrameDumpGolden,
+        [string]$QemuElfFramePpmGate,
         [string]$QemuElfInputTraceGate,
         [string]$QemuElfStorageTraceGate,
         [string]$FirmwareSize,
@@ -2924,6 +2963,11 @@ function Write-Summary {
         Write-BundleLine -Lines $Lines -Text "qemu_elf_domain_summary=$QemuElfDomainSummary"
     } else {
         Write-BundleLine -Lines $Lines -Text "qemu_elf_domain_summary=skipped"
+    }
+    if (-not [string]::IsNullOrWhiteSpace($QemuElfDomainSummaryGolden)) {
+        Write-BundleLine -Lines $Lines -Text "qemu_elf_domain_summary_golden=$QemuElfDomainSummaryGolden"
+    } else {
+        Write-BundleLine -Lines $Lines -Text "qemu_elf_domain_summary_golden=skipped"
     }
     if (-not [string]::IsNullOrWhiteSpace($QemuElfFrameSignatures)) {
         Write-BundleLine -Lines $Lines -Text "qemu_elf_frame_signatures=$QemuElfFrameSignatures"
@@ -2974,6 +3018,7 @@ function Write-Summary {
     } else {
         Write-BundleLine -Lines $Lines -Text "qemu_elf_frame_ppm=skipped"
     }
+    Write-BundleLine -Lines $Lines -Text "qemu_elf_frame_ppm_gate=$QemuElfFramePpmGate"
     Write-QemuElfSummaryLines -Lines $Lines -QemuElfSummary $QemuElfSummary -QemuElfDomainGolden $QemuElfDomainGolden
     Write-BundleLine -Lines $Lines -Text "h747_lab_dev_loader.bin=$FirmwareSize"
     if (-not [string]::IsNullOrWhiteSpace($BoardMatrixLog)) {
@@ -3043,6 +3088,7 @@ $ModuleXSmokeBuild = Get-CmakeBuildDir -SourceDir $ModuleXSmokeSource -BuildName
 $QemuElfScript = Join-Path $RepoRoot "Examples\system\run-resident-elf-qemu-smoke.ps1"
 $QemuElfLog = Join-Path $RepoRoot "Examples\system\resident_elf_qemu_smoke\qemu-ci.log"
 $QemuElfDomainSummary = Join-Path $RepoRoot "Examples\system\resident_elf_qemu_smoke\domain-summary.json"
+$QemuElfDomainSummaryGolden = Join-Path $RepoRoot "Examples\system\resident_elf_qemu_smoke\domain-summary.golden.json"
 $QemuElfFrameSignatures = Join-Path $RepoRoot "Examples\system\resident_elf_qemu_smoke\frame-signatures.json"
 $QemuElfFrameSignaturesGolden = Join-Path $RepoRoot "Examples\system\resident_elf_qemu_smoke\frame-signatures.golden.json"
 $QemuElfFrameDumps = Join-Path $RepoRoot "Examples\system\resident_elf_qemu_smoke\frame-dumps.json"
@@ -3081,6 +3127,7 @@ if ($DryRun) {
         Write-Host "qemu_elf_script=$QemuElfScript"
         Write-Host "qemu_elf_log=$QemuElfLog"
         Write-Host "qemu_elf_domain_summary=$QemuElfDomainSummary"
+        Write-Host "qemu_elf_domain_summary_golden=$QemuElfDomainSummaryGolden"
         Write-Host "qemu_elf_frame_signatures=$QemuElfFrameSignatures"
         Write-Host "qemu_elf_frame_signatures_golden=$QemuElfFrameSignaturesGolden"
         Write-Host "qemu_elf_frame_dumps=$QemuElfFrameDumps"
@@ -3116,6 +3163,7 @@ try {
     $QemuElfStatus = "skipped"
     $QemuElfLogResolved = ""
     $QemuElfDomainSummaryResolved = ""
+    $QemuElfDomainSummaryGoldenResolved = ""
     $QemuElfFrameSignaturesResolved = ""
     $QemuElfFrameSignaturesGoldenResolved = ""
     $QemuElfFrameDumpsResolved = ""
@@ -3129,6 +3177,7 @@ try {
     $QemuElfDomainGolden = "skipped"
     $QemuElfFrameSignatureGolden = "skipped"
     $QemuElfFrameDumpGolden = "skipped"
+    $QemuElfFramePpmGate = "skipped"
     $QemuElfInputTraceGate = "skipped"
     $QemuElfStorageTraceGate = "skipped"
     $QemuElfRunBudgetMatch = "skipped"
@@ -3235,6 +3284,9 @@ try {
         } else {
             throw "qemu_elf_summary_missing: $QemuElfDomainSummary"
         }
+        if (Test-Path -LiteralPath $QemuElfDomainSummaryGolden) {
+            $QemuElfDomainSummaryGoldenResolved = (Resolve-Path -LiteralPath $QemuElfDomainSummaryGolden).Path
+        }
         if (Test-Path -LiteralPath $QemuElfFramePpm) {
             $QemuElfFramePpmResolved = (Resolve-Path -LiteralPath $QemuElfFramePpm).Path
         }
@@ -3271,6 +3323,7 @@ try {
         $QemuElfDomainGolden = Read-QemuElfDomainGoldenStatusFromLines -Lines $Lines
         $QemuElfFrameSignatureGolden = Read-QemuElfFrameSignatureGoldenStatusFromLines -Lines $Lines
         $QemuElfFrameDumpGolden = Read-QemuElfFrameDumpGoldenStatusFromLines -Lines $Lines
+        $QemuElfFramePpmGate = Read-QemuElfFramePpmStatusFromLines -Lines $Lines
         $QemuElfInputTraceGate = Read-QemuElfInputTraceGoldenStatusFromLines -Lines $Lines
         $QemuElfStorageTraceGate = Read-QemuElfStorageTraceGoldenStatusFromLines -Lines $Lines
         Write-BundleLine -Lines $Lines -Text "== resident ELF QEMU summary =="
@@ -3375,6 +3428,7 @@ try {
         -QemuElfRunBudgetMatch $QemuElfRunBudgetMatch `
         -QemuElfLog $QemuElfLogResolved `
         -QemuElfDomainSummary $QemuElfDomainSummaryResolved `
+        -QemuElfDomainSummaryGolden $QemuElfDomainSummaryGoldenResolved `
         -QemuElfFrameSignatures $QemuElfFrameSignaturesResolved `
         -QemuElfFrameSignaturesGolden $QemuElfFrameSignaturesGoldenResolved `
         -QemuElfFrameDumps $QemuElfFrameDumpsResolved `
@@ -3388,6 +3442,7 @@ try {
         -QemuElfDomainGolden $QemuElfDomainGolden `
         -QemuElfFrameSignatureGolden $QemuElfFrameSignatureGolden `
         -QemuElfFrameDumpGolden $QemuElfFrameDumpGolden `
+        -QemuElfFramePpmGate $QemuElfFramePpmGate `
         -QemuElfInputTraceGate $QemuElfInputTraceGate `
         -QemuElfStorageTraceGate $QemuElfStorageTraceGate `
         -FirmwareSize $FirmwareSize `

@@ -14,6 +14,9 @@ param(
     [switch]$QemuElfDoctor,
     [int]$QemuElfTimeoutSec = 15,
     [int]$QemuElfTailLines = 80,
+    [string]$QemuElfEvidenceDir = "",
+    [string]$QemuElfBuildDir = "",
+    [string]$QemuElfAppOutDir = "",
     [switch]$SkipH747Build,
     [switch]$DryRun,
     [switch]$SelfTest
@@ -33,6 +36,38 @@ function Get-DefaultBundleLog {
 
 function Get-DefaultManifest {
     return (Get-CharmResidentDefaultManifestPath)
+}
+
+function Get-QemuElfEvidenceRoot {
+    param(
+        [string]$RepoRoot,
+        [string]$RequestedEvidenceDir
+    )
+
+    $DefaultEvidenceRoot = Join-Path $RepoRoot "Examples\system\resident_elf_qemu_smoke"
+    if ([string]::IsNullOrWhiteSpace($RequestedEvidenceDir)) {
+        return [System.IO.Path]::GetFullPath($DefaultEvidenceRoot)
+    }
+    if ([System.IO.Path]::IsPathRooted($RequestedEvidenceDir)) {
+        return [System.IO.Path]::GetFullPath($RequestedEvidenceDir)
+    }
+    return [System.IO.Path]::GetFullPath((Join-Path $RepoRoot $RequestedEvidenceDir))
+}
+
+function Resolve-QemuElfRoot {
+    param(
+        [string]$RepoRoot,
+        [string]$RequestedPath,
+        [string]$DefaultPath
+    )
+
+    if ([string]::IsNullOrWhiteSpace($RequestedPath)) {
+        return [System.IO.Path]::GetFullPath($DefaultPath)
+    }
+    if ([System.IO.Path]::IsPathRooted($RequestedPath)) {
+        return [System.IO.Path]::GetFullPath($RequestedPath)
+    }
+    return [System.IO.Path]::GetFullPath((Join-Path $RepoRoot $RequestedPath))
 }
 
 function Get-CmakeBuildDir {
@@ -201,9 +236,31 @@ function Invoke-SelfTest {
     if ($QemuElfTailLines -le 0) {
         throw "selftest_failed: QemuElfTailLines must be positive"
     }
+    $ProbeEvidenceDir = Join-Path ([System.IO.Path]::GetTempPath()) "charm_qemu_evidence_selftest"
+    $ProbeBuildDir = Join-Path ([System.IO.Path]::GetTempPath()) "charm_qemu_build_selftest"
+    $ProbeAppOutDir = Join-Path ([System.IO.Path]::GetTempPath()) "charm_qemu_apps_selftest"
+    $ProbeQemuLog = Join-Path $ProbeEvidenceDir "qemu-ci.log"
+    $ProbeQemuDomain = Join-Path $ProbeEvidenceDir "domain-summary.json"
+    if (-not $ProbeQemuLog.EndsWith("charm_qemu_evidence_selftest\qemu-ci.log", [System.StringComparison]::OrdinalIgnoreCase) -or
+        -not $ProbeQemuDomain.EndsWith("charm_qemu_evidence_selftest\domain-summary.json", [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "selftest_failed: QEMU evidence dir path composition failed"
+    }
+    if (-not $ProbeBuildDir.EndsWith("charm_qemu_build_selftest", [System.StringComparison]::OrdinalIgnoreCase) -or
+        -not $ProbeAppOutDir.EndsWith("charm_qemu_apps_selftest", [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "selftest_failed: QEMU build/app output path composition failed"
+    }
     $ScriptText = Get-Content -LiteralPath $PSCommandPath -Raw -Encoding UTF8
     foreach ($RequiredToken in @(
+        "[string]`$QemuElfEvidenceDir",
+        "[string]`$QemuElfBuildDir",
+        "[string]`$QemuElfAppOutDir",
+        "qemu_elf_backend_self_check=",
+        "qemu_elf_backend_reset_self_check=",
         "qemu_elf_backend_readiness=",
+        "qemu_elf_backend_scope=",
+        "qemu_elf_doctor_layout=",
+        "qemu_elf_doctor_scope=",
+        "qemu_elf_scope_match=",
         "qemu_elf_runtime_reset=",
         "qemu_elf_capability_matrix=",
         "qemu_elf_runtime_domain_profile=",
@@ -224,9 +281,23 @@ function Invoke-SelfTest {
         "qemu_elf_storage_trace_gate=",
         "qemu_elf_frame_ppm=",
         "qemu_elf_frame_ppm_gate=",
+        "qemu_elf_gui_contract=",
+        "qemu_elf_storage_contract=",
         "qemu_elf_domain_summary_golden=",
+        "qemu_elf_backend_contract_file=",
+        "derived_from_domain_summary:",
         "qemu_elf_failure_taxonomy=",
+        "qemu_elf_failure_transport=",
+        "qemu_elf_failure_stage=",
+        "qemu_elf_failure_load=",
+        "qemu_elf_failure_runtime=",
         "qemu_elf_run_budget_match=",
+        "qemu_elf_evidence_dir=",
+        "qemu_elf_build_dir=",
+        "qemu_elf_app_out_dir=",
+        '"-EvidenceDir"',
+        '"-BuildDir"',
+        '"-AppOutDir"',
         "qemu_elf_run_budget_mismatch:",
         "-QemuElfRunBudgetMatch `$QemuElfRunBudgetMatch"
     )) {
@@ -234,9 +305,39 @@ function Invoke-SelfTest {
             throw "selftest_failed: evidence bundle script missing token $RequiredToken"
         }
     }
+
+    $QemuWrapperScript = Join-Path $RepoRoot "Examples\system\run-resident-elf-qemu-smoke.ps1"
+    $QemuWrapperSelfTestOutput = & powershell `
+        -NoProfile `
+        -ExecutionPolicy Bypass `
+        -File $QemuWrapperScript `
+        -SelfTest `
+        -TimeoutSec 30 `
+        -TailLines 120 `
+        -EvidenceDir $ProbeEvidenceDir `
+        -BuildDir $ProbeBuildDir `
+        -AppOutDir $ProbeAppOutDir 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw "selftest_failed: QEMU wrapper custom budget selftest failed: $($QemuWrapperSelfTestOutput -join "`n")"
+    }
+    $QemuWrapperSelfTestText = ($QemuWrapperSelfTestOutput -join "`n")
+    foreach ($RequiredWrapperOutput in @(
+        "timeout_sec=30",
+        "tail_lines=120",
+        "[resident-elf-qemu-wrapper] selftest ok"
+    )) {
+        if (-not $QemuWrapperSelfTestText.Contains($RequiredWrapperOutput)) {
+            throw "selftest_failed: QEMU wrapper custom budget selftest missing output $RequiredWrapperOutput"
+        }
+    }
+
     $DoctorLines = New-Object System.Collections.Generic.List[string]
     foreach ($Line in @(
         "resident-elf-qemu doctor:",
+        "  elf_base=0x20080000",
+        "  firmware_elf_load_base=0x20080000",
+        "  backend_scope_proves=elf_loader,app_runtime,charm_app_api,capability_backend,received_image,packetstream,store_v1_semantics",
+        "  backend_scope_does_not_prove=h747_usb_cdc,h747_qspi,h747_emmc,h747_fmc_sdram,h747_hal_init,h747_mpu_cache,h747_pinmux",
         "  qemu_version=QEMU emulator version test",
         "  cmake_version=cmake version test",
         "  cc_version=arm-none-eabi-gcc version test",
@@ -249,12 +350,61 @@ function Invoke-SelfTest {
     if ($DoctorVersions -ne "qemu=QEMU emulator version test;cmake=cmake version test;cc=arm-none-eabi-gcc version test;host=g++ version test") {
         throw "selftest_failed: QEMU doctor version summary is unexpected: $DoctorVersions"
     }
+    $DoctorLayout = Read-QemuElfDoctorLayoutFromLines -Lines $DoctorLines -DoctorStatus "pass"
+    if ($DoctorLayout -ne "elf_base=0x20080000:firmware_elf_load_base=0x20080000") {
+        throw "selftest_failed: QEMU doctor layout summary is unexpected: $DoctorLayout"
+    }
+    $DoctorScope = Read-QemuElfDoctorScopeFromLines -Lines $DoctorLines -DoctorStatus "pass"
+    if ($DoctorScope -ne "proves=elf_loader,app_runtime,charm_app_api,capability_backend,received_image,packetstream,store_v1_semantics:does_not_prove=h747_usb_cdc,h747_qspi,h747_emmc,h747_fmc_sdram,h747_hal_init,h747_mpu_cache,h747_pinmux") {
+        throw "selftest_failed: QEMU doctor scope summary is unexpected: $DoctorScope"
+    }
+    $DoctorScopeSummary = [pscustomobject]@{ BackendScope = $DoctorScope }
+    Assert-QemuElfDoctorScopeMatchesSummary -DoctorStatus "pass" -DoctorScope $DoctorScope -QemuElfSummary $DoctorScopeSummary
+    try {
+        Assert-QemuElfDoctorScopeMatchesSummary `
+            -DoctorStatus "pass" `
+            -DoctorScope ($DoctorScope.Replace("h747_qspi", "h747_qspi_mismatch")) `
+            -QemuElfSummary $DoctorScopeSummary
+        throw "selftest_failed: QEMU doctor/runtime scope mismatch did not fail"
+    } catch {
+        if (-not $_.Exception.Message.StartsWith("qemu_elf_doctor_scope_mismatch:", [System.StringComparison]::Ordinal)) {
+            throw "selftest_failed: QEMU doctor/runtime scope mismatch reported unexpected error: $($_.Exception.Message)"
+        }
+    }
     if ((Read-QemuElfDoctorVersionsFromLines -Lines $DoctorLines -DoctorStatus "skipped") -ne "skipped") {
         throw "selftest_failed: skipped QEMU doctor versions did not return skipped"
+    }
+    if ((Read-QemuElfDoctorLayoutFromLines -Lines $DoctorLines -DoctorStatus "skipped") -ne "skipped") {
+        throw "selftest_failed: skipped QEMU doctor layout did not return skipped"
+    }
+    if ((Read-QemuElfDoctorScopeFromLines -Lines $DoctorLines -DoctorStatus "skipped") -ne "skipped") {
+        throw "selftest_failed: skipped QEMU doctor scope did not return skipped"
+    }
+    $MissingScopeDoctorLines = New-Object System.Collections.Generic.List[string]
+    foreach ($Line in @(
+        "resident-elf-qemu doctor:",
+        "  elf_base=0x20080000",
+        "  firmware_elf_load_base=0x20080000",
+        "  qemu_version=QEMU emulator version test",
+        "  cmake_version=cmake version test",
+        "  cc_version=arm-none-eabi-gcc version test",
+        "  host_compiler_version=g++ version test",
+        "[resident-elf-qemu] doctor ok"
+    )) {
+        [void]$MissingScopeDoctorLines.Add($Line)
+    }
+    try {
+        Read-QemuElfDoctorScopeFromLines -Lines $MissingScopeDoctorLines -DoctorStatus "pass" | Out-Null
+        throw "selftest_failed: missing QEMU doctor scope did not fail"
+    } catch {
+        if (-not $_.Exception.Message.StartsWith("qemu_elf_doctor_invalid:", [System.StringComparison]::Ordinal)) {
+            throw "selftest_failed: missing QEMU doctor scope reported unexpected error: $($_.Exception.Message)"
+        }
     }
     $BadDoctorLines = New-Object System.Collections.Generic.List[string]
     foreach ($Line in @(
         "resident-elf-qemu doctor:",
+        "  elf_base=0x20080000",
         "  qemu_version=QEMU emulator version test",
         "[resident-elf-qemu] doctor ok"
     )) {
@@ -441,6 +591,11 @@ function Invoke-SelfTest {
         cpu = "cortex-m7"
         image_format = "elf"
         app_model = "CharmAppApi"
+        backend_scope = [pscustomobject]@{
+            schema = "charm.resident_elf_qemu.backend_scope.v1"
+            proves = @("elf_loader", "app_runtime", "charm_app_api", "capability_backend", "received_image", "packetstream", "store_v1_semantics")
+            does_not_prove = @("h747_usb_cdc", "h747_qspi", "h747_emmc", "h747_fmc_sdram", "h747_hal_init", "h747_mpu_cache", "h747_pinmux")
+        }
         backend_contract = [pscustomobject]@{
             kind = "virtual"
             runtime_domain = "virtual_m7"
@@ -482,6 +637,25 @@ function Invoke-SelfTest {
                 kind = "notification_counter"
                 overrides_return = $false
             }
+        }
+        backend_self_check = [pscustomobject]@{
+            schema = "charm.resident_elf_qemu.backend_self_check.v1"
+            api = $true
+            display = $true
+            input = $true
+            storage = $true
+            afe = $true
+            app_exit = $true
+            result = "ok"
+        }
+        backend_reset_self_check = [pscustomobject]@{
+            schema = "charm.resident_elf_qemu.backend_reset_self_check.v1"
+            counters = $true
+            display = $true
+            time = $true
+            input = $true
+            storage = $true
+            result = "ok"
         }
         backend_readiness = [pscustomobject]@{
             status = "ready"
@@ -627,7 +801,7 @@ function Invoke-SelfTest {
                 })
         }
         coverage = [pscustomobject]@{
-            runs = 1..87
+            runs = 1..88
             stages = 1..36
             source_matrix = @(
                 (New-SelfTestQemuSourceCase -Name "hello_app" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Received (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Packetstream (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok")),
@@ -680,6 +854,7 @@ function Invoke-SelfTest {
                 (New-SelfTestQemuSourceCase -Name "rwx_segment_app" -Direct (New-SelfTestQemuRun -Stage "load" -Code "load_failed")),
                 (New-SelfTestQemuSourceCase -Name "wrong_link_base_app" -Direct (New-SelfTestQemuRun -Stage "load" -Code "load_failed")),
                 (New-SelfTestQemuSourceCase -Name "too_large_app" -Direct (New-SelfTestQemuRun -Stage "load" -Code "load_failed")),
+                (New-SelfTestQemuSourceCase -Name "unaligned_load_buffer_app" -Direct (New-SelfTestQemuRun -Stage "load" -Code "load_failed")),
                 (New-SelfTestQemuSourceCase -Name "player_min" -Direct (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Received (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Packetstream (New-SelfTestQemuRun -Stage "exit" -Code "ok") -Store (New-SelfTestQemuRun -Stage "exit" -Code "ok"))
             )
             packetstreams = @(
@@ -1105,6 +1280,19 @@ function Invoke-SelfTest {
                     fits = $false
                     region = 65536
                     capacity_probe = "load_buffer_too_small"
+                },
+                [pscustomobject]@{
+                    name = "unaligned_load_buffer_app"
+                    format = "elf"
+                    probe = "load_buffer_unaligned"
+                    entry = "0x00000000"
+                    span = 0
+                    segments = 0
+                    needed = 0
+                    free = 65536
+                    fits = $true
+                    region = 65536
+                    capacity_probe = "load_buffer_unaligned"
                 }
             )
             prepare = [pscustomobject]@{
@@ -1146,6 +1334,7 @@ function Invoke-SelfTest {
                 [pscustomobject]@{ name = "rwx_segment_app"; stage = "load"; code = "load_failed" },
                 [pscustomobject]@{ name = "wrong_link_base_app"; stage = "load"; code = "load_failed" },
                 [pscustomobject]@{ name = "too_large_app"; stage = "load"; code = "load_failed" },
+                [pscustomobject]@{ name = "unaligned_load_buffer_app"; stage = "load"; code = "load_failed" },
                 [pscustomobject]@{ name = "argv_overflow_app"; stage = "argv"; code = "argv_overflow" },
                 [pscustomobject]@{ name = "abi_mismatch_app"; stage = "abi"; code = "abi_mismatch" }
             )
@@ -1193,18 +1382,18 @@ function Invoke-SelfTest {
         -NotePropertyName "failure_taxonomy" `
         -NotePropertyValue ([pscustomobject]@{
             schema = "charm.resident_elf_qemu.failure_taxonomy.v1"
-            total = 24
+            total = 25
             categories = @(
                 [pscustomobject]@{ category = "transport"; count = 1; stages = @("packetstream_verify") },
                 [pscustomobject]@{ category = "stage"; count = 2; stages = @("received_stage", "store_stage") },
-                [pscustomobject]@{ category = "load"; count = 19; stages = @("load") },
+                [pscustomobject]@{ category = "load"; count = 20; stages = @("load") },
                 [pscustomobject]@{ category = "runtime"; count = 2; stages = @("argv", "abi") }
             )
             stages = @(
                 [pscustomobject]@{ stage = "packetstream_verify"; category = "transport"; count = 1; codes = @("crc_mismatch"); cases = @("packetstream_crc_mismatch") },
                 [pscustomobject]@{ stage = "received_stage"; category = "stage"; count = 1; codes = @("buffer_too_small"); cases = @("received_too_large_app") },
                 [pscustomobject]@{ stage = "store_stage"; category = "stage"; count = 1; codes = @("image_too_large"); cases = @("too_large_store_app") },
-                [pscustomobject]@{ stage = "load"; category = "load"; count = 19; codes = @("load_failed"); cases = @(
+                [pscustomobject]@{ stage = "load"; category = "load"; count = 20; codes = @("load_failed"); cases = @(
                         "bad_elf_magic_app",
                         "packetstream_bad_elf_magic_app",
                         "bad_header_app",
@@ -1223,7 +1412,8 @@ function Invoke-SelfTest {
                         "overlapping_segments_app",
                         "rwx_segment_app",
                         "wrong_link_base_app",
-                        "too_large_app"
+                        "too_large_app",
+                        "unaligned_load_buffer_app"
                     ) },
                 [pscustomobject]@{ stage = "argv"; category = "runtime"; count = 1; codes = @("argv_overflow"); cases = @("argv_overflow_app") },
                 [pscustomobject]@{ stage = "abi"; category = "runtime"; count = 1; codes = @("abi_mismatch"); cases = @("abi_mismatch_app") }
@@ -1302,35 +1492,50 @@ function Invoke-SelfTest {
         if ($ParsedQemu.Domain -ne "virtual_m7" -or
             $ParsedQemu.AppModel -ne "format=elf:model=CharmAppApi" -or
             $ParsedQemu.Backend -ne "virtual:virtual_m7:console,time,display,input,storage,app_exit:storage=readonly:afe=unsupported" -or
+            $ParsedQemu.BackendScope -ne "proves=elf_loader,app_runtime,charm_app_api,capability_backend,received_image,packetstream,store_v1_semantics:does_not_prove=h747_usb_cdc,h747_qspi,h747_emmc,h747_fmc_sdram,h747_hal_init,h747_mpu_cache,h747_pinmux" -or
             $ParsedQemu.BackendReadiness -ne "status=ready:elf_loader=1:app_runtime=1:received=1:packetstream=1:store=1:equivalent_sources=1:gui=1:storage=1:input=1:unsupported=1:runtime_reset=1" -or
             $ParsedQemu.RuntimeResetDeterminism -ne "status=ok:run_region=1:caps=1:time=1:input=1:display=1:storage_fd=1:bss=1:data=1:sources=1:runs=24" -or
             $ParsedQemu.BackendCapabilityMatrix.IndexOf("storage=virtual_readonly_files:files=3:fd=3+4:write=unsupported:evidence=storage_trace,capability_counters:runs=storage_app,storage_catalog_app,storage_fd_exhaustion_app,storage_write_error_app", [System.StringComparison]::Ordinal) -lt 0 -or
             $ParsedQemu.RuntimeDomainProfile -ne "virtual_m7:mps2-an500/cortex-m7:kind=virtual_board:proves=elf_loader,app_runtime,charm_app_api,capability_backend,received_image,packetstream,store_v1_semantics:does_not_prove=h747_usb_cdc,h747_qspi,h747_emmc,h747_fmc_sdram,h747_hal_init,h747_mpu_cache,h747_pinmux:run=0x20080000+65536:stage=16384:store=memory:caps=console,time,display,input,storage,app_exit:storage=readonly:afe=unsupported" -or
             $ParsedQemu.RunEvidenceMatrix.IndexOf("packetstream:hello_app=packetstream:hello_app:launch_ready/ok:load=ok:run=exit/ok", [System.StringComparison]::Ordinal) -lt 0 -or
             $ParsedQemu.RunEvidenceMatrix.IndexOf("too_large_app=direct:too_large_app:image/ok:load=load_buffer_too_small:run=load/load_failed", [System.StringComparison]::Ordinal) -lt 0 -or
+            $ParsedQemu.RunEvidenceMatrix.IndexOf("unaligned_load_buffer_app=direct:unaligned_load_buffer_app:image/ok:load=load_buffer_unaligned:run=load/load_failed", [System.StringComparison]::Ordinal) -lt 0 -or
             $ParsedQemu.BackendContract -ne "time=deterministic_tick:1000+17:reset=1;display=framebuffer:16x16:argb8888:stride=64:frame=1024:evidence=frame_signatures,frame_dumps,frame_ppm,gui_timeline;input=deterministic_sequence:samples=4:max=15,15:wraps=1:evidence=input_trace,gui_timeline;storage=virtual_readonly_files:files=3:fd=3+4:write=unsupported:evidence=storage_trace;app_exit=notification_counter:overrides_return=0" -or
             $ParsedQemu.RunBudget -ne "timeout_sec=15:tail_lines=80" -or
             $ParsedQemu.Memory -ne "run_base=0x20080000:run_size=65536:stage_cache=16384:packetstream=16384/2048/32768/16384" -or
             $ParsedQemu.Store -ne "store_v1:entries=31:bytes=173184:media=memory:reads=589:read_bytes=175332:failures=0" -or
             $ParsedQemu.Display -ne "16x16:argb8888:stride=64:frame=1024" -or
             $ParsedQemu.Evidence -ne "frames=8/6:dumps=8/6:ppm=8/6:input=24/8:storage=130/18" -or
+            $ParsedQemu.GuiContract -ne "display=16x16:argb8888:stride=64:frame=1024:evidence=frame_signatures,frame_dumps,frame_ppm,gui_timeline;input=deterministic_sequence:samples=4:max=15,15:wraps=1:evidence=input_trace,gui_timeline;frames=8/6:dumps=8/6:ppm=8/6:input_trace=24/8:timeline=4" -or
+            $ParsedQemu.StorageContract -ne "virtual_readonly_files:files=3:fd=3+4:write=unsupported:evidence=storage_trace:events=130:runs=18:reads=589:read_bytes=175332:failures=0" -or
             $ParsedQemu.Capacity -ne "large_fit=61696/65536:free=3840:fits=1:probe=ok;too_large=82176/65536:free=0:fits=0:probe=load_buffer_too_small" -or
             $ParsedQemu.Loads.IndexOf("wrong_link_base_app=entry:0x20080021:span:270:segments:2:fits:1:probe:ok", [System.StringComparison]::Ordinal) -lt 0 -or
+            $ParsedQemu.Loads.IndexOf("unaligned_load_buffer_app=entry:0x00000000:span:0:segments:0:fits:1:probe:load_buffer_unaligned", [System.StringComparison]::Ordinal) -lt 0 -or
             $ParsedQemu.Packetstreams -ne "hello_app=payload:5132:stream:5776:packets:23:crc:0xb3b7bcc5;large_fit_app=payload:5168:stream:5840:packets:24:crc:0xdffdfba1;packetstream_bad_elf_magic_app=payload:64:stream:176:packets:4:crc:0xbd40f3c7;player_min=payload:5168:stream:5840:packets:24:crc:0xba5eb94a;packetstream_crc_mismatch=stage:failed/crc_mismatch:dispatch:22/23:crc:0x7d9c7647->0xb3b7bcc5:read:0:stage_bytes:0" -or
-            $ParsedQemu.FailureTaxonomy -ne "total=24:categories=transport=1,stage=2,load=19,runtime=2:stages=packetstream_verify=transport/1,received_stage=stage/1,store_stage=stage/1,load=load/19,argv=runtime/1,abi=runtime/1" -or
+            $ParsedQemu.FailureTaxonomy -ne "total=25:categories=transport=1,stage=2,load=20,runtime=2:stages=packetstream_verify=transport/1,received_stage=stage/1,store_stage=stage/1,load=load/20,argv=runtime/1,abi=runtime/1" -or
+            $ParsedQemu.FailureTransport -ne "count=1:stages=packetstream_verify=1:codes=crc_mismatch:cases=packetstream_crc_mismatch" -or
+            $ParsedQemu.FailureStage -ne "count=2:stages=received_stage=1,store_stage=1:codes=buffer_too_small,image_too_large:cases=received_too_large_app,too_large_store_app" -or
+            $ParsedQemu.FailureLoad -ne "count=20:stages=load=20:codes=load_failed:cases=bad_elf_magic_app,packetstream_bad_elf_magic_app,bad_header_app,bad_class_app,bad_endian_app,bad_ident_version_app,bad_type_app,bad_machine_app,bad_version_app,bad_ehsize_app,bad_phentsize_app,bad_program_header_app,truncated_payload_app,no_load_segment_app,entry_outside_segment_app,overlapping_segments_app,rwx_segment_app,wrong_link_base_app,too_large_app,unaligned_load_buffer_app" -or
+            $ParsedQemu.FailureRuntime -ne "count=2:stages=argv=1,abi=1:codes=argv_overflow,abi_mismatch:cases=argv_overflow_app,abi_mismatch_app" -or
             $ParsedQemu.LinkBase -ne "expected=0x20080000;hello_app=link:0x20080000:entry_vaddr:0x20080021:base_match:1;large_fit_app=link:0x20080000:entry_vaddr:0x20080019:base_match:1;packetstream:player_min=link:0x20080000:entry_vaddr:0x20080001:base_match:1;wrong_link_base_app=link:0x20081000:entry_vaddr:0x20081021:base_match:0:source:load/load_failed" -or
             $ParsedQemu.EquivalentSources -ne "hello_app=direct,received,packetstream,store:entry:0x20080021:span:270:segments:2:fits:1:probe:ok;large_fit_app=direct,received,packetstream,store:entry:0x20080019:span:61696:segments:3:fits:1:probe:ok;player_min=direct,received,packetstream,store:entry:0x20080001:span:1280:segments:3:fits:1:probe:ok" -or
             $ParsedQemu.Sources.IndexOf("wrong_link_base_app:direct=load/load_failed", [System.StringComparison]::Ordinal) -lt 0 -or
+            $ParsedQemu.Sources.IndexOf("unaligned_load_buffer_app:direct=load/load_failed", [System.StringComparison]::Ordinal) -lt 0 -or
             $DomainGolden -ne "ok" -or
             $FrameSignatureGolden -ne "ok" -or
             $FrameDumpGolden -ne "ok" -or
             $FramePpmGate -ne "ok" -or
             $InputTraceGolden -ne "ok" -or
             $StorageTraceGolden -ne "ok" -or
-            $ParsedQemu.Coverage -ne "runs=87:stages=36:loads=32:packetstreams=5:source_matrix=51:gui_timeline=4:prepare=1:capabilities=7:negative_cases=24" -or
+            $ParsedQemu.Coverage -ne "runs=88:stages=36:loads=33:packetstreams=5:source_matrix=52:gui_timeline=4:prepare=1:capabilities=7:negative_cases=25" -or
             $ParsedQemu.GuiTimeline -ne 4 -or
             $ParsedQemu.PlayerMin.IndexOf("packetstream:player_min:frames=1,inputs=1", [System.StringComparison]::Ordinal) -lt 0) {
-            throw "selftest_failed: qemu summary parse result is unexpected"
+            throw ("selftest_failed: qemu summary parse result is unexpected: failure_taxonomy={0}; coverage={1}; run_evidence_has_unaligned={2}; loads_has_unaligned={3}; sources_has_unaligned={4}" -f `
+                $ParsedQemu.FailureTaxonomy, `
+                $ParsedQemu.Coverage, `
+                ($ParsedQemu.RunEvidenceMatrix.IndexOf("unaligned_load_buffer_app", [System.StringComparison]::Ordinal) -ge 0), `
+                ($ParsedQemu.Loads.IndexOf("unaligned_load_buffer_app", [System.StringComparison]::Ordinal) -ge 0), `
+                ($ParsedQemu.Sources.IndexOf("unaligned_load_buffer_app", [System.StringComparison]::Ordinal) -ge 0))
         }
         function Test-BadQemuSummary {
             param(
@@ -1353,8 +1558,12 @@ function Invoke-SelfTest {
 
         Test-BadQemuSummary -Label "schema" -Mutate { param($Summary) $Summary.schema = "bad" }
         Test-BadQemuSummary -Label "app_model" -Mutate { param($Summary) $Summary.app_model = "RawJump" }
+        Test-BadQemuSummary -Label "backend_scope" -Mutate { param($Summary) $Summary.backend_scope.does_not_prove = @($Summary.backend_scope.does_not_prove | Where-Object { $_ -ne "h747_qspi" }) }
+        Test-BadQemuSummary -Label "backend_scope_profile_mismatch" -Mutate { param($Summary) $Values = @($Summary.runtime_domain_profile.proves); [array]::Reverse($Values); $Summary.runtime_domain_profile.proves = $Values }
         Test-BadQemuSummary -Label "backend_contract" -Mutate { param($Summary) $Summary.backend_contract.storage = "writeable" }
         Test-BadQemuSummary -Label "backend_contract_time" -Mutate { param($Summary) $Summary.backend_contract.time.step_ms = 16 }
+        Test-BadQemuSummary -Label "backend_self_check" -Mutate { param($Summary) $Summary.backend_self_check.storage = $false }
+        Test-BadQemuSummary -Label "backend_reset_self_check" -Mutate { param($Summary) $Summary.backend_reset_self_check.time = $false }
         Test-BadQemuSummary -Label "backend_readiness" -Mutate { param($Summary) $Summary.backend_readiness.gui = $false }
         Test-BadQemuSummary -Label "backend_readiness_runtime_reset" -Mutate { param($Summary) $Summary.backend_readiness.runtime_reset = $false }
         Test-BadQemuSummary -Label "runtime_reset_determinism_time" -Mutate { param($Summary) $Summary.runtime_reset_determinism.time_reset = $false }
@@ -1750,7 +1959,8 @@ function Assert-QemuElfRunEvidenceMatrix {
             [pscustomobject]@{ name = "bad_elf_magic_app"; source = "direct"; app = "bad_elf_magic_app"; source_stage = "image"; source_code = "ok"; probe = "bad_magic"; run_stage = "load"; run_code = "load_failed"; ready = $false; fits = $true },
             [pscustomobject]@{ name = "packetstream:packetstream_bad_elf_magic_app"; source = "packetstream"; app = "packetstream_bad_elf_magic_app"; source_stage = "launch_ready"; source_code = "ok"; probe = "bad_magic"; run_stage = "load"; run_code = "load_failed"; ready = $false; fits = $true },
             [pscustomobject]@{ name = "wrong_link_base_app"; source = "direct"; app = "wrong_link_base_app"; source_stage = "image"; source_code = "ok"; probe = "ok"; run_stage = "load"; run_code = "load_failed"; ready = $false; fits = $true },
-            [pscustomobject]@{ name = "too_large_app"; source = "direct"; app = "too_large_app"; source_stage = "image"; source_code = "ok"; probe = "load_buffer_too_small"; run_stage = "load"; run_code = "load_failed"; ready = $false; fits = $false }
+            [pscustomobject]@{ name = "too_large_app"; source = "direct"; app = "too_large_app"; source_stage = "image"; source_code = "ok"; probe = "load_buffer_too_small"; run_stage = "load"; run_code = "load_failed"; ready = $false; fits = $false },
+            [pscustomobject]@{ name = "unaligned_load_buffer_app"; source = "direct"; app = "unaligned_load_buffer_app"; source_stage = "image"; source_code = "ok"; probe = "load_buffer_unaligned"; run_stage = "load"; run_code = "load_failed"; ready = $false; fits = $true }
         )) {
         $Parts += (Assert-QemuElfRunEvidence `
                 -Entry (Get-QemuElfRunEvidenceCase -Matrix $Matrix -Name $Expected.name) `
@@ -1950,6 +2160,73 @@ function Read-QemuElfDoctorVersionsFromLines {
         (Read-QemuElfDoctorVersionValue -Text $Text -Name "host_compiler_version"))
 }
 
+function Read-QemuElfDoctorLayoutFromLines {
+    param(
+        [System.Collections.Generic.List[string]]$Lines,
+        [string]$DoctorStatus
+    )
+
+    if ($DoctorStatus -eq "skipped") {
+        return "skipped"
+    }
+    $Text = [string]::Join("`n", $Lines)
+    if ($Text.IndexOf("resident-elf-qemu doctor:", [System.StringComparison]::Ordinal) -lt 0 -or
+        $Text.IndexOf("[resident-elf-qemu] doctor ok", [System.StringComparison]::Ordinal) -lt 0) {
+        throw "qemu_elf_doctor_invalid: missing doctor success block"
+    }
+
+    $ElfBase = Read-QemuElfDoctorVersionValue -Text $Text -Name "elf_base"
+    $FirmwareElfLoadBase = Read-QemuElfDoctorVersionValue -Text $Text -Name "firmware_elf_load_base"
+    if ($ElfBase -ne "0x20080000" -or $FirmwareElfLoadBase -ne "0x20080000") {
+        throw "qemu_elf_doctor_invalid: bad QEMU ELF domain layout elf_base=$ElfBase firmware_elf_load_base=$FirmwareElfLoadBase"
+    }
+    return ("elf_base={0}:firmware_elf_load_base={1}" -f $ElfBase, $FirmwareElfLoadBase)
+}
+
+function Read-QemuElfDoctorScopeFromLines {
+    param(
+        [System.Collections.Generic.List[string]]$Lines,
+        [string]$DoctorStatus
+    )
+
+    if ($DoctorStatus -eq "skipped") {
+        return "skipped"
+    }
+    $Text = [string]::Join("`n", $Lines)
+    if ($Text.IndexOf("resident-elf-qemu doctor:", [System.StringComparison]::Ordinal) -lt 0 -or
+        $Text.IndexOf("[resident-elf-qemu] doctor ok", [System.StringComparison]::Ordinal) -lt 0) {
+        throw "qemu_elf_doctor_invalid: missing doctor success block"
+    }
+
+    $Proves = Read-QemuElfDoctorVersionValue -Text $Text -Name "backend_scope_proves"
+    $DoesNotProve = Read-QemuElfDoctorVersionValue -Text $Text -Name "backend_scope_does_not_prove"
+    $ExpectedProves = "elf_loader,app_runtime,charm_app_api,capability_backend,received_image,packetstream,store_v1_semantics"
+    $ExpectedDoesNotProve = "h747_usb_cdc,h747_qspi,h747_emmc,h747_fmc_sdram,h747_hal_init,h747_mpu_cache,h747_pinmux"
+    if ($Proves -ne $ExpectedProves -or $DoesNotProve -ne $ExpectedDoesNotProve) {
+        throw "qemu_elf_doctor_invalid: bad QEMU backend scope proves=$Proves does_not_prove=$DoesNotProve"
+    }
+
+    return ("proves={0}:does_not_prove={1}" -f $Proves, $DoesNotProve)
+}
+
+function Assert-QemuElfDoctorScopeMatchesSummary {
+    param(
+        [string]$DoctorStatus,
+        [string]$DoctorScope,
+        [object]$QemuElfSummary
+    )
+
+    if ($DoctorStatus -eq "skipped" -or $DoctorScope -eq "skipped" -or $null -eq $QemuElfSummary) {
+        return
+    }
+    if ([string]::IsNullOrWhiteSpace($DoctorScope)) {
+        throw "qemu_elf_doctor_scope_mismatch: missing doctor scope"
+    }
+    if ($QemuElfSummary.BackendScope -ne $DoctorScope) {
+        throw "qemu_elf_doctor_scope_mismatch: doctor=$DoctorScope evidence=$($QemuElfSummary.BackendScope)"
+    }
+}
+
 function ConvertTo-QemuElfBoolToken {
     param([object]$Value)
 
@@ -1957,6 +2234,61 @@ function ConvertTo-QemuElfBoolToken {
         return "1"
     }
     return "0"
+}
+
+function Assert-QemuElfBackendSelfCheck {
+    param([object]$SelfCheck)
+
+    if ($null -eq $SelfCheck) {
+        throw "qemu_elf_summary_invalid: missing backend self-check"
+    }
+    if ($SelfCheck.schema -ne "charm.resident_elf_qemu.backend_self_check.v1") {
+        throw "qemu_elf_summary_invalid: bad backend self-check schema"
+    }
+    foreach ($Field in @("api", "display", "input", "storage", "afe", "app_exit")) {
+        if (-not [bool]$SelfCheck.$Field) {
+            throw "qemu_elf_summary_invalid: backend self-check $Field failed"
+        }
+    }
+    if ($SelfCheck.result -ne "ok") {
+        throw "qemu_elf_summary_invalid: backend self-check result=$($SelfCheck.result)"
+    }
+
+    return ("api={0}:display={1}:input={2}:storage={3}:afe={4}:app_exit={5}:result={6}" -f `
+        (ConvertTo-QemuElfBoolToken $SelfCheck.api), `
+        (ConvertTo-QemuElfBoolToken $SelfCheck.display), `
+        (ConvertTo-QemuElfBoolToken $SelfCheck.input), `
+        (ConvertTo-QemuElfBoolToken $SelfCheck.storage), `
+        (ConvertTo-QemuElfBoolToken $SelfCheck.afe), `
+        (ConvertTo-QemuElfBoolToken $SelfCheck.app_exit), `
+        ([string]$SelfCheck.result))
+}
+
+function Assert-QemuElfBackendResetSelfCheck {
+    param([object]$SelfCheck)
+
+    if ($null -eq $SelfCheck) {
+        throw "qemu_elf_summary_invalid: missing backend reset self-check"
+    }
+    if ($SelfCheck.schema -ne "charm.resident_elf_qemu.backend_reset_self_check.v1") {
+        throw "qemu_elf_summary_invalid: bad backend reset self-check schema"
+    }
+    foreach ($Field in @("counters", "display", "time", "input", "storage")) {
+        if (-not [bool]$SelfCheck.$Field) {
+            throw "qemu_elf_summary_invalid: backend reset self-check $Field failed"
+        }
+    }
+    if ($SelfCheck.result -ne "ok") {
+        throw "qemu_elf_summary_invalid: backend reset self-check result=$($SelfCheck.result)"
+    }
+
+    return ("counters={0}:display={1}:time={2}:input={3}:storage={4}:result={5}" -f `
+        (ConvertTo-QemuElfBoolToken $SelfCheck.counters), `
+        (ConvertTo-QemuElfBoolToken $SelfCheck.display), `
+        (ConvertTo-QemuElfBoolToken $SelfCheck.time), `
+        (ConvertTo-QemuElfBoolToken $SelfCheck.input), `
+        (ConvertTo-QemuElfBoolToken $SelfCheck.storage), `
+        ([string]$SelfCheck.result))
 }
 
 function Assert-QemuElfBackendReadiness {
@@ -2193,10 +2525,45 @@ function Assert-QemuElfCapabilityMatrix {
     return ($Parts -join ";")
 }
 
+function Assert-QemuElfBackendScope {
+    param([object]$Scope)
+
+    if ($null -eq $Scope -or $Scope.schema -ne "charm.resident_elf_qemu.backend_scope.v1") {
+        throw "qemu_elf_summary_invalid: bad backend scope schema"
+    }
+
+    $ExpectedProves = @("elf_loader", "app_runtime", "charm_app_api", "capability_backend", "received_image", "packetstream", "store_v1_semantics")
+    $Proves = @($Scope.proves)
+    foreach ($Item in $ExpectedProves) {
+        if (-not ($Proves -contains $Item)) {
+            throw "qemu_elf_summary_invalid: backend scope proves missing $Item"
+        }
+    }
+    if ($Proves.Count -ne $ExpectedProves.Count) {
+        throw "qemu_elf_summary_invalid: backend scope proves count=$($Proves.Count)"
+    }
+
+    $ExpectedDoesNotProve = @("h747_usb_cdc", "h747_qspi", "h747_emmc", "h747_fmc_sdram", "h747_hal_init", "h747_mpu_cache", "h747_pinmux")
+    $DoesNotProve = @($Scope.does_not_prove)
+    foreach ($Item in $ExpectedDoesNotProve) {
+        if (-not ($DoesNotProve -contains $Item)) {
+            throw "qemu_elf_summary_invalid: backend scope does_not_prove missing $Item"
+        }
+    }
+    if ($DoesNotProve.Count -ne $ExpectedDoesNotProve.Count) {
+        throw "qemu_elf_summary_invalid: backend scope does_not_prove count=$($DoesNotProve.Count)"
+    }
+
+    return ("proves={0}:does_not_prove={1}" -f `
+        ($Proves -join ","), `
+        ($DoesNotProve -join ","))
+}
+
 function Assert-QemuElfRuntimeDomainProfile {
     param(
         [object]$Profile,
-        [object]$BackendContract
+        [object]$BackendContract,
+        [object]$BackendScope
     )
 
     if ($null -eq $Profile -or $Profile.schema -ne "charm.resident_elf_qemu.runtime_domain_profile.v1") {
@@ -2251,6 +2618,14 @@ function Assert-QemuElfRuntimeDomainProfile {
     foreach ($Capability in $BackendCapabilities) {
         if (-not ($ProfileCapabilities -contains $Capability)) {
             throw "qemu_elf_summary_invalid: runtime domain profile capability missing $Capability"
+        }
+    }
+    if ($null -ne $BackendScope) {
+        $ScopeProves = @($BackendScope.proves)
+        $ScopeDoesNotProve = @($BackendScope.does_not_prove)
+        if (($Proves -join ",") -ne ($ScopeProves -join ",") -or
+            ($DoesNotProve -join ",") -ne ($ScopeDoesNotProve -join ",")) {
+            throw "qemu_elf_summary_invalid: runtime domain profile must mirror backend_scope"
         }
     }
 
@@ -2353,7 +2728,7 @@ function Assert-QemuElfFailureTaxonomy {
     if ($null -eq $Taxonomy -or $Taxonomy.schema -ne "charm.resident_elf_qemu.failure_taxonomy.v1") {
         throw "qemu_elf_summary_invalid: bad failure taxonomy schema"
     }
-    if ([int]$Taxonomy.total -ne @($NegativeCases).Count -or [int]$Taxonomy.total -ne 24) {
+    if ([int]$Taxonomy.total -ne @($NegativeCases).Count -or [int]$Taxonomy.total -ne 25) {
         throw "qemu_elf_summary_invalid: bad failure taxonomy total"
     }
 
@@ -2365,12 +2740,12 @@ function Assert-QemuElfFailureTaxonomy {
 
     Assert-QemuElfFailureTaxonomyCategory -Categories $Categories -Category "transport" -Count 1 -Stages @("packetstream_verify")
     Assert-QemuElfFailureTaxonomyCategory -Categories $Categories -Category "stage" -Count 2 -Stages @("received_stage", "store_stage")
-    Assert-QemuElfFailureTaxonomyCategory -Categories $Categories -Category "load" -Count 19 -Stages @("load")
+    Assert-QemuElfFailureTaxonomyCategory -Categories $Categories -Category "load" -Count 20 -Stages @("load")
     Assert-QemuElfFailureTaxonomyCategory -Categories $Categories -Category "runtime" -Count 2 -Stages @("argv", "abi")
     Assert-QemuElfFailureTaxonomyStage -Stages $Stages -Stage "packetstream_verify" -Category "transport" -Count 1 -Codes @("crc_mismatch") -Cases @("packetstream_crc_mismatch")
     Assert-QemuElfFailureTaxonomyStage -Stages $Stages -Stage "received_stage" -Category "stage" -Count 1 -Codes @("buffer_too_small") -Cases @("received_too_large_app")
     Assert-QemuElfFailureTaxonomyStage -Stages $Stages -Stage "store_stage" -Category "stage" -Count 1 -Codes @("image_too_large") -Cases @("too_large_store_app")
-    Assert-QemuElfFailureTaxonomyStage -Stages $Stages -Stage "load" -Category "load" -Count 19 -Codes @("load_failed") -Cases @(
+    Assert-QemuElfFailureTaxonomyStage -Stages $Stages -Stage "load" -Category "load" -Count 20 -Codes @("load_failed") -Cases @(
         "bad_elf_magic_app",
         "packetstream_bad_elf_magic_app",
         "bad_header_app",
@@ -2389,7 +2764,8 @@ function Assert-QemuElfFailureTaxonomy {
         "overlapping_segments_app",
         "rwx_segment_app",
         "wrong_link_base_app",
-        "too_large_app"
+        "too_large_app",
+        "unaligned_load_buffer_app"
     )
     Assert-QemuElfFailureTaxonomyStage -Stages $Stages -Stage "argv" -Category "runtime" -Count 1 -Codes @("argv_overflow") -Cases @("argv_overflow_app")
     Assert-QemuElfFailureTaxonomyStage -Stages $Stages -Stage "abi" -Category "runtime" -Count 1 -Codes @("abi_mismatch") -Cases @("abi_mismatch_app")
@@ -2408,6 +2784,48 @@ function Assert-QemuElfFailureTaxonomy {
         ([int]$Taxonomy.total), `
         ($CategorySummary -join ","), `
         ($StageSummary -join ","))
+}
+
+function Get-QemuElfFailureCategorySummary {
+    param(
+        [object]$Taxonomy,
+        [string]$Category
+    )
+
+    $Categories = @($Taxonomy.categories)
+    $Stages = @($Taxonomy.stages)
+    $CategoryMatches = @($Categories | Where-Object { $_.category -eq $Category })
+    if ($CategoryMatches.Count -ne 1) {
+        throw "qemu_elf_summary_invalid: failure taxonomy missing or duplicate category $Category"
+    }
+    $CategoryEntry = $CategoryMatches[0]
+    $StageNames = @($CategoryEntry.stages)
+    $StageParts = @()
+    $Codes = @()
+    $Cases = @()
+    foreach ($StageName in $StageNames) {
+        $Stage = Get-QemuElfFailureTaxonomyStage -Stages $Stages -Stage ([string]$StageName)
+        if ($Stage.category -ne $Category) {
+            throw "qemu_elf_summary_invalid: failure taxonomy category $Category stage $StageName has category $($Stage.category)"
+        }
+        $StageParts += ("{0}={1}" -f ([string]$Stage.stage), ([int]$Stage.count))
+        foreach ($Code in @($Stage.codes)) {
+            if (-not ($Codes -contains ([string]$Code))) {
+                $Codes += ([string]$Code)
+            }
+        }
+        foreach ($Case in @($Stage.cases)) {
+            if (-not ($Cases -contains ([string]$Case))) {
+                $Cases += ([string]$Case)
+            }
+        }
+    }
+
+    return ("count={0}:stages={1}:codes={2}:cases={3}" -f `
+        ([int]$CategoryEntry.count), `
+        ($StageParts -join ","), `
+        ($Codes -join ","), `
+        ($Cases -join ","))
 }
 
 function Read-QemuElfDomainSummary {
@@ -2485,12 +2903,16 @@ function Read-QemuElfDomainSummary {
         [bool]$Summary.backend_contract.app_exit.overrides_return) {
         throw "qemu_elf_summary_invalid: bad app_exit backend_contract"
     }
+    $BackendSelfCheck = Assert-QemuElfBackendSelfCheck -SelfCheck $Summary.backend_self_check
+    $BackendResetSelfCheck = Assert-QemuElfBackendResetSelfCheck -SelfCheck $Summary.backend_reset_self_check
     $BackendReadiness = Assert-QemuElfBackendReadiness -Readiness $Summary.backend_readiness
     $RuntimeResetDeterminism = Assert-QemuElfRuntimeResetDeterminism -Reset $Summary.runtime_reset_determinism
     $BackendCapabilityMatrix = Assert-QemuElfCapabilityMatrix -Matrix @($Summary.backend_capability_matrix)
+    $BackendScope = Assert-QemuElfBackendScope -Scope $Summary.backend_scope
     $RuntimeDomainProfile = Assert-QemuElfRuntimeDomainProfile `
         -Profile $Summary.runtime_domain_profile `
-        -BackendContract $Summary.backend_contract
+        -BackendContract $Summary.backend_contract `
+        -BackendScope $Summary.backend_scope
     if ($Summary.run_region.base -ne "0x20080000" -or
         $Summary.run_region.expected -ne "0x20080000" -or
         [int]$Summary.run_region.size -ne 65536) {
@@ -2662,7 +3084,8 @@ function Read-QemuElfDomainSummary {
             [pscustomobject]@{ name = "overlapping_segments_app"; probe = "overlapping_segments"; entry = "0x00000000"; span = 0; segments = 0; fits = $true },
             [pscustomobject]@{ name = "rwx_segment_app"; probe = "rwx_segment"; entry = "0x00000000"; span = 0; segments = 0; fits = $true },
             [pscustomobject]@{ name = "wrong_link_base_app"; probe = "ok"; entry = "0x20080021"; span = 270; segments = 2; fits = $true },
-            [pscustomobject]@{ name = "too_large_app"; probe = "load_buffer_too_small"; entry = "0x00000000"; span = 82176; segments = 2; fits = $false }
+            [pscustomobject]@{ name = "too_large_app"; probe = "load_buffer_too_small"; entry = "0x00000000"; span = 82176; segments = 2; fits = $false },
+            [pscustomobject]@{ name = "unaligned_load_buffer_app"; probe = "load_buffer_unaligned"; entry = "0x00000000"; span = 0; segments = 0; fits = $true }
         )) {
         $Load = Get-QemuElfLoadCase -Loads @($Summary.coverage.loads) -Name $Expected.name
         $LoadSummaryParts += (Assert-QemuElfLoadSummary `
@@ -2749,7 +3172,7 @@ function Read-QemuElfDomainSummary {
         ([int]$CrcMismatch.read_bytes), `
         ([int]$CrcMismatch.app_stage_bytes))
     $SourceMatrix = @($Summary.coverage.source_matrix)
-    if ($SourceMatrix.Count -ne 51) {
+    if ($SourceMatrix.Count -ne 52) {
         throw "qemu_elf_summary_invalid: bad source matrix count"
     }
     $CoverageStages = @($Summary.coverage.stages).Count
@@ -2759,12 +3182,16 @@ function Read-QemuElfDomainSummary {
     if ($CoverageStages -ne 36 -or
         $CoveragePrepare -ne 1 -or
         $CoverageCapabilities -ne 7 -or
-        $CoverageNegativeCases -ne 24) {
+        $CoverageNegativeCases -ne 25) {
         throw "qemu_elf_summary_invalid: bad coverage counts"
     }
     $FailureTaxonomySummary = Assert-QemuElfFailureTaxonomy `
         -Taxonomy $Summary.failure_taxonomy `
         -NegativeCases @($Summary.coverage.negative_cases)
+    $FailureTransportSummary = Get-QemuElfFailureCategorySummary -Taxonomy $Summary.failure_taxonomy -Category "transport"
+    $FailureStageSummary = Get-QemuElfFailureCategorySummary -Taxonomy $Summary.failure_taxonomy -Category "stage"
+    $FailureLoadSummary = Get-QemuElfFailureCategorySummary -Taxonomy $Summary.failure_taxonomy -Category "load"
+    $FailureRuntimeSummary = Get-QemuElfFailureCategorySummary -Taxonomy $Summary.failure_taxonomy -Category "runtime"
     $SourceSummaryParts = @()
     foreach ($Name in @("hello_app", "large_fit_app", "player_min")) {
         $Case = Get-QemuElfSourceMatrixCase -Matrix $SourceMatrix -Name $Name
@@ -2805,7 +3232,8 @@ function Read-QemuElfDomainSummary {
             [pscustomobject]@{ name = "overlapping_segments_app"; path = "direct"; stage = "load"; code = "load_failed" },
             [pscustomobject]@{ name = "rwx_segment_app"; path = "direct"; stage = "load"; code = "load_failed" },
             [pscustomobject]@{ name = "wrong_link_base_app"; path = "direct"; stage = "load"; code = "load_failed" },
-            [pscustomobject]@{ name = "too_large_app"; path = "direct"; stage = "load"; code = "load_failed" }
+            [pscustomobject]@{ name = "too_large_app"; path = "direct"; stage = "load"; code = "load_failed" },
+            [pscustomobject]@{ name = "unaligned_load_buffer_app"; path = "direct"; stage = "load"; code = "load_failed" }
         )) {
         $Case = Get-QemuElfSourceMatrixCase -Matrix $SourceMatrix -Name $Negative.name
         Assert-QemuElfSourceRun -Case $Case -Path $Negative.path -Stage $Negative.stage -Code $Negative.code | Out-Null
@@ -2842,7 +3270,10 @@ function Read-QemuElfDomainSummary {
             ($BackendCapabilities -join ","), `
             ([string]$Summary.backend_contract.storage), `
             ([string]$Summary.backend_contract.afe))
+        BackendSelfCheck = $BackendSelfCheck
+        BackendResetSelfCheck = $BackendResetSelfCheck
         BackendReadiness = $BackendReadiness
+        BackendScope = $BackendScope
         RuntimeResetDeterminism = $RuntimeResetDeterminism
         BackendCapabilityMatrix = $BackendCapabilityMatrix
         RuntimeDomainProfile = $RuntimeDomainProfile
@@ -2904,6 +3335,40 @@ function Read-QemuElfDomainSummary {
             ([int]$Summary.evidence.input_trace_run_count), `
             ([int]$Summary.evidence.storage_trace_event_count), `
             ([int]$Summary.evidence.storage_trace_run_count))
+        GuiContract = ("display={0}x{1}:{2}:stride={3}:frame={4}:evidence={5};input={6}:samples={7}:max={8},{9}:wraps={10}:evidence={11};frames={12}/{13}:dumps={14}/{15}:ppm={16}/{17}:input_trace={18}/{19}:timeline={20}" -f `
+            ([int]$Summary.backend_contract.display.width), `
+            ([int]$Summary.backend_contract.display.height), `
+            ([string]$Summary.backend_contract.display.format), `
+            ([int]$Summary.backend_contract.display.stride_bytes), `
+            ([int]$Summary.backend_contract.display.frame_bytes), `
+            ($BackendDisplayEvidence -join ","), `
+            ([string]$Summary.backend_contract.input.kind), `
+            ([int]$Summary.backend_contract.input.sample_count), `
+            ([int]$Summary.backend_contract.input.pointer_max_x), `
+            ([int]$Summary.backend_contract.input.pointer_max_y), `
+            $InputWrapsToken, `
+            ($BackendInputEvidence -join ","), `
+            ([int]$Summary.evidence.frame_signature_count), `
+            ([int]$Summary.evidence.frame_signature_run_count), `
+            ([int]$Summary.evidence.frame_dump_count), `
+            ([int]$Summary.evidence.frame_dump_run_count), `
+            ([int]$Summary.evidence.frame_ppm_count), `
+            ([int]$Summary.evidence.frame_ppm_run_count), `
+            ([int]$Summary.evidence.input_trace_event_count), `
+            ([int]$Summary.evidence.input_trace_run_count), `
+            $Timeline.Count)
+        StorageContract = ("{0}:files={1}:fd={2}+{3}:write={4}:evidence={5}:events={6}:runs={7}:reads={8}:read_bytes={9}:failures={10}" -f `
+            ([string]$Summary.backend_contract.storage_media.kind), `
+            ([int]$Summary.backend_contract.storage_media.file_count), `
+            ([int]$Summary.backend_contract.storage_media.fd_base), `
+            ([int]$Summary.backend_contract.storage_media.fd_slots), `
+            ([string]$Summary.backend_contract.storage_media.write_policy), `
+            ($BackendStorageEvidence -join ","), `
+            ([int]$Summary.evidence.storage_trace_event_count), `
+            ([int]$Summary.evidence.storage_trace_run_count), `
+            ([int]$Summary.store.media.read_calls), `
+            ([int]$Summary.store.media.read_bytes), `
+            ([int]$Summary.store.media.read_failures))
         Capacity = ("large_fit={0}/{1}:free={2}:fits={3}:probe={4};too_large={5}/{6}:free={7}:fits={8}:probe={9}" -f `
             ([int]$LargeFitLoad.needed), `
             ([int]$LargeFitLoad.region), `
@@ -2921,6 +3386,10 @@ function Read-QemuElfDomainSummary {
         EquivalentSources = ($EquivalentSourceSummaryParts -join ";")
         Packetstreams = ($PacketstreamSummaryParts -join ";")
         FailureTaxonomy = $FailureTaxonomySummary
+        FailureTransport = $FailureTransportSummary
+        FailureStage = $FailureStageSummary
+        FailureLoad = $FailureLoadSummary
+        FailureRuntime = $FailureRuntimeSummary
         Runs = @($Summary.coverage.runs).Count
         Stages = $CoverageStages
         LoadCount = @($Summary.coverage.loads).Count
@@ -2962,6 +3431,8 @@ function Write-QemuElfSummaryLines {
         Write-BundleLine -Lines $Lines -Text "qemu_elf_domain=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_app_model=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_backend=skipped"
+        Write-BundleLine -Lines $Lines -Text "qemu_elf_backend_self_check=skipped"
+        Write-BundleLine -Lines $Lines -Text "qemu_elf_backend_reset_self_check=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_backend_readiness=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_runtime_reset=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_capability_matrix=skipped"
@@ -2974,6 +3445,8 @@ function Write-QemuElfSummaryLines {
         Write-BundleLine -Lines $Lines -Text "qemu_elf_store_manifest=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_display=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_evidence=skipped"
+        Write-BundleLine -Lines $Lines -Text "qemu_elf_gui_contract=skipped"
+        Write-BundleLine -Lines $Lines -Text "qemu_elf_storage_contract=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_capacity=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_artifacts=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_link_base=skipped"
@@ -2981,6 +3454,10 @@ function Write-QemuElfSummaryLines {
         Write-BundleLine -Lines $Lines -Text "qemu_elf_equivalent_sources=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_packetstreams=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_failure_taxonomy=skipped"
+        Write-BundleLine -Lines $Lines -Text "qemu_elf_failure_transport=skipped"
+        Write-BundleLine -Lines $Lines -Text "qemu_elf_failure_stage=skipped"
+        Write-BundleLine -Lines $Lines -Text "qemu_elf_failure_load=skipped"
+        Write-BundleLine -Lines $Lines -Text "qemu_elf_failure_runtime=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_domain_golden=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_sources=skipped"
         Write-BundleLine -Lines $Lines -Text "qemu_elf_coverage=skipped"
@@ -2994,7 +3471,10 @@ function Write-QemuElfSummaryLines {
         $QemuElfSummary.Cpu)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_app_model={0}" -f $QemuElfSummary.AppModel)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_backend={0}" -f $QemuElfSummary.Backend)
+    Write-BundleLine -Lines $Lines -Text ("qemu_elf_backend_self_check={0}" -f $QemuElfSummary.BackendSelfCheck)
+    Write-BundleLine -Lines $Lines -Text ("qemu_elf_backend_reset_self_check={0}" -f $QemuElfSummary.BackendResetSelfCheck)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_backend_readiness={0}" -f $QemuElfSummary.BackendReadiness)
+    Write-BundleLine -Lines $Lines -Text ("qemu_elf_backend_scope={0}" -f $QemuElfSummary.BackendScope)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_runtime_reset={0}" -f $QemuElfSummary.RuntimeResetDeterminism)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_capability_matrix={0}" -f $QemuElfSummary.BackendCapabilityMatrix)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_runtime_domain_profile={0}" -f $QemuElfSummary.RuntimeDomainProfile)
@@ -3006,6 +3486,8 @@ function Write-QemuElfSummaryLines {
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_store_manifest={0}" -f $QemuElfSummary.StoreManifest)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_display={0}" -f $QemuElfSummary.Display)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_evidence={0}" -f $QemuElfSummary.Evidence)
+    Write-BundleLine -Lines $Lines -Text ("qemu_elf_gui_contract={0}" -f $QemuElfSummary.GuiContract)
+    Write-BundleLine -Lines $Lines -Text ("qemu_elf_storage_contract={0}" -f $QemuElfSummary.StorageContract)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_capacity={0}" -f $QemuElfSummary.Capacity)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_artifacts={0}" -f $QemuElfSummary.Artifacts)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_link_base={0}" -f $QemuElfSummary.LinkBase)
@@ -3013,6 +3495,10 @@ function Write-QemuElfSummaryLines {
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_equivalent_sources={0}" -f $QemuElfSummary.EquivalentSources)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_packetstreams={0}" -f $QemuElfSummary.Packetstreams)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_failure_taxonomy={0}" -f $QemuElfSummary.FailureTaxonomy)
+    Write-BundleLine -Lines $Lines -Text ("qemu_elf_failure_transport={0}" -f $QemuElfSummary.FailureTransport)
+    Write-BundleLine -Lines $Lines -Text ("qemu_elf_failure_stage={0}" -f $QemuElfSummary.FailureStage)
+    Write-BundleLine -Lines $Lines -Text ("qemu_elf_failure_load={0}" -f $QemuElfSummary.FailureLoad)
+    Write-BundleLine -Lines $Lines -Text ("qemu_elf_failure_runtime={0}" -f $QemuElfSummary.FailureRuntime)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_domain_golden={0}" -f $QemuElfDomainGolden)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_sources={0}" -f $QemuElfSummary.Sources)
     Write-BundleLine -Lines $Lines -Text ("qemu_elf_coverage runs={0} stages={1} loads={2} packetstreams={3} source_matrix={4} gui_timeline={5} prepare={6} capabilities={7} negative_cases={8}" -f `
@@ -3038,12 +3524,19 @@ function Write-Summary {
         [string]$QemuElfMode,
         [string]$QemuElfDoctorStatus,
         [string]$QemuElfDoctorVersions,
+        [string]$QemuElfDoctorLayout,
+        [string]$QemuElfDoctorScope,
+        [string]$QemuElfScopeMatch,
         [int]$QemuElfTimeoutSec,
         [int]$QemuElfTailLines,
+        [string]$QemuElfEvidenceDir,
+        [string]$QemuElfBuildDir,
+        [string]$QemuElfAppOutDir,
         [string]$QemuElfRunBudgetMatch,
         [string]$QemuElfLog,
         [string]$QemuElfDomainSummary,
         [string]$QemuElfDomainSummaryGolden,
+        [string]$QemuElfBackendContract,
         [string]$QemuElfFrameSignatures,
         [string]$QemuElfFrameSignaturesGolden,
         [string]$QemuElfFrameDumps,
@@ -3079,8 +3572,14 @@ function Write-Summary {
     Write-BundleLine -Lines $Lines -Text "qemu_elf_mode=$QemuElfMode"
     Write-BundleLine -Lines $Lines -Text "qemu_elf_doctor=$QemuElfDoctorStatus"
     Write-BundleLine -Lines $Lines -Text "qemu_elf_doctor_versions=$QemuElfDoctorVersions"
+    Write-BundleLine -Lines $Lines -Text "qemu_elf_doctor_layout=$QemuElfDoctorLayout"
+    Write-BundleLine -Lines $Lines -Text "qemu_elf_doctor_scope=$QemuElfDoctorScope"
+    Write-BundleLine -Lines $Lines -Text "qemu_elf_scope_match=$QemuElfScopeMatch"
     Write-BundleLine -Lines $Lines -Text "qemu_elf_timeout_sec=$QemuElfTimeoutSec"
     Write-BundleLine -Lines $Lines -Text "qemu_elf_tail_lines=$QemuElfTailLines"
+    Write-BundleLine -Lines $Lines -Text "qemu_elf_evidence_dir=$QemuElfEvidenceDir"
+    Write-BundleLine -Lines $Lines -Text "qemu_elf_build_dir=$QemuElfBuildDir"
+    Write-BundleLine -Lines $Lines -Text "qemu_elf_app_out_dir=$QemuElfAppOutDir"
     Write-BundleLine -Lines $Lines -Text "qemu_elf_run_budget_match=$QemuElfRunBudgetMatch"
     if (-not [string]::IsNullOrWhiteSpace($QemuElfLog)) {
         Write-BundleLine -Lines $Lines -Text "qemu_elf_log=$QemuElfLog"
@@ -3096,6 +3595,11 @@ function Write-Summary {
         Write-BundleLine -Lines $Lines -Text "qemu_elf_domain_summary_golden=$QemuElfDomainSummaryGolden"
     } else {
         Write-BundleLine -Lines $Lines -Text "qemu_elf_domain_summary_golden=skipped"
+    }
+    if (-not [string]::IsNullOrWhiteSpace($QemuElfBackendContract)) {
+        Write-BundleLine -Lines $Lines -Text "qemu_elf_backend_contract_file=$QemuElfBackendContract"
+    } else {
+        Write-BundleLine -Lines $Lines -Text "qemu_elf_backend_contract_file=skipped"
     }
     if (-not [string]::IsNullOrWhiteSpace($QemuElfFrameSignatures)) {
         Write-BundleLine -Lines $Lines -Text "qemu_elf_frame_signatures=$QemuElfFrameSignatures"
@@ -3201,6 +3705,11 @@ $ArtifactManifest = [System.IO.Path]::GetFullPath($ArtifactManifest)
 $Log = [System.IO.Path]::GetFullPath($Log)
 $LogDir = Split-Path -Parent $Log
 
+$QemuElfEvidenceRoot = Get-QemuElfEvidenceRoot -RepoRoot $RepoRoot -RequestedEvidenceDir $QemuElfEvidenceDir
+$QemuElfDefaultBuildRoot = Join-Path $RepoRoot "Examples\system\resident_elf_qemu_smoke\cmake-build-resident-elf-qemu-smoke"
+$QemuElfDefaultAppOutRoot = Join-Path $RepoRoot "Examples\app_abi\elf_samples\out-qemu"
+$QemuElfBuildRoot = Resolve-QemuElfRoot -RepoRoot $RepoRoot -RequestedPath $QemuElfBuildDir -DefaultPath $QemuElfDefaultBuildRoot
+$QemuElfAppOutRoot = Resolve-QemuElfRoot -RepoRoot $RepoRoot -RequestedPath $QemuElfAppOutDir -DefaultPath $QemuElfDefaultAppOutRoot
 $InspectSource = Join-Path $RepoRoot "Examples\system\resident_platform_inspect_tool"
 $InspectBuild = Get-CmakeBuildDir -SourceDir $InspectSource -BuildName "cmake-build-resident-platform-inspect-tool"
 $InspectSmokeSource = Join-Path $RepoRoot "Examples\system\resident_platform_inspect_smoke"
@@ -3214,18 +3723,19 @@ $StoreHandoffBuild = Get-CmakeBuildDir -SourceDir $StoreHandoffSource -BuildName
 $ModuleXSmokeSource = Join-Path $RepoRoot "Examples\system\app_abi_modulex_smoke"
 $ModuleXSmokeBuild = Get-CmakeBuildDir -SourceDir $ModuleXSmokeSource -BuildName "cmake-build-app-abi-modulex-smoke"
 $QemuElfScript = Join-Path $RepoRoot "Examples\system\run-resident-elf-qemu-smoke.ps1"
-$QemuElfLog = Join-Path $RepoRoot "Examples\system\resident_elf_qemu_smoke\qemu-ci.log"
-$QemuElfDomainSummary = Join-Path $RepoRoot "Examples\system\resident_elf_qemu_smoke\domain-summary.json"
+$QemuElfLog = Join-Path $QemuElfEvidenceRoot "qemu-ci.log"
+$QemuElfDomainSummary = Join-Path $QemuElfEvidenceRoot "domain-summary.json"
 $QemuElfDomainSummaryGolden = Join-Path $RepoRoot "Examples\system\resident_elf_qemu_smoke\domain-summary.golden.json"
-$QemuElfFrameSignatures = Join-Path $RepoRoot "Examples\system\resident_elf_qemu_smoke\frame-signatures.json"
+$QemuElfBackendContract = Join-Path $QemuElfEvidenceRoot "backend-contract.json"
+$QemuElfFrameSignatures = Join-Path $QemuElfEvidenceRoot "frame-signatures.json"
 $QemuElfFrameSignaturesGolden = Join-Path $RepoRoot "Examples\system\resident_elf_qemu_smoke\frame-signatures.golden.json"
-$QemuElfFrameDumps = Join-Path $RepoRoot "Examples\system\resident_elf_qemu_smoke\frame-dumps.json"
+$QemuElfFrameDumps = Join-Path $QemuElfEvidenceRoot "frame-dumps.json"
 $QemuElfFrameDumpsGolden = Join-Path $RepoRoot "Examples\system\resident_elf_qemu_smoke\frame-dumps.golden.json"
-$QemuElfInputTrace = Join-Path $RepoRoot "Examples\system\resident_elf_qemu_smoke\input-trace.json"
+$QemuElfInputTrace = Join-Path $QemuElfEvidenceRoot "input-trace.json"
 $QemuElfInputTraceGolden = Join-Path $RepoRoot "Examples\system\resident_elf_qemu_smoke\input-trace.golden.json"
-$QemuElfStorageTrace = Join-Path $RepoRoot "Examples\system\resident_elf_qemu_smoke\storage-trace.json"
+$QemuElfStorageTrace = Join-Path $QemuElfEvidenceRoot "storage-trace.json"
 $QemuElfStorageTraceGolden = Join-Path $RepoRoot "Examples\system\resident_elf_qemu_smoke\storage-trace.golden.json"
-$QemuElfFramePpm = Join-Path $RepoRoot "Examples\system\resident_elf_qemu_smoke\frame-ppm"
+$QemuElfFramePpm = Join-Path $QemuElfEvidenceRoot "frame-ppm"
 
 $BoardMatrixLog = Join-Path $H747Root "cmake-build-h747-lab-debug\resident_platform_board_matrix_from_bundle.log"
 $InstalledStoreMatrixLog = Join-Path $H747Root "cmake-build-h747-lab-debug\resident_platform_installed_store_matrix_from_bundle.log"
@@ -3243,6 +3753,9 @@ if ($DryRun) {
     Write-Host "qemu_elf_mode=$QemuElfMode"
     Write-Host "qemu_elf_timeout_sec=$QemuElfTimeoutSec"
     Write-Host "qemu_elf_tail_lines=$QemuElfTailLines"
+    Write-Host "qemu_elf_evidence_dir=$QemuElfEvidenceRoot"
+    Write-Host "qemu_elf_build_dir=$QemuElfBuildRoot"
+    Write-Host "qemu_elf_app_out_dir=$QemuElfAppOutRoot"
     Write-Host "skip_h747_build=$($SkipH747Build.IsPresent)"
     Write-Host "inspect_source=$InspectSource"
     Write-Host "host_smokes=resident_platform_inspect_smoke,resident_platform_artifact_smoke,dev_loader_packet_stream_smoke,dev_loader_store_install_handoff_smoke,app_abi_modulex_smoke"
@@ -3256,6 +3769,7 @@ if ($DryRun) {
         Write-Host "qemu_elf_log=$QemuElfLog"
         Write-Host "qemu_elf_domain_summary=$QemuElfDomainSummary"
         Write-Host "qemu_elf_domain_summary_golden=$QemuElfDomainSummaryGolden"
+        Write-Host "qemu_elf_backend_contract_file=$QemuElfBackendContract"
         Write-Host "qemu_elf_frame_signatures=$QemuElfFrameSignatures"
         Write-Host "qemu_elf_frame_signatures_golden=$QemuElfFrameSignaturesGolden"
         Write-Host "qemu_elf_frame_dumps=$QemuElfFrameDumps"
@@ -3292,6 +3806,7 @@ try {
     $QemuElfLogResolved = ""
     $QemuElfDomainSummaryResolved = ""
     $QemuElfDomainSummaryGoldenResolved = ""
+    $QemuElfBackendContractResolved = ""
     $QemuElfFrameSignaturesResolved = ""
     $QemuElfFrameSignaturesGoldenResolved = ""
     $QemuElfFrameDumpsResolved = ""
@@ -3311,6 +3826,9 @@ try {
     $QemuElfRunBudgetMatch = "skipped"
     $QemuElfDoctorStatus = "skipped"
     $QemuElfDoctorVersions = "skipped"
+    $QemuElfDoctorLayout = "skipped"
+    $QemuElfDoctorScope = "skipped"
+    $QemuElfScopeMatch = "skipped"
     if ($QemuElf -and $QemuElfDoctor) {
         Invoke-Logged -Lines $Lines -Label "resident ELF QEMU doctor" -FilePath "powershell" -Arguments @(
             "-NoProfile",
@@ -3319,6 +3837,12 @@ try {
             "-File",
             $QemuElfScript,
             "-Doctor",
+            "-BuildDir",
+            $QemuElfBuildRoot,
+            "-AppOutDir",
+            $QemuElfAppOutRoot,
+            "-EvidenceDir",
+            $QemuElfEvidenceRoot,
             "-TimeoutSec",
             ([string]$QemuElfTimeoutSec),
             "-TailLines",
@@ -3326,6 +3850,8 @@ try {
         )
         $QemuElfDoctorStatus = "pass"
         $QemuElfDoctorVersions = Read-QemuElfDoctorVersionsFromLines -Lines $Lines -DoctorStatus $QemuElfDoctorStatus
+        $QemuElfDoctorLayout = Read-QemuElfDoctorLayoutFromLines -Lines $Lines -DoctorStatus $QemuElfDoctorStatus
+        $QemuElfDoctorScope = Read-QemuElfDoctorScopeFromLines -Lines $Lines -DoctorStatus $QemuElfDoctorStatus
     }
 
     Invoke-Logged -Lines $Lines -Label "build resident platform artifacts" -FilePath "powershell" -Arguments @(
@@ -3373,6 +3899,12 @@ try {
                 "-File",
                 $QemuElfScript,
                 "-ValidateEvidenceBundle",
+                "-BuildDir",
+                $QemuElfBuildRoot,
+                "-AppOutDir",
+                $QemuElfAppOutRoot,
+                "-EvidenceDir",
+                $QemuElfEvidenceRoot,
                 "-TimeoutSec",
                 ([string]$QemuElfTimeoutSec),
                 "-TailLines",
@@ -3386,6 +3918,12 @@ try {
                 "-File",
                 $QemuElfScript,
                 "-SelfTest",
+                "-BuildDir",
+                $QemuElfBuildRoot,
+                "-AppOutDir",
+                $QemuElfAppOutRoot,
+                "-EvidenceDir",
+                $QemuElfEvidenceRoot,
                 "-TimeoutSec",
                 ([string]$QemuElfTimeoutSec),
                 "-TailLines",
@@ -3397,6 +3935,12 @@ try {
                 "Bypass",
                 "-File",
                 $QemuElfScript,
+                "-BuildDir",
+                $QemuElfBuildRoot,
+                "-AppOutDir",
+                $QemuElfAppOutRoot,
+                "-EvidenceDir",
+                $QemuElfEvidenceRoot,
                 "-TimeoutSec",
                 ([string]$QemuElfTimeoutSec),
                 "-TailLines",
@@ -3414,6 +3958,13 @@ try {
         }
         if (Test-Path -LiteralPath $QemuElfDomainSummaryGolden) {
             $QemuElfDomainSummaryGoldenResolved = (Resolve-Path -LiteralPath $QemuElfDomainSummaryGolden).Path
+        }
+        if (Test-Path -LiteralPath $QemuElfBackendContract) {
+            $QemuElfBackendContractResolved = (Resolve-Path -LiteralPath $QemuElfBackendContract).Path
+        } elseif ($QemuElfValidateOnly -and -not [string]::IsNullOrWhiteSpace($QemuElfDomainSummaryResolved)) {
+            $QemuElfBackendContractResolved = "derived_from_domain_summary:$QemuElfDomainSummaryResolved"
+        } else {
+            throw "qemu_elf_backend_contract_missing: $QemuElfBackendContract"
         }
         if (Test-Path -LiteralPath $QemuElfFramePpm) {
             $QemuElfFramePpmResolved = (Resolve-Path -LiteralPath $QemuElfFramePpm).Path
@@ -3443,6 +3994,13 @@ try {
             $QemuElfStorageTraceGoldenResolved = (Resolve-Path -LiteralPath $QemuElfStorageTraceGolden).Path
         }
         $QemuElfSummary = Read-QemuElfDomainSummary -Path $QemuElfDomainSummaryResolved
+        Assert-QemuElfDoctorScopeMatchesSummary `
+            -DoctorStatus $QemuElfDoctorStatus `
+            -DoctorScope $QemuElfDoctorScope `
+            -QemuElfSummary $QemuElfSummary
+        if ($QemuElfDoctorStatus -eq "pass") {
+            $QemuElfScopeMatch = "1"
+        }
         $QemuElfRunBudgetExpected = ("timeout_sec={0}:tail_lines={1}" -f $QemuElfTimeoutSec, $QemuElfTailLines)
         $QemuElfRunBudgetMatch = if ($QemuElfSummary.RunBudget -eq $QemuElfRunBudgetExpected) { "1" } else { "0" }
         if (-not $QemuElfValidateOnly -and $QemuElfRunBudgetMatch -ne "1") {
@@ -3551,12 +4109,19 @@ try {
         -QemuElfMode $QemuElfMode `
         -QemuElfDoctorStatus $QemuElfDoctorStatus `
         -QemuElfDoctorVersions $QemuElfDoctorVersions `
+        -QemuElfDoctorLayout $QemuElfDoctorLayout `
+        -QemuElfDoctorScope $QemuElfDoctorScope `
+        -QemuElfScopeMatch $QemuElfScopeMatch `
         -QemuElfTimeoutSec $QemuElfTimeoutSec `
         -QemuElfTailLines $QemuElfTailLines `
+        -QemuElfEvidenceDir $QemuElfEvidenceRoot `
+        -QemuElfBuildDir $QemuElfBuildRoot `
+        -QemuElfAppOutDir $QemuElfAppOutRoot `
         -QemuElfRunBudgetMatch $QemuElfRunBudgetMatch `
         -QemuElfLog $QemuElfLogResolved `
         -QemuElfDomainSummary $QemuElfDomainSummaryResolved `
         -QemuElfDomainSummaryGolden $QemuElfDomainSummaryGoldenResolved `
+        -QemuElfBackendContract $QemuElfBackendContractResolved `
         -QemuElfFrameSignatures $QemuElfFrameSignaturesResolved `
         -QemuElfFrameSignaturesGolden $QemuElfFrameSignaturesGoldenResolved `
         -QemuElfFrameDumps $QemuElfFrameDumpsResolved `

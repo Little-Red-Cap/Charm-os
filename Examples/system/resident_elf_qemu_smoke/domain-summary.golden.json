@@ -5,6 +5,27 @@
     "cpu":  "cortex-m7",
     "image_format":  "elf",
     "app_model":  "CharmAppApi",
+    "backend_scope":  {
+                          "schema":  "charm.resident_elf_qemu.backend_scope.v1",
+                          "proves":  [
+                                         "elf_loader",
+                                         "app_runtime",
+                                         "charm_app_api",
+                                         "capability_backend",
+                                         "received_image",
+                                         "packetstream",
+                                         "store_v1_semantics"
+                                     ],
+                          "does_not_prove":  [
+                                                 "h747_usb_cdc",
+                                                 "h747_qspi",
+                                                 "h747_emmc",
+                                                 "h747_fmc_sdram",
+                                                 "h747_hal_init",
+                                                 "h747_mpu_cache",
+                                                 "h747_pinmux"
+                                             ]
+                      },
     "backend_contract":  {
                              "kind":  "virtual",
                              "runtime_domain":  "virtual_m7",
@@ -64,6 +85,25 @@
                                               "overrides_return":  false
                                           }
                          },
+    "backend_self_check":  {
+                               "schema":  "charm.resident_elf_qemu.backend_self_check.v1",
+                               "api":  true,
+                               "display":  true,
+                               "input":  true,
+                               "storage":  true,
+                               "afe":  true,
+                               "app_exit":  true,
+                               "result":  "ok"
+                           },
+    "backend_reset_self_check":  {
+                                     "schema":  "charm.resident_elf_qemu.backend_reset_self_check.v1",
+                                     "counters":  true,
+                                     "display":  true,
+                                     "time":  true,
+                                     "input":  true,
+                                     "storage":  true,
+                                     "result":  "ok"
+                                 },
     "backend_readiness":  {
                               "status":  "ready",
                               "elf_loader":  true,
@@ -2460,6 +2500,32 @@
                                         "ready":  false
                                     },
                                     {
+                                        "name":  "unaligned_load_buffer_app",
+                                        "app":  "unaligned_load_buffer_app",
+                                        "source":  "direct",
+                                        "source_stage":  "image",
+                                        "source_code":  "ok",
+                                        "format":  "elf",
+                                        "load_probe":  "load_buffer_unaligned",
+                                        "load_stage":  "load",
+                                        "link_base":  "0x20080000",
+                                        "expected_base":  "0x20080000",
+                                        "entry":  "0x00000000",
+                                        "entry_vaddr":  "0x20080021",
+                                        "span":  0,
+                                        "segments":  0,
+                                        "base_match":  true,
+                                        "needed":  0,
+                                        "free":  65536,
+                                        "fits":  true,
+                                        "region":  65536,
+                                        "capacity_probe":  "load_buffer_unaligned",
+                                        "run_stage":  "load",
+                                        "run_code":  "load_failed",
+                                        "exit":  0,
+                                        "ready":  false
+                                    },
+                                    {
                                         "name":  "player_min",
                                         "app":  "player_min",
                                         "source":  "direct",
@@ -2566,7 +2632,7 @@
                                 ],
     "failure_taxonomy":  {
                              "schema":  "charm.resident_elf_qemu.failure_taxonomy.v1",
-                             "total":  24,
+                             "total":  25,
                              "categories":  [
                                                 {
                                                     "category":  "transport",
@@ -2585,7 +2651,7 @@
                                                 },
                                                 {
                                                     "category":  "load",
-                                                    "count":  19,
+                                                    "count":  20,
                                                     "stages":  [
                                                                    "load"
                                                                ]
@@ -2636,7 +2702,7 @@
                                             {
                                                 "stage":  "load",
                                                 "category":  "load",
-                                                "count":  19,
+                                                "count":  20,
                                                 "codes":  [
                                                               "load_failed"
                                                           ],
@@ -2659,7 +2725,8 @@
                                                               "overlapping_segments_app",
                                                               "rwx_segment_app",
                                                               "wrong_link_base_app",
-                                                              "too_large_app"
+                                                              "too_large_app",
+                                                              "unaligned_load_buffer_app"
                                                           ]
                                             },
                                             {
@@ -4009,6 +4076,12 @@
                                   },
                                   {
                                       "name":  "too_large_app",
+                                      "stage":  "load",
+                                      "code":  "load_failed",
+                                      "exit":  0
+                                  },
+                                  {
+                                      "name":  "unaligned_load_buffer_app",
                                       "stage":  "load",
                                       "code":  "load_failed",
                                       "exit":  0
@@ -6022,6 +6095,27 @@
                                        "capacity_probe":  "load_buffer_too_small"
                                    },
                                    {
+                                       "name":  "unaligned_load_buffer_app",
+                                       "format":  "elf",
+                                       "probe":  "load_buffer_unaligned",
+                                       "link_base":  "0x20080000",
+                                       "link_base_numeric":  537395200,
+                                       "expected_base":  "0x20080000",
+                                       "expected_base_numeric":  537395200,
+                                       "entry":  "0x00000000",
+                                       "entry_numeric":  0,
+                                       "entry_vaddr":  "0x20080021",
+                                       "entry_vaddr_numeric":  537395233,
+                                       "span":  0,
+                                       "segments":  0,
+                                       "base_match":  true,
+                                       "needed":  0,
+                                       "free":  65536,
+                                       "fits":  true,
+                                       "region":  65536,
+                                       "capacity_probe":  "load_buffer_unaligned"
+                                   },
+                                   {
                                        "name":  "player_min",
                                        "format":  "elf",
                                        "probe":  "ok",
@@ -6926,6 +7020,18 @@
                                            },
                                            {
                                                "name":  "too_large_app",
+                                               "direct":  {
+                                                              "stage":  "load",
+                                                              "code":  "load_failed",
+                                                              "exit":  0
+                                                          },
+                                               "received":  null,
+                                               "packetstream":  null,
+                                               "store":  null,
+                                               "prepare":  null
+                                           },
+                                           {
+                                               "name":  "unaligned_load_buffer_app",
                                                "direct":  {
                                                               "stage":  "load",
                                                               "code":  "load_failed",
@@ -9370,6 +9476,32 @@
                                                      "display_frame":  0
                                                  },
                                                  {
+                                                     "name":  "unaligned_load_buffer_app",
+                                                     "console":  0,
+                                                     "time":  0,
+                                                     "describe":  0,
+                                                     "present":  0,
+                                                     "input":  0,
+                                                     "exit":  0,
+                                                     "display_checksum":  0,
+                                                     "display_checksum_total":  0,
+                                                     "storage_open":  0,
+                                                     "storage_read":  0,
+                                                     "storage_write":  0,
+                                                     "storage_close":  0,
+                                                     "storage_bytes":  0,
+                                                     "afe_configure":  0,
+                                                     "afe_read":  0,
+                                                     "input_checksum":  0,
+                                                     "input_last_x":  0,
+                                                     "input_last_y":  0,
+                                                     "input_last_down":  0,
+                                                     "input_last":  "0,0,0",
+                                                     "display_hash":  "0x00000000",
+                                                     "display_hash_total":  "0x00000000",
+                                                     "display_frame":  0
+                                                 },
+                                                 {
                                                      "name":  "player_min",
                                                      "console":  32,
                                                      "time":  1,
@@ -9582,6 +9714,11 @@
                                             },
                                             {
                                                 "name":  "too_large_app",
+                                                "stage":  "load",
+                                                "code":  "load_failed"
+                                            },
+                                            {
+                                                "name":  "unaligned_load_buffer_app",
                                                 "stage":  "load",
                                                 "code":  "load_failed"
                                             },

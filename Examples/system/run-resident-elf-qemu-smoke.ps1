@@ -5,6 +5,7 @@ param(
     [string]$HostCompiler = "D:/Toolchains/w64devkit/bin/g++.exe",
     [string]$BuildDir = "",
     [string]$AppOutDir = "",
+    [string]$EvidenceDir = "",
     [string]$FrameSignatureOut = "",
     [string]$GoldenFrameSignatures = "",
     [string]$FrameDumpOut = "",
@@ -15,6 +16,7 @@ param(
     [string]$StorageTraceOut = "",
     [string]$GoldenStorageTrace = "",
     [string]$DomainSummaryOut = "",
+    [string]$BackendContractOut = "",
     [string]$GoldenDomainSummary = "",
     [string]$ElfBase = "0x20080000",
     [int]$TimeoutSec = 15,
@@ -32,6 +34,7 @@ param(
     [string]$CompareStorageTrace = "",
     [string]$ActualStorageTrace = "",
     [string]$ValidateDomainSummary = "",
+    [string]$ValidateBackendContract = "",
     [string]$CompareDomainSummary = "",
     [string]$ActualDomainSummary = "",
     [string]$CompareFrameDumps = "",
@@ -111,6 +114,7 @@ function New-QemuSmokeArguments {
 
     Add-OptionalStringArgument -Arguments $Arguments -Name "-BuildDir" -Value $BuildDir
     Add-OptionalStringArgument -Arguments $Arguments -Name "-AppOutDir" -Value $AppOutDir
+    Add-OptionalStringArgument -Arguments $Arguments -Name "-EvidenceDir" -Value $EvidenceDir
     Add-OptionalStringArgument -Arguments $Arguments -Name "-FrameSignatureOut" -Value $FrameSignatureOut
     Add-OptionalStringArgument -Arguments $Arguments -Name "-GoldenFrameSignatures" -Value $GoldenFrameSignatures
     Add-OptionalStringArgument -Arguments $Arguments -Name "-FrameDumpOut" -Value $FrameDumpOut
@@ -121,6 +125,7 @@ function New-QemuSmokeArguments {
     Add-OptionalStringArgument -Arguments $Arguments -Name "-StorageTraceOut" -Value $StorageTraceOut
     Add-OptionalStringArgument -Arguments $Arguments -Name "-GoldenStorageTrace" -Value $GoldenStorageTrace
     Add-OptionalStringArgument -Arguments $Arguments -Name "-DomainSummaryOut" -Value $DomainSummaryOut
+    Add-OptionalStringArgument -Arguments $Arguments -Name "-BackendContractOut" -Value $BackendContractOut
     Add-OptionalStringArgument -Arguments $Arguments -Name "-GoldenDomainSummary" -Value $GoldenDomainSummary
     Add-OptionalStringArgument -Arguments $Arguments -Name "-ValidateLog" -Value $ValidateLog
     Add-OptionalStringArgument -Arguments $Arguments -Name "-ValidateFrameSignatures" -Value $ValidateFrameSignatures
@@ -135,6 +140,7 @@ function New-QemuSmokeArguments {
     Add-OptionalStringArgument -Arguments $Arguments -Name "-CompareStorageTrace" -Value $CompareStorageTrace
     Add-OptionalStringArgument -Arguments $Arguments -Name "-ActualStorageTrace" -Value $ActualStorageTrace
     Add-OptionalStringArgument -Arguments $Arguments -Name "-ValidateDomainSummary" -Value $ValidateDomainSummary
+    Add-OptionalStringArgument -Arguments $Arguments -Name "-ValidateBackendContract" -Value $ValidateBackendContract
     Add-OptionalStringArgument -Arguments $Arguments -Name "-CompareDomainSummary" -Value $CompareDomainSummary
     Add-OptionalStringArgument -Arguments $Arguments -Name "-ActualDomainSummary" -Value $ActualDomainSummary
     Add-OptionalStringArgument -Arguments $Arguments -Name "-CompareFrameDumps" -Value $CompareFrameDumps
@@ -192,16 +198,55 @@ function Invoke-WrapperSelfTest {
     if (-not (Test-Path -LiteralPath $EvidenceBundle)) {
         throw "selftest_failed: resident platform evidence bundle is missing: $EvidenceBundle"
     }
+    $SystemReadme = Join-Path $PSScriptRoot "README.md"
+    if (-not (Test-Path -LiteralPath $SystemReadme)) {
+        throw "selftest_failed: system README is missing: $SystemReadme"
+    }
+    $SystemReadmeText = Get-Content -LiteralPath $SystemReadme -Raw -Encoding UTF8
+    foreach ($RequiredReadmeToken in @(
+        "run-resident-elf-qemu-smoke.ps1 -Doctor",
+        "run-resident-elf-qemu-smoke.ps1 -ValidateEvidenceBundle",
+        "capture-resident-platform-evidence-bundle.ps1 -QemuElf -QemuElfValidateOnly -SkipH747Build",
+        "qemu_elf_backend_scope=",
+        "qemu_elf_doctor_scope=",
+        "qemu_elf_scope_match=1",
+        "qemu_elf_runtime_domain_profile=",
+        "qemu_elf_gui_contract=",
+        "qemu_elf_storage_contract=",
+        "qemu_elf_failure_transport=",
+        "qemu_elf_failure_stage=",
+        "qemu_elf_failure_load=",
+        "qemu_elf_failure_runtime=",
+        "scope_match=required",
+        "H747 USB CDC",
+        "QSPI",
+        "eMMC"
+    )) {
+        if (-not $SystemReadmeText.Contains($RequiredReadmeToken)) {
+            throw "selftest_failed: system README does not expose QEMU ELF route token $RequiredReadmeToken"
+        }
+    }
     $EvidenceBundleText = Get-Content -LiteralPath $EvidenceBundle -Raw -Encoding UTF8
     foreach ($RequiredBundleToken in @(
         "[switch]`$QemuElf",
         "[switch]`$QemuElfValidateOnly",
         "[int]`$QemuElfTimeoutSec",
         "[int]`$QemuElfTailLines",
+        "[string]`$QemuElfEvidenceDir",
         "qemu_elf_timeout_sec=",
         "qemu_elf_tail_lines=",
+        "qemu_elf_doctor_scope=",
+        "qemu_elf_evidence_dir=",
+        "qemu_elf_backend_scope=",
         "qemu_elf_runtime_domain_profile=",
         "qemu_elf_failure_taxonomy=",
+        "qemu_elf_failure_transport=",
+        "qemu_elf_failure_stage=",
+        "qemu_elf_failure_load=",
+        "qemu_elf_failure_runtime=",
+        "qemu_elf_gui_contract=",
+        "qemu_elf_storage_contract=",
+        '"-EvidenceDir"',
         '"-TimeoutSec"',
         '"-TailLines"'
     )) {
@@ -217,9 +262,9 @@ function Invoke-WrapperSelfTest {
         }
     }
     foreach ($ExpectedForward in @(
-        @{ Name = "-TimeoutSec"; Value = "15" },
-        @{ Name = "-TailLines"; Value = "80" },
-        @{ Name = "-ElfBase"; Value = "0x20080000" }
+        @{ Name = "-TimeoutSec"; Value = ([string]$TimeoutSec) },
+        @{ Name = "-TailLines"; Value = ([string]$TailLines) },
+        @{ Name = "-ElfBase"; Value = $ElfBase }
     )) {
         if (-not (Test-ArgumentValue -Arguments $Forwarded -Name $ExpectedForward.Name -Expected $ExpectedForward.Value)) {
             throw "selftest_failed: wrapper did not forward $($ExpectedForward.Name)=$($ExpectedForward.Value)"
@@ -247,37 +292,111 @@ function Invoke-WrapperSelfTest {
         throw "selftest_failed: wrapper did not forward -Doctor"
     }
 
+    $OriginalBuildDir = $BuildDir
+    $OriginalAppOutDir = $AppOutDir
+    $OriginalEvidenceDir = $EvidenceDir
+    $OriginalFrameSignatureOut = $FrameSignatureOut
+    $OriginalGoldenFrameSignatures = $GoldenFrameSignatures
+    $OriginalFrameDumpOut = $FrameDumpOut
+    $OriginalGoldenFrameDumps = $GoldenFrameDumps
+    $OriginalFramePpmOut = $FramePpmOut
+    $OriginalInputTraceOut = $InputTraceOut
+    $OriginalGoldenInputTrace = $GoldenInputTrace
+    $OriginalStorageTraceOut = $StorageTraceOut
+    $OriginalGoldenStorageTrace = $GoldenStorageTrace
+    $OriginalDomainSummaryOut = $DomainSummaryOut
+    $OriginalBackendContractOut = $BackendContractOut
+    $OriginalGoldenDomainSummary = $GoldenDomainSummary
+    $OriginalValidateLog = $ValidateLog
     $OriginalValidateFrameSignatures = $ValidateFrameSignatures
     $OriginalCompareFrameSignatures = $CompareFrameSignatures
     $OriginalActualFrameSignatures = $ActualFrameSignatures
     $OriginalValidateFrameDumps = $ValidateFrameDumps
+    $OriginalValidateFramePpm = $ValidateFramePpm
+    $OriginalValidateInputTrace = $ValidateInputTrace
+    $OriginalCompareInputTrace = $CompareInputTrace
+    $OriginalActualInputTrace = $ActualInputTrace
+    $OriginalValidateStorageTrace = $ValidateStorageTrace
+    $OriginalCompareStorageTrace = $CompareStorageTrace
+    $OriginalActualStorageTrace = $ActualStorageTrace
     $OriginalCompareFrameDumps = $CompareFrameDumps
     $OriginalActualFrameDumps = $ActualFrameDumps
     $OriginalValidateDomainSummary = $ValidateDomainSummary
+    $OriginalValidateBackendContract = $ValidateBackendContract
     $OriginalCompareDomainSummary = $CompareDomainSummary
     $OriginalActualDomainSummary = $ActualDomainSummary
+    $OriginalValidateEvidenceBundle = $ValidateEvidenceBundle
     $OriginalDoctor = $Doctor
     $OriginalDryRun = $DryRun
+    $script:BuildDir = "selftest-build"
+    $script:AppOutDir = "selftest-apps"
+    $script:EvidenceDir = "selftest-evidence"
+    $script:FrameSignatureOut = "frame-signatures.out.json"
+    $script:GoldenFrameSignatures = "frame-signatures.golden.json"
+    $script:FrameDumpOut = "frame-dumps.out.json"
+    $script:GoldenFrameDumps = "frame-dumps.golden.json"
+    $script:FramePpmOut = "frame-ppm-out"
+    $script:InputTraceOut = "input-trace.out.json"
+    $script:GoldenInputTrace = "input-trace.golden.json"
+    $script:StorageTraceOut = "storage-trace.out.json"
+    $script:GoldenStorageTrace = "storage-trace.golden.json"
+    $script:DomainSummaryOut = "domain-summary.out.json"
+    $script:BackendContractOut = "backend-contract.out.json"
+    $script:GoldenDomainSummary = "domain-summary.golden.json"
+    $script:ValidateLog = "qemu-ci.log"
     $script:ValidateFrameSignatures = "frame-signatures.json"
     $script:CompareFrameSignatures = "frame-signatures.golden.json"
     $script:ActualFrameSignatures = "frame-signatures.json"
     $script:ValidateFrameDumps = "frame-dumps.json"
+    $script:ValidateFramePpm = "frame-ppm"
+    $script:ValidateInputTrace = "input-trace.json"
+    $script:CompareInputTrace = "input-trace.golden.json"
+    $script:ActualInputTrace = "input-trace.json"
+    $script:ValidateStorageTrace = "storage-trace.json"
+    $script:CompareStorageTrace = "storage-trace.golden.json"
+    $script:ActualStorageTrace = "storage-trace.json"
     $script:CompareFrameDumps = "frame-dumps.golden.json"
     $script:ActualFrameDumps = "frame-dumps.json"
     $script:ValidateDomainSummary = "domain-summary.json"
+    $script:ValidateBackendContract = "backend-contract.json"
     $script:CompareDomainSummary = "domain-summary.golden.json"
     $script:ActualDomainSummary = "domain-summary.json"
+    $script:ValidateEvidenceBundle = [System.Management.Automation.SwitchParameter]::Present
     $script:DryRun = $true
     try {
         $ProbeEvidence = New-QemuSmokeArguments
         foreach ($ExpectedForward in @(
+            @{ Name = "-BuildDir"; Value = "selftest-build" },
+            @{ Name = "-AppOutDir"; Value = "selftest-apps" },
+            @{ Name = "-EvidenceDir"; Value = "selftest-evidence" },
+            @{ Name = "-FrameSignatureOut"; Value = "frame-signatures.out.json" },
+            @{ Name = "-GoldenFrameSignatures"; Value = "frame-signatures.golden.json" },
+            @{ Name = "-FrameDumpOut"; Value = "frame-dumps.out.json" },
+            @{ Name = "-GoldenFrameDumps"; Value = "frame-dumps.golden.json" },
+            @{ Name = "-FramePpmOut"; Value = "frame-ppm-out" },
+            @{ Name = "-InputTraceOut"; Value = "input-trace.out.json" },
+            @{ Name = "-GoldenInputTrace"; Value = "input-trace.golden.json" },
+            @{ Name = "-StorageTraceOut"; Value = "storage-trace.out.json" },
+            @{ Name = "-GoldenStorageTrace"; Value = "storage-trace.golden.json" },
+            @{ Name = "-DomainSummaryOut"; Value = "domain-summary.out.json" },
+            @{ Name = "-BackendContractOut"; Value = "backend-contract.out.json" },
+            @{ Name = "-GoldenDomainSummary"; Value = "domain-summary.golden.json" },
+            @{ Name = "-ValidateLog"; Value = "qemu-ci.log" },
             @{ Name = "-ValidateFrameSignatures"; Value = "frame-signatures.json" },
             @{ Name = "-CompareFrameSignatures"; Value = "frame-signatures.golden.json" },
             @{ Name = "-ActualFrameSignatures"; Value = "frame-signatures.json" },
             @{ Name = "-ValidateFrameDumps"; Value = "frame-dumps.json" },
+            @{ Name = "-ValidateFramePpm"; Value = "frame-ppm" },
+            @{ Name = "-ValidateInputTrace"; Value = "input-trace.json" },
+            @{ Name = "-CompareInputTrace"; Value = "input-trace.golden.json" },
+            @{ Name = "-ActualInputTrace"; Value = "input-trace.json" },
+            @{ Name = "-ValidateStorageTrace"; Value = "storage-trace.json" },
+            @{ Name = "-CompareStorageTrace"; Value = "storage-trace.golden.json" },
+            @{ Name = "-ActualStorageTrace"; Value = "storage-trace.json" },
             @{ Name = "-CompareFrameDumps"; Value = "frame-dumps.golden.json" },
             @{ Name = "-ActualFrameDumps"; Value = "frame-dumps.json" },
             @{ Name = "-ValidateDomainSummary"; Value = "domain-summary.json" },
+            @{ Name = "-ValidateBackendContract"; Value = "backend-contract.json" },
             @{ Name = "-CompareDomainSummary"; Value = "domain-summary.golden.json" },
             @{ Name = "-ActualDomainSummary"; Value = "domain-summary.json" }
         )) {
@@ -288,21 +407,49 @@ function Invoke-WrapperSelfTest {
         if (-not (Test-ArgumentPresent -Arguments $ProbeEvidence -Name "-DryRun")) {
             throw "selftest_failed: wrapper did not forward -DryRun"
         }
+        if (-not (Test-ArgumentPresent -Arguments $ProbeEvidence -Name "-ValidateEvidenceBundle")) {
+            throw "selftest_failed: wrapper did not forward -ValidateEvidenceBundle"
+        }
         $script:Doctor = [System.Management.Automation.SwitchParameter]::Present
         $ProbeDoctor = New-QemuSmokeArguments
         if (-not (Test-ArgumentPresent -Arguments $ProbeDoctor -Name "-Doctor")) {
             throw "selftest_failed: wrapper did not forward -Doctor"
         }
     } finally {
+        $script:BuildDir = $OriginalBuildDir
+        $script:AppOutDir = $OriginalAppOutDir
+        $script:EvidenceDir = $OriginalEvidenceDir
+        $script:FrameSignatureOut = $OriginalFrameSignatureOut
+        $script:GoldenFrameSignatures = $OriginalGoldenFrameSignatures
+        $script:FrameDumpOut = $OriginalFrameDumpOut
+        $script:GoldenFrameDumps = $OriginalGoldenFrameDumps
+        $script:FramePpmOut = $OriginalFramePpmOut
+        $script:InputTraceOut = $OriginalInputTraceOut
+        $script:GoldenInputTrace = $OriginalGoldenInputTrace
+        $script:StorageTraceOut = $OriginalStorageTraceOut
+        $script:GoldenStorageTrace = $OriginalGoldenStorageTrace
+        $script:DomainSummaryOut = $OriginalDomainSummaryOut
+        $script:BackendContractOut = $OriginalBackendContractOut
+        $script:GoldenDomainSummary = $OriginalGoldenDomainSummary
+        $script:ValidateLog = $OriginalValidateLog
         $script:ValidateFrameSignatures = $OriginalValidateFrameSignatures
         $script:CompareFrameSignatures = $OriginalCompareFrameSignatures
         $script:ActualFrameSignatures = $OriginalActualFrameSignatures
         $script:ValidateFrameDumps = $OriginalValidateFrameDumps
+        $script:ValidateFramePpm = $OriginalValidateFramePpm
+        $script:ValidateInputTrace = $OriginalValidateInputTrace
+        $script:CompareInputTrace = $OriginalCompareInputTrace
+        $script:ActualInputTrace = $OriginalActualInputTrace
+        $script:ValidateStorageTrace = $OriginalValidateStorageTrace
+        $script:CompareStorageTrace = $OriginalCompareStorageTrace
+        $script:ActualStorageTrace = $OriginalActualStorageTrace
         $script:CompareFrameDumps = $OriginalCompareFrameDumps
         $script:ActualFrameDumps = $OriginalActualFrameDumps
         $script:ValidateDomainSummary = $OriginalValidateDomainSummary
+        $script:ValidateBackendContract = $OriginalValidateBackendContract
         $script:CompareDomainSummary = $OriginalCompareDomainSummary
         $script:ActualDomainSummary = $OriginalActualDomainSummary
+        $script:ValidateEvidenceBundle = $OriginalValidateEvidenceBundle
         $script:Doctor = $OriginalDoctor
         $script:DryRun = $OriginalDryRun
     }

@@ -94,7 +94,10 @@ payload-boundary, load-segment, and segment-overlap failures.
 `wrong_link_base_app` keeps the ELF structurally valid but shifts its `PT_LOAD`
 virtual addresses away from the QEMU domain run region; probe still reports
 `ok`, but the QEMU load backend must reject it before AppRuntime reaches start.
-`too_large_app` remains the ELF load-span negative case. `bad_elf_magic_app`
+`too_large_app` remains the ELF load-span negative case. The
+`unaligned_load_buffer_app` case validates the runtime-domain arena contract:
+if the QEMU backend supplies an unaligned ELF load buffer, the loader must stop
+at `load_buffer_unaligned` before AppRuntime reaches start. `bad_elf_magic_app`
 validates malformed ELF rejection at AppRuntime load stage without entering the
 App or touching capabilities.
 
@@ -219,12 +222,30 @@ capability diagnostics include `afe=configure/read` so AFE probes can be checked
 without conflating them with storage counters. The main smoke code should stay
 focused on Store staging, ELF loading, AppRuntime, and diagnostics. This split is
 not a public Backends API and does not introduce a second App model.
-The smoke logs `resident-elf-qemu: backend-capabilities ...` and
+The smoke logs `resident-elf-qemu: backend-capabilities ...`,
+`resident-elf-qemu: backend-scope ...`, and
 `resident-elf-qemu: backend-contract ...` directly from `qemu_virtual_backend`;
-`domain-summary.json` records the same data under `backend_contract`. That field
-is the virtual-board evidence contract for this smoke: runtime domain
-`virtual_m7`, virtual capabilities `console,time,display,input,storage,app_exit`,
-read-only storage, and unsupported AFE. It is not a product backend registry.
+`domain-summary.json` records the boundary declaration under `backend_scope`
+and the virtual capability details under `backend_contract`. The contract is the
+virtual-board evidence contract for this smoke: runtime domain `virtual_m7`,
+virtual capabilities `console,time,display,input,storage,app_exit`, read-only
+storage, and unsupported AFE. It is not a product backend registry.
+The `backend-scope` line is a log-level boundary declaration: QEMU proves the
+resident ELF loader/AppRuntime/CharmAppApi/source semantics, but does not prove
+H747 USB CDC, QSPI, eMMC, FMC SDRAM, HAL init, MPU/cache, or pinmux behavior.
+The runtime also logs `resident-elf-qemu: backend-self-check ...` from the same
+backend implementation. That line checks the generated `CharmAppApi` function
+table, display/input/storage constants, unsupported AFE boundary, and
+`app.exit` notification semantics against the declared virtual backend contract
+before any App is run. `domain-summary.json` records the same result as
+`backend_self_check`, and validate-only/exported backend-contract checks reject
+missing or failed self-check evidence.
+The runtime also logs `resident-elf-qemu: backend-reset-self-check ...` after
+dirtying the smoke-local counters, virtual time cursor, input cursor, display
+counters, and storage fd table, then resetting the backend. `domain-summary.json`
+records that result as `backend_reset_self_check`. This proves QEMU virtual
+backend reset determinism before the App matrix starts; it does not prove H747
+peripheral reset or board power sequencing.
 `domain-summary.json` also records a derived `backend_readiness` section. That
 section is intentionally redundant with lower-level coverage: it must report
 `status=ready` and true gates for ELF loader, AppRuntime, received bytes,
@@ -299,8 +320,11 @@ environment check before occupying the QEMU run path. It resolves CMake, QEMU,
 Arm GCC, the host compiler, QEMU source inputs, golden evidence files, output
 paths, and confirms that the local QEMU build advertises `mps2-an500`; it does
 not build, launch firmware, or validate runtime evidence. The doctor also prints
-`qemu_version`, `cmake_version`, `cc_version`, and `host_compiler_version` so
-environment drift is visible in captured logs. Use
+`qemu_version`, `cmake_version`, `cc_version`, `host_compiler_version`,
+`evidence_dir`, `qemu_log`, `qemu_err_log`, `evidence_lock`,
+`firmware_elf_load_base`, `elf_base`, `backend_scope_proves`, and
+`backend_scope_does_not_prove` so environment drift, ELF domain layout drift,
+QEMU evidence scope, and evidence routing are visible in captured logs. Use
 `..\run-resident-elf-qemu-smoke.ps1 -DryRun` as the cheapest supported command
 expansion check: it resolves the QEMU, compiler, generated artifact, evidence,
 and run-budget paths without building or launching QEMU. Use
@@ -313,9 +337,21 @@ full QEMU run is needed, and mutates a golden domain summary to confirm bad App
 model or packetstream failure-boundary fields are rejected. Use
 `-ValidateEvidenceBundle` to revalidate the existing
 `qemu-ci.log`, frame signatures, frame dumps, PPM frames, input trace, storage
-trace, domain summary, and checked-in golden files without rebuilding or
-launching QEMU. The default full-run wait budget is 15 seconds; pass
+trace, domain summary, backend contract, and checked-in golden files without
+rebuilding or launching QEMU. If `backend-contract.json` is missing from an old
+evidence directory, validation derives it from the already validated
+`domain-summary.json` and validates the derived file before passing. The default
+full-run wait budget is 15 seconds; pass
 `-TimeoutSec <seconds>` when using slower hosts or temporary extra diagnostics.
+Pass `-EvidenceDir <dir>` to place the generated QEMU evidence set under an
+independent directory. That directory owns `qemu-ci.log`, `qemu-ci.err.log`,
+`qemu-evidence.lock`, trace JSON, frame dumps, PPM frames, and
+`domain-summary.json`; full QEMU runs also write the derived
+`backend-contract.json`, and validate-only runs can recreate it from
+`domain-summary.json` when absent. Checked-in golden files still come from
+`resident_elf_qemu_smoke`. For fully independent QEMU runs, also pass distinct
+`-BuildDir` and `-AppOutDir` values so generated firmware, generated App ELFs,
+and evidence files do not share writable paths.
 Use
 `-ValidateLog resident_elf_qemu_smoke/qemu-ci.log` to classify an existing QEMU
 log without rebuilding or launching QEMU. Use
@@ -348,6 +384,14 @@ also compares the generated summary with `domain-summary.golden.json` after
 canonicalizing environment-specific paths; pass `-SkipGoldenDomainSummary` only
 for temporary experiments where the backend contract or coverage matrix is
 expected to drift. Use
+`-ValidateBackendContract resident_elf_qemu_smoke/backend-contract.json` to
+validate only the extracted virtual backend contract evidence. This file uses
+schema `charm.resident_elf_qemu.backend_contract.v1` and is a narrow copy of the
+backend scope, backend contract, backend self-check, backend readiness,
+capability matrix, and runtime-domain profile from `domain-summary.json`; use it
+when backend identity, boundary, or capability semantics need a cheap
+single-file gate without treating the full run matrix as the changed artifact.
+Use
 `-CompareDomainSummary expected.json -ActualDomainSummary actual.json`,
 `-CompareStorageTrace expected.json -ActualStorageTrace actual.json`, or
 `-CompareFrameDumps expected.json -ActualFrameDumps actual.json` to compare two
@@ -364,12 +408,15 @@ App count, generated include count, and representative size/CRC facts for
 actual ELF/Store inputs it executed instead of only recording the runtime
 result.
 
-The full smoke and `-ValidateEvidenceBundle` both consume the same shared
-evidence files (`qemu-ci.log`, trace JSON, frame dumps, PPM frames, and
-`domain-summary.json`). `run_qemu_ci.ps1` serializes those two whole-evidence
-paths with `qemu-evidence.lock` so a full QEMU run cannot rewrite the log while
-an evidence-bundle validation is reading it. Single-file validators, doctor,
-selftest, and dry-run do not take this lock.
+The full smoke and `-ValidateEvidenceBundle` both consume the same evidence files
+(`qemu-ci.log`, trace JSON, frame dumps, PPM frames, `domain-summary.json`, and
+the derived `backend-contract.json`) inside the selected evidence directory. `run_qemu_ci.ps1`
+serializes those two whole-evidence paths with `qemu-evidence.lock` in the same
+directory so a full QEMU run cannot rewrite the log while an evidence-bundle
+validation is reading it. Single-file validators, doctor, selftest, and dry-run
+do not take this lock. Use independent evidence directories for parallel CI
+jobs or local experiments that should not overwrite the canonical checked-out
+evidence files.
 
 The QEMU App artifact list is owned by `Get-QemuAppSpecs` in
 `run_qemu_ci.ps1`. The same specs drive source selection, generated `.elf.inc`
@@ -386,6 +433,8 @@ The full smoke checks these representative tokens:
 - `resident-elf-qemu: backend-contract input=deterministic_sequence sample_count=4 pointer_max=15,15 wraps=1 evidence=input_trace,gui_timeline`
 - `resident-elf-qemu: backend-contract storage=virtual_readonly_files file_count=3 fd_base=3 fd_slots=4 write_policy=unsupported evidence=storage_trace`
 - `resident-elf-qemu: backend-contract app_exit=notification_counter overrides_return=0`
+- `resident-elf-qemu: backend-self-check api=1 display=1 input=1 storage=1 afe=1 app_exit=1 result=ok`
+- `resident-elf-qemu: backend-reset-self-check counters=1 display=1 time=1 input=1 storage=1 result=ok`
 - `resident-elf-qemu: store entries=31 bytes=`
 - `resident-elf-qemu: store-media kind=memory bytes=`
 - `resident-elf-qemu: unsupported storage_open=1 storage_read=1 storage_write=1 storage_close=1 afe_configure=1 afe_read=1 storage_count=1/1/1/1 afe_count=1/1`
@@ -680,6 +729,10 @@ The full smoke checks these representative tokens:
 - `resident-elf-qemu: capacity too_large_app needed=82176 free=0 fits=0 region=65536 probe=load_buffer_too_small`
 - `resident-elf-qemu: app too_large_app stage=load code=load_failed exit=0`
 - `resident-elf-qemu: caps too_large_app console=0 time=0 describe=0 present=0 input=0 exit=0`
+- `resident-elf-qemu: load unaligned_load_buffer_app format=elf probe=load_buffer_unaligned`
+- `resident-elf-qemu: capacity unaligned_load_buffer_app needed=0 free=65536 fits=1 region=65536 probe=load_buffer_unaligned`
+- `resident-elf-qemu: app unaligned_load_buffer_app stage=load code=load_failed exit=0`
+- `resident-elf-qemu: caps unaligned_load_buffer_app console=0 time=0 describe=0 present=0 input=0 exit=0`
 - `resident-elf-qemu: input poll encoder1=1 pointer=3,5 max=15,15 detected=1 down=0`
 - `resident-elf-qemu: display present bytes=1024`
 - `resident-elf-qemu: display present bytes=1024 checksum=174720`
@@ -775,7 +828,11 @@ packetstream/Store ELF runs, prepare-only coverage, capability coverage, and the
 expected negative cases. Its `run_budget` section records the effective QEMU
 timeout and failure-tail settings for auditability; golden comparison
 canonicalizes those local runner values so temporary timeout tuning does not
-look like a backend semantic change. Its `backend_contract` section records the smoke-local
+look like a backend semantic change. Its `backend_scope` section records the
+exact virtual-board scope boundary: it proves ELF loader, AppRuntime,
+`CharmAppApi`, capability backend, received-image, packetstream, and Store v1
+semantics, but it does not prove H747 USB CDC, QSPI, eMMC, FMC SDRAM, HAL init,
+MPU/cache, or pinmux behavior. Its `backend_contract` section records the smoke-local
 virtual capabilities, unsupported AFE boundary, deterministic time tick,
 framebuffer display evidence, deterministic input sequence, read-only virtual
 storage media, and `app.exit` return-value semantics. Its `backend_readiness`
@@ -785,10 +842,8 @@ GUI, storage, input, unsupported-boundary, and runtime-reset gates. Its
 `backend_capability_matrix` section maps each smoke-local capability to its
 virtual provider, policy, evidence source, and representative run set. Its
 `runtime_domain_profile` section names the smoke as a `virtual_m7` virtual-board
-domain and records the exact scope boundary: it proves ELF loader, AppRuntime,
-`CharmAppApi`, capability backend, received-image, packetstream, and Store v1
-semantics, but it does not prove H747 USB CDC, QSPI, eMMC, FMC SDRAM, HAL init,
-MPU/cache, or pinmux behavior. Its
+domain and mirrors the same `backend_scope`; validation rejects profile/scope
+mismatches so archived evidence cannot silently widen QEMU's claimed boundary. Its
 `elf_run_evidence_matrix` section indexes every ELF load by run name and binds
 source (`direct`, `received`, `packetstream`, `store`, or `prepare`), source
 stage/code, ELF load probe/capacity, AppRuntime stage/code/exit, and readiness
@@ -852,7 +907,8 @@ source-matrix entries, GUI timeline entries, negative cases, and evidence traces
 are exact gates. If a future change adds or removes coverage, update the smoke
 and this evidence contract intentionally. `domain-summary.golden.json` is the
 checked-in canonical contract snapshot; its environment-specific evidence paths
-are reduced to file names before comparison.
+are reduced to file names, and the generated App artifact directory is reduced
+to a stable token before comparison.
 
 ## Boundary
 
@@ -872,7 +928,13 @@ Examples/project/h747-lab/tools/capture-resident-platform-evidence-bundle.ps1 -Q
 The bundle forwards the same QEMU run budget as the standalone wrapper. Use
 `-QemuElfTimeoutSec <seconds>` and `-QemuElfTailLines <lines>` to tune the QEMU
 wait timeout and failure log tail without bypassing the supported wrapper
-surface.
+surface. Use `-QemuElfEvidenceDir <dir>` when the bundle should write or
+validate QEMU evidence outside the canonical `resident_elf_qemu_smoke`
+directory; the summary records that absolute path as `qemu_elf_evidence_dir`.
+Use `-QemuElfBuildDir <dir>` and `-QemuElfAppOutDir <dir>` when the bundle
+should also isolate the generated QEMU firmware build tree and generated App
+ELFs. The bundle passes absolute paths to the QEMU wrapper and records them as
+`qemu_elf_build_dir` and `qemu_elf_app_out_dir`.
 Add `-QemuElfDoctor` when the bundle should run the QEMU host-environment
 doctor before artifact generation, host smokes, a full QEMU run, or
 existing-evidence validation:
@@ -899,51 +961,68 @@ Examples/project/h747-lab/tools/capture-resident-platform-evidence-bundle.ps1 -Q
 ```
 
 That mode still validates `qemu-ci.log`, traces, PPM frames,
-`domain-summary.json`, and golden comparisons before writing the `qemu_elf_*`
-summary tokens with `qemu_elf_mode=validate_existing_evidence`.
+`domain-summary.json`, the backend contract, and golden comparisons before
+writing the `qemu_elf_*` summary tokens with
+`qemu_elf_mode=validate_existing_evidence`. If the selected evidence directory
+does not contain the derived `backend-contract.json`, validation derives a
+temporary contract from `domain-summary.json` and removes it after validation.
+The bundle summary then records
+`qemu_elf_backend_contract_file=derived_from_domain_summary:<domain-summary.json>`.
 
 The switch is opt-in so the default H747 evidence bundle keeps its existing
 meaning. QEMU evidence is off-board semantic evidence for the ELF/AppRuntime
 chain; it does not replace real-board USB, Store, SDRAM, eMMC, or HAL evidence.
 When `-QemuElf` is enabled, the bundle summary expands `domain-summary.json`
 into `qemu_elf_mode`, `qemu_elf_doctor`, `qemu_elf_doctor_versions`,
-`qemu_elf_domain`, `qemu_elf_app_model`, `qemu_elf_backend`, `qemu_elf_backend_readiness`,
+`qemu_elf_doctor_layout`, `qemu_elf_doctor_scope`, `qemu_elf_scope_match`,
+`qemu_elf_domain`, `qemu_elf_app_model`, `qemu_elf_backend`,
+`qemu_elf_backend_self_check`, `qemu_elf_backend_reset_self_check`,
+`qemu_elf_backend_readiness`,
 `qemu_elf_runtime_reset`,
 `qemu_elf_capability_matrix`,
+`qemu_elf_backend_scope`,
 `qemu_elf_runtime_domain_profile`,
 `qemu_elf_run_evidence_matrix`,
 `qemu_elf_backend_contract`, `qemu_elf_run_budget`,
 `qemu_elf_run_budget_match`, `qemu_elf_memory`, `qemu_elf_store`,
 `qemu_elf_store_manifest`, `qemu_elf_display`,
 `qemu_elf_domain_summary_golden`, `qemu_elf_frame_signatures`,
+`qemu_elf_backend_contract_file`,
 `qemu_elf_frame_signatures_golden`, `qemu_elf_frame_signature_gate`,
 `qemu_elf_frame_dumps`, `qemu_elf_frame_dumps_golden`,
 `qemu_elf_frame_dump_gate`, `qemu_elf_input_trace`,
 `qemu_elf_input_trace_golden`, `qemu_elf_input_trace_gate`,
 `qemu_elf_storage_trace`, `qemu_elf_storage_trace_golden`,
 `qemu_elf_storage_trace_gate`, `qemu_elf_frame_ppm`,
-`qemu_elf_frame_ppm_gate`, `qemu_elf_evidence`, `qemu_elf_capacity`,
+`qemu_elf_frame_ppm_gate`, `qemu_elf_evidence`,
+`qemu_elf_gui_contract`, `qemu_elf_storage_contract`, `qemu_elf_capacity`,
 `qemu_elf_artifacts`, `qemu_elf_loads`,
 `qemu_elf_equivalent_sources`,
 `qemu_elf_packetstreams`, `qemu_elf_failure_taxonomy`,
+`qemu_elf_failure_transport`, `qemu_elf_failure_stage`,
+`qemu_elf_failure_load`, `qemu_elf_failure_runtime`,
 `qemu_elf_domain_golden`, `qemu_elf_sources`, `qemu_elf_coverage`, and
 `qemu_elf_player_min_gui` tokens so archived logs expose whether QEMU was
 rebuilt and launched (`build_and_run`) or reused from an existing capture
 (`validate_existing_evidence`), plus the fixed App model
 (`format=elf:model=CharmAppApi`), virtual backend identity, detailed backend
-contract, backend readiness status/gates, capability matrix, recorded QEMU run budget, whether the requested bundle budget matches
+contract, backend self-check, backend reset self-check, doctor/runtime scope matching (`qemu_elf_scope_match=1` when checked), whether the contract came from a persistent
+`backend-contract.json` or from `domain-summary.json`, backend readiness
+status/gates, capability matrix, recorded QEMU run budget, whether the requested bundle budget matches
 the captured `domain-summary.json` budget, runtime-reset determinism, runtime-domain scope boundary, ELF run evidence matrix, ELF load memory boundary,
 packetstream buffer boundary (`storage/transport/stream/received`), Store media,
 QEMU trace capture/golden paths and gate status for frame signatures, full
 frame dumps, input trace, and storage trace, frame PPM visual artifact
-validation status, frame/input/storage evidence counts,
+validation status, frame/input/storage evidence counts, GUI display/input
+contract summary, virtual read-only storage contract summary,
 parsed Store v1 entry flags/size/CRC self-consistency, near-limit/over-limit
 ELF capacity, QEMU-local artifact counts and representative ELF/Store CRCs,
 representative ELF loader
 entry/span/segment/fits facts, direct/received/packetstream/Store equivalent
 ELF load facts for `hello_app`, `large_fit_app`, and `player_min`,
 packetstream payload/CRC and failure-boundary facts, domain-summary golden
-comparison, transport/stage/load/runtime failure taxonomy, and the
+comparison, transport/stage/load/runtime failure taxonomy plus per-category
+failure summaries, and the
 direct/received/packetstream/store source matrix plus full coverage counts
 (`runs/stages/loads/packetstreams/source_matrix/gui_timeline/prepare/
 capabilities/negative_cases`) without opening the JSON file.

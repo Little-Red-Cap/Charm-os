@@ -1147,10 +1147,11 @@ bool expect_received_stage_failure(std::string_view name,
            counters.app_exit == 0U;
 }
 
-bool expect_load_failure(std::string_view name,
-                         const unsigned char* image_bytes,
-                         std::size_t image_size,
-                         app_abi::AppElfProbeCode expected_probe) noexcept {
+bool expect_load_failure_with_buffer(std::string_view name,
+                                     const unsigned char* image_bytes,
+                                     std::size_t image_size,
+                                     app_abi::AppElfProbeCode expected_probe,
+                                     app_abi::AppLoadBuffer load_buffer) noexcept {
     clear_run_region();
     qemu_backend::reset_capability_counters();
 
@@ -1170,11 +1171,7 @@ bool expect_load_failure(std::string_view name,
     app_abi::AppRuntime<> runtime{};
     const auto result = runtime.run(app_abi::AppRunConfig{
         .source = &source,
-        .load_buffer = app_abi::AppLoadBuffer{
-            .base = g_elf_load_region,
-            .size = sizeof(g_elf_load_region),
-            .align = 16U,
-        },
+        .load_buffer = load_buffer,
         .api = &api,
         .name = name,
         .arg_text = "",
@@ -1204,6 +1201,21 @@ bool expect_load_failure(std::string_view name,
            counters.display_present == 0U &&
            counters.input_poll == 0U &&
            counters.app_exit == 0U;
+}
+
+bool expect_load_failure(std::string_view name,
+                         const unsigned char* image_bytes,
+                         std::size_t image_size,
+                         app_abi::AppElfProbeCode expected_probe) noexcept {
+    return expect_load_failure_with_buffer(name,
+                                           image_bytes,
+                                           image_size,
+                                           expected_probe,
+                                           app_abi::AppLoadBuffer{
+                                               .base = g_elf_load_region,
+                                               .size = sizeof(g_elf_load_region),
+                                               .align = 16U,
+                                           });
 }
 
 bool expect_mutated_hello_load_failure(std::string_view name,
@@ -1467,7 +1479,10 @@ extern "C" int resident_elf_qemu_main() {
     qemu_backend::log_line("resident-elf-qemu: begin");
     qemu_backend::log_backend_identity();
     qemu_backend::log_backend_capabilities();
+    qemu_backend::log_backend_scope();
     qemu_backend::log_backend_contract();
+    bool ok = qemu_backend::log_backend_self_check();
+    ok = qemu_backend::log_backend_reset_self_check() && ok;
     qemu_backend::write("resident-elf-qemu: run-region base=");
     qemu_backend::write_hex32(static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(g_elf_load_region)));
     qemu_backend::write(" expected=");
@@ -1493,7 +1508,7 @@ extern "C" int resident_elf_qemu_main() {
     qemu_backend::write_dec(qemu_appstore_bin_len);
     qemu_backend::write("\n");
 
-    bool ok = reinterpret_cast<std::uintptr_t>(g_elf_load_region) == kQemuMemory.run_region_base;
+    ok = (reinterpret_cast<std::uintptr_t>(g_elf_load_region) == kQemuMemory.run_region_base) && ok;
     ok = qemu_backend::probe_unsupported_capabilities() && ok;
     ok = run_direct_app("hello_app", hello_app_elf, hello_app_elf_len, "alpha beta") && ok;
     ok = run_received_app("hello_app", hello_app_elf, hello_app_elf_len, "alpha beta") && ok;
@@ -1667,6 +1682,15 @@ extern "C" int resident_elf_qemu_main() {
                              too_large_app_elf,
                              too_large_app_elf_len,
                              app_abi::AppElfProbeCode::load_buffer_too_small) && ok;
+    ok = expect_load_failure_with_buffer("unaligned_load_buffer_app",
+                                         hello_app_elf,
+                                         hello_app_elf_len,
+                                         app_abi::AppElfProbeCode::load_buffer_unaligned,
+                                         app_abi::AppLoadBuffer{
+                                             .base = g_elf_load_region + 1U,
+                                             .size = sizeof(g_elf_load_region) - 1U,
+                                             .align = 16U,
+                                         }) && ok;
     ok = run_direct_app("player_min", player_min_elf, player_min_elf_len, "") && ok;
     ok = run_received_app("player_min", player_min_elf, player_min_elf_len, "") && ok;
     ok = run_packetstream_received_app("player_min", player_min_elf, player_min_elf_len, "") && ok;

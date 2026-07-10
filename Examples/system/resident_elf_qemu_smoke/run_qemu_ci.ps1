@@ -5,6 +5,7 @@ param(
     [string]$HostCompiler = "D:/Toolchains/w64devkit/bin/g++.exe",
     [string]$BuildDir = "$PSScriptRoot\cmake-build-resident-elf-qemu-smoke",
     [string]$AppOutDir = "$PSScriptRoot\..\..\app_abi\elf_samples\out-qemu",
+    [string]$EvidenceDir = "",
     [string]$FrameSignatureOut = "$PSScriptRoot\frame-signatures.json",
     [string]$GoldenFrameSignatures = "$PSScriptRoot\frame-signatures.golden.json",
     [string]$FrameDumpOut = "$PSScriptRoot\frame-dumps.json",
@@ -15,6 +16,7 @@ param(
     [string]$StorageTraceOut = "$PSScriptRoot\storage-trace.json",
     [string]$GoldenStorageTrace = "$PSScriptRoot\storage-trace.golden.json",
     [string]$DomainSummaryOut = "$PSScriptRoot\domain-summary.json",
+    [string]$BackendContractOut = "$PSScriptRoot\backend-contract.json",
     [string]$GoldenDomainSummary = "$PSScriptRoot\domain-summary.golden.json",
     [string]$ElfBase = "0x20080000",
     [int]$TimeoutSec = 15,
@@ -32,6 +34,7 @@ param(
     [string]$CompareStorageTrace = "",
     [string]$ActualStorageTrace = "",
     [string]$ValidateDomainSummary = "",
+    [string]$ValidateBackendContract = "",
     [string]$CompareDomainSummary = "",
     [string]$ActualDomainSummary = "",
     [string]$CompareFrameDumps = "",
@@ -50,6 +53,14 @@ param(
 $ErrorActionPreference = "Stop"
 $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+
+$ExplicitFrameSignatureOut = $PSBoundParameters.ContainsKey("FrameSignatureOut")
+$ExplicitFrameDumpOut = $PSBoundParameters.ContainsKey("FrameDumpOut")
+$ExplicitFramePpmOut = $PSBoundParameters.ContainsKey("FramePpmOut")
+$ExplicitInputTraceOut = $PSBoundParameters.ContainsKey("InputTraceOut")
+$ExplicitStorageTraceOut = $PSBoundParameters.ContainsKey("StorageTraceOut")
+$ExplicitDomainSummaryOut = $PSBoundParameters.ContainsKey("DomainSummaryOut")
+$ExplicitBackendContractOut = $PSBoundParameters.ContainsKey("BackendContractOut")
 
 function Resolve-ToolPath {
     param([string]$Tool)
@@ -83,7 +94,11 @@ function Invoke-Checked {
 function Acquire-QemuEvidenceLock {
     param([int]$TimeoutSec = 120)
 
-    $LockPath = Join-Path $PSScriptRoot "qemu-evidence.lock"
+    $LockRoot = Get-QemuEvidenceRoot
+    if (-not (Test-Path -LiteralPath $LockRoot)) {
+        New-Item -ItemType Directory -Path $LockRoot | Out-Null
+    }
+    $LockPath = Join-Path $LockRoot "qemu-evidence.lock"
     $Deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSec)
     while ($true) {
         try {
@@ -590,6 +605,97 @@ function Resolve-ScriptPath {
     return [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot $Path))
 }
 
+function Get-QemuEvidenceRoot {
+    if ([string]::IsNullOrWhiteSpace($EvidenceDir)) {
+        return [System.IO.Path]::GetFullPath($PSScriptRoot)
+    }
+    if ([System.IO.Path]::IsPathRooted($EvidenceDir)) {
+        return [System.IO.Path]::GetFullPath($EvidenceDir)
+    }
+    return [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot $EvidenceDir))
+}
+
+function Get-QemuEvidencePath {
+    param([string]$FileName)
+
+    return (Join-Path (Get-QemuEvidenceRoot) $FileName)
+}
+
+function Convert-QemuHex32 {
+    param(
+        [string]$Value,
+        [string]$ErrorPrefix,
+        [string]$Field
+    )
+
+    if ($Value -notmatch '^0x[0-9A-Fa-f]{1,8}$') {
+        throw "${ErrorPrefix}: bad $Field hex value: $Value"
+    }
+    return ("0x{0:x8}" -f ([Convert]::ToUInt32($Value.Substring(2), 16)))
+}
+
+function Get-QemuFirmwareElfLoadBase {
+    param(
+        [string]$Path,
+        [string]$ErrorPrefix
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Path) -or -not (Test-Path -LiteralPath $Path)) {
+        throw "${ErrorPrefix}: QEMU firmware linker script not found: $Path"
+    }
+    $Text = Get-Content -LiteralPath $Path -Raw -Encoding UTF8
+    $Match = [regex]::Match($Text, '(?m)^\s*\.elf_load\s+(0x[0-9A-Fa-f]+)\s+\(NOLOAD\)')
+    if (-not $Match.Success) {
+        throw "${ErrorPrefix}: QEMU firmware linker script missing .elf_load address: $Path"
+    }
+    return (Convert-QemuHex32 -Value $Match.Groups[1].Value -ErrorPrefix $ErrorPrefix -Field ".elf_load")
+}
+
+function Assert-QemuElfDomainLayout {
+    param(
+        [string]$LdscriptPath,
+        [string]$ErrorPrefix
+    )
+
+    $ExpectedElfBase = Convert-QemuHex32 -Value $ElfBase -ErrorPrefix $ErrorPrefix -Field "ElfBase"
+    $FirmwareElfLoadBase = Get-QemuFirmwareElfLoadBase -Path $LdscriptPath -ErrorPrefix $ErrorPrefix
+    if ($ExpectedElfBase -ne "0x20080000") {
+        throw "${ErrorPrefix}: QEMU ELF base must remain 0x20080000, got $ExpectedElfBase"
+    }
+    if ($FirmwareElfLoadBase -ne $ExpectedElfBase) {
+        throw "${ErrorPrefix}: QEMU firmware .elf_load base $FirmwareElfLoadBase does not match ElfBase $ExpectedElfBase"
+    }
+    return [pscustomobject]@{
+        elf_base = $ExpectedElfBase
+        firmware_elf_load_base = $FirmwareElfLoadBase
+    }
+}
+
+function Initialize-QemuEvidencePaths {
+    $Root = Get-QemuEvidenceRoot
+    if (-not $ExplicitFrameSignatureOut) {
+        $script:FrameSignatureOut = Join-Path $Root "frame-signatures.json"
+    }
+    if (-not $ExplicitFrameDumpOut) {
+        $script:FrameDumpOut = Join-Path $Root "frame-dumps.json"
+    }
+    if (-not $ExplicitFramePpmOut) {
+        $script:FramePpmOut = Join-Path $Root "frame-ppm"
+    }
+    if (-not $ExplicitInputTraceOut) {
+        $script:InputTraceOut = Join-Path $Root "input-trace.json"
+    }
+    if (-not $ExplicitStorageTraceOut) {
+        $script:StorageTraceOut = Join-Path $Root "storage-trace.json"
+    }
+    if (-not $ExplicitDomainSummaryOut) {
+        $script:DomainSummaryOut = Join-Path $Root "domain-summary.json"
+    }
+    if (-not $ExplicitBackendContractOut) {
+        $script:BackendContractOut = Join-Path $Root "backend-contract.json"
+    }
+}
+
 function Resolve-QemuDoctorToolPath {
     param(
         [string]$Name,
@@ -679,11 +785,14 @@ function Get-ExpectedTokens {
         "resident-elf-qemu: begin",
         "resident-elf-qemu: backend=virtual_m7 machine=mps2-an500 cpu=cortex-m7",
         "resident-elf-qemu: backend-capabilities capabilities=console,time,display,input,storage,app_exit storage=readonly afe=unsupported",
+        "resident-elf-qemu: backend-scope proves=elf_loader,app_runtime,charm_app_api,capability_backend,received_image,packetstream,store_v1_semantics does_not_prove=h747_usb_cdc,h747_qspi,h747_emmc,h747_fmc_sdram,h747_hal_init,h747_mpu_cache,h747_pinmux",
         "resident-elf-qemu: backend-contract time=deterministic_tick start_ms=1000 step_ms=17 reset_per_run=1",
         "resident-elf-qemu: backend-contract display=framebuffer width=16 height=16 stride=64 format=argb8888 frame_bytes=1024 evidence=frame_signatures,frame_dumps,frame_ppm,gui_timeline",
         "resident-elf-qemu: backend-contract input=deterministic_sequence sample_count=4 pointer_max=15,15 wraps=1 evidence=input_trace,gui_timeline",
         "resident-elf-qemu: backend-contract storage=virtual_readonly_files file_count=3 fd_base=3 fd_slots=4 write_policy=unsupported evidence=storage_trace",
         "resident-elf-qemu: backend-contract app_exit=notification_counter overrides_return=0",
+        "resident-elf-qemu: backend-self-check api=1 display=1 input=1 storage=1 afe=1 app_exit=1 result=ok",
+        "resident-elf-qemu: backend-reset-self-check counters=1 display=1 time=1 input=1 storage=1 result=ok",
         "resident-elf-qemu: run-region base=0x20080000 expected=0x20080000 size=65536",
         "resident-elf-qemu: stage-cache bytes=16384",
         "resident-elf-qemu: packetstream-buffers storage=16384 transport=2048 stream=32768 received=16384",
@@ -983,6 +1092,10 @@ function Get-ExpectedTokens {
         "resident-elf-qemu: load too_large_app format=elf probe=load_buffer_too_small",
         "resident-elf-qemu: capacity too_large_app needed=82176 free=0 fits=0 region=65536 probe=load_buffer_too_small",
         "resident-elf-qemu: caps too_large_app console=0 time=0 describe=0 present=0 input=0 exit=0",
+        "resident-elf-qemu: app unaligned_load_buffer_app stage=load code=load_failed exit=0",
+        "resident-elf-qemu: load unaligned_load_buffer_app format=elf probe=load_buffer_unaligned",
+        "resident-elf-qemu: capacity unaligned_load_buffer_app needed=0 free=65536 fits=1 region=65536 probe=load_buffer_unaligned",
+        "resident-elf-qemu: caps unaligned_load_buffer_app console=0 time=0 describe=0 present=0 input=0 exit=0",
         "resident-elf-qemu: display describe width=16 height=16 stride=64 format=argb8888 frame_bytes=1024",
         "resident-elf-qemu: input poll",
         "resident-elf-qemu: input poll encoder1=1 pointer=3,5 max=15,15 detected=1 down=0",
@@ -2464,6 +2577,25 @@ function Split-BackendContractEvidence {
     return @($Value -split "," | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
 }
 
+function Get-BackendScopeFromText {
+    param([string]$Text)
+
+    $Proves = Split-BackendContractEvidence -Value (Get-RegexGroupValue `
+            -Text $Text `
+            -Pattern 'resident-elf-qemu: backend-scope proves=([a-z0-9_,]+)' `
+            -ErrorPrefix "domain_summary_failed")
+    $DoesNotProve = Split-BackendContractEvidence -Value (Get-RegexGroupValue `
+            -Text $Text `
+            -Pattern 'resident-elf-qemu: backend-scope proves=[a-z0-9_,]+ does_not_prove=([a-z0-9_,]+)' `
+            -ErrorPrefix "domain_summary_failed")
+
+    return [pscustomobject]@{
+        schema = "charm.resident_elf_qemu.backend_scope.v1"
+        proves = @($Proves)
+        does_not_prove = @($DoesNotProve)
+    }
+}
+
 function Get-BackendIdentityFromText {
     param([string]$Text)
 
@@ -2573,12 +2705,85 @@ function Get-BackendContractFromText {
     }
 }
 
+function Get-BackendSelfCheckFromText {
+    param([string]$Text)
+
+    $Api = Convert-BackendContractFlag `
+        -Value (Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: backend-self-check api=([01])' -ErrorPrefix "domain_summary_failed") `
+        -Field "backend_self_check.api"
+    $Display = Convert-BackendContractFlag `
+        -Value (Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: backend-self-check api=[01] display=([01])' -ErrorPrefix "domain_summary_failed") `
+        -Field "backend_self_check.display"
+    $Input = Convert-BackendContractFlag `
+        -Value (Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: backend-self-check api=[01] display=[01] input=([01])' -ErrorPrefix "domain_summary_failed") `
+        -Field "backend_self_check.input"
+    $Storage = Convert-BackendContractFlag `
+        -Value (Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: backend-self-check api=[01] display=[01] input=[01] storage=([01])' -ErrorPrefix "domain_summary_failed") `
+        -Field "backend_self_check.storage"
+    $Afe = Convert-BackendContractFlag `
+        -Value (Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: backend-self-check api=[01] display=[01] input=[01] storage=[01] afe=([01])' -ErrorPrefix "domain_summary_failed") `
+        -Field "backend_self_check.afe"
+    $AppExit = Convert-BackendContractFlag `
+        -Value (Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: backend-self-check api=[01] display=[01] input=[01] storage=[01] afe=[01] app_exit=([01])' -ErrorPrefix "domain_summary_failed") `
+        -Field "backend_self_check.app_exit"
+    $Result = Get-RegexGroupValue `
+        -Text $Text `
+        -Pattern 'resident-elf-qemu: backend-self-check api=[01] display=[01] input=[01] storage=[01] afe=[01] app_exit=[01] result=([a-z_]+)' `
+        -ErrorPrefix "domain_summary_failed"
+
+    return [pscustomobject]@{
+        schema = "charm.resident_elf_qemu.backend_self_check.v1"
+        api = $Api
+        display = $Display
+        input = $Input
+        storage = $Storage
+        afe = $Afe
+        app_exit = $AppExit
+        result = $Result
+    }
+}
+
+function Get-BackendResetSelfCheckFromText {
+    param([string]$Text)
+
+    $Counters = Convert-BackendContractFlag `
+        -Value (Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: backend-reset-self-check counters=([01])' -ErrorPrefix "domain_summary_failed") `
+        -Field "backend_reset_self_check.counters"
+    $Display = Convert-BackendContractFlag `
+        -Value (Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: backend-reset-self-check counters=[01] display=([01])' -ErrorPrefix "domain_summary_failed") `
+        -Field "backend_reset_self_check.display"
+    $Time = Convert-BackendContractFlag `
+        -Value (Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: backend-reset-self-check counters=[01] display=[01] time=([01])' -ErrorPrefix "domain_summary_failed") `
+        -Field "backend_reset_self_check.time"
+    $Input = Convert-BackendContractFlag `
+        -Value (Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: backend-reset-self-check counters=[01] display=[01] time=[01] input=([01])' -ErrorPrefix "domain_summary_failed") `
+        -Field "backend_reset_self_check.input"
+    $Storage = Convert-BackendContractFlag `
+        -Value (Get-RegexGroupValue -Text $Text -Pattern 'resident-elf-qemu: backend-reset-self-check counters=[01] display=[01] time=[01] input=[01] storage=([01])' -ErrorPrefix "domain_summary_failed") `
+        -Field "backend_reset_self_check.storage"
+    $Result = Get-RegexGroupValue `
+        -Text $Text `
+        -Pattern 'resident-elf-qemu: backend-reset-self-check counters=[01] display=[01] time=[01] input=[01] storage=[01] result=([a-z_]+)' `
+        -ErrorPrefix "domain_summary_failed"
+
+    return [pscustomobject]@{
+        schema = "charm.resident_elf_qemu.backend_reset_self_check.v1"
+        counters = $Counters
+        display = $Display
+        time = $Time
+        input = $Input
+        storage = $Storage
+        result = $Result
+    }
+}
+
 function Get-QemuRuntimeDomainProfile {
     param(
         [string]$RuntimeDomain,
         [string]$Machine,
         [string]$Cpu,
-        [object]$BackendContract
+        [object]$BackendContract,
+        [object]$BackendScope
     )
 
     return [pscustomobject]@{
@@ -2587,24 +2792,8 @@ function Get-QemuRuntimeDomainProfile {
         machine = $Machine
         cpu = $Cpu
         kind = "virtual_board"
-        proves = @(
-            "elf_loader",
-            "app_runtime",
-            "charm_app_api",
-            "capability_backend",
-            "received_image",
-            "packetstream",
-            "store_v1_semantics"
-        )
-        does_not_prove = @(
-            "h747_usb_cdc",
-            "h747_qspi",
-            "h747_emmc",
-            "h747_fmc_sdram",
-            "h747_hal_init",
-            "h747_mpu_cache",
-            "h747_pinmux"
-        )
+        proves = @($BackendScope.proves)
+        does_not_prove = @($BackendScope.does_not_prove)
         app_model = "CharmAppApi"
         image_format = "elf"
         run_region = [pscustomobject]@{
@@ -3018,6 +3207,7 @@ function Get-QemuNegativeCases {
         [pscustomobject]@{ name = "rwx_segment_app"; stage = "load"; code = "load_failed" },
         [pscustomobject]@{ name = "wrong_link_base_app"; stage = "load"; code = "load_failed" },
         [pscustomobject]@{ name = "too_large_app"; stage = "load"; code = "load_failed" },
+        [pscustomobject]@{ name = "unaligned_load_buffer_app"; stage = "load"; code = "load_failed" },
         [pscustomobject]@{ name = "argv_overflow_app"; stage = "argv"; code = "argv_overflow" },
         [pscustomobject]@{ name = "abi_mismatch_app"; stage = "abi"; code = "abi_mismatch" }
     )
@@ -3595,6 +3785,7 @@ function Get-QemuBackendReadiness {
         (Test-QemuSummaryLoad -Loads $Loads -Name "hello_app" -Probe "ok" -Fits $true) -and
         (Test-QemuSummaryLoad -Loads $Loads -Name "large_fit_app" -Probe "ok" -Fits $true) -and
         (Test-QemuSummaryLoad -Loads $Loads -Name "too_large_app" -Probe "load_buffer_too_small" -Fits $false) -and
+        (Test-QemuSummaryLoad -Loads $Loads -Name "unaligned_load_buffer_app" -Probe "load_buffer_unaligned" -Fits $true) -and
         (Test-QemuSummaryLoad -Loads $Loads -Name "bad_header_app" -Probe "bad_header" -Fits $true)
     $AppRuntimeReady =
         (Test-QemuSummaryRun -Runs $Runs -Name "hello_app" -Stage "exit" -Code "ok") -and
@@ -3771,6 +3962,7 @@ function Write-DomainSummaryCapture {
         [string]$InputTracePath,
         [string]$StorageTracePath,
         [string]$OutputPath,
+        [string]$BackendContractOutputPath,
         [string]$ArtifactDir,
         [int]$TimeoutSec,
         [int]$TailLines
@@ -3817,6 +4009,9 @@ function Write-DomainSummaryCapture {
         -Capabilities $BackendIdentity.capabilities `
         -StorageMode $BackendIdentity.storage `
         -AfeMode $BackendIdentity.afe
+    $BackendScope = Get-BackendScopeFromText -Text $Text
+    $BackendSelfCheck = Get-BackendSelfCheckFromText -Text $Text
+    $BackendResetSelfCheck = Get-BackendResetSelfCheckFromText -Text $Text
     $ArtifactSummary = Get-QemuArtifactSummary -AppOutDir $ArtifactDir
     if ([int]$ArtifactSummary.store.size -ne $StoreBytes) {
         throw "domain_summary_failed: artifact store size does not match runtime store bytes"
@@ -3949,7 +4144,8 @@ function Write-DomainSummaryCapture {
         -RuntimeDomain $BackendIdentity.runtime_domain `
         -Machine $BackendIdentity.machine `
         -Cpu $BackendIdentity.cpu `
-        -BackendContract $BackendContract
+        -BackendContract $BackendContract `
+        -BackendScope $BackendScope
 
     $Summary = [pscustomobject]@{
         schema = "charm.resident_elf_qemu.domain_summary.v1"
@@ -3958,7 +4154,10 @@ function Write-DomainSummaryCapture {
         cpu = $BackendIdentity.cpu
         image_format = "elf"
         app_model = "CharmAppApi"
+        backend_scope = $BackendScope
         backend_contract = $BackendContract
+        backend_self_check = $BackendSelfCheck
+        backend_reset_self_check = $BackendResetSelfCheck
         backend_readiness = $BackendReadiness
         backend_capability_matrix = $BackendCapabilityMatrix
         runtime_domain_profile = $RuntimeDomainProfile
@@ -4034,6 +4233,35 @@ function Write-DomainSummaryCapture {
     Write-Host "  runs=$(@($Summary.coverage.runs).Count)"
     Write-Host "  store_entries=$StoreEntries"
     Write-Host "  store_media_reads=$StoreMediaReadCalls"
+
+    if (-not [string]::IsNullOrWhiteSpace($BackendContractOutputPath)) {
+        $ResolvedBackendContractOut = Resolve-ScriptPath -Path $BackendContractOutputPath
+        $BackendContractOutDir = [System.IO.Path]::GetDirectoryName($ResolvedBackendContractOut)
+        if (-not [string]::IsNullOrWhiteSpace($BackendContractOutDir) -and -not (Test-Path -LiteralPath $BackendContractOutDir)) {
+            New-Item -ItemType Directory -Force -Path $BackendContractOutDir | Out-Null
+        }
+        $BackendContractCapture = [pscustomobject]@{
+            schema = "charm.resident_elf_qemu.backend_contract.v1"
+            domain = $BackendIdentity.runtime_domain
+            machine = $BackendIdentity.machine
+            cpu = $BackendIdentity.cpu
+            image_format = "elf"
+            app_model = "CharmAppApi"
+            backend_scope = $BackendScope
+            backend_contract = $BackendContract
+            backend_self_check = $BackendSelfCheck
+            backend_reset_self_check = $BackendResetSelfCheck
+            backend_readiness = $BackendReadiness
+            backend_capability_matrix = $BackendCapabilityMatrix
+            runtime_domain_profile = $RuntimeDomainProfile
+        }
+        $BackendContractJson = $BackendContractCapture | ConvertTo-Json -Depth 16
+        [System.IO.File]::WriteAllText($ResolvedBackendContractOut, ($BackendContractJson + "`n"), [System.Text.UTF8Encoding]::new($false))
+        Write-Host "resident-elf-qemu backend contract:"
+        Write-Host "  path=$ResolvedBackendContractOut"
+        Write-Host "  domain=virtual_m7"
+        Write-Host "  capabilities=$($BackendIdentity.capabilities)"
+    }
 }
 
 function ConvertTo-CanonicalDomainSummary {
@@ -4042,7 +4270,7 @@ function ConvertTo-CanonicalDomainSummary {
     $Canonical = $Summary | ConvertTo-Json -Depth 32 | ConvertFrom-Json
     if ($null -ne $Canonical.artifacts) {
         if (-not [string]::IsNullOrWhiteSpace([string]$Canonical.artifacts.directory)) {
-            $Canonical.artifacts.directory = [System.IO.Path]::GetFileName([string]$Canonical.artifacts.directory)
+            $Canonical.artifacts.directory = "<artifact-dir>"
         }
         foreach ($GroupName in @("apps", "extra", "includes")) {
             $Group = $Canonical.artifacts.PSObject.Properties[$GroupName]
@@ -4443,7 +4671,7 @@ function Assert-DomainFailureTaxonomy {
     if ($null -eq $Taxonomy -or $Taxonomy.schema -ne "charm.resident_elf_qemu.failure_taxonomy.v1") {
         throw "domain_summary_validate_failed: bad failure taxonomy schema"
     }
-    if ([int]$Taxonomy.total -ne @($NegativeCases).Count -or [int]$Taxonomy.total -ne 24) {
+    if ([int]$Taxonomy.total -ne @($NegativeCases).Count -or [int]$Taxonomy.total -ne 25) {
         throw "domain_summary_validate_failed: bad failure taxonomy total"
     }
 
@@ -4454,7 +4682,7 @@ function Assert-DomainFailureTaxonomy {
 
     Assert-DomainFailureTaxonomyCategory -Categories $Categories -Category "transport" -Count 1 -Stages @("packetstream_verify")
     Assert-DomainFailureTaxonomyCategory -Categories $Categories -Category "stage" -Count 2 -Stages @("received_stage", "store_stage")
-    Assert-DomainFailureTaxonomyCategory -Categories $Categories -Category "load" -Count 19 -Stages @("load")
+    Assert-DomainFailureTaxonomyCategory -Categories $Categories -Category "load" -Count 20 -Stages @("load")
     Assert-DomainFailureTaxonomyCategory -Categories $Categories -Category "runtime" -Count 2 -Stages @("argv", "abi")
 
     Assert-DomainFailureTaxonomyStage `
@@ -4482,7 +4710,7 @@ function Assert-DomainFailureTaxonomy {
         -Stages $Stages `
         -Stage "load" `
         -Category "load" `
-        -Count 19 `
+        -Count 20 `
         -Codes @("load_failed") `
         -Cases @(
             "bad_elf_magic_app",
@@ -4503,7 +4731,8 @@ function Assert-DomainFailureTaxonomy {
             "overlapping_segments_app",
             "rwx_segment_app",
             "wrong_link_base_app",
-            "too_large_app"
+            "too_large_app",
+            "unaligned_load_buffer_app"
         )
     Assert-DomainFailureTaxonomyStage `
         -Stages $Stages `
@@ -4680,6 +4909,50 @@ function Assert-DomainArtifacts {
         throw "domain_summary_validate_failed: store artifact size does not match media bytes"
     }
     Assert-DomainStoreEntryManifest -StoreManifest $Artifacts.store_manifest -Artifacts $Artifacts -Store $Store
+}
+
+function Assert-BackendSelfCheck {
+    param(
+        [object]$SelfCheck,
+        [string]$ErrorPrefix
+    )
+
+    if ($null -eq $SelfCheck) {
+        throw "${ErrorPrefix}: missing backend self-check"
+    }
+    if ($SelfCheck.schema -ne "charm.resident_elf_qemu.backend_self_check.v1") {
+        throw "${ErrorPrefix}: bad backend self-check schema"
+    }
+    foreach ($Field in @("api", "display", "input", "storage", "afe", "app_exit")) {
+        if (-not [bool]$SelfCheck.$Field) {
+            throw "${ErrorPrefix}: backend self-check $Field failed"
+        }
+    }
+    if ($SelfCheck.result -ne "ok") {
+        throw "${ErrorPrefix}: backend self-check result=$($SelfCheck.result)"
+    }
+}
+
+function Assert-BackendResetSelfCheck {
+    param(
+        [object]$SelfCheck,
+        [string]$ErrorPrefix
+    )
+
+    if ($null -eq $SelfCheck) {
+        throw "${ErrorPrefix}: missing backend reset self-check"
+    }
+    if ($SelfCheck.schema -ne "charm.resident_elf_qemu.backend_reset_self_check.v1") {
+        throw "${ErrorPrefix}: bad backend reset self-check schema"
+    }
+    foreach ($Field in @("counters", "display", "time", "input", "storage")) {
+        if (-not [bool]$SelfCheck.$Field) {
+            throw "${ErrorPrefix}: backend reset self-check $Field failed"
+        }
+    }
+    if ($SelfCheck.result -ne "ok") {
+        throw "${ErrorPrefix}: backend reset self-check result=$($SelfCheck.result)"
+    }
 }
 
 function Assert-DomainBackendReadiness {
@@ -4882,10 +5155,58 @@ function Assert-DomainBackendCapabilityMatrix {
         -Runs @("unsupported_caps_app", "afe_error_app", "store:afe_error_app")
 }
 
+function Assert-DomainBackendScope {
+    param(
+        [object]$Scope,
+        [string]$ErrorPrefix = "domain_summary_validate_failed"
+    )
+
+    if ($null -eq $Scope -or $Scope.schema -ne "charm.resident_elf_qemu.backend_scope.v1") {
+        throw "${ErrorPrefix}: bad backend scope schema"
+    }
+
+    $Proves = @($Scope.proves)
+    foreach ($Item in @(
+            "elf_loader",
+            "app_runtime",
+            "charm_app_api",
+            "capability_backend",
+            "received_image",
+            "packetstream",
+            "store_v1_semantics"
+        )) {
+        if (-not ($Proves -contains $Item)) {
+            throw "${ErrorPrefix}: backend scope proves missing $Item"
+        }
+    }
+    if ($Proves.Count -ne 7) {
+        throw "${ErrorPrefix}: backend scope proves count=$($Proves.Count)"
+    }
+
+    $DoesNotProve = @($Scope.does_not_prove)
+    foreach ($Item in @(
+            "h747_usb_cdc",
+            "h747_qspi",
+            "h747_emmc",
+            "h747_fmc_sdram",
+            "h747_hal_init",
+            "h747_mpu_cache",
+            "h747_pinmux"
+        )) {
+        if (-not ($DoesNotProve -contains $Item)) {
+            throw "${ErrorPrefix}: backend scope does_not_prove missing $Item"
+        }
+    }
+    if ($DoesNotProve.Count -ne 7) {
+        throw "${ErrorPrefix}: backend scope does_not_prove count=$($DoesNotProve.Count)"
+    }
+}
+
 function Assert-DomainRuntimeDomainProfile {
     param(
         [object]$Profile,
-        [object]$BackendContract
+        [object]$BackendContract,
+        [object]$BackendScope
     )
 
     if ($null -eq $Profile -or $Profile.schema -ne "charm.resident_elf_qemu.runtime_domain_profile.v1") {
@@ -4934,6 +5255,25 @@ function Assert-DomainRuntimeDomainProfile {
     }
     if ($DoesNotProve.Count -ne 7) {
         throw "domain_summary_validate_failed: runtime domain profile does_not_prove count=$($DoesNotProve.Count)"
+    }
+    if ($null -eq $BackendScope) {
+        throw "domain_summary_validate_failed: runtime domain profile missing backend scope"
+    }
+    $ScopeProves = @($BackendScope.proves)
+    $ScopeDoesNotProve = @($BackendScope.does_not_prove)
+    if (($Proves -join ",") -ne ($ScopeProves -join ",") -or
+        ($DoesNotProve -join ",") -ne ($ScopeDoesNotProve -join ",")) {
+        throw "domain_summary_validate_failed: runtime domain profile must mirror backend_scope"
+    }
+    foreach ($Item in $Proves) {
+        if (-not ($ScopeProves -contains $Item)) {
+            throw "domain_summary_validate_failed: runtime domain profile proves not declared by backend scope: $Item"
+        }
+    }
+    foreach ($Item in $DoesNotProve) {
+        if (-not ($ScopeDoesNotProve -contains $Item)) {
+            throw "domain_summary_validate_failed: runtime domain profile does_not_prove not declared by backend scope: $Item"
+        }
     }
 
     if ($Profile.run_region.base -ne "0x20080000" -or
@@ -5190,6 +5530,102 @@ function Assert-BadDomainSummaryRejected {
     }
 }
 
+function New-SelfTestBackendContractCapture {
+    $SyntheticLog = Get-SyntheticPassingLog
+    $BackendIdentity = Get-BackendIdentityFromText -Text $SyntheticLog
+    $BackendContract = Get-BackendContractFromText -Text $SyntheticLog `
+        -RuntimeDomain $BackendIdentity.runtime_domain `
+        -Capabilities $BackendIdentity.capabilities `
+        -StorageMode $BackendIdentity.storage `
+        -AfeMode $BackendIdentity.afe
+    $BackendScope = Get-BackendScopeFromText -Text $SyntheticLog
+    $BackendSelfCheck = Get-BackendSelfCheckFromText -Text $SyntheticLog
+    $BackendResetSelfCheck = Get-BackendResetSelfCheckFromText -Text $SyntheticLog
+    $BackendReadiness = [pscustomobject]@{
+        status = "ready"
+        elf_loader = $true
+        app_runtime = $true
+        received = $true
+        packetstream = $true
+        store = $true
+        equivalent_sources = $true
+        gui = $true
+        storage = $true
+        input = $true
+        unsupported_boundary = $true
+        runtime_reset = $true
+    }
+    $BackendCapabilityMatrix = Get-QemuBackendCapabilityMatrix -BackendContract $BackendContract
+    $RuntimeDomainProfile = Get-QemuRuntimeDomainProfile `
+        -RuntimeDomain $BackendIdentity.runtime_domain `
+        -Machine $BackendIdentity.machine `
+        -Cpu $BackendIdentity.cpu `
+        -BackendContract $BackendContract `
+        -BackendScope $BackendScope
+
+    return [pscustomobject]@{
+        schema = "charm.resident_elf_qemu.backend_contract.v1"
+        domain = $BackendIdentity.runtime_domain
+        machine = $BackendIdentity.machine
+        cpu = $BackendIdentity.cpu
+        image_format = "elf"
+        app_model = "CharmAppApi"
+        backend_scope = $BackendScope
+        backend_contract = $BackendContract
+        backend_self_check = $BackendSelfCheck
+        backend_reset_self_check = $BackendResetSelfCheck
+        backend_readiness = $BackendReadiness
+        backend_capability_matrix = $BackendCapabilityMatrix
+        runtime_domain_profile = $RuntimeDomainProfile
+    }
+}
+
+function Write-SelfTestBackendContractCapture {
+    param(
+        [object]$Capture,
+        [string]$Path
+    )
+
+    [System.IO.File]::WriteAllText($Path, (($Capture | ConvertTo-Json -Depth 16) + "`n"), [System.Text.UTF8Encoding]::new($false))
+}
+
+function Assert-BackendContractCaptureAccepted {
+    param(
+        [object]$Capture,
+        [string]$Label
+    )
+
+    $TempPath = Join-Path ([System.IO.Path]::GetTempPath()) ("charm_resident_elf_qemu_good_backend_{0}.json" -f $Label)
+    try {
+        Write-SelfTestBackendContractCapture -Capture $Capture -Path $TempPath
+        if ((Validate-BackendContractFile -Path $TempPath) -ne 0) {
+            throw "selftest_failed: backend contract '$Label' returned nonzero validation"
+        }
+    } finally {
+        Remove-Item -LiteralPath $TempPath -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Assert-BadBackendContractRejected {
+    param(
+        [object]$Capture,
+        [string]$Label,
+        [scriptblock]$Mutate
+    )
+
+    $TempPath = Join-Path ([System.IO.Path]::GetTempPath()) ("charm_resident_elf_qemu_bad_backend_{0}.json" -f $Label)
+    $BadCapture = $Capture | ConvertTo-Json -Depth 16 | ConvertFrom-Json
+    & $Mutate $BadCapture
+    try {
+        Write-SelfTestBackendContractCapture -Capture $BadCapture -Path $TempPath
+        if (-not (Test-SelfTestThrowsLike -Prefix "backend_contract_validate_failed:" -Script { Validate-BackendContractFile -Path $TempPath })) {
+            throw "selftest_failed: bad backend contract '$Label' validated unexpectedly"
+        }
+    } finally {
+        Remove-Item -LiteralPath $TempPath -Force -ErrorAction SilentlyContinue
+    }
+}
+
 function Assert-GuiTimelineEntry {
     param(
         [object[]]$Timeline,
@@ -5308,12 +5744,19 @@ function Validate-DomainSummaryFile {
         [bool]$Summary.backend_contract.app_exit.overrides_return) {
         throw "domain_summary_validate_failed: bad app_exit backend contract"
     }
+    Assert-BackendSelfCheck `
+        -SelfCheck $Summary.backend_self_check `
+        -ErrorPrefix "domain_summary_validate_failed"
+    Assert-BackendResetSelfCheck `
+        -SelfCheck $Summary.backend_reset_self_check `
+        -ErrorPrefix "domain_summary_validate_failed"
+    Assert-DomainBackendScope -Scope $Summary.backend_scope
     Assert-DomainBackendReadiness -Readiness $Summary.backend_readiness
     Assert-DomainBackendCapabilityMatrix -Matrix @($Summary.backend_capability_matrix)
-    Assert-DomainRuntimeDomainProfile -Profile $Summary.runtime_domain_profile -BackendContract $Summary.backend_contract
+    Assert-DomainRuntimeDomainProfile -Profile $Summary.runtime_domain_profile -BackendContract $Summary.backend_contract -BackendScope $Summary.backend_scope
     Assert-DomainRuntimeResetDeterminism -Reset $Summary.runtime_reset_determinism
     $ElfRunEvidenceMatrix = @($Summary.elf_run_evidence_matrix)
-    Assert-DomainCount -Name "elf_run_evidence_matrix" -Actual $ElfRunEvidenceMatrix.Count -Expected 88
+    Assert-DomainCount -Name "elf_run_evidence_matrix" -Actual $ElfRunEvidenceMatrix.Count -Expected 89
     if ($Summary.run_region.base -ne "0x20080000" -or $Summary.run_region.expected -ne "0x20080000" -or [int]$Summary.run_region.size -ne 65536) {
         throw "domain_summary_validate_failed: bad run region"
     }
@@ -5337,7 +5780,7 @@ function Validate-DomainSummaryFile {
     Assert-DomainStoreMedia -Store $Summary.store
     Assert-DomainArtifacts -Artifacts $Summary.artifacts -Store $Summary.store
     $Runs = @($Summary.coverage.runs)
-    Assert-DomainCount -Name "runs" -Actual $Runs.Count -Expected 87
+    Assert-DomainCount -Name "runs" -Actual $Runs.Count -Expected 88
     Assert-DomainRun -Runs $Runs -Name "hello_app" -Stage "exit" -Code "ok"
     Assert-DomainRun -Runs $Runs -Name "received:hello_app" -Stage "exit" -Code "ok"
     Assert-DomainRun -Runs $Runs -Name "store:hello_app" -Stage "exit" -Code "ok"
@@ -5404,6 +5847,7 @@ function Validate-DomainSummaryFile {
     Assert-DomainRun -Runs $Runs -Name "rwx_segment_app" -Stage "load" -Code "load_failed"
     Assert-DomainRun -Runs $Runs -Name "wrong_link_base_app" -Stage "load" -Code "load_failed"
     Assert-DomainRun -Runs $Runs -Name "too_large_app" -Stage "load" -Code "load_failed"
+    Assert-DomainRun -Runs $Runs -Name "unaligned_load_buffer_app" -Stage "load" -Code "load_failed"
     Assert-DomainRun -Runs $Runs -Name "argv_overflow_app" -Stage "argv" -Code "argv_overflow"
     Assert-DomainRun -Runs $Runs -Name "abi_mismatch_app" -Stage "abi" -Code "abi_mismatch"
     $Stages = @($Summary.coverage.stages)
@@ -5432,7 +5876,7 @@ function Validate-DomainSummaryFile {
     Assert-DomainStage -Stages $Stages -Source "store" -Name "large_fit_app" -Code "ok"
     Assert-DomainStage -Stages $Stages -Source "store" -Name "too_large_store_app" -Code "image_too_large"
     $Loads = @($Summary.coverage.loads)
-    Assert-DomainCount -Name "loads" -Actual $Loads.Count -Expected 88
+    Assert-DomainCount -Name "loads" -Actual $Loads.Count -Expected 89
     Assert-DomainLoad -Loads $Loads -Name "hello_app" -Probe "ok" -Fits $true -Region 65536 -MinSpan 1 -Segments 2
     Assert-DomainLoad -Loads $Loads -Name "received:hello_app" -Probe "ok" -Fits $true -Region 65536 -MinSpan 1 -Segments 2
     Assert-DomainLoad -Loads $Loads -Name "packetstream:hello_app" -Probe "ok" -Fits $true -Region 65536 -MinSpan 1 -Segments 2
@@ -5503,6 +5947,7 @@ function Validate-DomainSummaryFile {
     Assert-DomainLoad -Loads $Loads -Name "rwx_segment_app" -Probe "rwx_segment" -Fits $true -Region 65536 -MinSpan 0 -Segments 0
     Assert-DomainLoad -Loads $Loads -Name "wrong_link_base_app" -Probe "ok" -Fits $true -Region 65536 -MinSpan 1 -Segments 2 -ExpectedBase "0x20080000" -ExpectedLinkBase "0x20081000" -ExpectBaseMatch $false
     Assert-DomainLoad -Loads $Loads -Name "too_large_app" -Probe "load_buffer_too_small" -Fits $false -Region 65536 -MinSpan 65537 -Segments 2
+    Assert-DomainLoad -Loads $Loads -Name "unaligned_load_buffer_app" -Probe "load_buffer_unaligned" -Fits $true -Region 65536 -MinSpan 0 -Segments 0
     Assert-DomainElfRunEvidenceMatchesLoad -Matrix $ElfRunEvidenceMatrix -Loads $Loads
     Assert-DomainElfRunEvidence `
         -Entry (Get-DomainElfRunEvidence -Matrix $ElfRunEvidenceMatrix -Name "hello_app") `
@@ -5603,6 +6048,17 @@ function Validate-DomainSummaryFile {
         -RunCode "load_failed" `
         -Ready $false `
         -Fits $false
+    Assert-DomainElfRunEvidence `
+        -Entry (Get-DomainElfRunEvidence -Matrix $ElfRunEvidenceMatrix -Name "unaligned_load_buffer_app") `
+        -Source "direct" `
+        -App "unaligned_load_buffer_app" `
+        -SourceStage "image" `
+        -SourceCode "ok" `
+        -LoadProbe "load_buffer_unaligned" `
+        -RunStage "load" `
+        -RunCode "load_failed" `
+        -Ready $false `
+        -Fits $true
     $Packetstreams = @($Summary.coverage.packetstreams)
     Assert-DomainCount -Name "packetstreams" -Actual $Packetstreams.Count -Expected 5
     Assert-DomainPacketstream -Packetstreams $Packetstreams -Name "hello_app" -Payload 5132
@@ -5630,7 +6086,7 @@ function Validate-DomainSummaryFile {
         }
     }
     $CapabilityCounters = @($Summary.coverage.capability_counters)
-    Assert-DomainCount -Name "capability_counters" -Actual $CapabilityCounters.Count -Expected 92
+    Assert-DomainCount -Name "capability_counters" -Actual $CapabilityCounters.Count -Expected 93
     foreach ($ExpectedCounter in @(
             [pscustomobject]@{ name = "bss_app"; console = 22; time = 0; input = 0; present = 0; storage_open = 0; display_frame = 0 },
             [pscustomobject]@{ name = "store:bss_app"; console = 22; time = 0; input = 0; present = 0; storage_open = 0; display_frame = 0 },
@@ -5660,7 +6116,7 @@ function Validate-DomainSummaryFile {
         }
     }
     $NegativeCases = @($Summary.coverage.negative_cases)
-    Assert-DomainCount -Name "negative_cases" -Actual $NegativeCases.Count -Expected 24
+    Assert-DomainCount -Name "negative_cases" -Actual $NegativeCases.Count -Expected 25
     Assert-DomainNegativeCase -NegativeCases $NegativeCases -Name "packetstream_crc_mismatch" -Stage "packetstream_verify" -Code "crc_mismatch"
     Assert-DomainNegativeCase -NegativeCases $NegativeCases -Name "received_too_large_app" -Stage "received_stage" -Code "buffer_too_small"
     Assert-DomainNegativeCase -NegativeCases $NegativeCases -Name "too_large_store_app" -Stage "store_stage" -Code "image_too_large"
@@ -5683,11 +6139,12 @@ function Validate-DomainSummaryFile {
     Assert-DomainNegativeCase -NegativeCases $NegativeCases -Name "rwx_segment_app" -Stage "load" -Code "load_failed"
     Assert-DomainNegativeCase -NegativeCases $NegativeCases -Name "wrong_link_base_app" -Stage "load" -Code "load_failed"
     Assert-DomainNegativeCase -NegativeCases $NegativeCases -Name "too_large_app" -Stage "load" -Code "load_failed"
+    Assert-DomainNegativeCase -NegativeCases $NegativeCases -Name "unaligned_load_buffer_app" -Stage "load" -Code "load_failed"
     Assert-DomainNegativeCase -NegativeCases $NegativeCases -Name "argv_overflow_app" -Stage "argv" -Code "argv_overflow"
     Assert-DomainNegativeCase -NegativeCases $NegativeCases -Name "abi_mismatch_app" -Stage "abi" -Code "abi_mismatch"
     Assert-DomainFailureTaxonomy -Taxonomy $Summary.failure_taxonomy -NegativeCases $NegativeCases
     $SourceMatrix = @($Summary.coverage.source_matrix)
-    Assert-DomainCount -Name "source_matrix" -Actual $SourceMatrix.Count -Expected 51
+    Assert-DomainCount -Name "source_matrix" -Actual $SourceMatrix.Count -Expected 52
     Assert-SourceMatrixEntry -Matrix $SourceMatrix -Name "hello_app" -Sources @("direct", "received", "packetstream", "store")
     Assert-SourceMatrixEntry -Matrix $SourceMatrix -Name "large_fit_app" -Sources @("direct", "received", "packetstream", "store")
     Assert-SourceMatrixEntry -Matrix $SourceMatrix -Name "player_min" -Sources @("direct", "received", "packetstream", "store")
@@ -5731,6 +6188,7 @@ function Validate-DomainSummaryFile {
     Assert-SourceMatrixFailure -Matrix $SourceMatrix -Name "rwx_segment_app" -Source "direct" -Stage "load" -Code "load_failed"
     Assert-SourceMatrixFailure -Matrix $SourceMatrix -Name "wrong_link_base_app" -Source "direct" -Stage "load" -Code "load_failed"
     Assert-SourceMatrixFailure -Matrix $SourceMatrix -Name "too_large_app" -Source "direct" -Stage "load" -Code "load_failed"
+    Assert-SourceMatrixFailure -Matrix $SourceMatrix -Name "unaligned_load_buffer_app" -Source "direct" -Stage "load" -Code "load_failed"
     Assert-SourceMatrixFailure -Matrix $SourceMatrix -Name "packetstream_bad_elf_magic_app" -Source "packetstream" -Stage "load" -Code "load_failed"
     Assert-SourceMatrixFailure -Matrix $SourceMatrix -Name "argv_overflow_app" -Source "direct" -Stage "argv" -Code "argv_overflow"
     Assert-SourceMatrixFailure -Matrix $SourceMatrix -Name "abi_mismatch_app" -Source "direct" -Stage "abi" -Code "abi_mismatch"
@@ -5765,6 +6223,156 @@ function Validate-DomainSummaryFile {
     return 0
 }
 
+function Validate-BackendContractFile {
+    param([string]$Path)
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        throw "backend_contract_validate_failed: path is empty"
+    }
+    if (-not (Test-Path -LiteralPath $Path)) {
+        throw "backend_contract_validate_failed: file not found: $Path"
+    }
+    $ResolvedPath = (Resolve-Path -LiteralPath $Path).Path
+    $Contract = Get-Content -LiteralPath $ResolvedPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($Contract.schema -ne "charm.resident_elf_qemu.backend_contract.v1") {
+        throw "backend_contract_validate_failed: bad schema: $($Contract.schema)"
+    }
+    if ($Contract.domain -ne "virtual_m7" -or
+        $Contract.machine -ne "mps2-an500" -or
+        $Contract.cpu -ne "cortex-m7") {
+        throw "backend_contract_validate_failed: bad domain identity"
+    }
+    if ($Contract.image_format -ne "elf" -or $Contract.app_model -ne "CharmAppApi") {
+        throw "backend_contract_validate_failed: bad app model"
+    }
+    if ($Contract.backend_contract.kind -ne "virtual" -or
+        $Contract.backend_contract.runtime_domain -ne "virtual_m7" -or
+        $Contract.backend_contract.storage -ne "readonly" -or
+        $Contract.backend_contract.afe -ne "unsupported") {
+        throw "backend_contract_validate_failed: bad backend contract"
+    }
+    $BackendCapabilities = @($Contract.backend_contract.capabilities)
+    foreach ($Capability in @("console", "time", "display", "input", "storage", "app_exit")) {
+        if (-not ($BackendCapabilities -contains $Capability)) {
+            throw "backend_contract_validate_failed: backend capability missing $Capability"
+        }
+    }
+    if ($BackendCapabilities.Count -ne 6) {
+        throw "backend_contract_validate_failed: unexpected backend capability count"
+    }
+    if ($Contract.backend_contract.time.kind -ne "deterministic_tick" -or
+        [int]$Contract.backend_contract.time.start_ms -ne 1000 -or
+        [int]$Contract.backend_contract.time.step_ms -ne 17 -or
+        -not [bool]$Contract.backend_contract.time.reset_per_run) {
+        throw "backend_contract_validate_failed: bad time backend contract"
+    }
+    $BackendDisplayEvidence = @($Contract.backend_contract.display.evidence)
+    foreach ($Evidence in @("frame_signatures", "frame_dumps", "frame_ppm", "gui_timeline")) {
+        if (-not ($BackendDisplayEvidence -contains $Evidence)) {
+            throw "backend_contract_validate_failed: display backend evidence missing $Evidence"
+        }
+    }
+    if ($Contract.backend_contract.display.kind -ne "framebuffer" -or
+        [int]$Contract.backend_contract.display.width -ne 16 -or
+        [int]$Contract.backend_contract.display.height -ne 16 -or
+        [int]$Contract.backend_contract.display.stride_bytes -ne 64 -or
+        $Contract.backend_contract.display.format -ne "argb8888" -or
+        [int]$Contract.backend_contract.display.frame_bytes -ne 1024 -or
+        $BackendDisplayEvidence.Count -ne 4) {
+        throw "backend_contract_validate_failed: bad display backend contract"
+    }
+    $BackendInputEvidence = @($Contract.backend_contract.input.evidence)
+    foreach ($Evidence in @("input_trace", "gui_timeline")) {
+        if (-not ($BackendInputEvidence -contains $Evidence)) {
+            throw "backend_contract_validate_failed: input backend evidence missing $Evidence"
+        }
+    }
+    if ($Contract.backend_contract.input.kind -ne "deterministic_sequence" -or
+        [int]$Contract.backend_contract.input.sample_count -ne 4 -or
+        [int]$Contract.backend_contract.input.pointer_max_x -ne 15 -or
+        [int]$Contract.backend_contract.input.pointer_max_y -ne 15 -or
+        -not [bool]$Contract.backend_contract.input.wraps -or
+        $BackendInputEvidence.Count -ne 2) {
+        throw "backend_contract_validate_failed: bad input backend contract"
+    }
+    $BackendStorageEvidence = @($Contract.backend_contract.storage_media.evidence)
+    if ($Contract.backend_contract.storage_media.kind -ne "virtual_readonly_files" -or
+        [int]$Contract.backend_contract.storage_media.file_count -ne 3 -or
+        [int]$Contract.backend_contract.storage_media.fd_base -ne 3 -or
+        [int]$Contract.backend_contract.storage_media.fd_slots -ne 4 -or
+        $Contract.backend_contract.storage_media.write_policy -ne "unsupported" -or
+        $BackendStorageEvidence.Count -ne 1 -or
+        -not ($BackendStorageEvidence -contains "storage_trace")) {
+        throw "backend_contract_validate_failed: bad storage backend contract"
+    }
+    if ($Contract.backend_contract.app_exit.kind -ne "notification_counter" -or
+        [bool]$Contract.backend_contract.app_exit.overrides_return) {
+        throw "backend_contract_validate_failed: bad app_exit backend contract"
+    }
+    Assert-BackendSelfCheck `
+        -SelfCheck $Contract.backend_self_check `
+        -ErrorPrefix "backend_contract_validate_failed"
+    Assert-BackendResetSelfCheck `
+        -SelfCheck $Contract.backend_reset_self_check `
+        -ErrorPrefix "backend_contract_validate_failed"
+    try {
+        Assert-DomainBackendScope -Scope $Contract.backend_scope -ErrorPrefix "backend_contract_validate_failed"
+        Assert-DomainBackendReadiness -Readiness $Contract.backend_readiness
+        Assert-DomainBackendCapabilityMatrix -Matrix @($Contract.backend_capability_matrix)
+        Assert-DomainRuntimeDomainProfile -Profile $Contract.runtime_domain_profile -BackendContract $Contract.backend_contract -BackendScope $Contract.backend_scope
+    } catch {
+        throw "backend_contract_validate_failed: $($_.Exception.Message)"
+    }
+    Write-Host "resident-elf-qemu backend contract validation ok"
+    Write-Host "  path=$ResolvedPath"
+    return 0
+}
+
+function Export-BackendContractFromDomainSummary {
+    param(
+        [string]$DomainSummaryPath,
+        [string]$BackendContractPath
+    )
+
+    if ([string]::IsNullOrWhiteSpace($DomainSummaryPath)) {
+        throw "backend_contract_export_failed: domain summary path is empty"
+    }
+    if ([string]::IsNullOrWhiteSpace($BackendContractPath)) {
+        throw "backend_contract_export_failed: backend contract path is empty"
+    }
+    if (-not (Test-Path -LiteralPath $DomainSummaryPath)) {
+        throw "backend_contract_export_failed: domain summary not found: $DomainSummaryPath"
+    }
+    $ResolvedDomainSummary = (Resolve-Path -LiteralPath $DomainSummaryPath).Path
+    [void](Validate-DomainSummaryFile -Path $ResolvedDomainSummary)
+    $Summary = Get-Content -LiteralPath $ResolvedDomainSummary -Raw -Encoding UTF8 | ConvertFrom-Json
+    $ResolvedBackendContract = [System.IO.Path]::GetFullPath($BackendContractPath)
+    $BackendContractDir = [System.IO.Path]::GetDirectoryName($ResolvedBackendContract)
+    if (-not [string]::IsNullOrWhiteSpace($BackendContractDir) -and -not (Test-Path -LiteralPath $BackendContractDir)) {
+        New-Item -ItemType Directory -Force -Path $BackendContractDir | Out-Null
+    }
+    $Capture = [pscustomobject]@{
+        schema = "charm.resident_elf_qemu.backend_contract.v1"
+        domain = $Summary.domain
+        machine = $Summary.machine
+        cpu = $Summary.cpu
+        image_format = $Summary.image_format
+        app_model = $Summary.app_model
+        backend_scope = $Summary.backend_scope
+        backend_contract = $Summary.backend_contract
+        backend_self_check = $Summary.backend_self_check
+        backend_reset_self_check = $Summary.backend_reset_self_check
+        backend_readiness = $Summary.backend_readiness
+        backend_capability_matrix = $Summary.backend_capability_matrix
+        runtime_domain_profile = $Summary.runtime_domain_profile
+    }
+    [System.IO.File]::WriteAllText($ResolvedBackendContract, (($Capture | ConvertTo-Json -Depth 16) + "`n"), [System.Text.UTF8Encoding]::new($false))
+    [void](Validate-BackendContractFile -Path $ResolvedBackendContract)
+    Write-Host "resident-elf-qemu backend contract exported"
+    Write-Host "  source=$ResolvedDomainSummary"
+    Write-Host "  path=$ResolvedBackendContract"
+}
+
 function Get-SyntheticPassingLog {
     return (Get-ExpectedTokens -join "`n")
 }
@@ -5783,7 +6391,7 @@ function Assert-ValidationOk {
 function Invoke-EvidenceBundleValidation {
     $LogPath = $ValidateLog
     if ([string]::IsNullOrWhiteSpace($LogPath)) {
-        $LogPath = Join-Path $PSScriptRoot "qemu-ci.log"
+        $LogPath = Get-QemuEvidencePath -FileName "qemu-ci.log"
     }
 
     Assert-ValidationOk -Name "log" -Code (Validate-LogFile -Path (Resolve-ScriptPath -Path $LogPath))
@@ -5832,14 +6440,34 @@ function Invoke-EvidenceBundleValidation {
         }
     }
 
+    if (-not [string]::IsNullOrWhiteSpace($BackendContractOut)) {
+        $ResolvedBackendContractOut = Resolve-ScriptPath -Path $BackendContractOut
+        $BackendContractValidationPath = $ResolvedBackendContractOut
+        $RemoveDerivedBackendContract = $false
+        if (-not (Test-Path -LiteralPath $ResolvedBackendContractOut)) {
+            $ResolvedDomainSummaryForExport = Resolve-ScriptPath -Path $DomainSummaryOut
+            $BackendContractValidationPath = Join-Path ([System.IO.Path]::GetTempPath()) ("charm_resident_elf_qemu_derived_backend_contract_{0}.json" -f ([System.Guid]::NewGuid().ToString("N")))
+            $RemoveDerivedBackendContract = $true
+            Export-BackendContractFromDomainSummary `
+                -DomainSummaryPath $ResolvedDomainSummaryForExport `
+                -BackendContractPath $BackendContractValidationPath
+        }
+        try {
+            Assert-ValidationOk -Name "backend_contract" -Code (Validate-BackendContractFile -Path $BackendContractValidationPath)
+        } finally {
+            if ($RemoveDerivedBackendContract) {
+                Remove-Item -LiteralPath $BackendContractValidationPath -Force -ErrorAction SilentlyContinue
+            }
+        }
+    }
+
     Write-Host "resident-elf-qemu evidence bundle validation ok"
     return 0
 }
 
 function Invoke-Doctor {
-    if ($ElfBase -ne "0x20080000") {
-        throw "doctor_failed: QEMU ELF base must remain 0x20080000, got $ElfBase"
-    }
+    $FirmwareLdscript = Join-Path $PSScriptRoot "ldscript.ld"
+    $DomainLayout = Assert-QemuElfDomainLayout -LdscriptPath $FirmwareLdscript -ErrorPrefix "doctor_failed"
     if ($TimeoutSec -le 0) {
         throw "doctor_failed: TimeoutSec must be positive"
     }
@@ -5904,9 +6532,16 @@ function Invoke-Doctor {
     Write-Host "  app_sample_dir=$AppSampleDir"
     Write-Host "  build=$(Resolve-ScriptPath -Path $BuildDir)"
     Write-Host "  app_out=$(Resolve-ScriptPath -Path $AppOutDir)"
-    Write-Host "  elf_base=$ElfBase"
+    Write-Host "  evidence_dir=$(Get-QemuEvidenceRoot)"
+    Write-Host "  qemu_log=$(Get-QemuEvidencePath -FileName 'qemu-ci.log')"
+    Write-Host "  qemu_err_log=$(Get-QemuEvidencePath -FileName 'qemu-ci.err.log')"
+    Write-Host "  evidence_lock=$(Get-QemuEvidencePath -FileName 'qemu-evidence.lock')"
+    Write-Host "  elf_base=$($DomainLayout.elf_base)"
+    Write-Host "  firmware_elf_load_base=$($DomainLayout.firmware_elf_load_base)"
     Write-Host "  timeout_sec=$TimeoutSec"
     Write-Host "  tail_lines=$TailLines"
+    Write-Host "  backend_scope_proves=elf_loader,app_runtime,charm_app_api,capability_backend,received_image,packetstream,store_v1_semantics"
+    Write-Host "  backend_scope_does_not_prove=h747_usb_cdc,h747_qspi,h747_emmc,h747_fmc_sdram,h747_hal_init,h747_mpu_cache,h747_pinmux"
     Write-Host "  qemu_machine=mps2-an500 supported=1"
     Write-Host "  app_specs=$($QemuAppSpecs.Count) store_apps=$StoreAppCount generated_includes=$RequiredIncCount"
     Write-Host "  source_paths=$($RequiredPaths.Count)"
@@ -5920,14 +6555,14 @@ function Invoke-Doctor {
     Write-QemuDoctorOptionalPath -Label "storage_trace" -Path $StorageTraceOut
     Write-QemuDoctorOptionalPath -Label "golden_storage_trace" -Path $GoldenStorageTrace -Required (-not $SkipGoldenStorageTrace.IsPresent)
     Write-QemuDoctorOptionalPath -Label "domain_summary" -Path $DomainSummaryOut
+    Write-QemuDoctorOptionalPath -Label "backend_contract" -Path $BackendContractOut
     Write-QemuDoctorOptionalPath -Label "golden_domain_summary" -Path $GoldenDomainSummary -Required (-not $SkipGoldenDomainSummary.IsPresent)
     Write-Host "[resident-elf-qemu] doctor ok"
 }
 
 function Invoke-SelfTest {
-    if ($ElfBase -ne "0x20080000") {
-        throw "selftest_failed: QEMU ELF base must remain 0x20080000, got $ElfBase"
-    }
+    $FirmwareLdscript = Join-Path $PSScriptRoot "ldscript.ld"
+    $DomainLayout = Assert-QemuElfDomainLayout -LdscriptPath $FirmwareLdscript -ErrorPrefix "selftest_failed"
     if ($TimeoutSec -le 0) {
         throw "selftest_failed: TimeoutSec must be positive"
     }
@@ -5939,6 +6574,19 @@ function Invoke-SelfTest {
     }
     if ((Get-QemuDoctorVersionLineFromText -Text "`nqemu-system-arm version test`nsecond line" -Label "qemu") -ne "qemu-system-arm version test") {
         throw "selftest_failed: doctor version line parser returned unexpected value"
+    }
+    $TempLdscript = Join-Path ([System.IO.Path]::GetTempPath()) ("charm_qemu_ldscript_selftest_{0}.ld" -f ([System.Guid]::NewGuid().ToString("N")))
+    try {
+        [System.IO.File]::WriteAllText($TempLdscript, "SECTIONS {`n  .elf_load 0x20081000 (NOLOAD) : { *(.elf_load*) } > RAM`n}`n", [System.Text.UTF8Encoding]::new($false))
+        if ((Get-QemuFirmwareElfLoadBase -Path $TempLdscript -ErrorPrefix "selftest_failed") -ne "0x20081000") {
+            throw "selftest_failed: QEMU firmware .elf_load parser returned unexpected base"
+        }
+        [System.IO.File]::WriteAllText($TempLdscript, "SECTIONS { .text : { *(.text*) } > FLASH }`n", [System.Text.UTF8Encoding]::new($false))
+        if (-not (Test-SelfTestThrowsLike -Prefix "selftest_failed:" -Script { Get-QemuFirmwareElfLoadBase -Path $TempLdscript -ErrorPrefix "selftest_failed" })) {
+            throw "selftest_failed: missing .elf_load did not fail"
+        }
+    } finally {
+        Remove-Item -LiteralPath $TempLdscript -Force -ErrorAction SilentlyContinue
     }
     if (-not (Test-SelfTestThrowsLike -Prefix "doctor_failed:" -Script { Get-QemuDoctorVersionLineFromText -Text "" -Label "empty" })) {
         throw "selftest_failed: empty doctor version output did not report doctor_failed"
@@ -6052,6 +6700,18 @@ function Invoke-SelfTest {
     if (-not (Test-SelfTestThrowsLike -Prefix "domain_summary_failed:" -Script { Get-BackendIdentityFromText -Text $MissingBackendIdentityLog })) {
         throw "selftest_failed: missing backend identity parsed unexpectedly"
     }
+    $SyntheticBackendScope = Get-BackendScopeFromText -Text (Get-SyntheticPassingLog)
+    if (-not (@($SyntheticBackendScope.proves) -contains "elf_loader") -or
+        -not (@($SyntheticBackendScope.proves) -contains "store_v1_semantics") -or
+        -not (@($SyntheticBackendScope.does_not_prove) -contains "h747_qspi") -or
+        -not (@($SyntheticBackendScope.does_not_prove) -contains "h747_pinmux")) {
+        throw "selftest_failed: synthetic backend scope parse returned unexpected values"
+    }
+    $MissingBackendScopeLog = ((Get-SyntheticPassingLog) -split "`r?`n" |
+        Where-Object { -not $_.StartsWith("resident-elf-qemu: backend-scope ", [System.StringComparison]::Ordinal) }) -join "`n"
+    if (-not (Test-SelfTestThrowsLike -Prefix "domain_summary_failed:" -Script { Get-BackendScopeFromText -Text $MissingBackendScopeLog })) {
+        throw "selftest_failed: missing backend scope parsed unexpectedly"
+    }
     $SyntheticBackendContract = Get-BackendContractFromText -Text (Get-SyntheticPassingLog) `
         -RuntimeDomain "virtual_m7" `
         -Capabilities "console,time,display,input,storage,app_exit" `
@@ -6065,11 +6725,84 @@ function Invoke-SelfTest {
         [bool]$SyntheticBackendContract.app_exit.overrides_return) {
         throw "selftest_failed: synthetic backend contract parse returned unexpected values"
     }
+    $SyntheticBackendSelfCheck = Get-BackendSelfCheckFromText -Text (Get-SyntheticPassingLog)
+    if (-not [bool]$SyntheticBackendSelfCheck.api -or
+        -not [bool]$SyntheticBackendSelfCheck.display -or
+        -not [bool]$SyntheticBackendSelfCheck.input -or
+        -not [bool]$SyntheticBackendSelfCheck.storage -or
+        -not [bool]$SyntheticBackendSelfCheck.afe -or
+        -not [bool]$SyntheticBackendSelfCheck.app_exit -or
+        $SyntheticBackendSelfCheck.result -ne "ok") {
+        throw "selftest_failed: synthetic backend self-check parse returned unexpected values"
+    }
+    $BadBackendSelfCheckLog = (Get-SyntheticPassingLog).Replace(
+        "resident-elf-qemu: backend-self-check api=1 display=1 input=1 storage=1 afe=1 app_exit=1 result=ok",
+        "resident-elf-qemu: backend-self-check api=0 display=1 input=1 storage=1 afe=1 app_exit=1 result=failed")
+    if (-not (Test-SelfTestThrowsLike -Prefix "domain_summary_validate_failed:" -Script { Assert-BackendSelfCheck -SelfCheck (Get-BackendSelfCheckFromText -Text $BadBackendSelfCheckLog) -ErrorPrefix "domain_summary_validate_failed" })) {
+        throw "selftest_failed: bad backend self-check validated unexpectedly"
+    }
+    $SyntheticBackendResetSelfCheck = Get-BackendResetSelfCheckFromText -Text (Get-SyntheticPassingLog)
+    if (-not [bool]$SyntheticBackendResetSelfCheck.counters -or
+        -not [bool]$SyntheticBackendResetSelfCheck.display -or
+        -not [bool]$SyntheticBackendResetSelfCheck.time -or
+        -not [bool]$SyntheticBackendResetSelfCheck.input -or
+        -not [bool]$SyntheticBackendResetSelfCheck.storage -or
+        $SyntheticBackendResetSelfCheck.result -ne "ok") {
+        throw "selftest_failed: synthetic backend reset self-check parse returned unexpected values"
+    }
+    $BadBackendResetSelfCheckLog = (Get-SyntheticPassingLog).Replace(
+        "resident-elf-qemu: backend-reset-self-check counters=1 display=1 time=1 input=1 storage=1 result=ok",
+        "resident-elf-qemu: backend-reset-self-check counters=1 display=1 time=0 input=1 storage=1 result=failed")
+    if (-not (Test-SelfTestThrowsLike -Prefix "domain_summary_validate_failed:" -Script { Assert-BackendResetSelfCheck -SelfCheck (Get-BackendResetSelfCheckFromText -Text $BadBackendResetSelfCheckLog) -ErrorPrefix "domain_summary_validate_failed" })) {
+        throw "selftest_failed: bad backend reset self-check validated unexpectedly"
+    }
     $BadBackendFlagLog = (Get-SyntheticPassingLog).Replace(
         "resident-elf-qemu: backend-contract app_exit=notification_counter overrides_return=0",
         "resident-elf-qemu: backend-contract app_exit=notification_counter overrides_return=2")
     if (-not (Test-SelfTestThrowsLike -Prefix "domain_summary_failed:" -Script { Get-BackendContractFromText -Text $BadBackendFlagLog -RuntimeDomain "virtual_m7" -Capabilities "console,time,display,input,storage,app_exit" -StorageMode "readonly" -AfeMode "unsupported" })) {
         throw "selftest_failed: bad backend contract flag parsed unexpectedly"
+    }
+    $SyntheticBackendContractCapture = New-SelfTestBackendContractCapture
+    Assert-BackendContractCaptureAccepted -Capture $SyntheticBackendContractCapture -Label "base"
+    Assert-BadBackendContractRejected -Capture $SyntheticBackendContractCapture -Label "schema" -Mutate {
+        param($Capture)
+        $Capture.schema = "bad.schema"
+    }
+    Assert-BadBackendContractRejected -Capture $SyntheticBackendContractCapture -Label "capabilities" -Mutate {
+        param($Capture)
+        $Capture.backend_contract.capabilities = @("console", "time", "display", "input", "storage")
+    }
+    Assert-BadBackendContractRejected -Capture $SyntheticBackendContractCapture -Label "backend_scope" -Mutate {
+        param($Capture)
+        $Capture.backend_scope.does_not_prove = @($Capture.backend_scope.does_not_prove | Where-Object { $_ -ne "h747_qspi" })
+    }
+    Assert-BadBackendContractRejected -Capture $SyntheticBackendContractCapture -Label "readiness" -Mutate {
+        param($Capture)
+        $Capture.backend_readiness.storage = $false
+    }
+    Assert-BadBackendContractRejected -Capture $SyntheticBackendContractCapture -Label "backend_self_check" -Mutate {
+        param($Capture)
+        $Capture.backend_self_check.api = $false
+    }
+    Assert-BadBackendContractRejected -Capture $SyntheticBackendContractCapture -Label "backend_reset_self_check" -Mutate {
+        param($Capture)
+        $Capture.backend_reset_self_check.time = $false
+    }
+    Assert-BadBackendContractRejected -Capture $SyntheticBackendContractCapture -Label "capability_matrix" -Mutate {
+        param($Capture)
+        $Capture.backend_capability_matrix[0].provider = "bad_provider"
+    }
+    Assert-BadBackendContractRejected -Capture $SyntheticBackendContractCapture -Label "runtime_domain_profile" -Mutate {
+        param($Capture)
+        $Capture.runtime_domain_profile.does_not_prove = @("h747_usb_cdc")
+    }
+    Assert-BadBackendContractRejected -Capture $SyntheticBackendContractCapture -Label "runtime_domain_profile_proves" -Mutate {
+        param($Capture)
+        $Capture.runtime_domain_profile.proves = @($Capture.runtime_domain_profile.proves | Where-Object { $_ -ne "packetstream" })
+    }
+    Assert-BadBackendContractRejected -Capture $SyntheticBackendContractCapture -Label "runtime_domain_profile_extra_exclusion" -Mutate {
+        param($Capture)
+        $Capture.runtime_domain_profile.does_not_prove = @($Capture.runtime_domain_profile.does_not_prove + "h747_display")
     }
     $SyntheticFrameLog = @(
         "resident-elf-qemu: display present bytes=1024 checksum=1024 hash=0x373fb1c5 frame=1",
@@ -6301,20 +7034,41 @@ function Invoke-SelfTest {
         "-SkipGoldenStorageTrace",
         "-SkipGoldenDomainSummary",
         "..\run-resident-elf-qemu-smoke.ps1 -Doctor",
+        "-ValidateBackendContract",
+        "backend-contract.json",
         "qemu_version",
         "capture-resident-platform-evidence-bundle.ps1 -QemuElf",
         "-QemuElfTimeoutSec <seconds>",
         "-QemuElfTailLines <lines>",
+        "-EvidenceDir <dir>",
+        "-QemuElfEvidenceDir <dir>",
         "timeout_sec",
         "tail_lines",
+        "evidence_dir",
+        "qemu_log",
+        "qemu_err_log",
+        "evidence_lock",
+        "firmware_elf_load_base",
+        "backend_scope_proves",
+        "backend_scope_does_not_prove",
+        "qemu_elf_evidence_dir",
         "wrapper owns the supported command-line surface",
         'direct script default at `-TimeoutSec 15`',
         "display mode is fixed at 16x16 ARGB8888",
         "coverage.gui_timeline",
         "runtime_reset_determinism",
         "qemu_elf_runtime_reset",
+        "backend_scope",
+        "qemu_elf_backend_scope",
+        "qemu_elf_doctor_scope",
+        "qemu_elf_scope_match",
+        "doctor/runtime scope matching",
+        "qemu_elf_backend_contract_file",
+        'derived `backend-contract.json`',
         "qemu-evidence.lock",
-        'evidence files (`qemu-ci.log`',
+        "same evidence files",
+        '`qemu-ci.log`',
+        "independent evidence directories",
         "frame-dumps.golden.json",
         "elf_run_evidence_matrix",
         "storage_fd_exhaustion_app",
@@ -6348,6 +7102,14 @@ function Invoke-SelfTest {
     [void](Validate-InputTraceFile -Path $GoldenInputTraceFile)
     [void](Validate-StorageTraceFile -Path $GoldenStorageTraceFile)
     [void](Validate-DomainSummaryFile -Path $GoldenDomainSummaryFile)
+    $DerivedBackendContractPath = Join-Path ([System.IO.Path]::GetTempPath()) "charm_resident_elf_qemu_derived_backend_contract.json"
+    try {
+        Export-BackendContractFromDomainSummary `
+            -DomainSummaryPath $GoldenDomainSummaryFile `
+            -BackendContractPath $DerivedBackendContractPath
+    } finally {
+        Remove-Item -LiteralPath $DerivedBackendContractPath -Force -ErrorAction SilentlyContinue
+    }
     Assert-BadDomainSummaryRejected -SourcePath $GoldenDomainSummaryFile -Label "app_model" -Mutate {
         param($Summary)
         $Summary.app_model = "RawJump"
@@ -6355,6 +7117,18 @@ function Invoke-SelfTest {
     Assert-BadDomainSummaryRejected -SourcePath $GoldenDomainSummaryFile -Label "backend_contract_storage_slots" -Mutate {
         param($Summary)
         $Summary.backend_contract.storage_media.fd_slots = 3
+    }
+    Assert-BadDomainSummaryRejected -SourcePath $GoldenDomainSummaryFile -Label "backend_scope_h747_boundary" -Mutate {
+        param($Summary)
+        $Summary.backend_scope.does_not_prove = @($Summary.backend_scope.does_not_prove | Where-Object { $_ -ne "h747_qspi" })
+    }
+    Assert-BadDomainSummaryRejected -SourcePath $GoldenDomainSummaryFile -Label "backend_self_check_api" -Mutate {
+        param($Summary)
+        $Summary.backend_self_check.api = $false
+    }
+    Assert-BadDomainSummaryRejected -SourcePath $GoldenDomainSummaryFile -Label "backend_reset_self_check_time" -Mutate {
+        param($Summary)
+        $Summary.backend_reset_self_check.time = $false
     }
     Assert-BadDomainSummaryRejected -SourcePath $GoldenDomainSummaryFile -Label "run_budget" -Mutate {
         param($Summary)
@@ -6388,6 +7162,12 @@ function Invoke-SelfTest {
         param($Summary)
         $Summary.runtime_domain_profile.does_not_prove = @($Summary.runtime_domain_profile.does_not_prove | Where-Object { $_ -ne "h747_qspi" })
     }
+    Assert-BadDomainSummaryRejected -SourcePath $GoldenDomainSummaryFile -Label "runtime_domain_profile_scope_mismatch" -Mutate {
+        param($Summary)
+        $Values = @($Summary.runtime_domain_profile.proves)
+        [array]::Reverse($Values)
+        $Summary.runtime_domain_profile.proves = $Values
+    }
     Assert-BadDomainSummaryRejected -SourcePath $GoldenDomainSummaryFile -Label "elf_run_evidence_matrix_store" -Mutate {
         param($Summary)
         ($Summary.elf_run_evidence_matrix | Where-Object { $_.name -eq "store:hello_app" }).run_code = "load_failed"
@@ -6417,6 +7197,7 @@ function Invoke-SelfTest {
     $StorageTracePath = Resolve-ScriptPath -Path $StorageTraceOut
     $GoldenStorageTracePath = if ($SkipGoldenStorageTrace) { "skipped" } else { Resolve-ScriptPath -Path $GoldenStorageTrace }
     $DomainSummaryPath = Resolve-ScriptPath -Path $DomainSummaryOut
+    $BackendContractPath = Resolve-ScriptPath -Path $BackendContractOut
     $GoldenDomainSummaryPath = if ($SkipGoldenDomainSummary) { "skipped" } else { Resolve-ScriptPath -Path $GoldenDomainSummary }
 
     Write-Host "resident-elf-qemu selftest:"
@@ -6436,24 +7217,29 @@ function Invoke-SelfTest {
     Write-Host "  storage_trace=$StorageTracePath"
     Write-Host "  golden_storage_trace=$GoldenStorageTracePath"
     Write-Host "  domain_summary=$DomainSummaryPath"
+    Write-Host "  backend_contract=$BackendContractPath"
     Write-Host "  golden_domain_summary=$GoldenDomainSummaryPath"
-    Write-Host "  elf_base=$ElfBase"
+    Write-Host "  elf_base=$($DomainLayout.elf_base)"
+    Write-Host "  firmware_elf_load_base=$($DomainLayout.firmware_elf_load_base)"
     Write-Host "  timeout_sec=$TimeoutSec"
     Write-Host "  tail_lines=$TailLines"
     Write-Host "[resident-elf-qemu] selftest ok"
 }
 
 if ($SelfTest) {
+    Initialize-QemuEvidencePaths
     Invoke-SelfTest
     exit 0
 }
 
 if ($Doctor) {
+    Initialize-QemuEvidencePaths
     Invoke-Doctor
     exit 0
 }
 
 if ($ValidateEvidenceBundle) {
+    Initialize-QemuEvidencePaths
     $EvidenceLock = Acquire-QemuEvidenceLock
     try {
         exit (Invoke-EvidenceBundleValidation)
@@ -6505,6 +7291,10 @@ if (-not [string]::IsNullOrWhiteSpace($ValidateDomainSummary)) {
     exit (Validate-DomainSummaryFile -Path $ValidateDomainSummary)
 }
 
+if (-not [string]::IsNullOrWhiteSpace($ValidateBackendContract)) {
+    exit (Validate-BackendContractFile -Path $ValidateBackendContract)
+}
+
 if (-not [string]::IsNullOrWhiteSpace($CompareDomainSummary) -or
     -not [string]::IsNullOrWhiteSpace($ActualDomainSummary)) {
     exit (Compare-DomainSummaryFiles -ExpectedPath $CompareDomainSummary -ActualPath $ActualDomainSummary)
@@ -6518,6 +7308,7 @@ if (-not [string]::IsNullOrWhiteSpace($CompareFrameDumps) -or
 $EvidenceLock = $null
 
 try {
+Initialize-QemuEvidencePaths
 $cmake = Resolve-ToolPath -Tool $CMakeExe
 $qemu = Resolve-ToolPath -Tool $QemuExe
 $cc = Resolve-ToolPath -Tool "${ToolchainPrefix}gcc"
@@ -6534,6 +7325,7 @@ $toolchainFile = Resolve-Path (Join-Path $PSScriptRoot "..\..\kernel\posix\qemu\
 
 Write-Host "resident-elf-qemu: app_out=$appOut"
 Write-Host "resident-elf-qemu: build=$build"
+Write-Host "resident-elf-qemu: evidence=$(Get-QemuEvidenceRoot)"
 Write-Host "resident-elf-qemu: elf_base=$ElfBase"
 
 if ($DryRun) {
@@ -6541,6 +7333,9 @@ if ($DryRun) {
     Write-Host "[dry-run] cc=$cc"
     Write-Host "[dry-run] host_compiler=$hostCompilerResolved"
     Write-Host "[dry-run] toolchain=$($toolchainFile.Path)"
+    Write-Host "[dry-run] evidence_dir=$(Get-QemuEvidenceRoot)"
+    Write-Host "[dry-run] qemu_log=$(Get-QemuEvidencePath -FileName 'qemu-ci.log')"
+    Write-Host "[dry-run] qemu_err_log=$(Get-QemuEvidencePath -FileName 'qemu-ci.err.log')"
     Write-Host "[dry-run] frame_signatures=$(Resolve-ScriptPath -Path $FrameSignatureOut)"
     if ($SkipGoldenFrameSignatures) {
         Write-Host "[dry-run] golden_frame_signatures=skipped"
@@ -6567,6 +7362,7 @@ if ($DryRun) {
         Write-Host "[dry-run] golden_storage_trace=$(Resolve-ScriptPath -Path $GoldenStorageTrace)"
     }
     Write-Host "[dry-run] domain_summary=$(Resolve-ScriptPath -Path $DomainSummaryOut)"
+    Write-Host "[dry-run] backend_contract=$(Resolve-ScriptPath -Path $BackendContractOut)"
     if ($SkipGoldenDomainSummary) {
         Write-Host "[dry-run] golden_domain_summary=skipped"
     } else {
@@ -6670,8 +7466,12 @@ if (-not (Test-Path $firmware)) {
     throw "firmware not found: $firmware"
 }
 
-$outFile = Join-Path $PSScriptRoot "qemu-ci.log"
-$errFile = Join-Path $PSScriptRoot "qemu-ci.err.log"
+$EvidenceRoot = Get-QemuEvidenceRoot
+if (-not (Test-Path -LiteralPath $EvidenceRoot)) {
+    New-Item -ItemType Directory -Path $EvidenceRoot | Out-Null
+}
+$outFile = Join-Path $EvidenceRoot "qemu-ci.log"
+$errFile = Join-Path $EvidenceRoot "qemu-ci.err.log"
 Remove-Item $outFile, $errFile -Force -ErrorAction SilentlyContinue
 
 $args = @(
@@ -6780,6 +7580,7 @@ Write-DomainSummaryCapture -LogPath $outFile `
     -InputTracePath $InputTraceOut `
     -StorageTracePath $StorageTraceOut `
     -OutputPath $DomainSummaryOut `
+    -BackendContractOutputPath $BackendContractOut `
     -ArtifactDir $appOut `
     -TimeoutSec $TimeoutSec `
     -TailLines $TailLines
@@ -6790,6 +7591,10 @@ if (-not [string]::IsNullOrWhiteSpace($DomainSummaryOut)) {
         $ResolvedGoldenDomainSummary = Resolve-ScriptPath -Path $GoldenDomainSummary
         Assert-ValidationOk -Name "domain_summary_golden" -Code (Compare-DomainSummaryFiles -ExpectedPath $ResolvedGoldenDomainSummary -ActualPath $ResolvedDomainSummaryOut)
     }
+}
+if (-not [string]::IsNullOrWhiteSpace($BackendContractOut)) {
+    $ResolvedBackendContractOut = Resolve-ScriptPath -Path $BackendContractOut
+    [void](Validate-BackendContractFile -Path $ResolvedBackendContractOut)
 }
 Write-Host "[ok] resident ELF QEMU smoke detected"
 } finally {

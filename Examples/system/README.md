@@ -20,6 +20,27 @@
 这个脚本会配置、构建并运行路线图 Phase 0 的 RTE / Spine host-only smoke。
 它只验证语义证据链，不修改 H747-lab、不烧录、不提升公共 RTE API。
 
+### 我想验证 Backends capability/provider/binding 边界
+
+先读：
+
+- [`capability_topology_bridge_smoke/README.md`](capability_topology_bridge_smoke/README.md)
+- [`console_output_provider_smoke/README.md`](console_output_provider_smoke/README.md)
+- [`block_storage_provider_smoke/README.md`](block_storage_provider_smoke/README.md)
+
+这组三个 host-only smoke 验证 Backends v0/v1 的可执行语义：
+app 声明 capability requirement，profile binding 指向 provider instance，
+provider 通过 adapter 把 backend resource 适配成稳定 capability contract。
+它们不提升公共 Backend API，不移动 `Modules/platform`，也不把 provider type、
+adapter、HAL、transport 或 endpoint 当成 binding target。
+
+其中 `console_output_provider_smoke` 复用 `Backends/contract/console_output.hpp`，
+用于验证第一条 v1 候选 slice；H747 status-line 文本仍只是 presentation，
+不进入 contract header。
+`block_storage_provider_smoke` 复用 `Backends/contract/block_storage.hpp`，
+用于验证第二条 v1 候选 slice；Store v1、FAT path、ImageStore 和 ResourcePack
+仍不进入 contract header。
+
 ### 我想回归 `app_lab` 的 host-only 主链
 
 先读：
@@ -40,6 +61,29 @@ embedded app -> QSPI install -> named/raw run-path -> generic file-backed stub
 固件中生成并执行 QEMU 地址域的 App ELF，验证
 `AppImage(format=elf) -> ELF loader -> AppRuntime -> CharmAppApi`。它不是 H747
 外设仿真器，不验证 USB/QSPI/eMMC/FMC/HAL。
+
+推荐入口：
+
+```powershell
+.\run-resident-elf-qemu-smoke.ps1 -Doctor
+.\run-resident-elf-qemu-smoke.ps1 -ValidateEvidenceBundle
+..\project\h747-lab\tools\capture-resident-platform-evidence-bundle.ps1 -QemuElf -QemuElfValidateOnly -SkipH747Build
+```
+
+归档证据应优先检查 `qemu_elf_backend_scope=` 与
+`qemu_elf_runtime_domain_profile=`。前者说明 QEMU 能证明 ELF loader、
+AppRuntime、`CharmAppApi`、received image、packetstream 与 Store v1 语义；
+同时明确不证明 H747 USB CDC、QSPI、eMMC、FMC SDRAM、HAL init、MPU/cache
+或 pinmux。后者必须镜像同一 scope，不能自行扩大 QEMU 后端的证明范围。
+如果 evidence bundle 启用了 `-QemuElfDoctor`，还应检查 `qemu_elf_doctor_scope=`
+确认环境预检阶段也暴露了同一条虚拟后端边界，并且必须与
+`qemu_elf_backend_scope=` 完全一致（`scope_match=required`）。summary 会输出
+`qemu_elf_scope_match=1` 作为可 grep 的匹配结果。GUI 和 storage 后端证据还会
+分别收束成 `qemu_elf_gui_contract=` 与 `qemu_elf_storage_contract=`，用于在
+不打开 JSON 的情况下确认 display/input/storage 的虚拟后端边界与 trace 覆盖。
+失败覆盖除聚合 `qemu_elf_failure_taxonomy=` 外，还拆成
+`qemu_elf_failure_transport=`、`qemu_elf_failure_stage=`、
+`qemu_elf_failure_load=`、`qemu_elf_failure_runtime=` 四个分类 token。
 
 ### 我想看 AppHost / poster / deferred signal
 

@@ -121,6 +121,10 @@ constexpr VirtualBackendContract kBackendContract{
         .storage = "readonly",
         .afe = "unsupported",
     },
+    .scope = VirtualBackendContract::Scope{
+        .proves = "elf_loader,app_runtime,charm_app_api,capability_backend,received_image,packetstream,store_v1_semantics",
+        .does_not_prove = "h747_usb_cdc,h747_qspi,h747_emmc,h747_fmc_sdram,h747_hal_init,h747_mpu_cache,h747_pinmux",
+    },
     .time = VirtualBackendContract::Time{
         .kind = "deterministic_tick",
         .start_ms = kTimeStartMs,
@@ -506,6 +510,50 @@ bool virtual_store_read(void* ctx, std::uint32_t offset, std::span<std::byte> by
     return true;
 }
 
+bool capability_counters_are_reset() noexcept {
+    return g_capability_counters.console_bytes == 0U &&
+           g_capability_counters.time_now == 0U &&
+           g_capability_counters.display_describe == 0U &&
+           g_capability_counters.display_present == 0U &&
+           g_capability_counters.display_checksum == 0U &&
+           g_capability_counters.display_checksum_total == 0U &&
+           g_capability_counters.display_hash == 0U &&
+           g_capability_counters.display_hash_total == 0U &&
+           g_capability_counters.display_frame_index == 0U &&
+           g_capability_counters.input_poll == 0U &&
+           g_capability_counters.input_checksum == 0U &&
+           g_capability_counters.input_last_x == 0U &&
+           g_capability_counters.input_last_y == 0U &&
+           g_capability_counters.input_last_down == 0U &&
+           g_capability_counters.storage_open == 0U &&
+           g_capability_counters.storage_read == 0U &&
+           g_capability_counters.storage_write == 0U &&
+           g_capability_counters.storage_close == 0U &&
+           g_capability_counters.storage_bytes == 0U &&
+           g_capability_counters.afe_configure == 0U &&
+           g_capability_counters.afe_read == 0U &&
+           g_capability_counters.app_exit == 0U;
+}
+
+bool display_counters_are_reset() noexcept {
+    return g_capability_counters.display_describe == 0U &&
+           g_capability_counters.display_present == 0U &&
+           g_capability_counters.display_checksum == 0U &&
+           g_capability_counters.display_checksum_total == 0U &&
+           g_capability_counters.display_hash == 0U &&
+           g_capability_counters.display_hash_total == 0U &&
+           g_capability_counters.display_frame_index == 0U;
+}
+
+bool storage_files_are_closed() noexcept {
+    for (const auto& open_file : g_storage_open_files) {
+        if (open_file.open || open_file.file_index != 0U || open_file.cursor != 0U) {
+            return false;
+        }
+    }
+    return true;
+}
+
 } // namespace
 
 void backend_init() noexcept {
@@ -656,6 +704,112 @@ CharmAppApi make_virtual_app_api() noexcept {
     return api;
 }
 
+bool log_backend_self_check() noexcept {
+    const auto& contract = backend_contract();
+    const CharmAppApi api = make_virtual_app_api();
+    const bool api_ok = api.magic == CHARM_APP_API_MAGIC &&
+                        api.version == CHARM_APP_API_VERSION &&
+                        api.size == sizeof(CharmAppApi) &&
+                        api.console.write != nullptr &&
+                        api.time.now_ms != nullptr &&
+                        api.display.describe != nullptr &&
+                        api.display.present != nullptr &&
+                        api.input.poll != nullptr &&
+                        api.storage.open != nullptr &&
+                        api.storage.read != nullptr &&
+                        api.storage.write != nullptr &&
+                        api.storage.close != nullptr;
+    const bool display_ok = contract.display.width == kDisplayWidth &&
+                            contract.display.height == kDisplayHeight &&
+                            contract.display.stride_bytes == kDisplayStrideBytes &&
+                            contract.display.frame_bytes == kDisplayFrameBytes;
+    const bool input_ok = contract.input.sample_count == kInputSequenceCount &&
+                          contract.input.pointer_max_x == kInputPointerMaxX &&
+                          contract.input.pointer_max_y == kInputPointerMaxY &&
+                          contract.input.wraps;
+    const bool storage_ok = contract.storage_media.file_count == kVirtualStorageFileCount &&
+                            contract.storage_media.fd_base == kVirtualStorageFdBase &&
+                            contract.storage_media.fd_slots == static_cast<std::uint32_t>(kVirtualStorageFdSlots);
+    const bool afe_ok = api.afe.configure != nullptr &&
+                        api.afe.read != nullptr &&
+                        std::strcmp(contract.identity.afe, "unsupported") == 0;
+    const bool app_exit_ok = api.app.exit != nullptr &&
+                             std::strcmp(contract.app_exit.kind, "notification_counter") == 0 &&
+                             !contract.app_exit.overrides_return;
+    const bool ok = api_ok && display_ok && input_ok && storage_ok && afe_ok && app_exit_ok;
+    write("resident-elf-qemu: backend-self-check api=");
+    write_dec(api_ok ? 1U : 0U);
+    write(" display=");
+    write_dec(display_ok ? 1U : 0U);
+    write(" input=");
+    write_dec(input_ok ? 1U : 0U);
+    write(" storage=");
+    write_dec(storage_ok ? 1U : 0U);
+    write(" afe=");
+    write_dec(afe_ok ? 1U : 0U);
+    write(" app_exit=");
+    write_dec(app_exit_ok ? 1U : 0U);
+    write(" result=");
+    write(ok ? "ok" : "failed");
+    write("\n");
+    return ok;
+}
+
+bool log_backend_reset_self_check() noexcept {
+    g_capability_counters.console_bytes = 1U;
+    g_capability_counters.time_now = 1U;
+    g_capability_counters.display_describe = 1U;
+    g_capability_counters.display_present = 1U;
+    g_capability_counters.display_checksum = 1U;
+    g_capability_counters.display_checksum_total = 1U;
+    g_capability_counters.display_hash = 1U;
+    g_capability_counters.display_hash_total = 1U;
+    g_capability_counters.display_frame_index = 1U;
+    g_capability_counters.input_poll = 1U;
+    g_capability_counters.input_checksum = 1U;
+    g_capability_counters.input_last_x = 1U;
+    g_capability_counters.input_last_y = 1U;
+    g_capability_counters.input_last_down = 1U;
+    g_capability_counters.storage_open = 1U;
+    g_capability_counters.storage_read = 1U;
+    g_capability_counters.storage_write = 1U;
+    g_capability_counters.storage_close = 1U;
+    g_capability_counters.storage_bytes = 1U;
+    g_capability_counters.afe_configure = 1U;
+    g_capability_counters.afe_read = 1U;
+    g_capability_counters.app_exit = 1U;
+    g_tick_ms = kTimeStartMs + kTimeStepMs;
+    g_input_cursor = kInputSequenceCount + 1U;
+    g_storage_open_files[0] = VirtualStorageOpenFile{
+        .open = true,
+        .file_index = 1U,
+        .cursor = 7U,
+    };
+
+    reset_capability_counters();
+
+    const bool counters_ok = capability_counters_are_reset();
+    const bool display_ok = display_counters_are_reset();
+    const bool time_ok = g_tick_ms == kTimeStartMs;
+    const bool input_ok = g_input_cursor == 0U;
+    const bool storage_ok = storage_files_are_closed();
+    const bool ok = counters_ok && display_ok && time_ok && input_ok && storage_ok;
+    write("resident-elf-qemu: backend-reset-self-check counters=");
+    write_dec(counters_ok ? 1U : 0U);
+    write(" display=");
+    write_dec(display_ok ? 1U : 0U);
+    write(" time=");
+    write_dec(time_ok ? 1U : 0U);
+    write(" input=");
+    write_dec(input_ok ? 1U : 0U);
+    write(" storage=");
+    write_dec(storage_ok ? 1U : 0U);
+    write(" result=");
+    write(ok ? "ok" : "failed");
+    write("\n");
+    return ok;
+}
+
 void log_backend_identity() noexcept {
     const auto& identity = backend_contract().identity;
     write("resident-elf-qemu: backend=");
@@ -675,6 +829,15 @@ void log_backend_capabilities() noexcept {
     write(identity.storage);
     write(" afe=");
     write(identity.afe);
+    write("\n");
+}
+
+void log_backend_scope() noexcept {
+    const auto& scope = backend_contract().scope;
+    write("resident-elf-qemu: backend-scope proves=");
+    write(scope.proves);
+    write(" does_not_prove=");
+    write(scope.does_not_prove);
     write("\n");
 }
 

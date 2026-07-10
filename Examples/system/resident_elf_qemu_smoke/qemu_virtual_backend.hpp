@@ -20,6 +20,11 @@ struct VirtualBackendContract {
         const char* afe;
     };
 
+    struct Scope {
+        const char* proves;
+        const char* does_not_prove;
+    };
+
     struct Time {
         const char* kind;
         std::uint32_t start_ms;
@@ -61,6 +66,7 @@ struct VirtualBackendContract {
     };
 
     Identity identity;
+    Scope scope;
     Time time;
     Display display;
     Input input;
@@ -119,9 +125,12 @@ const VirtualCapabilityCounters& capability_counters() noexcept;
 const VirtualBackendContract& backend_contract() noexcept;
 void log_capability_counters(std::string_view name) noexcept;
 CharmAppApi make_virtual_app_api() noexcept;
+bool log_backend_self_check() noexcept;
+bool log_backend_reset_self_check() noexcept;
 bool probe_unsupported_capabilities() noexcept;
 void log_backend_identity() noexcept;
 void log_backend_capabilities() noexcept;
+void log_backend_scope() noexcept;
 void log_backend_contract() noexcept;
 
 void reset_store_media_counters() noexcept;

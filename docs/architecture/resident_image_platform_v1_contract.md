@@ -53,12 +53,32 @@ extern "C" int charm_app_main(const CharmAppApi* api, int argc, char** argv);
 `RuntimeDomain` 用来表达代码最终在哪个执行域运行：
 
 - `host`：host-only smoke 或桌面开发后端。
+- `virtual_m7`：QEMU `mps2-an500/cortex-m7` virtual-board domain，用于离板验证
+  ELF loader、AppRuntime 和 `CharmAppApi` capability 语义。
 - `h747_cm7`：当前 H747 resident runtime 的主执行域。
 - `h747_cm4`：未来可能的协处理执行域。
 - `future_remote`：未来远端核、Linux core、外部处理域或代理域。
 
 多核异构不能被伪装成普通线程。跨核执行需要显式 domain、image handoff、内存归属、
 cache/一致性策略和 capability proxy；这些属于平台装配层，不进入 App ABI。
+
+`virtual_m7` 不是 H747 外设仿真器。它可以证明 `AppImage(format=elf) -> Loader ->
+AppRuntime -> Capability Table` 的运行语义，也可以承载虚拟 display/input/time/storage
+backend；但 USB CDC、QSPI、eMMC、FMC SDRAM、HAL 初始化、MPU/cache、引脚复用和真实外设
+资源冲突仍属于 H747 real-board 证据。
+
+QEMU evidence 必须显式声明 `backend_scope`，并把同一声明镜像到
+`runtime_domain_profile`。当前 `virtual_m7` 的 `backend_scope.proves` 固定为
+`elf_loader,app_runtime,charm_app_api,capability_backend,received_image,packetstream,store_v1_semantics`；
+`backend_scope.does_not_prove` 固定为
+`h747_usb_cdc,h747_qspi,h747_emmc,h747_fmc_sdram,h747_hal_init,h747_mpu_cache,h747_pinmux`。
+`runtime_domain_profile.proves` 与 `runtime_domain_profile.does_not_prove` 不能自行扩张或收缩，
+必须逐项镜像 `backend_scope`；脚本和 evidence bundle 需要拒绝缺失、篡改或 profile/scope
+不一致的归档证据。
+
+QEMU evidence 还应把虚拟 display/input/storage 后端收束成可 grep 的契约摘要，
+例如 `qemu_elf_gui_contract=` 与 `qemu_elf_storage_contract=`。这些摘要只证明
+`virtual_m7` capability backend 的确定性和覆盖情况，不把 QEMU 扩张为 H747 外设证据。
 
 ## Stage / Load Arena 边界
 
@@ -69,6 +89,13 @@ H747 当前形态为：
 - received payload 可落在 SDRAM receive arena。
 - named image staging 可落在 SDRAM stage cache。
 - App ELF execute region 由 resident runtime 明确描述，例如 D1 RAM `0x24070000..0x24080000`。
+
+QEMU `virtual_m7` 当前形态为：
+
+- App ELF execute region 由 QEMU smoke 明确描述为 `0x20080000..0x20090000`。
+- sample App ELF 必须链接到该 runtime domain 的 `ELF_BASE=0x20080000`。
+- QEMU-local Store v1 staging 只验证 Store reader/staged image/AppRuntime 语义，不代表
+  QSPI 或 eMMC media 行为。
 
 App 不应该感知这些 arena 的地址、cache 维护或外设内存归属。loader/runtime backend
 负责把 image bytes 放到可执行位置，并在进入 `charm_app_main` 前完成必要 cache 处理。
@@ -97,6 +124,10 @@ App 只能看见 `CharmAppApi` capability table。真实能力可以由本地 ba
 
 transport、store、arena、loader 可以保留各自 backend error，但不能绕开这些阶段另造第二套
 App 执行诊断。
+
+QEMU evidence 可以额外提供 `qemu_elf_failure_transport/stage/load/runtime`
+这类归档摘要，但它们只是对现有 transport、stage、load、runtime 边界的分类索引，
+不能替代 `lookup/load/abi/argv/start/exit` 主诊断模型。
 
 ## 当前非目标
 

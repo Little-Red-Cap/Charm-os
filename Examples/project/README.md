@@ -38,6 +38,14 @@ DAPLink 项目已迁移到独立仓库：
 
 它继续承载 MCU / 板级工程化路径和 CMSIS-DAP 实现，不再作为 Charm 的内置项目目录。
 
+### Nocturne（独立仓库）
+
+STM32G431 USB Audio 项目已迁移到独立仓库：
+
+- [Little-Red-Cap/Nocturne](https://github.com/Little-Red-Cap/Nocturne)
+
+它继续承载 Nocturne 的 STM32 固件、硬件与产品资料，不再作为 Charm 的内置项目目录。
+
 ## 建议怎么用这个目录
 
 - 想看“当前最接近真实产品”的主线：
@@ -46,6 +54,8 @@ DAPLink 项目已迁移到独立仓库：
   看 `scope/`
 - 想看 MCU 工程化 / DAP 工具链方向：
   进入独立的 `Charm-dap` 仓库
+- 想看 STM32 USB Audio 产品固件：
+  进入独立的 `Nocturne` 仓库
 
 ## 使用提醒
 

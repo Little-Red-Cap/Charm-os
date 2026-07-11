@@ -36,6 +36,9 @@ export namespace player {
             if constexpr (requires { controller.flush_weekly_listening_stats_history(); }) {
                 (void)controller.flush_weekly_listening_stats_history();
             }
+            if constexpr (requires { controller.flush_recent_track_history(); }) {
+                (void)controller.flush_recent_track_history();
+            }
             player_.shutdown();
         }
         bool is_running() const noexcept { return player_.is_running(); }
@@ -70,6 +73,9 @@ export namespace player {
             }
             if constexpr (requires { controller.load_weekly_listening_stats_history(); }) {
                 controller.load_weekly_listening_stats_history();
+            }
+            if constexpr (requires { controller.load_recent_track_history(); }) {
+                controller.load_recent_track_history();
             }
             if (controller.fs_ready && last_storage_.tracks.size() != 0) {
                 if (!controller.load_track_index(initial_index)) {

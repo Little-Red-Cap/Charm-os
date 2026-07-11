@@ -420,11 +420,13 @@
         int progress_committed_sec{};
         std::uint8_t progress_committed_hold_frames{};
         player::ProgressInteractionState progress_state{};
-        int preloaded_duration_sec{};
         bool track_preloaded{};
         int last_time_sec{};
         int last_time_total_sec{};
         int current_sec{};
+        int duration_sec{};
+        const char* track_path{};
+        bool track_ready{};
         std::string last_info_text{};
 
         explicit UiCiSeekStateGuard(ContextT& in) noexcept
@@ -435,11 +437,13 @@
               progress_committed_sec(in.progress_committed_sec),
               progress_committed_hold_frames(in.progress_committed_hold_frames),
               progress_state(in.progress_interaction_state),
-              preloaded_duration_sec(in.preloaded_duration_sec),
               track_preloaded(in.track_preloaded),
               last_time_sec(in.last_time_sec),
               last_time_total_sec(in.last_time_total_sec),
               current_sec(in.playback.current_sec()),
+              duration_sec(in.playback.duration_sec()),
+              track_path(in.track_path()),
+              track_ready(in.track_ready()),
               last_info_text(in.last_info_text.view()) {}
 
         void restore() {
@@ -449,8 +453,10 @@
             ctx.progress_committed_sec = progress_committed_sec;
             ctx.progress_committed_hold_frames = progress_committed_hold_frames;
             ctx.progress_interaction_state = progress_state;
-            ctx.preloaded_duration_sec = preloaded_duration_sec;
             ctx.track_preloaded = track_preloaded;
+            ctx.playback.set_track_path(track_path);
+            ctx.playback.set_track_ready(track_ready);
+            ctx.playback.set_duration_from_probe_preserving_current(duration_sec);
             ctx.playback.set_current_sec(current_sec);
             ctx.last_time_sec = -1;
             ctx.last_time_total_sec = -1;
@@ -464,7 +470,10 @@
     template<typename ContextT>
     void ui_ci_prepare_seek_duration(ContextT& ctx, int duration_sec, int current_sec) {
         ctx.track_preloaded = true;
-        ctx.preloaded_duration_sec = duration_sec;
+        if (!ctx.track_path()) {
+            ctx.playback.set_track_path("/ui-ci/seek-fixture.wav");
+        }
+        ctx.playback.set_track_ready(true);
         ctx.playback.set_duration_from_probe(duration_sec);
         ctx.playback.set_current_sec(current_sec);
         ctx.last_time_sec = -1;
@@ -498,7 +507,6 @@
         ctx.show_default_current_cover();
         ctx.apply_cover_theme_from_current_image();
         ctx.track_preloaded = false;
-        ctx.preloaded_duration_sec = 0;
         ctx.reset_duration();
         ctx.restore_now_playing_group_visibility();
         ctx.restore_bottom_bar_content_visibility();
@@ -668,7 +676,6 @@
                                                         PumpFrameFn& pump_frame) {
         UiCiSeekStateGuard guard{ctx};
         ctx.track_preloaded = false;
-        ctx.preloaded_duration_sec = 0;
         ctx.reset_duration();
         pump_frame();
         const bool ok = ctx.progress_interaction_state == player::ProgressInteractionState::Unavailable
@@ -700,7 +707,7 @@
             && std::string_view{ui_ci_text_value(scene, ctx.handles.time_right)} == "4:00"
             && ctx.access.value(ctx.handles.progress_visual) >= 37
             && ctx.access.value(ctx.handles.progress_visual) <= 38;
-        ctx.preloaded_duration_sec = 300;
+        ctx.playback.set_duration_from_probe_preserving_current(300);
         ctx.last_time_total_sec = -1;
         ctx.sync_progress_idle(90);
         pump_frame();
@@ -854,8 +861,8 @@
         ctx.load_current_track_lyrics(track);
         ctx.lyrics_visible = true;
         ctx.sync_lyrics_visibility();
-        ctx.preloaded_duration_sec = 60;
         ctx.track_preloaded = true;
+        ctx.playback.set_duration_from_probe(60);
         ctx.playback.set_current_sec(11);
         ctx.refresh_lyrics_window(true);
         pump_frame();
@@ -935,7 +942,7 @@
         if (!ui_ci_write_vfs_text(sidecar, kLrc)) return false;
         ctx.load_current_track_lyrics(track);
         ctx.track_preloaded = true;
-        ctx.preloaded_duration_sec = 90;
+        ctx.playback.set_duration_from_probe(90);
         ctx.playback.set_current_sec(30);
         ctx.sync_progress_idle(30);
         pump_frame();

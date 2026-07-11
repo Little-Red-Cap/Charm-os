@@ -281,17 +281,18 @@
 
     template<typename ContextT>
     bool ui_ci_playback_queue_equals_list_order(const ContextT& ctx) noexcept {
-        if (ctx.playback_queue_order.size() != ctx.list_order.size()) return false;
+        if (ctx.playback.queue_count() != static_cast<int>(ctx.list_order.size())) return false;
         for (std::size_t i = 0; i < ctx.list_order.size(); ++i) {
-            if (ctx.playback_queue_order[i] != ctx.list_order[i]) return false;
+            if (ctx.playback.queue_track_at(static_cast<int>(i)) != ctx.list_order[i]) return false;
         }
         return true;
     }
 
     template<typename ContextT>
     bool ui_ci_playback_queue_contains_track(const ContextT& ctx, int track_index) noexcept {
-        for (const int idx : ctx.playback_queue_order) {
-            if (idx == track_index) return true;
+        const int count = ctx.playback.queue_count();
+        for (int i = 0; i < count; ++i) {
+            if (ctx.playback.queue_track_at(i) == track_index) return true;
         }
         return false;
     }
@@ -316,13 +317,13 @@
 
         const int row = (ctx.list_order.size() > 1) ? 1 : 0;
         const int expected_track = ctx.list_order[static_cast<std::size_t>(row)];
-        const auto generation_before = ctx.playback_queue_generation;
+        const auto generation_before = ctx.playback.queue_generation();
         ctx.activate_list_index(row);
         pump_frame();
 
         return ctx.track_index == expected_track
-            && ctx.playback_queue_generation != generation_before
-            && ctx.playback_queue_position == row
+            && ctx.playback.queue_generation() != generation_before
+            && ctx.playback.queue_position() == row
             && ui_ci_playback_queue_equals_list_order(ctx);
     }
 
@@ -342,12 +343,12 @@
 
         ctx.switch_track(1);
         pump_frame();
-        if (ctx.track_index != first_track || ctx.playback_queue_position != 0) return false;
+        if (ctx.track_index != first_track || ctx.playback.queue_position() != 0) return false;
 
         ctx.switch_track(-1);
         pump_frame();
         return ctx.track_index == last_track
-            && ctx.playback_queue_position == last_row
+            && ctx.playback.queue_position() == last_row
             && ui_ci_playback_queue_equals_list_order(ctx);
     }
 
@@ -368,13 +369,18 @@
         pump_frame();
         if (!ui_ci_playback_queue_equals_list_order(ctx)) return false;
 
-        const auto captured = ctx.playback_queue_order;
+        std::vector<int> captured{};
+        const int captured_count = ctx.playback.queue_count();
+        captured.reserve(static_cast<std::size_t>(captured_count));
+        for (int i = 0; i < captured_count; ++i) {
+            captured.push_back(ctx.playback.queue_track_at(i));
+        }
         ctx.toggle_library_shuffle();
         pump_frame();
         if (ctx.list_shuffle_enabled) return false;
-        if (ctx.playback_queue_order.size() != captured.size()) return false;
+        if (ctx.playback.queue_count() != static_cast<int>(captured.size())) return false;
         for (std::size_t i = 0; i < captured.size(); ++i) {
-            if (ctx.playback_queue_order[i] != captured[i]) return false;
+            if (ctx.playback.queue_track_at(static_cast<int>(i)) != captured[i]) return false;
         }
         return true;
     }
@@ -397,7 +403,7 @@
         ctx.activate_list_index(0);
         pump_frame();
         return ctx.track_index == expected_track
-            && ctx.playback_queue_position == 0
+            && ctx.playback.queue_position() == 0
             && ui_ci_playback_queue_equals_list_order(ctx);
     }
 
@@ -423,6 +429,31 @@
         ctx.activate_list_index(0);
         pump_frame();
         const int selected = ctx.track_index;
+        ctx.set_play_mode(0);
+        ctx.handle_track_end();
+        pump_frame();
+        const int expected_sequential = ctx.list_order.size() > 1
+            ? ctx.list_order[1]
+            : selected;
+        if (ctx.track_index != expected_sequential) {
+            ctx.stop_playback();
+            pump_frame();
+            return false;
+        }
+        if (ctx.list_order.size() > 1) {
+            ctx.activate_list_index(static_cast<int>(ctx.list_order.size()) - 1);
+            pump_frame();
+            const int last = ctx.track_index;
+            ctx.handle_track_end();
+            pump_frame();
+            if (ctx.track_index != last || ctx.has_active_playback()) {
+                ctx.stop_playback();
+                pump_frame();
+                return false;
+            }
+            ctx.activate_list_index(0);
+            pump_frame();
+        }
         ctx.set_play_mode(1);
         ctx.handle_track_end();
         pump_frame();
@@ -440,7 +471,188 @@
         ctx.set_play_mode(0);
         ctx.stop_playback();
         pump_frame();
-        return random_scoped && !ctx.playback_queue_order.empty();
+        return random_scoped && ctx.playback.queue_count() > 0;
+    }
+
+    template<typename SceneT, typename ContextT, typename PumpFrameFn>
+    bool ui_ci_playback_queue_skips_unavailable_on_end(SceneT& scene,
+                                                       ContextT& ctx,
+                                                       PumpFrameFn& pump_frame) {
+        if (!ui_ci_library_has_tracks(scene, ctx)) return false;
+        (void)ctx;
+        (void)pump_frame;
+        player::PlaybackSession<4> probe{};
+        if (!probe.set_track_slot(0, "/ui-ci/first.wav", true)
+            || !probe.set_track_slot(1, "/ui-ci/missing.wav", false)
+            || !probe.set_track_slot(2, "/ui-ci/next.wav", true)) {
+            return false;
+        }
+        const std::array<int, 3> order{{0, 1, 2}};
+        if (!probe.set_queue_from_order(order, 0)) {
+            return false;
+        }
+        player::FixedString<128> status{};
+        if (!probe.load_track_index(0, &status)) {
+            return false;
+        }
+        probe.set_playback_mode(player::PlaybackMode::Sequential);
+        return probe.resolve_track_for_playback_mode() == 2
+            && probe.track_for_queue_delta(1) == 1;
+    }
+
+    template<typename RuntimeT, typename SceneT, typename ContextT, typename PumpFrameFn>
+    bool ui_ci_playback_queue_run_state_drop_advance(RuntimeT& runtime,
+                                                     SceneT& scene,
+                                                     ContextT& ctx,
+                                                     PumpFrameFn& pump_frame) {
+        if (!ui_ci_library_has_tracks(scene, ctx)) return false;
+        auto* app = runtime.app();
+        if (!app) return false;
+        if (!ui_ci_prepare_library_songs_queue_view(ctx, pump_frame)) return false;
+        if (ctx.list_order.size() < 2) return true;
+
+        audio::PlayerConfig cfg{};
+        cfg.capture_output = false;
+        audio::AudioPlayer edge_player{cfg, g_clock};
+        ctx.bind_player(edge_player);
+        auto cleanup = [&](bool ok) {
+            ctx.playback.stop_playback();
+            ctx.set_play_mode(0);
+            ctx.bind_player(app->player());
+            pump_frame();
+            return ok;
+        };
+
+        ctx.activate_list_index(0);
+        pump_frame();
+        const int expected_next = ctx.list_order[1];
+        ctx.set_play_mode(0);
+        player::FixedString<128> status{};
+        if (!ctx.playback.start(status)) {
+            return cleanup(false);
+        }
+        ctx.observe_player_run_state(true, audio::PlayerState::playing);
+        ctx.observe_player_run_state(false, audio::PlayerState::idle);
+        const bool advanced = ctx.track_index == expected_next
+            && ctx.playback.playing()
+            && ctx.playback.track_ready();
+        if (!advanced) {
+            std::printf("[ui-ci] run_state_drop_advance detail expected=%d current=%d queue=%d/%d playing=%d paused=%d ready=%d state=%u\n",
+                        expected_next,
+                        ctx.track_index,
+                        ctx.playback.queue_position(),
+                        ctx.playback.queue_count(),
+                        ctx.playback.playing() ? 1 : 0,
+                        ctx.playback.paused() ? 1 : 0,
+                        ctx.playback.track_ready() ? 1 : 0,
+                        static_cast<unsigned>(audio::PlayerState::idle));
+        }
+        return cleanup(advanced);
+    }
+
+    template<typename SceneT, typename ContextT, typename PumpFrameFn>
+    bool ui_ci_library_unsupported_selection_preserves_active_track(SceneT& scene,
+                                                                    ContextT& ctx,
+                                                                    PumpFrameFn& pump_frame) {
+        if (!ui_ci_library_has_tracks(scene, ctx)) return false;
+        if (!ui_ci_prepare_library_songs_queue_view(ctx, pump_frame)) return false;
+
+        const int playable_row = 0;
+        const int playable_track = ctx.list_order[static_cast<std::size_t>(playable_row)];
+        ctx.activate_list_index(playable_row);
+        pump_frame();
+        if (!ctx.playback.track_ready()) return false;
+
+        const player::StorageView original_view = ctx.storage;
+        const int original_track_index = ctx.track_index;
+        const std::string original_path{ctx.track_path() ? ctx.track_path() : ""};
+        const auto original_resume_mode = ctx.current_playback_resume_mode();
+        const bool original_ready = ctx.playback.track_ready();
+
+        player::StorageState fixture{};
+        fixture.fs_ready = true;
+        fixture.has_tracks = true;
+        fixture.status.assign("Ready");
+        fixture.mount_status.assign("Ready");
+        fixture.media_stats = original_view.media_stats ? *original_view.media_stats : player::MediaLibraryStats{};
+
+        const auto* tracks = original_view.tracks;
+        if (!tracks || tracks->empty()) return false;
+        for (std::size_t i = 0; i < tracks->size(); ++i) {
+            player::FixedString<260> path{};
+            path.assign((*tracks)[i].view());
+            if (!fixture.tracks.push_back(path)) return false;
+        }
+
+        player::FixedString<260> unsupported_path{};
+        unsupported_path.assign("/music/ui-ci/Unsupported Fixture.aac");
+        if (!fixture.tracks.push_back(unsupported_path)) return false;
+        fixture.has_tracks = fixture.tracks.size() > 0;
+        fixture.media_stats.track_count = fixture.tracks.size();
+        player::ensure_track_labels(fixture);
+
+        ctx.apply_storage_view(player::make_storage_view(fixture), false);
+        pump_frame();
+        const int unsupported_track = static_cast<int>(fixture.tracks.size()) - 1;
+        const int unsupported_row = ctx.track_index_to_list(unsupported_track);
+        if (unsupported_row < 0) {
+            ctx.apply_storage_view(original_view, false);
+            pump_frame();
+            return false;
+        }
+
+        const char* unsupported_tail = player::PlayerController::list_view_tail(
+            &ctx,
+            static_cast<std::uint16_t>(unsupported_row));
+        const bool row_marked_unsupported =
+            unsupported_tail && std::string_view{unsupported_tail} == "Unsupported";
+
+        ctx.set_library_selected_index_for_preview(unsupported_row);
+        pump_frame();
+        const bool selection_explains_unsupported =
+            ctx.last_status_text.view().find("Unsupported format") != std::string_view::npos;
+
+        const bool popup_opened = ctx.open_library_info_popup_for_preview(unsupported_row);
+        pump_frame();
+        const char* popup_meta = scene.text(ctx.handles.list_info_meta);
+        const bool popup_explains_unsupported = popup_opened
+            && popup_meta
+            && std::string_view{popup_meta}.find("Unsupported format") != std::string_view::npos;
+        ctx.close_list_info_popup();
+        pump_frame();
+
+        const bool menu_opened = ctx.open_library_action_menu_for_preview(unsupported_row);
+        pump_frame();
+        const char* menu_primary = scene.text(ctx.handles.list_action_items[0]);
+        const bool menu_marks_unsupported = menu_opened
+            && menu_primary
+            && std::string_view{menu_primary} == "Unsupported";
+        ctx.close_list_action_menu();
+        pump_frame();
+
+        const std::size_t recent_count_before_unsupported =
+            ctx.recent_track_history.tracks.size();
+        ctx.activate_list_index(unsupported_row);
+        pump_frame();
+
+        const bool preserved = row_marked_unsupported
+            && selection_explains_unsupported
+            && popup_explains_unsupported
+            && menu_marks_unsupported
+            && ctx.track_index == original_track_index
+            && ctx.playback.track_ready() == original_ready
+            && std::string_view{ctx.track_path() ? ctx.track_path() : ""} == original_path
+            && ctx.current_playback_resume_mode() == original_resume_mode
+            && ctx.last_list_selected == unsupported_row
+            && ctx.recent_track_history.tracks.size() == recent_count_before_unsupported
+            && ctx.last_status_text.view() == std::string_view{"Unsupported format"}
+            && ctx.playback.queue_count() == static_cast<int>(fixture.tracks.size())
+            && ctx.playback.queue_track_at(ctx.playback.queue_count() - 1) == unsupported_track
+            && playable_track == original_track_index;
+
+        ctx.apply_storage_view(original_view, false);
+        pump_frame();
+        return preserved;
     }
 
     template<typename RuntimeT, typename SceneT, typename ContextT, typename PumpFrameFn>
@@ -471,6 +683,9 @@
             record("playback_queue_shuffle_capture", true, "skipped_no_tracks");
             record("playback_queue_context_album_artist", true, "skipped_no_tracks");
             record("playback_queue_mode_repeat_random_scope", true, "skipped_no_tracks");
+            record("playback_queue_skip_unavailable_on_end", true, "skipped_no_tracks");
+            record("playback_queue_run_state_drop_advance", true, "skipped_no_tracks");
+            record("library_unsupported_selection_preserves_active_track", true, "skipped_no_tracks");
             return;
         }
 
@@ -513,4 +728,13 @@
         record("playback_queue_mode_repeat_random_scope",
                ui_ci_playback_queue_mode_repeat_random_scope(scene, ctx, pump_frame),
                "mode_repeat_random_scope");
+        record("playback_queue_skip_unavailable_on_end",
+               ui_ci_playback_queue_skips_unavailable_on_end(scene, ctx, pump_frame),
+               "skip_unavailable_on_end");
+        record("playback_queue_run_state_drop_advance",
+               ui_ci_playback_queue_run_state_drop_advance(runtime, scene, ctx, pump_frame),
+               "run_state_drop_advance");
+        record("library_unsupported_selection_preserves_active_track",
+               ui_ci_library_unsupported_selection_preserves_active_track(scene, ctx, pump_frame),
+               "unsupported_selection_preserves_active_track");
     }

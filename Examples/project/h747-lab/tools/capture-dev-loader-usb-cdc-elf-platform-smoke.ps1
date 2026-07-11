@@ -66,6 +66,8 @@ function Get-RequiredTokens {
         "received elf hello_app passed",
         "dev: app record source=received format=elf name=hello_app command=run",
         "dev: app run-region name=ram_d1_app_elf base=0x24070000 size=65536 align=16 linked_elf_base=0x24070000",
+        "dev: app capacity needed=",
+        "fits=1 region=65536 probe=ok",
         "dev: app probe=ok",
         "dev: app plan=ok",
         "dev: app run stage=exit code=ok",
@@ -172,6 +174,7 @@ function Get-SyntheticPassingLog {
     [void]$Text.AppendLine("=== received elf: hello_app ===")
     [void]$Text.AppendLine("dev: app record source=received format=elf name=hello_app command=run argv=3 load=0x24070000 entry=0x24070021 span=270 segments=2 run_stage=exit run_code=ok exited=1 exit=0 caps_console=32 caps_present=0 caps_input=0")
     [void]$Text.AppendLine("dev: app run-region name=ram_d1_app_elf base=0x24070000 size=65536 align=16 linked_elf_base=0x24070000")
+    [void]$Text.AppendLine("dev: app capacity needed=270 free=65266 fits=1 region=65536 probe=ok")
     [void]$Text.AppendLine("dev: app probe=ok entry_off=0x00000021 span=270 segments=2 runnable=1")
     [void]$Text.AppendLine("dev: app plan=ok backend=0 load=0x24070000 entry=0x24070021 span=270 segments=2 runnable=1 run=disabled")
     [void]$Text.AppendLine("dev: app run stage=exit code=ok backend=0 load=0x24070000 entry=0x24070021 span=270 segments=2 exited=1 exit=0 app_exit=0 app_exit_code=0")

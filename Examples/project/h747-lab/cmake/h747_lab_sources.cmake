@@ -24,22 +24,101 @@ set(H747_LAB_COMMON_INCLUDE_DIRS
 set(H747_LAB_USB_DEVICE_ROOT
     "${STM32CUBE_H7_ROOT}/Middlewares/ST/STM32_USB_Device_Library")
 
-set(H747_LAB_PLATFORM_SOURCES
+set(H747_LAB_BSP_BASE_GENERATED_SOURCES
     "${DRAFT_CM7_ROOT}/Core/Startup/startup_stm32h747xx_CM7.s"
     "${DRAFT_ROOT}/Common/Src/system_stm32h7xx_dualcore_boot_cm4_cm7.c"
     "${DRAFT_CM7_ROOT}/Core/Src/gpio.c"
     "${DRAFT_CM7_ROOT}/Core/Src/dma.c"
-    "${DRAFT_CM7_ROOT}/Core/Src/fmc.c"
     "${DRAFT_CM7_ROOT}/Core/Src/usart.c"
     "${DRAFT_CM7_ROOT}/Core/Src/stm32h7xx_hal_msp.c"
     "${DRAFT_CM7_ROOT}/Core/Src/syscalls.c"
     "${DRAFT_CM7_ROOT}/Core/Src/sysmem.c"
-    "${DRAFT_CM7_ROOT}/Core/Src/quadspi.c"
     "${DRAFT_CM7_ROOT}/Core/Src/i2c.c"
     "${DRAFT_CM7_ROOT}/Core/Src/i2s.c"
     "${DRAFT_CM7_ROOT}/Core/Src/sdmmc.c"
-    "${DRAFT_CM7_ROOT}/Core/Src/spi.c"
     "${DRAFT_CM7_ROOT}/Core/Src/tim.c"
+)
+
+set(H747_LAB_BSP_DEV_PLATFORM_REQUIRED_GENERATED_FILES
+    "${DRAFT_CM7_ROOT}/Core/Inc/fmc.h"
+    "${DRAFT_CM7_ROOT}/Core/Src/fmc.c"
+    "${DRAFT_CM7_ROOT}/Core/Inc/quadspi.h"
+    "${DRAFT_CM7_ROOT}/Core/Src/quadspi.c"
+    "${DRAFT_CM7_ROOT}/Core/Inc/spi.h"
+    "${DRAFT_CM7_ROOT}/Core/Src/spi.c"
+)
+
+set(H747_LAB_BSP_OPTIONAL_GENERATED_SOURCES
+    "${DRAFT_CM7_ROOT}/Core/Src/dsihost.c"
+    "${DRAFT_CM7_ROOT}/Core/Src/ltdc.c"
+)
+
+function(h747_lab_collect_existing_sources out_var missing_var)
+    set(_existing)
+    set(_missing)
+    foreach(_path IN LISTS ARGN)
+        if(EXISTS "${_path}")
+            list(APPEND _existing "${_path}")
+        else()
+            list(APPEND _missing "${_path}")
+        endif()
+    endforeach()
+    set(${out_var} "${_existing}" PARENT_SCOPE)
+    set(${missing_var} "${_missing}" PARENT_SCOPE)
+endfunction()
+
+h747_lab_collect_existing_sources(
+    H747_LAB_BSP_BASE_GENERATED_SOURCES_EXISTING
+    H747_LAB_BSP_BASE_GENERATED_SOURCES_MISSING
+    ${H747_LAB_BSP_BASE_GENERATED_SOURCES})
+h747_lab_collect_existing_sources(
+    H747_LAB_BSP_DEV_PLATFORM_REQUIRED_GENERATED_FILES_EXISTING
+    H747_LAB_BSP_DEV_PLATFORM_REQUIRED_GENERATED_FILES_MISSING
+    ${H747_LAB_BSP_DEV_PLATFORM_REQUIRED_GENERATED_FILES})
+h747_lab_collect_existing_sources(
+    H747_LAB_BSP_OPTIONAL_GENERATED_SOURCES_EXISTING
+    H747_LAB_BSP_OPTIONAL_GENERATED_SOURCES_MISSING
+    ${H747_LAB_BSP_OPTIONAL_GENERATED_SOURCES})
+
+set(H747_LAB_BSP_MISSING_REQUIRED_FILES
+    ${H747_LAB_BSP_BASE_GENERATED_SOURCES_MISSING}
+    ${H747_LAB_BSP_DEV_PLATFORM_REQUIRED_GENERATED_FILES_MISSING})
+
+if(H747_LAB_BSP_MISSING_REQUIRED_FILES)
+    message(STATUS "========================================")
+    message(STATUS " H747 Lab BSP doctor")
+    message(STATUS "========================================")
+    message(STATUS "DRAFT_ROOT: ${DRAFT_ROOT}")
+    message(STATUS "DRAFT_CM7_ROOT: ${DRAFT_CM7_ROOT}")
+    message(STATUS "Affected target class: h747_lab_dev_loader and every profile that uses the common H747 platform sources")
+    message(STATUS "Missing required CubeMX generated files:")
+    foreach(_missing IN LISTS H747_LAB_BSP_MISSING_REQUIRED_FILES)
+        message(STATUS "  - ${_missing}")
+    endforeach()
+    if(H747_LAB_BSP_OPTIONAL_GENERATED_SOURCES_MISSING)
+        message(STATUS "Missing optional CubeMX generated files:")
+        foreach(_missing IN LISTS H747_LAB_BSP_OPTIONAL_GENERATED_SOURCES_MISSING)
+            message(STATUS "  - ${_missing}")
+        endforeach()
+    endif()
+    message(STATUS "Reason: dev_loader currently requires SDRAM/FMC, QSPI NOR, and the default SPI init boundary.")
+    message(STATUS "Fix: restore the matching CubeMX generated BSP files under DRAFT_ROOT, or intentionally refactor h747_lab_sources.cmake/profile init before building.")
+    message(STATUS "========================================")
+    message(FATAL_ERROR "H747 BSP generated source set is incomplete; stopping before Ninja receives missing source paths.")
+endif()
+
+if(H747_LAB_BSP_OPTIONAL_GENERATED_SOURCES_MISSING)
+    message(STATUS "H747 Lab BSP doctor: optional generated sources not present and not added to common platform sources:")
+    foreach(_missing IN LISTS H747_LAB_BSP_OPTIONAL_GENERATED_SOURCES_MISSING)
+        message(STATUS "  - ${_missing}")
+    endforeach()
+endif()
+
+set(H747_LAB_PLATFORM_SOURCES
+    ${H747_LAB_BSP_BASE_GENERATED_SOURCES_EXISTING}
+    "${DRAFT_CM7_ROOT}/Core/Src/fmc.c"
+    "${DRAFT_CM7_ROOT}/Core/Src/quadspi.c"
+    "${DRAFT_CM7_ROOT}/Core/Src/spi.c"
     "${HAL_ROOT}/Src/stm32h7xx_hal.c"
     "${HAL_ROOT}/Src/stm32h7xx_hal_cortex.c"
     "${HAL_ROOT}/Src/stm32h7xx_hal_gpio.c"

@@ -249,6 +249,10 @@
                    }) != tail.end();
         }
 
+        static bool library_track_playback_supported(std::string_view path) noexcept {
+            return player::is_playback_supported_track_path(path);
+        }
+
         template <std::size_t Capacity>
         static void library_compact_popup_directory_to(FixedString<Capacity>& out,
                                                        std::string_view path,
@@ -513,6 +517,11 @@
                 return;
             }
             const auto path = (*tracks)[static_cast<std::size_t>(track_index)].view();
+            if (!library_track_playback_supported(path)) {
+                out.assign("Unsupported");
+                player::font_cache::ensure_text(out.view());
+                return;
+            }
             const int duration_sec = cached_track_duration(track_index);
             if (duration_sec > 0) {
                 char buf[16]{};
@@ -1291,6 +1300,7 @@
             auto secondary = row.subtitle();
             if (primary.empty()) primary = row.detail_primary;
             if (secondary.empty()) secondary = row.detail_secondary;
+            const bool supported = row.group_row || library_track_playback_supported(row.track_path);
             if (row.group_row) {
                 if (primary.empty()) return false;
                 if (secondary.empty()) {
@@ -1323,6 +1333,9 @@
             }
             if (row.current_row) {
                 append_library_status_suffix(buf, buf_size, library_current_group_state_text());
+            }
+            if (!supported) {
+                append_library_status_suffix(buf, buf_size, "Unsupported format");
             }
             return true;
         }
@@ -1487,8 +1500,11 @@
             if (list_index < 0 || list_index >= static_cast<int>(list_order.size())) return 0;
 
             const auto row = make_library_row_recipe(list_index);
+            const bool supported = row.group_row || library_track_playback_supported(row.track_path);
             items[0] = {
-                .text = row.group_row ? library_group_primary_action_label() : "Play now",
+                .text = row.group_row
+                    ? library_group_primary_action_label()
+                    : (supported ? "Play now" : "Unsupported"),
                 .visible = true,
             };
             items[1] = {
@@ -1602,6 +1618,7 @@
             const auto& track = (*tracks)[static_cast<std::size_t>(track_idx)];
             const auto path = track.view();
             if (path.empty()) return false;
+            const bool supported = library_track_playback_supported(path);
 
             FixedString<192> title{};
             if (const auto* titles = storage.track_titles;
@@ -1690,9 +1707,14 @@
             }
             const auto format = format_from_path(path);
             append_meta_part(format.empty() ? std::string_view{"Audio"} : format);
+            if (!supported) {
+                append_meta_part("Unsupported format");
+            }
 
             int duration_sec = cached_track_duration(track_idx);
-            if (duration_sec == kTrackDurationUnknown) {
+            if (!supported) {
+                duration_sec = 0;
+            } else if (duration_sec == kTrackDurationUnknown) {
                 int probed_duration = 0;
                 if (player::probe_duration_seconds(track.c_str(), probed_duration) && probed_duration > 0) {
                     duration_sec = probed_duration;
@@ -2847,6 +2869,7 @@
             reset_track_duration_cache();
             refresh_track_labels();
             refresh_home_collage_if_active(true);
+            load_recent_track_history();
             if (fs_ready && !font_retry_done && !font_ttf_path.empty()) {
                 rebind_player_fonts();
                 font_retry_done = true;

@@ -1,3 +1,4 @@
+#include <cstddef>
 #include <cstdint>
 #include <string_view>
 
@@ -7,6 +8,7 @@
 #include "player_md3_input.hpp"
 #include "player_md3_render_scheduler.hpp"
 #include "player_md3_resource_probe.hpp"
+#include "player_md3_runtime.hpp"
 #include "port.h"
 #include "stm32h7xx_hal.h"
 
@@ -16,6 +18,12 @@ using namespace std::literals::string_view_literals;
 using namespace h747::apps::player_md3;
 
 constexpr std::int32_t kPlaybackSmokeStageResourceMissing = -1;
+constexpr std::uint32_t kTrackListPageSize = 8U;
+constexpr std::int32_t kI32Max = 2147483647;
+constexpr std::int32_t kI32Min = -2147483647 - 1;
+constexpr auto kTrackListPrefix = "track list "sv;
+constexpr auto kTrackSelectPrefix = "track select "sv;
+constexpr auto kSeekPrefix = "seek "sv;
 
 h747::console::ConsoleLineSource g_line_source{};
 
@@ -58,12 +66,16 @@ void print_help() noexcept {
     h747::console::write_line("  input route status - Print input route evidence");
     h747::console::write_line("  input route reset - Reset input route counters");
     h747::console::write_line("  input smoke - Inject semantic input smoke sequence");
+    h747::console::write_line("  playback status - Print playback-only evidence");
     h747::console::write_line("  playback smoke - Start first track and verify I2S DMA callbacks");
+    h747::console::write_line("  seek <sec>/+<sec>/-<sec> - Seek current track");
+    h747::console::write_line("  track status/list [start]/select <n> - Inspect or select tracks");
     h747::console::write_line("  render throttle on/off/status - Gate heavy MD3 full-frame renders");
     h747::console::write_line("  touch probe - Reset and probe GT970/GT9xx");
     h747::console::write_line("  up/down     - Dispatch navigation command");
     h747::console::write_line("  enter/back  - Dispatch activation/back command");
     h747::console::write_line("  play        - Dispatch PlayToggle command");
+    h747::console::write_line("  pause/resume/stop - Dispatch direct playback control");
     h747::console::write_line("  next/prev   - Dispatch transport command");
     h747::console::write_line("  mode        - Dispatch play-mode command");
     h747::console::write_line("  reboot      - Reboot");
@@ -73,6 +85,276 @@ void dispatch_command(PlayerMd3InputCommand command) noexcept {
     record_input_route(PlayerMd3InputRouteSource::Console, command);
     dispatch_runtime_command(h747::port::tick_ms(), command);
     record_input_button_event();
+}
+
+void print_sdec(const std::int32_t value) noexcept {
+    if (value < 0) {
+        h747::console::write("-");
+        const auto magnitude = static_cast<std::uint32_t>(-static_cast<std::int64_t>(value));
+        h747::console::write_dec(magnitude);
+        return;
+    }
+    h747::console::write_dec(static_cast<std::uint32_t>(value));
+}
+
+void print_view(const std::string_view text) noexcept {
+    for (const char ch : text) {
+        h747::console::write_char(ch);
+    }
+}
+
+bool starts_with(const std::string_view text, const std::string_view prefix) noexcept {
+    return text.size() >= prefix.size() && text.substr(0U, prefix.size()) == prefix;
+}
+
+std::string_view trim_left(std::string_view text) noexcept {
+    while (!text.empty() && text.front() == ' ') {
+        text.remove_prefix(1U);
+    }
+    return text;
+}
+
+bool parse_u32(std::string_view text, std::uint32_t& out) noexcept {
+    text = trim_left(text);
+    if (text.empty()) {
+        return false;
+    }
+
+    std::uint32_t value = 0U;
+    for (const char ch : text) {
+        if (ch < '0' || ch > '9') {
+            return false;
+        }
+        const auto digit = static_cast<std::uint32_t>(ch - '0');
+        if (value > (0xFFFFFFFFU - digit) / 10U) {
+            return false;
+        }
+        value = value * 10U + digit;
+    }
+    out = value;
+    return true;
+}
+
+bool parse_i32(std::string_view text, std::int32_t& out) noexcept {
+    text = trim_left(text);
+    if (text.empty()) {
+        return false;
+    }
+
+    bool negative = false;
+    if (text.front() == '+' || text.front() == '-') {
+        negative = text.front() == '-';
+        text.remove_prefix(1U);
+    }
+
+    std::uint32_t magnitude = 0U;
+    if (!parse_u32(text, magnitude)) {
+        return false;
+    }
+    if (!negative && magnitude > static_cast<std::uint32_t>(kI32Max)) {
+        return false;
+    }
+    if (negative && magnitude > 0x80000000U) {
+        return false;
+    }
+    if (negative && magnitude == 0x80000000U) {
+        out = kI32Min;
+        return true;
+    }
+    out = negative ? -static_cast<std::int32_t>(magnitude)
+                   : static_cast<std::int32_t>(magnitude);
+    return true;
+}
+
+std::int32_t clamp_i64_to_i32(const std::int64_t value) noexcept {
+    if (value > 0x7FFFFFFFLL) {
+        return kI32Max;
+    }
+    if (value < (-0x7FFFFFFFLL - 1LL)) {
+        return kI32Min;
+    }
+    return static_cast<std::int32_t>(value);
+}
+
+void print_playback_status() noexcept {
+    refresh_playback_probe_state();
+    const auto& st = state();
+    h747::console::write("playback_status state=");
+    h747::console::write_dec(st.playback_player_state);
+    h747::console::write(" running=");
+    h747::console::write_dec(st.playback_running);
+    h747::console::write(" track_ready=");
+    h747::console::write_dec(st.playback_track_ready);
+    h747::console::write(" track=");
+    print_sdec(st.playback_track_index);
+    h747::console::write("/");
+    print_sdec(st.playback_track_count);
+    h747::console::write(" mode=");
+    h747::console::write_dec(st.playback_play_mode);
+    h747::console::write(" pos=");
+    print_sdec(st.playback_current_sec);
+    h747::console::write("/");
+    print_sdec(st.playback_duration_sec);
+    h747::console::write(" dma=");
+    h747::console::write_dec(st.playback_dma_callbacks);
+    h747::console::write(" underruns=");
+    h747::console::write_dec(st.playback_underruns);
+    h747::console::write(" err=");
+    print_sdec(st.playback_last_error_stage);
+    h747::console::write("/");
+    print_sdec(st.playback_last_error);
+    h747::console::write(" smoke=");
+    h747::console::write_dec(st.playback_smoke_ok);
+    h747::console::write("/");
+    h747::console::write_dec(st.playback_smoke_before_callbacks);
+    h747::console::write("-");
+    h747::console::write_dec(st.playback_smoke_after_callbacks);
+    h747::console::write("/");
+    h747::console::write_dec(st.playback_smoke_saw_playing);
+    h747::console::write("\n");
+}
+
+void dispatch_playback_control(PlayerMd3PlaybackControl control, const char* label) noexcept {
+    const auto accepted = dispatch_runtime_playback_control(control);
+    h747::console::write(label);
+    h747::console::write(": ");
+    h747::console::write_line(accepted ? "accepted" : "failed");
+    print_playback_status();
+}
+
+bool handle_seek_command(const std::string_view line) noexcept {
+    if (!starts_with(line, kSeekPrefix)) {
+        return false;
+    }
+
+    const auto arg = trim_left(line.substr(kSeekPrefix.size()));
+    std::int32_t value = 0;
+    if (!parse_i32(arg, value)) {
+        h747::console::write_line("seek: bad seconds");
+        return true;
+    }
+
+    refresh_playback_probe_state();
+    const bool relative = !arg.empty() && (arg.front() == '+' || arg.front() == '-');
+    const auto target = relative
+        ? clamp_i64_to_i32(static_cast<std::int64_t>(state().playback_current_sec) + value)
+        : value;
+    const auto accepted = seek_runtime_playback(target);
+    h747::console::write("seek target=");
+    print_sdec(target);
+    h747::console::write(" ");
+    h747::console::write_line(accepted ? "accepted" : "failed");
+    print_playback_status();
+    return true;
+}
+
+std::uint32_t track_count() noexcept {
+    const auto* tracks = controller_ref().storage.tracks;
+    return tracks ? static_cast<std::uint32_t>(tracks->size()) : 0U;
+}
+
+void print_track_row(const std::uint32_t index) noexcept {
+    auto& controller = controller_ref();
+    const auto* tracks = controller.storage.tracks;
+    if (tracks == nullptr || index >= tracks->size()) {
+        return;
+    }
+
+    h747::console::write("track ");
+    h747::console::write_dec(index);
+    h747::console::write(index == static_cast<std::uint32_t>(controller.track_index) ? " * " : "   ");
+
+    const auto* titles = controller.storage.track_titles;
+    const auto* subtitles = controller.storage.track_subtitles;
+    const bool has_title = titles != nullptr && index < titles->size() && !(*titles)[index].empty();
+    if (has_title) {
+        h747::console::write((*titles)[index].c_str());
+    } else {
+        print_view((*tracks)[index].view());
+    }
+
+    if (subtitles != nullptr && index < subtitles->size() && !(*subtitles)[index].empty()) {
+        h747::console::write(" - ");
+        h747::console::write((*subtitles)[index].c_str());
+    }
+
+    h747::console::write(" path=");
+    print_view((*tracks)[index].view());
+    h747::console::write("\n");
+}
+
+void print_track_status() noexcept {
+    refresh_playback_probe_state();
+    const auto& st = state();
+    auto& controller = controller_ref();
+    h747::console::write("track_status current=");
+    print_sdec(st.playback_track_index);
+    h747::console::write(" count=");
+    print_sdec(st.playback_track_count);
+    h747::console::write(" ready=");
+    h747::console::write_dec(st.playback_track_ready);
+    h747::console::write(" fs=");
+    h747::console::write_dec(controller.fs_ready ? 1U : 0U);
+    h747::console::write(" mode=");
+    h747::console::write_dec(st.playback_play_mode);
+    h747::console::write(" path=");
+    const char* path = controller.track_path();
+    h747::console::write_line(path && *path ? path : "<none>");
+}
+
+void print_track_list(const std::uint32_t start) noexcept {
+    const auto count = track_count();
+    h747::console::write("track_list start=");
+    h747::console::write_dec(start);
+    h747::console::write(" count=");
+    h747::console::write_dec(count);
+    h747::console::write(" page=");
+    h747::console::write_dec(kTrackListPageSize);
+    h747::console::write("\n");
+    if (count == 0U || start >= count) {
+        return;
+    }
+
+    const auto end = (count - start) > kTrackListPageSize ? start + kTrackListPageSize : count;
+    for (std::uint32_t i = start; i < end; ++i) {
+        print_track_row(i);
+    }
+}
+
+bool handle_track_command(const std::string_view line) noexcept {
+    if (line == "track status"sv) {
+        print_track_status();
+        return true;
+    }
+    if (line == "track list"sv) {
+        print_track_list(0U);
+        return true;
+    }
+    if (starts_with(line, kTrackListPrefix)) {
+        std::uint32_t start = 0U;
+        if (!parse_u32(line.substr(kTrackListPrefix.size()), start)) {
+            h747::console::write_line("track_list: bad index");
+            return true;
+        }
+        print_track_list(start);
+        return true;
+    }
+    if (starts_with(line, kTrackSelectPrefix)) {
+        std::uint32_t index = 0U;
+        if (!parse_u32(line.substr(kTrackSelectPrefix.size()), index)) {
+            h747::console::write_line("track_select: bad index");
+            return true;
+        }
+        const auto accepted = index <= static_cast<std::uint32_t>(0x7FFFFFFF)
+            && select_runtime_track_index(static_cast<int>(index));
+        h747::console::write("track_select index=");
+        h747::console::write_dec(index);
+        h747::console::write(" ");
+        h747::console::write_line(accepted ? "accepted" : "failed");
+        print_track_status();
+        return true;
+    }
+    return false;
 }
 
 std::uint32_t run_input_smoke_sequence() noexcept {
@@ -413,6 +695,10 @@ void handle_command(std::string_view line) noexcept {
         print_help();
     } else if (handle_touch_command(line)) {
         return;
+    } else if (handle_seek_command(line)) {
+        return;
+    } else if (handle_track_command(line)) {
+        return;
     } else if (line == "status"sv) {
         print_status("player_md3");
     } else if (line == "resource status"sv) {
@@ -429,6 +715,8 @@ void handle_command(std::string_view line) noexcept {
         h747::console::write("input_smoke: ");
         h747::console::write_line(ok ? "ok" : "failed");
         print_status("player_md3");
+    } else if (line == "playback status"sv) {
+        print_playback_status();
     } else if (line == "playback smoke"sv) {
         const auto ok = run_playback_smoke_sequence();
         h747::console::write("playback_smoke: ");
@@ -454,6 +742,12 @@ void handle_command(std::string_view line) noexcept {
         dispatch_command(PlayerMd3InputCommand::Back);
     } else if (line == "play"sv) {
         dispatch_command(PlayerMd3InputCommand::PlayToggle);
+    } else if (line == "pause"sv) {
+        dispatch_playback_control(PlayerMd3PlaybackControl::Pause, "playback_pause");
+    } else if (line == "resume"sv) {
+        dispatch_playback_control(PlayerMd3PlaybackControl::Resume, "playback_resume");
+    } else if (line == "stop"sv) {
+        dispatch_playback_control(PlayerMd3PlaybackControl::Stop, "playback_stop");
     } else if (line == "next"sv) {
         dispatch_command(PlayerMd3InputCommand::Next);
     } else if (line == "prev"sv) {

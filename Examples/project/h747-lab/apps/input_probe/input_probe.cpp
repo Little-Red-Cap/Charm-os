@@ -63,6 +63,7 @@ std::uint32_t last_tick_ms = 0U;
 std::uint32_t alive_count = 0U;
 std::int32_t encoder1_accum = 0;
 std::int32_t encoder2_accum = 0;
+bool monitor_enabled = false;
 
 constexpr bool printable_ascii(const std::uint8_t value) noexcept {
     return (value >= 32U) && (value < 127U);
@@ -77,6 +78,12 @@ void print_help() {
     emit<"  help        - Show help\n">();
     emit<"  status      - Print touch and encoder evidence\n">();
     emit<"  touch probe - Reset and probe GT970/GT9xx over I2C4\n">();
+    emit<"  touch debug - Print GT9xx register snapshot\n">();
+    emit<"  touch reset14/reset5d - Reset GT9xx with address-select INT level\n">();
+    emit<"  touch cfg luat - Write Luat GT9157 config table\n">();
+    emit<"  touch cfg luat reset - Write Luat config then soft-reset\n">();
+    emit<"  touch softreset - Write GT9157 command 0x02 then wake\n">();
+    emit<"  monitor on/off - Enable or disable periodic status output\n">();
     emit<"  reboot      - Reboot\n">();
 }
 
@@ -139,6 +146,39 @@ void print_touch(const input_touch_snapshot_t& touch, const std::uint8_t probe_a
     emit<"\n">();
 }
 
+void print_hex_bytes(const char* label, const std::uint8_t* data, const std::uint32_t size) {
+    emit<" {}=">(label);
+    for (std::uint32_t index = 0; index < size; ++index) {
+        if (index != 0U) {
+            emit<",">();
+        }
+        emit<"0x{:02X}">(static_cast<unsigned>(data[index]));
+    }
+}
+
+void print_touch_debug() {
+    input_touch_debug_snapshot_t dbg{};
+    const auto ok = input_touch_debug_snapshot(&dbg);
+    emit<"touch_debug ok={} ready={} addr=0x{:02X} cmd=0x{:02X} status=0x{:02X} int={} rst={} hal=0x{:08X}/0x{:08X}/0x{:08X}/0x{:08X} i2c=0x{:08X}/0x{:08X}">(
+        ok,
+        dbg.ready,
+        static_cast<unsigned>(dbg.addr7),
+        static_cast<unsigned>(dbg.command),
+        static_cast<unsigned>(dbg.status),
+        dbg.int_level,
+        dbg.reset_pin_level,
+        dbg.command_hal_status,
+        dbg.status_hal_status,
+        dbg.version_hal_status,
+        dbg.config_hal_status,
+        dbg.i2c_error_code,
+        dbg.i2c_state);
+    print_hex_bytes("ver", dbg.version, sizeof(dbg.version));
+    print_hex_bytes("cfg", dbg.config, sizeof(dbg.config));
+    print_hex_bytes("point", dbg.point_data, sizeof(dbg.point_data));
+    emit<"\n">();
+}
+
 void print_status() {
     const auto state = input.snapshot().raw;
     const auto rx = h747::console::rx_stats();
@@ -170,6 +210,29 @@ void run_touch_probe() {
     print_status();
 }
 
+void run_touch_reset(const std::uint8_t addr7) {
+    const auto ok = input_touch_debug_reset_address(addr7);
+    emit<"touch_reset addr=0x{:02X} {}\n">(static_cast<unsigned>(addr7), ok ? "ok" : "failed");
+    print_touch_debug();
+}
+
+void run_touch_cfg_luat(const bool do_reset) {
+    std::uint8_t checksum = 0U;
+    const auto load_ok = input_touch_debug_load_luat_config(720U, 1280U, &checksum);
+    const auto reset_ok = (do_reset && load_ok != 0U) ? input_touch_debug_soft_reset() : 0U;
+    emit<"touch_cfg_luat: load={} reset={} checksum=0x{:02X}\n">(
+        load_ok,
+        reset_ok,
+        static_cast<unsigned>(checksum));
+    print_touch_debug();
+}
+
+void run_touch_softreset() {
+    const auto ok = input_touch_debug_soft_reset();
+    emit<"touch_softreset: {}\n">(ok ? "ok" : "failed");
+    print_touch_debug();
+}
+
 void handle_command(const std::string_view line) {
     if (line.empty()) {
         return;
@@ -180,6 +243,24 @@ void handle_command(const std::string_view line) {
         print_status();
     } else if (line == "touch probe"sv) {
         run_touch_probe();
+    } else if (line == "touch debug"sv) {
+        print_touch_debug();
+    } else if (line == "touch reset14"sv) {
+        run_touch_reset(0x14U);
+    } else if (line == "touch reset5d"sv) {
+        run_touch_reset(0x5DU);
+    } else if (line == "touch cfg luat"sv) {
+        run_touch_cfg_luat(false);
+    } else if (line == "touch cfg luat reset"sv) {
+        run_touch_cfg_luat(true);
+    } else if (line == "touch softreset"sv) {
+        run_touch_softreset();
+    } else if (line == "monitor on"sv) {
+        monitor_enabled = true;
+        emit<"monitor: on\n">();
+    } else if (line == "monitor off"sv) {
+        monitor_enabled = false;
+        emit<"monitor: off\n">();
     } else if (line == "reboot"sv) {
         emit<"rebooting...\n">();
         HAL_Delay(20U);
@@ -210,7 +291,7 @@ void loop_once() noexcept {
     }
 
     const std::uint32_t now = h747::port::tick_ms();
-    if ((now - last_tick_ms) >= 1000U) {
+    if (monitor_enabled && ((now - last_tick_ms) >= 1000U)) {
         last_tick_ms = now;
         ++alive_count;
         emit<"input_probe: alive tick={} e1_accum={} e2_accum={}\n">(

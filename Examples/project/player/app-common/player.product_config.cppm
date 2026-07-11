@@ -49,6 +49,9 @@ export namespace player::product_config {
     inline constexpr std::size_t listening_stats_history_weeks = 12;
     inline constexpr std::size_t listening_stats_io_bytes = 2048;
     inline constexpr std::size_t listening_stats_line_bytes = 192;
+    inline constexpr std::size_t recent_track_history_entries = 12;
+    inline constexpr std::size_t recent_track_history_io_bytes = 4096;
+    inline constexpr std::size_t recent_track_history_line_bytes = 320;
     inline constexpr std::size_t track_label_text_capacity = 192;
     inline constexpr std::size_t track_title_text_capacity = 192;
     inline constexpr std::size_t track_subtitle_text_capacity = 32;

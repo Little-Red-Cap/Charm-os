@@ -4,6 +4,13 @@ module;
 #include <cstddef>
 #include <string_view>
 
+#ifndef CHARM_AUDIO_ENABLE_FLAC
+#define CHARM_AUDIO_ENABLE_FLAC 1
+#endif
+#ifndef CHARM_AUDIO_ENABLE_MP3
+#define CHARM_AUDIO_ENABLE_MP3 1
+#endif
+
 export module player.media_library;
 
 export namespace player {
@@ -38,24 +45,52 @@ export namespace player {
     inline constexpr std::string_view kFormatWav = "WAV";
     inline constexpr std::string_view kFormatFla = "FLA";
     inline constexpr std::string_view kFormatFlac = "FLAC";
+    inline constexpr std::string_view kFormatAac = "AAC";
+    inline constexpr std::string_view kFormatM4a = "M4A";
+    inline constexpr std::string_view kFormatOgg = "OGG";
+    inline constexpr std::string_view kFormatOpus = "OPUS";
+    inline constexpr std::string_view kFormatApe = "APE";
+    inline constexpr std::string_view kFormatAlac = "ALAC";
+    inline constexpr std::string_view kFormatWv = "WV";
 
-    bool media_is_audio_extension(std::string_view ext) noexcept {
+    std::string_view media_extension_format(std::string_view ext) noexcept {
         if (ext.size() == 3) {
             const char a = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[0])));
             const char b = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[1])));
             const char c = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[2])));
-            return (a == 'm' && b == 'p' && c == '3')
-                || (a == 'w' && b == 'a' && c == 'v')
-                || (a == 'f' && b == 'l' && c == 'a');
+            if (a == 'm' && b == 'p' && c == '3') return kFormatMp3;
+            if (a == 'w' && b == 'a' && c == 'v') return kFormatWav;
+            if (a == 'f' && b == 'l' && c == 'a') return kFormatFla;
+            if (a == 'a' && b == 'a' && c == 'c') return kFormatAac;
+            if (a == 'm' && b == '4' && c == 'a') return kFormatM4a;
+            if (a == 'o' && b == 'g' && c == 'g') return kFormatOgg;
+            if (a == 'a' && b == 'p' && c == 'e') return kFormatApe;
         }
         if (ext.size() == 4) {
             const char a = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[0])));
             const char b = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[1])));
             const char c = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[2])));
             const char d = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[3])));
-            return a == 'f' && b == 'l' && c == 'a' && d == 'c';
+            if (a == 'f' && b == 'l' && c == 'a' && d == 'c') return kFormatFlac;
+            if (a == 'o' && b == 'p' && c == 'u' && d == 's') return kFormatOpus;
+            if (a == 'a' && b == 'l' && c == 'a' && d == 'c') return kFormatAlac;
         }
-        return false;
+        if (ext.size() == 2) {
+            const char a = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[0])));
+            const char b = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[1])));
+            if (a == 'w' && b == 'v') return kFormatWv;
+        }
+        return {};
+    }
+
+    bool media_is_audio_extension(std::string_view ext) noexcept {
+        return !media_extension_format(ext).empty();
+    }
+
+    bool media_format_has_decoder_support(std::string_view format) noexcept {
+        return format == kFormatWav
+            || (CHARM_AUDIO_ENABLE_FLAC && format == kFormatFlac)
+            || (CHARM_AUDIO_ENABLE_MP3 && format == kFormatMp3);
     }
 
     int compare_media_text_ci(std::string_view a, std::string_view b) noexcept {
@@ -92,26 +127,14 @@ export namespace player {
     std::string_view media_track_format(std::string_view path) noexcept {
         const auto name = media_file_name(path);
         const auto dot = name.find_last_of('.');
-        if (dot == std::string_view::npos || dot + 1 >= name.size()) {
-            return {};
-        }
-        const auto ext = name.substr(dot + 1);
-        if (ext.size() == 3) {
-            const char a = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[0])));
-            const char b = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[1])));
-            const char c = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[2])));
-            if (a == 'm' && b == 'p' && c == '3') return kFormatMp3;
-            if (a == 'w' && b == 'a' && c == 'v') return kFormatWav;
-            if (a == 'f' && b == 'l' && c == 'a') return kFormatFla;
-        }
-        if (ext.size() == 4) {
-            const char a = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[0])));
-            const char b = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[1])));
-            const char c = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[2])));
-            const char d = static_cast<char>(std::tolower(static_cast<unsigned char>(ext[3])));
-            if (a == 'f' && b == 'l' && c == 'a' && d == 'c') return kFormatFlac;
-        }
-        return {};
+        const auto ext = (dot != std::string_view::npos && dot + 1 < name.size())
+            ? name.substr(dot + 1)
+            : path;
+        return media_extension_format(ext);
+    }
+
+    bool media_path_has_decoder_support(std::string_view path) noexcept {
+        return media_format_has_decoder_support(media_track_format(path));
     }
 
     std::string_view media_track_stem(std::string_view path) noexcept {

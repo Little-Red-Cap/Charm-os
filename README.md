@@ -1,6 +1,6 @@
 <div align="center">
 
-# Charm
+# ✨ Charm ✨
 
 **C++26 Modules · Capability Graph · Non-blocking IO · Evidence-first Bring-up**
 

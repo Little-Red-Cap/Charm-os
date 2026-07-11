@@ -19,6 +19,7 @@
 
 - [`standards/README.md`](standards/README.md)
 - [`standards/项目C++编码要求.md`](standards/项目C++编码要求.md)
+- [`standards/嵌入式C++编程实践指南.md`](standards/嵌入式C++编程实践指南.md)
 - [`standards/project_conventions.md`](standards/project_conventions.md)
 
 ### 我要看协作约定

@@ -106,6 +106,17 @@
 调度器、service locator 或 AUTOSAR 式大平台。
 当前近期平台化主线是 `RTE -> H747`，第一条真实垂直切片是 `Display + Player`。
 
+### 我想看 resident App image / ELF 运行平台边界
+
+先读：
+
+- [`resident_image_platform_v1_contract.md`](resident_image_platform_v1_contract.md)
+
+这个契约固定动态 App 主链：
+`ImageSource/ImageStore -> AppImage/ProgramImage -> Loader -> RuntimeDomain ->
+AppRuntime -> Capability Table`。H747 `dev_loader`、QEMU `virtual_m7`、未来
+eMMC/QSPI/文件源或远端 domain 都必须汇入这条主链，不能各自定义第二套 App ABI。
+
 ### 我想看外部成熟产品对 Charm 机制的启发
 
 读：

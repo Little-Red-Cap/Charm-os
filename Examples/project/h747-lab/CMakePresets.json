@@ -118,6 +118,14 @@
             ]
         },
         {
+            "name": "build-h747-lab-resident-launcher-debug",
+            "displayName": "Build H747 Lab Resident Launcher Debug",
+            "configurePreset": "h747-lab-debug",
+            "targets": [
+                "h747_lab_resident_launcher"
+            ]
+        },
+        {
             "name": "build-h747-lab-display-demo-github4lane-debug",
             "displayName": "Build H747 Lab Display Demo Github4Lane Debug",
             "configurePreset": "h747-lab-display-github4lane-debug",

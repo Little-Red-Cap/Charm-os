@@ -1,13 +1,7 @@
 ﻿        int resolve_next_track() {
-            const int count = available_track_count();
-            if (count <= 0) return -1;
-            if (play_mode == 1) {
-                return track_index;
-            }
-            if (play_mode == 2) {
-                return playback_queue_random_track();
-            }
-            return playback_queue_track_for_delta(1);
+            if (available_track_count() <= 0) return -1;
+            if (!ensure_playback_queue()) return -1;
+            return playback.resolve_track_for_playback_mode();
         }
 
         void handle_track_end() {
@@ -20,15 +14,12 @@
                 stop_playback();
                 return;
             }
-            load_track_with_resume_mode(next, TrackResumeMode::Playing);
+            load_track_with_resume_mode(next, PlaybackResumeMode::Playing);
         }
 
         void update_duration_from_player() {
             if (!playback.update_duration_from_player()) return;
             const int dur = playback.duration_sec();
-            if (dur > 0 && preloaded_duration_sec == 0) {
-                preloaded_duration_sec = dur;
-            }
             if (progress_dragging) return;
             const int cur = playback.current_sec();
             if (cur > dur) {

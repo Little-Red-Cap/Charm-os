@@ -119,6 +119,38 @@ std::optional<std::uint32_t> parse_u32(std::string_view sv) noexcept {
     return parsed_any ? std::optional<std::uint32_t>{value} : std::nullopt;
 }
 
+std::uint32_t parse_u32_or(std::string_view sv, const std::uint32_t fallback) noexcept {
+    if (sv.empty()) {
+        return fallback;
+    }
+    const auto parsed = parse_u32(sv);
+    return parsed.value_or(fallback);
+}
+
+std::array<std::uint8_t, 16U * 512U>& storage_bench_buffer() noexcept {
+    alignas(4) static std::array<std::uint8_t, 16U * 512U> buffer{};
+    return buffer;
+}
+
+void fill_storage_bench_pattern(std::span<std::uint8_t> buffer,
+                                const std::uint32_t width,
+                                const std::uint32_t clock_div,
+                                const std::uint32_t lba) noexcept {
+    for (std::uint32_t index = 0U; index < buffer.size(); ++index) {
+        buffer[index] = static_cast<std::uint8_t>(
+            0x5AU ^ (index * 29U) ^ (width * 13U) ^ (clock_div * 7U) ^ (lba >> (index & 7U)));
+    }
+}
+
+std::uint32_t sample_checksum(std::span<const std::uint8_t> buffer) noexcept {
+    std::uint32_t checksum = 0x811C9DC5U;
+    const std::uint32_t step = buffer.size() > 128U ? static_cast<std::uint32_t>(buffer.size() / 128U) : 1U;
+    for (std::uint32_t index = 0U; index < buffer.size(); index += step) {
+        checksum = (checksum ^ buffer[index]) * 16777619U;
+    }
+    return checksum;
+}
+
 void print_hex_bytes(const std::span<const std::uint8_t> data) noexcept {
     for (std::size_t index = 0; index < data.size(); ++index) {
         if (index != 0U) {
@@ -168,6 +200,9 @@ void print_help() {
     emit<"  sdram2 timing         - Sweep SDRAM2 CAS/pipe timing presets\n">();
     emit<"  storage init          - Initialize eMMC storage service\n">();
     emit<"  storage status        - Print eMMC storage state\n">();
+    emit<"  storage width <1|4|8> [lba] [count] [clock_div]\n">();
+    emit<"  storage write <1|4|8> [lba] [count] [clock_div]\n">();
+    emit<"  storage bench <read|write> <1|4|8> [lba] [blocks] [clock_div]\n">();
     emit<"  qspi probe            - Run QSPI JEDEC/status/read probe\n">();
     emit<"  qspi probe force      - Run QSPI probe ignoring PMIC gate\n">();
     emit<"  qspi read <addr> [len]\n">();
@@ -594,6 +629,120 @@ void run_storage_init() {
     print_storage_status();
 }
 
+void run_storage_width(const std::string_view args) {
+    const auto [width_token, after_width] = split_token(args);
+    const auto [lba_token, count_token] = split_token(after_width);
+    const auto [count_value_token, clock_div_token] = split_token(count_token);
+    const auto width = parse_u32(width_token);
+    if (!width.has_value() || !(*width == 1U || *width == 4U || *width == 8U)) {
+        emit<"storage: usage storage width <1|4|8> [lba] [count] [clock_div]\n">();
+        return;
+    }
+
+    std::uint32_t lba = 0U;
+    std::uint32_t count = 1U;
+    std::uint32_t clock_div = 16U;
+    if (!lba_token.empty()) {
+        const auto parsed = parse_u32(lba_token);
+        if (!parsed.has_value()) {
+            emit<"storage: invalid lba\n">();
+            return;
+        }
+        lba = *parsed;
+    }
+    if (!count_value_token.empty()) {
+        const auto parsed = parse_u32(count_value_token);
+        if (!parsed.has_value()) {
+            emit<"storage: invalid count\n">();
+            return;
+        }
+        count = *parsed;
+    }
+    if (!clock_div_token.empty()) {
+        const auto parsed = parse_u32(clock_div_token);
+        if (!parsed.has_value()) {
+            emit<"storage: invalid clock_div\n">();
+            return;
+        }
+        clock_div = *parsed;
+    }
+
+    h747_storage_bus_probe_t probe{};
+    const bool ok = h747_storage_probe_bus_width(*width, lba, count, clock_div, &probe) != 0U;
+    emit<"storage: width request={} selected={} ok={} init={} read={} lba={} count={} bytes={} clock_div={} init_status={} wide_status={} read_status={} err=0x{:08X} card={} clkcr=0x{:08X} sta=0x{:08X} resp1=0x{:08X} crc=0x{:08X} sample=">(
+        probe.requested_bus_width,
+        probe.selected_bus_width,
+        ok ? 1U : 0U,
+        probe.initialized,
+        probe.read_ok,
+        probe.lba,
+        probe.block_count,
+        probe.bytes,
+        probe.clock_div,
+        probe.init_status,
+        probe.wide_status,
+        probe.read_status,
+        probe.last_error,
+        probe.card_state,
+        probe.clkcr,
+        probe.sta,
+        probe.resp1,
+        probe.crc32);
+    print_hex_bytes(std::span<const std::uint8_t>{probe.sample, probe.sample_len});
+    emit<"\n">();
+    print_storage_status();
+}
+
+void run_storage_write(const std::string_view args) {
+    constexpr std::uint32_t kDefaultScratchLba = 4194304U; // 2 GiB / 512 B
+    const auto [width_token, after_width] = split_token(args);
+    const auto [lba_token, after_lba] = split_token(after_width);
+    const auto [count_token, clock_div_token] = split_token(after_lba);
+    const auto width = parse_u32(width_token);
+    if (!width.has_value() || !(*width == 1U || *width == 4U || *width == 8U)) {
+        emit<"storage: usage storage write <1|4|8> [lba] [count] [clock_div]\n">();
+        return;
+    }
+
+    const std::uint32_t lba = parse_u32_or(lba_token, kDefaultScratchLba);
+    const std::uint32_t count = parse_u32_or(count_token, 1U);
+    const std::uint32_t clock_div = parse_u32_or(clock_div_token, 16U);
+    if (count != 1U) {
+        emit<"storage: write probe count is limited to 1 block\n">();
+        return;
+    }
+
+    h747_storage_write_probe_t probe{};
+    const bool ok = h747_storage_probe_bus_width_write(*width, lba, count, clock_div, &probe) != 0U;
+    emit<"storage: write request={} selected={} ok={} init={} lba={} count={} bytes={} clock_div={} wide_status={} write={} write_status={} read={} read_status={} verify={} err=0x{:08X} card={} clkcr=0x{:08X} sta=0x{:08X} resp1=0x{:08X} test_crc=0x{:08X} read_crc=0x{:08X} pattern=">(
+        probe.requested_bus_width,
+        probe.selected_bus_width,
+        ok ? 1U : 0U,
+        probe.initialized,
+        probe.lba,
+        probe.block_count,
+        probe.bytes,
+        probe.clock_div,
+        probe.test_wide_status,
+        probe.test_write_ok,
+        probe.test_write_status,
+        probe.test_read_ok,
+        probe.test_read_status,
+        probe.verify_ok,
+        probe.last_error,
+        probe.card_state,
+        probe.clkcr,
+        probe.sta,
+        probe.resp1,
+        probe.test_crc32,
+        probe.readback_crc32);
+    print_hex_bytes(std::span<const std::uint8_t>{probe.test_sample, probe.sample_len});
+    emit<" readback=">();
+    print_hex_bytes(std::span<const std::uint8_t>{probe.readback_sample, probe.sample_len});
+    emit<"\n">();
+    print_storage_status();
+}
+
 void run_qspi_probe(const bool force) {
     const bool ok = storage.probe_qspi(force);
     emit<"qspi1: probe {}{}\n">(ok ? "ok" : "failed", force ? " force" : "");
@@ -755,6 +904,10 @@ void handle_command(const std::string_view line) {
         run_storage_init();
     } else if (cmd == "storage status"sv) {
         print_storage_status();
+    } else if (cmd.starts_with("storage width "sv)) {
+        run_storage_width(cmd.substr(14));
+    } else if (cmd.starts_with("storage write "sv)) {
+        run_storage_write(cmd.substr(14));
     } else if (cmd == "qspi probe"sv) {
         run_qspi_probe(false);
     } else if (cmd == "qspi probe force"sv) {

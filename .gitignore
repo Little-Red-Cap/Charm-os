@@ -34,6 +34,7 @@ Examples/system/resident_elf_qemu_smoke/frame-ppm/
 Examples/system/resident_elf_qemu_smoke/input-trace.json
 Examples/system/resident_elf_qemu_smoke/storage-trace.json
 Examples/system/resident_elf_qemu_smoke/domain-summary.json
+Examples/system/resident_elf_qemu_smoke/backend-contract.json
 _tmp/*
 tmp_c_test*
 tmp_cxx_test*

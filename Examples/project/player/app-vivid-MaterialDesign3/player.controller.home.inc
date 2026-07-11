@@ -236,6 +236,50 @@
             }
         };
 
+        struct HomeRecentTrackPlan {
+            std::array<HomeCollageTrackRef, 3> refs{};
+            std::size_t count{0};
+
+            bool empty() const noexcept {
+                return count == 0;
+            }
+
+            bool full() const noexcept {
+                return count >= refs.size();
+            }
+
+            bool contains_key(std::string_view key) const noexcept {
+                for (std::size_t i = 0; i < count; ++i) {
+                    if (refs[i].identity_key.view() == key) return true;
+                }
+                return false;
+            }
+
+            void push(const HomeCollageTrackRef& ref) noexcept {
+                if (full()) return;
+                refs[count] = ref;
+                ++count;
+            }
+
+            void repeat_to_fill_slots() noexcept {
+                if (empty()) return;
+                const std::size_t unique_count = count;
+                while (count < refs.size()) {
+                    refs[count] = refs[count % unique_count];
+                    ++count;
+                }
+            }
+
+            std::array<int, 3> track_indices() const noexcept {
+                std::array<int, 3> out{};
+                out.fill(-1);
+                for (std::size_t i = 0; i < refs.size(); ++i) {
+                    out[i] = refs[i].track_index;
+                }
+                return out;
+            }
+        };
+
         bool home_image_slot_ready(const ::ui::scene::ImageSlotHandles& slot) const noexcept {
             return slot.image && access.kind(slot.image) == WidgetKind::Image;
         }
@@ -245,6 +289,17 @@
             if (force) return true;
             for (std::size_t i = 0; i < kHomeCollageSlots; ++i) {
                 if (next_track_indices[i] != last_home_collage_track_indices[i]) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        bool home_recent_selection_changed(const std::array<int, 3>& next_track_indices,
+                                           bool force) const noexcept {
+            if (force) return true;
+            for (std::size_t i = 0; i < next_track_indices.size(); ++i) {
+                if (next_track_indices[i] != last_home_recent_track_indices[i]) {
                     return true;
                 }
             }
@@ -332,6 +387,49 @@
                     HomeCollageTrackRef ref{};
                     ref.track_index = idx;
                     plan.push(ref);
+                }
+            }
+            plan.repeat_to_fill_slots();
+            return plan;
+        }
+
+        int recent_track_storage_index(std::string_view path) const noexcept {
+            const auto* tracks = storage.tracks;
+            if (!tracks || path.empty()) return -1;
+            for (std::size_t i = 0; i < tracks->size(); ++i) {
+                if ((*tracks)[i].view() == path) {
+                    return static_cast<int>(i);
+                }
+            }
+            return -1;
+        }
+
+        bool try_push_home_recent_track_candidate(HomeRecentTrackPlan& plan,
+                                                  int candidate) const {
+            if (plan.full()) return false;
+            HomeCollageTrackRef ref{};
+            if (!resolve_home_collage_track_ref(candidate, ref) || ref.identity_key.empty()) {
+                return false;
+            }
+            if (plan.contains_key(ref.identity_key.view())) {
+                return false;
+            }
+            plan.push(ref);
+            return true;
+        }
+
+        HomeRecentTrackPlan build_home_recent_track_plan() const {
+            HomeRecentTrackPlan plan{};
+            const auto* tracks = storage.tracks;
+            if (!tracks || tracks->size() == 0) return plan;
+
+            for (std::size_t i = 0;
+                 i < recent_track_history.tracks.size() && !plan.full();
+                 ++i) {
+                const int idx =
+                    recent_track_storage_index(recent_track_history.tracks[i].path.view());
+                if (idx >= 0) {
+                    (void)try_push_home_recent_track_candidate(plan, idx);
                 }
             }
             plan.repeat_to_fill_slots();
@@ -639,6 +737,118 @@
             }
         }
 
+        void apply_home_recent_default_cover(const ::ui::scene::ImageSlotHandles& image_slot,
+                                             std::size_t slot_index) noexcept {
+            set_image_slot_if_present(
+                image_slot,
+                default_cover_image_id(home_card_default_cover_variant(slot_index + 3)),
+                true);
+        }
+
+        void clear_home_recent_images() {
+            if (!access.valid()) return;
+            for (const auto& slot : home_recently_played_slots()) {
+                if (!home_image_slot_ready(slot)) continue;
+                clear_image_slot_if_present(slot, true);
+            }
+        }
+
+        void sync_home_recent_text() {
+            const std::size_t count = recent_track_history.tracks.size();
+            FixedString<192> body{};
+            FixedString<32> meta{};
+
+            if (count == 0) {
+                body.assign("Play a track to build history");
+                meta.assign("No plays");
+            } else {
+                std::string_view path = recent_track_history.tracks[0].path.view();
+                const int idx = recent_track_storage_index(path);
+                if (idx >= 0
+                    && storage.track_titles
+                    && idx < static_cast<int>(storage.track_titles->size())
+                    && !(*storage.track_titles)[static_cast<std::size_t>(idx)].empty()) {
+                    body.assign((*storage.track_titles)[static_cast<std::size_t>(idx)].view());
+                    strip_audio_extension(body);
+                } else {
+                    const auto track = player::derive_media_track(path);
+                    body.assign(track.title);
+                }
+                body.assign(library_trim_space(body.view()));
+                if (body.empty()) {
+                    body.assign("Last played track");
+                }
+
+                char meta_buf[32]{};
+                std::snprintf(meta_buf,
+                              sizeof(meta_buf),
+                              "%u recent",
+                              static_cast<unsigned>(count));
+                meta.assign(meta_buf);
+            }
+
+            if (last_home_recent_body_text.view() != body.view()) {
+                last_home_recent_body_text.assign(body.view());
+                set_label_slot(handles.home_recently_played_body,
+                               text_slots.home_recent_body,
+                               last_home_recent_body_text.c_str());
+            }
+            if (last_home_recent_meta_text.view() != meta.view()) {
+                last_home_recent_meta_text.assign(meta.view());
+                set_label_slot(handles.home_recently_played_chip,
+                               text_slots.home_recent_meta,
+                               last_home_recent_meta_text.c_str());
+            }
+        }
+
+        void sync_home_recent_images(bool force = false) {
+            if (!access.valid()) return;
+
+            const auto recent_plan = build_home_recent_track_plan();
+            const auto next_track_indices = recent_plan.track_indices();
+            if (!home_recent_selection_changed(next_track_indices, force)) return;
+
+            if (recent_plan.empty()) {
+                clear_home_recent_images();
+                last_home_recent_track_indices = next_track_indices;
+                return;
+            }
+
+            bool retry_needed = false;
+            HomeResolvedCollageImages resolved{};
+            const auto slots = home_recently_played_slots();
+            for (std::size_t i = 0; i < slots.size(); ++i) {
+                const auto image_slot = slots[i];
+                if (!home_image_slot_ready(image_slot)) continue;
+
+                const auto result = try_assign_home_collage_slot_image(
+                    image_slot,
+                    recent_plan.refs[i],
+                    resolved);
+                if (result == HomeCollageResolveResult::RetryLater) {
+                    retry_needed = true;
+                    continue;
+                }
+                if (result == HomeCollageResolveResult::Assigned) {
+                    continue;
+                }
+                if (!resolved.empty()) {
+                    apply_home_collage_repeat_cover(image_slot, i, resolved);
+                } else {
+                    apply_home_recent_default_cover(image_slot, i);
+                }
+            }
+
+            if (!retry_needed) {
+                last_home_recent_track_indices = next_track_indices;
+            }
+        }
+
+        void sync_home_recent_content(bool force = false) {
+            sync_home_recent_text();
+            sync_home_recent_images(force);
+        }
+
         bool home_page_active() const noexcept {
             return current_page == PlayerPage::Home;
         }
@@ -652,6 +862,10 @@
             sync_home_collage_images(force);
         }
 
+        void refresh_home_recent_content(bool force = false) {
+            sync_home_recent_content(force);
+        }
+
         void refresh_home_stats_content() {
             sync_weekly_listening_stats_card();
         }
@@ -662,6 +876,7 @@
 
         void refresh_home_dashboard_content(bool force_collage = false) {
             refresh_home_collage_content(force_collage);
+            refresh_home_recent_content(force_collage);
             refresh_home_stats_content();
         }
 
@@ -674,6 +889,11 @@
         void refresh_home_collage_if_active(bool force = false) {
             if (!home_page_active()) return;
             refresh_home_collage_content(force);
+        }
+
+        void refresh_home_recent_if_active(bool force = false) {
+            if (!home_page_active()) return;
+            refresh_home_recent_content(force);
         }
 
         void refresh_home_stats_if_active() {
@@ -840,6 +1060,61 @@
             return ok;
         }
 
+        bool recent_track_history_needs_persist() const noexcept {
+            return recent_track_history_dirty;
+        }
+
+        bool should_flush_recent_track_history(std::uint64_t now_ms) const noexcept {
+            if (!recent_track_history_needs_persist()) return false;
+            return last_recent_track_persist_ms == 0
+                || now_ms - last_recent_track_persist_ms >= 5000;
+        }
+
+        void mark_recent_track_history_changed() noexcept {
+            recent_track_history_dirty = true;
+        }
+
+        void mark_recent_track_history_persisted(std::uint64_t now_ms) noexcept {
+            recent_track_history_dirty = false;
+            last_recent_track_persist_ms = now_ms;
+        }
+
+        void load_recent_track_history() {
+            if (!fs_ready) return;
+            recent_track_history = player::load_recent_track_history();
+            recent_track_history_dirty = false;
+            last_recent_track_persist_ms = weekly_listening_now_ms();
+            refresh_home_recent_if_active(true);
+        }
+
+        bool flush_recent_track_history() {
+            if (!fs_ready) return false;
+            if (!recent_track_history_needs_persist()) return true;
+            const bool ok = player::save_recent_track_history(recent_track_history);
+            if (ok) {
+                mark_recent_track_history_persisted(weekly_listening_now_ms());
+            }
+            return ok;
+        }
+
+        void flush_recent_track_history_if_needed(std::uint64_t now_ms) {
+            if (!should_flush_recent_track_history(now_ms)) return;
+            (void)flush_recent_track_history();
+        }
+
+        void record_current_track_as_recent() {
+            if (!fs_ready || !playback.track_ready()) return;
+            const char* path = playback.track_path();
+            if (!path || !*path) return;
+
+            const std::uint64_t now_ms = weekly_listening_now_ms();
+            player::upsert_recent_track(recent_track_history, path, now_ms);
+            mark_recent_track_history_changed();
+            last_home_recent_track_indices.fill(-2);
+            refresh_home_recent_if_active(true);
+            flush_recent_track_history_if_needed(now_ms);
+        }
+
         void sync_weekly_listening_stats_card() {
             if (!access.valid()) return;
             ensure_weekly_listening_week();
@@ -912,6 +1187,7 @@
             }
             refresh_home_stats_if_dirty();
             flush_weekly_listening_stats_if_needed(now_ms);
+            flush_recent_track_history_if_needed(now_ms);
         }
 
         void begin_weekly_listening_session(bool count_play) {

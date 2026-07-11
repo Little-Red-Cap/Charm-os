@@ -1409,11 +1409,7 @@
 
         int resolved_duration_sec() const noexcept {
             if (!track_preloaded) return 0;
-            int total = playback.duration_sec();
-            if (preloaded_duration_sec > 0) {
-                total = std::max(total, preloaded_duration_sec);
-            }
-            return std::max(total, 0);
+            return std::max(playback.resolved_duration_sec(), 0);
         }
 
         bool progress_duration_available() const noexcept {
@@ -1623,12 +1619,8 @@
             sync_progress_unavailable();
         }
 
-        static const char* play_mode_text(int mode) noexcept {
-            switch (mode) {
-            case 1: return "Single";
-            case 2: return "Shuffle";
-            default: return "Order";
-            }
+        static const char* play_mode_text(PlaybackMode mode) noexcept {
+            return playback_mode_text(mode);
         }
 
         void refresh_now_playing_runtime_content() {
@@ -1653,14 +1645,15 @@
 
         void update_play_mode_label() {
             char buf[32]{};
-            std::snprintf(buf, sizeof(buf), "Mode: %s", play_mode_text(play_mode));
+            const auto mode = current_playback_mode();
+            std::snprintf(buf, sizeof(buf), "Mode: %s", play_mode_text(mode));
             if (last_mode_text.view() == buf) return;
             last_mode_text.assign(buf);
             set_label_slot(handles.mode_hint, text_slots.mode_hint, buf);
             if (!access.valid()) return;
             auto icon = icons.loop;
-            if (play_mode == 1) icon = icons.single;
-            else if (play_mode == 2) icon = icons.shuffle;
+            if (mode == PlaybackMode::RepeatOne) icon = icons.single;
+            else if (mode == PlaybackMode::Shuffle) icon = icons.shuffle;
             access.set_button_icon(handles.btn_mode, icon);
         }
 

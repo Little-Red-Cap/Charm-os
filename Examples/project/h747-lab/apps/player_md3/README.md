@@ -61,6 +61,44 @@ compile `alg_color_extract` or `material_color_utils` into the default Player
 MD3 firmware. Windows MD3 keeps dynamic Material color extraction enabled for
 host preview and UI CI.
 
+## Low-Load Touch Monitor
+
+The MD3 bridge has an app-local touch monitor for board bring-up. It is meant
+for the case where long status lines and full-frame rendering make serial
+interaction hard to observe. From the `h747-player-md3>` prompt:
+
+```text
+touch monitor on
+```
+
+This resets the monitor counter, keeps polling the console and input bridge,
+and pauses render/status work while the monitor is enabled. Touching the panel
+should produce short lines:
+
+```text
+touch down x=<n> y=<n> down=1 n=<count>
+touch move x=<n> y=<n> down=1 n=<count>
+touch up x=<n> y=<n> down=0 n=<count>
+```
+
+Use `touch monitor status` to read the last sampled touch fields, and
+`touch monitor off` to resume normal MD3 render/status behavior. The monitor is
+diagnostic only; it does not replace the normal `PlayerInputEvent` route.
+
+If `events` stays at zero while `ready=1`, use the raw GT970 snapshot command:
+
+```text
+touch raw
+touch raw on
+touch raw off
+```
+
+`touch raw` prints the input service's current touch registers and decoded
+snapshot without passing through `InputFrameTracker` or the Player runtime.
+`touch raw on` prints the same snapshot periodically while the main loop is
+running. A useful bring-up sequence is `touch monitor on`, then `touch raw on`,
+then press or drag on the panel.
+
 Cover ownership is split at the `player.cover` seam. Shared controller state
 stores only `ResolvedCover` metadata (`ImageId`, dimensions, fixed key, and
 release flags). Resource cover views and host decoded pixels are registered by
@@ -71,6 +109,50 @@ semantics instead of pulling dynamic image buffers into firmware. If a folder
 cover file is present but no board cover provider or MCU-safe decoder is linked,
 resource smoke reports `cover=1/0/0x0/-95`; that is an unsupported-capability
 state, not a missing-file state.
+
+## Board Playback Controls
+
+The H747 console exposes a small playback-control closure on top of the shared
+`PlayerController`:
+
+```text
+play
+pause
+resume
+stop
+next
+prev
+mode
+playback status
+playback smoke
+seek <sec>
+seek +<sec>
+seek -<sec>
+track status
+track list [start]
+track select <index>
+```
+
+`play` still enters the normal `PlayerInputEvent::PlayToggle` path, matching
+the UI/key transport semantics. `pause`, `resume`, and `stop` are app-local
+direct playback controls for board verification; they call the shared
+controller methods, refresh playback evidence, and mark one render pass dirty.
+`playback status` prints the concise playback-only evidence line:
+
+```text
+playback_status state=<n> running=<0|1> track_ready=<0|1> track=<idx>/<count> mode=<n> pos=<cur>/<dur> dma=<n> underruns=<n> err=<stage>/<err> smoke=<...>
+```
+
+The full status line still owns the canonical smoke schema through
+`playback=<state>/<running>/<track_ready>/<dma_callbacks>/<underruns>/<stage>/<err>`
+and `playback_smoke=<ok>/<before>-<after>/<frames>/<saw_playing>/<stage>/<err>`.
+The `track` commands are board-side verification controls: `track list` prints
+at most eight rows per page, `track status` prints the active index/path, and
+`track select <index>` asks the shared controller to load that track and keep
+the current playback resume mode.
+The `seek` command maps directly to the shared controller seek path:
+`seek 30` requests an absolute 30-second target, while `seek +10` and
+`seek -10` are relative to the current playback position.
 
 ## PRODUCT Capacity Profile
 
@@ -334,6 +416,11 @@ loop line should contain:
 - `frames=<n>` and `present=<n>` increasing across loop status lines
 - `content=<bg>:<non_bg>@<min>-<max>` with non-zero content pixels
 - `exec_fail=0`, `co=0`, and `to=0`
+
+`dma2d=<ready>/<used>/<fallback>/<err>/<hal>/<dma_err>` is record-only in
+this phase. A healthy accelerated run should show `ready=1`, increasing
+`used`, and zero errors; if DMA2D bring-up fails, the display service falls
+back to the existing CPU copy path and the base smoke gate should still pass.
 
 `smoke=1/11111` means boot, render, present, content, and scene execution are
 all green for the current sample window. This is intentionally app-local

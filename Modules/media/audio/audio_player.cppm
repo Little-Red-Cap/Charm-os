@@ -25,6 +25,12 @@ module;
 #ifndef CHARM_AUDIO_ENABLE_MP3
 #define CHARM_AUDIO_ENABLE_MP3 1
 #endif
+#ifndef CHARM_AUDIO_MAX_CHANNELS
+#define CHARM_AUDIO_MAX_CHANNELS 2
+#endif
+#ifndef CHARM_AUDIO_MAX_PERIOD_FRAMES
+#define CHARM_AUDIO_MAX_PERIOD_FRAMES 480
+#endif
 
 #if CHARM_AUDIO_ENABLE_STRESS
 #include <random>
@@ -109,23 +115,104 @@ export namespace audio {
         void clear_underrun_flag() noexcept {}
         CallbackStats callback_stats() const noexcept { return {}; }
     };
+
+#if defined(CHARM_AUDIO_SINK_PUMPED_NULL)
+    class PumpedNullAudioSink {
+    public:
+        void set_clock(charm::system::Clock&) noexcept {}
+
+        Result<void> open(const SinkConfig& cfg) noexcept {
+            fmt_ = cfg.format;
+            period_frames_ = cfg.period_frames != 0 ? cfg.period_frames : (fmt_.rate / 100);
+            period_bytes_ = static_cast<std::size_t>(period_frames_) *
+                static_cast<std::size_t>(fmt_.channels) *
+                (static_cast<std::size_t>(fmt_.bits_per_sample) / 8u);
+            if (period_bytes_ == 0 || period_bytes_ > scratch_.size()) {
+                return unexpected(Errc::invalid_arg);
+            }
+            return {};
+        }
+
+        Result<void> start() noexcept {
+            running_ = true;
+            return {};
+        }
+
+        Result<void> stop() noexcept {
+            running_ = false;
+            return {};
+        }
+
+        void close() noexcept {
+            running_ = false;
+            fill_cb_ = nullptr;
+            fill_user_ = nullptr;
+            fmt_ = {};
+            period_frames_ = 0;
+            period_bytes_ = 0;
+        }
+
+        void set_fill_callback(FillCallback cb, void* user) noexcept {
+            fill_cb_ = cb;
+            fill_user_ = user;
+        }
+
+        media::StreamFormat format() const noexcept { return fmt_; }
+        std::uint32_t actual_period_frames() const noexcept { return period_frames_; }
+        std::uint64_t underrun_count() const noexcept { return underrun_count_; }
+
+        bool consume_underrun_flag() noexcept {
+            const bool out = underrun_flag_;
+            underrun_flag_ = false;
+            return out;
+        }
+
+        void clear_underrun_flag() noexcept {
+            underrun_flag_ = false;
+        }
+
+        CallbackStats callback_stats() const noexcept { return callback_; }
+
+        void pump_once() noexcept {
+            if (!running_ || period_bytes_ == 0) return;
+            const auto filled = fill_cb_
+                ? fill_cb_(std::span<std::byte>(scratch_.data(), period_bytes_), fill_user_)
+                : 0u;
+            ++callback_.count;
+            callback_.last_request_frames = period_frames_;
+            if (filled < period_bytes_) {
+                underrun_flag_ = true;
+                ++underrun_count_;
+            }
+        }
+
+    private:
+        FillCallback fill_cb_{nullptr};
+        void* fill_user_{nullptr};
+        media::StreamFormat fmt_{};
+        std::uint32_t period_frames_{0};
+        std::size_t period_bytes_{0};
+        bool running_{false};
+        bool underrun_flag_{false};
+        std::uint64_t underrun_count_{0};
+        CallbackStats callback_{};
+        std::array<std::byte,
+            CHARM_AUDIO_MAX_PERIOD_FRAMES * CHARM_AUDIO_MAX_CHANNELS * sizeof(std::int16_t)> scratch_{};
+    };
+#endif
 #endif
 
 #if defined(CHARM_AUDIO_SINK_I2S)
     using SinkType = I2sAudioSink;
 #elif defined(CHARM_ENABLE_SDL3)
     using SinkType = Sdl3AudioSink;
+#elif defined(CHARM_AUDIO_SINK_PUMPED_NULL)
+    using SinkType = PumpedNullAudioSink;
 #else
     using SinkType = NullAudioSink;
 #endif
 #ifndef CHARM_AUDIO_MAX_RATE
 #define CHARM_AUDIO_MAX_RATE 48000
-#endif
-#ifndef CHARM_AUDIO_MAX_CHANNELS
-#define CHARM_AUDIO_MAX_CHANNELS 2
-#endif
-#ifndef CHARM_AUDIO_MAX_PERIOD_FRAMES
-#define CHARM_AUDIO_MAX_PERIOD_FRAMES 480
 #endif
 #ifndef CHARM_AUDIO_MAX_CHUNK_MULT
 #define CHARM_AUDIO_MAX_CHUNK_MULT 10
@@ -436,6 +523,12 @@ export namespace audio {
 
         void tick() {
             process_commands();
+
+#if defined(CHARM_AUDIO_SINK_PUMPED_NULL)
+            if (state_ == PlayerState::playing) {
+                sink_.pump_once();
+            }
+#endif
 
             if (state_ == PlayerState::idle || state_ == PlayerState::error || state_ == PlayerState::paused) {
                 return;

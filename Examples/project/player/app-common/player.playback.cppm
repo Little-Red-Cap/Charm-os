@@ -131,6 +131,7 @@ export namespace player {
         void reset_duration() noexcept {
             duration_ready_ = false;
             duration_sec_ = 0;
+            current_sec_ = 0;
         }
 
         bool update_duration_from_player() {
@@ -139,20 +140,20 @@ export namespace player {
             const auto fmt = player_->input_format();
             if (total == 0 || fmt.rate == 0) return false;
             const auto secs = static_cast<int>(total / fmt.rate);
-            duration_sec_ = (secs > 0) ? secs : 1;
-            duration_ready_ = true;
+            set_duration_ready_sec(secs);
             return true;
         }
 
         void set_duration_from_probe(int seconds) noexcept {
-            duration_sec_ = (seconds > 0) ? seconds : 1;
-            duration_ready_ = true;
+            set_duration_ready_sec(seconds);
             current_sec_ = 0;
         }
 
         ProgressUpdate update_progress() {
             ProgressUpdate out{};
             if (!playing_ || !player_) return out;
+            (void)update_duration_from_player();
+            if (!duration_ready_ || duration_sec_ <= 0) return out;
             const auto now_ms = charm::system::ClockCaps::TimeSource::now();
             const std::uint64_t elapsed_ms = now_ms - start_ms_;
             const int elapsed = static_cast<int>(elapsed_ms / 1000);
@@ -164,7 +165,7 @@ export namespace player {
             return out;
         }
 
-        void set_current_sec(int sec) noexcept { current_sec_ = sec; }
+        void set_current_sec(int sec) noexcept { current_sec_ = clamp_position_sec(sec); }
 
         bool is_seek_ready() const {
             if (!player_) return false;
@@ -172,11 +173,33 @@ export namespace player {
         }
 
         bool request_seek(int target_sec, FixedString<128>& out_status) {
-            if (!player_ || target_sec < 0) return false;
-            const auto res = player_->seek_ms(static_cast<std::uint64_t>(target_sec) * 1000);
+            if (!player_) {
+                out_status.assign("No player");
+                return false;
+            }
+            if (!is_seek_ready()) {
+                out_status.assign("Seek not ready");
+                return false;
+            }
+            if (target_sec < 0) {
+                out_status.assign("Seek target invalid");
+                return false;
+            }
+            (void)update_duration_from_player();
+            if (!duration_ready_ || duration_sec_ <= 0) {
+                out_status.assign("Seek duration unknown");
+                return false;
+            }
+            const int clamped = clamp_position_sec(target_sec);
+            const auto res = player_->seek_ms(static_cast<std::uint64_t>(clamped) * 1000);
             if (!res) {
                 out_status.assign("Seek unsupported");
                 return false;
+            }
+            current_sec_ = clamped;
+            if (playing_) {
+                start_ms_ = charm::system::ClockCaps::TimeSource::now()
+                    - static_cast<std::uint64_t>(current_sec_) * 1000;
             }
             return true;
         }
@@ -266,17 +289,8 @@ export namespace player {
                 out_status.assign("Stopped");
                 return true;
             case PlaybackAction::seek:
-                if (!is_seek_ready()) {
-                    out_status.assign("Seek not ready");
-                    return false;
-                }
                 if (!request_seek(seek_sec, out_status)) {
                     return false;
-                }
-                current_sec_ = seek_sec;
-                if (playing_) {
-                    start_ms_ = charm::system::ClockCaps::TimeSource::now()
-                        - static_cast<std::uint64_t>(current_sec_) * 1000;
                 }
                 out_status.assign(paused_ ? "Paused" : "Playing");
                 return true;
@@ -330,6 +344,7 @@ export namespace player {
 
         bool pause_playback(FixedString<128>& out_status) {
             if (!player_ || !playing_) return false;
+            (void)update_progress();
             auto res = player_->pause();
             if (!res) {
                 char buf[64]{};
@@ -380,5 +395,21 @@ export namespace player {
         int current_sec_{0};
         int volume_percent_{80};
         std::uint64_t start_ms_{0};
+
+        void set_duration_ready_sec(int seconds) noexcept {
+            duration_sec_ = (seconds > 0) ? seconds : 1;
+            duration_ready_ = true;
+            current_sec_ = clamp_position_sec(current_sec_);
+        }
+
+        int clamp_position_sec(int sec) const noexcept {
+            if (sec < 0) {
+                return 0;
+            }
+            if (duration_ready_ && duration_sec_ > 0 && sec > duration_sec_) {
+                return duration_sec_;
+            }
+            return sec;
+        }
     };
 }

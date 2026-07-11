@@ -39,11 +39,13 @@ import player.fs_utils;
 import player.media_library;
 import player.media_scan;
 import player.product_config;
+import player.recent_history;
 import player.scene_runtime;
 import player.stats_history;
 import player.storage;
 import player.time_utils;
 import player.track_probe;
+import player.playback_session;
 import player.ui;
 import player.cover;
 import player.cover_theme;
@@ -328,7 +330,7 @@ export namespace player {
             }
         };
 
-        PlaybackEngine playback{};
+        PlaybackSession<kMaxTracks> playback{};
         PlayerSceneRuntime scene_runtime{};
         ::ui::scene::SceneAccess access{};
         UiHandles handles{};
@@ -355,6 +357,8 @@ export namespace player {
         FixedString<32> last_home_stats_total_text{};
         FixedString<16> last_home_stats_plays_text{};
         FixedString<32> last_home_stats_avg_text{};
+        FixedString<128> last_home_recent_body_text{};
+        FixedString<32> last_home_recent_meta_text{};
 #if CHARM_PLAYER_LYRICS
         FixedString<product_config::lyrics_line_text_capacity> lyrics_prev_text{};
         FixedString<product_config::lyrics_line_text_capacity> lyrics_current_text{};
@@ -381,8 +385,6 @@ export namespace player {
         int last_lyrics_position_ms{-1};
         int last_lyrics_index{-2};
 #endif
-        int preloaded_duration_sec{0};
-        int play_mode{0};
         int last_play_button_state{-1};
         int last_list_count{-1};
         bool ignore_list_select{false};
@@ -407,9 +409,6 @@ export namespace player {
         } library_visual_state{};
         std::uint32_t library_visual_generation{1};
         service::FixedVector<int, kMaxTracks> list_order{};
-        service::FixedVector<int, kMaxTracks> playback_queue_order{};
-        int playback_queue_position{-1};
-        std::uint32_t playback_queue_generation{1};
         service::FixedVector<int, kMaxTracks> track_duration_cache_sec{};
         std::size_t list_duration_probe_cursor{0};
         std::uint64_t last_list_duration_probe_ms{0};
@@ -428,6 +427,7 @@ export namespace player {
         std::array<ListCoverCacheEntry, kListCoverCache> list_cover_cache{};
         std::size_t list_cover_next{0};
         std::array<int, kHomeCollageSlots> last_home_collage_track_indices{{-2, -2, -2, -2, -2, -2}};
+        std::array<int, 3> last_home_recent_track_indices{{-2, -2, -2}};
         bool progress_dragging{false};
         int progress_drag_value{0};
         int progress_drag_sec{0};
@@ -445,6 +445,9 @@ export namespace player {
             bool persist_dirty{true};
         } weekly_listening_stats{};
         ListeningStatsHistory weekly_listening_history{};
+        RecentTrackHistory recent_track_history{};
+        bool recent_track_history_dirty{false};
+        std::uint64_t last_recent_track_persist_ms{0};
         FixedString<260> font_ttf_path{};
         FixedString<260> font_fallback_ttf_path{};
         int font_small_px{0};
@@ -453,17 +456,7 @@ export namespace player {
         bool font_retry_done{false};
 
         static bool is_audio_extension(std::string_view ext) noexcept {
-            if (ext.empty()) return false;
-            auto lower = [&](char c) noexcept -> char {
-                return static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-            };
-            char buf[8]{};
-            const std::size_t n = std::min(ext.size(), sizeof(buf) - 1);
-            for (std::size_t i = 0; i < n; ++i) buf[i] = lower(ext[i]);
-            std::string_view v{buf, n};
-            return v == "flac" || v == "mp3" || v == "wav" || v == "aac"
-                || v == "m4a" || v == "ogg" || v == "opus" || v == "ape"
-                || v == "alac" || v == "wv";
+            return media_is_audio_extension(ext);
         }
 
         static bool is_audio_path(std::string_view path) noexcept {
@@ -798,6 +791,8 @@ export namespace player {
             ::ui::scene::TextSlotId home_stats_total{::ui::scene::kInvalidTextSlot};
             ::ui::scene::TextSlotId home_stats_plays{::ui::scene::kInvalidTextSlot};
             ::ui::scene::TextSlotId home_stats_avg{::ui::scene::kInvalidTextSlot};
+            ::ui::scene::TextSlotId home_recent_body{::ui::scene::kInvalidTextSlot};
+            ::ui::scene::TextSlotId home_recent_meta{::ui::scene::kInvalidTextSlot};
         } text_slots{};
         std::uint32_t layer_transition_capture_count{0};
         std::uint32_t layer_transition_release_count{0};
@@ -845,7 +840,6 @@ export namespace player {
         ::ui::scene::LayerCaptureStatus last_layer_transition_capture_status{
             ::ui::scene::LayerCaptureStatus::Ok};
         FixedString<128> mount_status{};
-        std::uint32_t rng_state{0};
         std::uint64_t last_debug_tick_ms{0};
         bool last_running{false};
         std::size_t dbg_color_avg{static_cast<std::size_t>(-1)};
@@ -1078,8 +1072,8 @@ export namespace player {
         }
 
         void clear_track_state() noexcept {
-            playback.set_track_path(nullptr);
-            playback.set_track_ready(false);
+            playback.clear_loaded_track();
+            track_preloaded = false;
             track_size_bytes = 0;
             track_format_text.clear();
             last_info_text.clear();
@@ -1122,6 +1116,8 @@ export namespace player {
             text_slots.home_stats_total = alloc();
             text_slots.home_stats_plays = alloc();
             text_slots.home_stats_avg = alloc();
+            text_slots.home_recent_body = alloc();
+            text_slots.home_recent_meta = alloc();
             sync_lyrics_visibility();
             clear_current_lyrics();
             set_handle_visible(handles.list_info_scrim, false);
@@ -1167,6 +1163,24 @@ export namespace player {
             return tracks ? static_cast<int>(tracks->size()) : 0;
         }
 
+        void sync_playback_session_catalog_size() noexcept {
+            const int count = available_track_count();
+            if (!playback.set_track_catalog_size(count)) {
+                return;
+            }
+            const auto* tracks = storage.tracks;
+            if (!tracks) {
+                return;
+            }
+            for (int i = 0; i < count; ++i) {
+                const auto& path = (*tracks)[static_cast<std::size_t>(i)];
+                (void)playback.set_track_slot(
+                    i,
+                    path.c_str(),
+                    player::is_playback_supported_track_path(path.view()));
+            }
+        }
+
         bool has_available_tracks() const noexcept {
             return available_track_count() > 0;
         }
@@ -1196,12 +1210,24 @@ export namespace player {
         bool is_playing() const noexcept { return playback.playing(); }
         bool is_paused() const noexcept { return playback.paused(); }
         bool has_active_playback() const noexcept { return is_playing() || is_paused(); }
+
+        PlaybackMode current_playback_mode() const noexcept {
+            return playback.playback_mode();
+        }
+
+        int current_playback_mode_index() const noexcept {
+            return playback_mode_index(current_playback_mode());
+        }
+
         void sync_active_playback_ui(bool count_play, bool reset_progress = false) {
             set_play_button_text(true);
             if (reset_progress) {
                 sync_progress_value(0);
             }
             begin_weekly_listening_session(count_play);
+            if (count_play) {
+                record_current_track_as_recent();
+            }
         }
 
         void sync_inactive_playback_ui(bool reset_timeline = false) {
@@ -1416,10 +1442,17 @@ export namespace player {
             sync_inactive_playback_ui();
         }
 
-        void handle_player_run_state_drop(const audio::AudioPlayer& player) {
-            if (player.state() != audio::PlayerState::error && has_active_playback()) {
+        void handle_player_run_state_drop(audio::PlayerState state) {
+            if (state != audio::PlayerState::error && has_active_playback()) {
                 handle_track_end();
             }
+        }
+
+        void observe_player_run_state(bool running_now, audio::PlayerState state) {
+            if (last_running && !running_now) {
+                handle_player_run_state_drop(state);
+            }
+            last_running = running_now;
         }
 
         void sync_player_runtime_status(const audio::AudioPlayer& player) {
@@ -1435,11 +1468,7 @@ export namespace player {
         }
 
         void tick_player(const audio::AudioPlayer& player) {
-            const bool running_now = player.is_running();
-            if (last_running && !running_now) {
-                handle_player_run_state_drop(player);
-            }
-            last_running = running_now;
+            observe_player_run_state(player.is_running(), player.state());
             sync_player_runtime_status(player);
             if (player.state() == audio::PlayerState::error) {
                 const auto err = player.last_error();
@@ -1576,27 +1605,6 @@ export namespace player {
 
         #include "player.controller.progress.inc"
         #include "player.controller.input_debug.inc"
-        void seed_rng() {
-            if (rng_state != 0) return;
-            auto seed = static_cast<std::uint32_t>(charm::system::ClockCaps::TimeSource::now());
-            if (seed == 0) seed = 0xA341316Cu;
-            rng_state = seed;
-        }
-
-        std::uint32_t next_rng() {
-            seed_rng();
-            std::uint32_t x = rng_state;
-            x ^= x << 13;
-            x ^= x >> 17;
-            x ^= x << 5;
-            rng_state = x;
-            return x;
-        }
-
-        int rand_index(int max) {
-            if (max <= 0) return 0;
-            return static_cast<int>(next_rng() % static_cast<std::uint32_t>(max));
-        }
     };
 
     struct PlayerControllerMemoryProfile {
@@ -1653,6 +1661,8 @@ export namespace player {
                 + sizeof(std::declval<PlayerController>().last_home_stats_total_text)
                 + sizeof(std::declval<PlayerController>().last_home_stats_plays_text)
                 + sizeof(std::declval<PlayerController>().last_home_stats_avg_text)
+                + sizeof(std::declval<PlayerController>().last_home_recent_body_text)
+                + sizeof(std::declval<PlayerController>().last_home_recent_meta_text)
 #if CHARM_PLAYER_LYRICS
                 + sizeof(std::declval<PlayerController>().lyrics_prev_text)
                 + sizeof(std::declval<PlayerController>().lyrics_current_text)

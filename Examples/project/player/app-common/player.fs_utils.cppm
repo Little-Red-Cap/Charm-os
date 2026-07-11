@@ -143,7 +143,7 @@ export namespace player::fs_utils {
             }
             if (entry.type != fs::NodeType::file) return fs::Status{fs::Errc::ok};
             const auto format = player::media_track_format(entry.name);
-            if (!player::media_is_audio_extension(format)) {
+            if (format.empty()) {
                 if (detail::kFsLogEnabled) {
                     bool has_non_ascii = false;
                     for (unsigned char ch : entry.name) {

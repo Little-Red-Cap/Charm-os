@@ -23,6 +23,10 @@ function(h747_lab_check_vivid_product_modules target_name)
             message(FATAL_ERROR
                 "${target_name}: PRODUCT Vivid module set must not include charm.gfx.snapshot")
         endif()
+        if(_module_norm MATCHES "/Modules/ui/vivid/gfx/host_tools\\.cppm$")
+            message(FATAL_ERROR
+                "${target_name}: PRODUCT Vivid module set must not include charm.gfx.host_tools")
+        endif()
         if(_module_norm MATCHES "/Modules/ui/vivid/gfx/display_policy\\.cppm$")
             message(FATAL_ERROR
                 "${target_name}: PRODUCT Vivid module set must not include charm.gfx.display_policy")

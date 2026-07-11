@@ -244,6 +244,11 @@ struct PlayerMd3State {
     std::uint8_t playback_player_state{0};
     std::uint8_t playback_running{0};
     std::uint8_t playback_track_ready{0};
+    std::uint8_t playback_play_mode{0};
+    std::int32_t playback_track_index{0};
+    std::int32_t playback_track_count{0};
+    std::int32_t playback_current_sec{0};
+    std::int32_t playback_duration_sec{0};
     std::uint32_t playback_dma_callbacks{0};
     std::uint32_t playback_underruns{0};
     std::int32_t playback_last_error_stage{0};
@@ -279,5 +284,15 @@ bool render_frame() noexcept;
 bool force_render_frame() noexcept;
 void runtime_step_only() noexcept;
 void refresh_playback_probe_state() noexcept;
+
+enum class PlayerMd3PlaybackControl : std::uint8_t {
+    Pause,
+    Resume,
+    Stop,
+};
+
+[[nodiscard]] bool dispatch_runtime_playback_control(PlayerMd3PlaybackControl control) noexcept;
+[[nodiscard]] bool select_runtime_track_index(int index) noexcept;
+[[nodiscard]] bool seek_runtime_playback(int target_sec) noexcept;
 
 } // namespace h747::apps::player_md3

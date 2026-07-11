@@ -81,6 +81,14 @@ cmake --build --preset build-h747-lab-app-lab-debug
 cmake --build --preset build-h747-lab-dev-loader-debug
 ```
 
+Configure now runs a small H747 BSP doctor before generating Ninja build files.
+If the selected `DRAFT_ROOT` is missing required CubeMX-generated files such as
+`fmc.h/.c`, `quadspi.h/.c`, or `spi.h/.c`, CMake stops early and prints the BSP
+root, missing files, affected target class, and repair hint. Treat that as a BSP
+source-set problem, not an ELF, AppRuntime, packetstream, or Store regression.
+`h747_lab_dev_loader` currently requires the SDRAM/FMC, QSPI, eMMC/SDMMC, and
+default SPI-init boundary to be coherent before board ELF validation can run.
+
 The alternate HX8394D table can be built with:
 
 ```powershell

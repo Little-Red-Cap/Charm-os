@@ -29,6 +29,12 @@ QSPI/eMMC App Store paths and Dev Loader received-image paths both converge on
 `AppImage` plus the caller-provided loader callback and does not define a new
 image format, entry point, or capability table.
 
+`charm_app_fat_catalog.hpp` is the first file-backed resident launcher
+prototype. It provides a read-only FAT32 catalog over a block reader, enumerates
+`/CHARM/APPS/*.ELF`, reads the selected file into a caller-owned stage cache,
+and returns `AppImage(format=elf)`. It is a file source for the same staged
+runtime boundary, not a Store v2, package manifest, or writable filesystem API.
+
 POSIX remains a compatibility layer for C/POSIX programs. Player, Scope, and
 future hot-loaded apps should target this capability-table semantic model first.
 ELF is the first image format. ModuleX is now the second App image format and

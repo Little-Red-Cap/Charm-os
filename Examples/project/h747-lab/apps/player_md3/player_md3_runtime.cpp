@@ -931,7 +931,13 @@ void refresh_playback_probe_state() noexcept {
     const auto audio_state = h747_audio_state();
     st.playback_dma_callbacks = audio_state.dma_half_count + audio_state.dma_full_count;
     st.playback_underruns = audio_state.underrun_count;
-    st.playback_track_ready = controller_ref().track_ready() ? 1U : 0U;
+    const auto& controller = controller_ref();
+    st.playback_track_ready = controller.track_ready() ? 1U : 0U;
+    st.playback_play_mode = static_cast<std::uint8_t>(controller.current_playback_mode_index());
+    st.playback_track_index = static_cast<std::int32_t>(controller.track_index);
+    st.playback_track_count = static_cast<std::int32_t>(controller.available_track_count());
+    st.playback_current_sec = static_cast<std::int32_t>(controller.playback.current_sec());
+    st.playback_duration_sec = static_cast<std::int32_t>(controller.playback.duration_sec());
     if (!app) {
         st.playback_player_state = 0U;
         st.playback_running = 0U;
@@ -944,6 +950,78 @@ void refresh_playback_probe_state() noexcept {
     st.playback_running = player.is_running() ? 1U : 0U;
     st.playback_last_error_stage = static_cast<std::int32_t>(player.last_error_stage());
     st.playback_last_error = static_cast<std::int32_t>(player.last_error());
+}
+
+bool dispatch_runtime_playback_control(const PlayerMd3PlaybackControl control) noexcept {
+    auto* shell = shell_ref();
+    if (shell == nullptr || shell->app() == nullptr) {
+        refresh_playback_probe_state();
+        return false;
+    }
+
+    auto& controller = controller_ref();
+    switch (control) {
+    case PlayerMd3PlaybackControl::Pause:
+        controller.pause_playback();
+        break;
+    case PlayerMd3PlaybackControl::Resume:
+        controller.resume_playback();
+        break;
+    case PlayerMd3PlaybackControl::Stop:
+        controller.stop_playback();
+        break;
+    default:
+        refresh_playback_probe_state();
+        return false;
+    }
+
+    refresh_playback_probe_state();
+    render_scheduler_mark_dirty();
+    return true;
+}
+
+bool select_runtime_track_index(const int index) noexcept {
+    auto* shell = shell_ref();
+    if (shell == nullptr || shell->app() == nullptr) {
+        refresh_playback_probe_state();
+        return false;
+    }
+
+    auto& controller = controller_ref();
+    if (index < 0 || index >= controller.available_track_count()) {
+        refresh_playback_probe_state();
+        return false;
+    }
+
+    controller.select_track_index(index);
+    refresh_playback_probe_state();
+    render_scheduler_mark_dirty();
+    return controller.track_index == index;
+}
+
+bool seek_runtime_playback(const int target_sec) noexcept {
+    auto* shell = shell_ref();
+    if (shell == nullptr || shell->app() == nullptr) {
+        refresh_playback_probe_state();
+        return false;
+    }
+
+    auto& controller = controller_ref();
+    if (!controller.playback.is_seek_ready()) {
+        refresh_playback_probe_state();
+        return false;
+    }
+
+    int clamped = target_sec < 0 ? 0 : target_sec;
+    const int duration = controller.playback.duration_sec();
+    if (duration > 0 && clamped > duration) {
+        clamped = duration;
+    }
+
+    controller.apply_seek_pending_action(clamped);
+    refresh_playback_probe_state();
+    render_scheduler_mark_dirty();
+    return controller.playback.current_sec() == clamped;
 }
 
 bool render_frame() noexcept {

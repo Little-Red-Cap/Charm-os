@@ -68,6 +68,12 @@ Each app directory must provide an `app.cmake` manifest with:
 - `dev_loader`: resident development-loader skeleton. It validates receive,
   verify, and launch-ready staging for downloaded images, but remains dry-run
   and does not replace `app_lab`.
+- `resident_launcher`: first boot-facing resident App launcher prototype. It
+  initializes raster display, encoder input, and eMMC, enumerates
+  `/CHARM/APPS/*.ELF` from the FAT filesystem, and runs the selected ELF through
+  the same `AppImage(format=elf) -> AppRuntime -> CharmAppApi` chain. It is not
+  a product bootloader and does not implement rollback, signing, multitasking,
+  or return-to-launcher.
 
 ## Dynamic Boundary Split
 

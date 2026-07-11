@@ -5,6 +5,13 @@
 #include <cctype>
 #include <string_view>
 
+#ifndef CHARM_AUDIO_ENABLE_FLAC
+#define CHARM_AUDIO_ENABLE_FLAC 1
+#endif
+#ifndef CHARM_AUDIO_ENABLE_MP3
+#define CHARM_AUDIO_ENABLE_MP3 1
+#endif
+
 export module player.storage;
 
 import service.fixed_vector;
@@ -194,6 +201,10 @@ export namespace player {
         state.labels_ready = true;
     }
 
+    bool is_playback_supported_track_path(std::string_view path) noexcept {
+        return media_path_has_decoder_support(path);
+    }
+
     StorageConfig default_storage_config() {
         return detail::default_storage_config();
     }
@@ -210,6 +221,10 @@ export namespace player {
     bool check_track_ready(
         std::string_view vfs_path,
         FixedString<product_config::status_text_capacity>& out_status) {
+        if (!is_playback_supported_track_path(vfs_path)) {
+            out_status.assign("Unsupported format");
+            return false;
+        }
         fs::File f{};
         auto st = fs::vfs_open(vfs_path, f);
         if (st) {

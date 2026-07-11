@@ -1,0 +1,410 @@
+[ui-ci.perf_profile] log=G:\Project\BareWorkspace\Charm-os\generated\perf\player_md3_ui_perf_profile.log
+[ui-ci.perf] page=home_first cmd=110/1024 bytes=4608 text=232/4096 blob=48/2048 batch=0/0/0 exec=110/4608 fail=0 alpha=172178 groups=21/20/14/10 flush=65 clip_fail=0 kinds=48/29/23/0/0/10 fail_detail=0/0/0 layer=0/0/0/0/0/0/0
+[ui-ci.perf_time] page=home_first available=1 frame=38376 tick=18 render=38358 record=9327 execute=24290 present=2896 scene_available=1
+[ui-ci.perf_profile] page=home_first alpha_screen_x1000=251 cmd_mix=48/29/23/10 group_mix=21/20/14/10 flush_density_x1000=591 exec_density_x1000=1000 text_bytes=232/4096 blob_bytes=48/2048 fail_count=0 clip_fail=0 fail_mix=0/0/0
+[ui-ci.record_profile] page=home_first available=1 record_us=9327 cmd=110 text_bytes=232/4096 blob_bytes=48/2048 cmd_text=29 group_text=20 draw_text_box=28/174006 glyph_run=2/80224 text_overflow=0 blob_overflow=0
+[ui-ci.perf_cmd_detail] page=home_first type=PushClip count=5 area=755256 alpha=0 max_area=583904
+[ui-ci.perf_cmd_detail] page=home_first type=PopClip count=5 area=0 alpha=0 max_area=0
+[ui-ci.perf_cmd_detail] page=home_first type=FillRect count=1 area=583904 alpha=0 max_area=583904
+[ui-ci.perf_cmd_detail] page=home_first type=FillLinearGradientRect count=1 area=42560 alpha=0 max_area=42560
+[ui-ci.perf_cmd_detail] page=home_first type=StrokeRect count=1 area=583904 alpha=0 max_area=583904
+[ui-ci.perf_cmd_detail] page=home_first type=FillRoundRect count=23 area=1169004 alpha=172178 max_area=687280
+[ui-ci.perf_cmd_detail] page=home_first type=StrokeRoundRect count=22 area=1205168 alpha=0 max_area=687280
+[ui-ci.perf_cmd_detail] page=home_first type=DrawImage count=10 area=5136 alpha=0 max_area=784
+[ui-ci.perf_cmd_detail] page=home_first type=DrawImageRoundRect count=13 area=174840 alpha=0 max_area=75048
+[ui-ci.perf_cmd_detail] page=home_first type=DrawTextBox count=28 area=174006 alpha=0 max_area=38304
+[ui-ci.perf_cmd_detail] page=home_first type=GlyphRun count=2 area=80224 alpha=0 max_area=40112
+[ui-ci.perf_scope_detail] page=home_first scope=default id=0 cmd=42 area=3342934 alpha=5956
+[ui-ci.perf_scope_detail] page=home_first scope=home.hero id=1 cmd=7 area=106284 alpha=4128
+[ui-ci.perf_scope_detail] page=home_first scope=home.collage id=3 cmd=6 area=154172 alpha=0
+[ui-ci.perf_scope_detail] page=home_first scope=home.cards id=2 cmd=38 area=934076 alpha=162094
+[ui-ci.perf_scope_detail] page=home_first scope=bottom_bar id=12 cmd=18 area=236536 alpha=0
+[ui-ci.perf] page=home cmd=110/1024 bytes=4608 text=232/4096 blob=48/2048 batch=0/0/0 exec=110/4608 fail=0 alpha=172178 groups=21/20/14/10 flush=65 clip_fail=0 kinds=48/29/23/0/0/10 fail_detail=0/0/0 layer=0/0/0/0/0/0/0
+[ui-ci.perf_time] page=home available=1 frame=25643 tick=53 render=25590 record=106 execute=23230 present=840 scene_available=1
+[ui-ci.perf_profile] page=home alpha_screen_x1000=251 cmd_mix=48/29/23/10 group_mix=21/20/14/10 flush_density_x1000=591 exec_density_x1000=1000 text_bytes=232/4096 blob_bytes=48/2048 fail_count=0 clip_fail=0 fail_mix=0/0/0
+[ui-ci.record_profile] page=home available=1 record_us=106 cmd=110 text_bytes=232/4096 blob_bytes=48/2048 cmd_text=29 group_text=20 draw_text_box=28/174006 glyph_run=2/80224 text_overflow=0 blob_overflow=0
+[ui-ci.perf_cmd_detail] page=home type=PushClip count=5 area=755256 alpha=0 max_area=583904
+[ui-ci.perf_cmd_detail] page=home type=PopClip count=5 area=0 alpha=0 max_area=0
+[ui-ci.perf_cmd_detail] page=home type=FillRect count=1 area=583904 alpha=0 max_area=583904
+[ui-ci.perf_cmd_detail] page=home type=FillLinearGradientRect count=1 area=42560 alpha=0 max_area=42560
+[ui-ci.perf_cmd_detail] page=home type=StrokeRect count=1 area=583904 alpha=0 max_area=583904
+[ui-ci.perf_cmd_detail] page=home type=FillRoundRect count=23 area=1169004 alpha=172178 max_area=687280
+[ui-ci.perf_cmd_detail] page=home type=StrokeRoundRect count=22 area=1205168 alpha=0 max_area=687280
+[ui-ci.perf_cmd_detail] page=home type=DrawImage count=10 area=5136 alpha=0 max_area=784
+[ui-ci.perf_cmd_detail] page=home type=DrawImageRoundRect count=13 area=174840 alpha=0 max_area=75048
+[ui-ci.perf_cmd_detail] page=home type=DrawTextBox count=28 area=174006 alpha=0 max_area=38304
+[ui-ci.perf_cmd_detail] page=home type=GlyphRun count=2 area=80224 alpha=0 max_area=40112
+[ui-ci.perf_scope_detail] page=home scope=default id=0 cmd=42 area=3342934 alpha=5956
+[ui-ci.perf_scope_detail] page=home scope=home.hero id=1 cmd=7 area=106284 alpha=4128
+[ui-ci.perf_scope_detail] page=home scope=home.collage id=3 cmd=6 area=154172 alpha=0
+[ui-ci.perf_scope_detail] page=home scope=home.cards id=2 cmd=38 area=934076 alpha=162094
+[ui-ci.perf_scope_detail] page=home scope=bottom_bar id=12 cmd=18 area=236536 alpha=0
+[ui-ci.perf] page=now cmd=66/1024 bytes=2884 text=144/4096 blob=336/2048 batch=0/0/0 exec=66/2884 fail=0 alpha=74588 groups=14/15/9/0 flush=38 clip_fail=0 kinds=37/20/9/0/0/0 fail_detail=0/0/0 layer=0/0/0/0/0/0/0
+[ui-ci.perf_time] page=now available=1 frame=14468 tick=42 render=14426 record=48 execute=12017 present=1026 scene_available=1
+[ui-ci.perf_profile] page=now alpha_screen_x1000=109 cmd_mix=37/20/9/0 group_mix=14/15/9/0 flush_density_x1000=576 exec_density_x1000=1000 text_bytes=144/4096 blob_bytes=336/2048 fail_count=0 clip_fail=0 fail_mix=0/0/0
+[ui-ci.record_profile] page=now available=1 record_us=48 cmd=66 text_bytes=144/4096 blob_bytes=336/2048 cmd_text=20 group_text=15 draw_text_box=19/109400 glyph_run=14/0 text_overflow=0 blob_overflow=0
+[ui-ci.perf_cmd_detail] page=now type=FillRoundRect count=20 area=816932 alpha=74116 max_area=687280
+[ui-ci.perf_cmd_detail] page=now type=StrokeRoundRect count=17 area=814916 alpha=472 max_area=687280
+[ui-ci.perf_cmd_detail] page=now type=DrawImage count=8 area=6076 alpha=0 max_area=1600
+[ui-ci.perf_cmd_detail] page=now type=DrawImageRoundRect count=1 area=153664 alpha=0 max_area=153664
+[ui-ci.perf_cmd_detail] page=now type=DrawTextBox count=19 area=109400 alpha=0 max_area=24472
+[ui-ci.perf_cmd_detail] page=now type=GlyphRun count=14 area=0 alpha=0 max_area=0
+[ui-ci.perf_scope_detail] page=now scope=default id=0 cmd=38 area=1404504 alpha=0
+[ui-ci.perf_scope_detail] page=now scope=now.cover id=4 cmd=1 area=153664 alpha=0
+[ui-ci.perf_scope_detail] page=now scope=now.text id=5 cmd=2 area=40432 alpha=0
+[ui-ci.perf_scope_detail] page=now scope=now.progress id=6 cmd=12 area=159240 alpha=59680
+[ui-ci.perf_scope_detail] page=now scope=now.controls id=7 cmd=26 area=143148 alpha=14908
+[ui-ci.perf] page=library cmd=136/1024 bytes=5812 text=285/4096 blob=0/2048 batch=0/0/0 exec=136/5812 fail=0 alpha=85408 groups=27/23/15/8 flush=73 clip_fail=0 kinds=75/38/15/0/0/8 fail_detail=0/0/0 layer=0/0/0/0/0/0/0
+[ui-ci.perf_time] page=library available=1 frame=46069 tick=597 render=45472 record=298 execute=43108 present=701 scene_available=1
+[ui-ci.perf_profile] page=library alpha_screen_x1000=124 cmd_mix=75/38/15/8 group_mix=27/23/15/8 flush_density_x1000=537 exec_density_x1000=1000 text_bytes=285/4096 blob_bytes=0/2048 fail_count=0 clip_fail=0 fail_mix=0/0/0
+[ui-ci.record_profile] page=library available=1 record_us=298 cmd=136 text_bytes=285/4096 blob_bytes=0/2048 cmd_text=38 group_text=23 draw_text_box=38/287526 glyph_run=0/0 text_overflow=0 blob_overflow=0
+[ui-ci.perf_cmd_detail] page=library type=PushClip count=4 area=937592 alpha=0 max_area=388800
+[ui-ci.perf_cmd_detail] page=library type=PopClip count=4 area=0 alpha=0 max_area=0
+[ui-ci.perf_cmd_detail] page=library type=FillRect count=1 area=279216 alpha=0 max_area=279216
+[ui-ci.perf_cmd_detail] page=library type=FillLinearGradientRect count=9 area=1717600 alpha=15648 max_area=458376
+[ui-ci.perf_cmd_detail] page=library type=StrokeRect count=1 area=279216 alpha=0 max_area=279216
+[ui-ci.perf_cmd_detail] page=library type=FillRoundRect count=27 area=682008 alpha=66628 max_area=388800
+[ui-ci.perf_cmd_detail] page=library type=StrokeRoundRect count=36 area=2399608 alpha=3132 max_area=458376
+[ui-ci.perf_cmd_detail] page=library type=DrawImage count=11 area=4316 alpha=0 max_area=676
+[ui-ci.perf_cmd_detail] page=library type=DrawImageRoundRect count=4 area=9216 alpha=0 max_area=2304
+[ui-ci.perf_cmd_detail] page=library type=DrawTextBox count=38 area=287526 alpha=0 max_area=42872
+[ui-ci.perf_cmd_detail] page=library type=FocusRing count=1 area=279216 alpha=0 max_area=279216
+[ui-ci.perf_scope_detail] page=library scope=default id=0 cmd=38 area=2715062 alpha=3260
+[ui-ci.perf_scope_detail] page=library scope=library.chrome id=9 cmd=23 area=279476 alpha=33572
+[ui-ci.perf_scope_detail] page=library scope=library.list id=10 cmd=57 area=3644440 alpha=48576
+[ui-ci.perf_scope_detail] page=library scope=bottom_bar id=12 cmd=18 area=236536 alpha=0
+[ui-ci.perf] page=library_stress cmd=136/1024 bytes=5812 text=285/4096 blob=0/2048 batch=0/0/0 exec=136/5812 fail=0 alpha=85408 groups=27/23/15/8 flush=73 clip_fail=0 kinds=75/38/15/0/0/8 fail_detail=0/0/0 layer=0/0/0/0/0/0/0
+[ui-ci.perf_time] page=library_stress available=1 frame=44915 tick=81 render=44834 record=147 execute=42595 present=751 scene_available=1
+[ui-ci.perf_profile] page=library_stress alpha_screen_x1000=124 cmd_mix=75/38/15/8 group_mix=27/23/15/8 flush_density_x1000=537 exec_density_x1000=1000 text_bytes=285/4096 blob_bytes=0/2048 fail_count=0 clip_fail=0 fail_mix=0/0/0
+[ui-ci.record_profile] page=library_stress available=1 record_us=147 cmd=136 text_bytes=285/4096 blob_bytes=0/2048 cmd_text=38 group_text=23 draw_text_box=38/287526 glyph_run=0/0 text_overflow=0 blob_overflow=0
+[ui-ci.perf_cmd_detail] page=library_stress type=PushClip count=4 area=937592 alpha=0 max_area=388800
+[ui-ci.perf_cmd_detail] page=library_stress type=PopClip count=4 area=0 alpha=0 max_area=0
+[ui-ci.perf_cmd_detail] page=library_stress type=FillRect count=1 area=279216 alpha=0 max_area=279216
+[ui-ci.perf_cmd_detail] page=library_stress type=FillLinearGradientRect count=9 area=1717600 alpha=15648 max_area=458376
+[ui-ci.perf_cmd_detail] page=library_stress type=StrokeRect count=1 area=279216 alpha=0 max_area=279216
+[ui-ci.perf_cmd_detail] page=library_stress type=FillRoundRect count=27 area=682008 alpha=66628 max_area=388800
+[ui-ci.perf_cmd_detail] page=library_stress type=StrokeRoundRect count=36 area=2399608 alpha=3132 max_area=458376
+[ui-ci.perf_cmd_detail] page=library_stress type=DrawImage count=11 area=4316 alpha=0 max_area=676
+[ui-ci.perf_cmd_detail] page=library_stress type=DrawImageRoundRect count=4 area=9216 alpha=0 max_area=2304
+[ui-ci.perf_cmd_detail] page=library_stress type=DrawTextBox count=38 area=287526 alpha=0 max_area=42872
+[ui-ci.perf_cmd_detail] page=library_stress type=FocusRing count=1 area=279216 alpha=0 max_area=279216
+[ui-ci.perf_scope_detail] page=library_stress scope=default id=0 cmd=38 area=2715062 alpha=3260
+[ui-ci.perf_scope_detail] page=library_stress scope=library.chrome id=9 cmd=23 area=279476 alpha=33572
+[ui-ci.perf_scope_detail] page=library_stress scope=library.list id=10 cmd=57 area=3644440 alpha=48576
+[ui-ci.perf_scope_detail] page=library_stress scope=bottom_bar id=12 cmd=18 area=236536 alpha=0
+[ui-ci.perf] page=home_before_enter_now cmd=110/1024 bytes=4608 text=232/4096 blob=48/2048 batch=0/0/0 exec=110/4608 fail=0 alpha=172178 groups=21/20/14/10 flush=65 clip_fail=0 kinds=48/29/23/0/0/10 fail_detail=0/0/0 layer=0/0/0/0/0/0/0
+[ui-ci.perf_time] page=home_before_enter_now available=1 frame=24697 tick=41 render=24656 record=57 execute=22592 present=607 scene_available=1
+[ui-ci.perf_profile] page=home_before_enter_now alpha_screen_x1000=251 cmd_mix=48/29/23/10 group_mix=21/20/14/10 flush_density_x1000=591 exec_density_x1000=1000 text_bytes=232/4096 blob_bytes=48/2048 fail_count=0 clip_fail=0 fail_mix=0/0/0
+[ui-ci.record_profile] page=home_before_enter_now available=1 record_us=57 cmd=110 text_bytes=232/4096 blob_bytes=48/2048 cmd_text=29 group_text=20 draw_text_box=28/174006 glyph_run=2/80224 text_overflow=0 blob_overflow=0
+[ui-ci.perf_cmd_detail] page=home_before_enter_now type=PushClip count=5 area=755256 alpha=0 max_area=583904
+[ui-ci.perf_cmd_detail] page=home_before_enter_now type=PopClip count=5 area=0 alpha=0 max_area=0
+[ui-ci.perf_cmd_detail] page=home_before_enter_now type=FillRect count=1 area=583904 alpha=0 max_area=583904
+[ui-ci.perf_cmd_detail] page=home_before_enter_now type=FillLinearGradientRect count=1 area=42560 alpha=0 max_area=42560
+[ui-ci.perf_cmd_detail] page=home_before_enter_now type=StrokeRect count=1 area=583904 alpha=0 max_area=583904
+[ui-ci.perf_cmd_detail] page=home_before_enter_now type=FillRoundRect count=23 area=1169004 alpha=172178 max_area=687280
+[ui-ci.perf_cmd_detail] page=home_before_enter_now type=StrokeRoundRect count=22 area=1205168 alpha=0 max_area=687280
+[ui-ci.perf_cmd_detail] page=home_before_enter_now type=DrawImage count=10 area=5136 alpha=0 max_area=784
+[ui-ci.perf_cmd_detail] page=home_before_enter_now type=DrawImageRoundRect count=13 area=174840 alpha=0 max_area=75048
+[ui-ci.perf_cmd_detail] page=home_before_enter_now type=DrawTextBox count=28 area=174006 alpha=0 max_area=38304
+[ui-ci.perf_cmd_detail] page=home_before_enter_now type=GlyphRun count=2 area=80224 alpha=0 max_area=40112
+[ui-ci.perf_scope_detail] page=home_before_enter_now scope=default id=0 cmd=42 area=3342934 alpha=5956
+[ui-ci.perf_scope_detail] page=home_before_enter_now scope=home.hero id=1 cmd=7 area=106284 alpha=4128
+[ui-ci.perf_scope_detail] page=home_before_enter_now scope=home.collage id=3 cmd=6 area=154172 alpha=0
+[ui-ci.perf_scope_detail] page=home_before_enter_now scope=home.cards id=2 cmd=38 area=934076 alpha=162094
+[ui-ci.perf_scope_detail] page=home_before_enter_now scope=bottom_bar id=12 cmd=18 area=236536 alpha=0
+[ui-ci.perf_transition] name=enter_now frame=0 active=1 page=home frame_us=6749 tick_us=12 render_us=6737 record_us=24 execute_us=4418 present_us=655 cmd=12 alpha=0 alpha_screen_x1000=0 flush=8 layer_bytes=2061840 composite_pixels=0
+[ui-ci.perf_transition_capture] name=enter_now capture_source_us=122 prepare_destination_us=0 capture_destination_us=0 first_compose_us=256 defer_frames=1 destination_capture_count=0 destination_snapshot=0 active=1
+[ui-ci.perf_cmd_detail] page=enter_now:frame0 type=FillRoundRect count=3 area=811891 alpha=0 max_area=687280
+[ui-ci.perf_cmd_detail] page=enter_now:frame0 type=StrokeRoundRect count=3 area=811891 alpha=0 max_area=687280
+[ui-ci.perf_cmd_detail] page=enter_now:frame0 type=DrawImage count=1 area=1024 alpha=0 max_area=1024
+[ui-ci.perf_cmd_detail] page=enter_now:frame0 type=DrawImageRoundRect count=1 area=8836 alpha=0 max_area=8836
+[ui-ci.perf_cmd_detail] page=enter_now:frame0 type=DrawTextBox count=4 area=705049 alpha=0 max_area=687280
+[ui-ci.perf_scope_detail] page=enter_now:frame0 scope=now.transition id=8 cmd=12 area=2338691 alpha=0
+[ui-ci.perf_transition] name=enter_now frame=1 active=1 page=home frame_us=14699 tick_us=18 render_us=14681 record_us=13 execute_us=5687 present_us=661 cmd=12 alpha=0 alpha_screen_x1000=0 flush=8 layer_bytes=4123680 composite_pixels=0
+[ui-ci.perf_transition_capture] name=enter_now capture_source_us=122 prepare_destination_us=16 capture_destination_us=5443 first_compose_us=256 defer_frames=1 destination_capture_count=1 destination_snapshot=1 active=1
+[ui-ci.perf_cmd_detail] page=enter_now:frame1 type=FillRoundRect count=3 area=915077 alpha=0 max_area=687280
+[ui-ci.perf_cmd_detail] page=enter_now:frame1 type=StrokeRoundRect count=3 area=915077 alpha=0 max_area=687280
+[ui-ci.perf_cmd_detail] page=enter_now:frame1 type=DrawImage count=1 area=1024 alpha=0 max_area=1024
+[ui-ci.perf_cmd_detail] page=enter_now:frame1 type=DrawImageRoundRect count=1 area=22500 alpha=0 max_area=22500
+[ui-ci.perf_cmd_detail] page=enter_now:frame1 type=DrawTextBox count=4 area=709890 alpha=0 max_area=687280
+[ui-ci.perf_scope_detail] page=enter_now:frame1 scope=now.transition id=8 cmd=12 area=2563568 alpha=0
+[ui-ci.perf_transition] name=enter_now frame=2 active=1 page=home frame_us=9417 tick_us=13 render_us=9404 record_us=22 execute_us=7118 present_us=743 cmd=12 alpha=0 alpha_screen_x1000=0 flush=8 layer_bytes=4123680 composite_pixels=0
+[ui-ci.perf_transition_capture] name=enter_now capture_source_us=122 prepare_destination_us=16 capture_destination_us=5443 first_compose_us=256 defer_frames=1 destination_capture_count=1 destination_snapshot=1 active=1
+[ui-ci.perf_cmd_detail] page=enter_now:frame2 type=FillRoundRect count=3 area=1034770 alpha=0 max_area=687280
+[ui-ci.perf_cmd_detail] page=enter_now:frame2 type=StrokeRoundRect count=3 area=1034770 alpha=0 max_area=687280
+[ui-ci.perf_cmd_detail] page=enter_now:frame2 type=DrawImage count=1 area=1024 alpha=0 max_area=1024
+[ui-ci.perf_cmd_detail] page=enter_now:frame2 type=DrawImageRoundRect count=1 area=45796 alpha=0 max_area=45796
+[ui-ci.perf_cmd_detail] page=enter_now:frame2 type=DrawTextBox count=4 area=717106 alpha=0 max_area=687280
+[ui-ci.perf_scope_detail] page=enter_now:frame2 scope=now.transition id=8 cmd=12 area=2833466 alpha=0
+[ui-ci.perf_transition] name=enter_now frame=3 active=1 page=home frame_us=10990 tick_us=74 render_us=10916 record_us=21 execute_us=8678 present_us=715 cmd=12 alpha=0 alpha_screen_x1000=0 flush=8 layer_bytes=4123680 composite_pixels=0
+[ui-ci.perf_transition_capture] name=enter_now capture_source_us=122 prepare_destination_us=16 capture_destination_us=5443 first_compose_us=256 defer_frames=1 destination_capture_count=1 destination_snapshot=1 active=1
+[ui-ci.perf_cmd_detail] page=enter_now:frame3 type=FillRoundRect count=3 area=1119565 alpha=0 max_area=687280
+[ui-ci.perf_cmd_detail] page=enter_now:frame3 type=StrokeRoundRect count=3 area=1119565 alpha=0 max_area=687280
+[ui-ci.perf_cmd_detail] page=enter_now:frame3 type=DrawImage count=1 area=1024 alpha=0 max_area=1024
+[ui-ci.perf_cmd_detail] page=enter_now:frame3 type=DrawImageRoundRect count=1 area=66564 alpha=0 max_area=66564
+[ui-ci.perf_cmd_detail] page=enter_now:frame3 type=DrawTextBox count=4 area=721901 alpha=0 max_area=687280
+[ui-ci.perf_scope_detail] page=enter_now:frame3 scope=now.transition id=8 cmd=12 area=3028619 alpha=0
+[ui-ci.perf_transition] name=enter_now frame=4 active=1 page=home frame_us=11748 tick_us=14 render_us=11734 record_us=22 execute_us=9466 present_us=701 cmd=12 alpha=0 alpha_screen_x1000=0 flush=8 layer_bytes=4123680 composite_pixels=0
+[ui-ci.perf_transition_capture] name=enter_now capture_source_us=122 prepare_destination_us=16 capture_destination_us=5443 first_compose_us=256 defer_frames=1 destination_capture_count=1 destination_snapshot=1 active=1
+[ui-ci.perf_cmd_detail] page=enter_now:frame4 type=FillRoundRect count=3 area=1192751 alpha=0 max_area=687280
+[ui-ci.perf_cmd_detail] page=enter_now:frame4 type=StrokeRoundRect count=3 area=1192751 alpha=0 max_area=687280
+[ui-ci.perf_cmd_detail] page=enter_now:frame4 type=DrawImage count=1 area=1024 alpha=0 max_area=1024
+[ui-ci.perf_cmd_detail] page=enter_now:frame4 type=DrawImageRoundRect count=1 area=87025 alpha=0 max_area=87025
+[ui-ci.perf_cmd_detail] page=enter_now:frame4 type=DrawTextBox count=4 area=726385 alpha=0 max_area=687280
+[ui-ci.perf_scope_detail] page=enter_now:frame4 scope=now.transition id=8 cmd=12 area=3199936 alpha=0
+[ui-ci.perf_transition] name=enter_now frame=5 active=1 page=home frame_us=12673 tick_us=13 render_us=12660 record_us=21 execute_us=10358 present_us=772 cmd=12 alpha=0 alpha_screen_x1000=0 flush=8 layer_bytes=4123680 composite_pixels=0
+[ui-ci.perf_transition_capture] name=enter_now capture_source_us=122 prepare_destination_us=16 capture_destination_us=5443 first_compose_us=256 defer_frames=1 destination_capture_count=1 destination_snapshot=1 active=1
+[ui-ci.perf_cmd_detail] page=enter_now:frame5 type=FillRoundRect count=3 area=1253840 alpha=0 max_area=687280
+[ui-ci.perf_cmd_detail] page=enter_now:frame5 type=StrokeRoundRect count=3 area=1253840 alpha=0 max_area=687280
+[ui-ci.perf_cmd_detail] page=enter_now:frame5 type=DrawImage count=1 area=1024 alpha=0 max_area=1024
+[ui-ci.perf_cmd_detail] page=enter_now:frame5 type=DrawImageRoundRect count=1 area=106276 alpha=0 max_area=106276
+[ui-ci.perf_cmd_detail] page=enter_now:frame5 type=DrawTextBox count=4 area=730461 alpha=0 max_area=687280
+[ui-ci.perf_scope_detail] page=enter_now:frame5 scope=now.transition id=8 cmd=12 area=3345441 alpha=0
+[ui-ci.perf_transition] name=enter_now frame=6 active=1 page=home frame_us=13707 tick_us=12 render_us=13695 record_us=20 execute_us=11517 present_us=661 cmd=12 alpha=10944 alpha_screen_x1000=16 flush=8 layer_bytes=4123680 composite_pixels=0
+[ui-ci.perf_transition_capture] name=enter_now capture_source_us=122 prepare_destination_us=16 capture_destination_us=5443 first_compose_us=256 defer_frames=1 destination_capture_count=1 destination_snapshot=1 active=1
+[ui-ci.perf_cmd_detail] page=enter_now:frame6 type=FillRoundRect count=3 area=1303552 alpha=10584 max_area=687280
+[ui-ci.perf_cmd_detail] page=enter_now:frame6 type=StrokeRoundRect count=3 area=1303552 alpha=360 max_area=687280
+[ui-ci.perf_cmd_detail] page=enter_now:frame6 type=DrawImage count=1 area=1024 alpha=0 max_area=1024
+[ui-ci.perf_cmd_detail] page=enter_now:frame6 type=DrawImageRoundRect count=1 area=122500 alpha=0 max_area=122500
+[ui-ci.perf_cmd_detail] page=enter_now:frame6 type=DrawTextBox count=4 area=733805 alpha=0 max_area=687280
+[ui-ci.perf_scope_detail] page=enter_now:frame6 scope=now.transition id=8 cmd=12 area=3464433 alpha=10944
+[ui-ci.perf_transition] name=enter_now frame=7 active=1 page=home frame_us=14348 tick_us=19 render_us=14329 record_us=23 execute_us=12134 present_us=653 cmd=12 alpha=11613 alpha_screen_x1000=17 flush=8 layer_bytes=4123680 composite_pixels=0
+[ui-ci.perf_transition_capture] name=enter_now capture_source_us=122 prepare_destination_us=16 capture_destination_us=5443 first_compose_us=256 defer_frames=1 destination_capture_count=1 destination_snapshot=1 active=1
+[ui-ci.perf_cmd_detail] page=enter_now:frame7 type=FillRoundRect count=3 area=1338616 alpha=11241 max_area=687280
+[ui-ci.perf_cmd_detail] page=enter_now:frame7 type=StrokeRoundRect count=3 area=1338616 alpha=372 max_area=687280
+[ui-ci.perf_cmd_detail] page=enter_now:frame7 type=DrawImage count=1 area=1024 alpha=0 max_area=1024
+[ui-ci.perf_cmd_detail] page=enter_now:frame7 type=DrawImageRoundRect count=1 area=135424 alpha=0 max_area=135424
+[ui-ci.perf_cmd_detail] page=enter_now:frame7 type=DrawTextBox count=4 area=736101 alpha=0 max_area=687280
+[ui-ci.perf_scope_detail] page=enter_now:frame7 scope=now.transition id=8 cmd=12 area=3549781 alpha=11613
+[ui-ci.perf_transition] name=enter_now frame=8 active=1 page=home frame_us=14873 tick_us=32 render_us=14841 record_us=20 execute_us=12551 present_us=618 cmd=12 alpha=12244 alpha_screen_x1000=18 flush=8 layer_bytes=4123680 composite_pixels=0
+[ui-ci.perf_transition_capture] name=enter_now capture_source_us=122 prepare_destination_us=16 capture_destination_us=5443 first_compose_us=256 defer_frames=1 destination_capture_count=1 destination_snapshot=1 active=1
+[ui-ci.perf_cmd_detail] page=enter_now:frame8 type=FillRoundRect count=3 area=1364233 alpha=11860 max_area=687280
+[ui-ci.perf_cmd_detail] page=enter_now:frame8 type=StrokeRoundRect count=3 area=1364233 alpha=384 max_area=687280
+[ui-ci.perf_cmd_detail] page=enter_now:frame8 type=DrawImage count=1 area=1024 alpha=0 max_area=1024
+[ui-ci.perf_cmd_detail] page=enter_now:frame8 type=DrawImageRoundRect count=1 area=144400 alpha=0 max_area=144400
+[ui-ci.perf_cmd_detail] page=enter_now:frame8 type=DrawTextBox count=4 area=738226 alpha=0 max_area=687280
+[ui-ci.perf_scope_detail] page=enter_now:frame8 scope=now.transition id=8 cmd=12 area=3612116 alpha=12244
+[ui-ci.perf_transition] name=enter_now frame=9 active=1 page=home frame_us=15262 tick_us=13 render_us=15249 record_us=22 execute_us=12968 present_us=669 cmd=12 alpha=12477 alpha_screen_x1000=18 flush=8 layer_bytes=4123680 composite_pixels=0
+[ui-ci.perf_transition_capture] name=enter_now capture_source_us=122 prepare_destination_us=16 capture_destination_us=5443 first_compose_us=256 defer_frames=1 destination_capture_count=1 destination_snapshot=1 active=1
+[ui-ci.perf_cmd_detail] page=enter_now:frame9 type=FillRoundRect count=3 area=1378697 alpha=12089 max_area=687280
+[ui-ci.perf_cmd_detail] page=enter_now:frame9 type=StrokeRoundRect count=3 area=1378697 alpha=388 max_area=687280
+[ui-ci.perf_cmd_detail] page=enter_now:frame9 type=DrawImage count=1 area=1024 alpha=0 max_area=1024
+[ui-ci.perf_cmd_detail] page=enter_now:frame9 type=DrawImageRoundRect count=1 area=149769 alpha=0 max_area=149769
+[ui-ci.perf_cmd_detail] page=enter_now:frame9 type=DrawTextBox count=4 area=739265 alpha=0 max_area=687280
+[ui-ci.perf_scope_detail] page=enter_now:frame9 scope=now.transition id=8 cmd=12 area=3647452 alpha=12477
+[ui-ci.perf_transition] name=enter_now frame=10 active=1 page=home frame_us=14428 tick_us=13 render_us=14415 record_us=19 execute_us=12317 present_us=603 cmd=12 alpha=0 alpha_screen_x1000=0 flush=8 layer_bytes=4123680 composite_pixels=0
+[ui-ci.perf_transition_capture] name=enter_now capture_source_us=122 prepare_destination_us=16 capture_destination_us=5443 first_compose_us=256 defer_frames=1 destination_capture_count=1 destination_snapshot=1 active=1
+[ui-ci.perf_cmd_detail] page=enter_now:frame10 type=FillRoundRect count=3 area=1385744 alpha=0 max_area=687280
+[ui-ci.perf_cmd_detail] page=enter_now:frame10 type=StrokeRoundRect count=3 area=1385744 alpha=0 max_area=687280
+[ui-ci.perf_cmd_detail] page=enter_now:frame10 type=DrawImage count=1 area=1024 alpha=0 max_area=1024
+[ui-ci.perf_cmd_detail] page=enter_now:frame10 type=DrawImageRoundRect count=1 area=152881 alpha=0 max_area=152881
+[ui-ci.perf_cmd_detail] page=enter_now:frame10 type=DrawTextBox count=4 area=739572 alpha=0 max_area=687280
+[ui-ci.perf_scope_detail] page=enter_now:frame10 scope=now.transition id=8 cmd=12 area=3664965 alpha=0
+[ui-ci.perf_transition] name=enter_now frame=11 active=1 page=home frame_us=14503 tick_us=11 render_us=14492 record_us=21 execute_us=12261 present_us=606 cmd=12 alpha=0 alpha_screen_x1000=0 flush=8 layer_bytes=4123680 composite_pixels=0
+[ui-ci.perf_transition_capture] name=enter_now capture_source_us=122 prepare_destination_us=16 capture_destination_us=5443 first_compose_us=256 defer_frames=1 destination_capture_count=1 destination_snapshot=1 active=1
+[ui-ci.perf_cmd_detail] page=enter_now:frame11 type=FillRoundRect count=3 area=1388016 alpha=0 max_area=687280
+[ui-ci.perf_cmd_detail] page=enter_now:frame11 type=StrokeRoundRect count=3 area=1388016 alpha=0 max_area=687280
+[ui-ci.perf_cmd_detail] page=enter_now:frame11 type=DrawImage count=1 area=1024 alpha=0 max_area=1024
+[ui-ci.perf_cmd_detail] page=enter_now:frame11 type=DrawImageRoundRect count=1 area=153664 alpha=0 max_area=153664
+[ui-ci.perf_cmd_detail] page=enter_now:frame11 type=DrawTextBox count=4 area=739648 alpha=0 max_area=687280
+[ui-ci.perf_scope_detail] page=enter_now:frame11 scope=now.transition id=8 cmd=12 area=3670368 alpha=0
+[ui-ci.perf_transition] name=enter_now frame=12 active=0 page=now frame_us=14574 tick_us=35 render_us=14539 record_us=56 execute_us=12277 present_us=644 cmd=66 alpha=82708 alpha_screen_x1000=120 flush=38 layer_bytes=0 composite_pixels=0
+[ui-ci.perf_transition_capture] name=enter_now capture_source_us=122 prepare_destination_us=16 capture_destination_us=5443 first_compose_us=256 defer_frames=1 destination_capture_count=1 destination_snapshot=0 active=0
+[ui-ci.perf_cmd_detail] page=enter_now:frame12 type=FillRoundRect count=20 area=825004 alpha=82188 max_area=687280
+[ui-ci.perf_cmd_detail] page=enter_now:frame12 type=StrokeRoundRect count=17 area=822988 alpha=520 max_area=687280
+[ui-ci.perf_cmd_detail] page=enter_now:frame12 type=DrawImage count=8 area=6076 alpha=0 max_area=1600
+[ui-ci.perf_cmd_detail] page=enter_now:frame12 type=DrawImageRoundRect count=1 area=153664 alpha=0 max_area=153664
+[ui-ci.perf_cmd_detail] page=enter_now:frame12 type=DrawTextBox count=19 area=109400 alpha=0 max_area=24472
+[ui-ci.perf_cmd_detail] page=enter_now:frame12 type=GlyphRun count=14 area=0 alpha=0 max_area=0
+[ui-ci.perf_scope_detail] page=enter_now:frame12 scope=default id=0 cmd=38 area=1404504 alpha=0
+[ui-ci.perf_scope_detail] page=enter_now:frame12 scope=now.cover id=4 cmd=1 area=153664 alpha=0
+[ui-ci.perf_scope_detail] page=enter_now:frame12 scope=now.text id=5 cmd=2 area=40432 alpha=0
+[ui-ci.perf_scope_detail] page=enter_now:frame12 scope=now.progress id=6 cmd=12 area=169880 alpha=65000
+[ui-ci.perf_scope_detail] page=enter_now:frame12 scope=now.controls id=7 cmd=26 area=148652 alpha=17708
+[ui-ci.perf_transition_summary] name=enter_now frames=13 completed=1 total_frame_us=167971 total_tick_us=279 total_render_us=167692 total_record_us=304 total_execute_us=131750 total_present_us=8701 max_frame_us=15262 max_execute_us=12968 max_present_us=772 total_cmds=210 max_cmds=66 total_alpha=129986 max_alpha=82708 max_alpha_screen_x1000=120
+[ui-ci.perf] page=now_after_enter cmd=66/1024 bytes=2884 text=146/4096 blob=336/2048 batch=0/0/0 exec=66/2884 fail=0 alpha=82708 groups=14/15/9/0 flush=38 clip_fail=0 kinds=37/20/9/0/0/0 fail_detail=0/0/0 layer=0/0/0/0/0/12/8247360
+[ui-ci.perf_time] page=now_after_enter available=1 frame=14622 tick=35 render=14587 record=47 execute=12464 present=720 scene_available=1
+[ui-ci.perf_profile] page=now_after_enter alpha_screen_x1000=120 cmd_mix=37/20/9/0 group_mix=14/15/9/0 flush_density_x1000=576 exec_density_x1000=1000 text_bytes=146/4096 blob_bytes=336/2048 fail_count=0 clip_fail=0 fail_mix=0/0/0
+[ui-ci.record_profile] page=now_after_enter available=1 record_us=47 cmd=66 text_bytes=146/4096 blob_bytes=336/2048 cmd_text=20 group_text=15 draw_text_box=19/109400 glyph_run=14/0 text_overflow=0 blob_overflow=0
+[ui-ci.perf_cmd_detail] page=now_after_enter type=FillRoundRect count=20 area=825004 alpha=82188 max_area=687280
+[ui-ci.perf_cmd_detail] page=now_after_enter type=StrokeRoundRect count=17 area=822988 alpha=520 max_area=687280
+[ui-ci.perf_cmd_detail] page=now_after_enter type=DrawImage count=8 area=6076 alpha=0 max_area=1600
+[ui-ci.perf_cmd_detail] page=now_after_enter type=DrawImageRoundRect count=1 area=153664 alpha=0 max_area=153664
+[ui-ci.perf_cmd_detail] page=now_after_enter type=DrawTextBox count=19 area=109400 alpha=0 max_area=24472
+[ui-ci.perf_cmd_detail] page=now_after_enter type=GlyphRun count=14 area=0 alpha=0 max_area=0
+[ui-ci.perf_scope_detail] page=now_after_enter scope=default id=0 cmd=38 area=1404504 alpha=0
+[ui-ci.perf_scope_detail] page=now_after_enter scope=now.cover id=4 cmd=1 area=153664 alpha=0
+[ui-ci.perf_scope_detail] page=now_after_enter scope=now.text id=5 cmd=2 area=40432 alpha=0
+[ui-ci.perf_scope_detail] page=now_after_enter scope=now.progress id=6 cmd=12 area=169880 alpha=65000
+[ui-ci.perf_scope_detail] page=now_after_enter scope=now.controls id=7 cmd=26 area=148652 alpha=17708
+[ui-ci.perf_transition] name=exit_now frame=0 active=1 page=now frame_us=13398 tick_us=14 render_us=13384 record_us=21 execute_us=11075 present_us=703 cmd=12 alpha=0 alpha_screen_x1000=0 flush=8 layer_bytes=2061840 composite_pixels=0
+[ui-ci.perf_transition_capture] name=exit_now capture_source_us=178 prepare_destination_us=0 capture_destination_us=0 first_compose_us=178 defer_frames=1 destination_capture_count=1 destination_snapshot=0 active=1
+[ui-ci.perf_cmd_detail] page=exit_now:frame0 type=FillRoundRect count=3 area=1293257 alpha=0 max_area=687280
+[ui-ci.perf_cmd_detail] page=exit_now:frame0 type=StrokeRoundRect count=3 area=1293257 alpha=0 max_area=687280
+[ui-ci.perf_cmd_detail] page=exit_now:frame0 type=DrawImage count=1 area=1024 alpha=0 max_area=1024
+[ui-ci.perf_cmd_detail] page=exit_now:frame0 type=DrawImageRoundRect count=1 area=119716 alpha=0 max_area=119716
+[ui-ci.perf_cmd_detail] page=exit_now:frame0 type=DrawTextBox count=4 area=732959 alpha=0 max_area=687280
+[ui-ci.perf_scope_detail] page=exit_now:frame0 scope=now.transition id=8 cmd=12 area=3440213 alpha=0
+[ui-ci.perf_transition] name=exit_now frame=1 active=1 page=now frame_us=36159 tick_us=53 render_us=36106 record_us=27 execute_us=9505 present_us=642 cmd=45 alpha=0 alpha_screen_x1000=0 flush=28 layer_bytes=4123680 composite_pixels=0
+[ui-ci.perf_transition_capture] name=exit_now capture_source_us=178 prepare_destination_us=15 capture_destination_us=23079 first_compose_us=178 defer_frames=1 destination_capture_count=2 destination_snapshot=1 active=1
+[ui-ci.perf_cmd_detail] page=exit_now:frame1 type=PushClip count=1 area=19200 alpha=0 max_area=19200
+[ui-ci.perf_cmd_detail] page=exit_now:frame1 type=PopClip count=1 area=0 alpha=0 max_area=0
+[ui-ci.perf_cmd_detail] page=exit_now:frame1 type=FillRoundRect count=12 area=1305617 alpha=0 max_area=687280
+[ui-ci.perf_cmd_detail] page=exit_now:frame1 type=StrokeRoundRect count=12 area=1305617 alpha=0 max_area=687280
+[ui-ci.perf_cmd_detail] page=exit_now:frame1 type=DrawImage count=4 area=2852 alpha=0 max_area=1024
+[ui-ci.perf_cmd_detail] page=exit_now:frame1 type=DrawImageRoundRect count=1 area=75076 alpha=0 max_area=75076
+[ui-ci.perf_cmd_detail] page=exit_now:frame1 type=DrawTextBox count=14 area=807484 alpha=0 max_area=687280
+[ui-ci.perf_scope_detail] page=exit_now:frame1 scope=bottom_bar id=12 cmd=7 area=210720 alpha=0
+[ui-ci.perf_scope_detail] page=exit_now:frame1 scope=default id=0 cmd=26 area=201766 alpha=0
+[ui-ci.perf_scope_detail] page=exit_now:frame1 scope=now.transition id=8 cmd=12 area=3103360 alpha=0
+[ui-ci.perf_transition] name=exit_now frame=2 active=1 page=now frame_us=9218 tick_us=11 render_us=9207 record_us=31 execute_us=7054 present_us=654 cmd=45 alpha=4920 alpha_screen_x1000=7 flush=28 layer_bytes=4123680 composite_pixels=0
+[ui-ci.perf_transition_capture] name=exit_now capture_source_us=178 prepare_destination_us=15 capture_destination_us=23079 first_compose_us=178 defer_frames=1 destination_capture_count=2 destination_snapshot=1 active=1
+[ui-ci.perf_cmd_detail] page=exit_now:frame2 type=PushClip count=1 area=19200 alpha=0 max_area=19200
+[ui-ci.perf_cmd_detail] page=exit_now:frame2 type=PopClip count=1 area=0 alpha=0 max_area=0
+[ui-ci.perf_cmd_detail] page=exit_now:frame2 type=FillRoundRect count=12 area=1122800 alpha=4680 max_area=687280
+[ui-ci.perf_cmd_detail] page=exit_now:frame2 type=StrokeRoundRect count=12 area=1122800 alpha=240 max_area=687280
+[ui-ci.perf_cmd_detail] page=exit_now:frame2 type=DrawImage count=4 area=2852 alpha=0 max_area=1024
+[ui-ci.perf_cmd_detail] page=exit_now:frame2 type=DrawImageRoundRect count=1 area=32041 alpha=0 max_area=32041
+[ui-ci.perf_cmd_detail] page=exit_now:frame2 type=DrawTextBox count=14 area=796978 alpha=0 max_area=687280
+[ui-ci.perf_scope_detail] page=exit_now:frame2 scope=bottom_bar id=12 cmd=7 area=210720 alpha=0
+[ui-ci.perf_scope_detail] page=exit_now:frame2 scope=default id=0 cmd=26 area=201766 alpha=0
+[ui-ci.perf_scope_detail] page=exit_now:frame2 scope=now.transition id=8 cmd=12 area=2684185 alpha=4920
+[ui-ci.perf_transition] name=exit_now frame=3 active=1 page=now frame_us=8382 tick_us=12 render_us=8370 record_us=31 execute_us=6230 present_us=629 cmd=45 alpha=3965 alpha_screen_x1000=6 flush=28 layer_bytes=4123680 composite_pixels=0
+[ui-ci.perf_transition_capture] name=exit_now capture_source_us=178 prepare_destination_us=15 capture_destination_us=23079 first_compose_us=178 defer_frames=1 destination_capture_count=2 destination_snapshot=1 active=1
+[ui-ci.perf_cmd_detail] page=exit_now:frame3 type=PushClip count=1 area=19200 alpha=0 max_area=19200
+[ui-ci.perf_cmd_detail] page=exit_now:frame3 type=PopClip count=1 area=0 alpha=0 max_area=0
+[ui-ci.perf_cmd_detail] page=exit_now:frame3 type=FillRoundRect count=12 area=1056375 alpha=3753 max_area=687280
+[ui-ci.perf_cmd_detail] page=exit_now:frame3 type=StrokeRoundRect count=12 area=1056375 alpha=212 max_area=687280
+[ui-ci.perf_cmd_detail] page=exit_now:frame3 type=DrawImage count=4 area=2852 alpha=0 max_area=1024
+[ui-ci.perf_cmd_detail] page=exit_now:frame3 type=DrawImageRoundRect count=1 area=20736 alpha=0 max_area=20736
+[ui-ci.perf_cmd_detail] page=exit_now:frame3 type=DrawTextBox count=14 area=793539 alpha=0 max_area=687280
+[ui-ci.perf_scope_detail] page=exit_now:frame3 scope=bottom_bar id=12 cmd=7 area=210720 alpha=0
+[ui-ci.perf_scope_detail] page=exit_now:frame3 scope=default id=0 cmd=26 area=201766 alpha=0
+[ui-ci.perf_scope_detail] page=exit_now:frame3 scope=now.transition id=8 cmd=12 area=2536591 alpha=3965
+[ui-ci.perf_transition] name=exit_now frame=4 active=1 page=now frame_us=7839 tick_us=19 render_us=7820 record_us=30 execute_us=5644 present_us=656 cmd=45 alpha=3221 alpha_screen_x1000=5 flush=28 layer_bytes=4123680 composite_pixels=0
+[ui-ci.perf_transition_capture] name=exit_now capture_source_us=178 prepare_destination_us=15 capture_destination_us=23079 first_compose_us=178 defer_frames=1 destination_capture_count=2 destination_snapshot=1 active=1
+[ui-ci.perf_cmd_detail] page=exit_now:frame4 type=PushClip count=1 area=19200 alpha=0 max_area=19200
+[ui-ci.perf_cmd_detail] page=exit_now:frame4 type=PopClip count=1 area=0 alpha=0 max_area=0
+[ui-ci.perf_cmd_detail] page=exit_now:frame4 type=FillRoundRect count=12 area=1005391 alpha=3033 max_area=687280
+[ui-ci.perf_cmd_detail] page=exit_now:frame4 type=StrokeRoundRect count=12 area=1005391 alpha=188 max_area=687280
+[ui-ci.perf_cmd_detail] page=exit_now:frame4 type=DrawImage count=4 area=2852 alpha=0 max_area=1024
+[ui-ci.perf_cmd_detail] page=exit_now:frame4 type=DrawImageRoundRect count=1 area=13456 alpha=0 max_area=13456
+[ui-ci.perf_cmd_detail] page=exit_now:frame4 type=DrawTextBox count=14 area=791005 alpha=0 max_area=687280
+[ui-ci.perf_scope_detail] page=exit_now:frame4 scope=bottom_bar id=12 cmd=7 area=210720 alpha=0
+[ui-ci.perf_scope_detail] page=exit_now:frame4 scope=default id=0 cmd=26 area=201766 alpha=0
+[ui-ci.perf_scope_detail] page=exit_now:frame4 scope=now.transition id=8 cmd=12 area=2424809 alpha=3221
+[ui-ci.perf_transition] name=exit_now frame=5 active=1 page=now frame_us=7456 tick_us=13 render_us=7443 record_us=32 execute_us=5250 present_us=674 cmd=45 alpha=2781 alpha_screen_x1000=4 flush=28 layer_bytes=4123680 composite_pixels=0
+[ui-ci.perf_transition_capture] name=exit_now capture_source_us=178 prepare_destination_us=15 capture_destination_us=23079 first_compose_us=178 defer_frames=1 destination_capture_count=2 destination_snapshot=1 active=1
+[ui-ci.perf_cmd_detail] page=exit_now:frame5 type=PushClip count=1 area=19200 alpha=0 max_area=19200
+[ui-ci.perf_cmd_detail] page=exit_now:frame5 type=PopClip count=1 area=0 alpha=0 max_area=0
+[ui-ci.perf_cmd_detail] page=exit_now:frame5 type=FillRoundRect count=12 area=965659 alpha=2609 max_area=687280
+[ui-ci.perf_cmd_detail] page=exit_now:frame5 type=StrokeRoundRect count=12 area=965659 alpha=172 max_area=687280
+[ui-ci.perf_cmd_detail] page=exit_now:frame5 type=DrawImage count=4 area=2852 alpha=0 max_area=1024
+[ui-ci.perf_cmd_detail] page=exit_now:frame5 type=DrawImageRoundRect count=1 area=9025 alpha=0 max_area=9025
+[ui-ci.perf_cmd_detail] page=exit_now:frame5 type=DrawTextBox count=14 area=788971 alpha=0 max_area=687280
+[ui-ci.perf_scope_detail] page=exit_now:frame5 scope=bottom_bar id=12 cmd=7 area=210720 alpha=0
+[ui-ci.perf_scope_detail] page=exit_now:frame5 scope=default id=0 cmd=26 area=201766 alpha=0
+[ui-ci.perf_scope_detail] page=exit_now:frame5 scope=now.transition id=8 cmd=12 area=2338880 alpha=2781
+[ui-ci.perf_transition] name=exit_now frame=6 active=1 page=now frame_us=7092 tick_us=13 render_us=7079 record_us=33 execute_us=4919 present_us=639 cmd=45 alpha=2436 alpha_screen_x1000=4 flush=28 layer_bytes=4123680 composite_pixels=0
+[ui-ci.perf_transition_capture] name=exit_now capture_source_us=178 prepare_destination_us=15 capture_destination_us=23079 first_compose_us=178 defer_frames=1 destination_capture_count=2 destination_snapshot=1 active=1
+[ui-ci.perf_cmd_detail] page=exit_now:frame6 type=PushClip count=1 area=19200 alpha=0 max_area=19200
+[ui-ci.perf_cmd_detail] page=exit_now:frame6 type=PopClip count=1 area=0 alpha=0 max_area=0
+[ui-ci.perf_cmd_detail] page=exit_now:frame6 type=FillRoundRect count=12 area=937054 alpha=2276 max_area=687280
+[ui-ci.perf_cmd_detail] page=exit_now:frame6 type=StrokeRoundRect count=12 area=937054 alpha=160 max_area=687280
+[ui-ci.perf_cmd_detail] page=exit_now:frame6 type=DrawImage count=4 area=2852 alpha=0 max_area=1024
+[ui-ci.perf_cmd_detail] page=exit_now:frame6 type=DrawImageRoundRect count=1 area=6241 alpha=0 max_area=6241
+[ui-ci.perf_cmd_detail] page=exit_now:frame6 type=DrawTextBox count=14 area=787608 alpha=0 max_area=687280
+[ui-ci.perf_scope_detail] page=exit_now:frame6 scope=bottom_bar id=12 cmd=7 area=210720 alpha=0
+[ui-ci.perf_scope_detail] page=exit_now:frame6 scope=default id=0 cmd=26 area=201766 alpha=0
+[ui-ci.perf_scope_detail] page=exit_now:frame6 scope=now.transition id=8 cmd=12 area=2277523 alpha=2436
+[ui-ci.perf_transition] name=exit_now frame=7 active=1 page=now frame_us=7027 tick_us=11 render_us=7016 record_us=31 execute_us=4656 present_us=857 cmd=45 alpha=2216 alpha_screen_x1000=3 flush=28 layer_bytes=4123680 composite_pixels=0
+[ui-ci.perf_transition_capture] name=exit_now capture_source_us=178 prepare_destination_us=15 capture_destination_us=23079 first_compose_us=178 defer_frames=1 destination_capture_count=2 destination_snapshot=1 active=1
+[ui-ci.perf_cmd_detail] page=exit_now:frame7 type=PushClip count=1 area=19200 alpha=0 max_area=19200
+[ui-ci.perf_cmd_detail] page=exit_now:frame7 type=PopClip count=1 area=0 alpha=0 max_area=0
+[ui-ci.perf_cmd_detail] page=exit_now:frame7 type=FillRoundRect count=12 area=916376 alpha=2064 max_area=687280
+[ui-ci.perf_cmd_detail] page=exit_now:frame7 type=StrokeRoundRect count=12 area=916376 alpha=152 max_area=687280
+[ui-ci.perf_cmd_detail] page=exit_now:frame7 type=DrawImage count=4 area=2852 alpha=0 max_area=1024
+[ui-ci.perf_cmd_detail] page=exit_now:frame7 type=DrawImageRoundRect count=1 area=4489 alpha=0 max_area=4489
+[ui-ci.perf_cmd_detail] page=exit_now:frame7 type=DrawTextBox count=14 area=786856 alpha=0 max_area=687280
+[ui-ci.perf_scope_detail] page=exit_now:frame7 scope=bottom_bar id=12 cmd=7 area=210720 alpha=0
+[ui-ci.perf_scope_detail] page=exit_now:frame7 scope=default id=0 cmd=26 area=201766 alpha=0
+[ui-ci.perf_scope_detail] page=exit_now:frame7 scope=now.transition id=8 cmd=12 area=2233663 alpha=2216
+[ui-ci.perf_transition] name=exit_now frame=8 active=1 page=now frame_us=6827 tick_us=18 render_us=6809 record_us=34 execute_us=4501 present_us=700 cmd=45 alpha=2044 alpha_screen_x1000=3 flush=28 layer_bytes=4123680 composite_pixels=0
+[ui-ci.perf_transition_capture] name=exit_now capture_source_us=178 prepare_destination_us=15 capture_destination_us=23079 first_compose_us=178 defer_frames=1 destination_capture_count=2 destination_snapshot=1 active=1
+[ui-ci.perf_cmd_detail] page=exit_now:frame8 type=PushClip count=1 area=19200 alpha=0 max_area=19200
+[ui-ci.perf_cmd_detail] page=exit_now:frame8 type=PopClip count=1 area=0 alpha=0 max_area=0
+[ui-ci.perf_cmd_detail] page=exit_now:frame8 type=FillRoundRect count=12 area=901112 alpha=1892 max_area=687280
+[ui-ci.perf_cmd_detail] page=exit_now:frame8 type=StrokeRoundRect count=12 area=901112 alpha=152 max_area=687280
+[ui-ci.perf_cmd_detail] page=exit_now:frame8 type=DrawImage count=4 area=2852 alpha=0 max_area=1024
+[ui-ci.perf_cmd_detail] page=exit_now:frame8 type=DrawImageRoundRect count=1 area=3481 alpha=0 max_area=3481
+[ui-ci.perf_cmd_detail] page=exit_now:frame8 type=DrawTextBox count=14 area=785777 alpha=0 max_area=687280
+[ui-ci.perf_scope_detail] page=exit_now:frame8 scope=bottom_bar id=12 cmd=7 area=210720 alpha=0
+[ui-ci.perf_scope_detail] page=exit_now:frame8 scope=default id=0 cmd=26 area=201766 alpha=0
+[ui-ci.perf_scope_detail] page=exit_now:frame8 scope=now.transition id=8 cmd=12 area=2201048 alpha=2044
+[ui-ci.perf_transition] name=exit_now frame=9 active=1 page=now frame_us=6898 tick_us=14 render_us=6884 record_us=33 execute_us=4363 present_us=940 cmd=45 alpha=0 alpha_screen_x1000=0 flush=28 layer_bytes=4123680 composite_pixels=0
+[ui-ci.perf_transition_capture] name=exit_now capture_source_us=178 prepare_destination_us=15 capture_destination_us=23079 first_compose_us=178 defer_frames=1 destination_capture_count=2 destination_snapshot=1 active=1
+[ui-ci.perf_cmd_detail] page=exit_now:frame9 type=PushClip count=1 area=19200 alpha=0 max_area=19200
+[ui-ci.perf_cmd_detail] page=exit_now:frame9 type=PopClip count=1 area=0 alpha=0 max_area=0
+[ui-ci.perf_cmd_detail] page=exit_now:frame9 type=FillRoundRect count=12 area=891419 alpha=0 max_area=687280
+[ui-ci.perf_cmd_detail] page=exit_now:frame9 type=StrokeRoundRect count=12 area=891419 alpha=0 max_area=687280
+[ui-ci.perf_cmd_detail] page=exit_now:frame9 type=DrawImage count=4 area=2852 alpha=0 max_area=1024
+[ui-ci.perf_cmd_detail] page=exit_now:frame9 type=DrawImageRoundRect count=1 area=2916 alpha=0 max_area=2916
+[ui-ci.perf_cmd_detail] page=exit_now:frame9 type=DrawTextBox count=14 area=785265 alpha=0 max_area=687280
+[ui-ci.perf_scope_detail] page=exit_now:frame9 scope=bottom_bar id=12 cmd=7 area=210720 alpha=0
+[ui-ci.perf_scope_detail] page=exit_now:frame9 scope=default id=0 cmd=26 area=201766 alpha=0
+[ui-ci.perf_scope_detail] page=exit_now:frame9 scope=now.transition id=8 cmd=12 area=2180585 alpha=0
+[ui-ci.perf_transition] name=exit_now frame=10 active=1 page=now frame_us=6902 tick_us=14 render_us=6888 record_us=35 execute_us=4676 present_us=664 cmd=45 alpha=0 alpha_screen_x1000=0 flush=28 layer_bytes=4123680 composite_pixels=0
+[ui-ci.perf_transition_capture] name=exit_now capture_source_us=178 prepare_destination_us=15 capture_destination_us=23079 first_compose_us=178 defer_frames=1 destination_capture_count=2 destination_snapshot=1 active=1
+[ui-ci.perf_cmd_detail] page=exit_now:frame10 type=PushClip count=1 area=19200 alpha=0 max_area=19200
+[ui-ci.perf_cmd_detail] page=exit_now:frame10 type=PopClip count=1 area=0 alpha=0 max_area=0
+[ui-ci.perf_cmd_detail] page=exit_now:frame10 type=FillRoundRect count=12 area=885380 alpha=0 max_area=687280
+[ui-ci.perf_cmd_detail] page=exit_now:frame10 type=StrokeRoundRect count=12 area=885380 alpha=0 max_area=687280
+[ui-ci.perf_cmd_detail] page=exit_now:frame10 type=DrawImage count=4 area=2852 alpha=0 max_area=1024
+[ui-ci.perf_cmd_detail] page=exit_now:frame10 type=DrawImageRoundRect count=1 area=2500 alpha=0 max_area=2500
+[ui-ci.perf_cmd_detail] page=exit_now:frame10 type=DrawTextBox count=14 area=785100 alpha=0 max_area=687280
+[ui-ci.perf_scope_detail] page=exit_now:frame10 scope=bottom_bar id=12 cmd=7 area=210720 alpha=0
+[ui-ci.perf_scope_detail] page=exit_now:frame10 scope=default id=0 cmd=26 area=201766 alpha=0
+[ui-ci.perf_scope_detail] page=exit_now:frame10 scope=now.transition id=8 cmd=12 area=2167926 alpha=0
+[ui-ci.perf_transition] name=exit_now frame=11 active=1 page=now frame_us=6593 tick_us=14 render_us=6579 record_us=33 execute_us=4323 present_us=669 cmd=45 alpha=0 alpha_screen_x1000=0 flush=28 layer_bytes=4123680 composite_pixels=0
+[ui-ci.perf_transition_capture] name=exit_now capture_source_us=178 prepare_destination_us=15 capture_destination_us=23079 first_compose_us=178 defer_frames=1 destination_capture_count=2 destination_snapshot=1 active=1
+[ui-ci.perf_cmd_detail] page=exit_now:frame11 type=PushClip count=1 area=19200 alpha=0 max_area=19200
+[ui-ci.perf_cmd_detail] page=exit_now:frame11 type=PopClip count=1 area=0 alpha=0 max_area=0
+[ui-ci.perf_cmd_detail] page=exit_now:frame11 type=FillRoundRect count=12 area=882720 alpha=0 max_area=687280
+[ui-ci.perf_cmd_detail] page=exit_now:frame11 type=StrokeRoundRect count=12 area=882720 alpha=0 max_area=687280
+[ui-ci.perf_cmd_detail] page=exit_now:frame11 type=DrawImage count=4 area=2852 alpha=0 max_area=1024
+[ui-ci.perf_cmd_detail] page=exit_now:frame11 type=DrawImageRoundRect count=1 area=2401 alpha=0 max_area=2401
+[ui-ci.perf_cmd_detail] page=exit_now:frame11 type=DrawTextBox count=14 area=785066 alpha=0 max_area=687280
+[ui-ci.perf_scope_detail] page=exit_now:frame11 scope=bottom_bar id=12 cmd=7 area=210720 alpha=0
+[ui-ci.perf_scope_detail] page=exit_now:frame11 scope=default id=0 cmd=26 area=201766 alpha=0
+[ui-ci.perf_scope_detail] page=exit_now:frame11 scope=now.transition id=8 cmd=12 area=2162473 alpha=0
+[ui-ci.perf_transition] name=exit_now frame=12 active=1 page=now frame_us=6423 tick_us=11 render_us=6412 record_us=31 execute_us=4265 present_us=646 cmd=45 alpha=0 alpha_screen_x1000=0 flush=28 layer_bytes=4123680 composite_pixels=0
+[ui-ci.perf_transition_capture] name=exit_now capture_source_us=178 prepare_destination_us=15 capture_destination_us=23079 first_compose_us=178 defer_frames=1 destination_capture_count=2 destination_snapshot=1 active=1
+[ui-ci.perf_cmd_detail] page=exit_now:frame12 type=PushClip count=1 area=19200 alpha=0 max_area=19200
+[ui-ci.perf_cmd_detail] page=exit_now:frame12 type=PopClip count=1 area=0 alpha=0 max_area=0
+[ui-ci.perf_cmd_detail] page=exit_now:frame12 type=FillRoundRect count=12 area=881656 alpha=0 max_area=687280
+[ui-ci.perf_cmd_detail] page=exit_now:frame12 type=StrokeRoundRect count=12 area=881656 alpha=0 max_area=687280
+[ui-ci.perf_cmd_detail] page=exit_now:frame12 type=DrawImage count=4 area=2852 alpha=0 max_area=1024
+[ui-ci.perf_cmd_detail] page=exit_now:frame12 type=DrawImageRoundRect count=1 area=2304 alpha=0 max_area=2304
+[ui-ci.perf_cmd_detail] page=exit_now:frame12 type=DrawTextBox count=14 area=785066 alpha=0 max_area=687280
+[ui-ci.perf_scope_detail] page=exit_now:frame12 scope=bottom_bar id=12 cmd=7 area=210720 alpha=0
+[ui-ci.perf_scope_detail] page=exit_now:frame12 scope=default id=0 cmd=26 area=201766 alpha=0
+[ui-ci.perf_scope_detail] page=exit_now:frame12 scope=now.transition id=8 cmd=12 area=2160248 alpha=0
+[ui-ci.perf_transition] name=exit_now frame=13 active=0 page=home frame_us=25224 tick_us=62 render_us=25162 record_us=72 execute_us=22766 present_us=692 cmd=110 alpha=172178 alpha_screen_x1000=251 flush=65 layer_bytes=0 composite_pixels=0
+[ui-ci.perf_transition_capture] name=exit_now capture_source_us=178 prepare_destination_us=15 capture_destination_us=23079 first_compose_us=178 defer_frames=1 destination_capture_count=2 destination_snapshot=0 active=0
+[ui-ci.perf_cmd_detail] page=exit_now:frame13 type=PushClip count=5 area=755256 alpha=0 max_area=583904
+[ui-ci.perf_cmd_detail] page=exit_now:frame13 type=PopClip count=5 area=0 alpha=0 max_area=0
+[ui-ci.perf_cmd_detail] page=exit_now:frame13 type=FillRect count=1 area=583904 alpha=0 max_area=583904
+[ui-ci.perf_cmd_detail] page=exit_now:frame13 type=FillLinearGradientRect count=1 area=42560 alpha=0 max_area=42560
+[ui-ci.perf_cmd_detail] page=exit_now:frame13 type=StrokeRect count=1 area=583904 alpha=0 max_area=583904
+[ui-ci.perf_cmd_detail] page=exit_now:frame13 type=FillRoundRect count=23 area=1169004 alpha=172178 max_area=687280
+[ui-ci.perf_cmd_detail] page=exit_now:frame13 type=StrokeRoundRect count=22 area=1205168 alpha=0 max_area=687280
+[ui-ci.perf_cmd_detail] page=exit_now:frame13 type=DrawImage count=10 area=5136 alpha=0 max_area=784
+[ui-ci.perf_cmd_detail] page=exit_now:frame13 type=DrawImageRoundRect count=13 area=174840 alpha=0 max_area=75048
+[ui-ci.perf_cmd_detail] page=exit_now:frame13 type=DrawTextBox count=28 area=174006 alpha=0 max_area=38304
+[ui-ci.perf_cmd_detail] page=exit_now:frame13 type=GlyphRun count=2 area=80224 alpha=0 max_area=40112
+[ui-ci.perf_scope_detail] page=exit_now:frame13 scope=default id=0 cmd=42 area=3342934 alpha=5956
+[ui-ci.perf_scope_detail] page=exit_now:frame13 scope=home.hero id=1 cmd=7 area=106284 alpha=4128
+[ui-ci.perf_scope_detail] page=exit_now:frame13 scope=home.collage id=3 cmd=6 area=154172 alpha=0
+[ui-ci.perf_scope_detail] page=exit_now:frame13 scope=home.cards id=2 cmd=38 area=934076 alpha=162094
+[ui-ci.perf_scope_detail] page=exit_now:frame13 scope=bottom_bar id=12 cmd=18 area=236536 alpha=0
+[ui-ci.perf_transition_summary] name=exit_now frames=14 completed=1 total_frame_us=155438 total_tick_us=279 total_render_us=155159 total_record_us=474 total_execute_us=99227 total_present_us=9765 max_frame_us=36159 max_execute_us=22766 max_present_us=940 total_cmds=662 max_cmds=110 total_alpha=193761 max_alpha=172178 max_alpha_screen_x1000=251

@@ -162,6 +162,14 @@ constexpr AppRunLoadRegion kAppRunLoadRegion{
 static_assert(kAppRunLoadRegion.base == kAppRunLoadRegion.linked_elf_base,
               "dev_loader run region must match Examples/app_abi/elf_samples/app_elf.ld ELF_BASE");
 
+constexpr bool app_run_region_fits(std::uint32_t needed) noexcept {
+    return needed != 0U && needed <= kAppRunLoadRegion.size;
+}
+
+constexpr std::uint32_t app_run_region_free(std::uint32_t needed) noexcept {
+    return needed < kAppRunLoadRegion.size ? (kAppRunLoadRegion.size - needed) : 0U;
+}
+
 loader::Storage ram_storage() noexcept;
 app_abi::AppImage stage_qspi_app(Runtime& rt, std::string_view command, std::string_view spec) noexcept;
 app_abi::AppImage stage_emmc_app(Runtime& rt, std::string_view command, std::string_view spec) noexcept;
@@ -1328,6 +1336,12 @@ void print_app_status(const Runtime& rt) noexcept {
         kAppRunLoadRegion.size,
         kAppRunLoadRegion.align,
         static_cast<std::uint32_t>(kAppRunLoadRegion.linked_elf_base));
+    emit<"dev: app capacity needed={} free={} fits={} region={} probe={}\n">(
+        rt.app_probe.load_span,
+        app_run_region_free(rt.app_probe.load_span),
+        app_run_region_fits(rt.app_probe.load_span) ? 1U : 0U,
+        kAppRunLoadRegion.size,
+        app_abi::app_elf_probe_code_name(rt.app_probe.code));
     emit<"dev: app read={} bytes={}\n">(
         loader::received_image_read_code_name(rt.app_read_code),
         rt.app_read_bytes);

@@ -87,6 +87,15 @@ App ELF loading still uses the board-owned execution region selected by the
 runtime backend; cache placement must not change the `AppImage` or AppRuntime
 contract.
 
+`Examples/system/resident_elf_qemu_smoke` is the first QEMU virtual-board proof
+for the resident ELF path. It is deliberately not an H747 peripheral simulator:
+the smoke runs a Cortex-M7 firmware on QEMU `mps2-an500`, generates App ELFs
+linked to that runtime domain's run region (`0x20080000..0x20090000`), then
+loads and executes `hello_app` and `player_min` through
+`app_elf_load_image() -> AppRuntime -> CharmAppApi`. This keeps QEMU focused on
+loader/runtime/capability semantics while USB CDC, QSPI, eMMC, FMC SDRAM, and
+HAL initialization remain real-board evidence.
+
 Resident Image Platform v1 names this boundary explicitly:
 `PlatformBoot -> ResidentRuntime -> ImageSource/ImageStore -> AppImage/ProgramImage
 -> Loader -> RuntimeDomain -> AppRuntime -> Capability Table`. Runtime domains

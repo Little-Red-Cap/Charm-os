@@ -1,8 +1,9 @@
 # H747 Lab
 
 `h747-lab` is the official Charm experiment platform for the DIY STM32H747 board.
-It is an independent project entry, like `Examples/project/daplink` and
-`Examples/project/player-usb-audio`: configure and build from this directory.
+It is an independent project entry, following the same self-contained model as
+the external `Charm-dap` project and `Examples/project/player-usb-audio`.
+Configure and build it from this directory.
 
 This project does not hook itself into the repository root `CMakeLists.txt`.
 The root of this project owns its CMake entry, presets, board package, services,

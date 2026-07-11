@@ -30,14 +30,13 @@
 
 这条线更轻，适合看一个相对克制的项目化结构样例。
 
-### DAPLink
+### DAPLink（独立仓库）
 
-目录：
+DAPLink 项目已迁移到独立仓库：
 
-- `daplink/`
+- [Little-Red-Cap/Charm-dap](https://github.com/Little-Red-Cap/Charm-dap)
 
-这条线当前没有单独 README，更偏 MCU / 板级工程化路径和 CMSIS-DAP 相关实现。
-适合在你明确要看它时，直接从 `CMakeLists.txt`、`CMakePresets.json` 和 `app/` 进入。
+它继续承载 MCU / 板级工程化路径和 CMSIS-DAP 实现，不再作为 Charm 的内置项目目录。
 
 ## 建议怎么用这个目录
 
@@ -46,7 +45,7 @@
 - 想看一个更小一点的项目化示例：
   看 `scope/`
 - 想看 MCU 工程化 / DAP 工具链方向：
-  再看 `daplink/`
+  进入独立的 `Charm-dap` 仓库
 
 ## 使用提醒
 

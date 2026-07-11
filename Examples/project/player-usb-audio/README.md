@@ -4,7 +4,7 @@ This project is the current working home for the STM32G431 USB audio bring-up.
 
 Current build policy:
 
-- keep this project self-contained, like `Examples/project/daplink/`
+- keep this project self-contained, like the external `Charm-dap` project
 - keep CubeMX-generated assets under `g431/`
 - keep product entry code under `app/`
 - treat the repository root as a shared module source, not as the primary project orchestrator

@@ -168,11 +168,11 @@ SSU 已经进入 observability，而不是只停留在类型声明层。
 - SSU 规则已不只是建议
 - 至少在一个真实主线 target 上，它已经是编译事实
 
-### 样板二：`project/daplink`
+### 样板二：`Charm-dap`（原 `project/daplink`）
 
 目标：
 
-- `Examples/project/daplink`
+- 迁移前为 `Examples/project/daplink`，现为独立仓库 `Charm-dap`
 
 操作：
 
@@ -255,7 +255,7 @@ SSU 已经完成了以下跃迁：
 当前已经有三个真实 target 证明了严格模式可行：
 
 - `project/player/stn32h747_HQZY/CM7`
-- `project/daplink`
+- `Charm-dap`（原 `project/daplink`）
 - `kernel/rtos/qemu`
 
 下一步重点从“样板数量”转向“高价值 task 迁移覆盖与提交纪律落地”。

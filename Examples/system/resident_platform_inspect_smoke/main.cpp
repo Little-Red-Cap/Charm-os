@@ -3,6 +3,7 @@
 #include "charm_app_store.hpp"
 #include "charm_dev_loader_packets.hpp"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -120,6 +121,36 @@ bool mutate_manifest(const fs::path& manifest_path,
     return write_text(manifest_path, text);
 }
 
+bool mutate_first_manifest_u32(const fs::path& manifest_path,
+                               std::string_view key,
+                               std::string_view value) {
+    std::string text{};
+    if (!read_text(manifest_path, text)) {
+        return false;
+    }
+    const auto key_pos = text.find(key);
+    if (key_pos == std::string::npos) {
+        return false;
+    }
+    const auto colon_pos = text.find(':', key_pos + key.size());
+    if (colon_pos == std::string::npos) {
+        return false;
+    }
+    auto first = colon_pos + 1U;
+    while (first < text.size() && (text[first] == ' ' || text[first] == '\t')) {
+        ++first;
+    }
+    auto last = first;
+    while (last < text.size() && text[last] >= '0' && text[last] <= '9') {
+        ++last;
+    }
+    if (first == last) {
+        return false;
+    }
+    text.replace(first, last - first, value);
+    return write_text(manifest_path, text);
+}
+
 bool mutate_u32_at(const fs::path& path, std::uint32_t offset, std::uint32_t value) {
     std::vector<std::byte> bytes{};
     if (!read_file(path, bytes) || offset > bytes.size() ||
@@ -224,6 +255,10 @@ bool bad_elf_magic(const fs::path& root) {
     return write_file(root / "hello_app.elf", bytes);
 }
 
+bool elf_probe_metadata_mismatch(const fs::path& root) {
+    return mutate_first_manifest_u32(root / "artifact_manifest.json", "\"load_span\"", "271");
+}
+
 bool bad_modulex_layout(const fs::path& root) {
     constexpr std::uint32_t kBadTextSize = 0U;
     std::vector<std::byte> bytes{};
@@ -246,6 +281,17 @@ int main() {
     ok = expect(positive.ok(), "generated resident platform artifacts inspect cleanly") && ok;
     ok = expect(positive.store.entries.size() == 3U, "generated Store has three entries") && ok;
     ok = expect(positive.packetstreams.size() == 4U, "generated artifacts have four packetstreams") && ok;
+    ok = expect(std::any_of(positive.artifacts.begin(),
+                            positive.artifacts.end(),
+                            [](const inspect::ArtifactInspect& artifact) {
+                                return artifact.manifest.name == "hello_app" &&
+                                       artifact.elf.has_value() &&
+                                       artifact.elf->probe.code == app_abi::AppElfProbeCode::ok &&
+                                       artifact.elf->run_region_size == 64U * 1024U &&
+                                       artifact.elf->run_region_fits &&
+                                       artifact.manifest.elf_probe.present;
+                            }),
+                "generated ELF artifact carries matching run-region probe metadata") && ok;
 
     ok = with_fixture("bad_schema", bad_manifest_schema, "manifest_invalid_schema") && ok;
     ok = with_fixture("missing_artifact", missing_artifact, "artifact_missing") && ok;
@@ -253,6 +299,7 @@ int main() {
     ok = with_fixture("store_flags", store_flags_mismatch, "store_entry_flags_mismatch") && ok;
     ok = with_fixture("bad_packetstream", bad_packetstream_magic, "packetstream_bad_magic") && ok;
     ok = with_fixture("bad_elf", bad_elf_magic, "bad_elf_magic") && ok;
+    ok = with_fixture("elf_probe_metadata", elf_probe_metadata_mismatch, "elf_probe_metadata_mismatch") && ok;
     ok = with_fixture("bad_modulex", bad_modulex_layout, "modulex_bad_layout") && ok;
 
     if (!ok) {

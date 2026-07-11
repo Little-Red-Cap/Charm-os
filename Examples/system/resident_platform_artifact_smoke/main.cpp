@@ -154,6 +154,12 @@ bool manifest_has_number(const std::string& manifest, std::string_view key, std:
     return compact.find(token) != std::string::npos;
 }
 
+bool manifest_has_bool(const std::string& manifest, std::string_view key, bool value) {
+    const auto compact = compact_json(manifest);
+    const std::string token = "\"" + std::string{key} + "\":" + (value ? "true" : "false");
+    return compact.find(token) != std::string::npos;
+}
+
 bool storage_write(void* ctx, std::uint32_t offset, std::span<const std::byte> bytes) noexcept {
     auto* storage = static_cast<MemoryStorage*>(ctx);
     if (storage == nullptr || offset > storage->bytes.size() ||
@@ -345,6 +351,16 @@ bool verify_manifest_entry(const std::string& manifest,
                 "manifest records store flags") && ok;
     ok = expect(manifest_has_number(manifest, "packetstream_size", packetstream_size),
                 "manifest records packetstream size") && ok;
+    if (spec.format == "elf") {
+        ok = expect(manifest.find("\"elf_probe\"") != std::string::npos,
+                    "manifest records ELF probe metadata") && ok;
+        ok = expect(manifest_has_string(manifest, "code", "ok"),
+                    "manifest records ELF probe ok code") && ok;
+        ok = expect(manifest_has_number(manifest, "run_region_size", 64U * 1024U),
+                    "manifest records ELF run region size") && ok;
+        ok = expect(manifest_has_bool(manifest, "run_region_fits", true),
+                    "manifest records ELF run region fit") && ok;
+    }
     return ok;
 }
 

@@ -111,10 +111,38 @@ checks that received bytes and store-backed images both enter the same staged
 runtime adapter and keep unsupported format, missing image, and loader failure
 diagnostics on the existing `lookup/load` AppRuntime stages.
 
-`elf_samples/build_app_store.ps1` builds the current sample App ELFs and packs
-them into a development `.appstore.bin` file. That file is the host/QSPI/eMMC
-preparation artifact for this prototype stage; it is not a final product update
-bundle.
+`elf_samples/build_resident_platform_artifacts.ps1` is the preferred artifact
+entry point for the resident platform regression chain. It rebuilds the sample
+ELFs, the CM7 ModuleX sample, the mixed Store v1 image, packetstreams for each
+single image plus the mixed store, and a host-only `artifact_manifest.json` with
+size, CRC, format, Store flags, and packetstream sizes. The manifest is only a
+developer/CI evidence index; it is not written into Store v1 and is not a product
+update manifest.
+
+`Examples/system/resident_platform_inspect_tool` is the board-free doctor for
+that artifact set. Run `resident-platform-inspect
+elf_samples/out/artifact_manifest.json` after `build_resident_platform_artifacts.ps1
+-Validate` and before occupying USB, serial, QSPI, or eMMC. It verifies the
+manifest schema, artifact size/CRC, packetstream begin headers, Store v1 entries
+and flags, ELF load-probe metadata, and ModuleX v1 layout/entry/relocation
+diagnostics. `--json` emits a machine-readable summary for scripts, and
+`--strict` treats warnings as failures; neither option writes metadata into Store
+v1 or changes the product image model.
+
+`Examples/project/h747-lab/tools/capture-resident-platform-evidence-bundle.ps1`
+is the recommended one-command evidence entry for this artifact chain. Its
+default path is off-board only: regenerate artifacts, run inspect, run the
+resident platform host smokes, and build H747 `dev_loader` without opening serial,
+USB, reset, flash, QSPI, or eMMC. `-BoardMatrix` is the explicit opt-in that
+appends the existing QSPI/eMMC download+install platform matrix smoke.
+`-InstalledStoreMatrix` is the lighter persistence opt-in: it assumes the Store
+is already installed and only asks the resident runtime to list and run named
+apps from QSPI/eMMC.
+
+`elf_samples/build_app_store.ps1` remains a narrower helper that builds the
+current sample App ELFs and packs them into a development `.appstore.bin` file.
+That file is the host/QSPI/eMMC preparation artifact for this prototype stage;
+it is not a final product update bundle.
 
 `charm_app_store_install.hpp` defines the board-free install semantics for
 flash-like media. It models erase/write/read/capacity/alignment and verifies a
@@ -151,3 +179,5 @@ Current store validation entry points:
 - `Examples/system/app_abi_modulex_smoke`
 - `Examples/system/dev_loader_received_modulex_smoke`
 - `Examples/system/resident_image_platform_smoke`
+- `Examples/system/resident_platform_artifact_smoke`
+- `Examples/system/resident_platform_inspect_smoke`

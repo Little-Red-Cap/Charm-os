@@ -48,7 +48,7 @@ function New-ArtifactEntry {
 
     $bytes = [System.IO.File]::ReadAllBytes($Path)
     $packetBytes = [System.IO.File]::ReadAllBytes($PacketStreamPath)
-    [pscustomobject]@{
+    $entry = [ordered]@{
         name = $Name
         format = $Format
         path = Get-RelativePath -BasePath $OutDir -Path $Path
@@ -58,6 +58,19 @@ function New-ArtifactEntry {
         packetstream_path = Get-RelativePath -BasePath $OutDir -Path $PacketStreamPath
         packetstream_size = $packetBytes.Length
     }
+    if ($Format -eq "elf") {
+        $probe = Get-ElfProbeMetadata -Path $Path
+        $entry.elf_probe = [ordered]@{
+            code = $probe.Code
+            entry_offset = $probe.EntryOffset
+            load_span = $probe.LoadSpan
+            segment_count = $probe.SegmentCount
+            runnable = $probe.Runnable
+            run_region_size = $probe.RunRegionSize
+            run_region_fits = $probe.RunRegionFits
+        }
+    }
+    [pscustomobject]$entry
 }
 
 function Invoke-Checked {
@@ -69,6 +82,113 @@ function Invoke-Checked {
     & $FilePath @Arguments
     if ($LASTEXITCODE -ne 0) {
         throw "Command failed with exit code ${LASTEXITCODE}: $FilePath $($Arguments -join ' ')"
+    }
+}
+
+function Get-ElfProbeMetadata {
+    param([string]$Path)
+
+    $RunRegionSize = [uint32](64 * 1024)
+    $Fail = {
+        param([string]$Code)
+        return [pscustomobject]@{
+            Code = $Code
+            EntryOffset = [uint32]0
+            LoadSpan = [uint32]0
+            SegmentCount = [uint32]0
+            Runnable = $false
+            RunRegionSize = $RunRegionSize
+            RunRegionFits = $false
+        }
+    }
+
+    function ConvertFrom-HexU32 {
+        param([string]$Text)
+
+        $Trimmed = $Text.Trim()
+        if ($Trimmed.StartsWith("0x", [System.StringComparison]::OrdinalIgnoreCase)) {
+            $Trimmed = $Trimmed.Substring(2)
+        }
+        return [uint32]([Convert]::ToUInt64($Trimmed, 16))
+    }
+
+    $readelf = "${ToolchainPrefix}readelf"
+    $output = & $readelf -l $Path
+    if ($LASTEXITCODE -ne 0) {
+        return (& $Fail "bad_header")
+    }
+
+    $Entry = [uint32]0
+    foreach ($line in $output) {
+        if ($line -match 'Entry point\s+0x([0-9A-Fa-f]+)') {
+            $Entry = ConvertFrom-HexU32 -Text $Matches[1]
+            break
+        }
+    }
+    if ($Entry -eq 0) {
+        return (& $Fail "bad_header")
+    }
+
+    $MinSet = $false
+    $MinVaddr = [uint32]0
+    $MaxVaddr = [uint32]0
+    $Segments = [uint32]0
+    $EntryOk = $false
+    foreach ($line in $output) {
+        $fields = @($line.Trim() -split '\s+' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+        if ($fields.Count -lt 6 -or $fields[0] -ne "LOAD") {
+            continue
+        }
+
+        $Vaddr = ConvertFrom-HexU32 -Text $fields[2]
+        $Filesz = ConvertFrom-HexU32 -Text $fields[4]
+        $Memsz = ConvertFrom-HexU32 -Text $fields[5]
+        if ($Memsz -eq 0 -and $Filesz -eq 0) {
+            continue
+        }
+        if ($Memsz -lt $Filesz) {
+            return (& $Fail "bad_program_header")
+        }
+        if (-not $MinSet -or $Vaddr -lt $MinVaddr) {
+            $MinVaddr = $Vaddr
+            $MinSet = $true
+        }
+        $End = [uint64]$Vaddr + [uint64]$Memsz
+        if ($End -gt [uint64]4294967295) {
+            return (& $Fail "bad_program_header")
+        }
+        if ([uint32]$End -gt $MaxVaddr) {
+            $MaxVaddr = [uint32]$End
+        }
+        if ($Entry -ge $Vaddr -and $Entry -lt [uint32]$End) {
+            $EntryOk = $true
+        }
+        $Segments++
+    }
+
+    if ($Segments -eq 0 -or -not $MinSet -or $MaxVaddr -le $MinVaddr) {
+        return (& $Fail "no_load_segment")
+    }
+    $Span = [uint32]($MaxVaddr - $MinVaddr)
+    if (-not $EntryOk -or $Entry -lt $MinVaddr) {
+        return [pscustomobject]@{
+            Code = "entry_outside_segment"
+            EntryOffset = [uint32]0
+            LoadSpan = $Span
+            SegmentCount = $Segments
+            Runnable = $false
+            RunRegionSize = $RunRegionSize
+            RunRegionFits = ($Span -le $RunRegionSize)
+        }
+    }
+    return [pscustomobject]@{
+        Code = "ok"
+        EntryOffset = [uint32]($Entry - $MinVaddr)
+        LoadSpan = $Span
+        SegmentCount = $Segments
+        Runnable = $true
+        RunRegionSize = $RunRegionSize
+        RunRegionFits = ($Span -le $RunRegionSize)
     }
 }
 

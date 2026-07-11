@@ -28,6 +28,7 @@ namespace dev_loader = charm::dev_loader;
 namespace fs = std::filesystem;
 
 inline constexpr std::string_view kManifestSchema{"charm.resident_platform.artifacts.v1"};
+inline constexpr std::uint32_t kH747ElfRunRegionSize = 64U * 1024U;
 inline constexpr std::uint32_t kModuleXWireMagic = 0x43484D4DU; // "CHMM", little-endian.
 inline constexpr std::uint16_t kModuleXWireVersion = 2U;
 inline constexpr std::uint16_t kModuleXWireFlagXipText = 1U << 0U;
@@ -100,6 +101,17 @@ struct StoreManifest {
     std::uint32_t packetstream_size{0};
 };
 
+struct ElfProbeManifest {
+    bool present{false};
+    std::string code{};
+    std::uint32_t entry_offset{0};
+    std::uint32_t load_span{0};
+    std::uint32_t segment_count{0};
+    bool runnable{false};
+    std::uint32_t run_region_size{0};
+    bool run_region_fits{false};
+};
+
 struct ArtifactManifest {
     std::string name{};
     std::string format{};
@@ -109,6 +121,7 @@ struct ArtifactManifest {
     std::uint32_t store_flags{0};
     std::string packetstream_path{};
     std::uint32_t packetstream_size{0};
+    ElfProbeManifest elf_probe{};
 };
 
 struct Manifest {
@@ -144,6 +157,8 @@ struct StoreInspect {
 struct ElfInspect {
     std::string name{};
     app_abi::AppElfProbeResult probe{};
+    std::uint32_t run_region_size{kH747ElfRunRegionSize};
+    bool run_region_fits{false};
 };
 
 struct ModuleXInspect {
@@ -385,6 +400,21 @@ inline void add_warning(InspectSummary& summary,
     return static_cast<std::uint32_t>(value);
 }
 
+[[nodiscard]] inline std::optional<bool> json_bool_field(std::string_view object,
+                                                         std::string_view key) {
+    const auto pos = find_key_value(object, key);
+    if (!pos || *pos >= object.size()) {
+        return std::nullopt;
+    }
+    if (object.substr(*pos, 4U) == "true") {
+        return true;
+    }
+    if (object.substr(*pos, 5U) == "false") {
+        return false;
+    }
+    return std::nullopt;
+}
+
 [[nodiscard]] inline std::optional<std::uint32_t> parse_crc(std::string_view text) {
     if (text.size() < 3U || text[0] != '0' || (text[1] != 'x' && text[1] != 'X')) {
         return std::nullopt;
@@ -499,6 +529,32 @@ inline void add_warning(InspectSummary& summary,
     return true;
 }
 
+[[nodiscard]] inline bool parse_elf_probe_manifest(std::string_view object,
+                                                   ElfProbeManifest& out) {
+    const auto code = json_string_field(object, "code");
+    const auto entry_offset = json_u32_field(object, "entry_offset");
+    const auto load_span = json_u32_field(object, "load_span");
+    const auto segment_count = json_u32_field(object, "segment_count");
+    const auto runnable = json_bool_field(object, "runnable");
+    const auto run_region_size = json_u32_field(object, "run_region_size");
+    const auto run_region_fits = json_bool_field(object, "run_region_fits");
+    if (!code || !entry_offset || !load_span || !segment_count || !runnable ||
+        !run_region_size || !run_region_fits) {
+        return false;
+    }
+    out = ElfProbeManifest{
+        .present = true,
+        .code = *code,
+        .entry_offset = *entry_offset,
+        .load_span = *load_span,
+        .segment_count = *segment_count,
+        .runnable = *runnable,
+        .run_region_size = *run_region_size,
+        .run_region_fits = *run_region_fits,
+    };
+    return true;
+}
+
 [[nodiscard]] inline bool parse_artifact_manifest(std::string_view object, ArtifactManifest& out) {
     const auto name = json_string_field(object, "name");
     const auto format = json_string_field(object, "format");
@@ -526,6 +582,11 @@ inline void add_warning(InspectSummary& summary,
         .packetstream_path = *packetstream_path,
         .packetstream_size = *packetstream_size,
     };
+    if (const auto elf_probe = json_object_field(object, "elf_probe")) {
+        if (!parse_elf_probe_manifest(*elf_probe, out.elf_probe)) {
+            return false;
+        }
+    }
     return true;
 }
 
@@ -632,6 +693,18 @@ inline void inspect_manifest_artifact_shape(InspectSummary& summary,
         add_warning(summary,
                     "manifest_reserved_store_flags",
                     "artifact " + artifact.name + " uses reserved Store flags");
+    }
+    if (*format == app_abi::AppImageFormat::elf) {
+        if (artifact.elf_probe.present && artifact.elf_probe.run_region_size != kH747ElfRunRegionSize) {
+            add_error(summary,
+                      "manifest_elf_probe_mismatch",
+                      "artifact " + artifact.name + " uses unexpected ELF run region size " +
+                          std::to_string(artifact.elf_probe.run_region_size));
+        }
+    } else if (artifact.elf_probe.present) {
+        add_error(summary,
+                  "manifest_elf_probe_mismatch",
+                  "non-ELF artifact " + artifact.name + " must not carry elf_probe metadata");
     }
 }
 
@@ -959,9 +1032,12 @@ inline void inspect_elf(InspectSummary& summary,
         .size = load_buffer.size(),
         .align = 4U,
     };
+    const auto probe = app_abi::app_elf_probe_load(image, buffer);
     ElfInspect info{
         .name = artifact.name,
-        .probe = app_abi::app_elf_probe_load(image, buffer),
+        .probe = probe,
+        .run_region_size = kH747ElfRunRegionSize,
+        .run_region_fits = probe.load_span != 0U && probe.load_span <= kH747ElfRunRegionSize,
     };
     if (info.probe.code != app_abi::AppElfProbeCode::ok) {
         const auto category = info.probe.code == app_abi::AppElfProbeCode::bad_magic
@@ -971,6 +1047,23 @@ inline void inspect_elf(InspectSummary& summary,
                   category,
                   "ELF probe failed for " + artifact.name + ": " +
                       to_string(app_abi::app_elf_probe_code_name(info.probe.code)));
+    }
+    if (!artifact.elf_probe.present) {
+        add_warning(summary,
+                    "elf_probe_metadata_missing",
+                    "ELF artifact has no manifest probe metadata: " + artifact.name);
+    } else {
+        const auto actual_code = to_string(app_abi::app_elf_probe_code_name(info.probe.code));
+        if (artifact.elf_probe.code != actual_code ||
+            artifact.elf_probe.entry_offset != info.probe.entry_offset ||
+            artifact.elf_probe.load_span != info.probe.load_span ||
+            artifact.elf_probe.segment_count != info.probe.segment_count ||
+            artifact.elf_probe.runnable != info.probe.runnable ||
+            artifact.elf_probe.run_region_fits != info.run_region_fits) {
+            add_error(summary,
+                      "elf_probe_metadata_mismatch",
+                      "ELF manifest probe metadata does not match actual probe: " + artifact.name);
+        }
     }
     artifact_info.elf = info;
 }
@@ -1236,13 +1329,15 @@ inline void print_human(const InspectSummary& summary, std::FILE* out, bool stri
         if (artifact.elf) {
             const auto& elf = *artifact.elf;
             std::fprintf(out,
-                         "elf %s code=%s entry_offset=%u load_span=%u segment_count=%u runnable=%u\n",
+                         "elf %s code=%s entry_offset=%u load_span=%u segment_count=%u runnable=%u run_region=%u run_region_fits=%u\n",
                          elf.name.c_str(),
                          to_string(app_abi::app_elf_probe_code_name(elf.probe.code)).c_str(),
                          elf.probe.entry_offset,
                          elf.probe.load_span,
                          elf.probe.segment_count,
-                         elf.probe.runnable ? 1U : 0U);
+                         elf.probe.runnable ? 1U : 0U,
+                         elf.run_region_size,
+                         elf.run_region_fits ? 1U : 0U);
         }
         if (artifact.modulex) {
             const auto& modulex = *artifact.modulex;
@@ -1297,9 +1392,22 @@ inline void print_json(const InspectSummary& summary, std::FILE* out, bool stric
     for (std::size_t i = 0; i < summary.artifacts.size(); ++i) {
         const auto& artifact = summary.artifacts[i];
         std::fprintf(out,
-                     "    {\"name\": \"%s\", \"format\": \"%s\"}",
+                     "    {\"name\": \"%s\", \"format\": \"%s\"",
                      json_escape(artifact.manifest.name).c_str(),
                      json_escape(artifact.manifest.format).c_str());
+        if (artifact.elf) {
+            const auto& elf = *artifact.elf;
+            std::fprintf(out,
+                         ", \"elf\": {\"code\": \"%s\", \"entry_offset\": %u, \"load_span\": %u, \"segment_count\": %u, \"runnable\": %s, \"run_region_size\": %u, \"run_region_fits\": %s}",
+                         json_escape(to_string(app_abi::app_elf_probe_code_name(elf.probe.code))).c_str(),
+                         elf.probe.entry_offset,
+                         elf.probe.load_span,
+                         elf.probe.segment_count,
+                         elf.probe.runnable ? "true" : "false",
+                         elf.run_region_size,
+                         elf.run_region_fits ? "true" : "false");
+        }
+        std::fprintf(out, "}");
         if (i + 1U != summary.artifacts.size()) {
             std::fprintf(out, ",");
         }

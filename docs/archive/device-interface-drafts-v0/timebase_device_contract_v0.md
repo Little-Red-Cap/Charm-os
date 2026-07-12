@@ -301,11 +301,9 @@ Timebase proposed contract 未来至少需要能投影下面 facts：
 
 ### 8.4 Board Bringup Evidence
 
-已有：
-
-- `docs/board/rk3506/generic_timer_irq_smoke.md`
-
-这证明真板 generic timer IRQ 路径有 bringup evidence。
+RK3506 target 当前实现了一次性 generic timer IRQ smoke；实现边界见
+[`../../../targets/rk3506/README.md`](../../../targets/rk3506/README.md)。该实现本身
+不是实板通过证据。
 
 它不等价于公共 Timebase contract admitted evidence。
 

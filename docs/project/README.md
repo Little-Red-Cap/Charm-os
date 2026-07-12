@@ -17,16 +17,17 @@
 
 先读：
 
+- [`../../AGENTS.md`](../../AGENTS.md)
 - [`standards/README.md`](standards/README.md)
-- [`standards/项目C++编码要求.md`](standards/项目C++编码要求.md)
-- [`standards/project_conventions.md`](standards/project_conventions.md)
+- [`../agent/routes/codegen.md`](../agent/routes/codegen.md) 或
+  [`../agent/routes/review.md`](../agent/routes/review.md)
 
 ### 我要看协作约定
 
 先读：
 
-- [`collaboration/《协作期待与规范》.md`](collaboration/《协作期待与规范》.md)
-- AI / Agent 相关入口仍在 [`../agent/README.md`](../agent/README.md)
+- [`../agent/rules/collaboration.md`](../agent/rules/collaboration.md)
+- 完整 Agent 入口：[`../agent/README.md`](../agent/README.md)
 
 ### 我要看当前推进状态、认领和 backlog
 

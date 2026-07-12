@@ -15,7 +15,11 @@
 - [`charm_methodology_charter.md`](charm_methodology_charter.md)
 - [`charm_spine_v0.md`](charm_spine_v0.md)
 - [`rte_capability_composition_contract_v0.md`](rte_capability_composition_contract_v0.md)
+- [`rte_to_h747_platform_roadmap.md`](rte_to_h747_platform_roadmap.md)
 - [`tdesktop_mechanism_lessons_for_charm.md`](tdesktop_mechanism_lessons_for_charm.md)
 
 Telegram Desktop 案例中的 lifetime、execution domain、style/schema/storage law 仍可作为设计反例和
 候选机制来源，但其中的 P0-P3 排期及 Charm 机制映射从未成为现行 roadmap。
+
+RTE/H747 路线归档保留旧 Display + Player 压力切片、五阶段排期和 host smoke
+inventory；这些内容不代表当前 H747 target、Player 结构或 Core 准入状态。

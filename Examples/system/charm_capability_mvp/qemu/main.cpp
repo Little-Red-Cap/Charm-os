@@ -218,37 +218,103 @@ namespace {
         return true;
     }
 
-    bool missing_case() noexcept {
-        QemuFixture fixture{};
-        const std::array bindings{
-            fixture.bindings[0],
-            fixture.bindings[1],
-        };
-        const auto resolved = resolve(app::requirements, ProfileView{fixture.provisions, bindings});
+    bool expect_prestart_failure(const std::string_view label,
+                                 const ResolutionResult& resolved,
+                                 const ResolutionFailure expected,
+                                 const std::size_t expected_index) noexcept {
         std::size_t app_start_count = 0;
         if (resolved.is_ok()) {
             ++app_start_count;
             (void)app::run(resolved.context);
         }
-        if (resolved.failure != ResolutionFailure::missing_binding ||
-            resolved.requirement_index != 2U || app_start_count != 0U) {
-            write_failure("missing_case");
+        if (resolved.failure != expected ||
+            resolved.requirement_index != expected_index ||
+            resolved.context.valid() || app_start_count != 0U) {
+            write_failure(label);
             return false;
         }
 
-        CmsdkUart::write("[charm-capability-mvp-qemu] missing=");
+        CmsdkUart::write("[charm-capability-mvp-qemu] ");
+        CmsdkUart::write(label);
+        CmsdkUart::write("=");
         CmsdkUart::write(resolution_failure_name(resolved.failure));
         CmsdkUart::write(" start_count=");
         CmsdkUart::write_decimal(app_start_count);
         CmsdkUart::write("\n");
         return true;
     }
+
+    bool missing_case() noexcept {
+        QemuFixture fixture{};
+        const std::array bindings{
+            fixture.bindings[0],
+            fixture.bindings[1],
+        };
+        return expect_prestart_failure(
+            "missing",
+            resolve(app::requirements, ProfileView{fixture.provisions, bindings}),
+            ResolutionFailure::missing_binding,
+            2U);
+    }
+
+    bool duplicate_case() noexcept {
+        QemuFixture fixture{};
+        const std::array bindings{
+            fixture.bindings[0],
+            fixture.bindings[1],
+            fixture.bindings[1],
+            fixture.bindings[2],
+        };
+        return expect_prestart_failure(
+            "duplicate",
+            resolve(app::requirements, ProfileView{fixture.provisions, bindings}),
+            ResolutionFailure::duplicate_binding,
+            1U);
+    }
+
+    bool invalid_index_case() noexcept {
+        QemuFixture fixture{};
+        auto bindings = fixture.bindings;
+        bindings[2].provision_index = fixture.provisions.size();
+        return expect_prestart_failure(
+            "invalid_index",
+            resolve(app::requirements, ProfileView{fixture.provisions, bindings}),
+            ResolutionFailure::invalid_provision_index,
+            2U);
+    }
+
+    bool mismatch_case() noexcept {
+        QemuFixture fixture{};
+        auto bindings = fixture.bindings;
+        bindings[2].provision_index = 1U;
+        return expect_prestart_failure(
+            "mismatch",
+            resolve(app::requirements, ProfileView{fixture.provisions, bindings}),
+            ResolutionFailure::contract_mismatch,
+            2U);
+    }
+
+    bool invalid_provision_case() noexcept {
+        QemuFixture fixture{};
+        auto provisions = fixture.provisions;
+        provisions[1] = Provision{ContractId::clock, nullptr, nullptr, nullptr};
+        return expect_prestart_failure(
+            "invalid",
+            resolve(app::requirements, ProfileView{provisions, fixture.bindings}),
+            ResolutionFailure::invalid_provision,
+            1U);
+    }
 }
 
 extern "C" int charm_capability_mvp_qemu_main() noexcept {
     const bool positive_ok = positive_case();
     const bool missing_ok = missing_case();
-    if (positive_ok && missing_ok) {
+    const bool duplicate_ok = duplicate_case();
+    const bool invalid_index_ok = invalid_index_case();
+    const bool mismatch_ok = mismatch_case();
+    const bool invalid_provision_ok = invalid_provision_case();
+    if (positive_ok && missing_ok && duplicate_ok && invalid_index_ok &&
+        mismatch_ok && invalid_provision_ok) {
         CmsdkUart::write("[charm-capability-mvp-qemu] ok\n");
         return 0;
     }

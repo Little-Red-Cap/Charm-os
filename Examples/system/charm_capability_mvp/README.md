@@ -40,6 +40,8 @@ The QEMU slice builds a Cortex-M7 firmware and runs it inside QEMU `mps2-an500`.
 It consumes the same `mvp_app.hpp`, contract definitions, and resolver as Host;
 only the Profile and providers change. It produces the same timestamp and record
 checksum and proves a missing binding stops before App start inside the firmware.
+The QEMU firmware also checks duplicate, invalid-index, contract-mismatch, and
+invalid-provision results, with every failure retaining `start_count=0`.
 
 Current Host evidence passes with Clang 18.1.6 and GCC 16.1.0. The same Host
 CTest set also passes a Clang 18 Release build with AddressSanitizer and

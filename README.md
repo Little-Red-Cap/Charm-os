@@ -1,159 +1,81 @@
-<div align="center">
+# Charm
 
-# ✨ Charm ✨
+> **Charm 是一个能力导向的嵌入式应用平台。**
 
-**C++26 Modules · Capability Graph · Non-blocking IO · Evidence-first Bring-up**
+应用描述行为，并只通过 Capability Contract 声明对运行环境的要求；具体实现、平台和
+操作系统由组合关系与外部承载层决定。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=flat-square)](LICENSE)
 [![C++26](https://img.shields.io/badge/C%2B%2B-26-blue.svg?style=flat-square)](https://en.cppreference.com/w/cpp)
-<br>
 [![Clang Build Status](https://github.com/Little-Red-Cap/Charm-os/actions/workflows/build-clang.yml/badge.svg)](https://github.com/Little-Red-Cap/Charm-os/actions)
 [![ARM Build Status](https://github.com/Little-Red-Cap/Charm-os/actions/workflows/build-arm-none-eabi.yml/badge.svg)](https://github.com/Little-Red-Cap/Charm-os/actions)
 
-</div>
+## Charm 与普通嵌入式框架的差异
 
-Charm 不是单一 demo、单一板级工程，也不是只围绕某一个子系统展开的仓库。
+Charm 不以 HAL 数量、驱动数量、支持的 RTOS 或目录规模定义自己。它首先保护应用依赖的
+行为契约，再把具体实现作为可替换的组合选择。
 
-它更像一个**多战线母仓**：
+因此，Linux、RTOS、裸机、Host、QEMU 和真实板都可以承载 Charm 应用，但它们都不是 Charm
+本身。未来可以形成独立的 Charm OS 发行物，它也不能反向定义 Charm Core。
 
-- 一边在探索“嵌入式系统如何被更清楚地解释、举证和组织”
-- 一边用真实项目压力逼共享能力收敛
-- 一边把能力压到板级 / SoC / runtime 证据链上做落地验证
+## 三个核心问题
 
-如果你三个月后再回来看，最先该恢复的不是某个模块细节，而是：
+1. **应用需要什么行为？** `Requirement` 指向 `Capability Contract`。
+2. **运行环境能提供什么行为？** `Provision` 指向同一 `Capability Contract`。
+3. **这次组合由谁满足谁？** `Binding` 关联 Requirement 与 Provision，并在应用启动前解析。
 
-1. 现在活着哪些战线
-2. 它们各自为什么存在
-3. 谁在驱动谁
-4. 你这次该从哪里继续
+`Provider` 只是 Provision 关系中的角色，`Interface` 只是 Contract 的一种投影，
+`Backend`、`Driver`、`Compiler`、`Graph`、`Loader` 和 Resident ELF 都是实现或工具，
+不自动获得 Core 身份。
 
-## 从这里开始
+## 当前首先要证明什么
 
-- 仓库治理与战线状态：
-  - [`docs/repo_governance.md`](docs/repo_governance.md)
-- 当前战线浅索引：
-  - [`docs/current_tracks_index.md`](docs/current_tracks_index.md)
-- 文档总路由：
-  - [`docs/README.md`](docs/README.md)
+Charm MVP 只验证一句话：
 
-## 如果你想理解什么
+> **同一应用源码无需描述目标平台，只声明所需 Capability Contract。**
 
-### 我想先理解 Charm 的共同语义面
+最小应用只依赖 `TextSink`、`Clock`、`BlockDevice`，并以同一源码运行于 Host、QEMU 和一块
+真实板。三个环境只能更换 Profile、Binding 和具体实现；缺少 required capability 时，
+必须在应用启动前稳定失败。
 
-按这个顺序读：
+完整验收见 [`docs/architecture/charm_core_contract.md`](docs/architecture/charm_core_contract.md)。
 
-1. [`docs/overview.md`](docs/overview.md)
-2. [`docs/architecture_overview.md`](docs/architecture_overview.md)
-3. [`docs/capability_map.md`](docs/capability_map.md)
-4. [`docs/system/init_graph_contract.md`](docs/system/init_graph_contract.md)
+## 当前已经做到
 
-你会看到的关键词是：
+- 仓库已有 Host、QEMU 和真实板的独立运行与证据链。
+- 已有 IO、装配、运行时、板级和 Resident ELF 等实现，可作为 Core 审判与 MVP 复用材料。
+- 已有多个真实项目持续验证代码能否离开单一宿主或单一板卡。
 
-- `Capability`
-- `init.graph`
-- `Channel / Reactor / Registry`
-- 共享能力底座 `substrate`
+这些事实证明仓库有可用技术积累，但还没有自动证明 Charm MVP，也不批准任何既有名词进入 Core。
 
-### 我想看当前的方法论探索
+## 当前尚未做到
 
-按这个顺序读：
+- 尚未用同一份最小应用和 Requirement 声明完成 Host、QEMU、真实板三环境硬验收。
+- 尚未完成全仓术语审计、唯一术语表与统一路线图。
+- Project 外移、目录重整、C/C++ 规范合并和 CMake 收敛尚未开始。
+- Charm 不是完整 OS，也没有承诺进程隔离、生产级驱动生态或自动 Binding Compiler。
 
-1. [`docs/architecture/system_compiler_roadmap.md`](docs/architecture/system_compiler_roadmap.md)
-2. [`docs/architecture/system_compiler_vocabulary_v0.md`](docs/architecture/system_compiler_vocabulary_v0.md)
-3. [`docs/system/artifact_report_v0.md`](docs/system/artifact_report_v0.md)
-4. [`docs/system/explain_surface_v0.md`](docs/system/explain_surface_v0.md)
+## 阅读顺序
 
-这条线当前的标签是：
+1. [`CONSTITUTION.md`](CONSTITUTION.md)：什么有资格进入 Charm Core。
+2. [`docs/architecture/charm_core_contract.md`](docs/architecture/charm_core_contract.md)：定位、最小关系、MVP 与 OS 边界。
+3. [`docs/README.md`](docs/README.md)：canonical、supporting、exploration 和 archive 的文档路由。
+4. [`AGENTS.md`](AGENTS.md)：仓库协作与操作规则。
 
-- `track_kind`: `theory`
-- `track_status`: `exploring`
+当前实现盘点和停线前战线记录仍可从以下 supporting 文档进入：
 
-它是当前最重要的方法论尝试，但不是被神化的终局。
-
-### 我想看真实项目如何逼仓库收敛
-
-按这个顺序读：
-
-1. [`Examples/project/player/README.md`](Examples/project/player/README.md)
-2. [`Examples/project/player/ARCHITECTURE_CONVERGENCE.md`](Examples/project/player/ARCHITECTURE_CONVERGENCE.md)
-3. [`docs/ui/README.md`](docs/ui/README.md)
-
-这条线当前的标签是：
-
-- `track_kind`: `pressure`
-- `track_status`: `active`
-
-`Player` 不是噪音示例，而是当前最强真实压力线之一。
-
-### 我想看板级 / SoC / runtime 证据落地
-
-按这个顺序读：
-
-1. [`docs/system/minimal_kernel_runtime_evidence_bundle_contract.md`](docs/system/minimal_kernel_runtime_evidence_bundle_contract.md)
-2. [`docs/system/minimal_kernel_host_smoke_bundle_contract.md`](docs/system/minimal_kernel_host_smoke_bundle_contract.md)
-3. [`targets/rk3506/README.md`](targets/rk3506/README.md)
-4. [`docs/board/rk3506/README.md`](docs/board/rk3506/README.md)
-
-这条线当前的标签是：
-
-- `track_kind`: `landing`
-- `track_status`: `active`
-
-`minimal-kernel evidence` 不是单独宇宙，而是连接方法论与落地线的验证轨。
-
-### 我想进入维护态子系统
-
-按这个顺序读：
-
-1. [`docs/system/posix_support_overview.md`](docs/system/posix_support_overview.md)
-2. [`docs/system/posix_maintenance_mode_collaboration.md`](docs/system/posix_maintenance_mode_collaboration.md)
-
-这条线当前的标签是：
-
-- `track_kind`: `maintenance`
-- `track_status`: `maintained`
-
-`POSIX v0` 已收口，不再是默认扩张前线。
-
-## 当前仓库怎么理解最安全
-
-- `system compiler`：当前最重要的方法论尝试
-- `Player + Vivid`：真实需求压力线
-- `RK3506 + minimal-kernel landing`：板级 / SoC / runtime 落地线
-- `POSIX v0`：维护线
-- `Modules/core/init/io/system/platform`：共享底座 `substrate`
-
-这几条线可以互相施压，但不能互相偷换定义。
-
-## 构建入口
-
-当前建议优先使用 CMake Presets，而不是手写本地构建目录。
-
-- 主机调试：`cmake --preset host-debug`
-- 主机构建：`cmake --build --preset host-debug`
-- 主机 GCC16 调试：`cmake --preset host-gcc16`
-- 主机 GCC16 构建：`cmake --build --preset host-gcc16`
-  默认关闭 `WinSock` 后端，优先作为 GCC16 / C++26 模块与语义实编入口
-- RK3506 最小镜像：`cmake --preset rk3506-baremetal-image-uart0-minimal-debug`
-- RK3506 最小镜像构建：`cmake --build --preset rk3506-baremetal-image-uart0-minimal-debug`
-
-更细的脚本 / workflow / 示例入口，请回到：
-
+- [`docs/overview.md`](docs/overview.md)
+- [`docs/architecture_overview.md`](docs/architecture_overview.md)
+- [`docs/repo_governance.md`](docs/repo_governance.md)
 - [`docs/current_tracks_index.md`](docs/current_tracks_index.md)
 
-## 协作入口
+它们不能覆盖 Constitution 或核心契约。
 
-- 仓库第一跳约定：
-  - [`AGENTS.md`](AGENTS.md)
-- Agent 第二跳任务卡片：
-  - [`docs/agent/routes/README.md`](docs/agent/routes/README.md)
-- 文档维护：
-  - [`docs/documentation_maintenance.md`](docs/documentation_maintenance.md)
+## 当前停线规则
 
-## 不要怎么读
+在核心审计完成前，默认暂停新增核心概念、公共 API、顶层目录、架构主线和大规模 CMake
+能力。现有功能允许修复、闭环和提供证据；任何新名词必须先通过 Constitution 的六问裁决。
 
-- 不要先把 `docs/` 当成“按文件名漫游”的资料堆。
-- 不要把任意一条活跃战线误读成仓库唯一主角。
-- 不要把 `Player` 当普通示例区。
-- 不要把 `system compiler` 当已经冻结的最终理论。
-- 不要把维护态材料重新当成默认前线入口。
+构建和专题入口继续从 [`docs/project/README.md`](docs/project/README.md) 与
+[`docs/agent/routes/README.md`](docs/agent/routes/README.md) 按任务进入，现有构建与证据流程不因
+本轮文档收敛而改变。

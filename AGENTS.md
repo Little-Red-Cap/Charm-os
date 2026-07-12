@@ -17,23 +17,43 @@
 - 本仓库本地构建目录统一使用 `cmake-build-*` 命名。
 - `cmake-build-*` 已加入 Git 忽略规则，可放心用于临时构建与验证。
 
-## 文档信任顺序
+## 当前停线规则
 
-在 Charm 仓库里，默认按下面的优先级判断“什么更可信”：
+Charm 当前处于核心收敛阶段。除非用户明确批准，否则暂停：
 
-1. 根目录 `AGENTS.md`
-2. 相关目录的 `README.md` 与 `docs/README.md`
-3. `*_contract.md` / `*_overview.md`
-4. `*_plan.md` / `*_roadmap.md` / `*_draft.md` / `*_review.md` / `*_v0.md`
-5. `reference/*` / `generated/*`
+- 新增核心概念或 canonical 术语；
+- 新增公共 API 或公共 Core 类型；
+- 新增顶层目录或架构主线；
+- 大规模 CMake 能力扩张或目录迁移。
+
+任何拟进入 canonical 文档或公共 Core 代码的新名词，必须先通过根目录
+[`CONSTITUTION.md`](CONSTITUTION.md) 的六问审查并获得明确裁决。现有名词没有祖父条款。
+
+## 权威与文档信任顺序
+
+`AGENTS.md` 只负责 Agent 的操作与协作规则。涉及 Charm 的身份、Core 准入和核心语义时，
+默认按下面的优先级判断：
+
+1. 根目录 `CONSTITUTION.md`
+2. `docs/architecture/charm_core_contract.md`
+3. 根目录 `README.md`、`docs/README.md` 与相关目录的 `README.md`
+4. 已标为 supporting 的专题 `*_contract.md` / `*_overview.md`，仅在各自范围内有效
+5. 标为 exploration 的 `*_plan.md` / `*_roadmap.md` / `*_draft.md` / `*_review.md` / `*_v0.md`
+6. `reference/*` / `generated/*` / `archive/*`
 
 补充：
 
 - 如果子目录下存在更深层的 `AGENTS.md`，则由更深层文件覆盖对应范围内的约定。
 - 不要把 `reference/*` 或第三方对照材料误当成当前契约入口。
+- supporting 契约可以约束局部实现，但不能反向定义 Charm Core。
+- 文件名包含 `contract` 不自动获得 canonical 身份；文档状态和上位裁决优先。
 
 ## 当前仓库特别提醒
 
+- Charm 的正式定位和 MVP 以 `CONSTITUTION.md` 与
+  `docs/architecture/charm_core_contract.md` 为准。
+- `docs/repo_governance.md`、`docs/current_tracks_index.md` 记录停线前的多战线状态，
+  当前只作为 supporting snapshot，不是核心身份入口。
 - `docs/reference/vsf/*` 主要保留为早期历史参考，不是当前主路线入口。
 - `docs/system/minimal_kernel_task_syscall_frame_contract.md` 当前存在历史编码损坏，待恢复，不作为首选入口。
 - 如果当前在看 minimal-kernel runtime 总证据链 / 上半层 + 下半层合并验收，优先读：

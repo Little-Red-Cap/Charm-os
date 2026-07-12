@@ -1,31 +1,32 @@
-# 架构文档入口
+# Charm 架构文档入口
 
-本目录收纳 Charm 的依赖红线、驱动模型、signal/state、能力回收，以及 system compiler 相关材料。
+本目录同时包含 canonical 核心契约、supporting 专题契约和 exploration 材料。它们不再因为
+位于同一目录而拥有相同权威。
 
-如果你是第一次进入仓库，先读：
+Charm 的正式定位是：
 
-1. [`../overview.md`](../overview.md)
-2. [`../architecture_overview.md`](../architecture_overview.md)
-3. [`../README.md`](../README.md)
+> **Charm 是一个能力导向的嵌入式应用平台。**
 
-再回到这里按主题进入。
+## 第一入口
 
-## 先怎么理解这个目录
+1. [`../../CONSTITUTION.md`](../../CONSTITUTION.md)
+2. [`charm_core_contract.md`](charm_core_contract.md)
+3. [`../../README.md`](../../README.md)
+4. [`../README.md`](../README.md)
 
-- `*_contract.md`
-  优先视为现行规则或当前阶段最值得先遵守的边界。
-- `*_overview.md`
-  优先视为主题入口或草案总览。
-- `*_roadmap.md`
-  优先视为中长期方向和推进主轴。
-- `*_v0.md`
-  优先视为阶段性词汇、原语或阶段收口快照。
+Constitution 负责 Core 准入，核心契约负责最小关系和 MVP。其它架构文档只能在这两者给出的
+边界内解释局部问题。
 
-## 按主题进入
+## Canonical
 
-### 我想看依赖红线和分层边界
+- [`charm_core_contract.md`](charm_core_contract.md)
 
-先读：
+本目录当前只有这一份 canonical 核心契约。新增 canonical 文档或术语前，必须通过 Constitution
+的六问审查；已有文件名和历史使用量不构成准入证据。
+
+## Supporting
+
+### 依赖、入口与局部公共边界
 
 - [`dependency_contract.md`](dependency_contract.md)
 - [`entry_surface_contract.md`](entry_surface_contract.md)
@@ -33,129 +34,66 @@
 - [`dependency_whitelist.md`](dependency_whitelist.md)
 - [`legacy_runtime_facade_retirement_contract.md`](legacy_runtime_facade_retirement_contract.md)
 
-如果问题具体是 `charm.foundation` / `charm.runtime` / `charm.domain` 是否还能作为入口，优先以
-[`entry_surface_contract.md`](entry_surface_contract.md) 为准；`dependency_whitelist.md` 只描述 opt-in 构建检查。
-如果问题是 `charm.core` / `charm.system` / `charm.ui.vivid` 这类稳定入口为什么可以宽，
-优先看 [`stable_entry_aggregate_contract.md`](stable_entry_aggregate_contract.md)。
+这些文件描述当前代码的依赖和入口约束，不定义 Charm Core 身份。
 
-### 我想看驱动模型和设备模型
-
-先读：
+### Driver、device 与 interface 证据
 
 - [`driver_model.md`](driver_model.md)
-- [`interface_admission_policy.md`](interface_admission_policy.md)（公共接口进入契约层前的证据门槛）
-- [`device_contract_narrow_waist_v0.md`](device_contract_narrow_waist_v0.md)（面向驱动生态的最小共同语言）
-- [`device_model_overview.md`](device_model_overview.md)（偏动态 discovery 平面快照与补充说明）
-
-### 我想看公共接口契约 / 驱动生态窄腰
-
-建议顺序：
-
-1. [`driver_model.md`](driver_model.md)
-2. [`interface_admission_policy.md`](interface_admission_policy.md)
-3. [`device_contract_narrow_waist_v0.md`](device_contract_narrow_waist_v0.md)
-4. [`i2c_device_contract_v0.md`](i2c_device_contract_v0.md)
-5. [`system_compiler_vocabulary_v0.md`](system_compiler_vocabulary_v0.md)
-
-当前第一条实验窄链：
-
+- [`interface_admission_policy.md`](interface_admission_policy.md)
+- [`device_contract_narrow_waist_v0.md`](device_contract_narrow_waist_v0.md)
+- [`device_model_overview.md`](device_model_overview.md)
 - [`i2c_device_contract_v0.md`](i2c_device_contract_v0.md)
-- `Modules/io/device/io.device_i2c.cppm`
-- `Modules/io/device/io.device_i2c_facts.cppm`
-- `Modules/io/device/io.device_i2c_mock.cppm`
-- `Modules/io/device/io.device_i2c_hal.cppm`
-- `Modules/io/driver/driver.i2c_register_device.cppm`
-- `Examples/io/i2c_contract_mock_smoke`
-- `Examples/io/i2c_facts_smoke`
-- `Examples/io/i2c_hal_adapter_smoke`
-- `Examples/io/i2c_register_driver_smoke`
 
-### 我想看 signal / state 这条线
+Driver 和 Backend 已被裁决为 `Implementation / Tool`。这些文档可约束其实现范围，但不能把
+Driver、Provider 基类或 device graph 提升为 Core 原语。
 
-建议顺序：
+### Signal、state 与能力回收
 
-1. [`signal_state_contract_v0.md`](signal_state_contract_v0.md)
-2. [`signal_state_v0.md`](signal_state_v0.md)
+- [`signal_state_contract_v0.md`](signal_state_contract_v0.md)
+- [`signal_state_v0.md`](signal_state_v0.md)
+- [`capability_recovery_rules.md`](capability_recovery_rules.md)
+- [`capability_recovery_matrix.md`](capability_recovery_matrix.md)
+- [`real_board_landing_gap_audit_v0.md`](real_board_landing_gap_audit_v0.md)
 
-### 我想看 system compiler 主线
+这些是局部语义和现有实现证据。其名词仍需按 Constitution 逐项审判。
 
-建议顺序：
-
-1. [`charm_methodology_charter.md`](charm_methodology_charter.md)
-2. [`charm_spine_v0.md`](charm_spine_v0.md)
-3. [`rte_to_h747_platform_roadmap.md`](rte_to_h747_platform_roadmap.md)
-4. [`system_compiler_roadmap.md`](system_compiler_roadmap.md)
-5. [`system_compiler_vocabulary_v0.md`](system_compiler_vocabulary_v0.md)
-
-如果你继续往运行面和工件面走，再回到：
-
-- [`../system/README.md`](../system/README.md)
-- [`../../schemas/README.md`](../../schemas/README.md)
-
-### 我想看 RTE / 能力装配边界
-
-先读：
-
-- [`charm_spine_v0.md`](charm_spine_v0.md)
-- [`rte_capability_composition_contract_v0.md`](rte_capability_composition_contract_v0.md)
-- [`rte_to_h747_platform_roadmap.md`](rte_to_h747_platform_roadmap.md)
-- [`system_compiler_vocabulary_v0.md`](system_compiler_vocabulary_v0.md)
-- [`../system/init_graph_contract.md`](../system/init_graph_contract.md)
-
-这里的 RTE 指 `capability composition boundary`，不是运行时框架、
-调度器、service locator 或 AUTOSAR 式大平台。
-当前近期平台化主线是 `RTE -> H747`，第一条真实垂直切片是 `Display + Player`。
-
-### 我想看 resident App image / ELF 运行平台边界
-
-先读：
+### Resident image 与部署
 
 - [`resident_image_platform_v1_contract.md`](resident_image_platform_v1_contract.md)
 
-这个契约固定动态 App 主链：
-`ImageSource/ImageStore -> AppImage/ProgramImage -> Loader -> RuntimeDomain ->
-AppRuntime -> Capability Table`。H747 `dev_loader`、QEMU `virtual_m7`、未来
-eMMC/QSPI/文件源或远端 domain 都必须汇入这条主链，不能各自定义第二套 App ABI。
+Resident ELF、ModuleX、Image Store 和 Loader 是可选部署机制。它们可以复用同一应用和能力契约，
+但不是 Charm MVP 成立条件，也不定义第二套 App model。
 
-### 我想看外部成熟产品对 Charm 机制的启发
+## Exploration
 
-读：
+以下材料在停线阶段保留正文并冻结扩面：
 
-- [`tdesktop_mechanism_lessons_for_charm.md`](tdesktop_mechanism_lessons_for_charm.md)
+- [`charm_methodology_charter.md`](charm_methodology_charter.md)
+- [`charm_spine_v0.md`](charm_spine_v0.md)
+- [`rte_capability_composition_contract_v0.md`](rte_capability_composition_contract_v0.md)
+- [`system_compiler_roadmap.md`](system_compiler_roadmap.md)
+- [`system_compiler_vocabulary_v0.md`](system_compiler_vocabulary_v0.md)
+- [`rte_to_h747_platform_roadmap.md`](rte_to_h747_platform_roadmap.md)
 
-### 我想看能力回收
+System Compiler、IR、Graph 和 RTE 当前均不能作为 canonical Core 身份。它们可以作为工具、
+派生表示或待审判模型继续提供证据，但不再承担默认路线。
 
-读：
+## 按问题进入
 
-- [`capability_recovery_rules.md`](capability_recovery_rules.md)
-- [`capability_recovery_matrix.md`](capability_recovery_matrix.md)
-- [`real_board_landing_gap_audit_v0.md`](real_board_landing_gap_audit_v0.md)（真实板级落地如何暴露默认路径失配、能力发现性与 board landing 接缝问题）
+| 问题 | 先读 |
+|---|---|
+| 一个概念能否进入 Core | [`../../CONSTITUTION.md`](../../CONSTITUTION.md) |
+| Requirement / Provision / Binding 如何成立 | [`charm_core_contract.md`](charm_core_contract.md) |
+| 当前模块入口与依赖是否合法 | [`entry_surface_contract.md`](entry_surface_contract.md)、[`dependency_contract.md`](dependency_contract.md) |
+| Driver 或 device 局部实现如何组织 | [`driver_model.md`](driver_model.md)、[`device_model_overview.md`](device_model_overview.md) |
+| 同域 signal / state 如何表达 | [`signal_state_contract_v0.md`](signal_state_contract_v0.md) |
+| Resident ELF / ModuleX 如何进入 AppRuntime | [`resident_image_platform_v1_contract.md`](resident_image_platform_v1_contract.md) |
+| 旧 System Compiler / RTE 讨论依据是什么 | 本页 Exploration 列表 |
 
-### 我在排查 C++ 模块与标准库链接问题
+## 使用规则
 
-读：
-
-- [`cpp_modules_stdlib_linkage_conflicts.md`](cpp_modules_stdlib_linkage_conflicts.md)
-
-## 当前建议阅读顺序
-
-- 看总架构和方法论：
-  `charm_methodology_charter.md` → `charm_spine_v0.md`
-- 看依赖与分层：
-  `dependency_contract.md`
-- 看驱动与设备：
-  `driver_model.md` → `interface_admission_policy.md` → `device_contract_narrow_waist_v0.md` → `i2c_device_contract_v0.md` → `device_model_overview.md`（后者偏动态 discovery 平面与历史补充）
-- 看 signal/state：
-  `signal_state_contract_v0.md`
-- 看 system compiler：
-  `charm_spine_v0.md` → `rte_to_h747_platform_roadmap.md` → `system_compiler_roadmap.md` → `system_compiler_vocabulary_v0.md`
-- 看 RTE / 能力装配边界：
-  `charm_spine_v0.md` → `rte_capability_composition_contract_v0.md` → `rte_to_h747_platform_roadmap.md` → `system_compiler_vocabulary_v0.md` → `../system/init_graph_contract.md`
-- 看真实板级落地审计与能力回收：
-  `real_board_landing_gap_audit_v0.md` → `capability_recovery_rules.md` → `capability_recovery_matrix.md`
-
-## 使用提醒
-
-- 如果这里的说明和 `docs/system/*`、`docs/io/*` 或当前代码冲突，优先回到更上位入口复核。
-- 如果你只想抓“当前主结论”，优先先停在 `driver_model.md`，不要直接从历史对照段落建立认知。
-- 当分层规则、驱动模型、signal/state 契约、能力回收主结论或 system compiler 公开主线变化时，应同步更新本目录入口。
+- 不从目录规模、类名或现有调用量反推 Core 身份。
+- 不把 Interface 当作 Capability Contract，也不把 Provider 角色实体化为公共基类。
+- 不把 init DAG、runtime topology、ownership 和 hot-plug state 合成一张权威 Graph。
+- 不用 roadmap、v0 或产品压力线覆盖 canonical 裁决。
+- 专题文档与 Constitution 或核心契约冲突时，先降级专题结论，再决定是否发起重新审判。

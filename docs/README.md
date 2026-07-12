@@ -1,134 +1,110 @@
-# 文档总路由
+# Charm 文档路由
 
-本页是 `docs/` 的默认入口。
+本页只负责区分文档权威和提供最短入口，不再用“当前战线”定义 Charm 的身份。
 
-它不再按主题平铺所有材料，而是先回答：
+Charm 的正式定位始终是：
 
-- 你这次想理解哪条战线
-- 你要看的是共同语义、真实压力、板级落地，还是维护态子系统
-- 哪些入口是官方入口，哪些只是深层追溯入口
+> **Charm 是一个能力导向的嵌入式应用平台。**
 
-如果你还没建立整体认知，先读：
+## 十分钟阅读路径
 
-1. [`../README.md`](../README.md)
-2. [`repo_governance.md`](repo_governance.md)
-3. [`current_tracks_index.md`](current_tracks_index.md)
+1. [`../CONSTITUTION.md`](../CONSTITUTION.md)：Core 准入六问、裁决等级和首批判例。
+2. [`../README.md`](../README.md)：Charm 是什么、与普通嵌入式框架的差异、当前证明到哪里。
+3. [`architecture/charm_core_contract.md`](architecture/charm_core_contract.md)：最小关系、MVP、OS 和 Project 边界。
 
-## 当前默认阅读意图
+读完这三份文档，应能回答：
 
-### 我想理解 Charm 的共同语义面
+- Charm 是什么，以及它不是什么；
+- 应用为何只依赖 Capability Contract；
+- Requirement、Provision 和 Binding 如何构成最小模型；
+- 当前技术积累为何还不等于 MVP 已成立。
 
-先读：
+## 文档状态
 
-1. [`overview.md`](overview.md)
-2. [`architecture_overview.md`](architecture_overview.md)
-3. [`capability_map.md`](capability_map.md)
-4. [`system/init_graph_contract.md`](system/init_graph_contract.md)
+| 状态 | 作用 | 权威范围 |
+|---|---|---|
+| `canonical` | 定义 Charm Core 身份、准入和最小契约 | 全仓；只能有极少数入口 |
+| `supporting` | 描述局部实现、现状、证据或已稳定的专题边界 | 仅在自身专题内，且不得与 canonical 冲突 |
+| `exploration` | 保存提案、路线、v0 词汇和待审判模型 | 不得作为公共 Core 语义依据 |
+| `archive` | 保存历史背景和已退出路线 | 仅供追溯 |
 
-这条路径对应：
+文件名包含 `contract`、`overview` 或 `roadmap` 不自动决定状态。文档顶部状态声明和上位文档
+优先；没有状态声明的旧文档默认按 `supporting` 或 `exploration` 使用，不得视为 canonical。
 
-- `track_kind`: `substrate`
-- `track_status`: `active`
+## 权威顺序
 
-### 我想理解当前的方法论探索
+涉及 Charm 身份与 Core 语义时：
 
-先读：
+1. [`../CONSTITUTION.md`](../CONSTITUTION.md)
+2. [`architecture/charm_core_contract.md`](architecture/charm_core_contract.md)
+3. 根 [`README.md`](../README.md) 与本页
+4. 标为 `supporting` 的专题契约，仅在各自范围内有效
+5. 标为 `exploration` 的 plan、roadmap、draft、review、v0
+6. `reference/*`、`generated/*`、`archive/*`
 
-1. [`architecture/system_compiler_roadmap.md`](architecture/system_compiler_roadmap.md)
-2. [`architecture/system_compiler_vocabulary_v0.md`](architecture/system_compiler_vocabulary_v0.md)
-3. [`system/artifact_report_v0.md`](system/artifact_report_v0.md)
-4. [`system/explain_surface_v0.md`](system/explain_surface_v0.md)
+[`../AGENTS.md`](../AGENTS.md) 负责 Agent 操作规则；它不替代 Constitution 的架构裁决。
 
-这条路径对应：
+## 按任务进入
 
-- `track_kind`: `theory`
-- `track_status`: `exploring`
+### 核心语义与能力归属
 
-### 我想看真实产品压力线
+- [`architecture/charm_core_contract.md`](architecture/charm_core_contract.md)
+- [`agent/routes/architecture.md`](agent/routes/architecture.md)
+- [`agent/routes/capability.md`](agent/routes/capability.md)
 
-先读：
+任何新名词先经过 Constitution，不先从既有代码反推为 Core。
 
-1. [`../Examples/project/player/README.md`](../Examples/project/player/README.md)
-2. [`../Examples/project/player/ARCHITECTURE_CONVERGENCE.md`](../Examples/project/player/ARCHITECTURE_CONVERGENCE.md)
-3. [`ui/README.md`](ui/README.md)
+### 当前代码与机制盘点
 
-这条路径对应：
+以下材料属于 supporting inventory，不定义 Charm 身份：
 
-- `track_kind`: `pressure`
-- `track_status`: `active`
+- [`overview.md`](overview.md)
+- [`architecture_overview.md`](architecture_overview.md)
+- [`capability_map.md`](capability_map.md)
+- [`architecture/README.md`](architecture/README.md)
+- [`system/init_graph_contract.md`](system/init_graph_contract.md)
+- [`io/README.md`](io/README.md)
+- [`storage/README.md`](storage/README.md)
 
-### 我想看板级 / SoC / runtime 落地线
+### 构建与工程协作
 
-先读：
+- [`project/README.md`](project/README.md)
+- [`agent/routes/build.md`](agent/routes/build.md)
+- [`documentation_maintenance.md`](documentation_maintenance.md)
+- [`agent/routes/README.md`](agent/routes/README.md)
 
-1. [`system/minimal_kernel_runtime_evidence_bundle_contract.md`](system/minimal_kernel_runtime_evidence_bundle_contract.md)
-2. [`../targets/rk3506/README.md`](../targets/rk3506/README.md)
-3. [`board/rk3506/README.md`](board/rk3506/README.md)
+### OS、runtime 与部署机制
 
-这条路径对应：
+这些是 supporting 实现边界或专题探索，不是 Charm Core 身份：
 
-- `track_kind`: `landing`
-- `track_status`: `active`
+- [`system/README.md`](system/README.md)
+- [`architecture/resident_image_platform_v1_contract.md`](architecture/resident_image_platform_v1_contract.md)
+- [`system/minimal_kernel_runtime_evidence_bundle_contract.md`](system/minimal_kernel_runtime_evidence_bundle_contract.md)
+- [`system/posix_support_overview.md`](system/posix_support_overview.md)
 
-### 我想进入维护态子系统
-
-先读：
-
-1. [`system/posix_support_overview.md`](system/posix_support_overview.md)
-2. [`system/posix_maintenance_mode_collaboration.md`](system/posix_maintenance_mode_collaboration.md)
-
-这条路径对应：
-
-- `track_kind`: `maintenance`
-- `track_status`: `maintained`
-
-## 两个治理页怎么配合
+### 停线前的仓库状态
 
 - [`repo_governance.md`](repo_governance.md)
-  - 回答“这仓库现在同时在做什么”
 - [`current_tracks_index.md`](current_tracks_index.md)
-  - 回答“每条线的官方入口和深层入口分别是什么”
 
-如果你只是想恢复上下文，优先读这两页，不要先潜入阶段材料。
+这两页保留停线前的多战线状态和入口，当前只作为 supporting snapshot，不再承担仓库身份或
+默认路线裁决。
 
-## 当前入口矩阵
+### 方法论与未来机制探索
 
-| 阅读意图 | 官方入口 |
-|---|---|
-| 共享能力底座 / 共同语义面 | [`overview.md`](overview.md)、[`architecture_overview.md`](architecture_overview.md)、[`capability_map.md`](capability_map.md) |
-| system compiler / artifact / explain | [`architecture/system_compiler_roadmap.md`](architecture/system_compiler_roadmap.md)、[`system/artifact_report_v0.md`](system/artifact_report_v0.md) |
-| Player / Vivid / 真实项目压力线 | [`../Examples/project/player/README.md`](../Examples/project/player/README.md)、[`ui/README.md`](ui/README.md) |
-| RK3506 / minimal-kernel / ARMv7-A landing | [`system/minimal_kernel_runtime_evidence_bundle_contract.md`](system/minimal_kernel_runtime_evidence_bundle_contract.md)、[`../targets/rk3506/README.md`](../targets/rk3506/README.md) |
-| POSIX 维护态 | [`system/posix_support_overview.md`](system/posix_support_overview.md)、[`system/posix_maintenance_mode_collaboration.md`](system/posix_maintenance_mode_collaboration.md) |
-| 工程规范 / 构建 / 协作 | [`project/README.md`](project/README.md)、[`agent/routes/README.md`](agent/routes/README.md) |
+- [`architecture/charm_methodology_charter.md`](architecture/charm_methodology_charter.md)
+- [`architecture/charm_spine_v0.md`](architecture/charm_spine_v0.md)
+- [`architecture/rte_capability_composition_contract_v0.md`](architecture/rte_capability_composition_contract_v0.md)
+- [`architecture/system_compiler_roadmap.md`](architecture/system_compiler_roadmap.md)
+- [`architecture/rte_to_h747_platform_roadmap.md`](architecture/rte_to_h747_platform_roadmap.md)
 
-## 深层材料如何进入
+这些材料在停线期冻结为 `exploration`。它们可以提供判例和证据，不能新增 canonical 词汇或
+把某条机制升级为默认路线。
 
-历史材料、`v0` 深水区、阶段链条、compare / witness / tasklist / checklist 仍保留，但不再默认混进首读路径。
+## 维护规则
 
-推荐方式是：
-
-1. 先从本页认战线
-2. 再从 [`current_tracks_index.md`](current_tracks_index.md) 进对应深层入口
-3. 最后按专题 README 或契约继续下钻
-
-## 信任顺序
-
-遇到同一主题下材料很多时，按这个顺序判断：
-
-1. 仓库根目录 `AGENTS.md`
-2. 根 README 与本页
-3. 治理页与当前战线浅索引
-4. 对应目录 `README.md` / `*_overview.md`
-5. `*_contract.md`
-6. `*_plan.md` / `*_roadmap.md` / `*_draft.md`
-7. `*_v0.md` / `*_review.md` / `*_summary.md`
-8. `*_tasklist.md` / `*_checklist.md`
-9. `reference/*` / `generated/*` / `archive/*`
-
-## 不要怎么读
-
-- 不要把 `docs/README.md` 当成所有材料的平铺目录。
-- 不要把任意 `v0` 自动当成当前唯一契约。
-- 不要把 `archive/*`、`reference/*`、`generated/*` 当默认首读入口。
-- 不要跳过治理页，直接从深层阶段材料反推仓库现状。
+- canonical 文档只保留定位、准入、最小契约和已裁决术语。
+- 路线图、产品愿景、实现清单和工程步骤不得塞入 Constitution。
+- supporting 文档发生行为变化时仍应同步更新，但不得借此扩大 Core。
+- exploration 文档可以保留完整正文，必须明确状态和上位入口。
+- 坏链接、循环定义和相互冲突的定位不得留在默认阅读路径。

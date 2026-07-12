@@ -8,6 +8,10 @@
 
 - `opening_judgment_corridor_v0.md`
   仍被 system compiler 词汇材料引用，保留为历史定义来源。
+- [`minimal_kernel_runtime_session_witness_inspect_compare_consumer_v0.md`](minimal_kernel_runtime_session_witness_inspect_compare_consumer_v0.md)
+  保留 runtime session compare focus 排序、preferred/fallback explain hop 与 reader-first 消费策略的原始讨论；
+  现行 supporting contract 仍位于
+  [`../../system/minimal_kernel_runtime_session_witness_inspect_compare_consumer_v0.md`](../../system/minimal_kernel_runtime_session_witness_inspect_compare_consumer_v0.md)。
 
 其余按对话步骤拆分的 opening-flow、biography、world、witness 和 compare 微文档已从当前树删除。它们的过程信息可从 Git 历史追溯，不再占用当前文档面。
 

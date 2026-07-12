@@ -25,6 +25,11 @@ $smokes = @(
         Build = 'Backends/contract/block_storage_header_smoke/cmake-build-backends-contract-block-storage-header-smoke'
     },
     @{
+        Name = 'backends_contract_raster_display_header_smoke'
+        Source = 'Backends/contract/raster_display_header_smoke'
+        Build = 'Backends/contract/raster_display_header_smoke/cmake-build-backends-contract-raster-display-header-smoke'
+    },
+    @{
         Name = 'backends_host_reference_smoke'
         Source = 'Backends/host/reference_smoke'
         Build = 'Backends/host/reference_smoke/cmake-build-backends-host-reference-smoke'
@@ -62,12 +67,15 @@ foreach ($smoke in $smokes) {
 
     Write-Host "[backends-v1] configure $($smoke.Name)"
     cmake -S $sourceDir -B $buildDir -G Ninja
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
     Write-Host "[backends-v1] build $($smoke.Name)"
     cmake --build $buildDir
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
     Write-Host "[backends-v1] test $($smoke.Name)"
     ctest --test-dir $buildDir --output-on-failure
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 
 Write-Host '[backends-v1] ok'

@@ -61,9 +61,14 @@ Backends/
 ## Current status
 
 Backend Contract Candidate v1 now contains the v0 topology/evidence contract
-plus the first two extracted capability slices: `console/output` and
-`block/storage`. It still does not promote these candidates to `Modules/`, move
-existing platform code, or change production CMake wiring.
+plus three extracted capability slices: `console/output`, `block/storage`, and
+the minimal `raster/display` candidate. It still does not promote these
+candidates to `Modules/` or make a concrete backend part of Charm core.
+
+`Backends/host/sdl3` is the first real Host execution provider. It owns SDL
+lifecycle, one event pump, the monotonic clock adapter, and raster presentation.
+Applications consume its neutral projections; SDL window and event types remain
+inside the backend.
 
 ## v1 smoke gate
 
@@ -79,9 +84,17 @@ The gate builds and runs:
 - `Backends/contract/evidence_header_smoke`
 - `Backends/contract/console_output_header_smoke`
 - `Backends/contract/block_storage_header_smoke`
+- `Backends/contract/raster_display_header_smoke`
 - `Backends/host/reference_smoke`
 - `Backends/qemu/reference_smoke`
 - `Backends/board/reference_smoke`
 - `Examples/system/capability_topology_bridge_smoke`
 - `Examples/system/console_output_provider_smoke`
 - `Examples/system/block_storage_provider_smoke`
+
+The SDL-backed vertical smoke has a separate gate because it requires SDL3 and
+a usable Host video environment:
+
+```powershell
+.\Backends\host\run-host-sdl3-smoke.ps1
+```

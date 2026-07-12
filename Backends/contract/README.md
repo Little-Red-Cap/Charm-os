@@ -14,6 +14,7 @@ Start with:
 - [`backend_evidence.hpp`](backend_evidence.hpp)
 - [`console_output.hpp`](console_output.hpp)
 - [`block_storage.hpp`](block_storage.hpp)
+- [`raster_display.hpp`](raster_display.hpp)
 
 ## Contract surface
 
@@ -54,6 +55,12 @@ roles, provider-published `BlockEndpoint`, status result, and structured block
 provider evidence vocabulary. Store v1, FAT paths, ImageStore, and ResourcePack
 remain outside the contract header.
 
+`raster_display.hpp` is the third v1 candidate slice. It defines only a
+bounded read-only pixel surface, explicit packed pixel formats, dirty region,
+clipping, present result, and the `RasterDisplay.primary` requirement shape.
+Window systems, textures, scaling policy, cache maintenance, frame scheduling,
+screenshots, and application commands remain backend or application concerns.
+
 ## Validation entrypoints
 
 The current contract candidate is validated by contract-local header smokes,
@@ -64,6 +71,7 @@ it is promoted further:
 - `Backends/contract/evidence_header_smoke`
 - `Backends/contract/console_output_header_smoke`
 - `Backends/contract/block_storage_header_smoke`
+- `Backends/contract/raster_display_header_smoke`
 - `Backends/host/reference_smoke`
 - `Backends/qemu/reference_smoke`
 - `Backends/board/reference_smoke`

@@ -27,6 +27,29 @@ truth.
 
 Linux host support is intentionally out of scope for the first contract pass.
 
+## SDL3 backend v1
+
+`sdl3/` is the first concrete Host execution backend. It provides:
+
+- a monotonic `charm::system::Clock` backed by SDL ticks;
+- one SDL event pump that emits existing `input::RawInputEvent` values;
+- `RasterDisplay.present()` through an SDL streaming texture;
+- a CMake target named `Charm::host-sdl3`.
+
+It does not own Player commands, UI lifecycle, storage, audio, fonts,
+screenshots, or product profiles. An application binds the backend clock and
+callbacks to the existing `charm::system::RunLoop`.
+
+Run its independent vertical smoke with:
+
+```powershell
+.\Backends\host\run-host-sdl3-smoke.ps1
+```
+
+Pass `-Sdl3SourceDir <path>` to use an explicit third-party SDL3 checkout;
+otherwise the shared SDL3 discovery rules use a configured package, local
+source, or FetchContent fallback.
+
 ## Reference backend v0
 
 `host_reference.hpp` is the first host backend implementation candidate. It is

@@ -10,6 +10,8 @@
   其中若干 blanket rule 已被当前源码反例推翻。
 - [`embedded_modern_cpp_legacy.md`](embedded_modern_cpp_legacy.md)：保留早期“现代优先、激进优先”
   技术宣言；其中对语言形式和资源策略的全仓禁令已降级为历史讨论。
+- [`collaboration_rules_legacy.md`](collaboration_rules_legacy.md)：保留早期协作口号、讨论节奏和输出清单；
+  现行规则改为决策升级、并行改动保护与证据沟通。
 
 现行入口：
 

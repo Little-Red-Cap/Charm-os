@@ -1,194 +1,48 @@
-﻿# Charm Audio 架构 v0
+# Charm Audio 架构
 
-本文定义 Charm Audio 的 **v0 架构形态**。目标是先做出稳定、可验证的 HiFi 播放链路，同时为未来扩展为音频框架预留接口。
+> **文档状态：`supporting`**
 
-## 1. 目标与范围
+本文说明当前音频模块的实现边界。它不定义 Charm Core；Capability Contract、平台 backend 与产品播放器策略不由本文件统一。
 
-- 目标：稳定、低 jitter、可控延迟的 MCU 音频播放链路
-- 约束：设备时钟驱动（DAC/I2S/DMA），禁止软件节拍主导
-- 形态：Pull Engine + 混合模型（CompressedBuffer + DSP Graph + PCMBuffer）
+## 源码入口
 
-## 2. 核心原则
+- [`charm.media.audio.cppm`](../../Modules/media/charm.media.audio.cppm)：media 音频聚合入口；
+- [`audio_data_plane.cppm`](../../Modules/media/audio/audio_data_plane.cppm)：decode、frame queue、DSP、FIFO 与 pump；
+- [`audio_player.cppm`](../../Modules/media/audio/audio_player.cppm)：控制状态、source/sink 生命周期与 refill；
+- [`audio_pump.cppm`](../../Modules/media/audio/audio_pump.cppm)：实时侧 FIFO 消费与 underrun 统计；
+- [`audio_sink_common.cppm`](../../Modules/media/audio/audio_sink_common.cppm)：fill 与补零共同规则。
 
-1. **Device 时钟主导**：系统由 DMA 中断节拍驱动，Graph 必须 pull。
-2. **DMA 为第一公民**：IRQ 只做最短路径，不做 decode。
-3. **控制面 / 数据面分离**：控制用 Actor，数据用 DSP Graph。
-4. **静态 Graph 优先**：v0 不做动态 graph 与插件系统。
+`charm.media.audio` 当前公开基础格式、FIFO、decoder、resampler、pull simulator、spectrum 和 file source。
+`audio.player` 与 SDL sink 仅在对应构建开关启用时由该聚合入口导出。I2S sink 属于具体项目/backend，不在公共聚合模块中假装跨平台实现。
 
-## 3. 系统分层与职责
+## 当前数据路径
 
-| 层 | 职责 | 备注 |
-| --- | --- | --- |
-| Device | DMA/I2S/SPDIF 等硬实时输出 | 只做“拉帧 + 填 DMA” |
-| Engine | 时钟域协调、buffer 管理、graph 调度 | Pull Engine 核心 |
-| Graph | 描述处理链路与节点连接 | v0 静态拓扑 |
-| Node | DSP/Decoder/Mixer 等处理 | 数据面执行 |
-| PlayerCore | 播放状态机 | 只做控制面 |
-
-```mermaid
-flowchart TD
-    Device[Audio Device] --> Engine[Audio Engine]
-    Engine --> Graph[DSP Graph]
-    Graph --> Node[Audio Nodes]
-    Player[PlayerCore] -->|control| Engine
+```text
+StreamSource
+  -> DecodePipe
+  -> S32 FrameQueue
+  -> DspGraph
+  -> S32-to-S16 quantize
+  -> PcmFifo
+  -> AudioPump
+  -> Sink callback / DMA fill
 ```
 
-## 4. 混合模型数据路径
+`AudioDataPlane` 在非实时路径解码、处理并写入 FIFO；sink callback/ISR 只从 FIFO 取完整 frame。
+不足部分由 sink common 补零，同时记录 underrun。设备回调触发消费，不允许在回调中执行 decode、storage IO 或动态分配。
 
-```
-Storage/Network
-      ↓
-CompressedBuffer
-      ↓
-Decoder
-      ↓
-DSP Graph
-      ↓
-PCMBuffer
-      ↓
-Device (DMA/I2S)
-```
+## 控制与实现边界
 
-- CompressedBuffer：吸收 IO jitter（块 → 流）。
-- DSP Graph：固定 block size 的数据处理层。
-- PCMBuffer：设备 jitter absorber（20–50ms）。
+- `AudioPlayer` 持有播放状态和 refill 驱动，不把 UI 或产品策略放入数据面；
+- `DspGraph` 当前是固定容量的进程内处理链，不承诺动态插件或通用路由；
+- 当前 DSP/frame queue 使用 S32，PCM FIFO 输出使用 interleaved S16；其它输出格式不是既有承诺；
+- FIFO、水位、period 和 chunk 由配置及 sink 能力决定，不存在跨平台固定毫秒值；
+- D2 SRAM、SDRAM、DMA section 和 cache maintenance 是具体 board/backend 的资源决策，不属于音频公共契约。
 
-```mermaid
-flowchart TD
-    Src[Source] --> CBuf[CompressedBuffer]
-    CBuf --> Dec[Decoder]
-    Dec --> Graph[DSP Graph]
-    Graph --> PBuf[PCMBuffer]
-    PBuf --> Dev[Audio Device/DMA]
-```
+## 证据边界
 
-## 5. 关键缓冲结构
+- [`sdl3_wav_demo`](../../Examples/audio/sdl3_wav_demo/README.md) 验证 Host SDL 与 pull simulator 路径；
+- `Examples/system/player_playback_engine_smoke` 验证播放器状态、seek、stop 与 session 组合；
+- H747 I2S 只能由对应板级构建和运行证据证明，不能从 Host smoke 或本文推断。
 
-- **CompressedBuffer**：SPSC ringbuffer（存储 → 解码）。
-- **PCMBuffer**：SPSC ringbuffer（Graph → Device）。
-- 推荐：两级 buffer，避免 IO 抖动与 DMA 抖动互相污染。
-
-> STM32H7 提示：PCMBuffer 建议放 D2 SRAM，CompressedBuffer 放 SDRAM，避免 DCache 影响 DMA 一致性。
-
-### 5.1 PCMBuffer 尺寸建议
-
-计算公式：
-
-```
-bytes = sample_rate * channels * bytes_per_sample * duration_ms / 1000
-```
-
-示例（44.1kHz, 16bit, stereo, 50ms）：
-
-```
-44100 * 2 * 2 * 0.05 ≈ 8.8KB
-```
-
-建议范围：**20–50ms**。
-
-### 5.2 CompressedBuffer 尺寸建议
-
-- MP3/FLAC：128–256KB 起步
-- IO 抖动越大，buffer 越大
-
-## 6. 运行时主流程（Pull Engine）
-
-```
-DMA half IRQ
-  → DeviceAO
-  → Engine.pull(frames)
-  → Graph.pull(frames)
-  → PCMBuffer.read
-  → 填充 DMA buffer
-```
-
-```mermaid
-sequenceDiagram
-    participant DMA as DMA IRQ
-    participant Dev as DeviceAO
-    participant Eng as Engine
-    participant Graph as DSP Graph
-    participant PCM as PCMBuffer
-    DMA->>Dev: need frames
-    Dev->>Eng: pull(N)
-    Eng->>Graph: pull(N)
-    Graph->>PCM: read/produce
-    Eng-->>Dev: frames ready
-```
-
-## 7. Node 接口形态（Pull + Process）
-
-- Graph 对外统一 **pull(frames)** 语义。
-- DSP 节点内部可使用 **process(in, out)** 语义。
-- 通过轻量适配层兼容两者，保持 pull 主模型。
-
-```mermaid
-graph TD
-    Device[Device/DMA] --> Engine[Engine]
-    Engine --> Graph[Graph Pull]
-    Graph -->|pull N frames| Upstream[Upstream Node]
-    Upstream --> Temp[Temp Buffer]
-    Temp -->|process| Dsp[DSP Node (process)]
-    Dsp --> Out[Output Buffer]
-```
-
-## 8. 控制面/数据面关键事件
-
-控制面（Actor）：
-
-- `DeviceNeedFrames`
-- `DecoderNeedData`
-- `SourceNeedData`
-- `TrackChange`
-
-数据面（Graph）：
-
-- `pull(frames)`
-- `process(in, out)`
-
-## 9. Sample Rate 切换流程
-
-1. stop DMA
-2. flush PCMBuffer
-3. reconfigure I2S/DAC
-4. restart DMA
-5. decoder reset
-
-## 10. 资源与内存布局建议
-
-- PCMBuffer：**D2 SRAM**（DMA 友好）
-- CompressedBuffer：**SDRAM**
-- Decoder workspace：SDRAM 或 TCM（视算法）
-- DMA buffer：与 PCMBuffer 同域，避免缓存不一致
-
-## 11. 约束与禁则
-
-- IRQ 内禁止 decode / malloc / logging
-- Graph 数据面禁止锁竞争
-- DeviceAO 不允许阻塞等待 IO
-- 采样率切换必须清理 DMA 与 PCMBuffer
-
-## 12. 观测与验收
-
-最小验收指标：
-
-- `underrun = 0`
-- DMA 中断抖动在可控范围内
-- PCMBuffer 低水位不频繁触发
-- CPU 利用率稳定，无长时间尖峰
-
-## 13. v0 不做的事情
-
-- 动态 graph / 插件系统
-- 多流 mixer 的通用框架
-- Frame Scheduler（先稳定 Pull Engine）
-
-## 14. 后续扩展路径
-
-- v1：静态 graph + 多节点（EQ/Volume/Mixer）
-- v2：动态 graph + routing
-- v3：Frame Scheduler / 多流低延迟
-
----
-
-**结论**：v0 采用 Pull Engine + 混合模型 + 静态 DSP Graph，先保证稳定、可测、低 jitter，再逐步扩展成完整音频框架。
+详细实时路径规则见 [`../audio/audio_design_v1.md`](../audio/audio_design_v1.md)。早期架构、参数建议与版本路线已归档到 [`../archive/audio-v0/`](../archive/audio-v0/)。

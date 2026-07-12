@@ -1,129 +1,64 @@
-﻿# Audio 子系统设计 v1
+# Audio 实时路径契约
 
-> 目标：以最小可落地版本建立 MCU/PC 同构的音频播放内核，优先保证实时链路稳定与可移植性。
+> **文档状态：`supporting`**
 
-## 1. 设计目标
+本文只记录当前源码已经表达的实时路径不变量。具体类型、默认值和错误返回以 [`Modules/media/audio`](../../Modules/media/audio/) 下的模块源码为准。
 
-- **同构行为**：SDL3 callback == I2S DMA ISR，回调路径完全一致。
-- **实时路径最短**：回调/ISR 仅做 FIFO 读取 + 不足补零 + 计数，不做状态切换/解码。
-- **控制/数据面分离**：控制面负责状态与命令；数据面只处理 PCM 流。
-- **可移植**：不依赖系统音量、平台 API；UI 只通过播放引擎设置参数。
+## 数据格式
 
-## 2. 非目标（v1 不做）
+- decoder 输出进入 S32 interleaved frame queue；
+- `DspGraph::process()` 原地处理 S32 samples；
+- `AudioDataPlane` 在 FIFO 写入边界量化为 S16；
+- `PcmFifo` 按 byte 存储，但所有读写必须按 `AudioFormat::frame_size()` 对齐；
+- 当前路径不承诺 float、planar、S24 或 S32 sink 输出。
 
-- 动态 DSP Graph / 插件系统
-- 复杂虚拟化缓存与多路混音框架
-- 复杂树形路由/多设备时钟同步
+## 生产与消费
 
-## 3. 核心管线（v1）
+非实时生产侧：
 
-```mermaid
-flowchart LR
-  SRC[Source/IO] --> CBUF[CompressedBuffer]
-  CBUF --> DEC[Decoder]
-  DEC --> DSP[DSP Graph 'S32']
-  DSP --> PCM[PCMBuffer 'S16 FIFO']
-  PCM --> DEV[Device/Sink]
-  DEV --> DMA[Callback/ISR]
+```text
+decode -> frame queue -> DSP -> quantize -> PCM FIFO
 ```
 
-关键点：
-- **内部处理统一 S32**，**FIFO 存 S16**，量化点固定在写入 FIFO 之前。
-- **PCMBuffer** 用于隔离解码抖动与设备时钟，避免 underrun。
+实时消费侧：
 
-## 4. Pull Engine（设备驱动回填）
-
-- DMA/SDL3 回调拉取 PCM：
-  - 只读 FIFO
-  - 不足补零
-  - 设置 underrun 标志
-- 任何状态切换都由控制面完成（非实时线程）。
-
-```mermaid
-sequenceDiagram
-  participant CB as Callback/ISR
-  participant F as PCM FIFO
-  participant CTRL as Control/EDA
-  loop 每个周期
-    CB->>F: read
-    alt 不足
-      CB->>CB: zero pad
-      CB->>CTRL: underrun_flag
-    end
-  end
-  loop 事件线程
-    CTRL->>F: check water
-    alt low/underrun
-      CTRL->>CTRL: decode -> DSP -> quantize
-      CTRL->>F: write
-    end
-  end
+```text
+sink callback / DMA IRQ -> AudioPump -> PCM FIFO -> fill_and_pad
 ```
 
-## 5. 水位策略
+实时侧只允许读取 FIFO、补零和更新计数。不得执行 decoder、DSP、storage IO、阻塞等待、日志或动态分配。
+underrun 表示本次请求未获得足够 PCM；sink 补零并累计状态，它不自动等于播放器 fatal error。
 
-- 默认：`low=40ms` / `high=150ms` / `chunk≈100ms`
-- 统一换算：
-  - `frames = rate * ms / 1000`
-  - `bytes = frames * frame_size`
+## 容量与水位
 
-建议：水位阈值以 **ms** 配置，运行时按输出格式换算。
+- FIFO storage、frame queue、decode scratch 和 sink scratch 均为固定容量；运行期不扩容；
+- `fifo_capacity`、`low_water`、`high_water`、`period_frames` 与 `chunk_frames` 来自配置；
+- 配置必须满足 storage 容量、frame 对齐和各模块上限，否则 configure/open 返回失败；
+- 文档不规定统一的 `40ms/150ms` 或特定 SRAM/SDRAM 区域，这些属于 profile/backend 调优。
 
-## 6. 控制面 / 数据面分离
+生产侧在 FIFO 低于目标水位时 refill；消费侧按设备请求读取。water/underrun/callback stats 是观测值，只有当次测试日志才能证明某组参数稳定。
 
-- **控制面**：播放状态机、命令队列、seek/stop/reconfig
-- **数据面**：解码、DSP、量化、FIFO
+## 生命周期
 
-```mermaid
-flowchart LR
-  CTRL[Control Plane] -->|commands| PIPE[Data Plane]
-  PIPE -->|events| CTRL
-```
+- source open/seek/close 会清理 decode 与 frame queue 状态；
+- seek、stop 或 reconfigure 必须先阻止 sink 继续访问即将失效的 buffer，再清理 FIFO/source；
+- sink format、period 和 callback storage 在 `open()` 成功后才可用于运行；
+- `AudioPlayer` 状态和错误转移以 `audio_player.cppm` 为准，UI 不直接驱动实时数据结构。
 
-## 7. Driver 模式选择（不使用虚函数）
+## Backend 边界
 
-- 推荐：**Type-Erased Driver**
-  - 实现用模板
-  - 对外提供稳定的运行时接口
+- SDL3 sink 是 Host 实现；
+- pull simulator 复用 fill callback 语义，但不证明真实设备时序；
+- I2S/DMA sink 是项目或 board backend，负责 DMA buffer、cache 和 IRQ 约束；
+- Null/PumpedNull sink 用于无设备构建和语义 smoke，不代表音频输出成功。
 
-```cpp
-// 对外
-struct AudioDriverApi {
-  void* ctx;
-  Result<void> (*play)(void*, ...);
-  // ...
-};
+## 验证入口
 
-// 适配器
-template <typename D>
-AudioDriverApi make_driver(D& drv) {
-  return {&drv, [](void* c, ...){ return static_cast<D*>(c)->play(...); }};
-}
-```
+- [`Examples/audio/sdl3_wav_demo`](../../Examples/audio/sdl3_wav_demo/README.md)
+- `scripts/audio_sdl3_wav_demo_smoke.ps1`
+- `Examples/system/player_playback_engine_smoke`
+- 对应 real-board I2S capture
 
-好处：
-- 编译期零开销实现
-- 运行时可替换（PlayerCore 不感知具体驱动）
+通过 Host demo 只证明 Host 路径；通过 pull simulator 只证明可重复的消费语义；真实板 DMA/I2S、内存布局和 cache 一致性必须由板级证据单独证明。
 
-## 8. 设备音量（可移植）
-
-- **不使用系统音量**（不可移植）
-- 统一在 PCM/DSP 层做增益：`samples * gain`
-- UI 只调 `PlaybackEngine::set_volume()`
-
-## 9. v1 里程碑
-
-1. Pipe 骨架可跑（Source→Decoder→DSP→PCMBuffer→Device）
-2. Pull Engine 回调同构（SDL3 + I2S）
-3. 控制面/数据面分离清晰
-4. 可移植音量控制可用
-
-## 10. 后续扩展（v2/v3）
-
-- 多源混音与动态 DSP Graph
-- 更复杂时钟同步
-- 资源池与动态内存替换（MCU）
-
----
-
-> 本文为 v1 指导性设计文档，强调“最小可落地 + 同构行为”。
+旧接口草图、Mermaid、推荐参数和版本路线见 [`../archive/audio-v0/`](../archive/audio-v0/)。

@@ -16,6 +16,10 @@
 - [`kernel_runtime_session_witness_v0.md`](kernel_runtime_session_witness_v0.md)：保留 semantic/machine/runtime
   分层、failure taxonomy、world compare 与 runner 消费链的原始讨论。现行 supporting contract 已收敛到
   [`../../system/kernel_runtime_session_witness_v0.md`](../../system/kernel_runtime_session_witness_v0.md)。
+- [`minimal_kernel_runtime_evidence_bundle_contract.md`](minimal_kernel_runtime_evidence_bundle_contract.md)：
+  保留 Host/QEMU 总证据链的完整产物树、session 旁路 smoke、inspect 命令矩阵与早期 CI 验收口径。
+  现行默认入口仍是
+  [`../../system/minimal_kernel_runtime_evidence_bundle_contract.md`](../../system/minimal_kernel_runtime_evidence_bundle_contract.md)。
 
 ## 保留的设计判断
 

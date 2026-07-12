@@ -187,6 +187,22 @@ function(_h747_mem_run_evidence)
     foreach(_field IN LISTS _theme_profile_fields)
         set("_theme_profile_${_field}" "MISSING")
     endforeach()
+    set(_vivid_static_profile_fields
+        scene_bytes
+        soa_kernel_bytes
+        payload_manager_bytes
+        draw_cmd_buffer_bytes
+        command_snapshot_bytes
+        pixel_snapshot_bytes
+        global_bytes
+        total_bytes
+        upper_bound_bytes
+        budget_bytes
+        min_headroom_bytes
+        exact_headroom_bytes)
+    foreach(_field IN LISTS _vivid_static_profile_fields)
+        set("_vivid_static_profile_${_field}" "MISSING")
+    endforeach()
     set(_player_ui_style_profile_fields
         max_class_id
         rule_use_count)
@@ -392,6 +408,9 @@ function(_h747_mem_run_evidence)
         elseif(_line MATCHES "^([0-9A-Fa-f]+)[ \t]+A[ \t]+charm_style_sheet_profile_([A-Za-z0-9_]+)$")
             math(EXPR _profile_value "0x${CMAKE_MATCH_1}")
             set("_style_sheet_profile_${CMAKE_MATCH_2}" "${_profile_value}")
+        elseif(_line MATCHES "^([0-9A-Fa-f]+)[ \t]+A[ \t]+charm_vivid_static_profile_([A-Za-z0-9_]+)$")
+            math(EXPR _profile_value "0x${CMAKE_MATCH_1}")
+            set("_vivid_static_profile_${CMAKE_MATCH_2}" "${_profile_value}")
         elseif(_line MATCHES "^([0-9A-Fa-f]+)[ \t]+A[ \t]+charm_player_ui_style_profile_([A-Za-z0-9_]+)$")
             math(EXPR _profile_value "0x${CMAKE_MATCH_1}")
             set("_player_ui_style_profile_${CMAKE_MATCH_2}" "${_profile_value}")
@@ -458,6 +477,30 @@ function(_h747_mem_run_evidence)
         endif()
         if(H747_MEMORY_PLAYER_LYRICS AND _player_lyrics_profile_service_size_bytes STREQUAL "MISSING")
             _h747_mem_fail("missing Player lyrics fixed-capacity profile symbols")
+        endif()
+        foreach(_field IN LISTS _vivid_static_profile_fields)
+            set(_value_var "_vivid_static_profile_${_field}")
+            if("${${_value_var}}" STREQUAL "MISSING")
+                _h747_mem_fail("missing Vivid static memory profile symbol '${_field}'")
+            endif()
+        endforeach()
+        if(_vivid_static_profile_total_bytes GREATER _vivid_static_profile_upper_bound_bytes)
+            _h747_mem_fail(
+                "Vivid target-ABI total ${_vivid_static_profile_total_bytes} exceeds configure upper bound ${_vivid_static_profile_upper_bound_bytes}")
+        endif()
+        if(_vivid_static_profile_total_bytes GREATER _vivid_static_profile_budget_bytes)
+            _h747_mem_fail(
+                "Vivid target-ABI total ${_vivid_static_profile_total_bytes} leaves less than required headroom ${_vivid_static_profile_min_headroom_bytes} in budget ${_vivid_static_profile_budget_bytes}")
+        endif()
+        math(EXPR _vivid_static_expected_headroom
+            "${_vivid_static_profile_budget_bytes} - ${_vivid_static_profile_total_bytes}")
+        if(NOT _vivid_static_profile_exact_headroom_bytes EQUAL _vivid_static_expected_headroom)
+            _h747_mem_fail(
+                "Vivid exact headroom ${_vivid_static_profile_exact_headroom_bytes} does not match budget-total ${_vivid_static_expected_headroom}")
+        endif()
+        if(_vivid_static_profile_exact_headroom_bytes LESS _vivid_static_profile_min_headroom_bytes)
+            _h747_mem_fail(
+                "Vivid exact headroom ${_vivid_static_profile_exact_headroom_bytes} is below required ${_vivid_static_profile_min_headroom_bytes}")
         endif()
     endif()
 
@@ -533,6 +576,12 @@ function(_h747_mem_run_evidence)
     string(APPEND _out_text "\n[style_sheet_profile]\n")
     foreach(_field IN LISTS _style_sheet_profile_fields)
         set(_value_var "_style_sheet_profile_${_field}")
+        string(APPEND _out_text "${_field}=${${_value_var}}\n")
+    endforeach()
+
+    string(APPEND _out_text "\n[vivid_static_memory_profile]\n")
+    foreach(_field IN LISTS _vivid_static_profile_fields)
+        set(_value_var "_vivid_static_profile_${_field}")
         string(APPEND _out_text "${_field}=${${_value_var}}\n")
     endforeach()
 

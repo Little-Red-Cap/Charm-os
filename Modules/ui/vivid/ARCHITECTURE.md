@@ -406,3 +406,9 @@ flowchart TB
 - 示例入口与回归入口分工：
   - 示例入口：`fullframe_demo` / `tile_demo` / `theme_demo` / `nav_demo` 仅使用 `charm.ui.scene`（不直连 SoA/DrawCmd）。
   - 回归入口：`soa_demo` 作为 internal regression 工具，允许直连 SoA/DrawCmd，用于 dump/replay/CI。
+
+## 9. 静态内存准入
+
+- `PRODUCT` 与 `MCU_MIN` 必须声明 Vivid 常驻 RAM 预算、最小余量和 Scene 实例数。
+- CMake 先计算保守上界，`charm.ui.scene` 再用目标 ABI 的 `sizeof` 验证上界与真实余量。
+- 范围、配置项、生成证据和排除项见 `docs/ui/vivid_static_memory_admission.md`。

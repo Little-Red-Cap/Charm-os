@@ -153,6 +153,12 @@ function(vivid_require_uint16_capacity var_name value)
     endif()
 endfunction()
 
+function(vivid_require_nonnegative_integer var_name value)
+    if (NOT "${value}" MATCHES "^[0-9]+$")
+        message(FATAL_ERROR "${var_name} must be a non-negative integer, got '${value}'")
+    endif()
+endfunction()
+
 function(vivid_apply_product_payload_cap cap_var knob_suffix)
     set(_vivid_payload_knob "CHARM_VIVID_PAYLOAD_CAP_${knob_suffix}")
     set(_vivid_payload_widget_enabled OFF)
@@ -209,6 +215,9 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
     vivid_cache_default(CHARM_VIVID_STYLE_RULE_CAP STRING 32 "Vivid stylesheet rule capacity")
     vivid_cache_default(CHARM_VIVID_STYLE_METRICS_POOL_CAP STRING 64 "Vivid stylesheet metrics pool capacity")
     vivid_cache_default(CHARM_VIVID_DRAW_DETAIL_EVIDENCE BOOL OFF "Enable DrawCmd detail evidence")
+    vivid_cache_default(CHARM_VIVID_RUNTIME_SCENE_INSTANCES STRING "" "Vivid resident Scene instance count; required by PRODUCT and MCU_MIN")
+    vivid_cache_default(CHARM_VIVID_STATIC_MEMORY_BUDGET_BYTES STRING "" "Vivid resident RAM budget; required by PRODUCT and MCU_MIN")
+    vivid_cache_default(CHARM_VIVID_STATIC_MEMORY_MIN_HEADROOM_BYTES STRING "" "Minimum Vivid resident RAM headroom; required by PRODUCT and MCU_MIN")
     foreach(_vivid_payload_cap IN ITEMS
             LABEL BUTTON IMAGE TEXT_INPUT TEXT_AREA NUMBER_INPUT
             SEGMENTED_CONTROL STEPPER TOGGLE_GROUP CHECKBOX RADIO
@@ -225,22 +234,27 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
         set(VIVID_FEATURESET_ENUM "mcu_min")
         set(VIVID_IS_MCU_MIN 1)
         set(VIVID_IS_PRODUCT 0)
+        set(VIVID_STATIC_MEMORY_ADMISSION_REQUIRED 1)
     elseif (CHARM_VIVID_FEATURESET STREQUAL "FULL")
         set(VIVID_FEATURESET_ENUM "full")
         set(VIVID_IS_MCU_MIN 0)
         set(VIVID_IS_PRODUCT 0)
+        set(VIVID_STATIC_MEMORY_ADMISSION_REQUIRED 0)
     elseif (CHARM_VIVID_FEATURESET STREQUAL "PRODUCT")
         set(VIVID_FEATURESET_ENUM "product")
         set(VIVID_IS_MCU_MIN 0)
         set(VIVID_IS_PRODUCT 1)
+        set(VIVID_STATIC_MEMORY_ADMISSION_REQUIRED 1)
     else()
         message(FATAL_ERROR "Unknown CHARM_VIVID_FEATURESET: ${CHARM_VIVID_FEATURESET}")
     endif()
 
     if (CHARM_VIVID_SCREEN_PIXEL_FORMAT STREQUAL "RGB565")
         set(VIVID_SCREEN_PIXEL_FORMAT "PixelFormat::RGB565")
+        set(_vivid_screen_bytes_per_pixel 2)
     elseif (CHARM_VIVID_SCREEN_PIXEL_FORMAT STREQUAL "RGB888")
         set(VIVID_SCREEN_PIXEL_FORMAT "PixelFormat::RGB888")
+        set(_vivid_screen_bytes_per_pixel 3)
     else()
         message(FATAL_ERROR "Unknown CHARM_VIVID_SCREEN_PIXEL_FORMAT: ${CHARM_VIVID_SCREEN_PIXEL_FORMAT}")
     endif()
@@ -271,6 +285,22 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
     set(VIVID_STYLE_RULE_CAP ${CHARM_VIVID_STYLE_RULE_CAP})
     set(VIVID_STYLE_METRICS_POOL_CAP ${CHARM_VIVID_STYLE_METRICS_POOL_CAP})
     set(VIVID_DRAW_DETAIL_EVIDENCE ${_vivid_draw_detail_evidence})
+    if ("${CHARM_VIVID_RUNTIME_SCENE_INSTANCES}" STREQUAL "")
+        if (VIVID_STATIC_MEMORY_ADMISSION_REQUIRED)
+            message(FATAL_ERROR
+                "CHARM_VIVID_FEATURESET=${CHARM_VIVID_FEATURESET} requires explicit "
+                "CHARM_VIVID_RUNTIME_SCENE_INSTANCES")
+        endif()
+        set(VIVID_RUNTIME_SCENE_INSTANCES 1)
+    else()
+        vivid_require_nonnegative_integer(
+            "CHARM_VIVID_RUNTIME_SCENE_INSTANCES"
+            "${CHARM_VIVID_RUNTIME_SCENE_INSTANCES}")
+        if ("${CHARM_VIVID_RUNTIME_SCENE_INSTANCES}" LESS 1)
+            message(FATAL_ERROR "CHARM_VIVID_RUNTIME_SCENE_INSTANCES must be > 0")
+        endif()
+        set(VIVID_RUNTIME_SCENE_INSTANCES ${CHARM_VIVID_RUNTIME_SCENE_INSTANCES})
+    endif()
 
     set(SOA_POOL_CAP_DEFAULT "kDefaultPoolCap")
     set(SOA_TEXT_ARENA_BYTES "kDefaultTextArenaBytes")
@@ -412,6 +442,11 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
         endif()
         set(SOA_TEXT_ARENA_BYTES "${CHARM_VIVID_SOA_TEXT_ARENA_BYTES}")
     endif()
+    if (SOA_TEXT_ARENA_BYTES STREQUAL "kDefaultTextArenaBytes")
+        set(_vivid_text_arena_bytes 8192)
+    else()
+        set(_vivid_text_arena_bytes ${SOA_TEXT_ARENA_BYTES})
+    endif()
 
     if (CHARM_VIVID_FEATURESET STREQUAL "PRODUCT")
         if (NOT CHARM_VIVID_PRODUCT_WIDGETS)
@@ -447,6 +482,105 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
     else()
         set(VIVID_PRODUCT_WIDGET_DEFINES "")
     endif()
+
+    math(EXPR _vivid_payload_slot_cap_total
+        "${SOA_POOL_CAP_LABEL} + ${SOA_POOL_CAP_BUTTON} + ${SOA_POOL_CAP_IMAGE} + ${SOA_POOL_CAP_TEXT_INPUT} + ${SOA_POOL_CAP_TEXT_AREA} + ${SOA_POOL_CAP_NUMBER_INPUT} + ${SOA_POOL_CAP_SEGMENTED_CONTROL} + ${SOA_POOL_CAP_STEPPER} + ${SOA_POOL_CAP_TOGGLE_GROUP} + ${SOA_POOL_CAP_CHECKBOX} + ${SOA_POOL_CAP_RADIO} + ${SOA_POOL_CAP_LIST_ITEM} + ${SOA_POOL_CAP_TEXT_LIST} + ${SOA_POOL_CAP_LIST_VIEW} + ${SOA_POOL_CAP_TABLE_VIEW} + ${SOA_POOL_CAP_TREE_VIEW} + ${SOA_POOL_CAP_NUMBER_LIST} + ${SOA_POOL_CAP_ROLLER} + ${SOA_POOL_CAP_SWITCH} + ${SOA_POOL_CAP_SLIDER} + ${SOA_POOL_CAP_PROGRESS} + ${SOA_POOL_CAP_SCROLLBAR} + ${SOA_POOL_CAP_LIST} + ${SOA_POOL_CAP_SCROLL_CONTAINER} + ${SOA_POOL_CAP_SPINNER}")
+
+    # Conservative configure-time model. scene.cppm validates this upper bound
+    # against target-ABI sizeof values, so configuration drift cannot undercount.
+    set(_vivid_draw_cmd_buffer_upper_bytes 131072)
+    set(_vivid_soa_node_upper_bytes 512)
+    set(_vivid_payload_slot_upper_bytes 512)
+    set(_vivid_soa_fixed_upper_bytes 65536)
+    set(_vivid_scene_fixed_upper_bytes 65536)
+    set(_vivid_global_fixed_upper_bytes 262144)
+    math(EXPR _vivid_pixel_snapshot_upper_bytes
+        "${CHARM_VIVID_LAYER_CACHE_SLOTS} * ${CHARM_VIVID_LAYER_CACHE_WIDTH} * ${CHARM_VIVID_LAYER_CACHE_HEIGHT} * ${_vivid_screen_bytes_per_pixel}")
+    math(EXPR _vivid_command_buffer_upper_bytes
+        "(${CHARM_VIVID_LAYER_CACHE_SLOTS} + 1) * ${_vivid_draw_cmd_buffer_upper_bytes}")
+    math(EXPR _vivid_soa_upper_bytes
+        "${CHARM_VIVID_SOA_MAX_NODES} * ${_vivid_soa_node_upper_bytes} + ${_vivid_payload_slot_cap_total} * ${_vivid_payload_slot_upper_bytes} + ${_vivid_text_arena_bytes} + ${_vivid_soa_fixed_upper_bytes}")
+    math(EXPR _vivid_scene_upper_bytes
+        "${_vivid_pixel_snapshot_upper_bytes} + ${_vivid_command_buffer_upper_bytes} + ${_vivid_soa_upper_bytes} + ${_vivid_scene_fixed_upper_bytes}")
+    math(EXPR _vivid_global_upper_bytes
+        "${_vivid_global_fixed_upper_bytes} + ${CHARM_VIVID_STYLE_CLASS_MAX} * 256 + ${CHARM_VIVID_STYLE_RULE_CAP} * 256 + ${CHARM_VIVID_STYLE_METRICS_POOL_CAP} * 64")
+    math(EXPR VIVID_STATIC_MEMORY_UPPER_BOUND_BYTES
+        "${VIVID_RUNTIME_SCENE_INSTANCES} * ${_vivid_scene_upper_bytes} + ${_vivid_global_upper_bytes}")
+
+    if (VIVID_STATIC_MEMORY_ADMISSION_REQUIRED)
+        if ("${CHARM_VIVID_STATIC_MEMORY_BUDGET_BYTES}" STREQUAL "")
+            message(FATAL_ERROR
+                "CHARM_VIVID_FEATURESET=${CHARM_VIVID_FEATURESET} requires explicit "
+                "CHARM_VIVID_STATIC_MEMORY_BUDGET_BYTES")
+        endif()
+        if ("${CHARM_VIVID_STATIC_MEMORY_MIN_HEADROOM_BYTES}" STREQUAL "")
+            message(FATAL_ERROR
+                "CHARM_VIVID_FEATURESET=${CHARM_VIVID_FEATURESET} requires explicit "
+                "CHARM_VIVID_STATIC_MEMORY_MIN_HEADROOM_BYTES")
+        endif()
+        vivid_require_nonnegative_integer(
+            "CHARM_VIVID_STATIC_MEMORY_BUDGET_BYTES"
+            "${CHARM_VIVID_STATIC_MEMORY_BUDGET_BYTES}")
+        vivid_require_nonnegative_integer(
+            "CHARM_VIVID_STATIC_MEMORY_MIN_HEADROOM_BYTES"
+            "${CHARM_VIVID_STATIC_MEMORY_MIN_HEADROOM_BYTES}")
+        if ("${CHARM_VIVID_STATIC_MEMORY_BUDGET_BYTES}" LESS 1)
+            message(FATAL_ERROR "CHARM_VIVID_STATIC_MEMORY_BUDGET_BYTES must be > 0")
+        endif()
+        if ("${CHARM_VIVID_STATIC_MEMORY_MIN_HEADROOM_BYTES}" LESS 1)
+            message(FATAL_ERROR "CHARM_VIVID_STATIC_MEMORY_MIN_HEADROOM_BYTES must be > 0")
+        endif()
+        if (VIVID_STATIC_MEMORY_UPPER_BOUND_BYTES GREATER CHARM_VIVID_STATIC_MEMORY_BUDGET_BYTES)
+            message(FATAL_ERROR
+                "Vivid static memory admission failed: featureset=${CHARM_VIVID_FEATURESET} "
+                "upper_bound=${VIVID_STATIC_MEMORY_UPPER_BOUND_BYTES} "
+                "min_headroom=${CHARM_VIVID_STATIC_MEMORY_MIN_HEADROOM_BYTES} "
+                "budget=${CHARM_VIVID_STATIC_MEMORY_BUDGET_BYTES}")
+        endif()
+        set(VIVID_STATIC_MEMORY_BUDGET_BYTES ${CHARM_VIVID_STATIC_MEMORY_BUDGET_BYTES})
+        set(VIVID_STATIC_MEMORY_MIN_HEADROOM_BYTES ${CHARM_VIVID_STATIC_MEMORY_MIN_HEADROOM_BYTES})
+        math(EXPR _vivid_configured_headroom_bytes
+            "${VIVID_STATIC_MEMORY_BUDGET_BYTES} - ${VIVID_STATIC_MEMORY_UPPER_BOUND_BYTES}")
+        if (_vivid_configured_headroom_bytes LESS VIVID_STATIC_MEMORY_MIN_HEADROOM_BYTES)
+            message(FATAL_ERROR
+                "Vivid static memory admission failed: featureset=${CHARM_VIVID_FEATURESET} "
+                "upper_bound=${VIVID_STATIC_MEMORY_UPPER_BOUND_BYTES} "
+                "min_headroom=${VIVID_STATIC_MEMORY_MIN_HEADROOM_BYTES} "
+                "budget=${VIVID_STATIC_MEMORY_BUDGET_BYTES}")
+        endif()
+        set(_vivid_admission_status admitted)
+    else()
+        set(VIVID_STATIC_MEMORY_BUDGET_BYTES 0)
+        set(VIVID_STATIC_MEMORY_MIN_HEADROOM_BYTES 0)
+        set(_vivid_configured_headroom_bytes 0)
+        set(_vivid_admission_status profile_only)
+    endif()
+
+    set(_vivid_static_memory_manifest
+        "featureset=${CHARM_VIVID_FEATURESET}\n"
+        "admission_required=${VIVID_STATIC_MEMORY_ADMISSION_REQUIRED}\n"
+        "status=${_vivid_admission_status}\n"
+        "scene_instances=${VIVID_RUNTIME_SCENE_INSTANCES}\n"
+        "pixel_snapshot_upper_bytes=${_vivid_pixel_snapshot_upper_bytes}\n"
+        "command_buffer_upper_bytes=${_vivid_command_buffer_upper_bytes}\n"
+        "soa_upper_bytes=${_vivid_soa_upper_bytes}\n"
+        "scene_upper_bytes=${_vivid_scene_upper_bytes}\n"
+        "global_upper_bytes=${_vivid_global_upper_bytes}\n"
+        "upper_bound_bytes=${VIVID_STATIC_MEMORY_UPPER_BOUND_BYTES}\n"
+        "budget_bytes=${VIVID_STATIC_MEMORY_BUDGET_BYTES}\n"
+        "min_headroom_bytes=${VIVID_STATIC_MEMORY_MIN_HEADROOM_BYTES}\n"
+        "configured_headroom_bytes=${_vivid_configured_headroom_bytes}\n")
+    list(JOIN _vivid_static_memory_manifest "" _vivid_static_memory_manifest_text)
+    file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/generated/vivid")
+    file(WRITE
+        "${CMAKE_CURRENT_BINARY_DIR}/generated/vivid/static_memory_admission.txt"
+        "${_vivid_static_memory_manifest_text}")
+    message(STATUS
+        "Vivid static memory: featureset=${CHARM_VIVID_FEATURESET} "
+        "upper_bound=${VIVID_STATIC_MEMORY_UPPER_BOUND_BYTES} "
+        "budget=${VIVID_STATIC_MEMORY_BUDGET_BYTES} "
+        "headroom=${_vivid_configured_headroom_bytes} "
+        "status=${_vivid_admission_status}")
 
     set(vivid_pool_caps_output_dir "${CMAKE_CURRENT_BINARY_DIR}/generated/vivid")
     file(MAKE_DIRECTORY "${vivid_pool_caps_output_dir}")

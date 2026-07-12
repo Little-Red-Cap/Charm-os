@@ -8,6 +8,10 @@ module;
 #include <cstdint>
 #include <new>
 
+#ifndef CHARM_VIVID_MEMORY_PROFILE_SYMBOLS
+#define CHARM_VIVID_MEMORY_PROFILE_SYMBOLS 0
+#endif
+
 export module charm.ui.scene;
 
 import charm.core.config;
@@ -670,3 +674,127 @@ export namespace ui::scene {
         PageHooks hooks_{};
     };
 }
+
+namespace {
+    struct VividStaticMemoryProfile {
+        std::uint64_t scene_instances{0};
+        std::uint64_t scene_bytes{0};
+        std::uint64_t soa_kernel_bytes{0};
+        std::uint64_t payload_manager_bytes{0};
+        std::uint64_t draw_cmd_buffer_bytes{0};
+        std::uint64_t command_snapshot_bytes{0};
+        std::uint64_t pixel_snapshot_bytes{0};
+        std::uint64_t theme_bytes{0};
+        std::uint64_t stylesheet_bytes{0};
+        std::uint64_t image_registry_bytes{0};
+        std::uint64_t object_style_reserve_bytes{0};
+        std::uint64_t style_state_table_bytes{0};
+        std::uint64_t global_bytes{0};
+        std::uint64_t total_bytes{0};
+        std::uint64_t upper_bound_bytes{0};
+        std::uint64_t budget_bytes{0};
+        std::uint64_t min_headroom_bytes{0};
+        std::uint64_t exact_headroom_bytes{0};
+    };
+
+    inline constexpr VividStaticMemoryProfile vivid_static_memory_profile() noexcept {
+        constexpr auto style_profile = style_sheet_memory_profile();
+        constexpr std::uint64_t scene_instances = CHARM_VIVID_RUNTIME_SCENE_INSTANCES;
+        constexpr std::uint64_t scene_bytes = sizeof(ui::scene::Scene);
+        constexpr std::uint64_t theme_bytes =
+            sizeof(Theme) + sizeof(ThemeTokens) + sizeof(const Font*);
+        constexpr std::uint64_t stylesheet_bytes = sizeof(StyleSheet);
+        constexpr std::uint64_t image_registry_bytes = sizeof(ui::gfx::ImageRegistry);
+        constexpr std::uint64_t widget_kind_count = style_profile.widget_kind_count;
+        constexpr std::uint64_t object_style_reserve_bytes = widget_kind_count * sizeof(Style);
+        constexpr std::uint64_t style_state_table_bytes = widget_kind_count
+            * (sizeof(std::uint8_t) + sizeof(std::uint8_t) + sizeof(std::uint16_t));
+        constexpr std::uint64_t global_bytes = theme_bytes
+            + stylesheet_bytes
+            + image_registry_bytes
+            + object_style_reserve_bytes
+            + style_state_table_bytes;
+        constexpr std::uint64_t total_bytes = scene_instances * scene_bytes + global_bytes;
+        constexpr std::uint64_t budget_bytes = CHARM_VIVID_STATIC_MEMORY_BUDGET_BYTES;
+        constexpr std::uint64_t exact_headroom_bytes =
+            budget_bytes > total_bytes ? budget_bytes - total_bytes : 0;
+        return VividStaticMemoryProfile{
+            scene_instances,
+            scene_bytes,
+            sizeof(SoaKernel),
+            sizeof(soa_detail::PayloadManager),
+            sizeof(ui::draw_cmd::DefaultDrawCmdBuffer),
+            sizeof(ui::scene::CommandSnapshotPayloadStore<static_cast<std::size_t>(layer_cache_slots)>),
+            sizeof(ui::scene::PixelSnapshotPayloadStore<static_cast<std::size_t>(layer_cache_slots)>),
+            theme_bytes,
+            stylesheet_bytes,
+            image_registry_bytes,
+            object_style_reserve_bytes,
+            style_state_table_bytes,
+            global_bytes,
+            total_bytes,
+            CHARM_VIVID_STATIC_MEMORY_UPPER_BOUND_BYTES,
+            budget_bytes,
+            CHARM_VIVID_STATIC_MEMORY_MIN_HEADROOM_BYTES,
+            exact_headroom_bytes,
+        };
+    }
+
+    inline constexpr auto kVividStaticMemoryProfile = vivid_static_memory_profile();
+    static_assert(kVividStaticMemoryProfile.total_bytes
+                  <= kVividStaticMemoryProfile.upper_bound_bytes,
+                  "Vivid configure-time static memory model undercounted target-ABI resident bytes");
+#if CHARM_VIVID_STATIC_MEMORY_ADMISSION_REQUIRED
+    static_assert(kVividStaticMemoryProfile.budget_bytes > 0,
+                  "Vivid static memory admission requires a non-zero budget");
+    static_assert(kVividStaticMemoryProfile.total_bytes <= kVividStaticMemoryProfile.budget_bytes
+                      && kVividStaticMemoryProfile.budget_bytes
+                              - kVividStaticMemoryProfile.total_bytes
+                          >= kVividStaticMemoryProfile.min_headroom_bytes,
+                  "Vivid target-ABI resident bytes do not leave the required budget headroom");
+#endif
+}
+
+#if CHARM_VIVID_MEMORY_PROFILE_SYMBOLS && defined(__GNUC__)
+extern "C" [[gnu::used]] void charm_vivid_static_memory_profile_symbols() noexcept {
+    constexpr auto profile = kVividStaticMemoryProfile;
+    asm volatile(
+        ".global charm_vivid_static_profile_scene_bytes\n"
+        ".set charm_vivid_static_profile_scene_bytes, %c0\n"
+        ".global charm_vivid_static_profile_soa_kernel_bytes\n"
+        ".set charm_vivid_static_profile_soa_kernel_bytes, %c1\n"
+        ".global charm_vivid_static_profile_payload_manager_bytes\n"
+        ".set charm_vivid_static_profile_payload_manager_bytes, %c2\n"
+        ".global charm_vivid_static_profile_draw_cmd_buffer_bytes\n"
+        ".set charm_vivid_static_profile_draw_cmd_buffer_bytes, %c3\n"
+        ".global charm_vivid_static_profile_command_snapshot_bytes\n"
+        ".set charm_vivid_static_profile_command_snapshot_bytes, %c4\n"
+        ".global charm_vivid_static_profile_pixel_snapshot_bytes\n"
+        ".set charm_vivid_static_profile_pixel_snapshot_bytes, %c5\n"
+        ".global charm_vivid_static_profile_global_bytes\n"
+        ".set charm_vivid_static_profile_global_bytes, %c6\n"
+        ".global charm_vivid_static_profile_total_bytes\n"
+        ".set charm_vivid_static_profile_total_bytes, %c7\n"
+        ".global charm_vivid_static_profile_upper_bound_bytes\n"
+        ".set charm_vivid_static_profile_upper_bound_bytes, %c8\n"
+        ".global charm_vivid_static_profile_budget_bytes\n"
+        ".set charm_vivid_static_profile_budget_bytes, %c9\n"
+        ".global charm_vivid_static_profile_min_headroom_bytes\n"
+        ".set charm_vivid_static_profile_min_headroom_bytes, %c10\n"
+        ".global charm_vivid_static_profile_exact_headroom_bytes\n"
+        ".set charm_vivid_static_profile_exact_headroom_bytes, %c11\n"
+        :
+        : "i"(profile.scene_bytes),
+          "i"(profile.soa_kernel_bytes),
+          "i"(profile.payload_manager_bytes),
+          "i"(profile.draw_cmd_buffer_bytes),
+          "i"(profile.command_snapshot_bytes),
+          "i"(profile.pixel_snapshot_bytes),
+          "i"(profile.global_bytes),
+          "i"(profile.total_bytes),
+          "i"(profile.upper_bound_bytes),
+          "i"(profile.budget_bytes),
+          "i"(profile.min_headroom_bytes),
+          "i"(profile.exact_headroom_bytes));
+}
+#endif

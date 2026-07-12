@@ -29,12 +29,21 @@ The Host harness proves:
 - a timestamped record write/read check and TextSink report;
 - no app start after a resolution failure.
 
+The Host failure matrix additionally exercises every MVP requirement position
+for missing, duplicate, out-of-range, contract-mismatched, and invalid
+provisions, plus every `app::run()` failure stage from Clock through report
+flush. It checks failure-stage Evidence flags and confirms later providers are
+not called after an earlier stage fails. This is exploration evidence, not a
+public API promotion.
+
 The QEMU slice builds a Cortex-M7 firmware and runs it inside QEMU `mps2-an500`.
 It consumes the same `mvp_app.hpp`, contract definitions, and resolver as Host;
 only the Profile and providers change. It produces the same timestamp and record
 checksum and proves a missing binding stops before App start inside the firmware.
 
-Current Host evidence passes with Clang 18.1.6 and GCC 16.1.0.
+Current Host evidence passes with Clang 18.1.6 and GCC 16.1.0. The same Host
+CTest set also passes a Clang 18 Release build with AddressSanitizer and
+UndefinedBehaviorSanitizer enabled.
 Current QEMU evidence passes with Arm GNU 17.0.0 and QEMU 10.2.90.
 
 This still does not prove real-board execution. Host-only board metadata checks

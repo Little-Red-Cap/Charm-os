@@ -19,7 +19,6 @@
 
 - [`standards/README.md`](standards/README.md)
 - [`standards/项目C++编码要求.md`](standards/项目C++编码要求.md)
-- [`standards/嵌入式C++编程实践指南.md`](standards/嵌入式C++编程实践指南.md)
 - [`standards/project_conventions.md`](standards/project_conventions.md)
 
 ### 我要看协作约定
@@ -27,7 +26,6 @@
 先读：
 
 - [`collaboration/《协作期待与规范》.md`](collaboration/《协作期待与规范》.md)
-- [`collaboration/《现代 C++ 单片机代码协作认知》.md`](collaboration/《现代 C++ 单片机代码协作认知》.md)
 - AI / Agent 相关入口仍在 [`../agent/README.md`](../agent/README.md)
 
 ### 我要看当前推进状态、认领和 backlog
@@ -35,8 +33,6 @@
 先读：
 
 - [`tracking/README.md`](tracking/README.md)
-- [`tracking/主框架全仓审查与收敛_backlog.md`](tracking/主框架全仓审查与收敛_backlog.md)
-- [`tracking/推进TODO与分工.md`](tracking/推进TODO与分工.md)
 
 ### 我要处理终端 / 编码 / PowerShell 环境
 
@@ -66,6 +62,9 @@
 Bundle、Foundation Runtime、工程对象/变体、构建升级和 USB 声明式装配的完整早期正文已移入
 [`../archive/project-proposals-v0/README.md`](../archive/project-proposals-v0/README.md)；原路径只保留状态摘要，避免多份草案同时冒充项目总模型。
 
+早期 C++ 实践长文、协作宣言和 tracking 快照见
+[`../archive/project-guidance-and-tracking-v0/README.md`](../archive/project-guidance-and-tracking-v0/README.md)。
+
 ## 先怎么理解这个目录
 
 - `standards/`
@@ -73,7 +72,7 @@ Bundle、Foundation Runtime、工程对象/变体、构建升级和 USB 声明�
 - `collaboration/`
   偏协作期待、沟通方式和工程协同认知。
 - `tracking/`
-  偏推进、认领、问题清单和阶段性 backlog。
+  只保留仍需要维护的问题入口；历史 backlog 与 ownership 已归档。
 - `tooling/`
   偏环境与工具使用说明。
 - 根目录若干 `草案 / 提案 / design`
@@ -82,6 +81,6 @@ Bundle、Foundation Runtime、工程对象/变体、构建升级和 USB 声明�
 ## 当前使用建议
 
 - 需要“当前该怎么写代码”，优先回到 `standards/`。
-- 需要“现在正在推进什么”，优先回到 `tracking/`。
+- 需要“现在正在推进什么”，先看 Git 状态、当前会话认领和 `tracking/README.md` 中仍保留的入口。
 - 需要“为什么会有这些提案”，再去看根目录的草案与设计记录。
 - 如果你只是第一次进入项目，不要先从 `tracking/` 或提案文档开始建立认知。

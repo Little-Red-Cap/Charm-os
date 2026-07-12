@@ -2,7 +2,7 @@
 
 本文用于回答一个具体问题：在 Charm 的嵌入式代码里，C++ 应该怎么写。
 
-它不是替代 [`项目C++编码要求.md`](项目C++编码要求.md)，而是把其中的“允许 / 受限 / 禁止”落到更具体的接口、内存、模板、错误处理、测试代码与平台边界场景中。
+它不是替代 [`项目C++编码要求.md`](../../project/standards/项目C++编码要求.md)，而是把其中的“允许 / 受限 / 禁止”落到更具体的接口、内存、模板、错误处理、测试代码与平台边界场景中。
 
 ## 0. 适用范围
 
@@ -475,7 +475,7 @@ struct Hertz { uint32_t value; };
 1. 接收不安全接口。
 2. 立即转换为强类型、`span`、`Result`、`enum class`。
 3. 不把脏接口传播到核心逻辑。
-4. 必要时登记到 [`../escape_hatches.md`](../escape_hatches.md)。
+4. 必要时登记到 [`escape_hatches.md`](../../project/escape_hatches.md)。
 
 ## 15. Windows / host 测试规则
 
@@ -561,7 +561,7 @@ auto frame = decode(std::span<const std::byte>{bytes.data(), bytes.size()});
 1. 范围最小，优先限制在单个函数或单个 adapter 模块。
 2. 注释写明 `ESCAPE_HATCH`、原因、替代方案为何不可用。
 3. 有证据：硬件手册、ABI 要求、benchmark、第三方限制。
-4. 登记到 [`../escape_hatches.md`](../escape_hatches.md)。
+4. 登记到 [`escape_hatches.md`](../../project/escape_hatches.md)。
 5. 不得污染核心模块公共接口。
 
 注释模板：

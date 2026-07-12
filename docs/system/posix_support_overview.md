@@ -66,7 +66,6 @@ runner 的 token 和参数是当前验收事实；是否通过必须以当次构
 ## 继续阅读
 
 - 分层边界：[`posix_three_layer_contract.md`](posix_three_layer_contract.md)
-- 子系统原则：[`posix_subsystem_principles.md`](posix_subsystem_principles.md)
 - 用户态 runtime：[`posix_user_runtime_minimal_design.md`](posix_user_runtime_minimal_design.md)
 - ProgramImage：[`posix_program_image_minimal_design.md`](posix_program_image_minimal_design.md)
 - spawn：[`posix_spawn_minimal_design.md`](posix_spawn_minimal_design.md)

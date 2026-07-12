@@ -64,7 +64,7 @@ materialized graph、bring-up evidence、resource contract 与 ARMv7-A staging �
 
 先读 [`posix_support_overview.md`](posix_support_overview.md)。按需要继续：
 
-- 分层边界：[`posix_three_layer_contract.md`](posix_three_layer_contract.md)、[`posix_subsystem_principles.md`](posix_subsystem_principles.md)
+- 分层边界：[`posix_three_layer_contract.md`](posix_three_layer_contract.md)
 - 子主题设计：[`posix_spawn_minimal_design.md`](posix_spawn_minimal_design.md)、[`posix_fd_table_minimal_design.md`](posix_fd_table_minimal_design.md)、[`posix_errno_mapping.md`](posix_errno_mapping.md)、[`posix_error_semantics.md`](posix_error_semantics.md)
 
 POSIX v0 的阶段基线、roadmap、任务清单与维护记录见

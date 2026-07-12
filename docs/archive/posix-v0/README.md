@@ -3,8 +3,8 @@
 状态：archive。
 
 本目录保存 POSIX v0 推进期间的基线、roadmap、任务清单、维护协作、收口判断和工具链
-解阻记录。这些材料包含真实取舍与故障经验，但大量“当前状态”“官方基线”和“下一步”
-已经具有时间依赖，不再作为现行能力说明。
+解阻记录，以及早期分层论证。这些材料包含真实取舍与故障经验，但大量“当前状态”、
+“官方基线”和“下一步”已经具有时间依赖，不再作为现行能力说明。
 
 保留文件：
 
@@ -17,6 +17,8 @@
 - [`posix_cleanup_refactor_plan.md`](posix_cleanup_refactor_plan.md)
 - [`posix_maintenance_mode_collaboration.md`](posix_maintenance_mode_collaboration.md)
 - [`posix_modules_ts_build_notes.md`](posix_modules_ts_build_notes.md)
+- [`posix_subsystem_principles.md`](posix_subsystem_principles.md)
+- [`posix_three_layer_contract.md`](posix_three_layer_contract.md)
 
 当前源码边界和验证入口见：
 

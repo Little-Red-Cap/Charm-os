@@ -1,5 +1,11 @@
 # Resident Image Platform v1 契约
 
+> [!IMPORTANT]
+> **文档状态：`supporting`（部署机制契约）**
+> 本文约束 Resident ELF / ModuleX 的局部实现链，不定义 Charm Core，也不是 Charm MVP 的
+> 成立条件。上位边界见 [`../../CONSTITUTION.md`](../../CONSTITUTION.md) 与
+> [`charm_core_contract.md`](charm_core_contract.md)。
+
 本文固定 Charm 当前动态 App 平台的第一代架构边界。目标不是定义产品级
 bootloader，而是把已经跑通的下载、外部存储、装载、执行路径收成同一条平台主链。
 

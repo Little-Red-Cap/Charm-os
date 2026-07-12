@@ -1,5 +1,12 @@
 # Charm Compiler Constitution v0
 
+> [!IMPORTANT]
+> **文档状态：`exploration`（Compiler 局部历史文档）**
+> 本文标题中的 Constitution 只表示旧 System Compiler 探索的局部约束，不能与根目录
+> [`../../CONSTITUTION.md`](../../CONSTITUTION.md) 并列或覆盖它。Compiler 当前属于
+> `Implementation / Tool`；Charm Core 契约见
+> [`../architecture/charm_core_contract.md`](../architecture/charm_core_contract.md)。
+
 本文是 Charm compile-time world 的编译器宪法。
 
 它不是新的 DSL，不是 `World IR` schema，也不是 LLVM/MLIR 接入计划。它用于定义 Charm 作为 system compiler 时必须遵守的世界法理：世界如何存在、事实如何进入世界、哪些 pass 有权修改世界、何时冻结语义、lowering 如何保留语义身份，以及 witness 如何回指世界真相。

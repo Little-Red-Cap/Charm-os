@@ -1,5 +1,11 @@
 # Charm 文档入门
 
+> [!IMPORTANT]
+> **文档状态：`supporting`（实现盘点）**
+> 本文保留停线前的代码阅读路径，不定义 Charm 身份或 Core 词汇。上位入口是
+> [`../CONSTITUTION.md`](../CONSTITUTION.md) 与
+> [`architecture/charm_core_contract.md`](architecture/charm_core_contract.md)。
+
 本页是 Charm 的 10 分钟入门入口。  
 读完本页后，再进入 `docs/architecture_overview.md` 或具体专题文档。
 
@@ -9,7 +15,8 @@
 - 新功能应该怎么接入（不会破坏架构）
 
 ## 一句话理解
-Charm 是一个面向 MCU/PC 的模块化系统框架，核心是“能力图 + 非阻塞 IO + 统一装配”。
+从当前代码实现看，仓库包含面向 MCU/PC 的模块、非阻塞 IO 与装配机制；这些机制是否属于
+Charm Core，仍以 Constitution 的逐项裁决为准。
 
 ## 读代码的最短路径
 1. `docs/architecture_overview.md`：全局结构与分层
@@ -68,8 +75,9 @@ Charm 是一个面向 MCU/PC 的模块化系统框架，核心是“能力图 + 
 
 ## 更高层总纲
 
-如果你想先理解 Charm 更高层真正想守住什么，再进入具体机制，
-建议优先阅读：`docs/architecture/charm_methodology_charter.md`
+如果你想先理解 Charm 更高层真正守住什么，先读根目录 `CONSTITUTION.md` 与
+`docs/architecture/charm_core_contract.md`。`charm_methodology_charter.md` 当前只作为
+exploration 材料保留。
 
 ## 暂时不用先读
 

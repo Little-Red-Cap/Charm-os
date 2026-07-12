@@ -1,6 +1,12 @@
-# Charm 多战线母仓治理页
+# Charm 停线前多战线治理快照
 
-本页是当前仓库的治理与状态模型入口。
+> [!IMPORTANT]
+> **文档状态：`supporting`（停线基线）**
+> 本文记录停线收敛前的仓库战线，不再定义 Charm 身份、Core 或当前主线。当前权威入口是
+> [`../CONSTITUTION.md`](../CONSTITUTION.md) 与
+> [`architecture/charm_core_contract.md`](architecture/charm_core_contract.md)。
+
+本页是停线前仓库治理与状态模型的快照。
 
 它只回答几个最容易失真的问题：
 

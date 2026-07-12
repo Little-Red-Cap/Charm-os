@@ -1,5 +1,11 @@
 # Charm Spine v0
 
+> [!IMPORTANT]
+> **文档状态：`exploration`（已由核心契约取代身份入口）**
+> 本文保留 v0 推演，但 `Capability -> Component -> Profile -> Projection -> Evidence`
+> 不是已获准的 Core 主链。当前定位与裁决见 [`../../CONSTITUTION.md`](../../CONSTITUTION.md)
+> 和 [`charm_core_contract.md`](charm_core_contract.md)。
+
 本文定义 Charm 的第一根主脊梁。
 
 它不是目录重排计划，也不是新 DSL、manifest、generator 或 runtime framework。

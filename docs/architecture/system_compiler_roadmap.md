@@ -1,5 +1,12 @@
 # Charm System Compiler Roadmap
 
+> [!IMPORTANT]
+> **文档状态：`exploration`（停线冻结）**
+> Compiler 已被裁决为 `Implementation / Tool`。本文保留工具路线与历史推演，但不再定义
+> Charm 的核心身份或当前唯一主线。上位依据是
+> [`../../CONSTITUTION.md`](../../CONSTITUTION.md) 与
+> [`charm_core_contract.md`](charm_core_contract.md)。
+
 ## 战线关系声明
 
 - `track_kind`: `theory`

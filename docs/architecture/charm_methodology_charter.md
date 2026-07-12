@@ -1,5 +1,11 @@
 # Charm 方法论总纲：让软件作为系统存在
 
+> [!IMPORTANT]
+> **文档状态：`exploration`（冻结扩面）**
+> 本文保存方法论背景，不再是 Charm Core 的上位总纲。正式准入与最小契约见
+> [`../../CONSTITUTION.md`](../../CONSTITUTION.md) 和
+> [`charm_core_contract.md`](charm_core_contract.md)。本文中的名词均需重新举证。
+
 ## 本文定位
 
 本文不是某个具体机制的设计说明，

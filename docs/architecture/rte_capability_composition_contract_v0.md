@@ -1,5 +1,12 @@
 # Charm RTE Capability Composition Contract v0
 
+> [!IMPORTANT]
+> **文档状态：`exploration`（停线冻结）**
+> `RTE` 当前裁决为 `Rejected / Deferred` Core 词汇。本文保留能力装配实验语义作为证据，
+> 不再承担 canonical Core 契约。上位入口是
+> [`../../CONSTITUTION.md`](../../CONSTITUTION.md) 与
+> [`charm_core_contract.md`](charm_core_contract.md)。
+
 本文件定义 Charm RTE v0 的边界。
 
 这里的 RTE 不是 runtime framework。它不接管调度、不实现事件循环、

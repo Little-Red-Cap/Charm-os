@@ -1,5 +1,11 @@
 # System Compiler Vocabulary v0
 
+> [!IMPORTANT]
+> **文档状态：`exploration`（停线冻结）**
+> 本文词汇只在 System Compiler 探索范围内使用，不是 Charm Core 正式术语表。
+> Core 准入与裁决见 [`../../CONSTITUTION.md`](../../CONSTITUTION.md) 和
+> [`charm_core_contract.md`](charm_core_contract.md)。
+
 本文不是新的 DSL，也不是已经冻结的配置协议。
 它用于收敛 Charm 在 `system compiler v0` 阶段最核心的一组词汇，
 并把这些词和仓库当前已经存在的代码/文档载体做一轮正式映射。

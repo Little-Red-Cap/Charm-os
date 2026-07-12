@@ -1,27 +1,24 @@
-# Charm 架构全景（收敛版）
+# Charm 当前架构实现盘点
+
+> [!IMPORTANT]
+> **文档状态：`supporting`（实现盘点）**
+> 本文描述当前模块、入口和历史分层，不定义 Charm Core。核心身份与术语以
+> [`../CONSTITUTION.md`](../CONSTITUTION.md) 和
+> [`architecture/charm_core_contract.md`](architecture/charm_core_contract.md) 为准。
 
 本页是 Charm 的全局架构图与依赖红线说明。  
 不承担文档路由或新同学入门职责。
 
-## 上位总纲
+## 上位入口
 
-如果你想先理解这些架构规则背后更上位的目标与不变量，
-先看：`docs/architecture/charm_methodology_charter.md`
+先读：
 
-如果你想看 Charm 中长期主轴、近中期路线与传奇路线边界，
-再看：`docs/architecture/system_compiler_roadmap.md`
+1. [`../CONSTITUTION.md`](../CONSTITUTION.md)
+2. [`architecture/charm_core_contract.md`](architecture/charm_core_contract.md)
+3. [`architecture/README.md`](architecture/README.md)
 
-如果你想看 system compiler 的当前核心词汇与仓库映射，
-再看：`docs/architecture/system_compiler_vocabulary_v0.md`
-
-如果你想看 Charm 自身的第一根平台主脊梁，
-先看：`docs/architecture/charm_spine_v0.md`
-
-如果你想看 RTE 作为能力装配边界的 v0 契约，
-再看：`docs/architecture/rte_capability_composition_contract_v0.md`
-
-如果你想看 RTE 如何推进到 H747-lab 的近期平台化主线，
-再看：`docs/architecture/rte_to_h747_platform_roadmap.md`
+`charm_methodology_charter.md`、`charm_spine_v0.md`、System Compiler 与 RTE/H747
+材料当前均为 exploration。它们可以解释历史选择，不再承担 Charm 的上位定义。
 
 如果你想看稳定入口、兼容入口与退役入口的分类，
 再看：`docs/architecture/entry_surface_contract.md`
@@ -29,17 +26,7 @@
 如果你想看 `charm.core` / `charm.system` / `charm.ui.vivid` 这类稳定聚合入口为什么可以宽，
 再看：`docs/architecture/stable_entry_aggregate_contract.md`
 
-如果你想看 system compiler 的最小结论对象应该长什么样，
-再看：`docs/system/artifact_report_v0.md`
-
-如果你想看 system compiler 如何把结果暴露给人和工具，
-再看：`docs/system/explain_surface_v0.md`
-
-如果你想看资源与行为边界如何进入系统语言，
-再看：`docs/system/resource_contract_v0.md`
-
-如果你想看 bringup 如何从“系统装配”继续收束成“可举证结果”，
-再看：`docs/system/bringup_evidence_pipeline_v0.md`
+System Compiler 的 artifact、explain、resource 与 bring-up 文档同样只在其探索范围内有效。
 
 ## 设计原则（只记 5 条）
 - 静态能力必须走 `init.graph` 装配；运行期发现能力必须通过统一 capability export 进入系统

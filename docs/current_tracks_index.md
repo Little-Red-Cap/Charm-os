@@ -1,6 +1,12 @@
-# 当前战线浅索引
+# 停线前战线浅索引
 
-本页用于给当前默认入口再加一层浅索引。
+> [!IMPORTANT]
+> **文档状态：`supporting`（停线基线）**
+> 本页保留停线前各战线入口，供修复和追溯使用；它不再裁决 Charm Core 或默认路线。
+> 先读 [`../CONSTITUTION.md`](../CONSTITUTION.md) 与
+> [`architecture/charm_core_contract.md`](architecture/charm_core_contract.md)。
+
+本页用于保存停线前默认入口的浅索引。
 
 目标不是替代各专题文档，而是把“官方入口”和“深层入口”分开，降低回仓和新读者的识别成本。
 
@@ -114,10 +120,10 @@
 - 官方入口：
   - [`../Examples/project/player/README.md`](../Examples/project/player/README.md)
   - [`../Examples/project/player/win/CMakeLists.txt`](../Examples/project/player/win/CMakeLists.txt)
-  - [`../Examples/project/player/stn32h747_HQZY/CM7/CMakeLists.txt`](../Examples/project/player/stn32h747_HQZY/CM7/CMakeLists.txt)
+  - 历史路径：`Examples/project/player/stn32h747_HQZY/CM7/CMakeLists.txt`（停线时已不存在）
 - 深层入口：
   - [`../Examples/project/player/app-vivid-MaterialDesign3/README.md`](../Examples/project/player/app-vivid-MaterialDesign3/README.md)
-  - [`../Examples/project/player/stn32h747_HQZY/CM7/CLION_WORKFLOW.md`](../Examples/project/player/stn32h747_HQZY/CM7/CLION_WORKFLOW.md)
+  - 历史路径：`Examples/project/player/stn32h747_HQZY/CM7/CLION_WORKFLOW.md`（停线时已不存在）
 
 ### RK3506 叶子 target 入口
 

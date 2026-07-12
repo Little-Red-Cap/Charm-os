@@ -1,5 +1,11 @@
 # Charm RTE 到 H747 平台化路线图
 
+> [!IMPORTANT]
+> **文档状态：`exploration`（历史路线，停线冻结）**
+> 本文中的 `RTE -> H747` 与 `Display + Player` 是阶段性压力路线，不再是 Charm 当前主线，
+> 也不定义 Core。当前定位与 MVP 见 [`../../CONSTITUTION.md`](../../CONSTITUTION.md) 和
+> [`charm_core_contract.md`](charm_core_contract.md)。
+
 本文定义 Charm 近期最重要的平台化主线：
 
 ```text

@@ -66,12 +66,12 @@ Driver、Provider 基类或 device graph 提升为 Core 原语。SPI、GPIO、Bl
 
 - [`signal_state_contract_v0.md`](signal_state_contract_v0.md)
 - [`capability_recovery_rules.md`](capability_recovery_rules.md)
-- [`capability_recovery_matrix.md`](capability_recovery_matrix.md)
 - [`real_board_landing_gap_audit_v0.md`](real_board_landing_gap_audit_v0.md)
 
 这些是局部语义和现有实现证据。其名词仍需按 Constitution 逐项审判。Signal / State 的
 完整阶段设计稿位于 [`../archive/signal-state-v0/`](../archive/signal-state-v0/README.md)，
-不作为默认契约入口。
+不作为默认契约入口。旧能力回收状态矩阵位于
+[`../archive/architecture-inventory-v0/`](../archive/architecture-inventory-v0/README.md)。
 
 ### Resident image 与部署
 

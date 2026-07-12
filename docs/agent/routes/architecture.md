@@ -29,7 +29,6 @@
 
 - [`../../architecture/real_board_landing_gap_audit_v0.md`](../../architecture/real_board_landing_gap_audit_v0.md)
 - [`../../architecture/capability_recovery_rules.md`](../../architecture/capability_recovery_rules.md)
-- [`../../architecture/capability_recovery_matrix.md`](../../architecture/capability_recovery_matrix.md)
 
 ## 先不要做什么
 

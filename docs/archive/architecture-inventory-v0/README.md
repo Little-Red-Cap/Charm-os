@@ -23,4 +23,17 @@
 - “所有公开 API 都必须使用 `util::Result`”“Channel 只能 non-blocking”等 blanket 规则超出实际覆盖范围，应由具体接口契约约束。
 - “允许短期主动耦合”不再作为默认原则；任何例外都必须在具体边界记录理由和退出条件。
 
+## 真实板与能力回收
+
+- [`real_board_landing_gap_audit_v0.md`](real_board_landing_gap_audit_v0.md)：保留早期 stm32h747-player
+  路径、五类落地问题、局部术语和 P0-P4 排期；其中项目路径已经失效；
+- [`capability_recovery_rules.md`](capability_recovery_rules.md)：保留旧 UI/Board 回收顺序与记录模板；
+- [`capability_recovery_matrix.md`](capability_recovery_matrix.md)：保留当时的 Done/TODO/In Progress 快照，
+  不代表当前源码或完成度。
+
+现行入口：
+
+- [`../../architecture/real_board_landing_gap_audit_v0.md`](../../architecture/real_board_landing_gap_audit_v0.md)
+- [`../../architecture/capability_recovery_rules.md`](../../architecture/capability_recovery_rules.md)
+
 需要追溯原始细节时使用 Git 历史；不要把本摘要恢复成第二份全局架构定义。

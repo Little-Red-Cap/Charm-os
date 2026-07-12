@@ -441,7 +441,8 @@ namespace {
     bool expect_prestart_failure(const std::string_view label,
                                  const ResolutionResult& resolved,
                                  const ResolutionFailure expected,
-                                 const std::size_t expected_index) noexcept {
+                                 const std::size_t expected_index,
+                                 const bool emit_success) noexcept {
         std::size_t app_start_count = 0;
         if (resolved.is_ok()) {
             ++app_start_count;
@@ -454,88 +455,167 @@ namespace {
             return false;
         }
 
-        CmsdkUart::write("[charm-capability-mvp-qemu] ");
-        CmsdkUart::write(label);
-        CmsdkUart::write("=");
-        CmsdkUart::write(resolution_failure_name(resolved.failure));
-        CmsdkUart::write(" start_count=");
-        CmsdkUart::write_decimal(app_start_count);
-        CmsdkUart::write("\n");
+        if (emit_success) {
+            CmsdkUart::write("[charm-capability-mvp-qemu] ");
+            CmsdkUart::write(label);
+            CmsdkUart::write("=");
+            CmsdkUart::write(resolution_failure_name(resolved.failure));
+            CmsdkUart::write(" start_count=");
+            CmsdkUart::write_decimal(app_start_count);
+            CmsdkUart::write("\n");
+        }
         return true;
     }
 
-    bool missing_case() noexcept {
-        QemuFixture fixture{};
-        const std::array bindings{
-            fixture.bindings[0],
-            fixture.bindings[1],
+    bool resolution_matrix() noexcept {
+        std::size_t cases = 0;
+        std::size_t failures = 0;
+        constexpr std::array permutations{
+            std::array<std::size_t, 3>{0, 1, 2},
+            std::array<std::size_t, 3>{0, 2, 1},
+            std::array<std::size_t, 3>{1, 0, 2},
+            std::array<std::size_t, 3>{1, 2, 0},
+            std::array<std::size_t, 3>{2, 0, 1},
+            std::array<std::size_t, 3>{2, 1, 0},
         };
-        return expect_prestart_failure(
-            "missing",
-            resolve(app::requirements, ProfileView{fixture.provisions, bindings}),
-            ResolutionFailure::missing_binding,
-            2U);
-    }
 
-    bool duplicate_case() noexcept {
-        QemuFixture fixture{};
-        const std::array bindings{
-            fixture.bindings[0],
-            fixture.bindings[1],
-            fixture.bindings[1],
-            fixture.bindings[2],
-        };
-        return expect_prestart_failure(
-            "duplicate",
-            resolve(app::requirements, ProfileView{fixture.provisions, bindings}),
-            ResolutionFailure::duplicate_binding,
-            1U);
-    }
+        for (const auto& order : permutations) {
+            QemuFixture fixture{};
+            std::array<Binding, 3> bindings{};
+            for (std::size_t index = 0; index < bindings.size(); ++index) {
+                bindings[index] = fixture.bindings[order[index]];
+            }
+            const auto resolved = resolve(
+                app::requirements, ProfileView{fixture.provisions, bindings});
+            ++cases;
+            if (!resolved.is_ok() || resolved.context.report != &fixture.text ||
+                resolved.context.monotonic_time != &fixture.clock ||
+                resolved.context.record_store != &fixture.block) {
+                ++failures;
+                write_failure("resolution_order");
+            }
+        }
 
-    bool invalid_index_case() noexcept {
-        QemuFixture fixture{};
-        auto bindings = fixture.bindings;
-        bindings[2].provision_index = fixture.provisions.size();
-        return expect_prestart_failure(
-            "invalid_index",
-            resolve(app::requirements, ProfileView{fixture.provisions, bindings}),
-            ResolutionFailure::invalid_provision_index,
-            2U);
-    }
+        for (std::size_t failed_index = 0;
+             failed_index < app::requirements.size();
+             ++failed_index) {
+            QemuFixture fixture{};
+            std::array<Binding, 2> bindings{};
+            std::size_t output_index = 0;
+            for (std::size_t index = 0; index < fixture.bindings.size(); ++index) {
+                if (index != failed_index) {
+                    bindings[output_index++] = fixture.bindings[index];
+                }
+            }
+            ++cases;
+            if (!expect_prestart_failure(
+                    "missing",
+                    resolve(app::requirements, ProfileView{fixture.provisions, bindings}),
+                    ResolutionFailure::missing_binding,
+                    failed_index,
+                    failed_index == 2U)) {
+                ++failures;
+            }
+        }
 
-    bool mismatch_case() noexcept {
-        QemuFixture fixture{};
-        auto bindings = fixture.bindings;
-        bindings[2].provision_index = 1U;
-        return expect_prestart_failure(
-            "mismatch",
-            resolve(app::requirements, ProfileView{fixture.provisions, bindings}),
-            ResolutionFailure::contract_mismatch,
-            2U);
-    }
+        for (std::size_t failed_index = 0;
+             failed_index < app::requirements.size();
+             ++failed_index) {
+            QemuFixture fixture{};
+            const std::array bindings{
+                fixture.bindings[0],
+                fixture.bindings[1],
+                fixture.bindings[2],
+                fixture.bindings[failed_index],
+            };
+            ++cases;
+            if (!expect_prestart_failure(
+                    "duplicate",
+                    resolve(app::requirements, ProfileView{fixture.provisions, bindings}),
+                    ResolutionFailure::duplicate_binding,
+                    failed_index,
+                    failed_index == 1U)) {
+                ++failures;
+            }
+        }
 
-    bool invalid_provision_case() noexcept {
-        QemuFixture fixture{};
-        auto provisions = fixture.provisions;
-        provisions[1] = Provision{ContractId::clock, nullptr, nullptr, nullptr};
-        return expect_prestart_failure(
-            "invalid",
-            resolve(app::requirements, ProfileView{provisions, fixture.bindings}),
-            ResolutionFailure::invalid_provision,
-            1U);
+        for (std::size_t failed_index = 0;
+             failed_index < app::requirements.size();
+             ++failed_index) {
+            QemuFixture fixture{};
+            auto bindings = fixture.bindings;
+            bindings[failed_index].provision_index = fixture.provisions.size();
+            ++cases;
+            if (!expect_prestart_failure(
+                    "invalid_index",
+                    resolve(app::requirements, ProfileView{fixture.provisions, bindings}),
+                    ResolutionFailure::invalid_provision_index,
+                    failed_index,
+                    failed_index == 2U)) {
+                ++failures;
+            }
+        }
+
+        for (std::size_t failed_index = 0;
+             failed_index < app::requirements.size();
+             ++failed_index) {
+            QemuFixture fixture{};
+            auto bindings = fixture.bindings;
+            bindings[failed_index].provision_index =
+                (failed_index + 1U) % fixture.provisions.size();
+            ++cases;
+            if (!expect_prestart_failure(
+                    "mismatch",
+                    resolve(app::requirements, ProfileView{fixture.provisions, bindings}),
+                    ResolutionFailure::contract_mismatch,
+                    failed_index,
+                    failed_index == 2U)) {
+                ++failures;
+            }
+        }
+
+        for (std::size_t failed_index = 0;
+             failed_index < app::requirements.size();
+             ++failed_index) {
+            QemuFixture fixture{};
+            auto provisions = fixture.provisions;
+            switch (failed_index) {
+            case 0:
+                provisions[0] = Provision{ContractId::text_sink, nullptr, nullptr, nullptr};
+                break;
+            case 1:
+                provisions[1] = Provision{ContractId::clock, nullptr, nullptr, nullptr};
+                break;
+            default:
+                provisions[2] =
+                    Provision{ContractId::block_device, nullptr, nullptr, nullptr};
+                break;
+            }
+            ++cases;
+            if (!expect_prestart_failure(
+                    "invalid",
+                    resolve(app::requirements, ProfileView{provisions, fixture.bindings}),
+                    ResolutionFailure::invalid_provision,
+                    failed_index,
+                    failed_index == 1U)) {
+                ++failures;
+            }
+        }
+
+        CmsdkUart::write("[charm-capability-mvp-qemu] resolution_cases=");
+        CmsdkUart::write_decimal(cases);
+        CmsdkUart::write(" failures=");
+        CmsdkUart::write_decimal(failures);
+        CmsdkUart::write("\n");
+        return cases == 21U && failures == 0U;
     }
 }
 
 extern "C" int charm_capability_mvp_qemu_main() noexcept {
     const bool positive_ok = positive_case();
-    const bool missing_ok = missing_case();
-    const bool duplicate_ok = duplicate_case();
-    const bool invalid_index_ok = invalid_index_case();
-    const bool mismatch_ok = mismatch_case();
-    const bool invalid_provision_ok = invalid_provision_case();
+    const bool resolution_ok = resolution_matrix();
     const bool app_failures_ok = app_failure_matrix();
-    if (positive_ok && missing_ok && duplicate_ok && invalid_index_ok &&
-        mismatch_ok && invalid_provision_ok && app_failures_ok) {
+    if (positive_ok && resolution_ok && app_failures_ok) {
         CmsdkUart::write("[charm-capability-mvp-qemu] ok\n");
         return 0;
     }

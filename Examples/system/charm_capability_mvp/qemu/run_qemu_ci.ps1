@@ -90,6 +90,7 @@ $requiredTokens = @(
     '[charm-capability-mvp-qemu] invalid_index=invalid_provision_index start_count=0',
     '[charm-capability-mvp-qemu] mismatch=contract_mismatch start_count=0',
     '[charm-capability-mvp-qemu] invalid=invalid_provision start_count=0',
+    '[charm-capability-mvp-qemu] resolution_cases=21 failures=0',
     '[charm-capability-mvp-qemu] app_failure_cases=12 failures=0',
     '[charm-capability-mvp-qemu] ok'
 )

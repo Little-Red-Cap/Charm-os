@@ -78,6 +78,24 @@ function Get-AppFailureCaseCount {
     return [uint64]::Parse($match.Groups[1].Value)
 }
 
+function Get-ResolutionCaseCount {
+    param(
+        [string]$Text,
+        [ValidateSet('host', 'qemu')][string]$Domain
+    )
+
+    $pattern = if ($Domain -eq 'host') {
+        '\[charm-capability-mvp-host-matrix\] resolution_cases=([0-9]+) app_cases=[0-9]+ checks=[0-9]+ failures=0'
+    } else {
+        '\[charm-capability-mvp-qemu\] resolution_cases=([0-9]+) failures=0'
+    }
+    $match = [System.Text.RegularExpressions.Regex]::Match($Text, $pattern)
+    if (-not $match.Success) {
+        throw "${Domain}_resolution_evidence_missing"
+    }
+    return [uint64]::Parse($match.Groups[1].Value)
+}
+
 function New-SyntheticEvidence {
     param([string]$Domain)
 
@@ -87,6 +105,7 @@ function New-SyntheticEvidence {
 [charm-capability-mvp-$Domain] duplicate=duplicate_binding start_count=0
 [charm-capability-mvp-$Domain] mismatch=contract_mismatch start_count=0
 [charm-capability-mvp-$Domain] invalid=invalid_provision start_count=0
+[charm-capability-mvp-$Domain] resolution_cases=21 failures=0
 [charm-capability-mvp-$Domain] app_failure_cases=12 failures=0
 [charm-capability-mvp-$Domain] ok
 "@
@@ -103,6 +122,13 @@ if ($SelfTest) {
     $qemuCases = Get-AppFailureCaseCount -Text (New-SyntheticEvidence -Domain 'qemu') -Domain 'qemu'
     if ($hostCases -ne 12 -or $qemuCases -ne $hostCases) {
         throw 'self_test_failed: app_failure_case_count'
+    }
+    $hostResolutionCases = Get-ResolutionCaseCount -Text $hostMatrix -Domain 'host'
+    $qemuResolutionCases = Get-ResolutionCaseCount `
+        -Text (New-SyntheticEvidence -Domain 'qemu') `
+        -Domain 'qemu'
+    if ($hostResolutionCases -ne 21 -or $qemuResolutionCases -ne $hostResolutionCases) {
+        throw 'self_test_failed: resolution_case_count'
     }
 
     $mismatch = New-SyntheticEvidence -Domain 'qemu'
@@ -179,10 +205,16 @@ $qemuAppFailureCases = Get-AppFailureCaseCount -Text $qemuText -Domain 'qemu'
 if ($hostAppFailureCases -ne 12 -or $qemuAppFailureCases -ne $hostAppFailureCases) {
     throw "app_failure_case_count_mismatch: host=$hostAppFailureCases qemu=$qemuAppFailureCases"
 }
+$hostResolutionCases = Get-ResolutionCaseCount -Text $hostMatrixText -Domain 'host'
+$qemuResolutionCases = Get-ResolutionCaseCount -Text $qemuText -Domain 'qemu'
+if ($hostResolutionCases -ne 21 -or $qemuResolutionCases -ne $hostResolutionCases) {
+    throw "resolution_case_count_mismatch: host=$hostResolutionCases qemu=$qemuResolutionCases"
+}
 
 foreach ($item in $evidence) {
     Write-Output "[charm-capability-mvp-host-qemu] $($item.Domain) timestamp=$($item.Timestamp) checksum=$($item.Checksum)"
 }
+Write-Output "[charm-capability-mvp-host-qemu] resolution_cases=$hostResolutionCases"
 Write-Output "[charm-capability-mvp-host-qemu] app_failure_cases=$hostAppFailureCases"
 Write-Output '[charm-capability-mvp-host-qemu] board=pending'
 Write-Output '[charm-capability-mvp-host-qemu] partial=ok domains=host,qemu'

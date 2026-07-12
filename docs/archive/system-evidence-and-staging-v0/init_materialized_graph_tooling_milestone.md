@@ -1,5 +1,9 @@
 # init.materialize 观察工具链阶段里程碑
 
+> 状态：archived。本文是早期 materialized graph 工具链的阶段复盘；其中能力与完成度声明
+> 不代表当前事实，使用前必须回查源码、schema 与当次 smoke。现行 init.graph 规则见
+> [`../../system/init_graph_contract.md`](../../system/init_graph_contract.md)。
+
 本文档记录 `materialized_graph` 观察导出线在当前阶段已经形成的能力闭环、方法论意义与下一步演进方向。
 
 它不是 `init.observe` 的 API 手册，

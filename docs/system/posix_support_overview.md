@@ -67,7 +67,7 @@ runner 的 token 和参数是当前验收事实；是否通过必须以当次构
 
 - 分层边界：[`posix_three_layer_contract.md`](posix_three_layer_contract.md)
 - 用户态 runtime：[`posix_user_runtime_minimal_design.md`](posix_user_runtime_minimal_design.md)
-- ProgramImage：[`posix_program_image_minimal_design.md`](posix_program_image_minimal_design.md)
+- ProgramImage：[`posix_program_image_contract.md`](posix_program_image_contract.md)
 - spawn：[`posix_spawn_minimal_design.md`](posix_spawn_minimal_design.md)
 - fd 与错误语义：[`posix_fd_table_minimal_design.md`](posix_fd_table_minimal_design.md)、
   [`posix_error_semantics.md`](posix_error_semantics.md)

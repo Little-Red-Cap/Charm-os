@@ -17,6 +17,9 @@
 - [`posix_cleanup_refactor_plan.md`](posix_cleanup_refactor_plan.md)
 - [`posix_maintenance_mode_collaboration.md`](posix_maintenance_mode_collaboration.md)
 - [`posix_modules_ts_build_notes.md`](posix_modules_ts_build_notes.md)
+- [`posix_program_image_minimal_design.md`](posix_program_image_minimal_design.md)
+- [`posix_program_image_elf_minimal_design.md`](posix_program_image_elf_minimal_design.md)
+- [`posix_program_image_modulex_adapter.md`](posix_program_image_modulex_adapter.md)
 - [`posix_subsystem_principles.md`](posix_subsystem_principles.md)
 - [`posix_three_layer_contract.md`](posix_three_layer_contract.md)
 

@@ -98,5 +98,6 @@ registered、ELF、ModuleX 等 image kind 可以使用不同解析或加载路�
 - 未来 image format roadmap
 
 当前模块清单与验证入口见
-[`posix_support_overview.md`](posix_support_overview.md)。完整早期分层论证见
+[`posix_support_overview.md`](posix_support_overview.md)，image 细节见
+[`posix_program_image_contract.md`](posix_program_image_contract.md)。完整早期分层论证见
 [`../archive/posix-v0/`](../archive/posix-v0/README.md)。

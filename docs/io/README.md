@@ -1,68 +1,27 @@
 # IO 文档入口
 
-本目录收纳 Charm 当前与 `io.channel / io.reactor / io.registry` 核心三件套，以及网络协议栈起步设计相关的材料。
-
-如果你是第一次进入仓库，先读：
-
-1. [`../overview.md`](../overview.md)
-2. [`../architecture_overview.md`](../architecture_overview.md)
-3. [`../README.md`](../README.md)
-
-再回到这里按任务进入。
-
-## 先怎么理解这个目录
-
-- `io_layering_overview.md`
-  负责说明 IO 在仓库里的分层位置和主题边界，但不替代 `io.channel / io.reactor / io.registry` 的硬契约。
-- `*_contract.md`
-  优先视为现行规则、硬约束或阶段性收口契约。
-- `net_*design/review/tasklist/checklist`
-  主要服务网络协议栈这条线的设计、复盘与推进。
-
-## 按任务进入
-
-### 我想先建立 IO 的整体认知
-
-先读：
-
-- [`io_layering_overview.md`](io_layering_overview.md)
-
-### 我想看 IO 核心三件套的现行规则
-
-建议顺序：
+IO 的行为边界由以下契约定义：
 
 1. [`io_channel_contract.md`](io_channel_contract.md)
 2. [`io_reactor_contract.md`](io_reactor_contract.md)
 3. [`io_registry_contract.md`](io_registry_contract.md)
 
-这三篇更适合回答：
+[`io_layering_overview.md`](io_layering_overview.md) 只说明这些 primitive 与平台、
+driver、service 和 domain 的依赖位置，不覆盖契约正文。
 
-- 非阻塞 channel 允许什么、不允许什么
-- reactor 如何承接事件驱动 IO
-- registry 如何作为统一发现与打开入口
+## 按任务进入
 
-### 我想看网络协议栈这条线
+| 任务 | 入口 |
+|---|---|
+| Channel/Reactor/Registry 行为 | 上述三份 contract |
+| IO 与 driver/device 分工 | [`../architecture/driver_model.md`](../architecture/driver_model.md) |
+| block device | [`../agent/routes/block-device.md`](../agent/routes/block-device.md) |
+| 输入分层 | [`../input/README.md`](../input/README.md) |
+| 网络 socket v0 | [`net_socket_v0_contract.md`](net_socket_v0_contract.md) |
+| 网络双表面设计 | [`net_stack_dual_surface_design.md`](net_stack_dual_surface_design.md) |
 
-建议顺序：
+网络 tasklist、review 和 checklist 是阶段记录，不高于现行 contract。完整历史材料
+位于 [`../archive/net-stack-v0/README.md`](../archive/net-stack-v0/README.md)。
 
-1. [`net_socket_v0_contract.md`](net_socket_v0_contract.md)
-2. [`net_stack_dual_surface_design.md`](net_stack_dual_surface_design.md)
-
-历史任务、阶段复盘和关单记录已收敛为摘要；完整正文见：
-
-- [`../archive/net-stack-v0/README.md`](../archive/net-stack-v0/README.md)
-
-## 当前建议阅读顺序
-
-- 看总览：
-  `io_layering_overview.md`
-- 看硬规则：
-  `io_channel_contract.md` → `io_reactor_contract.md` → `io_registry_contract.md`
-- 看网络起步线：
-  `net_socket_v0_contract.md` → `net_stack_dual_surface_design.md`
-
-## 使用提醒
-
-- 如果这里的说明和 `docs/system/*`、`docs/architecture/*` 或当前代码冲突，优先回到更上位入口复核。
-- `io_layering_overview.md` 更适合先建立主题边界；真正的行为约束仍应回到三篇 `*_contract.md`。
-- 当 channel / reactor / registry 的行为边界变化，或网络协议栈的现行入口发生变化时，应同步更新本目录入口。
+当文档与实现冲突时，以 `Modules/io/channel`、`Modules/io/reactor`、
+`Modules/io/registry` 和实际装配代码为准，并修正文档。

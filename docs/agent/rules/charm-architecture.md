@@ -19,7 +19,6 @@
 - `collaboration.md`
 - `embedded-modern-cpp.md`
 - `../../architecture/signal_state_contract_v0.md`
-- `../../architecture/signal_state_v0.md`
 
 ---
 

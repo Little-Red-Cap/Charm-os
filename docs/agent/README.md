@@ -298,7 +298,6 @@ Glossary 用来防止 AI 在关键术语上产生漂移，避免用外部经验�
 应额外优先阅读：
 
 - `docs/architecture/signal_state_contract_v0.md`
-- `docs/architecture/signal_state_v0.md`
 
 ---
 

@@ -57,7 +57,6 @@ Charm Core，仍以 Constitution 的逐项裁决为准。
 - IO：`docs/io/README.md`
 - 输入：`docs/input/README.md`
 - 同域通知与状态契约：`docs/architecture/signal_state_contract_v0.md`
-- 同域通知与状态原语：`docs/architecture/signal_state_v0.md`
 - 存储：`docs/storage/README.md`
 - 系统：`docs/system/README.md`
 - Boot：`docs/boot/README.md`

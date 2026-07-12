@@ -12,7 +12,6 @@
 | 问题 | 先读 |
 |---|---|
 | 初始化、装配和服务顺序 | [`init_graph_contract.md`](init_graph_contract.md) |
-| 真实板共享系统协调 | [`system_coordination_contract_v0.md`](system_coordination_contract_v0.md) |
 | ARMv7-A 平台与 trap 映射 | [`armv7a_platform_contract.md`](armv7a_platform_contract.md)、[`armv7a_runtime_trap_mapping_contract.md`](armv7a_runtime_trap_mapping_contract.md) |
 | Minimal-kernel runtime 证据 | [`minimal_kernel_runtime_evidence_bundle_contract.md`](minimal_kernel_runtime_evidence_bundle_contract.md) |
 | Minimal-kernel host smoke | [`minimal_kernel_host_smoke_bundle_contract.md`](minimal_kernel_host_smoke_bundle_contract.md) |
@@ -55,6 +54,8 @@ POSIX v0 阶段材料见 [`../archive/posix-v0/`](../archive/posix-v0/README.md)
 - Front-page 历史见
   [`../archive/system-compiler-front-page-v0/`](../archive/system-compiler-front-page-v0/README.md)。
 - SSU 阶段记录见 [`../archive/ssu-phase-notes/`](../archive/ssu-phase-notes/README.md)。
+- 旧 H747 system coordination / service snapshot 讨论见
+  [`../archive/architecture-inventory-v0/`](../archive/architecture-inventory-v0/README.md)。
 
 ## 阅读规则
 

@@ -11,6 +11,14 @@
 本文把 Constitution 的首批裁决映射到当前源码、CMake、示例和测试。它不新增 Core 术语，
 也不通过解释现有代码为现有代码补发准入资格。
 
+## 0. 基线后进展
+
+[`Examples/system/charm_capability_mvp`](../../Examples/system/charm_capability_mvp/README.md)
+现已使用同一 App、Contract 与 resolver 完成 Host 和真实 QEMU `mps2-an500` 两域。两域均输出
+`timestamp=424242 checksum=0x49b880f0`，且 missing binding 都在 App 启动前得到
+`start_count=0`。第 2 节对旧 Backends QEMU/board metadata smoke 的判断仍然成立；新增 QEMU
+firmware 是独立的真实执行证据。真实板域仍未完成。
+
 ## 1. 审计方法
 
 证据按以下顺序判断：

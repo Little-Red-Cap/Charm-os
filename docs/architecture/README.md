@@ -33,8 +33,8 @@ Constitution 负责 Core 准入，核心契约负责最小关系和 MVP。其它
 - [`../../Examples/system/charm_capability_mvp/README.md`](../../Examples/system/charm_capability_mvp/README.md)
 
 审计页把 Constitution 裁决映射到真实源码、CMake 和 smoke；检查脚本只防止 canonical
-定位、裁决表、文档状态和链接漂移，不替代行为测试或 Core 准入审判。MVP 示例当前只完成
-Host 切片，不能作为 QEMU/真实板证据。
+定位、裁决表、文档状态和链接漂移，不替代行为测试或 Core 准入审判。MVP 示例当前已完成
+Host 与真实 QEMU 两域，仍不能作为真实板证据。
 
 ### 依赖、入口与局部公共边界
 

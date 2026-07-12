@@ -196,9 +196,9 @@ Kernel、scheduler、process model、bootloader、driver framework 和 filesyste
 这些都是审判材料，不自动构成 Core，也不等于 MVP 已成立。
 
 [`Examples/system/charm_capability_mvp`](../../Examples/system/charm_capability_mvp/README.md)
-已经完成第一条 Host-only 实现切片：三项 Contract 使用单一定义，同一 App source 通过已解析
-Context 运行，missing、duplicate、contract mismatch 和 invalid provision 均在 App 启动前
-失败。它还没有进入真实 QEMU firmware 或真实板，因此只是一项局部证据，不是跨环境 MVP 闭环。
+已经完成 Host 与真实 QEMU `mps2-an500` 两条实现切片：三项 Contract 使用单一定义，同一
+App source 只更换 Profile 和 provider；两域得到相同 timestamp/checksum，missing binding
+均在 App 启动前失败。它还没有进入真实板，因此仍不是跨环境 MVP 闭环。
 
 当前下一项平台级证明是完成第 6 节的同源三环境 MVP。目录迁移、Compiler 生成、Resident ELF 扩面、
 完整 OS、Studio 或新公共框架都不能替代这项证明。

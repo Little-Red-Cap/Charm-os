@@ -1,256 +1,109 @@
-# 最小内核 task syscall table 契约（草案）
+# Minimal Kernel Task Syscall Contract
 
-这份文档用于把“最小 syscall request / dispatch bridge 已经存在以后，怎样再往前收成一张静态 handler table”单独写清楚。
+## 文档状态
 
-它对应当前新增的：
+- `status`: `supporting`
+- `scope`: task syscall 编号、request、dispatch、静态 table 与 frame adapter
+- `authority`: 受 [`CONSTITUTION.md`](../../CONSTITUTION.md) 和
+  [`charm_core_contract.md`](../architecture/charm_core_contract.md) 约束
 
-- `Modules/system/kernel/task_syscall_table.cppm`
+Task syscall 是 minimal-kernel 内部实验接口，不是产品用户态 ABI、POSIX syscall 表或
+Charm App API。
 
-目标不是现在就做动态 registry，也不是现在就承诺完整用户态 syscall ABI，而是先把下面这件事变成一条稳定、可验证的最小静态收口面：
+## 模块边界
 
-- `TaskSyscallId`
-- `TaskSyscallRequest`
-- `TaskSyscallHandlerEntry`
-- `TaskSyscallTable`
+| 模块 | 责任 |
+|---|---|
+| `kernel.task_syscall_api` | `sys_*` 的 task-facing 薄包装 |
+| `kernel.task_syscall_catalog` | syscall id 与 trap service 的静态映射 |
+| `kernel.task_syscall_dispatch` | `TaskSyscallRequest` 到一个 dispatch surface |
+| `kernel.task_syscall_table` | syscall id 到固定 handler entry 的 lookup/dispatch |
+| `kernel.task_syscall_frame` | frame capture、decode、table dispatch 与 result writeback |
 
-## 一句话版本
+这些层可以在代码中分开维护，但共享本契约，不再为每个薄 facade 建立独立文档。
 
-- `TaskSyscallDispatch` 负责“一个 request 怎样落到一个 transport / handler surface”
-- `TaskSyscallTable` 负责“一个 syscall 号应该落到哪一个 handler”
+## 当前编号
 
-前者是桥，后者是表。
+| `TaskSyscallId` | 数值 | 对应 `TrapService` | 参数 |
+|---|---:|---|---|
+| `invalid` | 0 | `invalid` | 无 |
+| `yield` | 1 | `yield_current` | 无 |
+| `sleep_until` | 2 | `sleep_until` | `arg0=due` |
+| `debug_write` | 3 | `debug_write` | `arg0=value` |
+| `capability_call` | 4 | `capability_call` | `arg0=id, arg1=operation, arg2=payload` |
 
-## 为什么现在值得加这一层
+编号当前直接复用 `TrapService` 数值。这是实现事实，不承诺永久 wire ABI。
 
-当前上半层已经有：
+## Request 与 catalog
 
-- `TaskSyscallApi`
-- `TaskSyscallCatalog`
-- `TaskSyscallDispatch`
+`TaskSyscallRequest` 固定包含：
 
-这已经足够表达：
+```text
+syscall / arg0 / arg1 / arg2 / arg3
+```
 
-- 当前任务怎样发起 `sys_*` 调用
-- 最小 syscall 编号和 trap service 的关系
-- 一个 request 怎样被分派到某个具体 surface
+Catalog 描述 name、trap service、view kind、参数名称、结果名称和 supported 标志。
+未知 id 映射为 invalid/unsupported，不得回退到其它 handler。
 
-但如果继续往 future syscall table / user boundary 长，还会缺一块很关键的静态组织层：
+## Static table
 
-- 我们需要一张稳定的“号 -> handler”表
-- 而不是让更高层自己到处写 `switch`
-- 也不是现在就引入动态注册机制
+`TaskSyscallTable` 持有固定数量的 `TaskSyscallHandlerEntry`：
 
-所以当前最健康的下一步，是先落一张最小静态 table。
+- lookup 返回 entry、slot 和 matched；
+- matched 且 handler valid 时调用 handler；
+- matched 但 unbound 返回 `TrapError::unbound_adapter`；
+- 未匹配返回 `TrapError::unsupported_service`；
+- dispatch 保留 handler 返回的 disposition/error/value。
 
-## 模块位置与关系
+Table 不提供动态注册、权限检查、进程隔离或 ABI 版本协商。
 
-模块位置：
+## Frame pipeline
 
-- `Modules/system/kernel/task_syscall_table.cppm`
+`kernel.task_syscall_frame` 提供架构无关的五字段视图：
 
-当前建议关系是：
+```text
+syscall / arg0 / arg1 / arg2 / arg3
+```
 
-1. `kernel.task_syscall_api`
-   - current-task syscall-facing 命名面
-2. `kernel.task_syscall_catalog`
-   - syscall id / trap service / 语义目录
-3. `kernel.task_syscall_dispatch`
-   - request -> transport / handler surface
-4. `kernel.task_syscall_table`
-   - syscall id -> 静态 handler entry / table
+处理顺序固定为：
 
-这意味着：
+```text
+capture/decode -> TaskSyscallRequest -> table dispatch -> apply_result
+```
 
-- `TaskSyscallDispatch` 不负责“这号应该查哪一项表”
-- `TaskSyscallTable` 也不重写 request 到 transport 的参数拼装逻辑
+`TaskSyscallFrameAdapter<Frame>` 由平台提供 `capture` 和 `apply_result`。Adapter 缺失、decode
+失败和 writeback 失败必须分别报告；frame bridge 不拥有真实架构 frame layout。
 
-## 当前核心类型
+## 结果与观测
 
-当前新增的核心类型与函数是：
+所有分支使用 [`TrapResult`](minimal_kernel_trap_syscall_contract.md)：
 
-- `TaskSyscallHandler`
-- `make_task_syscall_handler(target)`
-- `TaskSyscallHandlerEntry`
-- `task_syscall_handler_entry(...)`
-- `TaskSyscallTableLookup`
-- `TaskSyscallTable<Capacity, TraceBuffer>`
-- `make_task_syscall_table(...)`
+```text
+disposition / error / value
+```
 
-以及一套独立 trace：
+Catalog、dispatch、table 和 frame 各自提供 trace/witness 类型。Witness 是局部测试结果，
+不构成 syscall ABI 或系统级证据。
 
-- `TaskSyscallTableTraceEvent`
-- `TaskSyscallTableTraceBuffer<Capacity>`
+## 证据
 
-## 当前 handler 形状
-
-`TaskSyscallHandler` 当前仍然保持最小：
-
-- `void* self`
-- `dispatch_fn(self, request) -> TrapResult`
-
-也就是说，这层仍然继续沿用：
-
-- `TaskSyscallRequest`
-- `TrapResult`
-
-而不在 table 层再引入第三套 request/result 协议。
-
-## 当前 entry 形状
-
-`TaskSyscallHandlerEntry` 当前包含：
-
-- `TaskSyscallCatalogEntry descriptor`
-- `TaskSyscallHandler handler`
-
-这意味着 table slot 里天然保留了：
-
-- syscall 名字
-- trap service 名字
-- view kind
-- 参数字段名字
-
-所以 table trace、host verifier、future trace printer 不需要再自己维护一份
-“slot 2 到底对应 `debug_write` 还是 `sleep_until`” 的私有表。
-
-## 当前 table 责任
-
-`TaskSyscallTable<Capacity, ...>` 当前只做三件事：
-
-1. `lookup(syscall)` 找到静态 slot
-2. `dispatch(request)` 把 request 交给对应 handler
-3. 记录独立 table trace
-
-它当前不负责：
-
-- 动态注册
-- 生命周期管理
-- 并发安全
-- 用户态 ABI
-
-这些都应该等静态 table 语义稳定以后，再继续往上长。
-
-## 当前 lookup / dispatch 规则
-
-### 1) 找到 slot 且 handler 已绑定
-
-当前行为：
-
-- `matched = true`
-- `handler_valid = true`
-- 调对应 handler
-- 直接返回 handler 的 `TrapResult`
-
-### 2) 找到 slot 但 handler 未绑定
-
-当前行为：
-
-- `matched = true`
-- `handler_valid = false`
-- 返回：
-  - `TrapDisposition::rejected`
-  - `TrapError::unbound_adapter`
-
-这表达的是：
-
-- “这个 syscall 号在表里有位置”
-- “但这个 slot 还没真正接上 handler”
-
-### 3) 根本没有 slot
-
-当前行为：
-
-- `matched = false`
-- `slot = task_syscall_table_unmapped_slot`
-- 返回：
-  - `TrapDisposition::unsupported`
-  - `TrapError::unsupported_service`
-
-这表达的是：
-
-- “这个 syscall 号当前根本不在这张静态表里”
-
-## 当前 observability
-
-当前 table 自带独立 trace：
-
-- `TaskSyscallTableTraceBuffer`
-
-每条 trace 至少记录：
-
-- `sequence`
-- `syscall`
-- `trap_service`
-- `slot`
-- `matched`
-- `handler_valid`
-- `disposition`
-- `error`
-- `arg0..arg3`
-- `value`
-
-并且当前也支持：
-
-- `task_syscall_request_from_trace_event(event)`
-- `task_syscall_semantic_projection(event)`
-
-这意味着 table trace 和 dispatch trace 一样，都能被重新投影回同一套 task syscall 语义字段。
-
-## 与现有层的分工
-
-当前建议这样分：
-
-- `TaskSyscallApi`
-  - 负责“当前任务怎样调用”
-- `TaskSyscallCatalog`
-  - 负责“这些调用的编号和名字是什么意思”
-- `TaskSyscallDispatch`
-  - 负责“一个 request 怎样落到一个 surface”
-- `TaskSyscallTable`
-  - 负责“一个 syscall 号当前应该连到哪一个 handler”
-- `TaskSyscallFrame`
-  - 负责“一个 numbered frame 怎样稳定地落到 table，再把结果写回 frame”
-
-这四层拆开以后：
-
-- 名字
-- 编号
-- request 语义
-- handler table
-
-就不会再混回一个文件里。
-
-## 当前证据路径
-
-当前与这层直接相关的独立证据路径是：
-
+- `Examples/kernel/runtime_task_syscall_host`
+- `Examples/kernel/runtime_task_syscall_catalog_host`
+- `Examples/kernel/runtime_task_syscall_dispatch_host`
 - `Examples/kernel/runtime_task_syscall_table_host`
+- `Examples/kernel/runtime_task_syscall_frame_host`
+- `Examples/kernel/runtime_task_syscall_frame_caller_host`
+- `Examples/kernel/runtime_task_syscall_frame_armv7a_host`
 
-它当前验证：
+ARMv7-A 映射边界见
+[`armv7a_runtime_trap_mapping_contract.md`](armv7a_runtime_trap_mapping_contract.md)。
 
-- table lookup
-- table -> dispatch bridge 的最小链路
-- table -> 直连 handler 的最小链路
-- handler 未绑定与 slot 缺失的负向路径
-- table trace 的语义投影
+## 非目标
 
-如果当前要继续看“静态 handler table 之上，numbered syscall frame 怎样 decode / writeback”，见：
+- 不定义真实 SVC register ABI 或 exception return。
+- 不定义用户地址检查、权限、copy-in/out 或进程模型。
+- 不保证编号长期稳定。
+- 不把 task-facing `sys_*` 名称解释为同步系统调用。
 
-- `docs/system/minimal_kernel_task_syscall_frame_contract.md`
-
-建议同时结合：
-
-- `docs/system/minimal_kernel_trap_syscall_contract.md`
-- `docs/system/minimal_kernel_trap_ingress_contract.md`
-- `docs/system/armv7a_runtime_trap_mapping_contract.md`
-
-## 当前非目标
-
-当前这层仍然不处理：
-
-- 动态 syscall handler registry
-- per-process / per-namespace handler table
-- 真正用户态 syscall ABI
-- 用户态地址空间和指针校验
-- trap ingress decode / writeback
-
-它只是先把“最小静态 syscall handler table”立住，为 future registry 或 user ABI 提供更干净的落点。
+旧 catalog、dispatch、API 和 frame 草案的取舍见
+[`../archive/minimal-kernel-syscall-v0/README.md`](../archive/minimal-kernel-syscall-v0/README.md)。

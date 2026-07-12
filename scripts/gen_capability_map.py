@@ -145,7 +145,9 @@ def write_markdown(modules: list[ModuleInfo], caps: dict[str, CapabilityInfo], o
     lines: list[str] = []
     lines.append("# Generated Capability Map")
     lines.append("")
-    lines.append("> Auto-generated from `Modules/**/*.cppm`.")
+    lines.append("> Heuristic inventory generated from `Modules/**/*.cppm`; not a Capability Contract.")
+    if not caps:
+        lines.append("> WARNING: no capability records were recognized; treat this output as incomplete module inventory.")
     lines.append("")
 
     lines.append("## Capabilities")
@@ -217,6 +219,8 @@ def main() -> None:
 
     print(f"Scanned modules: {len(modules)}")
     print(f"Capabilities: {len(caps)}")
+    if not caps:
+        print("WARNING: no capability records recognized; generated map is incomplete.")
     print(f"Output: {out_dir}")
 
 

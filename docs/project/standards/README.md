@@ -26,5 +26,5 @@
 
 ## 使用提醒
 
-- 如果规范文档和现行架构契约冲突，优先回到 [`../../architecture_overview.md`](../../architecture_overview.md) 与 [`../../system/README.md`](../../system/README.md) 复核。
+- 如果规范文档和架构材料冲突，先按根 `AGENTS.md` 的信任顺序回到 Constitution、核心契约和相关专题源码；`architecture_overview.md` 只提供 supporting 实现地图。
 - 代码行为变化、模块入口变化、依赖纪律变化后，应同步更新这里的规范入口。

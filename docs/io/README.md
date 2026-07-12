@@ -45,14 +45,12 @@
 
 建议顺序：
 
-1. [`net_stack_dual_surface_design.md`](net_stack_dual_surface_design.md)
-2. [`net_socket_v0_contract.md`](net_socket_v0_contract.md)
-3. [`net_stack_stage_review.md`](net_stack_stage_review.md)
+1. [`net_socket_v0_contract.md`](net_socket_v0_contract.md)
+2. [`net_stack_dual_surface_design.md`](net_stack_dual_surface_design.md)
 
-如果你在看推进状态，再继续：
+历史任务、阶段复盘和关单记录已收敛为摘要；完整正文见：
 
-- [`net_stack_foundation_tasklist.md`](net_stack_foundation_tasklist.md)
-- [`net_stack_v0_closure_checklist.md`](net_stack_v0_closure_checklist.md)
+- [`../archive/net-stack-v0/README.md`](../archive/net-stack-v0/README.md)
 
 ## 当前建议阅读顺序
 
@@ -61,7 +59,7 @@
 - 看硬规则：
   `io_channel_contract.md` → `io_reactor_contract.md` → `io_registry_contract.md`
 - 看网络起步线：
-  `net_stack_dual_surface_design.md` → `net_socket_v0_contract.md`
+  `net_socket_v0_contract.md` → `net_stack_dual_surface_design.md`
 
 ## 使用提醒
 

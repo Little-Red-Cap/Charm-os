@@ -62,14 +62,13 @@ Charm MVP 只验证一句话：
 3. [`docs/README.md`](docs/README.md)：canonical、supporting、exploration 和 archive 的文档路由。
 4. [`AGENTS.md`](AGENTS.md)：仓库协作与操作规则。
 
-当前实现盘点和停线前战线记录仍可从以下 supporting 文档进入：
+当前实现盘点从以下 supporting 文档进入：
 
 - [`docs/overview.md`](docs/overview.md)
 - [`docs/architecture_overview.md`](docs/architecture_overview.md)
-- [`docs/repo_governance.md`](docs/repo_governance.md)
-- [`docs/current_tracks_index.md`](docs/current_tracks_index.md)
 
-它们不能覆盖 Constitution 或核心契约。
+它们不能覆盖 Constitution 或核心契约。核心收敛前的多战线快照已归档到
+[`docs/archive/repo-tracks-pre-core-reset/README.md`](docs/archive/repo-tracks-pre-core-reset/README.md)。
 
 ## 当前停线规则
 

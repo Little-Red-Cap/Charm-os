@@ -1,35 +1,46 @@
-# 最小内核运行时 Bridge 契约（草案）
+# Minimal-kernel Runtime 契约
 
-这份文档用于把“下半层架构入口”和“上半层最小运行时胶水”的接缝写清楚。
+## 文档角色
 
-目标不是提前重写内核，也不是把 ARMv7-A / QEMU / 板级细节抽成假大空接口，而是先把下面这几件事收成一条稳定的最小闭环：
+本文是 minimal-kernel 上半层 runtime 的 supporting 契约，按当前源码描述：
 
-- `tick -> scheduler`
-- `ISR deferral -> scheduler post`
-- `idle bootstrap`
-- `worker bootstrap`
-- `yield / sleep` 的最小任务侧入口
+- scheduler 如何接收 tick、ISR defer、bootstrap、yield、sleep 和 run-loop 动作；
+- lower-half ingress 与 task-side service 如何通过窄接口连接；
+- mailbox 当前实际提供什么，不提供什么。
 
-## 一句话版本
+它不是 Charm Core 的统一执行模型，也不代表完整进程、RPC、syscall 或用户态 ABI 已经实现。完整 host 与 QEMU 证据入口分别见：
 
-- 下半层负责“什么时候进入运行时”
-- 上半层负责“进入运行时以后，最小调度语义怎么闭环”
+- [`minimal_kernel_host_smoke_bundle_contract.md`](minimal_kernel_host_smoke_bundle_contract.md)
+- [`minimal_kernel_runtime_evidence_bundle_contract.md`](minimal_kernel_runtime_evidence_bundle_contract.md)
 
-只要这句话不变，我们就可以同时支持：
+历史设计取舍见 [`../archive/minimal-kernel-runtime-v0/README.md`](../archive/minimal-kernel-runtime-v0/README.md)。
 
-- host/stub 上的最小闭环证据
-- ARMv7-A QEMU 的真实 ingress 接线
-- 后续真实板级把同一语义映射到异常/中断/时钟硬件
+## 当前链路
 
-## 当前模块分层
+```text
+arch IRQ/timer ----> RuntimeLoopPort ----> RuntimeBridge ----> Scheduler
+task context ------> RuntimeThreadPort ---^
 
-当前建议把运行时胶水分成七层：
+task context -> TaskRuntimeApi -> RuntimeTrapServiceFacade
+             -> trap transport -> trap ingress -> arch frame
 
-### 1) `kernel.runtime_glue`
+tasks/server -> RuntimeMailbox -> Scheduler events/timers
+```
 
-位置：`Modules/system/kernel/runtime_glue.cppm`
+源码对应关系：
 
-职责是“无状态的最薄原语”，直接把现有 scheduler/thread/timer 能力拼成可复用的最小动作：
+| 模块 | 当前职责 | 明确不负责 |
+|---|---|---|
+| `kernel.runtime_glue` | 无状态 scheduler glue 与 trace | 平台状态、任务 ABI |
+| `kernel.runtime_bridge` | 绑定 scheduler、idle task/event、trace；导出 loop/thread ports | 异常帧翻译、服务编号 |
+| `kernel.runtime_mailbox` | 固定容量 request/reply 队列和显式 timeout waiter | 同步 RPC、动态队列、跨进程传输 |
+| `kernel.runtime_trap` / `kernel.runtime_trap_ingress` | trap 语义与架构帧翻译 | scheduler 管理 API |
+| `kernel.runtime_service` | 将 trap transport 包装成 task-side facade | 改写 `TrapResult` |
+| `kernel.task_runtime_api` | current-task self-service 命名面 | 管理任意 `TaskId` |
+
+## Runtime Glue 与 Bridge
+
+`kernel.runtime_glue` 直接复用现有 scheduler/thread/timer 语义，提供：
 
 - `runtime_advance_tick(...)`
 - `runtime_defer_from_isr(...)`
@@ -39,272 +50,98 @@
 - `runtime_sleep_current_until(...)`
 - `runtime_run_once_or_idle(...)`
 
-它适合做：
+`RuntimeBridge<Scheduler, TraceBuffer>` 在这些动作上绑定一个具体 scheduler、idle task/event 和可选 trace。它不拥有 scheduler，也不把平台中断状态塞进 runtime 对象。
 
-- 最靠近内核语义的 glue
-- 单元级 / host 级证据
-- 后续更高一层 bridge 的底座
+两个 type-erased port 刻意分开：
 
-它暂时不负责：
+- `RuntimeLoopPort<Tick>` 给 lower-half / run loop 使用，包含 tick、ISR defer、bootstrap 与 run-once；
+- `RuntimeThreadPort<Tick>` 给任务上下文使用，只包含 `yield_current` 与 `sleep_current_until`。
 
-- 保存任何平台状态
-- 绑定固定 idle task
-- 给任务侧暴露更友好的入口对象
+这一区分防止架构入口获得不必要的 task-side API，也防止任务代码直接依赖 scheduler 模板类型。
 
-### 2) `kernel.runtime_bridge`
+## Lower-half 与 Upper-half
 
-位置：`Modules/system/kernel/runtime_bridge.cppm`
+lower-half 负责：
 
-职责是“带状态的运行时入口桥”。
+- exception/IRQ/FIQ/trap 入口；
+- 硬件时钟与 tick 来源；
+- 架构寄存器帧捕获、参数提取与返回值写回；
+- idle 指令和最终上下文切换落点。
 
-它把这些运行时上下文绑在一起：
+upper-half runtime 负责：
 
-- `Scheduler`
-- `idle task`
-- `idle event`
-- 可选 trace buffer
+- 把 tick 推进到 scheduler；
+- 将 ISR 工作转成 scheduler demand；
+- bootstrap idle/worker；
+- current-task yield/sleep；
+- trap service 的平台无关结果语义。
 
-当前桥对象是：
+二者的接缝是 port 与 frame mapping，不是“把多核或硬件伪装成普通线程”。ARMv7-A 的具体映射由 [`armv7a_runtime_trap_mapping_contract.md`](armv7a_runtime_trap_mapping_contract.md) 约束。
 
-- `RuntimeBridge<Scheduler, TraceBuffer>`
+## Runtime Mailbox
 
-它提供的入口是：
+`RuntimeMailbox<Scheduler, RequestCapacity, ReplyCapacity, ReplyWaitCapacity>` 当前是 scheduler-bound 的固定容量异步机制。默认三种容量均为 `4`，请求与回复只携带固定字段：task、label/value、sequence。
 
-- `advance_tick(now)`
-- `defer_from_isr(task, event)`
-- `bootstrap_idle()`
-- `bootstrap_worker(task, event)`
-- `yield_current(event)`
-- `sleep_current_until(due, event)`
-- `run_once_or_idle(now)`
+语义边界：
 
-当前专门验证 RuntimeBridge stateful binding seam 的 host 证据是：
+1. `send(...)` 只入队并向 server post receive event；成功不表示 server 已处理。
+2. `receive(...)` 与 `receive_reply(...)` 是显式消费，不隐含阻塞。
+3. `wait_receive_until(...)` 和 `wait_reply_until(...)` 通过 scheduler timer 注册等待；调用者必须消费对应 timeout event。
+4. `reply(...)` 通过 `sequence` 建立最小因果关系，并取消目标 task 的 reply waiter；它不提供 exactly-once、重试或事务语义。
+5. 队列或 waiter 满时操作返回 `false`；当前没有 backpressure 协议、动态扩容或跨地址空间复制。
 
-- `Examples/kernel/runtime_bridge_binding_host`
+因此 mailbox 可以证明异步 request/reply 与 timeout 的最小闭环，但不能被描述为成熟 RPC、IPC 或 capability transport。
 
-它直接覆盖 `bind_idle(...)`、`bind_trace(...)`、getter 对齐，以及 fallback idle retarget，不把这类状态绑定语义混进 tick / thread-side / trap transport 证据里。
+## Trap Service 与 Task API
 
-这层更适合被下半层持有，因为它已经把“当前这条运行时实例是谁、idle 是谁、trace 放哪里”这几个问题收住了。
-
-当前专门验证这条 tick seam 的 host 证据是：
-
-- `Examples/kernel/runtime_tick_host`
-
-它直接覆盖 `advance_tick(now) -> scheduler.tick(now)` 的未到期/到期路径，以及 timer source 统计与 runtime tick trace 的对齐。
-
-当前专门验证这条 ISR deferral seam 的 host 证据是：
-
-- `Examples/kernel/runtime_isr_defer_host`
-
-它直接覆盖 `defer_from_isr(task, event) -> scheduler.post_demand(...)` 的正反路径，以及 worker wait/idle/deferred resume 的最小闭环。
-
-### 3) `RuntimeLoopPort<Tick>`
-
-位置：同 `kernel.runtime_bridge`
-
-职责是“给下半层 / leaf 持有的最小 runtime loop 入口”，把 `RuntimeBridge` 这组 stateful 行为收成不暴露 `Scheduler` 模板细节的 type-erased port。
-
-当前只保留最靠近 lower-half ingress 的几项：
-
-- `advance_tick(now)`
-- `defer_from_isr(task, event)`
-- `bootstrap_idle()`
-- `bootstrap_idle(event)`
-- `bootstrap_worker(task, event)`
-- `run_once_or_idle(now)`
-
-它的目的不是替代 `RuntimeBridge` 本体，而是给 ARMv7-A / QEMU / future board leaf 一个更薄、更稳定的 runtime 落点：
-
-- leaf 可以持有 port，而不是直接知道上半层 bridge 的具体模板参数
-- 这条边界和任务侧 `RuntimeThreadPort` 分开，避免把 lower-half loop 入口和 thread-side yield/sleep 混成一团
-
-当前专门验证这条 lower-half runtime loop seam 的 host 证据是：
-
-- `Examples/kernel/runtime_loop_port_host`
-
-它直接覆盖 `RuntimeBridge -> RuntimeLoopPort -> tick / ISR defer / idle bootstrap / worker bootstrap / run_once_or_idle`，把下半层真正会持有的那一小组动作收成独立证据。
-
-### 4) `RuntimeThreadPort<Tick>`
-
-位置：同 `kernel.runtime_bridge`
-
-职责是“给任务上下文暴露最小运行时能力”，目前只保留两项：
-
-- `yield_current(...)`
-- `sleep_current_until(...)`
-
-它的目的不是替代 scheduler，也不是把任务代码直接绑死到底层调度器模板参数，而是给 thread / worker step 一个很薄的 runtime 侧口子。
-
-当前通过：
-
-- `make_runtime_thread_port(runtime_bridge)`
-
-从 `RuntimeBridge` 派生出来。
-
-当前专门验证这条 thread-side seam 的 host 证据是：
-
-- `Examples/kernel/runtime_thread_port_host`
-
-它直接覆盖 `RuntimeBridge -> RuntimeThreadPort -> scheduler/timer`，不经过 trap/syscall transport。
-
-### 5) `kernel.runtime_trap`
-
-位置：`Modules/system/kernel/runtime_trap.cppm`
-
-职责是把 trap/service 语义从直接 runtime 调用里单独提出来。
-
-它当前提供：
-
-- `TrapFrameView`
-- `TrapRequest`
-- `TrapResult`
-- `RuntimeTrapBridge`
-- `RuntimeTrapPort`
-
-更完整的边界说明见：
-
-- `docs/system/minimal_kernel_trap_syscall_contract.md`
-
-### 6) `kernel.runtime_service`
-
-位置：`Modules/system/kernel/runtime_service.cppm`
-
-职责是“给任务侧一个稳定、友好的 trap service facade”，把：
-
-- `RuntimeTrapPort`
-- `RuntimeTrapIngressCaller`
-
-这类 transport 的调用形状收口成同一组 task-side 入口：
+`RuntimeTrapServiceFacade<Transport>` 统一四个 task-side 动作：
 
 - `yield_current(...)`
 - `sleep_current_until(...)`
 - `debug_write(...)`
 - `capability_call(...)`
 
-它更适合被 worker/task context 直接持有，因为它不要求任务代码知道底下绑定的是 runtime bridge 直连 port，还是 host/stub 证据路径上的 ingress caller。
+facade 只转发 transport，并保留其 `TrapResult`。`bind_transport(...)` 是重定向，不会重建、缓存或翻译结果语义。
 
-更完整的 task-side 边界说明见：
+`TaskRuntimeApi<Services>` 再把 current-task 视角收成：
 
-- `docs/system/minimal_kernel_runtime_service_contract.md`
-- `docs/system/minimal_kernel_task_runtime_api_contract.md`
-- `docs/system/minimal_kernel_task_syscall_api_contract.md`
+- `yield()`
+- `sleep_until(...)`
+- `debug_write(...)`
+- `capability_call(...)`
 
-### 7) `kernel.runtime_trap_ingress`
+它与 `TaskApi` / `ThreadApi` 的边界是主语不同：前者是当前任务自服务，后者面向显式 `TaskId` 的 scheduler 管理。`TaskRuntimeApi` 不拥有 transport，不引入 errno，也不是完整 syscall ABI。syscall 编号、dispatch 与 trap 结果见：
 
-位置：`Modules/system/kernel/runtime_trap_ingress.cppm`
+- [`minimal_kernel_task_syscall_table_contract.md`](minimal_kernel_task_syscall_table_contract.md)
+- [`minimal_kernel_trap_syscall_contract.md`](minimal_kernel_trap_syscall_contract.md)
+- [`minimal_kernel_trap_ingress_contract.md`](minimal_kernel_trap_ingress_contract.md)
 
-职责是把真实 arch trap frame 和 `TrapFrameView` / `TrapResult` 之间的翻译动作单独收口。
+## 当前证据
 
-更完整的边界说明见：
+源码级 host seam 由以下示例分别覆盖：
 
-- `docs/system/minimal_kernel_trap_ingress_contract.md`
+- `runtime_tick_host`：tick 推进；
+- `runtime_isr_defer_host`：ISR defer；
+- `runtime_bridge_binding_host`：idle/trace 绑定；
+- `runtime_loop_port_host`：lower-half loop port；
+- `runtime_thread_port_host`：thread-side port；
+- `runtime_run_loop_host`：run-once/idle；
+- `runtime_mailbox_host`：异步 request/reply、等待与 timeout；
+- `runtime_service_host`：trap service facade；
+- `runtime_task_api_host`：current-task API；
+- `runtime_binding_chain_host`：transport/service 的 unbind/rebind 传播；
+- `runtime_minimal_host` 与 `runtime_trap_armv7a_host`：组合路径。
 
-## 下半层和上半层各自负责什么
+这些 host 示例证明 C++ 语义和绑定关系，不证明真实异常入口。QEMU lower-half 是否成立必须看 runtime evidence bundle 的实际运行结果，不能因脚本或 target 存在就宣称通过。
 
-### 下半层负责
+## 非目标与未决项
 
-- 异常向量、IRQ/FIQ、trap 入口
-- 硬件 tick / generic timer / board timer
-- context switch ABI
-- `CurrentContext` 与 arch-specific current task seam
-- ISR 中什么时候只记账、什么时候触发 deferred post
-- 何时进入一次调度轮转
+当前实现不承诺：
 
-换句话说，下半层决定“机器什么时候把控制权交给 runtime bridge”。
+- 完整用户态 syscall、errno 或 libc facade；
+- 同步 RPC、跨核 mailbox、对象发现或 capability namespace；
+- 优先级继承、死锁处理、取消传播或服务生命周期；
+- 用户指针校验、地址空间隔离、进程语义；
+- 多核调度一致性或远程 runtime domain。
 
-### 上半层负责
-
-- scheduler / thread / timer 的最小闭环语义
-- idle / worker 的引导方式
-- `yield / sleep` 的任务侧最小入口
-- trace 上的语义证据
-
-换句话说，上半层决定“进入运行时后，语义怎么往前走”。
-
-## 当前建议调用形状
-
-### 启动阶段
-
-1. 创建并启动 scheduler
-2. 绑定 `RuntimeBridge`
-3. 指定 idle task
-4. 用 `bootstrap_worker(...)` 或 `bootstrap_idle(...)` 投递最初事件
-
-### 中断 / tick 阶段
-
-- 定时中断推进软定时器时，调用 `advance_tick(now)`
-- ISR 只做 deferred post 时，调用 `defer_from_isr(task, event)`
-- 如果下半层不想直接持有具体 `RuntimeBridge<Scheduler, ...>` 类型，可以先持有 `RuntimeLoopPort<Tick>`
-
-### 主循环 / run loop 阶段
-
-- 调一次 `run_once_or_idle(now)`
-
-它会负责：
-
-- 先吃掉到期 tick
-- 能跑任务就跑一个 step
-- 如果此轮没有可运行工作，则自动 bootstrap idle
-
-### 任务侧
-
-- 任务若想主动让出，调用 `RuntimeThreadPort::yield_current(...)`
-- 任务若想睡到某个 tick，调用 `RuntimeThreadPort::sleep_current_until(...)`
-- 如果任务侧想走更接近未来 trap/syscall 的入口，则优先通过 `RuntimeTrapServiceFacade<Transport>` 进入 trap service 语义；其下可以绑定 `RuntimeTrapPort` 或 `RuntimeTrapIngressCaller`
-
-## 当前非目标
-
-这层 bridge 自身现在有意不处理下面这些问题：
-
-- 用户态对象模型
-- 真正的 context switch 保存/恢复布局
-- VBAR / GIC / generic timer 真实寄存器
-- 多核 / SMP 调度
-- blocking primitive 的完整语义
-
-其中 trap / syscall 入口已经开始由 `kernel.runtime_trap` 单独承接；
-其余问题仍然比“最小运行时闭环”更靠后，应该在这条 seam 已经稳定后再接。
-
-## 当前证据路径
-
-当前证据 example：
-
-- `Examples/kernel/runtime_minimal_host`
-- `Examples/kernel/runtime_bridge_binding_host`
-- `Examples/kernel/runtime_loop_port_host`
-- `Examples/kernel/runtime_run_loop_host`
-- `Examples/kernel/runtime_tick_host`
-- `Examples/kernel/runtime_isr_defer_host`
-- `Examples/kernel/runtime_thread_port_host`
-- `scripts/minimal_kernel_runtime_host_smoke.ps1`
-
-更细的 seam -> verifier 对照见：
-
-- [`minimal_kernel_runtime_evidence_matrix.md`](minimal_kernel_runtime_evidence_matrix.md)
-
-它验证的就是这条最小闭环：
-
-- 一个 idle
-- 一个 worker
-- 一个 tick source
-- 一次 cooperative `yield`
-- 一次 ISR deferred resume
-- 一次 `sleep until tick`
-- 一条可观察 runtime trace
-
-当前这条 example 已接入 `ctest`，可以作为“上半层运行时语义仍然闭环”的基础证据。
-
-如果需要把当前这批上半层 `runtime_*_host` verifier 一次性做 configure/build/run 回归，可以直接跑 `scripts/minimal_kernel_runtime_host_smoke.ps1`。
-日常迭代时更推荐直接走 `scripts/minimal_kernel_runtime_host_smoke_daily.ps1` 复用已有 `cmake-build-verify-*` 目录，并在 generator 与 sourceDir 匹配时跳过显式 `configure`；只有在想确认冷重建路径、排除缓存影响时再走 `scripts/minimal_kernel_runtime_host_smoke_ci.ps1`，局部排查则可以在这两个入口后面继续加 `-Examples ...` 和 `-Jobs ...` 收窄批次；如果需要把每例状态与耗时固化成工件，则继续加 `-SummaryPath ...`，再用 `scripts/inspect_minimal_kernel_runtime_host_smoke.ps1 -Summary ...` 看慢项、回归，以及 `configure / build / run` 三段耗时分布。
-如果需要把 ARMv7-A QEMU 叶子里的 `runtime-trap / runtime-live / task-syscall` 下半层聚焦 smoke 一次性回归，可以直接跑 `scripts/minimal_kernel_runtime_armv7a_qemu_smoke.ps1`。
-如果需要把这两条线串成一次仓库级 runtime 回归，可以直接跑 `scripts/minimal_kernel_runtime_smoke.ps1`。
-
-## 对 ARMv7-A ingress 的意义
-
-这条 bridge 的意义不是替代 ARMv7-A 的入口实现，而是给它一个更明确的落点：
-
-- ARMv7-A ingress 不需要直接知道 worker/idle 语义细节
-- 它只需要在合适的边界调用 `RuntimeBridge`
-- 任务侧需要的最小能力通过 `RuntimeThreadPort`、`kernel.runtime_service`、`kernel.task_runtime_api` 或 `kernel.task_syscall_api` 暴露，而不是直接把 scheduler 模板灌进 task context
-
-如果未来 ARMv7-A 的 exception/interrupt/context 继续稳定，这层 bridge 就能自然成为“架构入口到内核运行时”的第一层收口。
+这些是可继续讨论的方向，但在对应代码、schema 和可重复证据出现前只能作为 exploration，不能写成现状。

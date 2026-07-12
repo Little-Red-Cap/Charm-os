@@ -1,5 +1,7 @@
 # 网络 socket v0 契约
 
+> **文档状态：`supporting`**
+
 这份文档只定义当前阶段已经准备锁定的最小 socket 契约，用来约束：
 
 - `net.socket`
@@ -8,8 +10,6 @@
 - 以及建立在它们之上的 `net.api` / POSIX bridge / reactor 承载面
 
 它不是完整 Linux socket 兼容说明，也不是未来 TCP/IP roadmap。
-
----
 
 ## 1. 地址与端点边界
 
@@ -23,8 +23,6 @@
   - 不是 IPv6
   - 端口不为 `0`
   - 地址不是 `any`
-
----
 
 ## 2. 状态机边界
 
@@ -44,8 +42,6 @@
 - `send_to()` / `recv_from()` 只允许 UDP socket 调用
 - UDP 的 `send()` 语义收口为“已 connect 的默认对端发送”；未 connect 时返回 `bad_state`
 
----
-
 ## 3. backend 对齐口径
 
 `net.backend.stub` 与 `net.backend.win` 在 v0 需要对齐到同一组外部可观察语义：
@@ -61,8 +57,6 @@
 - Windows backend 通过系统分配临时端口
 - stub backend 现在也会在 bind 阶段物化一个临时端口，避免 host/stub 语义漂移
 
----
-
 ## 4. POSIX fd bridge 最小语义
 
 当 socket 被投影进 POSIX fd 世界后，当前阶段锁定下面这组最小行为：
@@ -75,8 +69,6 @@
 - TCP 对端正常关闭后，`read()` / `recv()` 走 EOF 语义，返回 `0`
 - `spawn()` / `stdio` / `file_actions` 可以把带 `FD_CLOEXEC` 的 socket fd 作为复制源；复制出来的目标 fd 保留，原 cloexec 源 fd 在子进程执行面被裁掉
 
----
-
 ## 5. 当前不承诺的内容
 
 下面这些内容当前仍然故意不进入 v0 承诺面：
@@ -86,8 +78,6 @@
 - `getsockname()` / `getpeername()` 风格的完整查询面
 - nonblocking / flag / socket option 的完整可观察语义
 - 更细的 errno 级兼容
-
----
 
 ## 6. 回归面
 

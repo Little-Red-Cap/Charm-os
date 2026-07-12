@@ -1,182 +1,93 @@
-﻿# Charm SSU 契约（草案）
+# SSU 局部契约
 
-## 目标
+## 文档状态
 
-Charm 的“可调度语义单元”（SSU, Schedulable Semantic Unit）不是新的事件系统，也不是新的数据流库。
-它定义的是一套统一的执行语义原子：
+- `status`: `supporting`
+- `scope`: `kernel.ssu` 元数据、EDA 接入、Scheduler 观测与 submit 分类
+- `authority`: 受 [`CONSTITUTION.md`](../../CONSTITUTION.md) 和
+  [`charm_core_contract.md`](../architecture/charm_core_contract.md) 约束
 
-- 谁来执行
-- 由什么触发
-- 每次最多做多少
-- 是否允许阻塞
-- 如何被观测与重新调度
+SSU（Schedulable Semantic Unit）是 kernel/scheduler 的局部实现机制，不是 Charm Core
+原语，也不定义应用模型。本文只描述当前代码已经提供的行为。
 
-SSU 的目标不是消灭 EDA、reactor、run loop、pipeline、audio pull，
-而是让它们都能投影到同一套“可调度执行语义”上，避免系统继续并行维护多套互不相通的执行模型。
+## 当前接口
 
-## 非目标
+[`Modules/system/kernel/ssu.cppm`](../../Modules/system/kernel/ssu.cppm) 定义：
 
-- 不把一切都重写成同一种 API 风格
-- 不强迫 audio/dataflow 放弃设备时钟主导与 pull 模型
-- 不在第一阶段引入庞大的 In/Out 类型系统
-- 不替代 init.graph 的装配节点语义
+- `ExecutionDomain`: `isr_only`、`task_only`、`anywhere`
+- `TriggerKind`: `event`、`io_ready`、`timer`、`frame`、`demand`
+- `BudgetKind`: `single_step`、`budgeted`
+- `BlockingKind`: `non_blocking`、`may_block`
+- `Meta`: 上述四项元数据和一个 `name`
+- `HasStaticMeta`、`HasEventStep`、`HasDrainStep`、`SsuUnit` concepts
+- `as_event_unit()`：为 EDA 风格对象提供轻量适配
 
-## 核心原则
+这些类型描述执行属性。它们不创建任务、不调度执行，也不自动实施预算、阻塞或
+上下文约束。
 
-### 1. Execution First
+## EDA 与 Scheduler 接入
 
-SSU 统一的是执行语义，而不是 Event 类型或 Stream 类型。
-事件、定时器、IO ready、frame tick、pull demand 都只是触发源。
+[`Modules/system/kernel/eda.cppm`](../../Modules/system/kernel/eda.cppm) 的 `TaskRegistry`：
 
-### 2. Context Is Part Of The Type
+- 可读取 task 的 `ssu_meta()`；
+- 对未声明元数据的 task 返回默认 `Meta`；
+- 在 `CHARM_KERNEL_REQUIRE_SSU_META=1` 时，通过 `static_assert` 拒绝缺少
+  `ssu_meta()` 的 EDA task。
 
-ISR、task context、任意上下文不是注释，而是契约的一部分。
-如果一个单元只能在 task context 运行，这必须在类型/trait 上可见。
+严格模式只检查声明是否存在，不验证声明与运行时行为是否一致。
 
-### 3. Budgeted By Default
+Scheduler 的 task/trace snapshot 会附带 registry 返回的 SSU 元数据，
+`kernel.scheduler_export` 可导出触发、预算、阻塞和执行域分布。该观测面用于诊断，
+不改变调度策略。
 
-SSU 必须天然支持 budgeted 执行：
+## Submit 分类
 
-- 不允许 busy-spin
-- 不允许内部 sleep
-- 不允许内部 timeout loop
-- 做不完就返回并重新调度
+Scheduler 当前提供三类显式提交入口：
 
-### 4. Resubmit Is A First-Class Path
+| 分类 | 代码入口 | 当前含义 |
+|---|---|---|
+| `event-submit` | `post()` / `post_token()` | 离散事件或普通任务推进 |
+| `io-ready-submit` | `post_io_ready()` / `post_io_ready_token()` | IO ready 后交给任务上下文处理 |
+| `demand-submit` | `post_demand()` / `post_demand_token()` | 下游需求或继续推进 |
 
-“做一小步，然后把自己重新排队”不是特例，而是标准模式。
-ReactorPump 已经证明这是 Charm 的自然路径。
+这些入口共享现有 Scheduler 队列与执行机制。分类会进入来源统计，但当前不保证不同的
+优先级、预算或隔离策略。
 
-### 5. Observability Is Mandatory
+`system.run_loop` 另有 `SubmitProjection`，用于记录 step 的来源分类。它是审计标签，
+不是 `kernel::ssu::Meta` 的运行时绑定，也不改变 step 行为。
 
-每个 SSU 都必须能被 scheduler/trace/stats 接住，
-否则系统无法把执行语义统一成真实的调试与运行时事实。
+## 已有代码证据
 
-## 最小契约
+当前仓库中已有以下接入：
 
-第一阶段只定义五个硬字段，不先引入复杂的数据面类型参数。
+- `system.reactor_pump`: `task_only + io_ready + budgeted + non_blocking`
+- `input.pump`: `task_only + timer + budgeted + non_blocking`
+- `canopen.pump`: `task_only + timer + single_step + non_blocking`
+- EDA、thread 和部分示例 task 声明了 `ssu_meta()`
+- Reactor、input、CANopen、IPC 和 sync 路径使用了显式 submit 入口
+- Scheduler export 可输出 SSU overview、hotspots 和 event source 统计
 
-### 执行域（Execution Domain）
+以上只能证明局部接入存在，不能证明所有执行模型已经统一。
 
-- `isr_only`
-- `task_only`
-- `anywhere`
+## 约束
 
-### 触发类型（Trigger Kind）
+- 新增到严格模式 `TaskRegistry` 的 task 必须声明准确的 `ssu_meta()`。
+- `non_blocking` 和 `budgeted` 是待评审的行为承诺，不是由类型自动执行的保证。
+- ISR 只应完成必要的记录或通知；重处理应进入明确的 task 路径。
+- 新增 submit 或内部推进旁路时，必须说明原因、影响范围、退出条件和回收路径。
+- 不得仅凭 SSU 元数据把 scheduler、Reactor、RunLoop 或 audio data plane 宣称为同一模型。
 
-- `event`
-- `io_ready`
-- `timer`
-- `frame`
-- `demand`
+具体评审动作见 [`ssu_review_checklist.md`](ssu_review_checklist.md)。
 
-### 预算语义（Budget Kind）
+## 未决问题
 
-- `single_step`
-- `budgeted`
+以下内容保留为可继续验证的问题，不是当前契约：
 
-### 阻塞语义（Blocking Kind）
+- 是否需要把元数据承诺升级为可执行的预算或上下文检查；
+- submit 分类是否应影响调度策略；
+- RunLoop projection 是否应与 SSU 元数据建立正式映射；
+- 设备时钟主导的数据面是否适合采用相同抽象；
+- 当前热点阈值能否产生稳定、可操作的诊断结论。
 
-- `non_blocking`
-- `may_block`
-
-### 可观测性（Observability）
-
-SSU 必须允许接入：
-
-- trace 名称/标签
-- stats 计数
-- 重新调度次数
-- 预算耗尽次数（后续扩展）
-
-## 统一执行入口
-
-Charm 第一阶段只收口三类提交入口：
-
-- `event-submit`
-- `io-ready-submit`
-- `demand-submit`
-
-timer/frame 可以先投影到 event-submit，
-等 SSU 主路径稳定后再做更细分的专用入口。
-
-## 当前系统到 SSU 的映射
-
-### EDA Task -> Event Unit
-
-- 触发：`event`
-- 执行域：`task_only`
-- 语义：run-to-completion 的单步处理
-
-### Reactor Pump -> IO Drain Unit
-
-- 触发：`io_ready`
-- 执行域：`task_only`
-- 语义：budgeted drain，做不完则 resubmit
-
-### RunLoop Step -> Frame Unit
-
-- 触发：`frame`
-- 执行域：`task_only`
-- 语义：每帧推进一个阶段
-
-### Audio Pull Engine -> Demand Unit
-
-- 触发：`demand`
-- 执行域：控制面通常 `task_only`，数据面由设备时钟驱动
-- 语义：device clock 主导、pull graph、IRQ 内仅最短路径
-
-## 命名约束
-
-SSU 不使用 `Node` 作为统一术语，避免与下列既有语义冲突：
-
-- `init::Node`：初始化装配节点
-- audio/dataflow node：处理图节点
-
-第一阶段统一使用 `Unit`。
-
-## 第一阶段落地范围
-
-1. 增加 `kernel.ssu`，定义 trait / concept / 元信息结构
-2. 增加 EDA -> SSU 的轻量适配
-3. 增加 ReactorPump -> SSU 的轻量适配
-4. 不重写现有 scheduler，只给 scheduler 一个统一观察口
-5. 不改变 audio/dataflow 主设计，只给它预留 `demand` 语义入口
-
-## 禁止事项
-
-- 禁止把 SSU 做成新的“万能对象系统”
-- 禁止在第一阶段引入 runtime 多态为主的重框架
-- 禁止把所有现有模块强行迁到同一种 API 再求编译通过
-- 禁止为了统一而破坏 audio 的 pull 与设备时钟主导
-
-## 第一阶段验证用例
-
-### 用例 B：Event/Message + Reactor/Timer
-
-这是 SSU 的 P0 验证场景。
-
-验收点：
-
-- reactor pump 可以被表达为标准 `task_only + io_ready + budgeted + non_blocking` 单元
-- EDA task 可以被表达为标准 `task_only + event + single_step + non_blocking` 单元
-- scheduler trace/stats 能看到统一的 SSU 标签
-- 不新增旁路 drain 路径
-
-## 与 RTOS 的关系
-
-如果 SSU 成立，RTOS 在 Charm 中更像“执行资源后端”，例如：
-
-- 时间源
-- 中断保护
-- 唤醒机制
-- 软中断触发
-- 线程/栈/阻塞资源
-
-Charm 自己负责的是统一的执行语义层：
-
-- 事件注入
-- budgeted 执行
-- resubmit 路径
-- 统一 trace/stats
-- 可组合的执行契约
+历史样板、迁移取舍与阶段结论见
+[`../archive/ssu-phase-notes/README.md`](../archive/ssu-phase-notes/README.md)。

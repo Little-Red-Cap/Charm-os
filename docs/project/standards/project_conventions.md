@@ -72,7 +72,7 @@
 ## 7) 命名与导出
 
 - 模块导出统一写入 `charm.*.cppm` 聚合入口。
-- 新模块请同步更新 `docs/architecture_overview.md` 或对应目录文档。
+- 新模块优先更新对应目录 README 或专题契约；只有顶层目录、聚合入口或主运行路径变化时才更新 `docs/architecture_overview.md`。
 
 ---
 

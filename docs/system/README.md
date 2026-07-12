@@ -20,8 +20,8 @@
 | minimal-kernel host smoke / 冷启动与热复用 | [`minimal_kernel_host_smoke_bundle_contract.md`](minimal_kernel_host_smoke_bundle_contract.md) |
 | syscall / trap 链 | [`minimal_kernel_task_syscall_table_contract.md`](minimal_kernel_task_syscall_table_contract.md)、[`minimal_kernel_trap_syscall_contract.md`](minimal_kernel_trap_syscall_contract.md)、[`armv7a_runtime_trap_mapping_contract.md`](armv7a_runtime_trap_mapping_contract.md) |
 | POSIX / Linux 用户态兼容 | [`posix_support_overview.md`](posix_support_overview.md) |
-| system compiler 结果物与解释面 | [`artifact_report_v0.md`](artifact_report_v0.md)、[`explain_surface_v0.md`](explain_surface_v0.md)、[`front_page_route_provenance_compatibility_contract_v0.md`](front_page_route_provenance_compatibility_contract_v0.md) |
-| 资源法律与 bring-up 证据 | [`resource_contract_v0.md`](resource_contract_v0.md)、[`bringup_evidence_pipeline_v0.md`](bringup_evidence_pipeline_v0.md) |
+| system compiler exploration 的结果物与解释工具 | [`artifact_report_v0.md`](artifact_report_v0.md)、[`explain_surface_v0.md`](explain_surface_v0.md) |
+| 资源约束探索与 bring-up 报告原型 | [`resource_contract_v0.md`](resource_contract_v0.md)、[`bringup_evidence_pipeline_v0.md`](bringup_evidence_pipeline_v0.md) |
 | opening judgment / testimony 上层阅读通路 | [`opening_judgment_corridor_witness_taxonomy_v0.md`](opening_judgment_corridor_witness_taxonomy_v0.md) |
 | 脚本面收敛 / evidence harness 治理 | [`script_surface_reduction_governance_v0.md`](script_surface_reduction_governance_v0.md)、[`script_surface_reduction_inventory_v0.md`](script_surface_reduction_inventory_v0.md) |
 | schema 面收敛 / shared definition 候选治理 | [`schema_surface_reduction_governance_v0.md`](schema_surface_reduction_governance_v0.md)、[`schema_surface_reduction_inventory_v0.md`](schema_surface_reduction_inventory_v0.md) |
@@ -42,43 +42,23 @@
 - [`kernel_runtime_session_witness_v0.md`](kernel_runtime_session_witness_v0.md)
 - [`minimal_kernel_runtime_ledger_fact_contract_v0.md`](minimal_kernel_runtime_ledger_fact_contract_v0.md)
 - [`minimal_kernel_runtime_evidence_matrix.md`](minimal_kernel_runtime_evidence_matrix.md)
-- [`minimal_kernel_runtime_mailbox_contract.md`](minimal_kernel_runtime_mailbox_contract.md)
+- [`minimal_kernel_task_syscall_table_contract.md`](minimal_kernel_task_syscall_table_contract.md)
+- [`minimal_kernel_trap_syscall_contract.md`](minimal_kernel_trap_syscall_contract.md)
 - [`minimal_kernel_trap_ingress_contract.md`](minimal_kernel_trap_ingress_contract.md)
-- [`minimal_kernel_task_syscall_catalog_contract.md`](minimal_kernel_task_syscall_catalog_contract.md)
-- [`minimal_kernel_task_syscall_dispatch_contract.md`](minimal_kernel_task_syscall_dispatch_contract.md)
-- [`minimal_kernel_task_syscall_frame_contract.md`](minimal_kernel_task_syscall_frame_contract.md)（当前存在历史编码损坏，待恢复，不作为首选入口）
-- [`minimal_kernel_task_message_api_contract.md`](minimal_kernel_task_message_api_contract.md)
-- [`minimal_kernel_task_message_table_contract.md`](minimal_kernel_task_message_table_contract.md)
-- [`minimal_kernel_task_message_dispatch_contract.md`](minimal_kernel_task_message_dispatch_contract.md)
-- [`minimal_kernel_task_message_service_loop_contract.md`](minimal_kernel_task_message_service_loop_contract.md)
-- [`minimal_kernel_task_message_service_drain_contract.md`](minimal_kernel_task_message_service_drain_contract.md)
-- [`minimal_kernel_task_message_service_pump_contract.md`](minimal_kernel_task_message_service_pump_contract.md)
-- [`minimal_kernel_task_message_syscall_bridge_contract.md`](minimal_kernel_task_message_syscall_bridge_contract.md)
-- [`minimal_kernel_task_message_syscall_frame_contract.md`](minimal_kernel_task_message_syscall_frame_contract.md)
-- [`minimal_kernel_task_message_syscall_frame_caller_contract.md`](minimal_kernel_task_message_syscall_frame_caller_contract.md)
-- [`minimal_kernel_task_message_syscall_client_contract.md`](minimal_kernel_task_message_syscall_client_contract.md)
-- [`minimal_kernel_task_message_syscall_pump_contract.md`](minimal_kernel_task_message_syscall_pump_contract.md)
-- [`minimal_kernel_task_message_runtime_service_contract.md`](minimal_kernel_task_message_runtime_service_contract.md)
-- [`minimal_kernel_task_message_runtime_api_contract.md`](minimal_kernel_task_message_runtime_api_contract.md)
-- [`minimal_kernel_task_message_syscall_api_contract.md`](minimal_kernel_task_message_syscall_api_contract.md)
-- [`minimal_kernel_task_message_session_api_contract.md`](minimal_kernel_task_message_session_api_contract.md)
-- [`minimal_kernel_task_message_session_dispatch_contract.md`](minimal_kernel_task_message_session_dispatch_contract.md)
-- [`minimal_kernel_task_message_session_acceptor_contract.md`](minimal_kernel_task_message_session_acceptor_contract.md)
-- [`minimal_kernel_task_message_session_endpoint_contract.md`](minimal_kernel_task_message_session_endpoint_contract.md)
-- [`minimal_kernel_task_message_session_protocol_contract.md`](minimal_kernel_task_message_session_protocol_contract.md)
-- [`minimal_kernel_task_message_session_protocol_schema_contract.md`](minimal_kernel_task_message_session_protocol_schema_contract.md)
-- [`minimal_kernel_task_message_session_service_contract.md`](minimal_kernel_task_message_session_service_contract.md)
-- [`minimal_kernel_task_message_session_service_loop_contract.md`](minimal_kernel_task_message_session_service_loop_contract.md)
-- [`minimal_kernel_task_message_session_roundtrip_contract.md`](minimal_kernel_task_message_session_roundtrip_contract.md)
-- [`minimal_kernel_runtime_service_contract.md`](minimal_kernel_runtime_service_contract.md)
-- [`minimal_kernel_task_runtime_api_contract.md`](minimal_kernel_task_runtime_api_contract.md)
-- [`minimal_kernel_task_syscall_api_contract.md`](minimal_kernel_task_syscall_api_contract.md)
+- [`armv7a_runtime_trap_mapping_contract.md`](armv7a_runtime_trap_mapping_contract.md)
+- [`minimal_kernel_task_message_runtime_contract.md`](minimal_kernel_task_message_runtime_contract.md)
 - [`ci_minimal_kernel_runtime_session_witness_smoke.ps1`](../../scripts/ci_minimal_kernel_runtime_session_witness_smoke.ps1)
 - [`inspect_minimal_kernel_runtime_session_witness_smoke.ps1`](../../scripts/inspect_minimal_kernel_runtime_session_witness_smoke.ps1)
 - [`inspect_minimal_kernel_runtime_session_witness_smoke_compare_smoke.ps1`](../../scripts/inspect_minimal_kernel_runtime_session_witness_smoke_compare_smoke.ps1)
 - [`inspect_minimal_kernel_runtime_session_witness_compare_summary_smoke.ps1`](../../scripts/inspect_minimal_kernel_runtime_session_witness_compare_summary_smoke.ps1)
 - [`system_compiler_minimal_kernel_runtime_session_witness_inspect_compare_consumer_smoke.ps1`](../../scripts/system_compiler_minimal_kernel_runtime_session_witness_inspect_compare_consumer_smoke.ps1)
 - [`minimal-kernel-runtime-session-witness.yml`](../../.github/workflows/minimal-kernel-runtime-session-witness.yml)
+
+早期 bridge/mailbox/service/task API 分篇讨论已收敛，独立取舍与未实施方向见
+[`../archive/minimal-kernel-runtime-v0/README.md`](../archive/minimal-kernel-runtime-v0/README.md)。
+
+materialized graph、bring-up evidence、resource contract 与 ARMv7-A staging 的完整阶段叙事已移入
+[`../archive/system-evidence-and-staging-v0/README.md`](../archive/system-evidence-and-staging-v0/README.md)；现行路径只保留实现边界或探索状态。
 
 ## POSIX 补充入口
 
@@ -111,14 +91,11 @@
 
 ## SSU 补充入口
 
-- [`ssu_status.md`](ssu_status.md)
 - [`ssu_contract.md`](ssu_contract.md)
-- [`ssu_discipline.md`](ssu_discipline.md)
 - [`ssu_review_checklist.md`](ssu_review_checklist.md)
-- [`ssu_submit_discipline.md`](ssu_submit_discipline.md)
-- [`ssu_submit_inventory.md`](ssu_submit_inventory.md)
-- [`ssu_migration_priority.md`](ssu_migration_priority.md)
-- [`ssu_vnext.md`](ssu_vnext.md)
+
+SSU 是 kernel/scheduler 的 supporting 实现机制，不是 Charm Core 主线或应用模型。
+历史推进记录见 [`../archive/ssu-phase-notes/README.md`](../archive/ssu-phase-notes/README.md)。
 
 ## 阶段材料
 

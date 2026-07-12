@@ -198,7 +198,12 @@ Kernel、scheduler、process model、bootloader、driver framework 和 filesyste
 [`Examples/system/charm_capability_mvp`](../../Examples/system/charm_capability_mvp/README.md)
 已经完成 Host 与真实 QEMU `mps2-an500` 两条实现切片：三项 Contract 使用单一定义，同一
 App source 只更换 Profile 和 provider；两域得到相同 timestamp/checksum，missing binding
-均在 App 启动前失败。它还没有进入真实板，因此仍不是跨环境 MVP 闭环。
+均在 App 启动前失败。源码边界检查同时确认共享头文件不含平台条件分支，并要求 Host、QEMU、
+H747 harness 只能包含同一个 `mvp_app.hpp`，不得各自重定义 App。
+
+H747 foundation profile 与固件 target 已经能够消费同一 App、Contract 和 resolver，并完成
+build-only 验证；这仍不等于真实板执行。只有 UART capture 同时证明正例、启动前 missing-binding
+负例和可比较 Evidence 后，才构成第三证据域。因此当前仍不是跨环境 MVP 闭环。
 
 当前下一项平台级证明是完成第 6 节的同源三环境 MVP。目录迁移、Compiler 生成、Resident ELF 扩面、
 完整 OS、Studio 或新公共框架都不能替代这项证明。

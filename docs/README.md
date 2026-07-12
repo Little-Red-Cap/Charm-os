@@ -83,14 +83,6 @@ Charm 的正式定位始终是：
 - [`system/minimal_kernel_runtime_evidence_bundle_contract.md`](system/minimal_kernel_runtime_evidence_bundle_contract.md)
 - [`system/posix_support_overview.md`](system/posix_support_overview.md)
 
-### 停线前的仓库状态
-
-- [`repo_governance.md`](repo_governance.md)
-- [`current_tracks_index.md`](current_tracks_index.md)
-
-这两页保留停线前的多战线状态和入口，当前只作为 supporting snapshot，不再承担仓库身份或
-默认路线裁决。
-
 ### 方法论与未来机制探索
 
 - [`architecture/charm_methodology_charter.md`](architecture/charm_methodology_charter.md)
@@ -101,6 +93,9 @@ Charm 的正式定位始终是：
 
 这些材料在停线期冻结为 `exploration`。它们可以提供判例和证据，不能新增 canonical 词汇或
 把某条机制升级为默认路线。
+
+停线前的多战线状态已移入
+[`archive/repo-tracks-pre-core-reset/README.md`](archive/repo-tracks-pre-core-reset/README.md)，仅供追溯。
 
 ## 维护规则
 

@@ -105,8 +105,6 @@ if ($canonicalArchitecture.Count -ne 1 -or
 $expectedStatuses = @{
     'docs/overview.md' = 'supporting'
     'docs/architecture_overview.md' = 'supporting'
-    'docs/repo_governance.md' = 'supporting'
-    'docs/current_tracks_index.md' = 'supporting'
     'docs/architecture/resident_image_platform_v1_contract.md' = 'supporting'
     'docs/architecture/charm_methodology_charter.md' = 'exploration'
     'docs/architecture/charm_spine_v0.md' = 'exploration'
@@ -114,7 +112,6 @@ $expectedStatuses = @{
     'docs/architecture/rte_to_h747_platform_roadmap.md' = 'exploration'
     'docs/architecture/system_compiler_roadmap.md' = 'exploration'
     'docs/architecture/system_compiler_vocabulary_v0.md' = 'exploration'
-    'docs/compiler/charm_compiler_constitution_v0.md' = 'exploration'
 }
 foreach ($entry in $expectedStatuses.GetEnumerator()) {
     $path = Join-Path $root $entry.Key
@@ -131,16 +128,13 @@ $linkFiles = $canonical + @(
     'docs/architecture/charm_core_semantic_audit.md',
     'docs/overview.md',
     'docs/architecture_overview.md',
-    'docs/repo_governance.md',
-    'docs/current_tracks_index.md',
     'docs/architecture/charm_methodology_charter.md',
     'docs/architecture/charm_spine_v0.md',
     'docs/architecture/resident_image_platform_v1_contract.md',
     'docs/architecture/rte_capability_composition_contract_v0.md',
     'docs/architecture/rte_to_h747_platform_roadmap.md',
     'docs/architecture/system_compiler_roadmap.md',
-    'docs/architecture/system_compiler_vocabulary_v0.md',
-    'docs/compiler/charm_compiler_constitution_v0.md'
+    'docs/architecture/system_compiler_vocabulary_v0.md'
 )
 $linkCount = 0
 foreach ($relative in $linkFiles) {

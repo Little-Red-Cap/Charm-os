@@ -16,7 +16,9 @@ runtime evidence summary facts
 ```
 
 上层可以消费 `runtime_ledger.json` 中已经出口的 ledger facts，也可以通过 `kernel_runtime_session.summary.json` 的 `ledger` 字段定位这份 ledger；上层不得为了补判决而回读 raw host log、raw QEMU log、raw session smoke log 或 raw runtime/session/world-compare 原始证据。
-在 compiler lifecycle 语言中，`runtime_ledger.json` 可被只读投影为 `observed`，详见 `docs/compiler/compiler_world_lifecycle_projection_v0.md`；该投影不改变本 ledger contract 的字段、事件顺序或 session verdict 边界。
+可选 compiler lifecycle sidecar 会把 `runtime_ledger.json` 只读投影为 `observed`，见
+[`compiler_lifecycle_summary_sidecar_contract_v0.md`](../compiler/compiler_lifecycle_summary_sidecar_contract_v0.md)；
+该投影不改变本 ledger contract 的字段、事件顺序或 session verdict。
 
 ## 根对象
 

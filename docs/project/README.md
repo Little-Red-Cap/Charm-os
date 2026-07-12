@@ -63,6 +63,8 @@
 - `usb_storage_bundle_设计草案.md`
 
 这些文档通常有参考价值，但默认不应被当成“现行系统契约”。
+Bundle、Foundation Runtime、工程对象/变体、构建升级和 USB 声明式装配的完整早期正文已移入
+[`../archive/project-proposals-v0/README.md`](../archive/project-proposals-v0/README.md)；原路径只保留状态摘要，避免多份草案同时冒充项目总模型。
 
 ## 先怎么理解这个目录
 

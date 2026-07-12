@@ -17,7 +17,9 @@
 现已使用同一 App、Contract 与 resolver 完成 Host 和真实 QEMU `mps2-an500` 两域。两域均输出
 `timestamp=424242 checksum=0x49b880f0`，且 missing binding 都在 App 启动前得到
 `start_count=0`。第 2 节对旧 Backends QEMU/board metadata smoke 的判断仍然成立；新增 QEMU
-firmware 是独立的真实执行证据。真实板域仍未完成。
+firmware 是独立的真实执行证据。共享源码边界现已由脚本检查平台词、条件编译和三个 harness
+对唯一 `mvp_app.hpp` 的消费关系。H747 foundation target 已构建，但尚无真实 UART capture，
+所以真实板域仍未完成。
 
 ## 1. 审计方法
 

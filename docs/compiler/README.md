@@ -1,67 +1,49 @@
-# Compiler 文档入口
+# Compiler 探索入口
 
-本目录收纳 Charm compile-time world 与 compiler constitution 相关文档。
+## 文档状态
 
-这里不是新的 DSL 目录，也不是 codegen 目录。它的职责是先定义 Charm 的编译期世界法理：什么是 world、fact、pass authority、semantic freeze、lowering 与 witness。
+- `status`: `exploration`
+- `scope`: 当前有实现支撑的 compiler 工具实验与历史讨论入口
+- `authority`: 受 [`CONSTITUTION.md`](../../CONSTITUTION.md) 和
+  [`charm_core_contract.md`](../architecture/charm_core_contract.md) 约束
 
-## 当前入口
+Compiler 是 `Implementation / Tool`，不定义 Charm Core。当前目录只保留两条可运行实验。
 
-- [`charm_compiler_constitution_v0.md`](charm_compiler_constitution_v0.md)
-- [`compiler_pass_authority_and_freeze_boundary_v0.md`](compiler_pass_authority_and_freeze_boundary_v0.md)
-- [`compiler_world_lifecycle_v0.md`](compiler_world_lifecycle_v0.md)
-- [`compiler_world_ir_pipeline_contract_v0.md`](compiler_world_ir_pipeline_contract_v0.md)
-- [`compiler_world_ir_first_landing_slice_v0.md`](compiler_world_ir_first_landing_slice_v0.md)
-- [`compiler_static_reflection_three_stage_prototype_v0.md`](compiler_static_reflection_three_stage_prototype_v0.md)
-- [`compiler_hosted_reflection_extraction_surface_v0.md`](compiler_hosted_reflection_extraction_surface_v0.md)
-- [`compiler_world_lifecycle_projection_v0.md`](compiler_world_lifecycle_projection_v0.md)
-- [`compiler_world_lifecycle_projection_coverage_v0.md`](compiler_world_lifecycle_projection_coverage_v0.md)
-- [`compiler_sidecar_landing_order_v0.md`](compiler_sidecar_landing_order_v0.md)
-- [`compiler_lifecycle_summary_sidecar_contract_v0.md`](compiler_lifecycle_summary_sidecar_contract_v0.md)
-- [`compiler_lowering_surface_contract_v0.md`](compiler_lowering_surface_contract_v0.md)
-- [`compiler_freeze_receipt_contract_v0.md`](compiler_freeze_receipt_contract_v0.md)
-- [`compiler_archive_manifest_contract_v0.md`](compiler_archive_manifest_contract_v0.md)
+## 当前实现
 
-## 当前实现入口
+### Lifecycle summary sidecar
 
-- `scripts/export_compiler_lifecycle_summary.py`
-- `scripts/check_compiler_lifecycle_summary.ps1`
-- `scripts/report_compiler_lifecycle_summary.ps1`
-- `scripts/compiler_lifecycle_summary_sidecar.ps1`
-- `scripts/compiler_lifecycle_summary_sidecar_smoke.ps1`
-- `scripts/compiler_lifecycle_summary_runtime_evidence_bundle_hook_smoke.ps1`
-- `scripts/minimal_kernel_runtime_evidence_bundle.ps1 -ExportCompilerLifecycleSummary`
-- `scripts/compiler_static_reflection_three_stage_probe.ps1`
+- contract:
+  [`compiler_lifecycle_summary_sidecar_contract_v0.md`](compiler_lifecycle_summary_sidecar_contract_v0.md)
+- exporter: `scripts/export_compiler_lifecycle_summary.py`
+- gate/report/wrapper: `scripts/check_*`、`report_*`、`compiler_lifecycle_summary_sidecar.ps1`
+- smoke: `scripts/compiler_lifecycle_summary_sidecar_smoke.ps1`
 
-## 阅读关系
+它把现有 artifact/report/ledger/witness/compare 结果只读投影为九个历史 lifecycle 标签。
+它不创建 freeze、proof 或 archive 事实。
 
-建议先读：
+### Static reflection compile probe
 
-1. [`../architecture/charm_methodology_charter.md`](../architecture/charm_methodology_charter.md)
-2. [`charm_compiler_constitution_v0.md`](charm_compiler_constitution_v0.md)
-3. [`compiler_pass_authority_and_freeze_boundary_v0.md`](compiler_pass_authority_and_freeze_boundary_v0.md)
-4. [`compiler_world_lifecycle_v0.md`](compiler_world_lifecycle_v0.md)
-5. [`compiler_world_ir_pipeline_contract_v0.md`](compiler_world_ir_pipeline_contract_v0.md)
-6. [`compiler_world_ir_first_landing_slice_v0.md`](compiler_world_ir_first_landing_slice_v0.md)
-7. [`compiler_static_reflection_three_stage_prototype_v0.md`](compiler_static_reflection_three_stage_prototype_v0.md)
-8. [`compiler_hosted_reflection_extraction_surface_v0.md`](compiler_hosted_reflection_extraction_surface_v0.md)
-9. [`compiler_world_lifecycle_projection_v0.md`](compiler_world_lifecycle_projection_v0.md)
-10. [`compiler_world_lifecycle_projection_coverage_v0.md`](compiler_world_lifecycle_projection_coverage_v0.md)
-11. [`compiler_sidecar_landing_order_v0.md`](compiler_sidecar_landing_order_v0.md)
-12. [`compiler_lifecycle_summary_sidecar_contract_v0.md`](compiler_lifecycle_summary_sidecar_contract_v0.md)
-13. [`compiler_lowering_surface_contract_v0.md`](compiler_lowering_surface_contract_v0.md)
-14. [`compiler_freeze_receipt_contract_v0.md`](compiler_freeze_receipt_contract_v0.md)
-15. [`compiler_archive_manifest_contract_v0.md`](compiler_archive_manifest_contract_v0.md)
-16. [`../architecture/system_compiler_roadmap.md`](../architecture/system_compiler_roadmap.md)
-17. [`../architecture/system_compiler_vocabulary_v0.md`](../architecture/system_compiler_vocabulary_v0.md)
+- boundary:
+  [`compiler_static_reflection_three_stage_prototype_v0.md`](compiler_static_reflection_three_stage_prototype_v0.md)
+- probe: `scripts/compiler_static_reflection_three_stage_probe.ps1`
 
-再按需要进入：
+它只证明 hosted `<meta>` TU 和 freestanding residue consumer 可以分别编译。当前没有 extractor，
+probe 中的 residue 是手写 fixture。
 
-- [`../system/artifact_report_v0.md`](../system/artifact_report_v0.md)
-- [`../system/resource_contract_v0.md`](../system/resource_contract_v0.md)
-- [`../system/bringup_evidence_pipeline_v0.md`](../system/bringup_evidence_pipeline_v0.md)
+## 历史讨论
 
-## 非目标
+World、pass authority、freeze、lowering、archive manifest 和 World IR 等未实施讨论已压缩到：
 
-- 不在这里定义 `WorldIR.hpp`、`TopologyIR.hpp` 或任何 C++ IR 类型。
-- 不在这里新增 schema、validator、smoke 或 codegen pipeline。
-- 不把 C++ template、YAML、JSON 或 Python generator 升格为唯一 truth source。
+- [`../archive/compiler-law-v0/README.md`](../archive/compiler-law-v0/README.md)
+
+这些讨论可用于设计评审，但不是现行 contract、schema 或实现承诺。
+
+## 相关工具
+
+- artifact report：[`../system/artifact_report_v0.md`](../system/artifact_report_v0.md)
+- inspector：[`../system/explain_surface_v0.md`](../system/explain_surface_v0.md)
+- exploration roadmap：
+  [`../architecture/system_compiler_roadmap.md`](../architecture/system_compiler_roadmap.md)
+- local vocabulary：
+  [`../architecture/system_compiler_vocabulary_v0.md`](../architecture/system_compiler_vocabulary_v0.md)

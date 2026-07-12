@@ -52,17 +52,15 @@ if (-not $hits) {
 }
 
 $files = Get-ChangedFiles
-$docPattern = '^docs/system/(ssu_submit_inventory|ssu_run_loop_audit|ssu_submit_discipline)\.md$'
+$docPattern = '^docs/system/ssu_review_checklist\.md$'
 $docHits = $files | Where-Object { $_ -match $docPattern }
 
 if (-not $docHits) {
     Write-Host ""
     Write-Host "[ssu_submit_gate] FAILED"
     Write-Host "  Detected submit-mapping related changes, but no required docs updated."
-    Write-Host "  Update one of:"
-    Write-Host "    - docs/system/ssu_submit_inventory.md"
-    Write-Host "    - docs/system/ssu_run_loop_audit.md"
-    Write-Host "    - docs/system/ssu_submit_discipline.md"
+    Write-Host "  Review and update:"
+    Write-Host "    - docs/system/ssu_review_checklist.md"
     Write-Host ""
     Write-Host "  Matched lines:"
     foreach ($line in $hits) {

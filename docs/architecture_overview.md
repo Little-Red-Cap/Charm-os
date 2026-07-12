@@ -1,78 +1,41 @@
-# Charm 当前架构实现盘点
+# Charm 实现地图
 
-> [!IMPORTANT]
-> **文档状态：`supporting`（实现盘点）**
-> 本文描述当前模块、入口和历史分层，不定义 Charm Core。核心身份与术语以
-> [`../CONSTITUTION.md`](../CONSTITUTION.md) 和
-> [`architecture/charm_core_contract.md`](architecture/charm_core_contract.md) 为准。
+## 文档角色
 
-本页是 Charm 的全局架构图与依赖红线说明。  
-不承担文档路由或新同学入门职责。
+本文是 `supporting` 实现地图，只回答当前代码放在哪里、从哪些入口进入、主要运行路径怎样连接。它不定义 Charm Core，也不维护逐模块功能清单或“当前全部测试已通过”之类易失效状态。
 
-## 上位入口
-
-先读：
+权威顺序：
 
 1. [`../CONSTITUTION.md`](../CONSTITUTION.md)
 2. [`architecture/charm_core_contract.md`](architecture/charm_core_contract.md)
 3. [`architecture/README.md`](architecture/README.md)
+4. 本页及专题契约
 
-`charm_methodology_charter.md`、`charm_spine_v0.md`、System Compiler 与 RTE/H747
-材料当前均为 exploration。它们可以解释历史选择，不再承担 Charm 的上位定义。
+旧版详细盘点中的分层、迁移和阶段状态见 [`archive/architecture-inventory-v0/README.md`](archive/architecture-inventory-v0/README.md)。
 
-如果你想看稳定入口、兼容入口与退役入口的分类，
-再看：`docs/architecture/entry_surface_contract.md`
+## 仓库结构
 
-如果你想看 `charm.core` / `charm.system` / `charm.ui.vivid` 这类稳定聚合入口为什么可以宽，
-再看：`docs/architecture/stable_entry_aggregate_contract.md`
+| 路径 | 当前用途 |
+|---|---|
+| `Modules/core` | util、semantic、init、trace、固定容量 service、通用算法 |
+| `Modules/system` | kernel、boot、bring-up、device discovery、ModuleX、power、RTOS 适配 |
+| `Modules/io` | channel、registry、reactor、HAL、block、FS、USB、network、POSIX、shell、out |
+| `Modules/platform` | board/platform 描述与 host 平台实现 |
+| `Modules/media` | audio 与 media stream |
+| `Modules/gfx` | framebuffer、canvas、font 等图形基础件 |
+| `Modules/ui` | Ink、Vivid 及共享 UI 代码 |
+| `Modules/control` | 控制领域代码；不属于 Core |
+| `Modules/thirdparty` | vendored 第三方源码 |
+| `Examples` | 可运行样本、板级工程和语义验证 |
+| `Backends` | capability/backend 实验与契约；不自动进入 Core |
+| `Draft` | 未冻结探索 |
+| `targets` | 架构/目标相关 lower-half 与构建材料 |
 
-System Compiler 的 artifact、explain、resource 与 bring-up 文档同样只在其探索范围内有效。
+目录名只表示代码所有权和当前组织，不自动授予 Core 身份。
 
-## 设计原则（只记 5 条）
-- 静态能力必须走 `init.graph` 装配；运行期发现能力必须通过统一 capability export 进入系统
-- Channel 只能 non-blocking
-- 协议层禁止 busy-spin/自带超时
-- 默认禁止隐式全局入口
-- 依赖只允许单向向上
+## 导入入口
 
-## 快速阅读路径
-1. 分层与入口：本页 1.0 / 1.1
-2. 依赖红线：1.2
-3. 装配规则：init.graph（见 `docs/system/init_graph_contract.md`）
-4. IO 核心契约：`docs/io/*`
-
-## 本页不负责什么
-- 具体 IO 契约细节：见 `docs/io/*`
-- 具体系统装配细节：见 `docs/system/*`
-- 协作与 Agent 规则：见 `docs/agent/*`
-
-
-## 1. 架构分层
-
-```
-Charm（统一架构）
-├─ Core（util/trace/service/alg/init）
-├─ System（Kernel/ModuleX/Boot/InitChain）
-├─ IO（Channel/Reactor/Registry/HAL/FS/Shell/Out/POSIX）
-├─ Media（Audio）
-├─ UI/Ink（低资源 UI）
-└─ UI/Vivid（富 UI）
-```
-
-## 1.0 入口模块与推荐入口
-
-历史上，Charm 用顶层入口来表达 `Foundation -> Runtime -> Domains` 的依赖方向。
-当前这套入口已经进入“明确退役历史门面 + 子系统入口优先”的状态：
-
-- Foundation 兼容入口：`charm.foundation`（兼容门面 -> `charm.core`）
-- Runtime 历史入口：`charm.runtime` 已退役，仅保留 tombstone 模块，不再作为可用导入入口
-- Domains 不再提供单独的 `charm.domain` 入口；Domain 层请直接使用：
-  - `charm.media`
-  - `charm.ui.ink`
-  - `charm.ui.vivid`
-- 入口面分类与推荐入口详见 `docs/architecture/entry_surface_contract.md`
-
-推荐的新代码入口：
+当前稳定聚合入口：
 
 - `charm.core`
 - `charm.system`
@@ -82,523 +45,92 @@ Charm（统一架构）
 - `charm.ui.ink`
 - `charm.ui.vivid`
 
-补充约束：
+聚合入口较宽；只需要一个能力时应直接 import 叶子模块。入口的完整状态由 [`architecture/entry_surface_contract.md`](architecture/entry_surface_contract.md) 约束：
 
-- `Modules/*`、`Examples/*`、`Draft/*` 都不应新增对 `charm.foundation / charm.runtime / charm.domain` 的依赖。
-- `charm.foundation` 暂不删除，但只保留迁移语义；first-party 源码当前不再依赖它。
-- `charm.runtime` 的退役契约见 `docs/architecture/legacy_runtime_facade_retirement_contract.md`。
-- `CHARM_ENABLE_DEPENDENCY_WHITELIST=ON` 可启用 opt-in 配置期检查，详见 `docs/architecture/dependency_whitelist.md`。
-- 稳定聚合入口的宽度解释见 `docs/architecture/stable_entry_aggregate_contract.md`。
+- `charm.foundation` 是兼容 facade；
+- `charm.runtime` 是无 re-export 的退役 tombstone；
+- `charm.domain` 是历史名称，不是当前模块入口。
 
-UI/Vivid 公开入口：
-- 正式 public：`charm.ui.vivid`
-- 过渡 deprecated：`charm.font.font_noto_ascii_12`、`charm.font.font_noto_sc_12`（禁止新增依赖）
-- 非作为组合入口的资源：`charm.font.defaults_noto`（允许显式 import，禁止再从聚合入口 re-export）
-- 已删除旧名：`input.gesture`、`charm.ui.vivid.full`、`service.fifo`、`gui.ui_input_router_bridge`、`charm.widgets.text`、`input_router_bridge`（禁止新增依赖）
-- 内部 private：`charm.core.soa_*`、`gui.ui_semantics_bridge`、`ui.vivid.core.*`、`ui.vivid.widgets.*`、`ui.ink.ui.*`（标 internal 者）、以及任意 `*bridge*/*compat*/*alias*` 模块（禁止新增依赖）
-- UI Kernel 契约：docs/ui/ui_kernel_contract.md
+不要从“某个模块能被 import”推导其已成为稳定公共契约。
 
-```mermaid
-graph TD
-    A[Charm 统一架构] --> C[Core]
-    A --> SYS[System]
-    A --> IO[IO]
-    A --> PLAT[Platform]
-    A --> AU[Media/Audio]
-    A --> UI1[UI/Ink]
-    A --> UI2[UI/Vivid]
-    SYS --> K[Kernel]
-    SYS --> M[ModuleX]
-    SYS --> B[Boot]
-    IO --> CH[Channel]
-    IO --> H[HAL]
-    IO --> F[FS/VFS]
-    IO --> SH[Shell]
-    IO --> OUT[Out]
-    IO --> PX[POSIX Compat]
-    IO --> USB[USB]
+## 装配与依赖
+
+### 静态系统
+
+板级已知能力走：
+
+```text
+BoardCaps -> init.graph nodes -> registry/service -> App
 ```
 
-## 1.1 目录布局（统一）
+`init.graph` 当前硬约束包括固定容量、provider 唯一、依赖解析、phase 顺序和非阻塞 init。详见 [`system/init_graph_contract.md`](system/init_graph_contract.md)。
 
-```
-Modules/
-  core/        # util/trace/service/alg/init
-  system/      # kernel/modulex/boot/init/bringup
-  io/          # channel/reactor/registry/hal/fs/shell/out/usb
-  platform/    # board_caps/irq/clock
-  io/channel/  # 统一字节通道（out/AT/协议复用）
-  io/reactor/  # 事件驱动 IO 反应堆
-  io/registry/ # IO 能力注册与发现
-  media/       # audio
-  ui/ink/      # Charm-ink UI
-  ui/vivid/    # Charm-vivid UI
-  core/charm.foundation.cppm    # 兼容入口：Foundation
-  system/charm.runtime.cppm     # 退役 tombstone：禁止作为入口使用
-  media/charm.media.cppm        # 稳定子系统入口：Media
-  ui/ink/charm.ui.ink.cppm      # 稳定子系统入口：UI/Ink
-  ui/vivid/charm.ui.vivid.cppm  # 稳定子系统入口：UI/Vivid
-  thirdparty/  # dr_libs/etl 等第三方源码
-  platform/    # win/... 及后续 MCU 平台
+### 动态设备
 
-  # Shell 目录拆分（模块名保持不变）
-  io/shell/
-    core/      # shell_core/shell_stream/shell_time
-    cli/       # shell_cmd/shell_repl/shell_service/shell_stdio
+运行期发现设备走：
 
-Examples/     # 示例工程
-docs/         # 架构与协作文档
-Draft/        # 计划/草案（可变动）
+```text
+Bus -> DeviceDesc -> Registry/Driver -> stable slot or manager -> consumer
 ```
 
-## 1.1.1 组件文档入口
-
-- Audio：`Modules/media/audio/audio_design.md`
-- HAL：`Modules/io/hal/charm_hal_design.md`
-- FS/VFS：`docs/storage/fs_vfs_mount_rules.md`
-- Block cache：`docs/storage/fs_block_cache_strategy.md`
-- FatFs 示例：`docs/storage/fs_fatfs_demo.md`
-- IO Channel：`Modules/io/channel/io.channel.cppm`
-- IO Channel 契约：`docs/io/io_channel_contract.md`
-- IO Reactor：`Modules/io/reactor/io.reactor.cppm`
-- IO Reactor 契约：`docs/io/io_reactor_contract.md`
-- IO Registry：`Modules/io/registry/io.registry.cppm`
-- IO Registry 契约：`docs/io/io_registry_contract.md`
-- ModuleX：`Modules/system/modulex/ModuleX_格式草案.md`
-- Kernel：`Modules/system/kernel/docs/`
-- Kernel 事件队列后端：`Modules/system/kernel/docs/event_queue_backends.md`
-- Kernel poster 适配：`Modules/system/kernel/poster.cppm`
-- IO 分层总览：`docs/io/io_layering_overview.md`
-- 输入分层决策：`docs/input/input_layering_decision.md`
-- 输入协议映射：`docs/input/input_protocol_map.md`
-- 能力回收规则：`docs/architecture/capability_recovery_rules.md`
-- VSF USB 映射：`docs/reference/vsf/vsf_usb_map.md`
-- VSF TCPIP 映射：`docs/reference/vsf/vsf_tcpip_map.md`
-- USB 体系规划：`docs/usb/usb_arch_plan.md`
-- USB DSL 概览：`docs/usb/usb_dsl_overview.md`
-- USB CDC 回调契约：`docs/usb/usb_cdc_contract.md`
-- USB String/Lang 装配：`docs/usb/usb_strings_overview.md`
-- 驱动模型：`docs/architecture/driver_model.md`
-- 设备发现模型草案：`docs/architecture/device_model_overview.md`
-- Signal / State contract v0：`docs/architecture/signal_state_contract_v0.md`
-- Signal / State v0：`docs/architecture/signal_state_v0.md`
-- Charm Spine v0：`docs/architecture/charm_spine_v0.md`
-- RTE 能力装配契约 v0：`docs/architecture/rte_capability_composition_contract_v0.md`
-- 系统编译器路线图：`docs/architecture/system_compiler_roadmap.md`
-- System Compiler 词汇表 v0：`docs/architecture/system_compiler_vocabulary_v0.md`
-- Artifact Report v0：`docs/system/artifact_report_v0.md`
-- Explain Surface / Artifact Report v0：`docs/system/explain_surface_v0.md`
-- 资源契约 v0：`docs/system/resource_contract_v0.md`
-- bringup 证据流水线 v0：`docs/system/bringup_evidence_pipeline_v0.md`
-- trace_core 统一入口：`docs/trace/trace_core_entry.md`
-- trace_core ID 清单：`docs/trace/trace_core_ids.md`
-- VFS 挂载规则：`docs/storage/fs_vfs_mount_rules.md`
-- MAL 概览：`docs/storage/mal_overview.md`
-- MAL + FatFs 示例：`docs/storage/mal_fatfs_demo.md`
-- VSF 对照与可借鉴清单：`docs/reference/vsf/vsf_comparison.md`
-- Service/Component 初始化顺序：`docs/system/service_component_init.md`
-- InitGraph 契约：`docs/system/init_graph_contract.md`
-- POSIX 兼容总览：`docs/system/posix_support_overview.md`
-- POSIX 分层与演进原则：`docs/system/posix_subsystem_principles.md`
-- POSIX 三层执行模型：`docs/system/posix_three_layer_contract.md`
-- POSIX 用户态运行时：`docs/system/posix_user_runtime_minimal_design.md`
-- POSIX 阶段进度：`docs/system/posix_stage_summary.md`
-
-## 1.1.2 POSIX 兼容执行面（当前已落地）
-
-POSIX 兼容执行面当前归在 Runtime/IO 侧，代码主目录为 `Modules/io/posix/*`。
-它的职责不是“把 Charm 变成 Linux 内核”，而是提供一条最小、可验证、能逐步承接 Linux 用户态程序的执行面。
-
-当前已经落地的能力包括：
-- `posix.api`、`fd_table`、`pipe`、`spawn / waitpid`、`dup2`、`isatty`、`errno`。
-- `posix.user_runtime` / `posix.user_context`：用户程序可见的最小 runtime facade，负责当前 runtime / pid 绑定以及当前 `argc/argv/envp` 启动上下文。
-- 文件路径 ELF 装载与执行：`spawn -> load_image -> start_image`。
-- `_exit(code)` 统一退出语义：通过 `ExecContext + setjmp/longjmp` 收束。
-- QEMU 回归链路：`posix smoke + busybox phase2 smoke`。
-
-当前边界也必须明确：
-- 这是 same-address-space 的 v0 用户程序执行模型。
-- 目标是先跑一批真实 Linux 用户态样本，再逐步补齐语义。
-- 还不承诺 `fork`、signals、动态链接与完整 Linux 进程隔离模型。
-
-详见：`docs/system/posix_support_overview.md`
-## 1.2 依赖红线（单向依赖）
-
-这是“允许真实耦合”的安全网：只允许向上依赖，禁止反向渗透。
-
-```
-Charm.Foundation  <-  Charm.Runtime  <-  Charm.Domains
-
-其中：
-
-- `Charm.Foundation` 的兼容入口是 `charm.foundation`
-- `Charm.Runtime` 没有兼容总入口；使用 `charm.system` / `charm.io` / `charm.net` 或叶子模块
-- `Charm.Domains` 是概念层，不再对应单独的 `charm.domain` 模块入口
-```
-
-### 初始化顺序（统一约束）
-
-统一通过 `init.graph` 装配静态系统底座，避免“入口拼装地狱”：
-
-1) `CoreSystemChain`：`system.clock` / `io.registry` / `io.reactor` / `kernel.eda` / `reactor_pump` 等底座
-2) `BoardChain`：`platform.irq` / `hal.uart1` / `driver.usart_channel` 等板级能力
-3) `extra nodes`：仅允许服务/应用类节点（禁止底座能力进入 extra）
-
-> 说明：旧式 `service_init/hal_init/component_init` 已移除，新增静态功能必须走 `init.graph`。  
-> 对运行期发现设备，则走 `device::*` 生命周期与 capability export，详见 `docs/architecture/driver_model.md`。
-
-### Foundation（能力基座）
-范围：
-- `Modules/core/*`（util/trace/service/alg）
-
-规则：
-- 只能被上层依赖，禁止依赖 Runtime/Domains
-- 任何格式化/日志/统计能力优先收敛到此层
-
-### Runtime（运行时与系统能力）
-范围：
-- `Modules/system/*`（kernel/modulex/boot）
-- `Modules/io/*`（channel/hal/fs/shell/out）
-- `Modules/platform/*`
-
-规则：
-- 可依赖 Foundation
-- 禁止依赖 Domains（UI/Audio 等）
-- 向 Domains 提供系统级能力（调度/FS/IO/模块）
-
-### Domains（领域系统）
-范围：
-- `Modules/media/*`（audio）
-- `Modules/ui/*`（ink/vivid）
-
-规则：
-- 可依赖 Foundation/Runtime
-- 禁止向下反向依赖
-
-### 允许的短期“主动耦合”策略
-- 先迁移使用最强能力（例如 UI 改用 out.format，Audio 改用 kernel/EDA）
-- 暂不删除旧实现，待依赖稳定后再清理
-
-## 1.3 能力回收清单（优先：UI/Ink + UI/Vivid）
-
-目标：把“最强实现”收敛为真实依赖，但不立即清理旧实现。
-
-### UI/Ink 回收清单
-- 格式化/输出：`sprintf`/内部格式化 → `out.format` + `out.api`
-- 日志与诊断：内部日志 → `out.logger`（或 `trace_core`）
-- 容器与池：自建容器/池 → `core/service/*`（fixed_vector/slot_pool/ring_queue）
-- 字符串/视图：自建 span/optional/expected → `core/util/*`
-- 统计与时间：内部计数/计时 → `trace_core` / `util.units`
-- 输入事件：内部队列 → `service_ring_buffer` / `service_fifo`
-
-### UI/Vivid 回收清单
-- 格式化/输出：`sprintf`/内部格式化 → `out.format` + `out.api`
-- 诊断与 trace：内部 debug → `trace_core` + `service_trace`
-- 容器与池：自建容器/池 → `core/service/*`
-- 字符串/视图：内部 span/optional/expected → `core/util/*`
-- 资源表/注册表：内部 map/registry → `service_fixed_hash_map` / `service_handle_table`
-
-### 回收执行规则
-- 只做“替换使用”，不删除旧 API
-- 依赖必须单向（Foundation → Runtime → Domains）
-- 每完成一条回收，补一条最小回归验证
-
-### 回收硬规则（必须遵守）
-- trace_core 只做“写入/上报”，禁止格式化与策略逻辑
-- 容器回收只替换“存储模型”，禁止把领域语义塞回 Foundation
-- util.units 只表达量纲，禁止提供时间源/调度语义
-- Domain 事件队列禁止阻塞/重试/睡眠（满了直接丢弃）
-
-### 三段式回收流程（执行模板）
-1. 使用层变化：仅用新能力，旧 API 保留但禁止新增调用
-2. 依赖验证：非法 import 必须在编译期失败
-3. 最小回归：编译 + 一个行为验证（不要求完整测试）
-
-## 1.4 第三方依赖与可替换策略
-
-统一策略：**系统优先 → 本地目录 → FetchContent**。这样 PC/CI/MCU 三端行为一致，且便于替换。
-
-### 依赖清单（当前）
-- SDL3：`cmake/SDL3.cmake`（PC 音频/窗口）
-- dr_mp3 / dr_flac：`cmake/DRLibs.cmake`（音频解码头文件）
-- FatFs：`Modules/thirdparty/fatfs`（内置源码）
-
-### 关键开关
-- `CHARM_USE_SYSTEM_SDL3` / `CHARM_FETCHCONTENT_SDL3`
-- `CHARM_FATFS_ROOT`（仅用于覆盖本地 FatFs 目录）
-
-## 1.5 统一错误模型
-
-- 核心错误码：`util::Errc`（POSIX 负值 + 扩展码）
-- 结果类型：`util::Result<T>`（`expected<T, Errc>`）
-- 模块可保留 stage/context，但对外只暴露 Errc + 明确的 stage 字段
-- 日志/trace 统一记录 Errc（可附 stage/ctx）
-
-## 1.6 错误模型 + 通道层（短规范）
-
-- 所有对外 API 使用 `util::Result<T>`，禁止自建 Error/Err/Errno 类型
-- 错误码统一为 `util::Errc`，允许内部 stage/context，但对外只暴露 Errc + stage
-- IO/协议层只依赖 `io::Channel`，平台只实现一次通道
-- out/AT/协议统一走通道，不直接绑定 UART/CDC/TCP
-
-## 2. 当前已具备的拼图
-
-### Kernel
-- EDA：任务注册/动态注册、优先级、事件队列、定时器
-- 同步/等待：sync base/obj/unified、wait token/set/list
-- 线程模型：thread/thread_api/thread_blocking
-- 可观测性：trace、统计、alert、replay、JSON 输出
-- 事件策略：dedup/debounce/coalesce/boost/rate-limit
-
-### Platform
-- platform.irq / system.clock 等系统能力接口
-- Windows/STM32 参考实现（board_caps）
-
-### HAL
-- `hal_core/irq/gpio/uart/timer/spi/i2c/input`
-- HAL Win stub + board_caps 时钟注入
-
-### Audio
-- 组件：source/decoder/fifo/sink/player/SRC/声道转换
-- 解码：WAV/FLAC/MP3
-- 模式：FollowInput / FixedRate（含重配事务）
-- 回归：stable/lowlat、fixed-rate、reconfig、force-mono
-- 文档：`Modules/media/audio/audio_design.md`
-
-### Service
-- ring_buffer/fifo/heap/pool/json/trace/distbus
-- signal/state contract（执行域 / ISR / 生命周期法律）
-- signal/state（同域同步广播 + 真相状态单元）
-- stream + buffer
-
-### Shell
-- cmd/repl/stdio/core/time
-- shell_service（jobs/vars/alias/script）
-
-### Out
-- out.core/out.api/out.format/out.ansi/out.logger
-- out.sink/out.domain/out.channel（统一走 io.channel）
-
-### IO Channel
-- io.channel（统一字节通道）
-- io.reactor（事件驱动反应堆，唯一 drain 由 PumpTask 负责）
-- io.registry（能力注册/发现，替代全局默认通道）
-- io.channel.adapters（UART/CDC/TCP 通道适配模板）
-- out.channel（out 走通道）
-- at.driver_reactor（AT 走通道 + Reactor 驱动）
-- input.service（统一采样入口，绑定 `hal_input` + `system.clock`）
-> 默认通道已移除；新代码必须通过 `io.registry` 或 RuntimeContext 注入通道。
-
-### USB
-- 设备端骨架：descriptor/common、EP0 状态机
-- 类草案：CDC/UAC/MSC
-- 驱动接口：`usb.ep0_driver`
-- 示例：`Examples/usb/usb_cdc_minimal`
-- Host runtime glue：`usb.host.core`、`usb.host.runtime`、`usb.host.runtime_block`、`usb.host.runtime_channel`、`usb.host.runtime_manager`
-- Host runtime 当前支持单设备/多设备 host bus、增量扫描、`remove -> rediscover`，并通过稳定 slot capability 对外导出；smoke 样板统一经由 `RuntimeManager` 编排
-- 示例：`Examples/usb/usb_host_runtime_block_smoke`
-- 示例：`Examples/usb/usb_host_runtime_channel_smoke`
-- 示例：`Examples/usb/usb_host_runtime_multi_smoke`（同一条 host bus 同时导出 block/channel，并验证增量扫描）
-
-### Device Model
-- 当前结论：采用 `Capability First / Dual Plane`，静态装配以 `init.graph` 为主轴，`system/device/*` 只承担 runtime discovery plane
-- 设备/驱动/注册表骨架（device.desc/driver/registry）
-- 运行期注册表已支持 `match_detected`、`remove_device` / `remove_matching`，可用于 discovery 增量匹配与 detach 收敛
-- 示例：`Examples/system/device_registry_demo`
-- 示例：`Examples/system/device_bus_demo`
-- 示例：`Examples/system/device_runtime_block_slot_demo`
-- 示例：`Examples/system/device_runtime_channel_slot_demo`
-
-### UI/Ink
-- core/render/ui/widgets/platform/input/semantics/theme
-
-### UI/Vivid
-- core/gfx/widgets/font/assets
-
-### FS/VFS
-- fs_core/vfs/ramfs/block/blockfs/path/errno/stream
-- fatfs 适配入口（需 `CHARM_ENABLE_FATFS`）
-- list/mkdir/dirty 支持
-
-### ModuleX
-- module_core/loader/link/registry/view
-- XIP 执行策略辅助
-- demo：load/exec/dep/reloc
-
-### Bootloader
-- boot_core/flow/storage/flash/policy/uart
-- A/B 选择、版本/签名策略、UART 烧写入口
-
-### Algorithms
-- FFT/滤波/统计
-- 颜色空间转换与像素打包
-- 抖动算法（Bayer/Floyd-Steinberg）
-- 压缩（RLE/PackBits/Heatshrink/LZ4）
-
-## 3. 典型运行路径（简图）
-
-```
-Shell/Script
-  -> VFS (fs_vfs)
-  -> Mount (fs_ramfs / fs_blockfs)
-  -> NodeOps (read/write/seek/flush)
-
-Scheduler
-  -> EventQueue/Timer
-  -> Task Registry
-  -> Task Handler
-  -> Trace/Stats
-
-ModuleX
-  -> ImageView validate
-  -> Loader load
-  -> Linker deps/externals/reloc
-  -> exec policy
-```
-
-```mermaid
-sequenceDiagram
-    participant U as Shell/Script
-    participant V as fs_vfs
-    participant MT as Mount
-    participant NO as NodeOps
-    U->>V: vfs_open/read/write
-    V->>MT: mount ops
-    MT->>NO: node ops
-```
-
-## 4. 模块依赖图（简化）
-
-```mermaid
-graph LR
-    Kernel --> Trace[trace_core]
-    Kernel --> Util[util.core]
-    Shell --> ShellCore[shell_core]
-    Shell --> ShellCmd[shell_cmd]
-    ShellCmd --> VFS[fs_vfs]
-    VFS --> FSCore[fs_core]
-    VFS --> FSPath[fs_path]
-    VFS --> FSErr[fs_errno]
-    FSCore --> FSStream[fs_stream]
-    FSCore --> Util
-    ModuleX --> ModCore[module_core]
-    ModuleX --> ModView[module_view]
-    ModuleX --> ModLoader[module_loader]
-    ModuleX --> ModLink[module_link]
-    ModLoader --> ModCore
-    ModLink --> ModCore
-    ModView --> ModCore
-    Service --> Stream[service_stream]
-    Service --> TraceSvc[service_trace]
-    TraceSvc --> Trace
-```
-
-## 5. Kernel 子系统依赖（简化）
-
-```mermaid
-graph LR
-    Scheduler[kernel.scheduler] --> EDA[kernel.eda]
-    Scheduler --> EVT[kernel.evt]
-    Scheduler --> EQ[kernel.event_queue]
-    Scheduler --> Timer[kernel.timer]
-    Scheduler --> TraceK[kernel.trace]
-    Scheduler --> Config[kernel.config]
-    Scheduler --> Caps[kernel.capabilities]
-    Timer --> TimeWheel[kernel.timer_wheel]
-    EDA --> TaskState[kernel.task_state]
-    EDA --> TaskDecl[kernel.task_decl]
-    EDA --> DynReg[kernel.dynamic_registry]
-    EDA --> TaskPool[kernel.task_pool]
-    SyncBase[kernel.sync_base] --> WaitSet[kernel.wait_set]
-    SyncBase --> WaitList[kernel.wait_list]
-    Sync[kernel.sync] --> SyncBase
-    SyncObj[kernel.sync_object] --> SyncBase
-    Thread[kernel.thread] --> ThreadAPI[kernel.thread_api]
-    Thread --> ThreadBlock[kernel.thread_blocking]
-```
-
-## 6. FS/VFS 内部结构（简化）
-
-```mermaid
-graph LR
-    VFS --> MountOps[fs_core::MountOps]
-    VFS --> Path[fs_path]
-    VFS --> Err[fs_errno]
-    MountOps --> RamFs[fs_ramfs]
-    MountOps --> BlockFs[fs_blockfs]
-    RamFs --> NodeOps[fs_core::NodeOps]
-    BlockFs --> NodeOps
-    NodeOps --> Stream[fs_stream]
-```
-
-## 7. ModuleX 内部结构（简化）
-
-```mermaid
-graph LR
-    Loader[module_loader] --> Core[module_core]
-    Linker[module_link] --> Core
-    View[module_view] --> Core
-    Registry[module_registry] --> Core
-    Loader --> View
-    Linker --> View
-    Linker --> Registry
-    View --> ExecPolicy[can_exec_internal]
-```
-
-## 8. Shell/Service 结构（简化）
-
-```mermaid
-graph LR
-    ShellCmd[shell_cmd] --> ShellCore[shell_core]
-    ShellRepl[shell_repl] --> ShellCmd
-    ShellService[shell_service] --> ShellCmd
-    ShellCmd --> VFS[fs_vfs]
-    ShellStream[shell_stream] --> Stream[service_stream]
-    ShellStdIO[shell_stdio] --> ShellCore
-    ServiceTrace[service_trace] --> Trace[trace_core]
-    DistBus[service_distbus] --> ServiceTrace
-```
-
-说明：Shell 目录已拆分为 `core/cli`，POSIX facade 已移除。
-
-## 9. 运行期数据流（简化）
-
-```mermaid
-sequenceDiagram
-    participant User as User/Script
-    participant Sh as Shell
-    participant VFS as fs_vfs
-    participant FS as fs_ramfs/fs_blockfs
-    participant K as kernel.scheduler
-    User->>Sh: command / script
-    Sh->>VFS: vfs_open/read/write
-    VFS->>FS: mount ops
-    FS-->>VFS: status/data
-    Sh->>K: post events
-    K-->>Sh: dispatch/trace
-```
-
-## 10. 当前收敛状态
-
-- Windows 主线 M0–M3：已通过
-- InitGraph + CoreSystemChain + BoardChain：已落地
-- io.channel/io.reactor/io.registry：契约已固化
-- HAL/Service/Shell/FS/ModuleX demos：已通过
-- STM32：编译通过（待烧录验证）
-
-## 10.1 当前关注点（Current Focus）
-
-- UI/Vivid：Action 化收敛 + TableView 结构性 API 第二阶段
-- UI/Vivid：registry 单一源（widgets.registry.def）+ 生成化分发表
-- 验收命令：`vivid-soa-demo --soa-ci --regress-ui`
-
-## 11. 风险与限制
-
-- Shell 管道为“输出作为参数”语义，非真实流式 stdin/stdout
-- ModuleX 内部入口执行需 `xip_text` 且入口在 text 段内，尚未做签名校验
-- VFS dirty 为内存标记，暂无崩溃恢复
-
-
-
-
-
+它不能替代静态 bring-up。详见 [`architecture/driver_model.md`](architecture/driver_model.md)。
+
+### 依赖事实
+
+- Core 身份由 Constitution 裁决，不由目录层次反推。
+- `Modules/core` 应保持平台无关，不依赖 system/io/media/ui 的具体实现。
+- UI、media、project 和 backend 不应反向定义 Core 词汇。
+- `CHARM_ENABLE_DEPENDENCY_WHITELIST` 当前主要封锁历史 facade import，不是完整模块 DAG 证明器。
+- 实际依赖以 module import、CMake source collection 和可运行消费者为准。
+
+旧 `Foundation -> Runtime -> Domains` 可作实现分区记忆，但不是 Charm Core 模型，也没有被单一自动化 gate 完整证明。
+
+## 主要运行路径
+
+| 目标 | 当前路径 | 首选入口 |
+|---|---|---|
+| 静态 bring-up | board caps -> init graph -> service/registry | [`system/README.md`](system/README.md) |
+| 字节 IO | HAL/backend -> channel -> registry/reactor -> protocol | [`io/README.md`](io/README.md) |
+| block 与文件系统 | block device -> block registry -> VFS/mount | [`storage/README.md`](storage/README.md) |
+| resident App | received/store image -> loader -> AppRuntime -> capability table | [`architecture/resident_image_platform_v1_contract.md`](architecture/resident_image_platform_v1_contract.md) |
+| POSIX 兼容 | image/process facade -> same-address-space runtime | [`system/posix_support_overview.md`](system/posix_support_overview.md) |
+| minimal kernel | host semantic evidence + ARMv7-A/QEMU machine evidence | [`system/minimal_kernel_runtime_evidence_bundle_contract.md`](system/minimal_kernel_runtime_evidence_bundle_contract.md) |
+| UI | UI runtime -> render/input backend capability | [`ui/README.md`](ui/README.md) |
+| Audio | source/decoder/stream/sink backend | [`audio/README.md`](audio/README.md) |
+
+这些是实现路径，不是所有平台都已通过的兼容性声明。
+
+## 专题入口
+
+- Core 治理与语义审计：[`architecture/README.md`](architecture/README.md)
+- Capability 地图：[`capability_map.md`](capability_map.md)
+- 入口与依赖：[`architecture/entry_surface_contract.md`](architecture/entry_surface_contract.md)、[`architecture/dependency_contract.md`](architecture/dependency_contract.md)
+- IO：[`io/README.md`](io/README.md)
+- System、kernel、QEMU、POSIX：[`system/README.md`](system/README.md)
+- Storage：[`storage/README.md`](storage/README.md)
+- Input：[`input/README.md`](input/README.md)
+- USB：[`usb/README.md`](usb/README.md)
+- UI：[`ui/README.md`](ui/README.md)
+- Audio：[`audio/README.md`](audio/README.md)
+- Project/build：[`project/README.md`](project/README.md)
+
+逐模块细节应放在对应目录 README 或专题契约，不回填到本页。
+
+## 证据规则
+
+“模块存在”“有 demo”“有脚本”分别只证明代码、样本或入口存在。声称某条路径可用时，至少给出：
+
+- 对应源码或 schema；
+- 实际 build/run 命令；
+- 最近一次结果与适用平台；
+- 尚未覆盖的失败路径。
+
+易变的 build 状态、性能数字、当前 UI 待办和单板 bring-up 结果应放进 evidence log、专题 README 或 tracking 文档，不放在全局实现地图。
+
+## 当前边界
+
+- 尚无完整依赖 DAG gate 可以证明所有跨目录 import 合法。
+- `charm.*` 聚合入口仍较宽，不代表其中每个导出都是 Core。
+- POSIX、minimal-kernel、resident runtime、ModuleX 与 boot 都处于不同成熟度，不能合并成“Charm OS 已完成”。
+- Host、QEMU 与 real board 提供不同等级证据，不能互相替代。
+- Player、具体板级工程和 backend 是消费者/实现压力，不反向定义平台核心。

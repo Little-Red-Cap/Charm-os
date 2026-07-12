@@ -1,87 +1,57 @@
-# Compiler Static Reflection Three-Stage Prototype v0
+# Static Reflection Compile Probe v0
 
-本文承接 [`compiler_world_ir_first_landing_slice_v0.md`](compiler_world_ir_first_landing_slice_v0.md)，定义 Charm 使用 C++26 static reflection 的第一条最小落地路线。
+## 文档状态
 
-hosted extraction 的读写边界、输出 residue 责任与 freestanding 禁区，见：[`compiler_hosted_reflection_extraction_surface_v0.md`](compiler_hosted_reflection_extraction_surface_v0.md)。
+- `status`: `exploration`
+- `scope`: hosted reflection 与 freestanding residue 的编译边界
+- `authority`: [`README.md`](README.md)
 
-核心判断：
-
-```text
-reflection belongs to the hosted extraction stage
-firmware consumes lowered residue
-```
-
-也就是说，`<meta>` 是 compile-time world builder 的工具，不应在 v0 中直接进入 freestanding firmware TU。
-
-## 1. 三段式流程
-
-v0 先固定三段：
+当前探针只验证：
 
 ```text
-hosted reflection extraction
-  -> generated freestanding residue
-  -> firmware freestanding consumption
+hosted TU can compile with <meta>
+freestanding TU can compile a plain residue header
 ```
 
-### hosted reflection extraction
+它不实现 reflection extractor，也不证明两者之间存在自动生成链。
 
-- 使用支持 `-std=c++26 -freflection` 的 GCC。
-- 可以包含 `<meta>`。
-- 可以读取 C++ source facts，例如 resource / pin / binding 声明。
-- 只产出结构化事实或 generated residue，不直接成为 firmware artifact。
+## 入口
 
-### generated freestanding residue
+- [`compiler_static_reflection_three_stage_probe.ps1`](../../scripts/compiler_static_reflection_three_stage_probe.ps1)
 
-- 由 extraction 阶段生成。
-- 只包含固件可消费的 constexpr table、enum、plain struct 或 metadata。
-- 不包含 `<meta>`。
-- 不依赖 hosted-only libstdc++ header。
+脚本使用指定 `arm-none-eabi-g++`：
 
-### firmware freestanding consumption
+1. 生成并编译一个 `-std=c++26 -freflection` hosted fixture；
+2. 写入一个手工定义的 plain C++ header；
+3. 用 `-ffreestanding -fno-exceptions -fno-rtti` 编译 consumer fixture；
+4. 检查两个 object 文件存在。
 
-- 使用 `-ffreestanding` 编译。
-- 只 include generated residue。
-- 不重新执行 reflection。
-- 不把 firmware TU 变成 world owner。
+## 已证明
 
-## 2. 为什么不直接在 freestanding TU 使用 `<meta>`
+- 当前工具链可编译最小 `<meta>` fixture；
+- freestanding consumer 不需要 include `<meta>`；
+- plain enum、struct 和 constexpr table 可作为 residue 形状。
 
-当前 ARM cross 编译器的 reflection frontend 与 `<meta>` header 已可用，但 `<meta>` 实现仍会牵出 `string`、`optional` 等 hosted libstdc++ 依赖。
+## 未证明
 
-因此，v0 不把“让 `<meta>` 直接在 freestanding firmware TU 中可用”作为目标。更稳的路线是把 reflection 保持在 extraction 阶段，让固件只消费 lowering 后的残留物。
+- hosted fixture 会读取项目 source facts；
+- residue 由 reflection 输出生成；
+- field identity、source provenance 或 semantic equivalence 被保持；
+- World IR、freeze、lowering manifest 或 codegen pipeline 存在；
+- 普通 firmware target 可以全局启用 `-freflection`。
 
-## 3. 最小证明
+## 约束
 
-最小证明应包含两个正向编译：
+- `<meta>` 只允许出现在 hosted 实验 TU。
+- Firmware/runtime modules 不依赖 hosted reflection headers。
+- 任何未来 extractor 必须增加 source fixture、生成步骤、内容断言和负例，不能复用当前
+  “两个独立编译通过”作为端到端证据。
 
-- hosted/extraction TU：`#include <meta>`，并能通过 `std::meta` 静态断言。
-- firmware/residue TU：`-ffreestanding` 编译，并只 include generated residue。
+## 运行
 
-当前探针入口：
-
-- [`../../scripts/compiler_static_reflection_three_stage_probe.ps1`](../../scripts/compiler_static_reflection_three_stage_probe.ps1)
-
-这条探针只证明 surface 边界：hosted TU 可以使用 `<meta>`，freestanding TU 只能消费 generated residue。它不证明完整 extractor、World IR、freeze receipt 或 artifact lineage。
-
-## 4. 与 World Pipeline 的关系
-
-这条三段式流程对应 pipeline contract 中的：
-
-```text
-extract / normalize
-  -> lower
-  -> firmware consumption
+```powershell
+./scripts/compiler_static_reflection_three_stage_probe.ps1 -Clean
 ```
 
-`<meta>` 支撑的是 extraction/normalization，不是 frozen world truth 本身。generated residue 属于 lowering surface，firmware 只消费它。
-
-## 5. 非目标
-
-本 v0 不做：
-
-- 不新增 `World IR` schema。
-- 不定义 `WorldIR.hpp`、`TopologyIR.hpp` 或 C++ IR 类型。
-- 不接 LLVM/MLIR。
-- 不实现完整 extractor。
-- 不把 `<meta>` 引入 freestanding firmware TU。
-- 不改变现有 witness、artifact report、world compare 或 runtime evidence 判决模型。
+默认 ARM 工具链路径是本机约定，可用 `-ArmGpp` 覆盖。输出位于
+`out/compiler-static-reflection-three-stage-probe`。

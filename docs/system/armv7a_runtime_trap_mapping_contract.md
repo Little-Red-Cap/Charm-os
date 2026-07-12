@@ -1,137 +1,62 @@
-# ARMv7-A Runtime Trap Mapping Contract（host verifier）
+# ARMv7-A Runtime Trap Mapping
 
-这份文档用于把一件事说清楚：
+## 文档状态
 
-- `Armv7aSvcObservation` / `Armv7aRuntimeTrapObservation`
-- 如何被翻译成上半层 `kernel::TrapFrameView`
-- 以及当前 host verifier 里的 writeback 到底验证了什么
+- `status`: `supporting`
+- `scope`: ARMv7-A observation/frame 到 runtime trap ingress 的映射证据
+- `ingress contract`: [`minimal_kernel_trap_ingress_contract.md`](minimal_kernel_trap_ingress_contract.md)
 
-它对应的证据路径是：
+本映射分为 host synthetic verifier 和 QEMU leaf。两者不能互相替代。
 
-- `Examples/kernel/runtime_trap_armv7a_host/`
+## Host verifier
 
-它依赖的上下文是：
+`Examples/kernel/runtime_trap_armv7a_host` 使用 synthetic ARMv7-A observation：
 
-- `docs/system/minimal_kernel_trap_syscall_contract.md`
-- `docs/system/minimal_kernel_trap_ingress_contract.md`
-- `targets/armv7a/common/armv7a_runtime_bridge_contract.hpp`
-- `targets/armv7a/common/armv7a_runtime_trap_contract.hpp`
+```text
+Armv7a observation
+  -> platform adapter capture
+  -> TrapFrameView
+  -> RuntimeTrapIngress
+  -> TrapResult
+  -> platform adapter writeback
+```
 
-## 一句话版本
+它验证字段翻译和失败分支，不证明 CPU exception entry、banked register、SPSR 或 exception return。
 
-- ARMv7-A 下半层负责拿到真实 SVC 观察结果
-- host/arch adapter 负责把它翻成 `TrapFrameView`
-- `RuntimeTrapIngress` 负责跑 `decode -> dispatch -> writeback`
-- 当前 writeback 只是 host verifier-local 证据，不等同真实异常返回 ABI
+## QEMU leaf
 
-## 当前证据路径的定位
+`Examples/kernel/armv7a/qemu` 提供实际 ARMv7-A firmware 形态的 SVC/trap 路径，包括：
 
-`Examples/kernel/runtime_trap_armv7a_host/` 不是新的 ARMv7-A leaf，也不是 QEMU 替代品。
+- exception frame/context；
+- runtime trap adapter/dispatch/caller；
+- task syscall frame/glue/surface；
+- roundtrip 与 failure evidence。
 
-它的定位更窄：
+定向入口：
 
-- 复用 `runtime_minimal_host` 的最小 runtime 闭环
-- 只把 trap frame 一层换成 ARMv7-A synthetic observation
-- 在不碰 `targets/armv7a/common/` 和 `Examples/kernel/armv7a/qemu/` 热区的前提下
-- 先证明 `Armv7aSvcObservation -> TrapFrameView -> TrapResult writeback` 这条 ingress 语义已经闭环
+```powershell
+./Examples/kernel/armv7a/qemu/run_qemu_runtime_trap_ci.ps1
+./Examples/kernel/armv7a/qemu/run_qemu_task_syscall_ci.ps1
+./Examples/kernel/armv7a/qemu/run_qemu_arch_ingress_seam_ci.ps1
+```
 
-## 与 arch ingress seam 的关系
+QEMU 证明 firmware/exception seam 可以运行，不证明真实 SoC 的中断控制器、MMU/cache 时序或
+板级异常现场完全一致。
 
-这份契约只负责 host verifier 侧的 `SVC -> TrapFrameView -> writeback` 映射，不接管 QEMU lower-half 的统一 ingress 回归。
+当前复测状态：`runtime_task_syscall_frame_armv7a_host` 已通过；
+`run_qemu_task_syscall_ci.ps1` 在 2026-07-13 被 GCC 17 modules/libstdc++ 重复定义错误阻断，
+尚未进入 QEMU。修复前，QEMU 文件和脚本只能证明入口存在，不能作为当前绿色证据。
 
-对应的 QEMU 证据入口是：
+## 映射约束
 
-- `Examples/kernel/armv7a/qemu/run_qemu_arch_ingress_seam_ci.ps1`
-- `scripts/minimal_kernel_runtime_armv7a_qemu_smoke.ps1` 里的 `arch_ingress_seam`
+- 平台 adapter 明确指定 service id、argument register、PC/SP/status 和 origin/task 来源。
+- Capture 失败、unsupported service 和 writeback 失败保持不同错误。
+- Host fixture 的 writeback 仅修改 fixture 定义的结果位置。
+- 上层 `TrapRequest` 不包含 ARM 专用寄存器名。
+- 新架构必须实现自己的 adapter，不能在 runtime trap 中加入平台条件分支。
 
-那条 smoke 统一证明 exception / timer / context / runtime-trap / runtime-loop 的 lower-half seam 已经被接入同一条回归路径；这份 host contract 只提供映射语义回指，不升级成新的接口层。
+## 非目标
 
-## 当前映射顺序
-
-建议的最小顺序是：
-
-1. 先检查 `armv7a_runtime_trap_ready(observation)`
-2. 再用 `armv7a_decode_runtime_bridge_trap(observation.svc)` 解释服务语义
-3. 把 ARMv7-A service id 映射为 generic `TrapService`
-4. 把 `return_pc / origin_psr / origin mode` 映射进 `TrapFrameView`
-5. 把 `TrapFrameView` 交给 `RuntimeTrapIngress`
-6. 把 `TrapResult` 回写到 host-local synthetic frame
-
-## 字段映射
-
-| ARMv7-A 观察字段 | 当前上半层落点 | 说明 |
-| --- | --- | --- |
-| `observation.path` | `armv7a_runtime_trap_ready()` 前置条件 | 当前只接受 `svc_immediate` |
-| `observation.service_id` | readiness 校验的一部分 | 必须与 `svc.immediate` 一致 |
-| `svc.immediate == 0x43` | `TrapService::yield_current` | 通过 `armv7a_decode_runtime_bridge_trap()` 转义 |
-| `svc.immediate == 0x44` | `TrapService::sleep_until` | 同上 |
-| `svc.entry.return_pc` | `TrapFrameView.return_pc` | 当前直接透传 |
-| `svc.entry.origin_psr` | `TrapFrameView.status` | 当前保留原始 PSR 值 |
-| `origin_psr mode == usr (0x10)` | `TrapOrigin::user_task` | 当前 host verifier 允许 |
-| `origin_psr mode == sys (0x1f)` | `TrapOrigin::kernel_thread` | 当前 host verifier 允许 |
-| `origin_psr mode == svc (0x13)` | `TrapOrigin::supervisor` | 当前 host verifier 允许 |
-| 其他 mode | `capture=false` | 当前直接拒绝，不进入 generic trap runtime |
-| yield 的 `event_id / event_payload` | `TrapFrameView.arg0 / arg1` | 供 trace 与 policy 校验使用 |
-| sleep 的 `due` | `TrapFrameView.arg0` | generic `sleep_until` 当前只消费 `arg0` |
-| sleep 的 `event_id / event_payload` | `TrapFrameView.arg1 / arg2` | 供 trace 与 policy 校验使用 |
-| `task / task_valid` | 当前留空 | 让 `RuntimeTrapBridge` 继续从当前调度上下文推断任务 |
-
-## 当前 policy 约束
-
-为了让这条证据路径能和现有 host runtime fixture 对齐，当前 verifier 额外检查：
-
-- yield：
-  - `event_id == EventId::user1`
-  - `event_payload == 1`
-- sleep：
-  - `event_id == EventId::tick`
-  - `event_payload == due`
-
-这不是在说 ARMv7-A ABI 天生如此，而是在说：
-
-- 当前上半层 runtime policy 就是这么接的
-- 所以 ARMv7-A synthetic trap 只有满足这组 policy，才算真正接进了现有 runtime 闭环
-
-## 当前 writeback 语义
-
-当前 host verifier 的 writeback 只验证 ingress 这一层有没有把结果带回来。
-
-它回写的是：
-
-- `return_value`
-- `TrapError`
-- `writeback_seen`
-
-它明确不声称这些内容已经等同于真实 ARMv7-A 异常返回 ABI，例如：
-
-- 返回值最终写哪个寄存器
-- SPSR / LR / 通用寄存器恢复顺序
-- 异常退出时机与硬件可见状态
-
-这些仍然属于未来 arch/leaf adapter 和真实异常返回路径的职责。
-
-## 当前可观察证据
-
-`Examples/kernel/runtime_trap_armv7a_host/` 当前会给出三类直接证据：
-
-- `armv7a-origin-samples`
-  - 验证 `usr / sys / svc` 到 `TrapOrigin` 的映射
-  - 验证 `irq` 这类当前不支持 mode 会被 capture 拒绝
-  - 验证同一类 invalid mode 经过 ingress 会返回 `decode_failed`
-- `trap-trace`
-  - 验证 generic runtime 真正看到了 `yield-current / sleep-until`
-- `trap-ingress-trace`
-  - 验证正常路径上的 `decode -> dispatch -> writeback` 三阶段都走通
-  - 验证 invalid mode 会停在 `decode_failed`
-
-## 当前非目标
-
-这份文档当前不定义：
-
-- 真实 ARMv7-A trap frame 公共布局
-- 真实异常返回 ABI
-- 用户态地址空间切换
-- 完整 syscall 编号体系
-- fault/upcall/signal 恢复语义
-
-它当前只负责把“ARMv7-A SVC 观察结果怎样进入上半层 trap ingress”这件事先站稳。
+- 不冻结产品 SVC ABI。
+- 不定义 user/kernel address validation。
+- 不把 QEMU 结果声明为真实板电气或时序证据。

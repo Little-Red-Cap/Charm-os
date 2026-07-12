@@ -1,69 +1,25 @@
-# I2C Device Contract v0
+# I2C Device Interface v0
 
-## 定位
+## 文档角色
 
-本文记录 Charm 当前第一条设备契约窄腰的 experimental 快照。
+本文描述当前 `io.device_i2c*` implementation interface。它是 driver/backend 试验边界，不是 Charm Core，也未获准成为 `Stable Boundary` 或长期 ABI。
 
-它不是 admitted 公共 ABI，也不是完整 HAL 规范。
+接口审查规则见 [`interface_admission_policy.md`](interface_admission_policy.md)；旧 maturity/evidence 编排见 [`../archive/i2c-device-evidence-v0/README.md`](../archive/i2c-device-evidence-v0/README.md)。
 
-它回答一个更窄的问题：
+## 源码边界
 
-> **一个 I2C 外设 driver 在不理解 HAL、BoardCaps、mock 或 runtime discovery 的前提下，当前最小可以依赖什么。**
+| 模块 | 当前职责 |
+|---|---|
+| `io.device_i2c` | 三操作接口、type-erased bus ref、address-bound device ref、错误映射 |
+| `io.device_i2c_mock` | 固定容量 transaction script backend |
+| `io.device_i2c_hal` | `hal::I2cIoHandle` 到 interface 的适配 |
+| `io.device_i2c_facts` | 独立 I2C facts 报告原型 |
+| `driver.i2c_register_device` | 8-bit register consumer |
+| `driver.i2c_whoami_probe` | register identity probe consumer |
 
-当前代码落点：
+## API
 
-- `Modules/io/device/io.device_i2c.cppm`
-- `Modules/io/device/io.device_i2c_facts.cppm`
-- `Modules/io/device/io.device_i2c_mock.cppm`
-- `Modules/io/device/io.device_i2c_hal.cppm`
-- `Modules/io/driver/driver.i2c_register_device.cppm`
-- `Modules/io/driver/driver.i2c_whoami_probe.cppm`
-
-当前 smoke 证据：
-
-- `Examples/io/i2c_contract_mock_smoke`
-- `Examples/io/i2c_facts_smoke`
-- `Examples/io/i2c_hal_adapter_smoke`
-- `Examples/io/i2c_register_driver_smoke`
-- `Examples/io/i2c_whoami_probe_smoke`
-
-## 1. 当前等级
-
-当前等级是 `experimental`。
-
-它也是 [`device_contract_admission_matrix_v0.md`](device_contract_admission_matrix_v0.md)
-中的第一张样板卡。
-
-它已经具备：
-
-- 一个 driver-facing contract：`io.device_i2c`
-- 一个只读 fact vocabulary：`io.device_i2c_facts`
-- 一个 transaction mock backend：`io.device_i2c_mock`
-- 一个 HAL adapter backend：`io.device_i2c_hal`
-- 一个准真实 register driver：`driver.i2c_register_device`
-- 一个准真实 probe driver：`driver.i2c_whoami_probe`
-- 五条 no-hardware smoke
-- 三个 `system_compiler.fact_evidence/v0` sidecar 投影样例
-
-它还不是 `candidate`，因为仍然缺：
-
-- 真实硬件 evidence
-- 真实芯片 driver
-- 板级真实 probe evidence
-- board bringup evidence
-- evidence pipeline 里的真实板级 facts/probe 闭环
-- 更完整的资源与执行语义冻结
-
-## 2. Contract Shape
-
-当前 I2C 窄腰由两层组成：
-
-- `I2cBus`
-- `I2cDeviceRef`
-
-`I2cBus` 表示能对某个地址完成基本 transaction 的 bus backend。
-
-当前要求：
+`I2cBus` 和 `I2cBusOps` 当前固定三个同步调用：
 
 ```cpp
 write(address, tx) -> util::Result<void>
@@ -71,93 +27,28 @@ read(address, rx) -> util::Result<void>
 write_read(address, tx, rx) -> util::Result<void>
 ```
 
-`I2cDeviceRef` 绑定一个 `I2cBusRef` 与一个 `I2cAddress`。
+`I2cBusRef` 保存 `void* + I2cBusOps*`，`I2cDeviceRef` 再绑定一个 `I2cAddress`。二者均不拥有 backend；调用方必须保证 backend 生命周期覆盖 ref。
 
-driver 作者优先依赖 `I2cDeviceRef`，而不是直接持有 HAL handle。
+`I2cDeviceRef::valid()` 只检查 bus ops 完整，不验证 address、controller 状态、pinmux、clock 或目标设备存在。
 
-这意味着 driver 只表达：
+## Ownership 与执行
 
-```text
-我需要和这个 I2C endpoint 做 transaction
-```
+- backend 负责一次调用的 transaction 执行与平台错误映射；
+- `I2cDeviceRef` 只保存 address，不管理 bus lock、power 或 recovery；
+- consumer 不应依赖 HAL handle、BoardCaps、mock 内部状态或 discovery `DeviceDesc`；
+- 所有接口为 `noexcept`，结果通过 `util::Result<void>` 返回；
+- 当前调用模型是同步返回，但源码不承诺 ISR-safe、reentrant、non-blocking 或 deadline；
+- 没有公共 timeout 参数、cancel、async queue、bus arbitration policy 或 ownership token。
 
-而不是表达：
+如果 backend 内部阻塞或自带 timeout，当前 interface 无法表达其上限。这是尚未解决的语义缺口，不应由文档假定。
 
-```text
-我知道这个 endpoint 来自哪个 MCU、哪个 HAL、哪个 mock、哪个 BoardCaps 字段
-```
+## 错误
 
-## 3. Ownership And Responsibility
+`I2cErrorKind` 当前包含：
 
-当前 v0 只冻结最小责任边界。
-
-`I2cBusRef` 负责：
-
-- 保存 backend 对象与操作表
-- 检查操作表是否完整
-- 把 `address + tx/rx span` 转发给 backend
-
-`I2cDeviceRef` 负责：
-
-- 保存 endpoint address
-- 让 driver 不必重复传 address
-- 保持 device-facing 调用形态
-
-backend 负责：
-
-- 完成实际 transaction
-- 把平台错误映射成 `util::Errc`
-- 保持调用返回前 transaction 已结束或失败
-
-driver 负责：
-
-- 只依赖 `I2cDeviceRef`
-- 不直接访问 HAL / mock / platform private handle
-- 不自建时间源
-- 不在协议层 busy-spin
-
-当前 v0 尚未冻结：
-
-- bus sharing / locking 语义
-- 10-bit address 语义
-- async / reactor-driven transaction 语义
-- repeated-start 的更细粒度契约
-- recovery / bus reset 责任边界
-
-## 4. Execution Semantics
-
-当前 I2C v0 是同步完成模型。
-
-一次调用返回时，backend 应当已经完成下列之一：
-
-- transaction 成功完成
-- transaction 明确失败并返回 `util::Errc`
-- backend 表示当前能力不支持
-
-当前不承诺：
-
-- ISR-safe
-- reentrant
-- non-blocking
-- reactor-managed
-- timeout 由公共 contract 托管
-- managed time / replay 可控制
-
-这不是最终目标，而是 v0 边界。
-
-如果未来加入 timeout 或 async 语义，必须通过明确 timebase / reactor contract 进入，不能让 driver 自己写 `now_ms`、sleep 或 busy wait。
-
-## 5. Error Semantics
-
-当前 domain error kind 是 `io::device::I2cErrorKind`。
-
-它用于描述公共 I2C 层能理解的错误类别：
-
-- `ok`
 - `bus`
 - `arbitration_lost`
-- `nack_address`
-- `nack_data`
+- `nack_address/nack_data`
 - `overrun`
 - `timeout`
 - `target_detached`
@@ -165,353 +56,72 @@ driver 负责：
 - `unsupported`
 - `unknown`
 
-当前映射到 `util::Errc`：
+但公开 `I2cResult` 只携带 `util::Errc`；多数 I2C-specific kind 会折叠为 `Errc::io`。调用方无法从结果恢复原始 `I2cErrorKind`。
 
-- `ok` -> `Errc::ok`
-- `timeout` -> `Errc::timeout`
-- `target_detached` -> `Errc::noent`
-- `policy_violation` -> `Errc::invalid_arg`
-- `unsupported` -> `Errc::not_supported`
-- 其他 I2C fault -> `Errc::io`
+HAL adapter 当前映射：
 
-HAL adapter 额外保留现有 HAL status 语义：
+| HAL status | `util::Errc` |
+|---|---|
+| `ok` | `ok` |
+| `busy` | `busy` |
+| `timeout` | `timeout` |
+| `unsupported` | `not_supported` |
+| 其它 | `io` |
 
-- `hal::Status::busy` -> `Errc::busy`
-- `hal::Status::timeout` -> `Errc::timeout`
-- `hal::Status::unsupported` -> `Errc::not_supported`
-- `hal::Status::error` -> `Errc::io`
+因此 `I2cErrorKind` 与 HAL status 并非一一对应 taxonomy。
 
-注意：`busy` 当前没有提升为 `I2cErrorKind`。
+## Backend 与 Consumer
 
-原因是它来自现有 controller-facing HAL 状态，尚未决定是否属于公共 I2C taxonomy。
-在 contract admitted 前，不应为了单个 adapter 草率扩大公共错误语言。
+### Script backend
 
-## 6. Backend Evidence
+`I2cScriptBus<MaxOps, MaxTx, MaxRx>` 预置期望 transaction，按顺序验证 kind、address、TX bytes 和 RX size，并可注入 `I2cErrorKind`。队列和 payload 超限返回 `buffer_overflow`；调用超出脚本、顺序错误或参数不符会记录首个 script error。
 
-### 6.1 Transaction Mock Backend
+它验证调用语义，不模拟电气、时序、clock stretching、arbitration 或真实 controller 状态。
 
-`io.device_i2c_mock` 提供固定容量 transaction script。
+### HAL adapter
 
-它验证：
+`HalI2cBus` 直接转发 `hal::i2c_write/read/write_read`。它证明现有 HAL handle 可以投影到相同调用面，不是第二个独立硬件实现，也不证明任何真实板工作。
 
-- expected write
-- expected read
-- expected write_read
-- address 匹配
-- tx bytes 匹配
-- rx bytes 回填
-- expected backend failure 也会消费 script
-- unexpected transaction 会记录 `first_script_error`
+### Consumers
 
-这条 backend 服务 no-hardware CI 与 driver 语义测试。
+- `RegisterDevice8<MaxPayload>` 实现单字节 register 读写和固定容量 burst；
+- `WhoAmIProbe` 读取一个 register，并以 `bad_state` 表示 identity mismatch。
 
-### 6.2 HAL Adapter Backend
+二者证明消费代码可以只依赖 `I2cDeviceRef`，但仍是通用小型 consumer，不代表具体芯片 driver。
 
-`io.device_i2c_hal` 提供 `HalI2cBus`。
+## Facts 原型
 
-它验证：
+`io.device_i2c_facts` 定义 bus/controller/device/clock/pinmux/power/backend/evidence 等 fact kind，并对 required/provided/missing 做计数。
 
-- 现有 `hal::I2cIoHandle` 可以投影成 `I2cBus`
-- driver-facing contract 不需要知道 HAL ops 形状
-- HAL status 可以映射到统一 `util::Errc`
-- 缺失 ops 会返回 `Errc::not_supported`
+当前限制：
 
-这条 backend 不等价于真实硬件 evidence。
+- facts 不参与 `I2cBusRef` 创建或调用；
+- `resolve_i2c_facts()` 只做列表统计，不解析 provider identity、冲突或 binding；
+- fact names 没有经 Constitution 裁决；
+- facts sidecar 与 real board 状态可能不一致。
 
-它只证明：
+因此它是报告实验，不是 I2C interface 的成立前提。
 
-```text
-controller-facing HAL 可以被收束到 driver-facing I2C contract。
-```
+## Host 证据
 
-## 7. Driver Evidence
+| 示例 | 证明范围 |
+|---|---|
+| `Examples/io/i2c_contract_mock_smoke` | ref 与 transaction script 的成功/失败路径 |
+| `Examples/io/i2c_hal_adapter_smoke` | HAL status 和调用投影 |
+| `Examples/io/i2c_register_driver_smoke` | register consumer 不依赖 HAL/mock 类型 |
+| `Examples/io/i2c_whoami_probe_smoke` | identity 成功、错误和 mismatch |
+| `Examples/io/i2c_facts_smoke` | fact resolution 与 sidecar 输出形状 |
 
-`driver.i2c_register_device` 是当前准真实 driver evidence。
+Host fixture、artifact report 和 compare 脚本只证明 evidence 工具链输入形状，详见归档。它们不是 real-board evidence。
 
-它提供：
+## 未证明
 
-- `read_u8(reg)`
-- `write_u8(reg, value)`
-- `read(start_reg, rx)`
-- `write(start_reg, payload)`
+- 真实 controller、pinmux、clock、power、IRQ 或 DMA；
+- bus sharing、locking、multi-master 和 recovery；
+- 7-bit/10-bit address policy；
+- timeout 上限、cancel、async/reactor 模型；
+- thread/ISR/reentrancy 安全；
+- 具体 sensor、EEPROM、PMIC 或 codec driver；
+- public ABI、`Stable Boundary` 或 Core 身份。
 
-它只依赖：
-
-- `io.device_i2c`
-- `util.core`
-- `util.error`
-- `util.expected`
-
-它不依赖：
-
-- HAL
-- mock
-- BoardCaps
-- init.graph
-- device registry
-- platform headers
-
-它的写入 payload 上限是模板参数：
-
-```cpp
-RegisterDevice8<MaxPayload = 8>
-```
-
-这让栈缓冲容量成为编译期契约，而不是隐藏运行期分配。
-
-`driver.i2c_whoami_probe` 是当前准真实 probe driver evidence。
-
-它提供：
-
-- `read_id()`
-- `probe()`
-- `WhoAmIProbeConfig`
-
-它只依赖：
-
-- `io.device_i2c`
-- `util.core`
-- `util.error`
-- `util.expected`
-
-它不依赖：
-
-- HAL
-- mock
-- BoardCaps
-- init.graph
-- device registry
-- platform headers
-
-它验证的是真实 I2C 外设里非常常见的 ID / WHOAMI 寄存器探测模式。
-当前它仍然是 no-hardware probe evidence，不等价于真实板级 probe evidence。
-它也已经通过 `i2c-whoami-probe-evidence-smoke` 进入
-`system_compiler.fact_evidence/v0` sidecar 与 artifact report 导出链，
-但该投影仍明确保留 `i2c.probe.board_real` 缺口。
-
-## 8. Smoke Evidence
-
-当前 smoke 覆盖：
-
-- `i2c_contract_mock_smoke`
-  验证基础 contract、mock script、expected failure 与 unexpected transaction。
-- `i2c_hal_adapter_smoke`
-  验证同一个 register driver 经 HAL adapter backend 运行，并覆盖 `busy / timeout / unsupported` 映射。
-- `i2c_register_driver_smoke`
-  验证 register driver 在 transaction mock backend 上完成单寄存器与 burst 读写。
-- `i2c_whoami_probe_smoke`
-  验证 probe driver 在 transaction mock backend 上覆盖成功、ID mismatch 与 backend failure。
-- `i2c-whoami-probe-evidence-smoke`
-  验证 WHOAMI no-hardware probe evidence 可以作为 `fact_only` case
-  进入 `export_bundle -> artifact_report` 链。
-- `board-i2c-whoami-bringup-evidence-smoke`
-  验证 `board.bringup` 风格的 Host fixture evidence 可以把
-  `i2c.probe.board_real` 作为已提供事实送入同一条 artifact report 链。
-- `materialized_graph_i2c_whoami_probe_evidence_compare_smoke.ps1`
-  合成一份 candidate evidence，把 `i2c.probe.board_real` 从
-  `missing` 推到 `satisfied`，验证 artifact report / inspector
-  能解释这类 probe evidence drift。
-- `materialized_graph_i2c_whoami_board_bringup_evidence_compare_smoke.ps1`
-  使用 no-hardware WHOAMI producer 作为 baseline、Host fixture
-  `board.bringup` producer 作为 candidate，验证真实 producer 侧
-  evidence swap 也能解释同一条 drift。
-- `materialized_graph_i2c_board_evidence_chain_smoke.ps1`
-  串行复验 no-hardware WHOAMI evidence、Host fixture board evidence、
-  producer-side compare 与 stable sample validation。
-
-当前已验证输出形态：
-
-```text
-i2c contract mock smoke: ok
-i2c hal adapter smoke: ok
-i2c register driver smoke: ok
-i2c whoami probe smoke: ok
-```
-
-## 9. System Compiler Projection
-
-当前已有只读 facts 草案，并已有一份可被现有 schema 校验的 artifact report sample。
-它也已经以 `fact_only` case 的形式接入
-`export_case_manifest -> export_bundle -> artifact_report` 真实导出链。
-当前 facts 不再主要依赖 manifest 字面量，而是由
-`system_compiler.fact_evidence/v0` sidecar 进入 bundle 后再投影到 artifact report。
-这仍然只是报告证据，不会阻断构建。
-
-当前 WHOAMI probe evidence 同样走这条 `fact_only` sidecar 路径。
-它把 no-hardware probe 已有证据与真实板级 probe 缺口放进同一份事实库存：
-
-- `i2c.evidence:whoami_probe` 已提供
-- `i2c.probe.board_real` 缺失
-
-这让 artifact report 能解释“为什么它还不是 candidate evidence”，
-而不是只停留在 smoke 输出文本。
-其中 `i2c.register:*`、`i2c.expected_id:*` 与 `i2c.probe.*`
-当前只是 WHOAMI probe sidecar 的 probe-local evidence fact names，
-不是 admitted I2C contract vocabulary。
-
-当前还有一条 compare smoke 会在不改变 graph 的前提下合成
-`i2c.probe.board_real` 的 `board.bringup` provider。
-它证明的是 artifact report 对 probe evidence 缺口闭合的解释能力：
-baseline 中该 fact 为 `missing`，candidate 中该 fact 为 `satisfied`。
-这仍不等价于真实硬件 evidence，也不会把 I2C 从 `experimental`
-升级为 `candidate`。
-
-当前还有一条 Host fixture case：
-`board-i2c-whoami-bringup-evidence-smoke`。
-它复用 `driver.i2c_whoami_probe` 与 mock I2C transaction 跑通成功路径，
-但产出的 `fact_evidence` 以 `board.bringup` 作为
-`i2c.probe.board_real` 的 provider source。
-这一步把前一条 compare smoke 里的 synthetic provider 收成了正式可导出的输入形态，
-但仍不声称已经拥有真实板级硬件 probe evidence。
-对应的 producer-side compare smoke 会把 no-hardware probe evidence
-与 Host fixture board evidence 作为两个 producer 对比，
-确认 `subject.board`、`active_facets` 与 `fact_evidence` 来源发生漂移时，
-artifact report 仍能把核心结论收束为
-`i2c.probe.board_real: missing -> satisfied`。
-当前也已有一条 chain smoke 可以一键复验这组 evidence：
-`materialized_graph_i2c_board_evidence_chain_smoke.ps1`。
-对应的 board evidence fixture catalog 见
-[`../system/board_evidence_fixture_catalog_v0.md`](../system/board_evidence_fixture_catalog_v0.md)。
-
-`io.device_i2c_facts` 当前定义了最小 fact vocabulary：
-
-- `i2c.bus`
-- `i2c.controller`
-- `i2c.device`
-- `clock.domain`
-- `pinmux`
-- `power.domain`
-- `i2c.backend`
-- `i2c.evidence`
-
-每条 fact 当前至少带出：
-
-- kind
-- required / optional
-- provided / missing / unknown
-- address
-- name
-- source
-
-它可以形成最小 `I2cFactResolution`：
-
-- required count
-- provided count
-- missing count
-- optional unknown count
-- satisfied / unsatisfied
-
-当前 smoke 覆盖：
-
-```text
-i2c facts smoke: ok
-required=6 provided=5 missing=1 optional_unknown=1
-```
-
-这仍然是 contract-local 草案，不是全局 fact engine。
-
-当前 artifact report sample：
-
-- `schemas/examples/system_compiler.artifact_report.v0.i2c_facts.sample.json`
-- `schemas/examples/system_compiler.fact_evidence.v0.i2c_facts.sample.json`
-- `schemas/examples/system_compiler.fact_evidence.v0.i2c_whoami_probe.sample.json`
-- `schemas/examples/system_compiler.fact_evidence.v0.board_i2c_whoami_bringup.sample.json`
-
-当前真实导出 case：
-
-- `i2c-device-contract-facts-smoke`
-
-这份样例把 I2C facts 投影进现有字段：
-
-- `artifacts.fact_evidence`
-- `structure.declared_facts`
-- `structure.required_facts`
-- `resource_contract.provided_facts`
-- `fact_resolution.fact_inventory`
-- `fact_resolution.required_fact_resolution`
-- `fact_resolution.resource_hotspots`
-
-其中 `pinmux:pb8/pb9.af4` 在 sidecar 中被保留为 required 但未 available，
-用于表达“contract 已经知道需要这个事实，但当前报告仍缺证据”。
-`required_fact_resolution` 会进一步说明每条 required fact 当前是 `satisfied` 还是 `missing`，
-以及它来自哪个 fact source bucket；如果 `fact_evidence.raw_facts` 里存在 provider，
-报告还会带出对应的 `source / role / kind`。
-
-这一步仍然只做报告投影，不做构建期强制。
-
-未来该 contract 至少应进一步进入以下 system compiler 事实语言：
-
-```text
-required facts:
-  i2c.bus exists
-  i2c.device(address = X) exists or is declared
-  controller clock domain is enabled before use
-  pinmux facts are satisfied if applicable
-  power domain is on if applicable
-
-binding result:
-  driver endpoint resolved to backend
-  backend resolved to controller capability
-  unresolved address / controller / clock / pinmux can be reported
-
-evidence:
-  mock script evidence
-  HAL adapter smoke evidence
-  I2C fact resolution evidence
-  no-hardware WHOAMI probe evidence
-  WHOAMI fact_evidence sidecar
-  board bringup evidence
-  real driver probe evidence
-```
-
-这正是 Charm 和普通 HAL contract 的分野：
-
-```text
-普通 HAL:
-  driver 可以调用
-
-Charm:
-  driver 可以调用
-  系统也能解释这个调用条件为什么成立
-```
-
-## 10. Non-goals
-
-当前阶段明确不做：
-
-- 不把 I2C v0 宣布为 admitted 公共 ABI
-- 不承诺 async / timeout / managed time 语义
-- 不承诺 ISR-safe
-- 不处理 bus recovery / reset
-- 不处理 10-bit address
-- 不处理 bus sharing / locking
-- 不把 HAL adapter 当作真实硬件 evidence
-- 不让 driver 直接依赖 HAL 或 BoardCaps
-- 不为了单个 backend 扩大公共错误 taxonomy
-
-## 11. Next Steps
-
-最值当的下一步是：
-
-1. 把 no-hardware `driver.i2c_whoami_probe` 继续接到真实芯片或板级 probe。
-   例如 sensor / EEPROM / codec / PMIC。
-2. 把当前 smoke 级 `fact_evidence` sidecar 推进到更真实的 evidence pipeline
-   当前 board/package fact source 已由 `board-package-facts-smoke` 接入，
-   I2C contract-required facts 与 board/package/adapter audit facts 的组合
-   也已由 `board-i2c-fact-composition-smoke` 接入；
-   WHOAMI no-hardware probe evidence 也已由 `i2c-whoami-probe-evidence-smoke`
-   接入 artifact report；
-   其 `i2c.probe.board_real` 缺口闭合路径也已有 compare smoke 钉住；
-   `board.bringup` 风格 provider 的 Host fixture 输入形态也已由
-   `board-i2c-whoami-bringup-evidence-smoke` 接入；
-   当前 fixture catalog 与分步调试入口见
-   [`../system/board_evidence_fixture_catalog_v0.md`](../system/board_evidence_fixture_catalog_v0.md)；
-   真实或准真实 I2C board/probe evidence 接入前 checklist 见
-   [`../system/i2c_board_probe_evidence_readiness_checklist_v0.md`](../system/i2c_board_probe_evidence_readiness_checklist_v0.md)；
-   下一步更适合继续推进真实 probe evidence 或真实 board bringup evidence，不做执法。
-3. 评估是否需要 `I2cDevice` ownership type
-   用于未来 bus sharing / lock / transaction 边界。
-4. 持续同步 [`device_contract_admission_matrix_v0.md`](device_contract_admission_matrix_v0.md)，
-   不在证据补齐前把 I2C 升级为 `candidate`。
-
-在这些完成前，I2C 仍保持 `experimental`。
+下一步若继续推进，应选择一个真实 consumer，先用 script backend 覆盖正反路径，再用真实板记录验证同一行为；是否申请稳定边界在证据完成后单独裁决。

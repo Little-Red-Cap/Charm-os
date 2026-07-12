@@ -50,12 +50,17 @@ Host 与真实 QEMU 两域，仍不能作为真实板证据。
 
 - [`driver_model.md`](driver_model.md)
 - [`interface_admission_policy.md`](interface_admission_policy.md)
-- [`device_contract_narrow_waist_v0.md`](device_contract_narrow_waist_v0.md)
-- [`device_model_overview.md`](device_model_overview.md)
 - [`i2c_device_contract_v0.md`](i2c_device_contract_v0.md)
+- [`spi_device_contract_v0.md`](spi_device_contract_v0.md)
+- [`gpio_device_contract_v0.md`](gpio_device_contract_v0.md)
+- [`block_device_contract_v0.md`](block_device_contract_v0.md)
+- [`stream_io_device_contract_v0.md`](stream_io_device_contract_v0.md)
+- [`timebase_device_contract_v0.md`](timebase_device_contract_v0.md)
 
 Driver 和 Backend 已被裁决为 `Implementation / Tool`。这些文档可约束其实现范围，但不能把
-Driver、Provider 基类或 device graph 提升为 Core 原语。
+Driver、Provider 基类或 device graph 提升为 Core 原语。SPI、GPIO、Block、Stream IO 和 Timebase
+目前都是 proposed implementation interfaces；它们的完整早期讨论保留在
+[`../archive/device-interface-drafts-v0/`](../archive/device-interface-drafts-v0/)，不作为默认契约入口。
 
 ### Signal、state 与能力回收
 
@@ -76,7 +81,7 @@ Resident ELF、ModuleX、Image Store 和 Loader 是可选部署机制。它们�
 
 ## Exploration
 
-以下材料在停线阶段保留正文并冻结扩面：
+以下材料在停线阶段保留摘要并冻结扩面；完整讨论位于对应归档目录：
 
 - [`charm_methodology_charter.md`](charm_methodology_charter.md)
 - [`charm_spine_v0.md`](charm_spine_v0.md)
@@ -84,6 +89,9 @@ Resident ELF、ModuleX、Image Store 和 Loader 是可选部署机制。它们�
 - [`system_compiler_roadmap.md`](system_compiler_roadmap.md)
 - [`system_compiler_vocabulary_v0.md`](system_compiler_vocabulary_v0.md)
 - [`rte_to_h747_platform_roadmap.md`](rte_to_h747_platform_roadmap.md)
+
+方法论、Spine 和 RTE 的完整正文见
+[`../archive/architecture-exploration-v0/README.md`](../archive/architecture-exploration-v0/README.md)。
 
 System Compiler、IR、Graph 和 RTE 当前均不能作为 canonical Core 身份。它们可以作为工具、
 派生表示或待审判模型继续提供证据，但不再承担默认路线。
@@ -96,7 +104,7 @@ System Compiler、IR、Graph 和 RTE 当前均不能作为 canonical Core 身份
 | Requirement / Provision / Binding 如何成立 | [`charm_core_contract.md`](charm_core_contract.md) |
 | 当前代码与首批裁决有哪些冲突 | [`charm_core_semantic_audit.md`](charm_core_semantic_audit.md) |
 | 当前模块入口与依赖是否合法 | [`entry_surface_contract.md`](entry_surface_contract.md)、[`dependency_contract.md`](dependency_contract.md) |
-| Driver 或 device 局部实现如何组织 | [`driver_model.md`](driver_model.md)、[`device_model_overview.md`](device_model_overview.md) |
+| Driver 或 device 局部实现如何组织 | [`driver_model.md`](driver_model.md) |
 | 同域 signal / state 如何表达 | [`signal_state_contract_v0.md`](signal_state_contract_v0.md) |
 | Resident ELF / ModuleX 如何进入 AppRuntime | [`resident_image_platform_v1_contract.md`](resident_image_platform_v1_contract.md) |
 | 旧 System Compiler / RTE 讨论依据是什么 | 本页 Exploration 列表 |

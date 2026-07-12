@@ -1,0 +1,20 @@
+cmake_minimum_required(VERSION 4.0)
+project(charm-capability-mvp-host LANGUAGES CXX)
+set(target_name ${PROJECT_NAME})
+
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+add_executable(${target_name}
+    main.cpp
+)
+
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+    target_compile_options(${target_name} PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
+enable_testing()
+add_test(NAME charm_capability_mvp_host COMMAND ${target_name})
+set_tests_properties(charm_capability_mvp_host PROPERTIES
+    PASS_REGULAR_EXPRESSION "\\[charm-capability-mvp-host\\] ok")

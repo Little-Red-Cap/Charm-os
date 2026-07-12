@@ -1,5 +1,6 @@
 #include <SDL3/SDL.h>
 
+#include <cstddef>
 #include <limits>
 
 namespace {
@@ -94,4 +95,30 @@ bool queue_sdl_window_close_event() noexcept {
     close.type = SDL_EVENT_WINDOW_CLOSE_REQUESTED;
     close.window.windowID = window_id;
     return push_event(close);
+}
+
+std::size_t queue_sdl_event_burst(const std::size_t count) noexcept {
+    int window_count = 0;
+    SDL_Window** windows = SDL_GetWindows(&window_count);
+    if (!windows || window_count != 1) {
+        SDL_free(windows);
+        return 0;
+    }
+    const SDL_WindowID window_id = SDL_GetWindowID(windows[0]);
+    SDL_free(windows);
+    if (window_id == 0U) {
+        return 0;
+    }
+
+    std::size_t pushed = 0;
+    for (; pushed < count; ++pushed) {
+        SDL_Event key{};
+        key.type = (pushed % 2U) == 0U ? SDL_EVENT_KEY_DOWN : SDL_EVENT_KEY_UP;
+        key.key.windowID = window_id;
+        key.key.key = SDLK_RETURN;
+        if (!push_event(key)) {
+            break;
+        }
+    }
+    return pushed;
 }

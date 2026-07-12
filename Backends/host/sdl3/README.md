@@ -35,3 +35,18 @@ quit events when no raw input sink is bound.
 - Display input is the `Backends/contract/raster_display.hpp` candidate.
 - Player commands, frame pacing, audio, storage, fonts, screenshots, and product
   configuration stay outside this backend.
+
+## Stability
+
+`run-host-sdl3-stability-gate.ps1` validates repeated lifecycle ownership,
+cross-row partial raster updates with pixel readback, ordered event bursts,
+rejected sink submissions, and complete cleanup without changing the provider
+API. The gate also reports the resolved SDL3 dependency origin and version.
+
+Dependency precedence is explicit source checkout, configured system package,
+repository-local source, then the pinned `release-3.2.8` FetchContent fallback.
+`CHARM_SDL3_SOURCE_DIR` may be supplied through CMake cache or the
+same-named environment variable; an invalid explicit path fails during
+configure instead of silently selecting another dependency. FetchContent source
+overrides and disconnected modes are rejected because they cannot prove the
+pinned revision; offline builds must use an explicit source or system package.

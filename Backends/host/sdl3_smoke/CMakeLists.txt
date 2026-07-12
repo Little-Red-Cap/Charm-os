@@ -42,14 +42,30 @@ add_executable(${target_name}
     $<TARGET_OBJECTS:backends-host-sdl3-smoke-fixture>
 )
 
+add_executable(backends-host-sdl3-stability-smoke
+    stability_main.cpp
+    $<TARGET_OBJECTS:backends-host-sdl3-smoke-fixture>
+)
+
 target_include_directories(${target_name} PRIVATE "${CHARM_ROOT}")
 target_link_libraries(${target_name} PRIVATE Charm::host-sdl3)
+target_include_directories(backends-host-sdl3-stability-smoke PRIVATE "${CHARM_ROOT}")
+target_link_libraries(backends-host-sdl3-stability-smoke PRIVATE Charm::host-sdl3)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
     target_compile_options(${target_name} PRIVATE -Wall -Wextra -Wpedantic)
+    target_compile_options(backends-host-sdl3-stability-smoke PRIVATE
+        -Wall -Wextra -Wpedantic)
 endif()
 
 enable_testing()
 add_test(NAME backends_host_sdl3_smoke COMMAND ${target_name})
 set_tests_properties(backends_host_sdl3_smoke PROPERTIES
     PASS_REGULAR_EXPRESSION "\\[backends-host-sdl3-smoke\\] ok")
+add_test(NAME backends_host_sdl3_stability_smoke
+    COMMAND backends-host-sdl3-stability-smoke
+        --repeat=2
+        --frames=4
+        --event-burst=16)
+set_tests_properties(backends_host_sdl3_stability_smoke PROPERTIES
+    PASS_REGULAR_EXPRESSION "\\[backends-host-sdl3-stability-smoke\\] ok")

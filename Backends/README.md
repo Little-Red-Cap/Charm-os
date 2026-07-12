@@ -98,3 +98,10 @@ a usable Host video environment:
 ```powershell
 .\Backends\host\run-host-sdl3-smoke.ps1
 ```
+
+Longer Host lifecycle, frame, and input pressure is kept out of the portable
+contract gate and runs through:
+
+```powershell
+.\Backends\host\run-host-sdl3-stability-gate.ps1 -NoFetch
+```

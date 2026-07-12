@@ -1,5 +1,10 @@
 # POSIX Path Error Convergence (v0)
 
+状态：exploration snapshot。
+
+本页记录 `notdir/isdir` 第一轮收敛目标。该映射已进入当前源码；现行错误规则见
+[`posix_error_semantics.md`](posix_error_semantics.md)。下面的范围和 acceptance 仅供追溯。
+
 ## Goal
 Start converging file-type and path-component errors away from the current coarse `inval` bucket, without pulling in the full POSIX path matrix at once.
 

@@ -1,5 +1,11 @@
 # POSIX User Runtime 最小设计
 
+状态：exploration snapshot。
+
+本文保留早期 user runtime 与 newlib bridge 的演进记录。当前绑定、生命周期和失败边界以
+[`posix_user_runtime_contract.md`](posix_user_runtime_contract.md) 为准；本文中的“当前”“下一步”
+和 v0 落地清单不得作为现行能力证明。
+
 ## 目的
 
 `posix.user_runtime`、`posix.user_context`、`posix.user_crt` 与 `posix.user_crt_c` 一起承接同地址空间 POSIX 用户程序看到的最小“用户态运行时”接口。

@@ -9,6 +9,8 @@
 - [`init_materialized_graph_tooling_milestone.md`](init_materialized_graph_tooling_milestone.md)：保留早期
   materialized graph 导出、diff、report、CI 工具链的阶段清单，以及 `sample/v2` 未冻结、case 覆盖有限、
   尚未覆盖输入语义树三项边界。正文中的“完整闭环”和未来工具愿景只作历史记录。
+- [`init_plan_recipe_draft.md`](init_plan_recipe_draft.md)：保留 Plan 不继承产出、Barrier 显式导出完成能力、
+  Recipe/bound recipe/Node 分层等早期设计取舍。正文中的 HQZY/Player 路径和迁移完成度已经过期。
 
 默认入口：
 

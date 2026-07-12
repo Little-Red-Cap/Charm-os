@@ -1,5 +1,10 @@
 # init Recipe / Plan 草案
 
+> 状态：archived。本文保留 Recipe/Plan/Barrier/Materializer 的早期设计取舍；“当前迁移状态”中的
+> 项目路径已经过期，不代表现行仓库。当前硬规则见
+> [`../../system/init_graph_contract.md`](../../system/init_graph_contract.md) 与
+> [`../../system/init_plan_review_rules.md`](../../system/init_plan_review_rules.md)。
+
 本文档用于约束 `init.graph` 之上的新装配表面。
 
 目标不是替代 `init.graph`，而是把接入者的心智模型从“手写 `Node`”提升为“声明 `Recipe`、组合 `Plan`、交给 `Materializer` 落成 IR”。

@@ -1,31 +1,57 @@
-# POSIX 错误语义约定（v1）
+# POSIX 错误映射契约
 
-本文件用于固定 v1 阶段的错误语义与映射边界，避免 fd/pipe/spawn
-在不同模块里发明不同错误口径。
+状态：supporting contract。
 
-## 设计原则
+源码入口：`Modules/io/posix/posix.errno.cppm`。
 
-- core API 只返回 `util::Errc`
-- POSIX wrapper 负责设置 `errno` 并返回 POSIX 形式
-- `from_errno()` 是有损回转，仅用于兼容入口
+## 基本规则
 
-## 语义与映射表
+- 内部 API 返回 `util::Errc`。
+- POSIX façade 在失败时选择对应 mapper、设置 errno，并返回 POSIX 形状。
+- `from_errno()` 是有损回转，不能恢复原始错误上下文。
+- 成功路径是否保留 errno 由具体 façade 契约决定，不能从 `to_errno(ok)` 反推。
 
-| 场景 | core 返回 | POSIX errno（wrapper 侧） |
-| --- | --- | --- |
-| fd 非法/不存在/已关闭 | `util::Errc::noent` | `EBADF` |
-| fd 表已满（进程） | `util::Errc::buffer_overflow` | `EMFILE` |
-| fd 资源已满（系统） | `util::Errc::buffer_overflow` | `ENFILE` |
-| pipe 写端无读者 | `util::Errc::closed` | `EPIPE` |
-| pipe 读端且无写者 | `util::Errc::end_of_stream` | 0 字节读/EOF |
-| 只读 fd 上写 | `util::Errc::perm` 或 `util::Errc::inval` | `EBADF` 或 `EACCES` |
-| 目录当作文件打开 | `util::Errc::inval` | `EISDIR` |
-| 组件期望目录但遇到文件 | `util::Errc::inval` | `ENOTDIR` |
-| 资源池耗尽（pipe/proc 等） | `util::Errc::buffer_overflow` | `ENOSPC` |
+## 通用映射
 
-## 说明
+`to_errno()` 当前直接覆盖常见错误，包括：
 
-- `EBADF/EMFILE/ENFILE/EPIPE/EISDIR/ENOTDIR` 由 wrapper 侧映射，
-  core 层不强制加入更细的 `Errc`。
-- `buffer_overflow` 是“资源耗尽”的近似表达，wrapper 需按场景映射。
-- 未来若引入更细的 `Errc`，本表再做对应收敛。
+| `util::Errc` | errno |
+|---|---|
+| `perm` | `EPERM` |
+| `noent` | `ENOENT` |
+| `again` | `EAGAIN` |
+| `nomem` | `ENOMEM` |
+| `busy` | `EBUSY` |
+| `exist` | `EEXIST` |
+| `notdir` | `ENOTDIR` |
+| `isdir` | `EISDIR` |
+| `inval` | `EINVAL` |
+| `rofs` | `EROFS` |
+| `nametoolong` | `ENAMETOOLONG` |
+| `nosys` | `ENOSYS` |
+| `notsup` | `ENOTSUP` |
+| `timeout` | `ETIMEDOUT` |
+
+`closed` 与 `buffer_overflow` 在通用 mapper 中都退化为 `EIO`。需要更具体含义的调用点必须
+使用上下文 mapper，不能先调用通用 mapper 再猜测。
+
+## 上下文映射
+
+- `to_fd_errno(noent|notsup)` -> `EBADF`
+- `to_fd_attach_errno(buffer_overflow)` -> `EMFILE`
+- `to_pipe_errno(buffer_overflow)` -> `ENOSPC`
+- `to_pipe_errno(closed)` -> `EPIPE`
+
+当前没有通用 `ENFILE` mapper。文档或 wrapper 不得仅凭“系统资源满”声称会返回 `ENFILE`；
+必须由具体实现显式建立该映射。
+
+## errno 存储
+
+- ARM/Thumb 默认 errno storage 是模块内静态值。
+- Host 默认使用 `thread_local` storage。
+- 活动 `ExecContext` 存在时，用户 runtime 在调用前后同步其独立 `errno_value`。
+
+因此 errno 不是跨 task/跨核自动隔离的通用设施。需要新的执行域时，必须明确绑定和保存策略。
+
+验证入口包括 `Examples/posix/tests/posix.errno.tests.cppm` 及各 façade 的错误 smoke。旧映射表
+与阶段性错误约定保留在 [`../archive/posix-v0/`](../archive/posix-v0/README.md)。

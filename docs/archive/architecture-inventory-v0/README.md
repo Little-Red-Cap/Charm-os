@@ -30,10 +30,14 @@
 - [`capability_recovery_rules.md`](capability_recovery_rules.md)：保留旧 UI/Board 回收顺序与记录模板；
 - [`capability_recovery_matrix.md`](capability_recovery_matrix.md)：保留当时的 Done/TODO/In Progress 快照，
   不代表当前源码或完成度。
+- [`rk3506_boot_staging_plan.md`](rk3506_boot_staging_plan.md)：保留 RK3506 SDK 启动线索、
+  Stage A/B/C 职责和早期推进建议；其中地址与 vendor loader 判断是历史分析，
+  不能替代 TRM、当前源码或实板证据。
 
 现行入口：
 
 - [`../../architecture/real_board_landing_gap_audit_v0.md`](../../architecture/real_board_landing_gap_audit_v0.md)
 - [`../../architecture/capability_recovery_rules.md`](../../architecture/capability_recovery_rules.md)
+- [`../../board/rk3506/boot_staging_plan.md`](../../board/rk3506/boot_staging_plan.md)
 
 需要追溯原始细节时使用 Git 历史；不要把本摘要恢复成第二份全局架构定义。

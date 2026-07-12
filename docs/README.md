@@ -49,6 +49,7 @@ Charm 的正式定位始终是：
 ### 核心语义与能力归属
 
 - [`architecture/charm_core_contract.md`](architecture/charm_core_contract.md)
+- [`architecture/charm_core_semantic_audit.md`](architecture/charm_core_semantic_audit.md)（supporting 现状审计）
 - [`agent/routes/architecture.md`](agent/routes/architecture.md)
 - [`agent/routes/capability.md`](agent/routes/capability.md)
 

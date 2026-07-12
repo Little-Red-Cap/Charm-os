@@ -26,6 +26,14 @@ Constitution 负责 Core 准入，核心契约负责最小关系和 MVP。其它
 
 ## Supporting
 
+### Core 治理与语义审计
+
+- [`charm_core_semantic_audit.md`](charm_core_semantic_audit.md)
+- [`../../scripts/check_charm_core_governance.ps1`](../../scripts/check_charm_core_governance.ps1)
+
+审计页把 Constitution 裁决映射到真实源码、CMake 和 smoke；检查脚本只防止 canonical
+定位、裁决表、文档状态和链接漂移，不替代行为测试或 Core 准入审判。
+
 ### 依赖、入口与局部公共边界
 
 - [`dependency_contract.md`](dependency_contract.md)
@@ -84,6 +92,7 @@ System Compiler、IR、Graph 和 RTE 当前均不能作为 canonical Core 身份
 |---|---|
 | 一个概念能否进入 Core | [`../../CONSTITUTION.md`](../../CONSTITUTION.md) |
 | Requirement / Provision / Binding 如何成立 | [`charm_core_contract.md`](charm_core_contract.md) |
+| 当前代码与首批裁决有哪些冲突 | [`charm_core_semantic_audit.md`](charm_core_semantic_audit.md) |
 | 当前模块入口与依赖是否合法 | [`entry_surface_contract.md`](entry_surface_contract.md)、[`dependency_contract.md`](dependency_contract.md) |
 | Driver 或 device 局部实现如何组织 | [`driver_model.md`](driver_model.md)、[`device_model_overview.md`](device_model_overview.md) |
 | 同域 signal / state 如何表达 | [`signal_state_contract_v0.md`](signal_state_contract_v0.md) |

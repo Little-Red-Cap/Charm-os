@@ -11,14 +11,15 @@
 
 1. [`../../../CONSTITUTION.md`](../../../CONSTITUTION.md)
 2. [`../../architecture/charm_core_contract.md`](../../architecture/charm_core_contract.md)
-3. [`../../../README.md`](../../../README.md)
-4. [`../../architecture/README.md`](../../architecture/README.md)
-5. 与当前问题直接相关的 supporting 专题契约
-6. [`../rules/charm-architecture.md`](../rules/charm-architecture.md)
-7. [`../rules/embedded-modern-cpp.md`](../rules/embedded-modern-cpp.md)
-8. [`../glossary.md`](../glossary.md)
-9. [`../skills/architect-review/SKILL.md`](../skills/architect-review/SKILL.md)
-10. [`../workflows/architect-review-workflow.md`](../workflows/architect-review-workflow.md)
+3. [`../../architecture/charm_core_semantic_audit.md`](../../architecture/charm_core_semantic_audit.md)
+4. [`../../../README.md`](../../../README.md)
+5. [`../../architecture/README.md`](../../architecture/README.md)
+6. 与当前问题直接相关的 supporting 专题契约
+7. [`../rules/charm-architecture.md`](../rules/charm-architecture.md)
+8. [`../rules/embedded-modern-cpp.md`](../rules/embedded-modern-cpp.md)
+9. [`../glossary.md`](../glossary.md)
+10. [`../skills/architect-review/SKILL.md`](../skills/architect-review/SKILL.md)
+11. [`../workflows/architect-review-workflow.md`](../workflows/architect-review-workflow.md)
 
 涉及同域通知或状态时，再读：
 

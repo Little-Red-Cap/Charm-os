@@ -11,11 +11,12 @@
 
 1. [`../../../CONSTITUTION.md`](../../../CONSTITUTION.md)
 2. [`../../architecture/charm_core_contract.md`](../../architecture/charm_core_contract.md)
-3. [`../../README.md`](../../README.md)
-4. [`../../capability_map.md`](../../capability_map.md)（supporting 实现盘点）
-5. [`../../architecture_overview.md`](../../architecture_overview.md)（supporting 实现盘点）
-6. [`../skills/charm-capability-map/SKILL.md`](../skills/charm-capability-map/SKILL.md)
-7. [`../rules/charm-architecture.md`](../rules/charm-architecture.md)
+3. [`../../architecture/charm_core_semantic_audit.md`](../../architecture/charm_core_semantic_audit.md)
+4. [`../../README.md`](../../README.md)
+5. [`../../capability_map.md`](../../capability_map.md)（supporting 实现盘点）
+6. [`../../architecture_overview.md`](../../architecture_overview.md)（supporting 实现盘点）
+7. [`../skills/charm-capability-map/SKILL.md`](../skills/charm-capability-map/SKILL.md)
+8. [`../rules/charm-architecture.md`](../rules/charm-architecture.md)
 
 ## 先不要做什么
 

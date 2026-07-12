@@ -332,11 +332,11 @@ Charm 追求的不是“让裸机应用也自己写链接脚本”，
 这份文档不负责替代：
 
 - 三层执行模型：`docs/system/posix_three_layer_contract.md`
-- 路线图：`docs/system/posix_compat_roadmap.md`
-- 任务清单：`docs/system/posix_linux_compat_tasklist.md`
 - 具体接口草案：`docs/system/posix_spawn_minimal_design.md`
 - fd 表设计：`docs/system/posix_fd_table_minimal_design.md`
 - 错误语义与 errno 映射：`docs/system/posix_error_semantics.md`、`docs/system/posix_errno_mapping.md`
+
+阶段 roadmap 与任务清单已经归档到 `docs/archive/posix-v0/`。
 
 它只负责提供一个统一判断标准：
 

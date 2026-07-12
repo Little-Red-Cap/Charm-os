@@ -27,7 +27,6 @@ Out of scope for this stage:
 Recommended context:
 
 - [`../../../../docs/system/posix_support_overview.md`](../../../../docs/system/posix_support_overview.md)
-- [`../../../../docs/system/posix_elf_stage1_baseline.md`](../../../../docs/system/posix_elf_stage1_baseline.md)
 - [`../../../posix/elf_samples/README.md`](../../../posix/elf_samples/README.md)
 
 ## Run template

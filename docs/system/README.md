@@ -64,10 +64,11 @@ materialized graph、bring-up evidence、resource contract 与 ARMv7-A staging �
 
 先读 [`posix_support_overview.md`](posix_support_overview.md)。按需要继续：
 
-- 第一阶段基线：[`posix_elf_stage1_baseline.md`](posix_elf_stage1_baseline.md)
-- 路线与维护：[`posix_compat_roadmap.md`](posix_compat_roadmap.md)、[`posix_maintenance_mode_collaboration.md`](posix_maintenance_mode_collaboration.md)、[`posix_stage_summary.md`](posix_stage_summary.md)
-- 推进与验收：[`posix_linux_compat_tasklist.md`](posix_linux_compat_tasklist.md)、[`posix_v0_closure_checklist.md`](posix_v0_closure_checklist.md)、[`posix_busybox_phase_checklist.md`](posix_busybox_phase_checklist.md)
+- 分层边界：[`posix_three_layer_contract.md`](posix_three_layer_contract.md)、[`posix_subsystem_principles.md`](posix_subsystem_principles.md)
 - 子主题设计：[`posix_spawn_minimal_design.md`](posix_spawn_minimal_design.md)、[`posix_fd_table_minimal_design.md`](posix_fd_table_minimal_design.md)、[`posix_errno_mapping.md`](posix_errno_mapping.md)、[`posix_error_semantics.md`](posix_error_semantics.md)
+
+POSIX v0 的阶段基线、roadmap、任务清单与维护记录见
+[`../archive/posix-v0/README.md`](../archive/posix-v0/README.md)，不作为当前状态入口。
 
 ## System compiler 补充入口
 

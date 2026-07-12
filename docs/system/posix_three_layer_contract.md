@@ -21,7 +21,8 @@
 - `spawn` 设计：`docs/system/posix_spawn_minimal_design.md`
 - `ProgramImage` 设计：`docs/system/posix_program_image_minimal_design.md`
 - ELF 加载设计：`docs/system/posix_program_image_elf_minimal_design.md`
-- Linux 兼容任务清单：`docs/system/posix_linux_compat_tasklist.md`
+
+阶段任务清单与验收记录已移入 `docs/archive/posix-v0/`，不参与本契约定义。
 
 如果说 `posix_subsystem_principles` 回答的是“为什么这样设计”，
 那么这份文档回答的是“这三层分别负责什么”。

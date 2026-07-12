@@ -11,6 +11,12 @@
 - [`../../system/minimal_kernel_host_smoke_bundle_contract.md`](../../system/minimal_kernel_host_smoke_bundle_contract.md)
 - [`../../system/minimal_kernel_runtime_evidence_bundle_contract.md`](../../system/minimal_kernel_runtime_evidence_bundle_contract.md)
 
+本目录同时保留 session witness 的早期完整设计：
+
+- [`kernel_runtime_session_witness_v0.md`](kernel_runtime_session_witness_v0.md)：保留 semantic/machine/runtime
+  分层、failure taxonomy、world compare 与 runner 消费链的原始讨论。现行 supporting contract 已收敛到
+  [`../../system/kernel_runtime_session_witness_v0.md`](../../system/kernel_runtime_session_witness_v0.md)。
+
 ## 保留的设计判断
 
 - bridge 与 arch ingress 必须分工：bridge 表达 scheduler/runtime 语义，ingress 负责真实异常帧、寄存器和平台入口。

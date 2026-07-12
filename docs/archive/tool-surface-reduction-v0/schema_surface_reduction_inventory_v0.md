@@ -1,5 +1,7 @@
 # Schema Surface Reduction Inventory v0
 
+> 状态：archived。本文是一次工作区 schema 数量与重复结构快照，不是当前事实或 CI gate。
+
 ## 定位
 
 这份清单是 [`schema_surface_reduction_governance_v0.md`](schema_surface_reduction_governance_v0.md) 的盘点侧车。

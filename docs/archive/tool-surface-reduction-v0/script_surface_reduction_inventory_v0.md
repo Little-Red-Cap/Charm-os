@@ -1,5 +1,7 @@
 # Script Surface Reduction Inventory v0
 
+> 状态：archived。本文是一次工作区脚本数量与 pilot 候选快照，不是当前事实或 CI gate。
+
 ## 定位
 
 这份清单是 `docs/system/script_surface_reduction_governance_v0.md` 的盘点侧车。

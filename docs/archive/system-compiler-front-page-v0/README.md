@@ -8,6 +8,8 @@
 
 - `opening_judgment_corridor_v0.md`
   仍被 system compiler 词汇材料引用，保留为历史定义来源。
+- [`opening_judgment_corridor_witness_taxonomy_v0.md`](opening_judgment_corridor_witness_taxonomy_v0.md)
+  保留该 corridor 的历史 breakpoint 分类；它不定义当前 verdict 或错误码。
 - [`minimal_kernel_runtime_session_witness_inspect_compare_consumer_v0.md`](minimal_kernel_runtime_session_witness_inspect_compare_consumer_v0.md)
   保留 runtime session compare focus 排序、preferred/fallback explain hop 与 reader-first 消费策略的原始讨论；
   现行 supporting contract 仍位于

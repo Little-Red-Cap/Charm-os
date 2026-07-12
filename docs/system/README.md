@@ -29,6 +29,7 @@
 - ledger facts：[`minimal_kernel_runtime_ledger_fact_contract_v0.md`](minimal_kernel_runtime_ledger_fact_contract_v0.md)
 - task message：[`minimal_kernel_task_message_runtime_contract.md`](minimal_kernel_task_message_runtime_contract.md)
 - session witness：[`kernel_runtime_session_witness_v0.md`](kernel_runtime_session_witness_v0.md)
+- upper-half witness token 回归：[`minimal_kernel_semantic_witness_ladder_smoke_contract.md`](minimal_kernel_semantic_witness_ladder_smoke_contract.md)
 
 具体 runner、schema 和 CI workflow 由上述 contract 维护，不在本页复制。早期分篇讨论见
 [`../archive/minimal-kernel-runtime-v0/`](../archive/minimal-kernel-runtime-v0/README.md)。

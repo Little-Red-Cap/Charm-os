@@ -1,5 +1,10 @@
 # Opening Judgment Corridor Witness Taxonomy v0
 
+> status: archived
+>
+> 该 taxonomy 只解释已归档 front-page/opening-flow 的历史断点语言，不是当前
+> runtime、compare 或错误码契约。
+
 `OpeningJudgmentCorridorWitnessTaxonomy` is the companion page for the
 corridor's breakpoint language.
 

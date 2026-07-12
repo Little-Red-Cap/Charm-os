@@ -71,20 +71,34 @@ namespace {
     };
 
     struct QemuTextSink {
+        Status write_status{};
+        Status flush_status{};
+        bool partial_write{false};
+        bool emit_to_uart{true};
         std::size_t bytes_accepted{0};
+        std::size_t write_count{0};
         std::size_t flush_count{0};
 
         static Transfer write(void* context, std::string_view text) noexcept {
             auto& self = *static_cast<QemuTextSink*>(context);
-            CmsdkUart::write(text);
-            self.bytes_accepted += text.size();
-            return {Status{}, text.size()};
+            ++self.write_count;
+            if (!self.write_status.is_ok()) {
+                return {self.write_status, 0};
+            }
+            const auto accepted = self.partial_write && !text.empty()
+                                      ? text.size() - 1U
+                                      : text.size();
+            if (self.emit_to_uart) {
+                CmsdkUart::write(text);
+            }
+            self.bytes_accepted += accepted;
+            return {Status{}, accepted};
         }
 
         static Status flush(void* context) noexcept {
             auto& self = *static_cast<QemuTextSink*>(context);
             ++self.flush_count;
-            return {};
+            return self.flush_status;
         }
 
         [[nodiscard]] TextSink endpoint() noexcept {
@@ -93,13 +107,14 @@ namespace {
     };
 
     struct QemuClock {
+        Status status{};
         std::uint64_t value_ms{424242};
         std::size_t read_count{0};
 
         static ClockSample now(void* context) noexcept {
             auto& self = *static_cast<QemuClock*>(context);
             ++self.read_count;
-            return {Status{}, self.value_ms};
+            return {self.status, self.value_ms};
         }
 
         [[nodiscard]] Clock endpoint() noexcept {
@@ -111,6 +126,12 @@ namespace {
         static constexpr std::size_t block_size_value = 512;
         static constexpr std::size_t block_count_value = 4;
 
+        Status read_status{};
+        Status write_status{};
+        Status flush_status{};
+        std::uint64_t reported_block_size{block_size_value};
+        std::uint64_t reported_block_count{block_count_value};
+        bool corrupt_read{false};
         std::array<std::byte, block_size_value * block_count_value> storage{};
         std::size_t read_count{0};
         std::size_t write_count{0};
@@ -120,44 +141,55 @@ namespace {
                            std::uint64_t lba,
                            std::span<std::byte> out) noexcept {
             auto& self = *static_cast<QemuBlockDevice*>(context);
-            if (lba >= block_count_value || out.size() != block_size_value) {
+            ++self.read_count;
+            if (!self.read_status.is_ok()) {
+                return self.read_status;
+            }
+            if (lba >= self.reported_block_count ||
+                out.size() != self.reported_block_size || out.size() > block_size_value) {
                 return {StatusCode::out_of_range};
             }
             const auto offset = static_cast<std::size_t>(lba) * block_size_value;
             for (std::size_t index = 0; index < out.size(); ++index) {
                 out[index] = self.storage[offset + index];
             }
-            ++self.read_count;
+            if (self.corrupt_read && !out.empty()) {
+                out[0] ^= std::byte{0xff};
+            }
             return {};
         }
 
         static Status write(void* context,
                             std::uint64_t lba,
-                            std::span<const std::byte> in) noexcept {
+                             std::span<const std::byte> in) noexcept {
             auto& self = *static_cast<QemuBlockDevice*>(context);
-            if (lba >= block_count_value || in.size() != block_size_value) {
+            ++self.write_count;
+            if (!self.write_status.is_ok()) {
+                return self.write_status;
+            }
+            if (lba >= self.reported_block_count ||
+                in.size() != self.reported_block_size || in.size() > block_size_value) {
                 return {StatusCode::out_of_range};
             }
             const auto offset = static_cast<std::size_t>(lba) * block_size_value;
             for (std::size_t index = 0; index < in.size(); ++index) {
                 self.storage[offset + index] = in[index];
             }
-            ++self.write_count;
             return {};
         }
 
         static Status flush(void* context) noexcept {
             auto& self = *static_cast<QemuBlockDevice*>(context);
             ++self.flush_count;
-            return {};
+            return self.flush_status;
         }
 
-        static std::uint64_t block_size(void*) noexcept {
-            return block_size_value;
+        static std::uint64_t block_size(void* context) noexcept {
+            return static_cast<QemuBlockDevice*>(context)->reported_block_size;
         }
 
-        static std::uint64_t block_count(void*) noexcept {
-            return block_count_value;
+        static std::uint64_t block_count(void* context) noexcept {
+            return static_cast<QemuBlockDevice*>(context)->reported_block_count;
         }
 
         [[nodiscard]] BlockDevice endpoint() noexcept {
@@ -182,6 +214,10 @@ namespace {
             Binding{app::requirements[1], 1},
             Binding{app::requirements[2], 2},
         };
+
+        [[nodiscard]] ResolvedContext context() const noexcept {
+            return ResolvedContext{&text, &clock, &block};
+        }
     };
 
     void write_failure(std::string_view stage) noexcept {
@@ -216,6 +252,190 @@ namespace {
         CmsdkUart::write_hex32(run.evidence.record_checksum);
         CmsdkUart::write("\n");
         return true;
+    }
+
+    bool record_evidence_matches(const app::RunResult& result,
+                                 const bool stored,
+                                 const bool verified,
+                                 const bool reported) noexcept {
+        return result.evidence.timestamp_ms == 424242U &&
+               result.evidence.record_checksum == 0x49b880f0U &&
+               result.evidence.record_bytes == app::record_size &&
+               result.evidence.stored == stored && result.evidence.verified == verified &&
+               result.evidence.reported == reported;
+    }
+
+    void record_app_case(const std::string_view label,
+                         const bool condition,
+                         std::size_t& cases,
+                         std::size_t& failures) noexcept {
+        ++cases;
+        if (!condition) {
+            ++failures;
+            write_failure(label);
+        }
+    }
+
+    bool app_failure_matrix() noexcept {
+        std::size_t cases = 0;
+        std::size_t failures = 0;
+
+        {
+            const auto run = app::run({});
+            record_app_case(
+                "app_invalid_context",
+                run.code == app::RunCode::invalid_context &&
+                    run.evidence.timestamp_ms == 0U && run.evidence.record_checksum == 0U &&
+                    run.evidence.record_bytes == 0U && !run.evidence.stored &&
+                    !run.evidence.verified && !run.evidence.reported,
+                cases,
+                failures);
+        }
+        {
+            QemuFixture fixture{};
+            fixture.clock_provider.status = {StatusCode::io_error};
+            const auto run = app::run(fixture.context());
+            record_app_case(
+                "app_clock_failed",
+                run.code == app::RunCode::clock_failed &&
+                    fixture.clock_provider.read_count == 1U &&
+                    fixture.block_provider.write_count == 0U &&
+                    fixture.block_provider.flush_count == 0U &&
+                    fixture.block_provider.read_count == 0U &&
+                    fixture.text_provider.write_count == 0U,
+                cases,
+                failures);
+        }
+
+        constexpr std::array geometries{
+            std::array<std::uint64_t, 2>{app::record_size - 1U, 4U},
+            std::array<std::uint64_t, 2>{app::max_block_size + 1U, 4U},
+            std::array<std::uint64_t, 2>{app::record_size, 0U},
+        };
+        constexpr std::array<std::string_view, 3> geometry_labels{
+            "app_geometry_small",
+            "app_geometry_large",
+            "app_geometry_empty",
+        };
+        for (std::size_t index = 0; index < geometries.size(); ++index) {
+            QemuFixture fixture{};
+            fixture.block_provider.reported_block_size = geometries[index][0];
+            fixture.block_provider.reported_block_count = geometries[index][1];
+            const auto run = app::run(fixture.context());
+            record_app_case(
+                geometry_labels[index],
+                run.code == app::RunCode::unsupported_geometry &&
+                    run.evidence.timestamp_ms == 424242U &&
+                    run.evidence.record_bytes == 0U &&
+                    fixture.block_provider.write_count == 0U &&
+                    fixture.text_provider.write_count == 0U,
+                cases,
+                failures);
+        }
+        {
+            QemuFixture fixture{};
+            fixture.block_provider.write_status = {StatusCode::io_error};
+            const auto run = app::run(fixture.context());
+            record_app_case(
+                "app_write_failed",
+                run.code == app::RunCode::write_failed &&
+                    record_evidence_matches(run, false, false, false) &&
+                    fixture.block_provider.write_count == 1U &&
+                    fixture.block_provider.flush_count == 0U &&
+                    fixture.block_provider.read_count == 0U &&
+                    fixture.text_provider.write_count == 0U,
+                cases,
+                failures);
+        }
+        {
+            QemuFixture fixture{};
+            fixture.block_provider.flush_status = {StatusCode::io_error};
+            const auto run = app::run(fixture.context());
+            record_app_case(
+                "app_flush_failed",
+                run.code == app::RunCode::flush_failed &&
+                    record_evidence_matches(run, true, false, false) &&
+                    fixture.block_provider.flush_count == 1U &&
+                    fixture.block_provider.read_count == 0U &&
+                    fixture.text_provider.write_count == 0U,
+                cases,
+                failures);
+        }
+        {
+            QemuFixture fixture{};
+            fixture.block_provider.read_status = {StatusCode::io_error};
+            const auto run = app::run(fixture.context());
+            record_app_case(
+                "app_read_failed",
+                run.code == app::RunCode::read_failed &&
+                    record_evidence_matches(run, true, false, false) &&
+                    fixture.block_provider.read_count == 1U &&
+                    fixture.text_provider.write_count == 0U,
+                cases,
+                failures);
+        }
+        {
+            QemuFixture fixture{};
+            fixture.block_provider.corrupt_read = true;
+            const auto run = app::run(fixture.context());
+            record_app_case(
+                "app_verify_failed",
+                run.code == app::RunCode::verify_failed &&
+                    record_evidence_matches(run, true, false, false) &&
+                    fixture.block_provider.read_count == 1U &&
+                    fixture.text_provider.write_count == 0U,
+                cases,
+                failures);
+        }
+        {
+            QemuFixture fixture{};
+            fixture.text_provider.emit_to_uart = false;
+            fixture.text_provider.write_status = {StatusCode::io_error};
+            const auto run = app::run(fixture.context());
+            record_app_case(
+                "app_report_write_failed",
+                run.code == app::RunCode::report_failed &&
+                    record_evidence_matches(run, true, true, false) &&
+                    fixture.text_provider.write_count == 1U &&
+                    fixture.text_provider.flush_count == 0U,
+                cases,
+                failures);
+        }
+        {
+            QemuFixture fixture{};
+            fixture.text_provider.emit_to_uart = false;
+            fixture.text_provider.partial_write = true;
+            const auto run = app::run(fixture.context());
+            record_app_case(
+                "app_report_partial",
+                run.code == app::RunCode::report_failed &&
+                    record_evidence_matches(run, true, true, false) &&
+                    fixture.text_provider.write_count == 1U &&
+                    fixture.text_provider.flush_count == 0U,
+                cases,
+                failures);
+        }
+        {
+            QemuFixture fixture{};
+            fixture.text_provider.emit_to_uart = false;
+            fixture.text_provider.flush_status = {StatusCode::io_error};
+            const auto run = app::run(fixture.context());
+            record_app_case(
+                "app_report_flush_failed",
+                run.code == app::RunCode::report_failed &&
+                    record_evidence_matches(run, true, true, false) &&
+                    fixture.text_provider.write_count == 1U &&
+                    fixture.text_provider.flush_count == 1U,
+                cases,
+                failures);
+        }
+
+        CmsdkUart::write("[charm-capability-mvp-qemu] app_failure_cases=");
+        CmsdkUart::write_decimal(cases);
+        CmsdkUart::write(" failures=");
+        CmsdkUart::write_decimal(failures);
+        CmsdkUart::write("\n");
+        return cases == 12U && failures == 0U;
     }
 
     bool expect_prestart_failure(const std::string_view label,
@@ -313,8 +533,9 @@ extern "C" int charm_capability_mvp_qemu_main() noexcept {
     const bool invalid_index_ok = invalid_index_case();
     const bool mismatch_ok = mismatch_case();
     const bool invalid_provision_ok = invalid_provision_case();
+    const bool app_failures_ok = app_failure_matrix();
     if (positive_ok && missing_ok && duplicate_ok && invalid_index_ok &&
-        mismatch_ok && invalid_provision_ok) {
+        mismatch_ok && invalid_provision_ok && app_failures_ok) {
         CmsdkUart::write("[charm-capability-mvp-qemu] ok\n");
         return 0;
     }

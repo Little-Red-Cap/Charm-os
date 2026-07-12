@@ -60,6 +60,24 @@ function Assert-EquivalentEvidence {
     }
 }
 
+function Get-AppFailureCaseCount {
+    param(
+        [string]$Text,
+        [ValidateSet('host', 'qemu')][string]$Domain
+    )
+
+    $pattern = if ($Domain -eq 'host') {
+        '\[charm-capability-mvp-host-matrix\] resolution_cases=[0-9]+ app_cases=([0-9]+) checks=[0-9]+ failures=0'
+    } else {
+        '\[charm-capability-mvp-qemu\] app_failure_cases=([0-9]+) failures=0'
+    }
+    $match = [System.Text.RegularExpressions.Regex]::Match($Text, $pattern)
+    if (-not $match.Success) {
+        throw "${Domain}_app_failure_evidence_missing"
+    }
+    return [uint64]::Parse($match.Groups[1].Value)
+}
+
 function New-SyntheticEvidence {
     param([string]$Domain)
 
@@ -69,6 +87,7 @@ function New-SyntheticEvidence {
 [charm-capability-mvp-$Domain] duplicate=duplicate_binding start_count=0
 [charm-capability-mvp-$Domain] mismatch=contract_mismatch start_count=0
 [charm-capability-mvp-$Domain] invalid=invalid_provision start_count=0
+[charm-capability-mvp-$Domain] app_failure_cases=12 failures=0
 [charm-capability-mvp-$Domain] ok
 "@
 }
@@ -79,6 +98,12 @@ if ($SelfTest) {
         Get-DomainEvidence -Text (New-SyntheticEvidence -Domain 'qemu') -Domain 'qemu'
     )
     Assert-EquivalentEvidence -Evidence $evidence
+    $hostMatrix = '[charm-capability-mvp-host-matrix] resolution_cases=21 app_cases=12 checks=153 failures=0'
+    $hostCases = Get-AppFailureCaseCount -Text $hostMatrix -Domain 'host'
+    $qemuCases = Get-AppFailureCaseCount -Text (New-SyntheticEvidence -Domain 'qemu') -Domain 'qemu'
+    if ($hostCases -ne 12 -or $qemuCases -ne $hostCases) {
+        throw 'self_test_failed: app_failure_case_count'
+    }
 
     $mismatch = New-SyntheticEvidence -Domain 'qemu'
     $mismatch = $mismatch.Replace('0x49b880f0', '0x00000000')
@@ -101,6 +126,7 @@ $hostRunner = Join-Path $PSScriptRoot 'run_host_ci.ps1'
 $sourceBoundary = Join-Path $PSScriptRoot 'verify_portable_source_boundary.ps1'
 $qemuRunner = Join-Path $PSScriptRoot 'qemu\run_qemu_ci.ps1'
 $hostExe = Join-Path $HostBuildDir 'charm-capability-mvp-host.exe'
+$hostMatrixExe = Join-Path $HostBuildDir 'charm-capability-mvp-host-failure-matrix.exe'
 $qemuLog = Join-Path $QemuBuildDir 'qemu-ci.log'
 
 if ($DryRun) {
@@ -126,6 +152,13 @@ $hostText = (& $hostExe 2>&1 | Out-String)
 if ($LASTEXITCODE -ne 0) {
     throw "host_runtime_failed: $LASTEXITCODE`n$hostText"
 }
+if (-not (Test-Path -LiteralPath $hostMatrixExe -PathType Leaf)) {
+    throw "host_matrix_executable_missing: $hostMatrixExe"
+}
+$hostMatrixText = (& $hostMatrixExe 2>&1 | Out-String)
+if ($LASTEXITCODE -ne 0) {
+    throw "host_matrix_runtime_failed: $LASTEXITCODE`n$hostMatrixText"
+}
 
 & $qemuRunner -QemuExe $QemuExe -BuildDir $QemuBuildDir
 if (-not $?) {
@@ -135,14 +168,21 @@ if (-not (Test-Path -LiteralPath $qemuLog -PathType Leaf)) {
     throw "qemu_evidence_missing: $qemuLog"
 }
 
+$qemuText = Get-Content -LiteralPath $qemuLog -Raw -Encoding UTF8
 $evidence = @(
     Get-DomainEvidence -Text $hostText -Domain 'host'
-    Get-DomainEvidence -Text (Get-Content -LiteralPath $qemuLog -Raw -Encoding UTF8) -Domain 'qemu'
+    Get-DomainEvidence -Text $qemuText -Domain 'qemu'
 )
 Assert-EquivalentEvidence -Evidence $evidence
+$hostAppFailureCases = Get-AppFailureCaseCount -Text $hostMatrixText -Domain 'host'
+$qemuAppFailureCases = Get-AppFailureCaseCount -Text $qemuText -Domain 'qemu'
+if ($hostAppFailureCases -ne 12 -or $qemuAppFailureCases -ne $hostAppFailureCases) {
+    throw "app_failure_case_count_mismatch: host=$hostAppFailureCases qemu=$qemuAppFailureCases"
+}
 
 foreach ($item in $evidence) {
     Write-Output "[charm-capability-mvp-host-qemu] $($item.Domain) timestamp=$($item.Timestamp) checksum=$($item.Checksum)"
 }
+Write-Output "[charm-capability-mvp-host-qemu] app_failure_cases=$hostAppFailureCases"
 Write-Output '[charm-capability-mvp-host-qemu] board=pending'
 Write-Output '[charm-capability-mvp-host-qemu] partial=ok domains=host,qemu'

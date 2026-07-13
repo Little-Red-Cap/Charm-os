@@ -83,6 +83,10 @@ loader 不拥有输入或输出 buffer，不分配执行区，也不实现动态
 
 `entry_override` 是测试逃生口，不应当作真实 image 入口协议。
 
+基础 ModuleX image/layout 语义见
+[`ModuleX_格式草案.md`](../../Modules/system/modulex/ModuleX_格式草案.md)。该实现的原生 `Symbol`
+布局含 `uintptr_t`，跨架构 artifact 必须使用明确 wire layout。
+
 ## 生命周期与失败边界
 
 - `ProgramImage.name`、ELF input、ModuleX header 和 registry bytes 都可能是不拥有视图。

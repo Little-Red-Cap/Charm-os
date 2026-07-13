@@ -1,67 +1,65 @@
-# ModuleX 格式草案（最小可运行版）
+# ModuleX v2 实现格式
 
-本草案用于描述当前模块装载的最小格式，以便后续扩展到真正的 XIP/动态加载。
+## 文档状态
 
-## 头部（ImageHeader）
-- `magic`/`version`: 文件标识与版本
-- `entry_offset`: 入口相对 text 段起始的偏移
-- `text_offset/ro_offset/data_offset/rel_offset/sym_offset/str_offset/dep_offset`
-  - 显式段偏移（相对镜像起始）
-  - 方便 XIP/随机布局
-- `text_size/ro_size/data_size/bss_size/rel_size/sym_size/str_size/dep_size`
-  - 段大小
+- `status`: `supporting`
+- `scope`: `module_core/view/link/loader/registry` 当前内存 image 语义
+- `source`: 同目录 C++ module
 
-## 重定位（Reloc）
-```
-offset: 需要修补的目标地址（相对镜像起始）
-type:   none / abs_addr / rel32
-sym_index: 符号索引（0xFFFFFFFF 表示使用镜像基址）
-addend: 追加偏移
-```
+本文描述当前实现，不承诺跨架构稳定 wire ABI。Resident App pack/inspect 工具使用显式 32-bit wire
+struct；`module_core::Symbol::value` 使用 `uintptr_t`，因此 host 与 32-bit target 的原生 struct 大小
+可能不同，不能直接互换序列化结果。
 
-语义：
-- `abs_addr`: *(target) = sym_addr + addend
-- `rel32`: *(target) = (sym_addr + addend) - (target + 4)
+## Header 与布局
 
-其中 `sym_addr`：
-- external 符号：由 resolver 返回的绝对地址
-- 非 external：`text_base + symbol.value`
+`ImageHeader` 固定 `magic=0x43484D4D`、`version=2`，包含：
 
-## 符号表（Symbol）
-```
-name_offset: 字符串表偏移
-value:       符号值（相对 text 起始）
-kind:        local / global / external
-```
+- `flags` 与 `entry_offset`；
+- text/ro/data/rel/sym/str/dep 的 offset 和 size；
+- `bss_size` 与可选 `image_size`。
 
-字符串表（strtab）：
-- 由 `str_offset/str_size` 指定
-- `name_offset` 指向该区域内的 C 字符串
+offset 为 `0` 时，`module_view` 按 header、text、ro、data、reloc、symbol、string、dependency 的
+顺序推导布局。非零 offset 允许显式布局。`image_size` 非零时限制 validator 的有效 image 范围。
 
-依赖表（Dependency）：
-- `dep_offset/dep_size` 指定依赖数组
-- 每项包含 `name_offset` 与 `version_offset`
-- 两个 offset 均指向 strtab 内的字符串
+`ImageFlags` 当前定义 `xip_text/xip_ro/xip_data`。基础 view 只识别 flag；是否具备可执行映射、cache
+维护和段 ownership 由具体 loader/runtime 决定。`bss_size` 也不会由基础 `Loader` 自动分配或清零。
 
-版本匹配（最小版）：
-- 精确匹配：`v1` == `v1`
-- `^1`：主版本匹配（`v1.*`）
-- `~1`：主版本匹配（与 `^1` 相同，后续可扩展为次版本约束）
+## Symbol、dependency 与 relocation
 
-依赖校验结果（DepStatus）：
-- `ok`：是否全部依赖满足
-- `failed_index`：第一个失败的依赖索引
-- `error`：
-  - `ok`
-  - `bad_name`（name_offset 越界/字符串表异常）
-  - `resolve_failed`（找不到模块或版本不匹配）
+`Symbol` 包含 string-table `name_offset`、`value`、`size`、`kind` 和 `flags`。kind 为 local、global
+或 external；local/global 的 value 相对 text base，external value 由 resolver 写入绝对地址。
 
-## 当前 demo 验证点
-- `abs_addr`：写入 entry 地址
-- `rel32`：写入 PC-relative 偏移
-- `external`：通过 resolver 绑定宿主符号地址
+`Dependency` 保存 name/version 的 string-table offset。`module_link` 只调用 dependency resolver；
+版本匹配策略由调用方或 `module_registry::match_version()` 提供。registry 当前支持 exact、比较运算、
+`^` 主版本、`~` 主+次版本和 `x/*` wildcard。
 
-## 下一步扩展方向
-- 支持更多重定位类型（如 GOT/PLT）
-- 引入版本化符号与依赖图
-- 支持多段与只读映射策略
+`Reloc` 字段为 target image offset、type、symbol index 与 addend：
+
+| type | 写入值 |
+|---|---|
+| `none` | 不修改 |
+| `abs_addr` | `symbol_address + addend` |
+| `rel32` | `symbol_address + addend - (target + 4)` |
+
+`sym_index=0xFFFFFFFF` 使用 image base。`rel32` 超出 signed 32-bit 范围时失败。target 可落在
+text/ro/data；调用方必须确保对应 materialized region 可写。
+
+## 校验与加载
+
+`module_view::validate()` 检查：
+
+- image/header、magic、version、text 与 entry；
+- section 是否落在有效 image 范围；
+- reloc/symbol/dependency size 是否为 struct 整数倍；
+- relocation target 与 symbol index 范围。
+
+它不验证 section 互不重叠、字符串必有 NUL、segment 权限、BSS/XIP 可执行性或具体 entry ABI。
+`module_loader::Loader` 只返回 entry、symbol reader 和 dependency view；external binding、dependency
+resolution、relocation及最终 runtime ABI 由上层显式执行。
+
+## 边界
+
+- POSIX loader 将结果解释为 `main(argc, argv, envp)`。
+- Resident App loader 将入口解释为 `charm_app_main(api, argc, argv)`。
+- 相同 ModuleX bytes 不代表两种 runtime entry ABI 可以互换。
+- 需要跨架构 artifact 时使用显式 wire struct，不用 `sizeof(modulex::Symbol)` 推导文件布局。

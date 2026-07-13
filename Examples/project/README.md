@@ -1,63 +1,25 @@
 # Project 示例入口
 
-本目录收纳“项目化”示例，也就是不止验证单个模块，而是验证一条更接近真实产品形态的组合路径。
+Project 目录包含跨模块、平台和构建 preset 的组合工程，不是单 module smoke。项目做法不能反向
+定义 Charm Core 或通用 backend 契约。
 
-当前最值得优先看的仍然是：
+## 仓库内项目
 
-- `player/`
+| 项目 | 用途 |
+|---|---|
+| [`h747-lab`](h747-lab/README.md) | 自制 STM32H747 板的 bring-up、resident runtime 与真实硬件验证 |
+| [`player`](player/README.md) | Host/H747 的多能力 App 压力项目 |
+| [`scope`](scope/README.md) | 较小的项目结构与能力组合样本 |
 
-## 当前项目线
+各项目可以包含 app、platform binding、preset、资产和硬件资料。具体状态以其源码、CMake 和当次
+验证为准，不从本页推导。
 
-### Player
+## 已迁出项目
 
-入口：
+- DAPLink / CMSIS-DAP：[`Little-Red-Cap/Charm-dap`](https://github.com/Little-Red-Cap/Charm-dap)
+- STM32G431 USB Audio：[`Little-Red-Cap/Nocturne`](https://github.com/Little-Red-Cap/Nocturne)
 
-- [`player/README.md`](player/README.md)
+迁出项目不再是本仓库构建或回归入口。
 
-这是当前最完整、最活跃的一条项目化示例线，覆盖：
-
-- 平台无关应用层
-- Ink / Vivid UI 变体
-- Windows host 路径
-- STM32 板级路径
-- profile / runtime / bring-up 组合
-
-### Scope
-
-入口：
-
-- [`scope/README.md`](scope/README.md)
-
-这条线更轻，适合看一个相对克制的项目化结构样例。
-
-### DAPLink（独立仓库）
-
-DAPLink 项目已迁移到独立仓库：
-
-- [Little-Red-Cap/Charm-dap](https://github.com/Little-Red-Cap/Charm-dap)
-
-它继续承载 MCU / 板级工程化路径和 CMSIS-DAP 实现，不再作为 Charm 的内置项目目录。
-
-### Nocturne（独立仓库）
-
-STM32G431 USB Audio 项目已迁移到独立仓库：
-
-- [Little-Red-Cap/Nocturne](https://github.com/Little-Red-Cap/Nocturne)
-
-它继续承载 Nocturne 的 STM32 固件、硬件与产品资料，不再作为 Charm 的内置项目目录。
-
-## 建议怎么用这个目录
-
-- 想看“当前最接近真实产品”的主线：
-  先看 `player/`
-- 想看一个更小一点的项目化示例：
-  看 `scope/`
-- 想看 MCU 工程化 / DAP 工具链方向：
-  进入独立的 `Charm-dap` 仓库
-- 想看 STM32 USB Audio 产品固件：
-  进入独立的 `Nocturne` 仓库
-
-## 使用提醒
-
-- 项目化示例会同时包含平台无关代码、板级实现、构建预设、资产甚至硬件资料，不要把它们误当成纯模块示例。
-- 如果项目化示例里的做法与仓库总契约冲突，优先回到 [`../../docs/README.md`](../../docs/README.md) 和 [`../../docs/system/README.md`](../../docs/system/README.md) 复核。
+全局文档权威和项目规范见 [`docs/README.md`](../../docs/README.md) 与
+[`docs/project/README.md`](../../docs/project/README.md)。

@@ -27,7 +27,7 @@ import fs_vfs;
 import player.fs_utils;
 import player.product_policy;
 import player.media_library;
-import player.media_scan;
+export import player.media_scan;
 import player.product_config;
 
 export namespace player {
@@ -109,6 +109,48 @@ export namespace player {
         detail::g_sd_device = dev;
     }
 
+    StorageBinding make_storage_binding(StorageConfig& config) noexcept {
+        if (!config.mount) {
+            return {};
+        }
+        return StorageBinding{
+            .ctx = &config,
+            .mount_fn = [](void* ctx, const char* path) -> fs::Status {
+                const auto* legacy = static_cast<const StorageConfig*>(ctx);
+                return legacy && legacy->mount
+                    ? legacy->mount(path)
+                    : fs::Status{fs::Errc::nosys};
+            },
+            .path = config.path,
+        };
+    }
+
+    StorageBinding legacy_storage_binding() noexcept {
+        return StorageBinding{
+            .ctx = nullptr,
+            .mount_fn = [](void*, const char*) -> fs::Status {
+                auto config = detail::g_storage_config;
+                if (!config.mount) {
+                    config = detail::default_storage_config();
+                }
+                return config.mount
+                    ? config.mount(config.path)
+                    : fs::Status{fs::Errc::nosys};
+            },
+            .path = nullptr,
+        };
+    }
+
+    StorageBinding unavailable_storage_binding() noexcept {
+        return StorageBinding{
+            .ctx = nullptr,
+            .mount_fn = [](void*, const char*) -> fs::Status {
+                return fs::Status{fs::Errc::nosys};
+            },
+            .path = nullptr,
+        };
+    }
+
     template <typename ScanResult>
     void scan_tracks_default_into(ScanResult& out) {
         StorageConfig cfg = detail::g_storage_config;
@@ -116,6 +158,21 @@ export namespace player {
             cfg = detail::default_storage_config();
         }
         auto scan = scan_tracks(cfg.mount, cfg.path);
+        out.fs_ready = scan.fs_ready;
+        out.has_tracks = scan.has_tracks;
+        out.status.assign(scan.status.view());
+        out.mount_status.assign(scan.mount_status.view());
+        out.tracks = scan.tracks;
+        if constexpr (requires { out.media_stats; }) {
+            out.media_stats.track_count = scan.tracks.size();
+            out.media_stats.track_truncated = scan.track_truncated;
+            out.media_stats.dir_truncated = scan.dir_truncated;
+        }
+    }
+
+    template <typename ScanResult>
+    void scan_tracks_into(ScanResult& out, StorageBinding binding) {
+        const auto scan = scan_tracks(binding);
         out.fs_ready = scan.fs_ready;
         out.has_tracks = scan.has_tracks;
         out.status.assign(scan.status.view());
@@ -139,6 +196,38 @@ export namespace player {
         scan_tracks_default_into(out);
         out.labels_ready = false;
     }
+
+    void scan_storage_into(StorageState& out, StorageBinding binding) {
+        out = {};
+        scan_tracks_into(out, binding);
+        out.labels_ready = false;
+    }
+
+    class StorageSession {
+    public:
+        explicit StorageSession(StorageBinding binding = {}) noexcept
+            : binding_(binding) {}
+
+        [[nodiscard]] const StorageState& scan() {
+            if (!scanned_) {
+                scan_storage_into(state_, binding_);
+                scanned_ = true;
+                ++scan_count_;
+            }
+            return state_;
+        }
+
+        [[nodiscard]] const StorageState& state() const noexcept { return state_; }
+        [[nodiscard]] StorageState& state() noexcept { return state_; }
+        [[nodiscard]] std::size_t scan_count() const noexcept { return scan_count_; }
+        [[nodiscard]] bool scanned() const noexcept { return scanned_; }
+
+    private:
+        StorageBinding binding_{};
+        StorageState state_{};
+        std::size_t scan_count_{0};
+        bool scanned_{false};
+    };
 
     StorageState scan_storage() {
         StorageState out{};

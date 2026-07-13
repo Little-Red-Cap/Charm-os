@@ -71,7 +71,13 @@ export namespace player {
     ui::gfx::ImageId default_cover_image_id() noexcept;
     ui::gfx::ImageId default_cover_image_id(DefaultCoverVariant variant) noexcept;
     ui::gfx::ImageId default_cover_image_id(std::size_t variant) noexcept;
+    bool resolve_cover(PlayerCoverResourceProviderBinding binding,
+                       const CoverResourceRequest& request,
+                       ResolvedCover& out);
     bool resolve_cover(const CoverResourceRequest& request, ResolvedCover& out);
+    bool resolve_cover(PlayerCoverResourceProviderBinding binding,
+                       std::string_view path,
+                       ResolvedCover& out);
     bool resolve_cover(std::string_view path, ResolvedCover& out);
     void release_resolved_cover(ResolvedCover& cover);
 
@@ -1488,11 +1494,13 @@ export namespace player {
         cover = {};
     }
 
-    bool resolve_cover(const CoverResourceRequest& request, ResolvedCover& out) {
+    bool resolve_cover(PlayerCoverResourceProviderBinding binding,
+                       const CoverResourceRequest& request,
+                       ResolvedCover& out) {
         release_resolved_cover(out);
         if (request.path.empty()) return false;
         CoverResourceView resource{};
-        if (resolve_cover_resource(request, resource)
+        if (resolve_cover_resource(binding, request, resource)
             && detail::register_cover_resource_view(request, resource, out)) {
             return true;
         }
@@ -1501,6 +1509,18 @@ export namespace player {
         }
         const auto provider = detail::active_cover_provider();
         return provider ? provider(request.path, out) : false;
+    }
+
+    bool resolve_cover(const CoverResourceRequest& request, ResolvedCover& out) {
+        return resolve_cover(cover_resource_provider_binding(), request, out);
+    }
+
+    bool resolve_cover(PlayerCoverResourceProviderBinding binding,
+                       std::string_view path,
+                       ResolvedCover& out) {
+        CoverResourceRequest request{};
+        request.path = path;
+        return resolve_cover(binding, request, out);
     }
 
     bool resolve_cover(std::string_view path, ResolvedCover& out) {

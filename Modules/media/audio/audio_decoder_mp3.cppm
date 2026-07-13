@@ -8,22 +8,44 @@ module;
 #include <cstdint>
 #include <cstdio>
 
+#ifndef CHARM_AUDIO_MP3_DEBUG
+#define CHARM_AUDIO_MP3_DEBUG 1
+#endif
+
 export module audio.decoder.mp3;
 
 import audio.result;
 import media.stream.source;
 import media.stream.filter;
 import media.stream.types;
+#if CHARM_AUDIO_MP3_DEBUG
 import out.api;
 import out.channel;
+#endif
 
 namespace audio::mp3_debug {
+#if CHARM_AUDIO_MP3_DEBUG
     inline out::channel_sink* sink = nullptr;
     template <out::fixed_string Fmt, typename... Args>
     inline void log(Args&&... args) noexcept {
         if (!sink) return;
         (void)out::try_println<Fmt>(*sink, std::forward<Args>(args)...);
     }
+#else
+    template <std::size_t N>
+    struct DebugFormat {
+        char value[N]{};
+
+        consteval DebugFormat(const char (&text)[N]) noexcept {
+            for (std::size_t i = 0; i < N; ++i) {
+                value[i] = text[i];
+            }
+        }
+    };
+
+    template <DebugFormat Fmt, typename... Args>
+    inline void log(Args&&...) noexcept {}
+#endif
 }
 
 export namespace audio {
@@ -99,9 +121,11 @@ export namespace audio {
         std::uint16_t channels{0};
     };
 
+#if CHARM_AUDIO_MP3_DEBUG
     inline void mp3_set_debug_sink(out::channel_sink& sink) noexcept {
         mp3_debug::sink = &sink;
     }
+#endif
 
     inline void mp3_set_arena(void* buffer, std::size_t size) noexcept {
         mp3_detail::g_arena.base = static_cast<std::uint8_t*>(buffer);

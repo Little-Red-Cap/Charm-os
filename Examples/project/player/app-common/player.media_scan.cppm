@@ -16,6 +16,15 @@ import player.product_policy;
 
 export namespace player {
     using MountFn = fs::Status (*)(const char* path);
+    using StorageMountFn = fs::Status (*)(void* ctx, const char* path);
+
+    struct StorageBinding {
+        void* ctx{nullptr};
+        StorageMountFn mount_fn{nullptr};
+        const char* path{nullptr};
+
+        [[nodiscard]] bool valid() const noexcept { return mount_fn != nullptr; }
+    };
 
 #ifndef CHARM_PLAYER_MAX_TRACKS
 #define CHARM_PLAYER_MAX_TRACKS 256
@@ -72,15 +81,15 @@ export namespace player {
         }
     }
 
-    TrackScanResult scan_tracks(MountFn mount, const char* path) {
+    TrackScanResult scan_tracks(StorageBinding binding) {
         TrackScanResult out{};
         out.mount_status.assign("Mounting storage...");
-        if (!mount) {
+        if (!binding.valid()) {
             out.status.assign("Mount not configured");
             out.mount_status.assign(out.status.c_str());
             return out;
         }
-        const auto mount_st = mount(path);
+        const auto mount_st = binding.mount_fn(binding.ctx, binding.path);
         out.fs_ready = static_cast<bool>(mount_st);
         if (!out.fs_ready) {
             char buf[64]{};
@@ -167,5 +176,21 @@ export namespace player {
             }
         }
         return out;
+    }
+
+    TrackScanResult scan_tracks(MountFn mount, const char* path) {
+        struct LegacyMountContext {
+            MountFn mount{nullptr};
+        } context{mount};
+        return scan_tracks(StorageBinding{
+            .ctx = &context,
+            .mount_fn = [](void* ctx, const char* value) -> fs::Status {
+                const auto* legacy = static_cast<const LegacyMountContext*>(ctx);
+                return legacy && legacy->mount
+                    ? legacy->mount(value)
+                    : fs::Status{fs::Errc::nosys};
+            },
+            .path = path,
+        });
     }
 }

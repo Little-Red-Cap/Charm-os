@@ -711,7 +711,10 @@
                 if (track_index < 0 || track_index >= static_cast<int>(tracks->size())) return false;
                 if (cached_track_duration(track_index) != kTrackDurationUnknown) return false;
                 int seconds = 0;
-                const bool ok = player::probe_duration_seconds((*tracks)[static_cast<std::size_t>(track_index)].c_str(), seconds);
+        const auto& track = (*tracks)[static_cast<std::size_t>(track_index)];
+        const bool ok = track_probe_source_binding.valid()
+            ? player::probe_duration_seconds(track_probe_source_binding, track.c_str(), seconds)
+            : player::probe_duration_seconds(track.c_str(), seconds);
                 const bool changed = cache_track_duration(track_index, ok ? seconds : 0);
                 if (changed) {
                     if (library_shows_group_rows()) {
@@ -1716,7 +1719,11 @@
                 duration_sec = 0;
             } else if (duration_sec == kTrackDurationUnknown) {
                 int probed_duration = 0;
-                if (player::probe_duration_seconds(track.c_str(), probed_duration) && probed_duration > 0) {
+        const bool probed = track_probe_source_binding.valid()
+            ? player::probe_duration_seconds(
+                track_probe_source_binding, track.c_str(), probed_duration)
+            : player::probe_duration_seconds(track.c_str(), probed_duration);
+        if (probed && probed_duration > 0) {
                     duration_sec = probed_duration;
                 } else {
                     duration_sec = 0;
@@ -2527,7 +2534,7 @@
                 }
                 slot.path.assign(cover_path.view());
                 slot.missing = false;
-                if (resolve_cover(cover_path.view(), slot.cover)) {
+                if (resolve_cover(cover_resource_binding, cover_path.view(), slot.cover)) {
                     return slot.cover.image_id;
                 }
                 slot.missing = true;

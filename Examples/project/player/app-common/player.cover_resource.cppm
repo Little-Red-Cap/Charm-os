@@ -82,6 +82,9 @@ export namespace player {
     PlayerCoverResourceProviderBinding make_cover_resource_record_table_binding(
         const PlayerCoverResourceRecordTableView& table) noexcept;
     bool resolve_cover_resource(const CoverResourceRequest& request, CoverResourceView& out) noexcept;
+    bool resolve_cover_resource(PlayerCoverResourceProviderBinding binding,
+                                const CoverResourceRequest& request,
+                                CoverResourceView& out) noexcept;
     bool resolve_cover_resource_record_table(const PlayerCoverResourceRecordTableView& table,
                                              const CoverResourceRequest& request,
                                              CoverResourceView& out) noexcept;
@@ -148,7 +151,14 @@ namespace player {
     }
 
     bool resolve_cover_resource(const CoverResourceRequest& request, CoverResourceView& out) noexcept {
-        const auto binding = detail::active_cover_resource_provider_binding();
+        return resolve_cover_resource(
+            detail::active_cover_resource_provider_binding(), request, out);
+    }
+
+    bool resolve_cover_resource(PlayerCoverResourceProviderBinding binding,
+                                const CoverResourceRequest& request,
+                                CoverResourceView& out) noexcept {
+        out = {};
         return binding.valid() && binding.resolve_fn(binding.ctx, request, out);
     }
 

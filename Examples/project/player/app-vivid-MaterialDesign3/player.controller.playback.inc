@@ -289,7 +289,10 @@
         void preload_loaded_track_duration(const char* track_path) {
             if (!playback.track_ready() || !track_path || !*track_path) return;
             int secs = 0;
-            if (!player::probe_duration_seconds(track_path, secs)) return;
+        const bool probed = track_probe_source_binding.valid()
+            ? player::probe_duration_seconds(track_probe_source_binding, track_path, secs)
+            : player::probe_duration_seconds(track_path, secs);
+        if (!probed) return;
             playback.set_duration_from_probe(secs);
             if (cache_track_duration(track_index, secs) && current_page == PlayerPage::Library) {
                 rebuild_list_display_cache();

@@ -1,4 +1,5 @@
 import audio.player;
+import audio.source.fs;
 import charm.system.clock;
 import fs_core;
 import fs_errno;
@@ -238,21 +239,32 @@ namespace {
         if (!expect(write_test_wav("/music/second.wav", 2), "write second wav")) {
             return false;
         }
+        charm::system::Clock clock{nullptr, {.now_us = &smoke_now_us}};
+        charm::system::ClockCaps::TimeSource::bind(clock);
+
+        audio::PlayerConfig cfg{};
+        cfg.capture_output = false;
+        audio::FsDataSource audio_source{};
+        audio::FsDataSource probe_source{};
+        audio::PumpedNullAudioSink audio_sink{};
+        audio::AudioPlayer audio_player{
+            cfg,
+            audio::PlayerBindings{
+                .source = audio::make_audio_source_binding(audio_source),
+                .sink = audio::make_audio_sink_binding(audio_sink),
+            },
+            clock};
+
         int probed_seconds = 0;
-        const bool probe_ok = player::probe_duration_seconds("/music/first.wav", probed_seconds);
+        const auto probe_binding = audio::make_audio_source_binding(probe_source);
+        const bool probe_ok = player::probe_duration_seconds(
+            probe_binding, "/music/first.wav", probed_seconds);
         if (!expect(probe_ok && probed_seconds == 2, "probe first wav duration")) {
             std::printf("[player-controller-playback-smoke] probe ok=%d seconds=%d\n",
                         probe_ok ? 1 : 0,
                         probed_seconds);
             return false;
         }
-
-        charm::system::Clock clock{nullptr, {.now_us = &smoke_now_us}};
-        charm::system::ClockCaps::TimeSource::bind(clock);
-
-        audio::PlayerConfig cfg{};
-        cfg.capture_output = false;
-        audio::AudioPlayer audio_player{cfg, clock};
 
         player::StorageState storage{};
         storage.fs_ready = true;
@@ -271,6 +283,7 @@ namespace {
         player::ensure_track_labels(storage);
 
         player::PlayerController controller{};
+        controller.bind_track_probe_source(probe_binding);
         controller.bind_player(audio_player);
         controller.apply_storage_view(player::make_storage_view(storage), false);
         if (!expect(controller.load_track_index(0), "controller loads first track")) {

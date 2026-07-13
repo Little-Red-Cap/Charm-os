@@ -50,7 +50,9 @@ import media.stream.sink;
 import media.stream.source;
 import media.stream.types;
 import service.queue;
+#if defined(_WIN32) && CHARM_AUDIO_LOG
 import out.api;
+#endif
 #if defined(CHARM_ENABLE_SDL3)
 import audio.sink.sdl3;
 #endif
@@ -65,7 +67,7 @@ import audio.source.file;
 #endif
 
 namespace {
-#if defined(_WIN32)
+#if defined(_WIN32) && CHARM_AUDIO_LOG
     constexpr bool kAudioLogEnabled = CHARM_AUDIO_LOG != 0;
 
     void dump_path_escaped(const char* path) {
@@ -211,6 +213,175 @@ export namespace audio {
 #else
     using SinkType = NullAudioSink;
 #endif
+
+    struct AudioSourceBinding {
+        using OpenFn = Result<media::StreamSourceRef> (*)(void* ctx,
+                                                          const char* path) noexcept;
+        using CloseFn = void (*)(void* ctx) noexcept;
+
+        void* ctx{nullptr};
+        OpenFn open_fn{nullptr};
+        CloseFn close_fn{nullptr};
+
+        [[nodiscard]] bool valid() const noexcept {
+            return open_fn != nullptr && close_fn != nullptr;
+        }
+
+        [[nodiscard]] Result<media::StreamSourceRef> open(const char* path) const noexcept {
+            return valid() ? open_fn(ctx, path) : unexpected(Errc::bad_state);
+        }
+
+        void close() const noexcept {
+            if (close_fn) {
+                close_fn(ctx);
+            }
+        }
+    };
+
+    struct AudioSinkBinding {
+        using SetClockFn = void (*)(void* ctx, charm::system::Clock& clock) noexcept;
+        using OpenFn = Result<void> (*)(void* ctx, const SinkConfig& config) noexcept;
+        using CommandFn = Result<void> (*)(void* ctx) noexcept;
+        using CloseFn = void (*)(void* ctx) noexcept;
+        using SetFillCallbackFn = void (*)(void* ctx, FillCallback callback, void* user) noexcept;
+        using FormatFn = media::StreamFormat (*)(void* ctx) noexcept;
+        using PeriodFn = std::uint32_t (*)(void* ctx) noexcept;
+        using UnderrunCountFn = std::uint64_t (*)(void* ctx) noexcept;
+        using ConsumeUnderrunFn = bool (*)(void* ctx) noexcept;
+        using CallbackStatsFn = CallbackStats (*)(void* ctx) noexcept;
+        using PumpFn = void (*)(void* ctx) noexcept;
+
+        void* ctx{nullptr};
+        SetClockFn set_clock_fn{nullptr};
+        OpenFn open_fn{nullptr};
+        CommandFn start_fn{nullptr};
+        CommandFn stop_fn{nullptr};
+        CloseFn close_fn{nullptr};
+        SetFillCallbackFn set_fill_callback_fn{nullptr};
+        FormatFn format_fn{nullptr};
+        PeriodFn period_frames_fn{nullptr};
+        UnderrunCountFn underrun_count_fn{nullptr};
+        ConsumeUnderrunFn consume_underrun_fn{nullptr};
+        CloseFn clear_underrun_fn{nullptr};
+        CallbackStatsFn callback_stats_fn{nullptr};
+        PumpFn pump_fn{nullptr};
+
+        [[nodiscard]] bool valid() const noexcept {
+            return set_clock_fn && open_fn && start_fn && stop_fn && close_fn
+                && set_fill_callback_fn && format_fn && period_frames_fn
+                && underrun_count_fn && consume_underrun_fn && clear_underrun_fn
+                && callback_stats_fn;
+        }
+
+        void set_clock(charm::system::Clock& clock) const noexcept {
+            if (set_clock_fn) set_clock_fn(ctx, clock);
+        }
+        Result<void> open(const SinkConfig& config) const noexcept {
+            return open_fn ? open_fn(ctx, config) : unexpected(Errc::bad_state);
+        }
+        Result<void> start() const noexcept {
+            return start_fn ? start_fn(ctx) : unexpected(Errc::bad_state);
+        }
+        Result<void> stop() const noexcept {
+            return stop_fn ? stop_fn(ctx) : unexpected(Errc::bad_state);
+        }
+        void close() const noexcept { if (close_fn) close_fn(ctx); }
+        void set_fill_callback(FillCallback callback, void* user) const noexcept {
+            if (set_fill_callback_fn) set_fill_callback_fn(ctx, callback, user);
+        }
+        media::StreamFormat format() const noexcept {
+            return format_fn ? format_fn(ctx) : media::StreamFormat{};
+        }
+        std::uint32_t actual_period_frames() const noexcept {
+            return period_frames_fn ? period_frames_fn(ctx) : 0;
+        }
+        std::uint64_t underrun_count() const noexcept {
+            return underrun_count_fn ? underrun_count_fn(ctx) : 0;
+        }
+        bool consume_underrun_flag() const noexcept {
+            return consume_underrun_fn && consume_underrun_fn(ctx);
+        }
+        void clear_underrun_flag() const noexcept {
+            if (clear_underrun_fn) clear_underrun_fn(ctx);
+        }
+        CallbackStats callback_stats() const noexcept {
+            return callback_stats_fn ? callback_stats_fn(ctx) : CallbackStats{};
+        }
+        void pump_once() const noexcept { if (pump_fn) pump_fn(ctx); }
+    };
+
+    struct PlayerBindings {
+        AudioSourceBinding source{};
+        AudioSinkBinding sink{};
+
+        [[nodiscard]] bool valid() const noexcept {
+            return source.valid() && sink.valid();
+        }
+    };
+
+    template <typename Source>
+    AudioSourceBinding make_audio_source_binding(Source& source) noexcept {
+        return AudioSourceBinding{
+            .ctx = &source,
+            .open_fn = [](void* ctx, const char* path) noexcept
+                -> Result<media::StreamSourceRef> {
+                auto& value = *static_cast<Source*>(ctx);
+                if (!value.open(path)) {
+                    return unexpected(Errc::io_error);
+                }
+                return media::make_stream_source_ref(value);
+            },
+            .close_fn = [](void* ctx) noexcept {
+                static_cast<Source*>(ctx)->close();
+            },
+        };
+    }
+
+    template <typename Sink>
+    AudioSinkBinding make_audio_sink_binding(Sink& sink) noexcept {
+        return AudioSinkBinding{
+            .ctx = &sink,
+            .set_clock_fn = [](void* ctx, charm::system::Clock& clock) noexcept {
+                static_cast<Sink*>(ctx)->set_clock(clock);
+            },
+            .open_fn = [](void* ctx, const SinkConfig& config) noexcept -> Result<void> {
+                return static_cast<Sink*>(ctx)->open(config);
+            },
+            .start_fn = [](void* ctx) noexcept -> Result<void> {
+                return static_cast<Sink*>(ctx)->start();
+            },
+            .stop_fn = [](void* ctx) noexcept -> Result<void> {
+                return static_cast<Sink*>(ctx)->stop();
+            },
+            .close_fn = [](void* ctx) noexcept { static_cast<Sink*>(ctx)->close(); },
+            .set_fill_callback_fn = [](void* ctx, FillCallback callback, void* user) noexcept {
+                static_cast<Sink*>(ctx)->set_fill_callback(callback, user);
+            },
+            .format_fn = [](void* ctx) noexcept -> media::StreamFormat {
+                return static_cast<Sink*>(ctx)->format();
+            },
+            .period_frames_fn = [](void* ctx) noexcept -> std::uint32_t {
+                return static_cast<Sink*>(ctx)->actual_period_frames();
+            },
+            .underrun_count_fn = [](void* ctx) noexcept -> std::uint64_t {
+                return static_cast<Sink*>(ctx)->underrun_count();
+            },
+            .consume_underrun_fn = [](void* ctx) noexcept -> bool {
+                return static_cast<Sink*>(ctx)->consume_underrun_flag();
+            },
+            .clear_underrun_fn = [](void* ctx) noexcept {
+                static_cast<Sink*>(ctx)->clear_underrun_flag();
+            },
+            .callback_stats_fn = [](void* ctx) noexcept -> CallbackStats {
+                return static_cast<Sink*>(ctx)->callback_stats();
+            },
+            .pump_fn = [](void* ctx) noexcept {
+                if constexpr (requires(Sink& value) { value.pump_once(); }) {
+                    static_cast<Sink*>(ctx)->pump_once();
+                }
+            },
+        };
+    }
 #ifndef CHARM_AUDIO_MAX_RATE
 #define CHARM_AUDIO_MAX_RATE 48000
 #endif
@@ -366,6 +537,20 @@ export namespace audio {
     public:
         AudioPlayer(PlayerConfig config, charm::system::Clock& clock)
             : config_(config) {
+            bindings_ = PlayerBindings{
+                .source = make_audio_source_binding(src_),
+                .sink = make_audio_sink_binding(sink_),
+            };
+            set_clock(clock);
+            if (!config_.capture_output) {
+                data_plane_.set_capture_output(false);
+            }
+        }
+
+        AudioPlayer(PlayerConfig config,
+                    PlayerBindings bindings,
+                    charm::system::Clock& clock)
+            : config_(config), bindings_(bindings) {
             set_clock(clock);
             if (!config_.capture_output) {
                 data_plane_.set_capture_output(false);
@@ -376,7 +561,7 @@ export namespace audio {
 
         void set_clock(charm::system::Clock& clock) noexcept {
             clock_.reset(clock);
-            sink_.set_clock(clock);
+            bindings_.sink.set_clock(clock);
 #if CHARM_AUDIO_ENABLE_STRESS
             seed_rng();
 #endif
@@ -524,11 +709,9 @@ export namespace audio {
         void tick() {
             process_commands();
 
-#if defined(CHARM_AUDIO_SINK_PUMPED_NULL)
             if (state_ == PlayerState::playing) {
-                sink_.pump_once();
+                bindings_.sink.pump_once();
             }
-#endif
 
             if (state_ == PlayerState::idle || state_ == PlayerState::error || state_ == PlayerState::paused) {
                 return;
@@ -540,9 +723,9 @@ export namespace audio {
             stats_.min_water = std::min(stats_.min_water, water);
             stats_.max_water = std::max(stats_.max_water, water);
 
-            const bool underrun_flag = sink_.consume_underrun_flag();
+            const bool underrun_flag = bindings_.sink.consume_underrun_flag();
             if (underrun_flag) {
-                stats_.underrun_count = sink_.underrun_count();
+                stats_.underrun_count = bindings_.sink.underrun_count();
             }
 
             if (state_ == PlayerState::buffering) {
@@ -563,7 +746,7 @@ export namespace audio {
                         stress_delay_ms(static_cast<std::uint32_t>(stress_dist_(rng_)));
                     }
 #endif
-                    (void)sink_.stop();
+                    (void)bindings_.sink.stop();
                     state_ = PlayerState::buffering;
                     buffer_until_high();
                     return;
@@ -611,7 +794,7 @@ export namespace audio {
         PlayerSnapshot snapshot(bool reset_window) {
             PlayerSnapshot snap{};
             snap.stats = stats_;
-            snap.callback = sink_.callback_stats();
+            snap.callback = bindings_.sink.callback_stats();
             snap.pump = data_plane_.pump().snapshot();
             snap.input_fmt = input_fmt_;
             snap.output_fmt = output_fmt_;
@@ -775,8 +958,9 @@ export namespace audio {
             last_err_ = Errc::ok;
             last_err_stage_ = PlayerErrorStage::none;
 
-            if (!src_.open(path)) {
-#if defined(_WIN32)
+            const auto source = bindings_.source.open(path);
+            if (!source) {
+#if defined(_WIN32) && CHARM_AUDIO_LOG
                 if (kAudioLogEnabled) {
                     (void)out::print<"[audio] open failed: ">();
                     dump_path_escaped(path);
@@ -786,7 +970,7 @@ export namespace audio {
                 set_error(Errc::io_error, PlayerErrorStage::open_source);
                 return;
             }
-            src_iface_ = media::make_stream_source_ref(src_);
+            src_iface_ = *source;
             data_plane_.close_source();
 
             is_flac_ = CHARM_AUDIO_ENABLE_FLAC && ends_with_icase(path, ".flac");
@@ -839,7 +1023,7 @@ export namespace audio {
 
             const auto opened = data_plane_.open_source(src_iface_, kind);
             if (!opened) {
-#if defined(_WIN32)
+#if defined(_WIN32) && CHARM_AUDIO_LOG
                 if (kAudioLogEnabled) {
                     (void)out::print<"[audio] decode open failed ({}): ">(static_cast<int>(opened.error()));
                     dump_path_escaped(path);
@@ -878,11 +1062,11 @@ export namespace audio {
             SinkConfig cfg{};
             cfg.format = to_stream_format(output_fmt_);
             cfg.period_frames = config_.preferred_period_frames;
-            if (!sink_.open(cfg)) {
+            if (!bindings_.sink.open(cfg)) {
                 set_error(Errc::io_error, PlayerErrorStage::sink_open);
                 return;
             }
-            std::uint32_t period_frames = sink_.actual_period_frames();
+            std::uint32_t period_frames = bindings_.sink.actual_period_frames();
             if (period_frames == 0) {
                 period_frames = output_fmt_.rate / 100;
             }
@@ -895,7 +1079,7 @@ export namespace audio {
                 return;
             }
             apply_dsp_settings();
-            sink_.set_fill_callback(
+            bindings_.sink.set_fill_callback(
                 data_plane_.pump().fill_callback(),
                 &data_plane_.pump());
 
@@ -912,7 +1096,7 @@ export namespace audio {
         void handle_seek(std::uint64_t ms) {
             if (state_ == PlayerState::idle) return;
             const bool was_paused = state_ == PlayerState::paused;
-            (void)sink_.stop();
+            (void)bindings_.sink.stop();
             if (data_plane_.fifo_capacity()) data_plane_.clear_fifo();
             const std::uint64_t frames = (static_cast<std::uint64_t>(input_fmt_.rate) * ms) / 1000;
             const std::uint64_t total = data_plane_.total_frames();
@@ -935,7 +1119,7 @@ export namespace audio {
 
         void handle_pause() {
             if (state_ == PlayerState::playing || state_ == PlayerState::buffering) {
-                (void)sink_.stop();
+                (void)bindings_.sink.stop();
                 running_ = false;
                 state_ = PlayerState::paused;
             }
@@ -947,7 +1131,7 @@ export namespace audio {
             state_ = PlayerState::buffering;
             if (data_plane_.fifo_capacity() &&
                 data_plane_.fifo().size_bytes() >= data_plane_.high_water()) {
-                if (!sink_.start()) {
+                if (!bindings_.sink.start()) {
                     set_error(Errc::io_error, PlayerErrorStage::resume);
                     return;
                 }
@@ -960,9 +1144,9 @@ export namespace audio {
                 set_error(Errc::bad_state, PlayerErrorStage::reconfigure);
                 return;
             }
-            (void)sink_.stop();
-            sink_.clear_underrun_flag();
-            sink_.close();
+            (void)bindings_.sink.stop();
+            bindings_.sink.clear_underrun_flag();
+            bindings_.sink.close();
             if (data_plane_.fifo_capacity()) data_plane_.clear_fifo();
 
             input_fmt_ = input_fmt;
@@ -989,11 +1173,11 @@ export namespace audio {
             SinkConfig cfg{};
             cfg.format = to_stream_format(output_fmt_);
             cfg.period_frames = config_.preferred_period_frames;
-            if (!sink_.open(cfg)) {
+            if (!bindings_.sink.open(cfg)) {
                 set_error(Errc::io_error, PlayerErrorStage::sink_open);
                 return;
             }
-            std::uint32_t period_frames = sink_.actual_period_frames();
+            std::uint32_t period_frames = bindings_.sink.actual_period_frames();
             if (period_frames == 0) {
                 period_frames = output_fmt_.rate / 100;
             }
@@ -1006,13 +1190,13 @@ export namespace audio {
                 return;
             }
             apply_dsp_settings();
-            sink_.set_fill_callback(
+            bindings_.sink.set_fill_callback(
                 data_plane_.pump().fill_callback(),
                 &data_plane_.pump());
 
             stats_.min_water = data_plane_.fifo_capacity();
             stats_.max_water = 0;
-            last_underrun_seen_ = sink_.underrun_count();
+            last_underrun_seen_ = bindings_.sink.underrun_count();
             data_plane_.reset_fade(fade_in_total_frames());
             state_ = PlayerState::buffering;
         }
@@ -1020,10 +1204,10 @@ export namespace audio {
         void stop_internal() {
             if (state_ == PlayerState::idle) return;
             state_ = PlayerState::stopping;
-            (void)sink_.stop();
-            sink_.close();
+            (void)bindings_.sink.stop();
+            bindings_.sink.close();
             data_plane_.close_source();
-            src_.close();
+            bindings_.source.close();
             src_iface_ = {};
             if (data_plane_.fifo_capacity()) data_plane_.clear_fifo();
             running_ = false;
@@ -1041,7 +1225,7 @@ export namespace audio {
             last_err_ = code;
             last_err_stage_ = stage;
             state_ = PlayerState::error;
-#if defined(_WIN32)
+#if defined(_WIN32) && CHARM_AUDIO_LOG
             if (kAudioLogEnabled) {
                 (void)out::print<"[audio] error stage={} err={} path=">(
                     static_cast<unsigned int>(stage),
@@ -1078,7 +1262,7 @@ export namespace audio {
             if (data_plane_.fifo_capacity() &&
                 (data_plane_.fifo().size_bytes() >= data_plane_.high_water() ||
                  (!data_plane_.has_more_data() && data_plane_.fifo().size_bytes() > 0))) {
-                if (!sink_.start()) {
+                if (!bindings_.sink.start()) {
                     set_error(Errc::io_error, PlayerErrorStage::sink_start);
                     return;
                 }
@@ -1089,7 +1273,7 @@ export namespace audio {
         bool configure_buffers() {
             if (output_fmt_.rate > kMaxRate ||
                 (config_.output_mode == OutputMode::follow_input && input_fmt_.rate > kMaxRate)) {
-#if defined(_WIN32)
+#if defined(_WIN32) && CHARM_AUDIO_LOG
                 if (kAudioLogEnabled) {
                     (void)out::println<"[audio] buffer_config rate in={} out={} max={}">(
                         static_cast<unsigned int>(input_fmt_.rate),
@@ -1100,7 +1284,7 @@ export namespace audio {
                 return false;
             }
             if (output_fmt_.channels == 0 || output_fmt_.channels > kMaxChannels) {
-#if defined(_WIN32)
+#if defined(_WIN32) && CHARM_AUDIO_LOG
                 if (kAudioLogEnabled) {
                     (void)out::println<"[audio] buffer_config out channels={} max={}">(
                         static_cast<unsigned int>(output_fmt_.channels),
@@ -1110,7 +1294,7 @@ export namespace audio {
                 return false;
             }
             if (input_fmt_.channels == 0 || input_fmt_.channels > kMaxChannels) {
-#if defined(_WIN32)
+#if defined(_WIN32) && CHARM_AUDIO_LOG
                 if (kAudioLogEnabled) {
                     (void)out::println<"[audio] buffer_config in channels={} max={}">(
                         static_cast<unsigned int>(input_fmt_.channels),
@@ -1120,7 +1304,7 @@ export namespace audio {
                 return false;
             }
             if (config_.profile.chunk_mult == 0 || config_.profile.chunk_mult > kMaxChunkMult) {
-#if defined(_WIN32)
+#if defined(_WIN32) && CHARM_AUDIO_LOG
                 if (kAudioLogEnabled) {
                     (void)out::println<"[audio] buffer_config chunk_mult={} max={}">(
                         static_cast<unsigned int>(config_.profile.chunk_mult),
@@ -1130,7 +1314,7 @@ export namespace audio {
                 return false;
             }
             if (config_.profile.fifo_ms == 0 || config_.profile.fifo_ms > kMaxFifoMs) {
-#if defined(_WIN32)
+#if defined(_WIN32) && CHARM_AUDIO_LOG
                 if (kAudioLogEnabled) {
                     (void)out::println<"[audio] buffer_config fifo_ms={} max={}">(
                         static_cast<unsigned int>(config_.profile.fifo_ms),
@@ -1141,7 +1325,7 @@ export namespace audio {
             }
             const std::size_t fifo_capacity = ms_to_bytes(config_.profile.fifo_ms, output_fmt_);
             if (fifo_capacity > kMaxFifoBytes) {
-#if defined(_WIN32)
+#if defined(_WIN32) && CHARM_AUDIO_LOG
                 if (kAudioLogEnabled) {
                     (void)out::println<"[audio] buffer_config fifo_bytes={} max={}">(
                         fifo_capacity, static_cast<std::size_t>(kMaxFifoBytes));
@@ -1150,7 +1334,7 @@ export namespace audio {
                 return false;
             }
             if (!fifo_storage_.resize(fifo_capacity)) {
-#if defined(_WIN32)
+#if defined(_WIN32) && CHARM_AUDIO_LOG
                 if (kAudioLogEnabled) {
                     (void)out::println<"[audio] buffer_config fifo_storage resize failed">();
                 }
@@ -1166,7 +1350,7 @@ export namespace audio {
                 ? config_.preferred_period_frames
                 : (output_fmt_.rate / 100);
             if (period_frames > kMaxPeriodFrames) {
-#if defined(_WIN32)
+#if defined(_WIN32) && CHARM_AUDIO_LOG
                 if (kAudioLogEnabled) {
                     (void)out::println<"[audio] buffer_config period_frames={} max={}">(
                         static_cast<unsigned int>(period_frames),
@@ -1272,6 +1456,7 @@ export namespace audio {
         FixedString<kMaxPath> last_path_{};
         media::StreamSourceRef src_iface_{};
         SinkType sink_{};
+        PlayerBindings bindings_{};
         AudioDataPlane data_plane_{};
 
         AudioFormat input_fmt_{};

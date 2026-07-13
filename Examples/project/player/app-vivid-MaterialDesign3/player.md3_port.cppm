@@ -107,8 +107,10 @@ export namespace player {
                     return static_cast<std::uint64_t>(read_clock_us(ctx));
                 },
             });
-            has_track_ = runtime_->bootstrap();
-            return runtime_->app() != nullptr
+            const bool bootstrapped = runtime_->bootstrap();
+            has_track_ = bootstrapped && runtime_->has_track();
+            return bootstrapped
+                && runtime_->app() != nullptr
                 && render_runtime_->scene_ref().root()
                 && controller_.handles.root;
         }

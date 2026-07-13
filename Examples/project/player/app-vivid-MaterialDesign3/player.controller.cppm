@@ -335,6 +335,7 @@ export namespace player {
         int last_time_sec{-1};
         int last_time_total_sec{-1};
         StorageView storage{};
+        PlayerCoverResourceProviderBinding cover_resource_binding{};
         int track_index{0};
         FixedString<192> title_text{};
         FixedString<64> subtitle_text{};
@@ -407,6 +408,7 @@ export namespace player {
         std::uint32_t library_visual_generation{1};
         service::FixedVector<int, kMaxTracks> list_order{};
         service::FixedVector<int, kMaxTracks> track_duration_cache_sec{};
+        audio::AudioSourceBinding track_probe_source_binding{};
         std::size_t list_duration_probe_cursor{0};
         std::uint64_t last_list_duration_probe_ms{0};
         mutable FixedString<product_config::library_row_title_capacity> list_row_title_scratch{};
@@ -894,17 +896,23 @@ export namespace player {
             }
         }
 
-        static std::uint64_t query_track_size(const char* path) noexcept {
+        std::uint64_t query_track_size(const char* path) noexcept {
             if (!path || !*path) return 0;
+            if (!track_probe_source_binding.valid()) {
 #if defined(CHARM_AUDIO_USE_VFS)
-            audio::FsDataSource src{};
+                audio::FsDataSource source{};
 #else
-            audio::FileDataSource src{};
+                audio::FileDataSource source{};
 #endif
-            if (!src.open(path)) return 0;
-            auto size = src.size();
-            if (!size) return 0;
-            return static_cast<std::uint64_t>(*size);
+                if (!source.open(path)) return 0;
+                const auto size = source.size();
+                return size ? static_cast<std::uint64_t>(*size) : 0;
+            }
+            auto source = track_probe_source_binding.open(path);
+            if (!source) return 0;
+            const auto size = source->size();
+            track_probe_source_binding.close();
+            return size ? static_cast<std::uint64_t>(*size) : 0;
         }
 
         void bind_scene_runtime(PlayerSceneRuntime runtime) noexcept {
@@ -927,6 +935,10 @@ export namespace player {
 
         void bind_player(audio::AudioPlayer& p) {
             playback.set_player(p);
+        }
+
+        void bind_track_probe_source(audio::AudioSourceBinding source) noexcept {
+            track_probe_source_binding = source;
         }
 
         static float clamp01(float value) noexcept {
@@ -1393,7 +1405,7 @@ export namespace player {
                     ? CoverResourceKind::EmbeddedTrack
                     : (folder_candidate ? CoverResourceKind::FolderFile : CoverResourceKind::Unknown);
                 request.fallback_variant = DefaultCoverVariant::HomeHeroPill;
-                if (resolve_cover(request, current_cover)) {
+                if (resolve_cover(cover_resource_binding, request, current_cover)) {
                     set_image_slot_range(current_track_cover_slots(), current_cover.image_id, false);
                     cover_path.assign(candidate);
                     restore_now_playing_group_visibility();

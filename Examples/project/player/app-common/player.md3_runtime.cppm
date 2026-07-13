@@ -30,6 +30,10 @@ export namespace player {
     template <typename Page>
     struct PlayerMd3RuntimeConfig {
         AppConfig app_config{};
+        audio::PlayerBindings audio_bindings{};
+        audio::AudioSourceBinding probe_source_binding{};
+        StorageBinding storage_binding{};
+        // Compatibility bridge for legacy board/runtime callers.
         StorageConfig storage_config{};
         PlayerCoverResourceProviderBinding cover_resource_provider{};
         PlayerCoverResourceRecordTableView cover_resource_records{};
@@ -65,14 +69,35 @@ export namespace player {
 
         float t_sec() const noexcept { return t_sec_; }
         const PlayerMd3RuntimeConfig<Page>& config() const noexcept { return config_; }
+        [[nodiscard]] bool has_track() const noexcept {
+            return app_ && app_->storage_state().has_tracks;
+        }
 
         bool bootstrap() {
             if (!clock_ || !render_runtime_ || !controller_) {
                 return false;
             }
-            install_cover_resource_provider_binding();
-            app_.emplace(config_.app_config, *clock_);
-            init_storage(config_.storage_config);
+            auto storage_binding = config_.storage_binding;
+            if (!storage_binding.valid() && config_.storage_config.mount) {
+                storage_binding = make_storage_binding(config_.storage_config);
+            }
+            if (!storage_binding.valid()) {
+                storage_binding = unavailable_storage_binding();
+            }
+            app_.emplace(
+                config_.app_config, *clock_, storage_binding, config_.audio_bindings);
+            auto cover_binding = config_.cover_resource_provider;
+            if (!cover_binding.valid() && config_.cover_resource_records.valid()) {
+                cover_binding = make_cover_resource_record_table_binding(config_.cover_resource_records);
+            }
+            if constexpr (requires { controller_->cover_resource_binding = cover_binding; }) {
+                controller_->cover_resource_binding = cover_binding;
+            }
+            if constexpr (requires {
+                controller_->bind_track_probe_source(config_.probe_source_binding);
+            }) {
+                controller_->bind_track_probe_source(config_.probe_source_binding);
+            }
             app_->bind_player(*controller_);
             if constexpr (requires {
                 controller_->bind_scene_runtime(make_player_scene_runtime(render_runtime_->scene_ref()));
@@ -140,7 +165,6 @@ export namespace player {
                 }
                 app_.reset();
             }
-            restore_cover_resource_provider_binding();
         }
 
     private:
@@ -191,28 +215,6 @@ export namespace player {
             };
         }
 
-        void install_cover_resource_provider_binding() noexcept {
-            if (cover_resource_provider_installed_) {
-                return;
-            }
-            previous_cover_resource_provider_ = cover_resource_provider_binding();
-            auto binding = config_.cover_resource_provider;
-            if (!binding.valid() && config_.cover_resource_records.valid()) {
-                binding = make_cover_resource_record_table_binding(config_.cover_resource_records);
-            }
-            set_cover_resource_provider_binding(binding);
-            cover_resource_provider_installed_ = true;
-        }
-
-        void restore_cover_resource_provider_binding() noexcept {
-            if (!cover_resource_provider_installed_) {
-                return;
-            }
-            set_cover_resource_provider_binding(previous_cover_resource_provider_);
-            previous_cover_resource_provider_ = {};
-            cover_resource_provider_installed_ = false;
-        }
-
         void apply_storage_view_compat() {
             if constexpr (requires { controller_->apply_storage_view(app_->storage_view(), false); }) {
                 controller_->apply_storage_view(app_->storage_view(), false);
@@ -226,8 +228,6 @@ export namespace player {
         Controller* controller_{nullptr};
         PlayerMd3RuntimeConfig<Page> config_{};
         std::optional<App> app_{};
-        PlayerCoverResourceProviderBinding previous_cover_resource_provider_{};
-        bool cover_resource_provider_installed_{false};
         float t_sec_{0.0f};
     };
 }

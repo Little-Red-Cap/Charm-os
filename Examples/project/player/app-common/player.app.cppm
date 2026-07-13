@@ -1,6 +1,7 @@
 module;
 
 #include <cstdint>
+#include <cstddef>
 #include "player.product_policy.hpp"
 
 export module player.app;
@@ -23,9 +24,24 @@ export namespace player {
     class App {
     public:
         App(AppConfig config, charm::system::Clock& clock)
+            : App(config, clock, legacy_storage_binding()) {}
+
+        App(AppConfig config,
+            charm::system::Clock& clock,
+            StorageBinding storage_binding)
             : config_(config),
               clock_(&clock),
-              player_(config_.player_config, clock) {}
+              player_(config_.player_config, clock),
+              storage_(storage_binding) {}
+
+        App(AppConfig config,
+            charm::system::Clock& clock,
+            StorageBinding storage_binding,
+            audio::PlayerBindings audio_bindings)
+            : config_(config),
+              clock_(&clock),
+              player_(config_.player_config, audio_bindings, clock),
+              storage_(storage_binding) {}
 
         audio::Result<void> play(const char* path) { return player_.play(path); }
         audio::Result<void> stop() { return player_.stop(); }
@@ -48,14 +64,15 @@ export namespace player {
         const audio::AudioPlayer& player() const noexcept { return player_; }
 
         const StorageState& scan_storage() {
-            player::scan_storage_into(last_storage_);
-            return last_storage_;
+            return storage_.scan();
         }
 
-        const StorageState& storage_state() const noexcept { return last_storage_; }
+        const StorageState& storage_state() const noexcept { return storage_.state(); }
+        std::size_t storage_scan_count() const noexcept { return storage_.scan_count(); }
         StorageView storage_view() noexcept {
-            player::ensure_track_labels(last_storage_);
-            return make_storage_view(last_storage_);
+            auto& state = storage_.state();
+            player::ensure_track_labels(state);
+            return make_storage_view(state);
         }
 
         template <typename Controller>
@@ -70,7 +87,7 @@ export namespace player {
         bool bootstrap_player(Controller& controller,
                               int initial_index,
                               bool auto_start) {
-            (void)scan_storage();
+            const auto& storage_state = scan_storage();
             if constexpr (requires { controller.apply_storage_view(storage_view(), false); }) {
                 controller.apply_storage_view(storage_view(), false);
             } else {
@@ -82,7 +99,7 @@ export namespace player {
             if constexpr (requires { controller.load_recent_track_history(); }) {
                 controller.load_recent_track_history();
             }
-            if (controller.fs_ready && last_storage_.tracks.size() != 0) {
+            if (controller.fs_ready && storage_state.tracks.size() != 0) {
                 if (!controller.load_track_index(initial_index)) {
                     controller.clear_track_state();
                 } else if (auto_start) {
@@ -96,7 +113,7 @@ export namespace player {
             controller.sync_progress_value(0);
             controller.reset_duration();
             controller.update_list_placeholder();
-            return controller.track_ready();
+            return true;
         }
 
         template <typename Controller>
@@ -245,7 +262,7 @@ export namespace player {
         AppConfig config_{};
         charm::system::Clock* clock_{nullptr};
         audio::AudioPlayer player_;
-        StorageState last_storage_{};
+        StorageSession storage_{};
     };
 }
 

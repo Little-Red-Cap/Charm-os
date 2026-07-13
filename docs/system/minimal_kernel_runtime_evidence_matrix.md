@@ -1,5 +1,11 @@
 # 最小内核运行时证据矩阵
 
+> status: `supporting`
+>
+> 本页是 verifier 与证据边界索引，不定义 runtime 语义。聚合规则以上位的
+> [`minimal_kernel_runtime_evidence_bundle_contract.md`](minimal_kernel_runtime_evidence_bundle_contract.md)
+> 为准。
+
 这页不是新契约，也不是重写现有语义，而是把“哪条 seam 由哪个 verifier 证明”对齐到一张表里。
 
 它把两类证据分开：

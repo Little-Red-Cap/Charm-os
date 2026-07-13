@@ -6,10 +6,25 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CXX_SCAN_FOR_MODULES ON)
 
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    # Match the repository-wide GCC Modules policy. Eager BMI materialization
+    # avoids duplicate libstdc++ declarations when a smoke imports several
+    # Player modules and then includes the same standard-library headers.
+    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-fno-module-lazy>)
+endif()
+
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     # Keep the single Player evidence directory below its disk budget. Runtime
     # diagnostics and smokes remain enabled; only local debug symbols are omitted.
     add_compile_options($<$<CONFIG:Debug>:-g0>)
+endif()
+
+if(CMAKE_CROSSCOMPILING)
+    # The bare-metal libstdc++ ships the math/container headers Player needs,
+    # but GCC 17 hides them in strict freestanding language mode.
+    add_compile_options(
+        -U__STDC_HOSTED__
+        -D__STDC_HOSTED__=1)
 endif()
 
 option(CHARM_PLAYER_BUILD_LEGACY_VARIANTS
@@ -45,19 +60,7 @@ set(CHARM_ENABLE_SDL3 OFF CACHE BOOL "" FORCE)
 set(CHARM_AUDIO_USE_VFS OFF CACHE BOOL "" FORCE)
 set(CHARM_AUDIO_SINK_I2S OFF CACHE BOOL "" FORCE)
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/player_md3_vivid_product.cmake")
-vivid_configure_product_target(
-    TARGET Charm-ui
-    PROFILE "${CHARM_PLAYER_VIVID_PROFILE}"
-    SCREEN_WIDTH 568
-    SCREEN_HEIGHT 1210
-    PIXEL_FORMAT RGB888
-    LAYER_CACHE_SLOTS 2
-    LAYER_CACHE_WIDTH 568
-    LAYER_CACHE_HEIGHT 1210
-    RUNTIME_SCENE_INSTANCES 1
-    STATIC_MEMORY_BUDGET_BYTES 6291456
-    STATIC_MEMORY_MIN_HEADROOM_BYTES 524288
-    MAX_HOT_STACK_FRAME_BYTES 4096)
+player_configure_md3_vivid_target(Charm-ui)
 
 charm_add_config_interface(charm_cfg_player_md3_runtime
     COMPILE_DEFINITIONS
@@ -132,8 +135,12 @@ if (CHARM_PLAYER_BUILD_CANONICAL_SMOKES)
     add_executable(player_memory_report
         "${CHARM_ROOT}/Examples/system/player_memory_report/main.cpp")
     target_link_libraries(player_memory_report PRIVATE Charm::player-md3)
-    target_include_directories(player_memory_report PRIVATE
-        "${CMAKE_BINARY_DIR}/generated/vivid")
+    get_target_property(
+        _player_closure_include_dirs Charm-player-closure INCLUDE_DIRECTORIES)
+    list(FILTER _player_closure_include_dirs INCLUDE REGEX
+        "[/\\\\]generated[/\\\\]vivid[/\\\\]")
+    target_include_directories(
+        player_memory_report PRIVATE ${_player_closure_include_dirs})
 
     add_executable(player_controller_playback_smoke
         "${CHARM_ROOT}/Examples/system/player_controller_playback_smoke/main.cpp")

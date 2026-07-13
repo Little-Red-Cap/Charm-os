@@ -35,9 +35,9 @@ if (CHARM_PLAYER_DEBUG_UI)
         "${CHARM_ROOT}/Examples/project/player/app-vivid-MaterialDesign3/player.ui_debug.cppm")
 endif()
 
-set(PLAYER_MD3_RENDER_RUNTIME_MODULES
-    "${CHARM_ROOT}/Examples/project/player/app-common/player.render_runtime.cppm"
-    "${CHARM_ROOT}/Examples/project/player/app-common/player.md3_runtime.cppm"
+set(PLAYER_MD3_RUNTIME_CONFIG_MODULES
+    "${CHARM_ROOT}/Examples/project/player/app-common/player.md3_types.cppm"
+    "${CHARM_ROOT}/Examples/project/player/app-common/player.md3_runtime_config.cppm"
 )
 
 set(PLAYER_PORT_MODULES
@@ -50,9 +50,13 @@ set(PLAYER_MD3_PORT_MATERIALIZER_MODULES
     "${CHARM_ROOT}/Examples/project/player/app-vivid-MaterialDesign3/player.md3_port.cppm"
 )
 
+set(PLAYER_MD3_IMPLEMENTATION_SOURCES
+    "${CHARM_ROOT}/Examples/project/player/app-vivid-MaterialDesign3/player.md3_port.cpp"
+)
+
 set(PLAYER_MD3_CANONICAL_MODULES
     ${PLAYER_MD3_APPLICATION_MODULES}
-    ${PLAYER_MD3_RENDER_RUNTIME_MODULES}
+    ${PLAYER_MD3_RUNTIME_CONFIG_MODULES}
     ${PLAYER_PORT_MODULES}
     ${PLAYER_MD3_PORT_MATERIALIZER_MODULES}
 )
@@ -66,6 +70,7 @@ file(GLOB PLAYER_MD3_INCLUDED_IMPLEMENTATION_FILES
 
 set(PLAYER_MD3_CANONICAL_CONTRACT_FILES
     ${PLAYER_MD3_CANONICAL_MODULES}
+    ${PLAYER_MD3_IMPLEMENTATION_SOURCES}
     ${PLAYER_MD3_INCLUDED_IMPLEMENTATION_FILES}
     "${CHARM_ROOT}/Examples/project/player/app-common/player.product_policy.hpp")
 

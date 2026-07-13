@@ -1,3 +1,10 @@
+#include <array>
+#include <chrono>
+#include <cstdio>
+#include <cstdint>
+#include <span>
+#include <string_view>
+
 import audio.player;
 import audio.source.fs;
 import charm.system.clock;
@@ -11,13 +18,6 @@ import player.fixed_string;
 import player.storage;
 import player.track_probe;
 import util.core;
-
-#include <array>
-#include <chrono>
-#include <cstdio>
-#include <cstdint>
-#include <span>
-#include <string_view>
 
 namespace {
     template <util::usize BlockSize, util::usize MaxFiles, util::usize MaxBlocks>

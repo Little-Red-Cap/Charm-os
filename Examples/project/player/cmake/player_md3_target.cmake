@@ -23,6 +23,8 @@ function(player_add_md3_component target_name)
     add_library(${target_name} STATIC)
     target_compile_features(${target_name} PUBLIC cxx_std_26)
     target_sources(${target_name}
+        PRIVATE
+        ${PLAYER_MD3_IMPLEMENTATION_SOURCES}
         PUBLIC
         FILE_SET player_md3_modules TYPE CXX_MODULES
         BASE_DIRS "${CHARM_ROOT}"

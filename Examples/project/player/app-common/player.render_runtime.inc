@@ -1,21 +1,4 @@
-module;
-
-#include <cstddef>
-#include <utility>
-
-#ifndef CHARM_PLAYER_LAYERED_TRANSITIONS
-#define CHARM_PLAYER_LAYERED_TRANSITIONS 1
-#endif
-
-export module player.render_runtime;
-
-import charm.gfx.canvas;
-import charm.gfx.color;
-import charm.gfx.framebuffer;
-import charm.ui.scene;
-import player.raster;
-
-export namespace player {
+namespace player {
     inline constexpr PixelFormat to_vivid_pixel_format(PlayerRasterPixelFormat format) noexcept {
         switch (format) {
         case PlayerRasterPixelFormat::RGB565:
@@ -65,6 +48,69 @@ export namespace player {
         const PlayerRasterSurface& surface_ref() const noexcept { return surface_; }
         ::ui::scene::Scene& scene_ref() noexcept { return scene_; }
         const ::ui::scene::Scene& scene_ref() const noexcept { return scene_; }
+
+        void set_timing_source(void* ctx,
+                               std::uint64_t (*now_us)(void*) noexcept) noexcept {
+            scene_.set_timing_source(::ui::scene::SceneTimingSource{ctx, now_us});
+        }
+
+        [[nodiscard]] bool has_root() const noexcept { return static_cast<bool>(scene_.root()); }
+
+        [[nodiscard]] PlayerSceneRuntime scene_runtime_binding() noexcept {
+            return PlayerSceneRuntime{
+                .ctx = &scene_,
+                .access = scene_.access(),
+                .release_snapshot_fn =
+                    [](void* ctx, ::ui::scene::SnapshotHandle handle) noexcept -> bool {
+                        return ctx
+                            && static_cast<::ui::scene::Scene*>(ctx)->release_snapshot(handle);
+                    },
+                .mark_snapshot_stale_fn =
+                    [](void* ctx, ::ui::scene::SnapshotHandle handle) noexcept -> bool {
+                        return ctx
+                            && static_cast<::ui::scene::Scene*>(ctx)->mark_snapshot_stale(handle);
+                    },
+                .layer_stats_fn = [](void* ctx) noexcept -> ::ui::scene::LayerStats {
+                    return ctx ? static_cast<::ui::scene::Scene*>(ctx)->layer_stats()
+                               : ::ui::scene::LayerStats{};
+                },
+                .capture_snapshot_fn =
+                    [](void* ctx, const ::ui::scene::SnapshotSpec& spec) noexcept
+                        -> PlayerLayerCaptureResult {
+                        if (!ctx) return {};
+                        const auto capture =
+                            (spec.preferred_kind == ::ui::scene::SnapshotKind::PixelSurface)
+                            ? static_cast<::ui::scene::Scene*>(ctx)
+                                  ->capture_pixel_snapshot_result(spec)
+                            : static_cast<::ui::scene::Scene*>(ctx)
+                                  ->capture_command_snapshot_result(spec);
+                        return PlayerLayerCaptureResult{capture.status, capture.handle};
+                    },
+                .make_compose_plan_fn =
+                    [](void* ctx, const ::ui::scene::LayerComposeSpec& spec) noexcept
+                        -> ::ui::scene::LayerComposePlan {
+                        return ctx
+                            ? static_cast<::ui::scene::Scene*>(ctx)
+                                  ->make_snapshot_compose_plan(spec)
+                            : ::ui::scene::LayerComposePlan{};
+                    },
+                .compose_pixel_snapshot_fn =
+                    [](void* ctx, const ::ui::scene::LayerComposePlan& plan) noexcept
+                        -> PlayerLayerReplayResult {
+                        if (!ctx) return {};
+                        const auto replay =
+                            static_cast<::ui::scene::Scene*>(ctx)
+                                ->compose_pixel_snapshot(plan);
+                        return PlayerLayerReplayResult{
+                            .status = replay.status,
+                            .source = replay.source,
+                            .kind = replay.kind,
+                            .target_bounds = replay.target_bounds,
+                            .alpha_blend_count = replay.stats.alpha_blend_count,
+                        };
+                    },
+            };
+        }
 
         std::size_t stride_bytes() const noexcept { return surface_.stride_bytes; }
         int width() const noexcept { return surface_.width; }

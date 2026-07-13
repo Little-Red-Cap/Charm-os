@@ -23,8 +23,9 @@
 | `app-common/player.recent_history.cppm`、`player.stats_history.cppm` | Player 产品数据模型 |
 | `app-common/player.storage.cppm`、`player.fs_utils.cppm` | 当前保留为 Player 私有资源/存储策略；首轮不平台化 |
 | `app-common/player.scene_runtime.cppm` | Player 对 Vivid scene 的应用内使用边界 |
-| `app-common/player.render_runtime.cppm` | 直接在 borrowed raster surface 上承载 Vivid scene/render，不含 board callback |
-| `app-common/player.md3_runtime.cppm` | canonical MD3 应用 runtime，组合 controller、scene 与产品配置 |
+| `app-common/player.md3_types.cppm` | 轻量 MD3 产品类型；`PlayerPage` 不依赖完整 controller BMI |
+| `app-common/player.md3_runtime_config.cppm` | canonical MD3 实例配置与 storage/cover/audio bindings |
+| `app-common/player.render_runtime.inc`、`player.md3_runtime.inc` | 私有 materialization helper；直接承载 borrowed raster、Scene 与 App 生命周期，不形成公共 BMI |
 | `app-common/player.input.cppm` | Player input model/translation；canonical 关闭旧 touch sample compatibility |
 | `app-common/player.time_utils.cppm` | Player 私有 `WeekStampSource` 契约，不读取 OS 时间 API |
 
@@ -48,7 +49,8 @@ canonical source gate 同时扫描 `player.product_policy.hpp`，并拒绝
 | `app-common/player.port.cppm` | v2 消费契约：clock、完整容量 raster、三态 raw input |
 | `app-common/player.port_runtime.cppm` | v2 生命周期：分阶段失败、bounded input、counters、幂等 shutdown |
 | `app-common/player.raster.cppm` | 无 UI/平台依赖的 Port raster 投影、present sink 与 memory test sink |
-| `app-vivid-MaterialDesign3/player.md3_port.cppm` | canonical MD3 到 `PlayerRuntimeEndpoint` 的 materializer |
+| `app-vivid-MaterialDesign3/player.md3_port.cppm` | canonical MD3 固定容量 facade，只导出 endpoint、生命周期状态与窄页面操作 |
+| `app-vivid-MaterialDesign3/player.md3_port.cpp` | 私有 module implementation unit；materialize Controller/Scene/App 并验证 storage 容量 |
 
 当前规范见 [PLAYER_PORT_V2.md](PLAYER_PORT_V2.md)；v1 文档只保留迁移判决。
 
@@ -63,8 +65,8 @@ canonical source gate 同时扫描 `player.product_policy.hpp`，并拒绝
 | `app-common/player.board_runtime.cppm` | 兼容适配，停止扩展；由 `player.port_runtime` 替代 |
 | `app-common/player.mcu_policy.cppm` | MCU 特定策略，迁出 `app-common` |
 | `app-common/player.display.cppm` | 旧 display + board callback 混合模块；canonical 已退出 |
-| `app-common/player.platform.cppm` | 旧 Vivid render 包装；canonical 已由 `player.render_runtime` 替代 |
-| `app-common/player.runtime.cppm` | 旧 MD3 runtime；canonical 已由 `player.md3_runtime` 替代 |
+| `app-common/player.platform.cppm` | 旧 Vivid render 包装；canonical 已由 `player.md3_port.cpp` 私有 materialization 替代 |
+| `app-common/player.runtime.cppm` | 旧 MD3 runtime；canonical 已由 Port implementation unit 替代 |
 | `app-common/player.runtime_shell.cppm` | 旧 frame/run-loop 外壳；功能已由 Port runtime 接管，等待兼容消费者退出后淘汰 |
 | `profiles/hqzy_cm7_usb_storage*` | H747/HQZY 产品 profile；冻结，等待 H747 迁移线认领 |
 | `runtime/hqzy_cm7/player_ui_port_bridge.cppm` | H747 adapter；冻结，等待 H747 迁移线认领 |

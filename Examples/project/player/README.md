@@ -66,6 +66,9 @@ cmake --build --preset build-player-md3-arm-freestanding-debug -- -j1
 ```
 
 该 preset 只生成 `libcharm_player_md3.a`，不链接 firmware、不运行 QEMU、不占用板子。
+当前已由 GCC 16.1 Host 和 ARM GCC 17 compile-only 验证。公开 `player.md3_port` BMI 不携带
+完整 Controller/Scene/App 实现图，具体 materialization 位于 module implementation unit；详见
+[PLAYER_PORT_V2.md](PLAYER_PORT_V2.md)。
 
 旧 Win Vivid/Ink 仅在显式 opt-in 后出现，不参与 canonical 验收：
 
@@ -109,11 +112,14 @@ Examples/project/player/
         player.port.cppm
         player.port_runtime.cppm
         player.raster.cppm
-        player.render_runtime.cppm
-        player.md3_runtime.cppm
+        player.md3_types.cppm
+        player.md3_runtime_config.cppm
+        player.render_runtime.inc
+        player.md3_runtime.inc
         player.*.cppm
     app-vivid-MaterialDesign3/
         player.md3_port.cppm
+        player.md3_port.cpp
         player.controller.cppm
         player.ui.cppm
         player.ui_builder.cppm
@@ -132,8 +138,8 @@ Examples/project/player/
 H747 adapter 不属于 canonical source set。`win/` 只在显式开启
 `CHARM_PLAYER_BUILD_LEGACY_VARIANTS=ON` 时构建。
 
-canonical render 闭包直接使用 borrowed `PlayerRasterSurface`：
-`player.render_runtime -> player.md3_runtime -> player.md3_port`。旧
+canonical render 闭包直接使用 borrowed `PlayerRasterSurface`。`player.md3_port.cppm` 只导出
+固定容量 facade，`player.md3_port.cpp` 私有组合 render/runtime/Controller/Scene。旧
 `player.display/platform/runtime` 仅供 H747/Win 兼容清单继续使用，不进入 `Charm::player-md3`。
 
 canonical 固定 `CHARM_PLAYER_LEGACY_TOUCH_INPUT=0`，输入只从 Port 的
@@ -146,8 +152,8 @@ Player 产品 compile definitions 只施加到 `Charm::player-md3`；Charm runti
 audio sink 选择。修改 Player 容量或资源策略不得触发整套 Charm runtime 重编。
 
 canonical 构建使用 `cmake/player_charm_closure.cmake` 与通用 leaf helper，不链接聚合
-`Charm-os`。当前干净 Host evidence 为 485 steps / 0.967 GiB；应用对象 5,352,744 bytes，
-应用加 ARGB framebuffer 8,101,864 bytes。详细口径见 [PLAYER_PORT_V2.md](PLAYER_PORT_V2.md)。
+`Charm-os`。当前干净 Host evidence 为 481 steps / 0.950 GiB；应用对象 5,767,168 bytes，
+应用加 ARGB framebuffer 8,516,288 bytes。详细口径见 [PLAYER_PORT_V2.md](PLAYER_PORT_V2.md)。
 
 旧板级目录、profile 和 runtime glue 当前仍保留，是迁移兼容物，不是 canonical Player
 入口，也不参与本轮验收。H747 侧装配由独立工作线维护。

@@ -13,6 +13,8 @@ module;
 
 export module player.controller;
 
+export import player.md3_types;
+
 import player.fixed_string;
 import player.app_config;
 import audio.eq;
@@ -78,13 +80,6 @@ export namespace player {
         folder_first,
         embedded_only,
         folder_only,
-    };
-
-    enum class PlayerPage : std::uint8_t {
-        Probe,
-        Home,
-        NowPlaying,
-        Library,
     };
 
     enum class LibraryTab : std::uint8_t {

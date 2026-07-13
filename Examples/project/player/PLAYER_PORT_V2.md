@@ -90,20 +90,37 @@ canonical target 唯一为 `Charm::player-md3`。`player_charm_closure.cmake` �
 对象。Player profile 关闭 audio demo/simulation facade、真实 spectrum backend 和 audio debug
 模块，但保留 UI `SpectrumView` 与完整播放格式。
 
-2026-07-13 的干净 Host evidence：
+2026-07-14 的 Clang 18 干净 Host + SDL evidence：
 
-- 485 Ninja steps，基线为 1221；
-- `cmake-build-player` 为 1,038,563,870 bytes（0.967 GiB）；
-- application object 5,352,744 bytes；
+- 481 Ninja steps，基线为 1221；
+- `cmake-build-player` 为 1,020,183,723 bytes（0.950 GiB）；
+- application object 5,767,168 bytes；
 - ARGB framebuffer 2,749,120 bytes；
-- application + framebuffer 8,101,864 bytes；
+- application + framebuffer 8,516,288 bytes；
 - Vivid resident upper bound 5,453,856 bytes；
-- audio workspace 423,944 bytes。
+- audio workspace 423,944 bytes；
+- Host canonical/SDL tests 10/10，Vivid 最大 stack usage 3,624/4,096 bytes。
 
-ARM preset 只编译 static component，不链接 firmware。它使用 Cortex-M7/Thumb/hard-float、
-`-ffreestanding`、无 exceptions、RTTI 和 thread-safe statics；embedded libstdc++ headers 通过
-`_GLIBCXX_HOSTED=1` 提供 Player 已依赖的容器与数学头。该结果证明源码/ABI 可编译，不等于板端
-内存布局或运行证据。
+ARM preset 只编译 static component，不链接 firmware。它要求 Cortex-M7/Thumb/hard-float，
+保持无 exceptions、RTTI 和 thread-safe statics；由于 Player/Vivid 需要 `<cmath>` 和容器，编译时
+保持 `-ffreestanding`，并仅为 embedded libstdc++ headers 把 `__STDC_HOSTED__` 设为 `1`。该门禁
+通过时只证明源码/ABI 可面向 bare-metal ARM 编译，不构成 strict-freestanding 标准库、板端内存
+布局或运行证据。
+
+`player.md3_port.cppm` 只导出固定容量 application facade、endpoint 和窄状态操作；5 MiB 级
+Controller/Scene/App materialization 位于 `player.md3_port.cpp`，render/runtime helper 位于私有
+`.inc`。该边界不使用 heap PIMPL，公开对象仍可静态实例化，并由 implementation unit 的
+`static_assert` 验证真实状态不超过 5.5 MiB storage。`PlayerPage` 位于轻量
+`player.md3_types`，不再迫使 Port 消费方反序列化完整 controller BMI。
+
+这次拆分解除 w64devkit GCC 16.1 与 ARM GCC 17 对累计 module imports 的 compiler ICE：
+
+- GCC 16.1 canonical component 构建通过，8/8 无 SDL tests 通过；
+- ARM GCC 17 compile-only 为 441 Ninja steps，`libcharm_player_md3.a` 为 8,815,336 bytes；
+- ARM Vivid 最大 stack usage 1,328/4,096 bytes。
+
+普通 smoke 翻译单元固定先 include 标准库头、再 import Player modules，以避开 GCC Modules 对
+重复 libstdc++ 声明的工具链缺陷；该顺序要求不改变 Player 契约。
 
 ## 非目标
 

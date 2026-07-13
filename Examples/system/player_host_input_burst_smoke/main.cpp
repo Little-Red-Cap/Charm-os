@@ -1,13 +1,13 @@
-import player.host_sdl3_adapter;
-import player.port;
-import player.raster;
-import input.raw_event;
-
 #include <SDL3/SDL.h>
 
 #include <array>
 #include <cstddef>
 #include <cstdio>
+
+import player.host_sdl3_adapter;
+import player.port;
+import player.raster;
+import input.raw_event;
 
 namespace {
     struct Endpoint {

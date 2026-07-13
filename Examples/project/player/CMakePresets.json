@@ -43,8 +43,8 @@
         },
         {
             "name": "player-md3-arm-freestanding-debug",
-            "displayName": "Player MD3 ARM Freestanding Compile Only",
-            "description": "Compile the canonical Player MD3 component for Cortex-M7 without linking firmware.",
+            "displayName": "Player MD3 ARM Bare-Metal Compile Only",
+            "description": "Compile the canonical Player MD3 component for Cortex-M7 with hosted C++ headers and without linking firmware.",
             "generator": "Ninja",
             "binaryDir": "${sourceDir}/../../../cmake-build-player",
             "toolchainFile": "${sourceDir}/../../../cmake/toolchains/arm-none-eabi-gcc.cmake",
@@ -53,8 +53,6 @@
             },
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug",
-                "CMAKE_CXX_FLAGS": "-D_GLIBCXX_HOSTED=1",
-                "CHARM_BAREMETAL": "ON",
                 "CHARM_TARGET_HAS_HOSTED_CXX": "OFF",
                 "CHARM_TARGET_HAS_CXX_MATH": "ON",
                 "CHARM_PLAYER_BUILD_LEGACY_VARIANTS": "OFF",

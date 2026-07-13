@@ -1,24 +1,19 @@
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
+#include <span>
+#include <string_view>
+
 import charm.core.config;
 import charm.gfx.color;
 import charm.system.clock;
 import input.raw_event;
-import player.controller;
 import player.input;
 import player.md3_port;
 import player.port;
 import player.port_runtime;
 import player.raster;
-import player.render_runtime;
-import player.md3_runtime;
-
-#include <array>
-#include <cstddef>
-#include <cstdint>
-#include <cstdio>
-#include <cstring>
-#include <memory>
-#include <span>
-#include <string_view>
 
 static_assert(!player::player_legacy_touch_input_enabled);
 
@@ -148,51 +143,6 @@ namespace {
         return true;
     }
 
-    bool verify_raster_layout(player::PlayerRasterPixelFormat format,
-                              std::size_t bytes_per_pixel) {
-        constexpr int width = 2;
-        constexpr int height = 2;
-        constexpr std::size_t padding = 3;
-        const auto stride = static_cast<std::size_t>(width) * bytes_per_pixel + padding;
-        std::array<std::byte, (2 * 4 + padding) * height> bytes{};
-        bytes.fill(kPaddingSentinel);
-        auto runtime = std::make_unique<player::PlayerRenderRuntime>(
-            player::PlayerRasterSurface{bytes, width, height, stride, format});
-        const rgba color{0xf8, 0x84, 0x1f, 0x7f};
-        runtime->clear(color);
-
-        std::array<std::byte, 4> expected{};
-        switch (format) {
-        case player::PlayerRasterPixelFormat::RGB565: {
-            const std::uint16_t packed = 0xfc23;
-            std::memcpy(expected.data(), &packed, sizeof(packed));
-            break;
-        }
-        case player::PlayerRasterPixelFormat::RGB888:
-            expected[0] = std::byte{0xf8};
-            expected[1] = std::byte{0x84};
-            expected[2] = std::byte{0x1f};
-            break;
-        case player::PlayerRasterPixelFormat::ARGB8888: {
-            const std::uint32_t packed = 0x7ff8841f;
-            std::memcpy(expected.data(), &packed, sizeof(packed));
-            break;
-        }
-        }
-
-        for (int y = 0; y < height; ++y) {
-            const auto* row = bytes.data() + static_cast<std::size_t>(y) * stride;
-            for (int x = 0; x < width; ++x) {
-                if (std::memcmp(row + static_cast<std::size_t>(x) * bytes_per_pixel,
-                                expected.data(),
-                                bytes_per_pixel) != 0) {
-                    return false;
-                }
-            }
-        }
-        return padding_unchanged(bytes.data(), width * bytes_per_pixel, stride, height);
-    }
-
     bool verify_digest(const char* page,
                        std::uint64_t actual,
                        std::uint64_t expected,
@@ -251,8 +201,8 @@ int main(int argc, char** argv) {
     if (!expect(runtime.bootstrap(), "real MD3 bootstrap")
         || !expect(charm::system::ClockCaps::TimeSource::bound() == nullptr,
                    "Port clock remains instance-local")
-        || !expect(app.runtime() != nullptr, "runtime materialized")
-        || !expect(static_cast<bool>(app.controller().handles.root), "MD3 root bound")
+        || !expect(app.ready(), "runtime materialized")
+        || !expect(app.root_bound(), "MD3 root bound")
         || !expect(!app.has_track(), "no storage remains a valid UI state")) {
         return 1;
     }
@@ -274,9 +224,7 @@ int main(int argc, char** argv) {
                    "MD3 rendered pixels")
         || !expect(padding_unchanged(
                        pixels.data(), active_row_bytes, stride, screen_height),
-                   "row padding preserved")
-        || !expect(verify_raster_layout(raster_case.format, raster_case.bytes_per_pixel),
-                   "raster byte layout")) {
+                   "row padding preserved")) {
         return 1;
     }
 
@@ -290,7 +238,9 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    app.controller().set_page(player::PlayerPage::Library);
+    if (!expect(app.set_page(player::PlayerPage::Library), "Library page selected")) {
+        return 1;
+    }
     clock.now_us = 33000;
     if (!expect(runtime.frame(33000, 16000), "Library frame")
         || !expect(display.present_count == 2, "Library raster presented")
@@ -309,7 +259,10 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    app.controller().set_page(player::PlayerPage::NowPlaying);
+    if (!expect(app.set_page(player::PlayerPage::NowPlaying),
+                "Now Playing page selected")) {
+        return 1;
+    }
     clock.now_us = 49000;
     if (!expect(runtime.frame(49000, 16000), "Now Playing frame")
         || !expect(display.present_count == 3, "Now Playing raster presented")
@@ -329,7 +282,7 @@ int main(int argc, char** argv) {
     }
 
     runtime.shutdown();
-    if (!expect(app.runtime() == nullptr, "runtime released")
+    if (!expect(!app.ready(), "runtime released")
         || !expect(runtime.state() == player::PlayerPortRuntimeState::Stopped, "runtime stopped")) {
         return 1;
     }

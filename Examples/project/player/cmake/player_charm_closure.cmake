@@ -134,6 +134,7 @@ set(PLAYER_CHARM_CLOSURE_MODULES
 function(player_add_charm_closure target_name)
     charm_add_leaf_component(${target_name}
         LINK_LIBRARIES Charm::audio)
+    player_configure_md3_vivid_target(${target_name})
     set_property(TARGET ${target_name} PROPERTY CHARM_VIVID_STACK_USAGE_ROOT
         "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/${target_name}.dir")
     set(_player_closure_modules ${PLAYER_CHARM_CLOSURE_MODULES})

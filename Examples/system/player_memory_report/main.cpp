@@ -1,11 +1,11 @@
 #include "vivid_features.generated.hpp"
 
+#include <cstddef>
+#include <cstdio>
+
 import audio.player;
 import charm.core.config;
 import player.md3_port;
-
-#include <cstddef>
-#include <cstdio>
 
 int main() {
     constexpr std::size_t application_object = sizeof(player::PlayerMd3PortApplication);

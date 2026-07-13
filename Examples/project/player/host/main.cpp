@@ -1,12 +1,3 @@
-import charm.core.config;
-import charm.backend.host.sdl3;
-import charm.gfx.color;
-import player.controller;
-import player.host_sdl3_adapter;
-import player.md3_port;
-import player.md3_runtime;
-import player.raster;
-
 #include <charconv>
 #include <chrono>
 #include <cstddef>
@@ -15,6 +6,13 @@ import player.raster;
 #include <system_error>
 #include <thread>
 #include <vector>
+
+import charm.core.config;
+import charm.backend.host.sdl3;
+import charm.gfx.color;
+import player.host_sdl3_adapter;
+import player.md3_port;
+import player.raster;
 
 namespace {
     struct Options {

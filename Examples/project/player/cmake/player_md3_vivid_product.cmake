@@ -89,3 +89,19 @@ if(CHARM_PLAYER_DEBUG_UI)
 else()
     set(CHARM_PLAYER_VIVID_PROFILE player_md3)
 endif()
+
+function(player_configure_md3_vivid_target target_name)
+    vivid_configure_product_target(
+        TARGET "${target_name}"
+        PROFILE "${CHARM_PLAYER_VIVID_PROFILE}"
+        SCREEN_WIDTH 568
+        SCREEN_HEIGHT 1210
+        PIXEL_FORMAT RGB888
+        LAYER_CACHE_SLOTS 2
+        LAYER_CACHE_WIDTH 568
+        LAYER_CACHE_HEIGHT 1210
+        RUNTIME_SCENE_INSTANCES 1
+        STATIC_MEMORY_BUDGET_BYTES 6291456
+        STATIC_MEMORY_MIN_HEADROOM_BYTES 524288
+        MAX_HOT_STACK_FRAME_BYTES 4096)
+endfunction()

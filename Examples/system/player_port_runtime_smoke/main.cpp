@@ -1,14 +1,14 @@
-import input.raw_event;
-import player.port;
-import player.port_runtime;
-import player.raster;
-
 #include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <limits>
 #include <span>
+
+import input.raw_event;
+import player.port;
+import player.port_runtime;
+import player.raster;
 
 namespace {
     struct FakeClock {

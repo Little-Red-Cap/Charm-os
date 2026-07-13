@@ -1,10 +1,3 @@
-import audio.player;
-import audio.result;
-import charm.system.clock;
-import media.stream.sink;
-import media.stream.source;
-import media.stream.types;
-
 #include <algorithm>
 #include <array>
 #include <cstddef>
@@ -13,6 +6,13 @@ import media.stream.types;
 #include <cstring>
 #include <memory>
 #include <span>
+
+import audio.player;
+import audio.result;
+import charm.system.clock;
+import media.stream.sink;
+import media.stream.source;
+import media.stream.types;
 
 namespace {
     constexpr std::size_t kPcmBytes = 3200;

@@ -1,14 +1,14 @@
-import player.cover_resource;
-import player.storage;
-import fs_core;
-import fs_errno;
-import fs_stream;
-
 #include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <string_view>
+
+import player.cover_resource;
+import player.storage;
+import fs_core;
+import fs_errno;
+import fs_stream;
 
 namespace {
     struct MountProbe {

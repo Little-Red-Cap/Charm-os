@@ -39,6 +39,7 @@ Charm 是一个能力导向的嵌入式应用平台。
 | 当前代码与机制盘点 | [`overview.md`](overview.md)、[`architecture_overview.md`](architecture_overview.md)、[`capability_map.md`](capability_map.md) |
 | 初始化、runtime、POSIX、SSU | [`system/README.md`](system/README.md) |
 | IO 与存储 | [`io/README.md`](io/README.md)、[`storage/README.md`](storage/README.md) |
+| Trace 与诊断数据结构 | [`trace/README.md`](trace/README.md) |
 | 项目规范与协作 | [`project/README.md`](project/README.md) |
 | 构建 | [`build route`](agent/routes/build.md) |
 | 文档维护 | [`documentation_maintenance.md`](documentation_maintenance.md)、[`docs route`](agent/routes/docs.md) |

@@ -1,128 +1,41 @@
-# USB Boardlog Coverage Matrix
+# USB Boardlog 覆盖矩阵
 
-本文档冻结当前 `usb_msc_boardlog_import_smoke` 已覆盖的 `boardlog -> replay -> runtime` 场景，用来说明：
+## 文档状态
 
-- 哪些 `boardlog` 语义已经被独立夹具固定
-- 每条夹具主要压住哪些 MSC/BOT 语义
-- 后续继续补夹具时，哪里还存在明显缺口
+- `status`: `supporting`
+- `scope`: `usb_msc_boardlog_import_smoke` 的场景索引
+- `source`: [`main.cpp`](../../Examples/usb/usb_msc_boardlog_import_smoke/main.cpp) 与
+  [`fixtures/`](../../Examples/usb/usb_msc_boardlog_import_smoke/fixtures/)
 
-## 适用范围
+本矩阵只帮助定位 fixture。case、断言和 trace token 以 smoke source 为准；通过 replay 不证明真实
+USB 时序或板级执行。
 
-当前矩阵主要对应：
+## Grammar 场景
 
-- `Examples/usb/usb_msc_boardlog_import_smoke`
-- `Examples/usb/usb_msc_boardlog_import_smoke/fixtures`
-- `docs/usb/usb_boardlog_format.md`
-- `scripts/usb_native_smoke.ps1`
+| 场景 | 输入 | 主要检查 |
+|---|---|---|
+| ZLP | `main.cpp` 内嵌 | 独立 IN/OUT ZLP 的导入与文本 roundtrip |
+| segmented IN | `main.cpp` 内嵌 | 同端点连续 IN 合并，末包 ZLP 结束事务 |
 
-这里记录的是**独立板级输入夹具**，而不是所有 replay fixture。
+## MSC/BOT 场景
 
-当前夹具已开始采用混合形态维护：
+| 场景 | 输入 | 主要检查 |
+|---|---|---|
+| recovery baseline | `msc.boardlog` | stall、clear-stall、phase-error CSW、REQUEST SENSE |
+| segmented OUT short | `main.cpp` 动态生成 | OUT 保持包级、short WRITE(10) 与落盘 |
+| segmented OUT overrun | `main.cpp` 动态生成 | OUT overrun、stall recovery 与 phase error |
+| invalid CBW recovery | `fixtures/invalid_cbw_recovery.boardlog` | invalid CBW 后恢复并继续 READ CAPACITY(10) |
+| READ(10) short | `fixtures/read10_short.boardlog` | short data、residue 与 trailing CSW |
+| read-only WRITE(10) | `fixtures/request_sense.boardlog` | write-protect failure 与后续 sense |
+| READ CAPACITY residue | `fixtures/read_capacity_residue.boardlog` | host length 大于响应时的 residue |
+| READ(10) zero length | `fixtures/read10_zero_len_recovery.boardlog` | zero-length error、stall recovery 与 sense |
+| READ(10) overrun | `fixtures/read10_overrun_recovery.boardlog` | IN overrun、clear-stall、residue 与 phase error |
 
-- 纯静态场景逐步外置到 `fixtures/*.boardlog`
-- 仍需动态拼接 payload 的场景暂时保留在 `main.cpp`
+## 边界
 
-## 当前覆盖
-
-### Parser / grammar 级
-
-- `ZLP boardlog`
-  - 验证 `usb: out/in ... zlp=1 data=-`
-  - 固定独立零长度包的导入与 roundtrip
-
-- `segmented IN boardlog`
-  - 验证连续 `usb: in` 的自动合并
-  - 固定事务级 `in` 聚合与末包 `zlp` 结束语义
-
-## MSC 集成夹具
-
-- `msc.boardlog`
-  - 覆盖 `stall_out -> clear_stall -> phase-error CSW -> REQUEST SENSE`
-  - 固定文件型板级恢复片段导入链路
-
-- `segmented-out short`
-  - 覆盖连续 `usb: out` 按包级保留、不自动合并
-  - 固定 `write10 short` 的 `data_out_started`、`csw_sent` 与落盘结果
-
-- `segmented-out overrun recovery`
-  - 覆盖 `OUT segmentation + stall_out + clear_stall + phase_error`
-  - 固定 `wait_csw`、`clear_stall_seen`、`csw_sent(flag=true)`
-
-- `invalid-cbw recovery`
-  - 覆盖 `cbw_invalid + stall_in + clear_stall + phase-error CSW`
-  - 固定后续 `READ CAPACITY(10)` 恢复命令可继续执行
-
-- `read10-short`
-  - 覆盖 `data + trailing CSW` 处于同一 `in` 事务
-  - 固定 `data_in_started(residue=512)`、`csw_ready`、`csw_sent(flag=false)`
-
-- `write10 read-only + request-sense`
-  - 覆盖失败 `CSW` 后的 `REQUEST SENSE`
-  - 固定 `sense_set(0x07/0x27/0x00)` 与恢复后的 sense 返回
-
-- `read-capacity residue`
-  - 覆盖 `READ CAPACITY(10)` 主机长度大于设备返回长度
-  - 固定 `read_capacity`、`csw_ready(residue=2)`、`csw_sent(residue=2)`
-
-- `read10-zero-len recovery`
-  - 覆盖 `transfer_length=0` 的 `read10` 错误恢复
-  - 固定 `stall_in`、`wait_csw`、`phase_error`、`sense_set(0x05/0x20/0x00)` 与后续 `REQUEST SENSE`
-
-- `read10-overrun recovery`
-  - 覆盖 `host_len > expected` 的 `IN` 方向 overrun
-  - 固定 `data_in_started(residue=512)`、`stall_in`、`clear_stall_seen`、`phase_error`、`csw_sent(flag=true)`
-
-## 当前已固定的语义维度
-
-### Boardlog grammar
-
-- `connect/reset`
-- `dev_desc/cfg_desc`
-- `setup`
-- `out/in`
-- `stall`
-- `clear_stall`
-- `zlp`
-- `segmented in`
-- `segmented out`
-
-### Host / device 观测面
-
-- `HostEventKind::connect`
-- `HostEventKind::reset`
-- `HostEventKind::out_packet`
-- `HostEventKind::in_complete`
-- `HostEventKind::clear_stall`
-- `DeviceActionKind::stall_ep`
-- endpoint halted / cleared 状态
-
-### MSC trace vocabulary
-
-- `cbw_invalid`
-- `read_capacity`
-- `read10_started`
-- `write10_started`
-- `data_in_started`
-- `data_out_started`
-- `stall_in_requested`
-- `stall_out_requested`
-- `wait_csw`
-- `phase_error`
-- `clear_stall_seen`
-- `sense_set`
-- `csw_ready`
-- `csw_sent`
-
-## 当前仍然明显的缺口
-
-- 夹具目前仍是“外置文件 + 内嵌字符串”混合状态，`main.cpp` 仍然偏大
-- 还没有把所有最小板级夹具系统性外置成独立 `.boardlog` 文件
-- 还没有单独覆盖 `BOT reset` 风格板级片段
-- 还没有覆盖字符串描述符读取类 `boardlog` 输入
-- `boardlog` 仍然是语义级输入，不追求时间戳或电气级拟真
-
-## 下一步建议
-
-- 把高价值夹具继续外置成 `Examples/usb/usb_msc_boardlog_import_smoke/fixtures/*.boardlog`
-- 给外置夹具建立一个很小的清单，减少 `main.cpp` 继续膨胀
-- 优先补 `BOT reset` 或其它仍未独立固定的恢复片段
+- 文件 fixture 与 `main.cpp` 内嵌/动态输入并存；没有独立 fixture manifest。
+- importer 覆盖 connect/reset、descriptor cache、setup、IN/OUT、STALL、clear-stall 与 ZLP；精确
+  grammar 见 [`usb_boardlog_format.md`](usb_boardlog_format.md)。
+- 当前没有独立 BOT reset 或 string descriptor boardlog 场景。
+- boardlog 是语义事件输入，不包含时间戳、电气信号、IRQ、DMA 或 cache 行为。
+- 具体分支由 smoke 断言定义，不能用本表替代测试源码或当次运行结果。

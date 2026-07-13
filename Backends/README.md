@@ -60,17 +60,16 @@ Backends/
 
 ## Current status
 
-Backend Contract Candidate v1 now contains the v0 topology/evidence contract
-plus three extracted capability slices: `console/output`, `block/storage`, and
-the minimal `raster/display` candidate. It still does not promote these
-candidates to `Modules/` or make a concrete backend part of Charm core.
+The current [`backend contract`](contract/backend_contract.md) contains the topology/evidence boundary plus
+`console/output`, `block/storage`, and `raster/display` candidate slices. It does not promote these candidates to
+`Modules/` or make a concrete backend part of Charm core.
 
 `Backends/host/sdl3` is the first real Host execution provider. It owns SDL
 lifecycle, one event pump, the monotonic clock adapter, and raster presentation.
 Applications consume its neutral projections; SDL window and event types remain
 inside the backend.
 
-## v1 smoke gate
+## Contract smoke gate
 
 Run the current backend contract candidate smokes with:
 

@@ -1,4 +1,5 @@
 module;
+#include <span>
 export module charm.widgets.list;
 
 import charm.core.object;
@@ -100,7 +101,7 @@ private:
 };
 
 export
-class List : public WidgetBase<List, 64> {
+class List : public WidgetBase<List, std::dynamic_extent> {
 public:
     List() {
         set_size(200, 160);

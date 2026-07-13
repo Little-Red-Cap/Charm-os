@@ -139,9 +139,12 @@ Object-level widget 不在 `ObjectBase` 常驻通用交互表。需要 gesture/i
 Theme/StyleSheet 解析。icon 是按钮的显式内容能力，仍由选择该能力的实例持有；逐实例视觉差异使用既有
 style variant/rule，图片化背景通过显式装饰组合实现。
 
-`ObjectBase` 同样不常驻子节点数组。`WidgetBase<Derived, ChildCapacity>` 的默认容量为零；只有 List、
-FoldablePanel、ScrollContainer 等明确的 object-level 容器选择固定容量子表。子表使用
-内联固定数组，容量耗尽由 `add/insert_child()` 的 `false` 显式报告，不分配动态内存。
+`ObjectBase` 同样不常驻子节点数组。`WidgetBase<Derived, ChildCapacity>` 的默认容量为零；固定 inline 模式
+只供明确选择编译期容量的自定义控件。内置 List、FoldablePanel、ScrollContainer 使用
+`std::dynamic_extent` 外部模式，由调用方通过 `attach_child_storage(std::span<WidgetHandle>)` 提供实际容量；
+未 attach 时容量为零且 add/insert 返回 `false`。storage 必须独占并覆盖容器使用期，detach 会清空 active
+handle，容器析构也会清空仍 active 的 handle。容量耗尽显式返回 `false`，不分配动态内存；ScrollContainer
+的 resolver 在一次调用内必须稳定。
 
 跨帧保存的 UI callback 使用 `util::delegate` 并由 owner 保证 target 生命周期。历史名称 `Callback` 只是
 `util::delegate<>` 的单轨别名，不得重新增加独立的 `fn + void*` fallback 或第二份 callback 存储。

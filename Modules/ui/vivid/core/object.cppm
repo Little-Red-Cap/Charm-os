@@ -2,6 +2,7 @@ module;
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <span>
 #include <type_traits>
 export module charm.core.object;
 
@@ -87,6 +88,21 @@ namespace vivid_object_detail {
 
     template<>
     struct ChildStorage<0> {};
+
+    template<>
+    struct ChildStorage<std::dynamic_extent> {
+        ChildStorage() = default;
+        ChildStorage(const ChildStorage&) = delete;
+        ChildStorage& operator=(const ChildStorage&) = delete;
+        ChildStorage(ChildStorage&&) = delete;
+        ChildStorage& operator=(ChildStorage&&) = delete;
+        ~ChildStorage() {
+            for (std::size_t i = 0; i < count; ++i) children[i] = {};
+        }
+
+        std::span<WidgetHandle> children{};
+        std::size_t count{0};
+    };
 }
 
 export
@@ -94,14 +110,34 @@ template<typename Derived, std::size_t ChildCapacity = 0>
 class WidgetBase : public ObjectBase,
                    private vivid_object_detail::ChildStorage<ChildCapacity> {
 public:
-    static constexpr std::size_t child_capacity = ChildCapacity;
-
     WidgetBase() = default;
+
+    void attach_child_storage(std::span<WidgetHandle> storage) noexcept
+        requires (ChildCapacity == std::dynamic_extent) {
+        clear_children();
+        for (auto& child : storage) child = {};
+        child_storage().children = storage;
+    }
+
+    void detach_child_storage() noexcept
+        requires (ChildCapacity == std::dynamic_extent) {
+        clear_children();
+        child_storage().children = {};
+    }
+
+    [[nodiscard]] std::size_t child_storage_capacity() const noexcept
+        requires (ChildCapacity > 0) {
+        if constexpr (ChildCapacity == std::dynamic_extent) {
+            return child_handles().size();
+        } else {
+            return ChildCapacity;
+        }
+    }
 
     bool add_child(WidgetHandle child) noexcept
         requires (ChildCapacity > 0) {
         auto& count = child_size();
-        if (count >= ChildCapacity) return false;
+        if (count >= child_storage_capacity()) return false;
         child_handles()[count++] = child;
         return true;
     }
@@ -197,7 +233,7 @@ private:
     bool insert_child_at(WidgetHandle child, std::size_t index) noexcept
         requires (ChildCapacity > 0) {
         auto& count = child_size();
-        if (count >= ChildCapacity) return false;
+        if (count >= child_storage_capacity()) return false;
         if (index >= count) return add_child(child);
         for (std::size_t i = count; i > index; --i) {
             child_handles()[i] = child_handles()[i - 1];
@@ -242,6 +278,15 @@ namespace {
     struct WidgetBaseLeafStorageProbe final : WidgetBase<WidgetBaseLeafStorageProbe> {};
     static_assert(sizeof(WidgetBaseLeafStorageProbe) == sizeof(ObjectBase),
                   "zero-capacity WidgetBase must not add resident child storage");
+
+    struct WidgetBaseExternalStorageProbe final
+        : WidgetBase<WidgetBaseExternalStorageProbe, std::dynamic_extent> {};
+    static_assert(sizeof(WidgetBaseExternalStorageProbe)
+                  <= sizeof(ObjectBase) + sizeof(std::span<WidgetHandle>)
+                      + sizeof(std::size_t) + alignof(std::span<WidgetHandle>),
+                  "external child storage must remain a non-owning span and count");
+    static_assert(!std::is_copy_constructible_v<WidgetBaseExternalStorageProbe>);
+    static_assert(!std::is_move_constructible_v<WidgetBaseExternalStorageProbe>);
 }
 
 export

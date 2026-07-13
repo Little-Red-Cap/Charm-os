@@ -4,11 +4,13 @@
     };
 
     struct ScrollContainerCiFixture {
+        std::array<WidgetHandle, 2> child_storage{};
         ScrollContainer scroll{};
         std::array<ScrollContainerCiNode, 2> nodes{};
         std::size_t count{0};
 
         ScrollContainerCiFixture() noexcept {
+            scroll.attach_child_storage(child_storage);
             scroll.set_rect({0, 0, 120, 80});
         }
 
@@ -227,9 +229,8 @@
             int last_selected{-1};
             int last_selected_prev{-1};
 
-            static void on_select(void* ctx) noexcept {
-                auto* self = static_cast<PopupProbe*>(ctx);
-                if (self) self->callback_calls += 1;
+            void on_select() noexcept {
+                callback_calls += 1;
             }
 
             void on_edge(const int& value) noexcept {
@@ -249,7 +250,7 @@
         DropdownPopup popup{factory, host, root};
         popup.set_options(options, 3);
         popup.set_selection(1);
-        popup.set_on_select(Callback{&PopupProbe::on_select, &probe});
+        popup.set_on_select(Callback::bind<&PopupProbe::on_select>(probe));
         const auto select_conn = popup.observe_select(DropdownPopup::select_slot_type::bind<&PopupProbe::on_edge>(probe));
         const auto selected_conn = popup.observe_selected(DropdownPopup::selected_slot_type::bind<&PopupProbe::on_selected>(probe));
         if (!select_conn || !selected_conn) {
@@ -349,9 +350,8 @@
             int edge_calls{0};
             MenuTree::menu_item_ref last_ref{};
 
-            static void on_select(void* ctx) noexcept {
-                auto* self = static_cast<MenuSelectProbe*>(ctx);
-                if (self) self->callback_calls += 1;
+            void on_select() noexcept {
+                callback_calls += 1;
             }
 
             void on_edge(const MenuTree::menu_item_ref& ref) noexcept {
@@ -380,7 +380,7 @@
             &MenuSelection::set_selected,
             &MenuSelection::clear_selected,
         });
-        menu.set_on_select(Callback{&MenuSelectProbe::on_select, &probe});
+        menu.set_on_select(Callback::bind<&MenuSelectProbe::on_select>(probe));
         const auto edge_conn = menu.observe_select(MenuTree::select_slot_type::bind<&MenuSelectProbe::on_edge>(probe));
         if (!edge_conn) {
             return false;
@@ -584,14 +584,12 @@
             int ok_calls{0};
             int cancel_calls{0};
 
-            static void on_ok(void* ctx) noexcept {
-                auto* self = static_cast<Probe*>(ctx);
-                if (self) self->ok_calls += 1;
+            void on_ok() noexcept {
+                ok_calls += 1;
             }
 
-            static void on_cancel(void* ctx) noexcept {
-                auto* self = static_cast<Probe*>(ctx);
-                if (self) self->cancel_calls += 1;
+            void on_cancel() noexcept {
+                cancel_calls += 1;
             }
         };
 
@@ -601,8 +599,8 @@
         dialog.set_visible(true);
         dialog.set_show_cancel(true);
         dialog.set_dismiss_on_background(false);
-        dialog.set_on_ok(Callback{&Probe::on_ok, &probe});
-        dialog.set_on_cancel(Callback{&Probe::on_cancel, &probe});
+        dialog.set_on_ok(Callback::bind<&Probe::on_ok>(probe));
+        dialog.set_on_cancel(Callback::bind<&Probe::on_cancel>(probe));
 
         const bool outside_move = dialog.on_event(Event::mouse(Event::Type::MouseMove, 4, 4, 0));
         const bool outside_down = dialog.on_event(Event::mouse(Event::Type::MouseDown, 4, 4, 1));

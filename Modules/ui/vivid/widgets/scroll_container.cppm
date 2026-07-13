@@ -1,7 +1,8 @@
 module;
-#include <array>
+#include <cassert>
 #include <cstddef>
 #include <cstdlib>
+#include <span>
 export module charm.widgets.scroll_container;
 
 import charm.core.object;
@@ -18,7 +19,7 @@ import alg_scroll_thumb;
 using namespace ui::render;
 
 export
-class ScrollContainer : public WidgetBase<ScrollContainer, 64> {
+class ScrollContainer : public WidgetBase<ScrollContainer, std::dynamic_extent> {
 public:
     ScrollContainer() {
         set_focusable(true);
@@ -181,21 +182,22 @@ public:
 
         const auto r = get_rect();
         const std::size_t total = child_count();
-        std::array<ObjectBase*, child_capacity> resolved;
 
         // Resolve the entire set first so a missing child cannot leave a
         // partially translated tree.
         for (std::size_t i = 0; i < total; ++i) {
-            resolved[i] = resolve(child_at(i));
-            if (!resolved[i]) return false;
+            if (!resolve(child_at(i))) return false;
         }
 
         const int dx = r.x - layout_origin_x_;
         const int dy = r.y - layout_origin_y_ - (scroll_y_ - applied_scroll_y_);
         if (dx != 0 || dy != 0) {
             for (std::size_t i = 0; i < total; ++i) {
-                const auto child_rect = resolved[i]->get_rect();
-                resolved[i]->set_pos(child_rect.x + dx, child_rect.y + dy);
+                auto* child = resolve(child_at(i));
+                assert(child && "ScrollContainer resolver changed during apply_scroll");
+                if (!child) return false;
+                const auto child_rect = child->get_rect();
+                child->set_pos(child_rect.x + dx, child_rect.y + dy);
             }
         }
 

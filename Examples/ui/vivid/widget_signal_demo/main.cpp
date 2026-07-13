@@ -31,27 +31,35 @@ import charm.gfx.framebuffer;
 
 namespace {
     template<typename T>
-    concept OwnsObjectChildren = requires(T& object, WidgetHandle child) {
+    concept SupportsObjectChildren = requires(T& object, WidgetHandle child) {
         object.add_child(child);
         object.remove_child(child);
         object.child_count();
         object.child_at(0);
     };
 
-    static_assert(!OwnsObjectChildren<Button>);
+    static_assert(!SupportsObjectChildren<Button>);
     static_assert(sizeof(Button) <= 360,
                   "Button must not retain per-instance style or nine-slice skin storage");
-    static_assert(OwnsObjectChildren<List>);
-    static_assert(OwnsObjectChildren<FoldablePanel>);
-    static_assert(OwnsObjectChildren<ScrollContainer>);
+    static_assert(SupportsObjectChildren<List>);
+    static_assert(SupportsObjectChildren<FoldablePanel>);
+    static_assert(SupportsObjectChildren<ScrollContainer>);
+    static_assert(!std::is_copy_constructible_v<List>);
+    static_assert(!std::is_move_constructible_v<List>);
+    static_assert(sizeof(List) <= 64,
+                  "List must not retain a fixed 64-handle child table");
+    static_assert(!std::is_copy_constructible_v<FoldablePanel>);
+    static_assert(!std::is_move_constructible_v<FoldablePanel>);
+    static_assert(sizeof(FoldablePanel) <= 608,
+                  "FoldablePanel must not retain a fixed 64-handle child table");
     static_assert(!std::is_copy_constructible_v<InteractionList<>>);
     static_assert(!std::is_move_constructible_v<InteractionList<>>);
     static_assert(!std::is_copy_constructible_v<Image>);
     static_assert(!std::is_move_constructible_v<Image>);
     static_assert(!std::is_copy_constructible_v<ScrollContainer>);
     static_assert(!std::is_move_constructible_v<ScrollContainer>);
-    static_assert(sizeof(ScrollContainer) <= 672,
-                  "ScrollContainer must not retain per-child layout or visual override storage");
+    static_assert(sizeof(ScrollContainer) <= 176,
+                  "ScrollContainer must not retain fixed child, layout, or visual override storage");
     static_assert(!std::is_copy_constructible_v<SpinZoomWidget>);
     static_assert(!std::is_move_constructible_v<SpinZoomWidget>);
     static_assert(!std::is_copy_constructible_v<ListView>);
@@ -565,47 +573,70 @@ int main() {
     if (!expect(!image.on_event(Event::mouse(Event::Type::Click, 4, 4, 0, 300)),
                 "image disables owned double tap strategy")) return 1;
 
+    std::array<WidgetHandle, 4> scroll_child_storage{};
     ScrollContainer scroll{};
     scroll.set_rect({0, 0, 100, 100});
     const WidgetHandle child_a{WidgetKind::Button, 1, 1};
     const WidgetHandle child_b{WidgetKind::Label, 2, 1};
     const WidgetHandle child_c{WidgetKind::Image, 3, 1};
+    if (!expect(scroll.child_storage_capacity() == 0
+                    && !scroll.add_child(child_a),
+                "unattached scroll child storage rejects insertion")) return 1;
+    scroll.attach_child_storage(scroll_child_storage);
+    if (!expect(scroll.child_storage_capacity() == scroll_child_storage.size(),
+                "scroll child capacity follows caller storage")) return 1;
     if (!expect(scroll.add_child(child_a) && scroll.add_child(child_c),
-                "scroll container owns child handles")) return 1;
+                "scroll container accepts caller-backed child handles")) return 1;
     if (!expect(scroll.insert_child_before(child_b, child_c)
                     && scroll.child_count() == 3
                     && scroll.child_at(0) == child_a
                     && scroll.child_at(1) == child_b
                     && scroll.child_at(2) == child_c,
-                "owned child storage preserves insertion order")) return 1;
+                "external child storage preserves insertion order")) return 1;
     if (!expect(scroll.move_child_to_front(child_b)
                     && scroll.child_at(2) == child_b,
-                "owned child storage moves a child to the front")) return 1;
+                "external child storage moves a child to the front")) return 1;
     if (!expect(scroll.move_child_to_back(child_b)
                     && scroll.child_at(0) == child_b,
-                "owned child storage moves a child to the back")) return 1;
+                "external child storage moves a child to the back")) return 1;
     if (!expect(scroll.remove_child(child_a)
                     && !scroll.has_child(child_a)
                     && scroll.child_count() == 2,
-                "owned child storage removes a child")) return 1;
+                "external child storage removes a child")) return 1;
     scroll.clear_children();
     bool filled_to_capacity = true;
-    for (std::size_t i = 0; i < ScrollContainer::child_capacity; ++i) {
+    for (std::size_t i = 0; i < scroll.child_storage_capacity(); ++i) {
         filled_to_capacity = filled_to_capacity
             && scroll.add_child(WidgetHandle{WidgetKind::Button, static_cast<std::uint16_t>(i), 1});
     }
     if (!expect(filled_to_capacity
-                    && scroll.child_count() == ScrollContainer::child_capacity
-                    && !scroll.add_child(WidgetHandle{WidgetKind::Button, 65, 1}),
-                "owned child storage reports fixed-capacity overflow")) return 1;
-    scroll.clear_children();
+                    && scroll.child_count() == scroll_child_storage.size()
+                    && !scroll.add_child(WidgetHandle{WidgetKind::Button, 5, 1}),
+                "external child storage reports caller-capacity overflow")) return 1;
+    scroll.detach_child_storage();
+    if (!expect(scroll.child_count() == 0
+                    && scroll.child_storage_capacity() == 0
+                    && !scroll.add_child(child_a),
+                "detached scroll child storage rejects insertion")) return 1;
+    scroll.attach_child_storage(scroll_child_storage);
+    std::array<WidgetHandle, 1> scoped_child_storage{};
+    {
+        ScrollContainer scoped_scroll{};
+        scoped_scroll.attach_child_storage(scoped_child_storage);
+        if (!expect(scoped_scroll.add_child(child_a),
+                    "scoped scroll accepts caller child storage")) return 1;
+    }
+    if (!expect(!scoped_child_storage[0],
+                "scroll destruction clears active caller child handles")) return 1;
     const auto pinch_begin = Event::gesture(Event::Type::GesturePinch, 50, 50, 0, 0,
                                             Event::GesturePhase::Begin);
     if (!expect(scroll.on_event(pinch_begin), "scroll container directly dispatches owned pinch strategy")) return 1;
     scroll.set_pinch_enabled(false);
     if (!expect(!scroll.on_event(pinch_begin), "scroll container disables owned pinch strategy")) return 1;
 
+    std::array<WidgetHandle, 2> translated_child_storage{};
     ScrollContainer translated_scroll{};
+    translated_scroll.attach_child_storage(translated_child_storage);
     translated_scroll.set_rect({10, 20, 100, 50});
     ObjectBase translated_child_a{};
     ObjectBase translated_child_b{};
@@ -615,7 +646,7 @@ int main() {
     const WidgetHandle translated_handle_b{WidgetKind::Button, 71, 1};
     if (!expect(translated_scroll.add_child(translated_handle_a)
                     && translated_scroll.add_child(translated_handle_b),
-                "scroll translation fixture owns child handles")) return 1;
+                "scroll translation fixture uses caller child storage")) return 1;
     const auto resolve_translated = [&](WidgetHandle handle) noexcept -> ObjectBase* {
         if (handle == translated_handle_a) return &translated_child_a;
         if (handle == translated_handle_b) return &translated_child_b;
@@ -986,7 +1017,7 @@ int main() {
     print_widget_signal_case("object_runtime_footprint");
     std::printf(" object_base=%zu child_capacity=%zu opt_in_components=%zu console_box=%zu console_line=%zu console_buffer=%zu chart=%zu histogram=%zu histogram_view=%zu waveform_view=%zu spectrum_view=%zu spectrum_workspace=%zu data_source_calls=%d/%d\n",
                 sizeof(ObjectBase),
-                ScrollContainer::child_capacity,
+                scroll.child_storage_capacity(),
                 sizeof(InteractionList<>) + sizeof(DragStrategy) + sizeof(LongPressStrategy),
                 sizeof(ConsoleBox),
                 sizeof(ConsoleBox::Buffer::Line),

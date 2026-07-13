@@ -1,4 +1,5 @@
 module;
+#include <span>
 export module charm.widgets.foldable_panel;
 
 import charm.core.object;
@@ -15,7 +16,7 @@ using namespace ui::render;
 
 // Simple foldable panel with header/body
 export
-class FoldablePanel : public WidgetBase<FoldablePanel, 64> {
+class FoldablePanel : public WidgetBase<FoldablePanel, std::dynamic_extent> {
 public:
     explicit FoldablePanel(const char* title = "Panel") {
         set_focusable(true);

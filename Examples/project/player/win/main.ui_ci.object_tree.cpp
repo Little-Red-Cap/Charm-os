@@ -11,6 +11,7 @@ import charm.core.object;
 import charm.core.soa_factory;
 import charm.core.soa_kernel;
 import charm.core.structured_view;
+import charm.gfx.color;
 import charm.widgets.dropdown_popup;
 import charm.widgets.icon_list;
 import charm.widgets.list_view;

@@ -6,8 +6,9 @@
 > 当前仓库不能独立复验该 SDK 快照；数值用于 bring-up 起点，不替代 TRM、
 > 原理图或实板证据。
 
-前级交接条件见 [`post_ddr_handoff_contract.md`](post_ddr_handoff_contract.md)，当前
-target 实现见 [`../../../targets/rk3506/README.md`](../../../targets/rk3506/README.md)。
+启动阶段边界见 [`boot_staging_plan.md`](boot_staging_plan.md)，前级交接条件见
+[`post_ddr_handoff_contract.md`](post_ddr_handoff_contract.md)，当前 target 实现见
+[`../../../targets/rk3506/README.md`](../../../targets/rk3506/README.md)。
 
 ## 资料来源
 

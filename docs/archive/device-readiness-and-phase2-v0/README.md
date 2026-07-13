@@ -8,7 +8,7 @@
 
 - [`../../architecture/spi_device_contract_v0.md`](../../architecture/spi_device_contract_v0.md)
 - [`../../architecture/gpio_device_contract_v0.md`](../../architecture/gpio_device_contract_v0.md)
-- [`../../architecture/block_device_contract_v0.md`](../../architecture/block_device_contract_v0.md)
+- [`../../storage/block_device_contract.md`](../../storage/block_device_contract.md)
 - [`../../system/ssu_contract.md`](../../system/ssu_contract.md)
 
 归档 checklist 不是 readiness 通过证明，也不授予 interface maturity 或 Core 身份。

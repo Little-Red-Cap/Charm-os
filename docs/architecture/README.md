@@ -33,7 +33,7 @@ Charm 的正式定位是：
 | Core 冲突审计 | [`charm_core_semantic_audit.md`](charm_core_semantic_audit.md) |
 | 依赖与入口 | [`dependency_contract.md`](dependency_contract.md)、[`entry_surface_contract.md`](entry_surface_contract.md)、[`dependency_whitelist.md`](dependency_whitelist.md) |
 | Driver/device/interface | [`driver_model.md`](driver_model.md)、[`interface_admission_policy.md`](interface_admission_policy.md) |
-| device 局部接口 | [`i2c_device_contract_v0.md`](i2c_device_contract_v0.md)、[`spi_device_contract_v0.md`](spi_device_contract_v0.md)、[`gpio_device_contract_v0.md`](gpio_device_contract_v0.md)、[`block_device_contract_v0.md`](block_device_contract_v0.md)、[`stream_io_device_contract_v0.md`](stream_io_device_contract_v0.md)、[`timebase_device_contract_v0.md`](timebase_device_contract_v0.md) |
+| device 局部接口 | [`i2c_device_contract_v0.md`](i2c_device_contract_v0.md)、[`spi_device_contract_v0.md`](spi_device_contract_v0.md)、[`gpio_device_contract_v0.md`](gpio_device_contract_v0.md)、[`BlockDevice`](../storage/block_device_contract.md)、[`stream_io_device_contract_v0.md`](stream_io_device_contract_v0.md)、[`timebase_device_contract_v0.md`](timebase_device_contract_v0.md) |
 | signal/state 与真实板缺口 | [`signal_state_contract_v0.md`](signal_state_contract_v0.md)、[`real_board_landing_gap_audit_v0.md`](real_board_landing_gap_audit_v0.md) |
 | resident image/deployment | [`resident_image_platform_v1_contract.md`](resident_image_platform_v1_contract.md) |
 

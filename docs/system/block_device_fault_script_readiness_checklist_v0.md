@@ -4,7 +4,7 @@
 
 完整准备清单见
 [`../archive/device-readiness-and-phase2-v0/block_device_fault_script_readiness_checklist_v0.md`](../archive/device-readiness-and-phase2-v0/block_device_fault_script_readiness_checklist_v0.md)。现行接口状态见
-[`../architecture/block_device_contract_v0.md`](../architecture/block_device_contract_v0.md)。
+[`../storage/block_device_contract.md`](../storage/block_device_contract.md)。
 
 ## 当前事实
 

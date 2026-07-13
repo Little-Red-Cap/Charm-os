@@ -10,7 +10,7 @@
 
 - [`../../architecture/spi_device_contract_v0.md`](../../architecture/spi_device_contract_v0.md)
 - [`../../architecture/gpio_device_contract_v0.md`](../../architecture/gpio_device_contract_v0.md)
-- [`../../architecture/block_device_contract_v0.md`](../../architecture/block_device_contract_v0.md)
+- [`../../storage/block_device_contract.md`](../../storage/block_device_contract.md)
 - [`../../architecture/stream_io_device_contract_v0.md`](../../architecture/stream_io_device_contract_v0.md)
 - [`../../architecture/timebase_device_contract_v0.md`](../../architecture/timebase_device_contract_v0.md)
 

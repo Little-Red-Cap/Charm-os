@@ -23,6 +23,12 @@ option(CHARM_ENABLE_FATFS "Enable FatFs-backed mount" OFF)
 option(CHARM_BUILD_PLAYER "Build player example" OFF)
 option(CHARM_BUILD_FULL_RUNTIME "Build the full Charm runtime graph" ON)
 option(CHARM_BUILD_AUDIO_COMPONENT "Build the standalone Charm audio component" OFF)
+option(CHARM_AUDIO_COMPONENT_AUXILIARY_MODULES
+    "Include audio demos, simulation helpers, and aggregate facade modules"
+    ON)
+option(CHARM_AUDIO_ENABLE_SPECTRUM "Enable the audio spectrum analysis backend" ON)
+option(CHARM_AUDIO_MP3_DEBUG "Enable the MP3 decoder debug sink API" ON)
+option(CHARM_AUDIO_LOG "Enable AudioPlayer diagnostic logging" OFF)
 option(CHARM_ENABLE_DEPENDENCY_WHITELIST "Enforce dependency whitelist at configure time" OFF)
 option(CHARM_ENABLE_BANNED_API_CHECK "Ban printf-family APIs in project code" OFF)
 option(CHARM_BANNED_API_CHECK_EXAMPLES "Also check Examples/ for banned APIs" OFF)
@@ -227,6 +233,10 @@ endfunction()
 
 if (CHARM_BUILD_AUDIO_COMPONENT)
     charm_add_component_target(Charm-audio)
+    target_compile_definitions(Charm-audio PRIVATE
+        CHARM_AUDIO_ENABLE_SPECTRUM=$<BOOL:${CHARM_AUDIO_ENABLE_SPECTRUM}>
+        CHARM_AUDIO_MP3_DEBUG=$<BOOL:${CHARM_AUDIO_MP3_DEBUG}>
+        CHARM_AUDIO_LOG=$<BOOL:${CHARM_AUDIO_LOG}>)
     charm_collect_audio_component_sources(CHARM_AUDIO_MODULES CHARM_AUDIO_BASE_DIRS)
     charm_attach_module_sources(Charm-audio
         BASE_DIRS ${CHARM_AUDIO_BASE_DIRS}

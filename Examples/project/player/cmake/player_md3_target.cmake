@@ -15,9 +15,9 @@ function(player_add_md3_component target_name)
     if (TARGET ${target_name})
         message(FATAL_ERROR "Player MD3 component already exists: ${target_name}")
     endif()
-    if (NOT TARGET Charm-os)
+    if (NOT TARGET Charm-player-closure)
         message(FATAL_ERROR
-            "player_add_md3_component(${target_name}) requires Charm-os to be configured first")
+            "player_add_md3_component(${target_name}) requires Charm-player-closure")
     endif()
 
     add_library(${target_name} STATIC)
@@ -28,7 +28,7 @@ function(player_add_md3_component target_name)
         BASE_DIRS "${CHARM_ROOT}"
         FILES ${PLAYER_MD3_CANONICAL_MODULES}
     )
-    target_link_libraries(${target_name} PUBLIC Charm-os)
+    target_link_libraries(${target_name} PUBLIC Charm-player-closure)
 
     if (PLAYER_MD3_CONFIG_TARGETS)
         charm_apply_config_targets(${target_name} ${PLAYER_MD3_CONFIG_TARGETS})

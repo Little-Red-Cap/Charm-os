@@ -72,6 +72,14 @@ set(PLAYER_MD3_CANONICAL_CONTRACT_FILES
 set(PLAYER_MD3_FORBIDDEN_PLATFORM_PATTERN
     "SDL|_WIN32|Win32|win32|H747|h747|QEMU|qemu|STM32|stm32|CMSIS|cmsis|FreeRTOS|Zephyr|zephyr|HAL_|windows[.]h|unistd[.]h|pthread[.]h|sys/|platform[.]win|player[.](board_|mcu_policy|runtime_shell|win)|import[ \t]+player[.](display|platform|runtime)[ \t]*;|CHARM_PLAYER_(MCU|HOST|BOARD|PLATFORM)|host_features::|ClockCaps::TimeSource")
 
+set(PLAYER_MD3_LEGACY_BRIDGE_FILES
+    "${CHARM_ROOT}/Examples/project/player/app-common/player.app.cppm"
+    "${CHARM_ROOT}/Examples/project/player/app-common/player.storage.cppm"
+    "${CHARM_ROOT}/Examples/project/player/app-common/player.cover_resource.cppm"
+    "${CHARM_ROOT}/Examples/project/player/app-vivid-MaterialDesign3/player.cover.cppm")
+set(PLAYER_MD3_FORBIDDEN_LEGACY_CALL_PATTERN
+    "legacy_storage_binding[ \t\r\n]*\\(|set_cover_resource_provider_binding[ \t\r\n]*\\(|cover_resource_provider_binding[ \t\r\n]*\\(|AudioPlayer[ \t\r\n]*\\(")
+
 foreach(_player_md3_source IN LISTS PLAYER_MD3_CANONICAL_CONTRACT_FILES)
     if (NOT EXISTS "${_player_md3_source}")
         message(FATAL_ERROR "Player MD3 canonical source missing: ${_player_md3_source}")
@@ -85,7 +93,43 @@ foreach(_player_md3_source IN LISTS PLAYER_MD3_CANONICAL_CONTRACT_FILES)
         message(FATAL_ERROR
             "Player MD3 canonical source contains a platform leak: ${_player_md3_source}")
     endif()
+    if (NOT _player_md3_source IN_LIST PLAYER_MD3_LEGACY_BRIDGE_FILES
+        AND _player_md3_source_text MATCHES "${PLAYER_MD3_FORBIDDEN_LEGACY_CALL_PATTERN}")
+        message(FATAL_ERROR
+            "Player MD3 canonical source consumes a frozen legacy API: ${_player_md3_source}")
+    endif()
 endforeach()
+
+file(READ
+    "${CHARM_ROOT}/Examples/project/player/app-common/player.app.cppm"
+    _player_md3_app_source_text)
+string(REGEX MATCHALL
+    "legacy_storage_binding[ \t\r\n]*\\(\\)"
+    _player_md3_app_legacy_storage_calls
+    "${_player_md3_app_source_text}")
+list(LENGTH _player_md3_app_legacy_storage_calls
+    _player_md3_app_legacy_storage_call_count)
+if (NOT _player_md3_app_legacy_storage_call_count EQUAL 1)
+    message(FATAL_ERROR
+        "Player App compatibility bridge must contain exactly one legacy storage call; "
+        "found ${_player_md3_app_legacy_storage_call_count}")
+endif()
+string(REGEX MATCHALL
+    "player_[ \t\r\n]*\\([ \t\r\n]*config_[.]player_config,[ \t\r\n]*clock[ \t\r\n]*\\)"
+    _player_md3_app_legacy_audio_calls
+    "${_player_md3_app_source_text}")
+list(LENGTH _player_md3_app_legacy_audio_calls
+    _player_md3_app_legacy_audio_call_count)
+if (NOT _player_md3_app_legacy_audio_call_count EQUAL 1)
+    message(FATAL_ERROR
+        "Player App compatibility bridge must contain exactly one legacy AudioPlayer construction; "
+        "found ${_player_md3_app_legacy_audio_call_count}")
+endif()
 
 unset(_player_md3_source)
 unset(_player_md3_source_text)
+unset(_player_md3_app_source_text)
+unset(_player_md3_app_legacy_storage_calls)
+unset(_player_md3_app_legacy_storage_call_count)
+unset(_player_md3_app_legacy_audio_calls)
+unset(_player_md3_app_legacy_audio_call_count)

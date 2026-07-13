@@ -639,8 +639,12 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
                 "Vivid PRODUCT/MCU_MIN stack admission requires GNU or Clang -fstack-usage")
         endif()
         target_compile_options(${target_name} PRIVATE -fstack-usage)
-        set(_vivid_stack_usage_root
-            "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/${target_name}.dir/Modules/ui/vivid")
+        get_target_property(
+            _vivid_stack_usage_root ${target_name} CHARM_VIVID_STACK_USAGE_ROOT)
+        if(NOT _vivid_stack_usage_root)
+            set(_vivid_stack_usage_root
+                "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/${target_name}.dir/Modules/ui/vivid")
+        endif()
         set(_vivid_stack_usage_manifest
             "${CMAKE_CURRENT_BINARY_DIR}/generated/vivid/stack_usage_manifest.txt")
     endif()

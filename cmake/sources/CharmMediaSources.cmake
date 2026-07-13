@@ -38,16 +38,28 @@ function(charm_collect_audio_component_sources out_modules out_base_dirs)
         "${CHARM_SOURCE_ROOT}/Modules/core/init/init.node.cppm"
         "${CHARM_SOURCE_ROOT}/Modules/init/init.binding.cppm"
         "${CHARM_SOURCE_ROOT}/Modules/system/clock/system_clock.cppm"
-        "${CHARM_SOURCE_ROOT}/Modules/platform/win/time_source.cppm"
         "${CHARM_SOURCE_ROOT}/Modules/io/channel/io.channel.cppm"
         "${CHARM_SOURCE_ROOT}/Modules/core/service/ring_queue.cppm"
         "${CHARM_SOURCE_ROOT}/Modules/core/service/queue.cppm"
-        "${CHARM_SOURCE_ROOT}/Modules/core/alg/alg_fft.cppm"
     )
+    if (CHARM_TARGET_HAS_WIN32 AND CHARM_AUDIO_COMPONENT_AUXILIARY_MODULES)
+        list(APPEND _modules
+            "${CHARM_SOURCE_ROOT}/Modules/platform/win/time_source.cppm")
+    endif()
+    if (CHARM_TARGET_HAS_CXX_MATH AND CHARM_AUDIO_ENABLE_SPECTRUM)
+        list(APPEND _modules
+            "${CHARM_SOURCE_ROOT}/Modules/core/alg/alg_fft.cppm")
+    endif()
 
     charm_collect_cppm(_out_modules
         "${CHARM_SOURCE_ROOT}/Modules/io/out/*.cppm"
     )
+    if (NOT CHARM_AUDIO_LOG AND NOT CHARM_AUDIO_MP3_DEBUG)
+        set(_out_modules
+            "${CHARM_SOURCE_ROOT}/Modules/io/out/out.core.cppm"
+            "${CHARM_SOURCE_ROOT}/Modules/io/out/out.format.cppm"
+            "${CHARM_SOURCE_ROOT}/Modules/io/out/out.sink.cppm")
+    endif()
     charm_collect_cppm(_stream_modules
         "${CHARM_SOURCE_ROOT}/Modules/media/stream/*.cppm"
     )
@@ -60,6 +72,16 @@ function(charm_collect_audio_component_sources out_modules out_base_dirs)
     if (NOT CHARM_ENABLE_SDL3)
         list(REMOVE_ITEM _audio_modules
             "${CHARM_SOURCE_ROOT}/Modules/media/audio/audio_sink_sdl3.cppm")
+    endif()
+    if (NOT CHARM_AUDIO_COMPONENT_AUXILIARY_MODULES)
+        list(REMOVE_ITEM _stream_modules
+            "${CHARM_SOURCE_ROOT}/Modules/media/stream/stream_pipeline.cppm")
+        list(REMOVE_ITEM _audio_modules
+            "${CHARM_SOURCE_ROOT}/Modules/media/stream/stream_pipeline.cppm"
+            "${CHARM_SOURCE_ROOT}/Modules/media/audio/audio_pull_sim.cppm"
+            "${CHARM_SOURCE_ROOT}/Modules/media/audio/audio_tone.cppm"
+            "${CHARM_SOURCE_ROOT}/Modules/media/charm.media.audio.cppm"
+            "${CHARM_SOURCE_ROOT}/Modules/media/charm.media.cppm")
     endif()
 
     list(APPEND _modules

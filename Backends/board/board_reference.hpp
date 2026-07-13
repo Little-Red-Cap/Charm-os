@@ -126,7 +126,7 @@ namespace charm::backend::board {
                 .name = "h747_cm7_system_owner",
                 .requirement = contract::FactRequirement::required,
                 .state = contract::FactState::provided,
-                .source = "Draft/h747_board_execution_model_v0.md",
+                .source = "h747-lab profiles and firmware targets",
             },
             contract::BackendFact{
                 .kind = "console",

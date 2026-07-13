@@ -1,47 +1,30 @@
 # QEMU Backends
 
-QEMU backends run Charm in a machine model that is closer to bare metal than a
-PC host backend.
+## 文档状态
 
-Their job is to validate startup, exception/trap paths, timer behavior,
-interrupt routing, early console, and memory-map assumptions before real board
-bring-up.
+- `status`: `supporting`
+- `scope`: QEMU backend ownership、reference evidence 与运行验证路由
+- `authority`: [`../contract/backend_contract.md`](../contract/backend_contract.md)
 
-## v0 responsibilities
+QEMU backend 在 machine model 中验证 startup、trap/exception、timer、interrupt routing、early console 与
+memory map 假设，位于 Host 语义验证和 real-board 硬件证据之间。它不替代真实外设验证。
 
-- Own QEMU provider instances and their evidence.
-- Export early console capability.
-- Export timer observation facts.
-- Export exception/trap observation facts.
-- Export interrupt controller observation facts.
-- Export memory map facts.
-- Produce evidence that can be compared with real-board bring-up evidence.
+## Ownership
 
-QEMU is not a replacement for real peripheral validation. It is the middle rung
-between host semantic smoke tests and board evidence.
+QEMU backend 拥有 machine/provider integration、provider instance 和本环境证据。machine detail、trap
+vector、adapter、HAL-like stub 与 endpoint 不能成为 app/domain 依赖或 profile binding target。
 
-QEMU provider instances are binding targets. Machine model details, adapters,
-trap vectors, HAL-like stubs, and endpoint names are evidence or implementation
-details, not app/domain dependencies.
+## 当前实现
 
-## Reference backend v0
+[`qemu_reference.hpp`](qemu_reference.hpp) 是 header-only evidence candidate，导出 early console provider、
+binding evidence 以及 timer/trap/IRQ/memory-map facts。其 resident ELF region 是
+`0x20080000..0x20090000`。
 
-`qemu_reference.hpp` is the first QEMU backend implementation candidate. It is
-header-only and intentionally narrow:
+reference 不启动 QEMU，也不模拟 H747 的 DSI/LTDC/eMMC、touch、USB CDC、FMC SDRAM 或 board HAL。
 
-- `qemu.early_console` provides an early `TextSink`-style console provider for
-  smokes.
-- `ReferenceBackend::evidence_view()` exports QEMU backend identity, early
-  console capability export, selected binding evidence, and facts for timer,
-  trap, IRQ, and memory-map readiness.
-- The reference memory map includes the resident ELF QEMU runtime region
-  `0x20080000..0x20090000`.
+## 验证
 
-It does not launch QEMU and does not emulate H747 peripherals. DSI/LTDC/eMMC,
-GT9xx touch, USB CDC, FMC SDRAM, and board HAL initialization remain real-board
-or dedicated QEMU-smoke concerns.
+- reference contract smoke：[`../run-backends-v1-smoke.ps1`](../run-backends-v1-smoke.ps1)
+- resident ELF QEMU runtime：[`../../Examples/system/resident_elf_qemu_smoke/README.md`](../../Examples/system/resident_elf_qemu_smoke/README.md)
 
-## Current validation entrypoints
-
-- `Backends/qemu/reference_smoke`
-- `Examples/system/resident_elf_qemu_smoke`
+两类证据不可互相替代，更不能替代 real-board capture。

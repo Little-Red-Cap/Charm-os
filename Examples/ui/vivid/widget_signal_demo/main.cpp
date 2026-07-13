@@ -496,11 +496,17 @@ int main() {
     double_tap.set_threshold(300, 12);
     if (!expect(!double_tap.on_event(Event::mouse(Event::Type::Click, 20, 20, 0, 100)),
                 "double tap waits for the second click")) return 1;
-    if (!expect(double_tap.on_event(Event::mouse(Event::Type::Click, 22, 21, 0, 200)),
+    if (!expect(!double_tap.on_event(Event::mouse(Event::Type::Click, 40, 20, 0, 200)),
+                "double tap rejects a second click outside the distance threshold")) return 1;
+    if (!expect(!double_tap.on_event(Event::mouse(Event::Type::Click, 20, 20, 0, 600)),
+                "double tap starts a new candidate after a rejected click")) return 1;
+    if (!expect(!double_tap.on_event(Event::mouse(Event::Type::Click, 20, 20, 0, 901)),
+                "double tap rejects a second click outside the time threshold")) return 1;
+    if (!expect(double_tap.on_event(Event::mouse(Event::Type::Click, 22, 21, 0, 1000)),
                 "double tap accepts an in-threshold second click")) return 1;
     if (!expect(interaction_probe.double_taps == 1, "double tap invokes its delegate once")) return 1;
     double_tap.set_enabled(false);
-    if (!expect(!double_tap.on_event(Event::mouse(Event::Type::Click, 22, 21, 0, 250)),
+    if (!expect(!double_tap.on_event(Event::mouse(Event::Type::Click, 22, 21, 0, 1050)),
                 "disabled double tap stays silent")) return 1;
 
     PinchScrollStrategy pinch{};

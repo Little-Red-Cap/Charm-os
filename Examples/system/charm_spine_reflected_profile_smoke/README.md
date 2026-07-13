@@ -1,56 +1,31 @@
 # Reflected Profile Smoke
 
-> status: `exploration`
->
-> scope: host-only reflection and compile-time rejection experiment
+## 文档状态
 
-This target keeps all reflected spec, profile, projection and report types in
-`main.cpp`. It is not a public module, Charm Core model, manifest, generator,
-service locator or runtime framework.
+- `status`: `exploration`
+- `scope`: Host-only reflection 与 compile-time binding rejection experiment
+- `source`: [`main.cpp`](main.cpp) 与 [`CMakeLists.txt`](CMakeLists.txt)
 
-## What The Smoke Checks
+所有 reflected spec、profile、projection 和 report type 都留在 fixture 内。本 target 不是 public module、
+Charm Core model、manifest、generator、service locator 或 runtime framework。
+
+## 试验边界
 
 ```text
-reflected local spec
+local reflected spec
 -> compile-time binding checks
--> accepted or blocked result
+-> accepted or blocked
 -> local init/context/evidence projection
 ```
 
-- `<meta>` can inspect the fixture field shapes on the selected Host compiler.
-- missing, duplicate, extra, stale and wrong-role bindings are rejected.
-- rejected fixtures receive a deterministic local status such as
-  `duplicate_provider_tag`, `duplicate_provider_token`, `missing_binding`,
-  `duplicate_binding`, `extra_binding` or `invalid_binding`.
-- only an accepted fixture can enter the local init graph and materialize the
-  smoke's context view.
-- accepted reports order diagnostics before selected-provider evidence.
-- blocked reports contain diagnostics only; they do not select a fallback
-  provider or emit provider evidence.
-- evidence collection is read-only and occurs outside provider logs and init
-  control flow.
+fixture 验证缺失、重复、额外、陈旧和错误 role binding 会被拒绝；只有 accepted result 可以进入本地 init
+graph。blocked result 不选择 fallback provider，也不生成 provider evidence。evidence 是 init control flow
+之外的只读投影。
 
-## Boundaries
+status、report section、builder、capacity 和 reflected type 都是测试实现，不能据此建立 Charm
+`Profile/Provider/ContextView` 或 evidence ABI。Host compiler 通过也不证明 QEMU、H747 或其它 toolchain。
 
-The status names, report sections, builders, frame capacities and reflected
-types are test fixtures. They do not define a Charm `Profile`, `Provider`,
-`ContextView` or evidence ABI. Any production use must start again from a real
-consumer, ownership, failure semantics and cross-environment evidence.
+## 验证
 
-Host compiler success does not prove support on QEMU, H747 or another toolchain.
-The smoke also does not justify copying reflection into a resident monitor or
-dynamic App ABI.
-
-## Validation
-
-Configure, build and run this target only in one existing build directory owned
-by the smoke; do not create parallel build trees for repeated checks:
-
-```powershell
-cmake -S Examples/system/charm_spine_reflected_profile_smoke -B <cmake-build-dir> -G Ninja -DCMAKE_CXX_COMPILER=<compiler>
-cmake --build <cmake-build-dir> -- -j1
-ctest --test-dir <cmake-build-dir> --output-on-failure
-```
-
-The source and `CMakeLists.txt` are the authority for compiler flags and current
-assertions.
+在调用方拥有的同一个 build directory 中配置、构建和运行本 target，不为重复验证创建并行 build tree。
+compiler flag、target、assertion 与 pass result 以 CMake/source 和当次执行为准。

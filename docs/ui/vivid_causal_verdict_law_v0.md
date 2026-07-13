@@ -1,73 +1,47 @@
 # Vivid Causal Verdict Law v0
 
-This document defines the v0 law for Vivid causal verdicts.
+> status: `contract`
 
-Its purpose is narrow: keep `causal_chain` from becoming only a final "all cases passed" line. A causal verdict must summarize a connected UI runtime cause-and-effect path, and the evidence segments behind that verdict must remain visible in stdout or the paired law document.
+本文定义 Vivid `causal_chain` verdict 的资格与含义，防止它退化为“所有 case 都通过”的结尾。stdout
+形状由 [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md) 管理，共享字段由
+[`vivid_evidence_vocabulary_law_v0.md`](vivid_evidence_vocabulary_law_v0.md) 管理；本文不把 demo support
+helper 提升为 Vivid core。
 
-## Positioning
-
-Vivid Evidence Plane has three maturity levels:
-
-```text
-Evidence Point
-  A single observable fact.
-
-Evidence Chain
-  Multiple facts connected in runtime order.
-
-Causal Verdict
-  A final judgement that the chain committed, rejected, downgraded, or rolled back with explicit evidence.
-```
-
-Examples:
+## Evidence 层级
 
 ```text
-Evidence Point:
-  snapshot_count=0
-  state_delta=1
-  artifact_delta=1
-
-Evidence Chain:
-  semantic request -> state delta -> invalidation -> render artifact
-
-Causal Verdict:
-  causal_chain=1 name=settings.wifi.toggle.activate ok=1 ...
+Evidence Point -> 单个可观察事实
+Evidence Chain -> 按 runtime 顺序连接的多个事实
+Causal Verdict -> 对 chain 的 commit/reject/fallback/cancel/rollback 判断
 ```
 
-`CausalChainEvidence` remains candidate Evidence Plane vocabulary. This law defines verdict eligibility and meaning; it does not promote `Examples/ui/vivid/support/vivid_evidence_support.hpp` into Vivid core.
+final verdict 是摘要，不是唯一证据行。它必须由前面的 required segments 推导，不能手写一个独立
+`ok=1`。
 
-## AxisCausal Eligibility
+## AxisCausal 资格
 
-`AxisCausal` is not granted just because a demo prints `causal_chain=1`.
+demo 只有同时证明以下内容才可声明 `AxisCausal`：
 
-A demo may claim `AxisCausal` only when it proves all of these:
+1. 存在 intent 或 request；
+2. 执行了 admission、policy 或 precondition 检查；
+3. execution、rejection、fallback、cancel 或 rollback 边界明确；
+4. 至少有一个可观察 consequence；
+5. final verdict 把 required evidence segments 连接起来。
+
+consequence 可以是 state、focus、time、transaction、layer、budget、invalidation、DrawCmd、render artifact、
+snapshot lifetime 或 semantic artifact。rejection/no-op/fallback/cancel/rollback 只有在证明 no unintended
+mutation 或 no leaked resource 时才算 causal。静态 metadata 与 stdout formatting 测试不得声明
+`AxisCausal`。
+
+## Verdict 形状
+
+canonical final line 仍是：
 
 ```text
-1. Intent or request exists.
-2. Admission, policy, or precondition is checked.
-3. Execution, rejection, fallback, cancel, or rollback has a clear boundary.
-4. At least one observable consequence is reported.
-5. A final verdict ties the required evidence segments together.
+[tag] case=causal_chain causal_chain=1 name=<stable_name> ok=<derived_verdict> ...
 ```
 
-Observable consequences may be state, focus, time, transaction, layer, budget, invalidation, DrawCmd, render artifact, snapshot lifetime, or semantic artifact facts.
-
-Rules:
-
-- The verdict must be derived from required evidence segments, not hand-authored as an independent `ok=1`.
-- Rejection, no-op, fallback, cancel, or rollback paths count as causal only when they also prove no unintended mutation or no leaked resource.
-- A final verdict should be the summary, not the only evidence line.
-- A demo should not claim `AxisCausal` when it only verifies static metadata or stdout formatting.
-
-## Verdict Shape
-
-The canonical stdout shape is still governed by `vivid_evidence_stdout_law.md`:
-
-```text
-[tag] case=causal_chain causal_chain=1 name=<stable_name> ok=<0|1> ...
-```
-
-`vivid_evidence_vocabulary_law_v0.md` defines the shared candidate fields:
+chain name 必须稳定；semantic chain 优先使用产品语义名，runtime chain 使用法律名。共享 segment 字段包括：
 
 ```text
 request_ok
@@ -77,186 +51,63 @@ artifact_ok
 rejected_no_mutation
 ```
 
-This law adds a verdict expectation:
+### Count-based
 
-```text
-causal_chain=1
-name=<stable chain name>
-ok=<derived final verdict>
-```
+`prior_cases_complete=1` 只允许用于已有 transitional verdict，且 paired law 必须明确它闭合的 evidence
+segments。case count 本身不能证明 cause-and-effect。
 
-The chain name must be stable. Prefer product-semantic names for semantic chains and runtime-law names for time or transaction chains:
+### Evidence-referenced
 
-```text
-settings.wifi.toggle.activate
-motion_time.managed
-page_transition.transaction
-```
+新 causal demo 应在 final line 直接引用 segment verdict。既有 count-based verdict 不要求为格式统一而立即
+重写；后续行为修改时应优先迁移到 evidence-referenced 形式。
 
-## Count-Based And Evidence-Referenced Verdicts
-
-v0 recognizes two verdict styles.
-
-### Count-Based Verdict
-
-A count-based verdict closes a demo by checking that prior named cases completed:
-
-```text
-prior_cases_complete=1
-```
-
-This is allowed for existing transitional verdicts when the prior cases are stable and the paired law document names the evidence segments being closed.
-
-Examples:
-
-```text
-motion_time.managed
-page_transition.transaction
-```
-
-### Evidence-Referenced Verdict
-
-An evidence-referenced verdict names the segment verdicts directly in the final line:
-
-```text
-request_ok=1
-state_delta_ok=1
-invalidation_ok=1
-artifact_ok=1
-rejected_no_mutation=1
-```
-
-New causal demos should prefer evidence-referenced verdicts. Existing count-based verdicts do not need immediate churn, but future edits should move them toward evidence-referenced fields when doing so improves clarity without adding noise.
-
-Demo-side printing ergonomics may use shared helpers, but those helpers do not define verdict meaning. The field law remains in docs; helper code only reduces repetitive `stdout` assembly.
+shared helper 只能减少 stdout 拼装，不能定义字段法律或 verdict 含义。
 
 ## Verdict Families
 
-### Semantic Verdict
+### Semantic
 
-Semantic verdicts explain how product intent or semantic lookup crosses runtime law.
+必须连接 resolution/request ledger、admission/rejection、planning 或 execution boundary，以及 state/focus/
+event/semantic/render consequence。rejection case 必须证明 no mutation。
 
-Required evidence normally includes:
+semantic-to-transaction 还必须保持两层 admission：semantic intent 可以发出 edge 启动 transaction，但不能
+直接修改 page truth。边界见
+[`vivid_semantic_transition_law_v0.md`](vivid_semantic_transition_law_v0.md)。
 
-```text
-resolution or request ledger
-admission / rejection status
-execution boundary or planning-only boundary
-state, focus, event, semantic artifact, or render artifact consequence
-rejected-no-mutation evidence when rejection is tested
-```
+### Time
 
-Examples:
+必须连接 managed time source、motion recipe/profile decision、compose/page trace、相关 budget/admission，
+以及 bounded final state。page-local frame loop 不能冒充 runtime-owned time evidence。
 
-```text
-semantic action request
-semantic focus request
-intent-to-artifact
-semantic-to-transaction
-```
+### Transaction
 
-`semantic-to-transaction` chains are governed by `vivid_semantic_transition_law_v0.md`: semantic intent may emit an edge that starts a page transaction, but it must not directly mutate page truth or collapse semantic admission into transaction/layer admission.
+必须连接 begin/admission、owned artifact acquisition、commit/cancel/interrupt/fallback 分支、release/thaw/
+restore，以及 no leaked snapshot / no stale transaction state。
 
-### Time Verdict
+### Render / State
 
-Time verdicts explain how UI time is owned by runtime rather than by page-local frame loops.
+必须连接 state delta 或 no-delta、invalidation、dirty containment、DrawCmd/render artifact delta，以及被拒绝
+或 no-op 时的 artifact stability。
 
-Required evidence normally includes:
+### Composite
 
-```text
-managed time source
-motion recipe/profile decision
-compose or page motion trace
-budget/profile/admission effect when relevant
-final bounded state after the managed time path
-```
+semantic-action-state-transaction chain 必须分别保留 semantic request、event/edge、state delta、
+invalidation、artifact delta、transaction admission、commit/abort、snapshot lifecycle 与 page truth；不能用
+一个宽泛 `ok` 抹平各边界。
 
-`motion_time.managed` is a v0 hybrid verdict. It keeps `cases_closed` as a transitional count-based guard, and also emits `time_ok`, `recipe_ok`, `compose_ok`, `budget_ok`, `trace_ok`, and `page_motion_ok` as evidence-referenced Time-axis fields.
+## Manifest 关系
 
-### Transaction Verdict
+[`vivid_evidence_lab_manifest_v0.md`](vivid_evidence_lab_manifest_v0.md) 负责 demo-to-axis map。声明
+`AxisCausal` 的 row 必须满足以下之一：
 
-Transaction verdicts explain how a runtime lifecycle operation commits, cancels, aborts, interrupts, or rolls back.
+1. stdout final verdict 使用 evidence-referenced fields；
+2. primary law 明确 count-based verdict 闭合的 segments。
 
-Required evidence normally includes:
+manifest 当前的 vertical/composite anchor 由 manifest 自己维护；本文不复制 demo 名单、case 数或阶段状态。
 
-```text
-begin/admission boundary
-owned artifact acquisition
-commit/cancel/interrupt/fallback branch
-release/thaw/restore boundary
-no leaked snapshot or stale transaction state
-```
+## 非目标
 
-`page_transition.transaction` is a v0 hybrid verdict. It keeps `cases_closed` as a transitional count-based guard, and also emits `admission_ok`, `commit_ok`, `cancel_ok`, `interrupt_ok`, `static_cut_ok`, `snapshot_lifecycle_ok`, and `page_truth_ok` as evidence-referenced Transaction-axis fields.
-
-### Render / State Verdict
-
-Render/state verdicts explain how state truth becomes bounded visual artifact evidence.
-
-Required evidence normally includes:
-
-```text
-state delta or no-state-delta proof
-invalidation impact
-dirty scope or containment
-DrawCmd and/or render artifact delta
-rejected/no-op artifact stability when tested
-```
-
-Examples:
-
-```text
-component settings row
-component card state
-style token law
-focus boundary / transfer / scope
-```
-
-### Composite Semantic-State-Transaction Verdict
-
-Composite verdicts explain how a semantic action can produce state/render evidence before a page transaction begins.
-
-Required evidence normally includes:
-
-```text
-semantic request ledger
-edge or click evidence
-state delta evidence
-invalidation evidence
-render artifact delta
-transaction admission
-commit/abort boundary
-snapshot lifecycle or page truth consequence
-```
-
-Examples:
-
-```text
-semantic action state transition
-semantic intent with render consequence
-semantic-to-transaction with state bridge
-```
-
-`semantic_action_state_transition_demo` is a v0 composite verdict. It uses evidence-referenced fields for `request_ok`, `event_ok`, `state_delta_ok`, `invalidation_ok`, `artifact_ok`, `admission_ok`, `commit_ok`, `snapshot_lifecycle_ok`, `page_truth_ok`, and `rejected_no_mutation`.
-
-## Manifest Relationship
-
-`vivid_evidence_lab_manifest_v0.md` owns the demo-to-axis map.
-
-Manifest rows claiming `AxisCausal` must satisfy this law by one of these routes:
-
-```text
-1. The demo stdout uses evidence-referenced causal fields.
-2. The primary law document explains the evidence segments closed by a count-based verdict.
-```
-
-The manifest should keep `intent_artifact_demo` as the vertical causal anchor, `semantic_transition_demo` as the first semantic-to-transaction anchor, and `semantic_action_state_transition_demo` as the wider semantic-action-state-transaction anchor until a broader cross-axis demo supersedes them.
-
-## Non-Goals
-
-- This law does not add a new demo or case count.
-- This law does not define screenshot golden files.
-- This law does not define C++ public API.
-- This law does not promote demo support helpers into Vivid core.
-- This law does not require all existing count-based verdicts to be rewritten immediately.
-- This law does not replace `vivid_evidence_vocabulary_law_v0.md`; it consumes that field vocabulary.
+- 不新增 demo、case、screenshot golden 或 C++ API；
+- 不要求立即重写全部 transitional verdict；
+- 不替代 stdout law、vocabulary law 或 manifest；
+- 不将 `Examples/ui/vivid/support/` 变成 core contract。

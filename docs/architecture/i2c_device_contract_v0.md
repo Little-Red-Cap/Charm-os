@@ -1,5 +1,10 @@
 # I2C Device Interface v0
 
+> status: `supporting`
+>
+> 本文是当前 I2C implementation interface 的状态卡，不定义 Charm Core、Stable Boundary
+> 或长期 ABI。
+
 ## 文档角色
 
 本文描述当前 `io.device_i2c*` implementation interface。它是 driver/backend 试验边界，不是 Charm Core，也未获准成为 `Stable Boundary` 或长期 ABI。

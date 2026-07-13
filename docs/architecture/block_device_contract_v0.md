@@ -1,5 +1,10 @@
 # Block Device Interface v0
 
+> status: `supporting`
+>
+> 本文是当前 block storage implementation interface 的状态卡，不定义 Charm Core、文件系统
+> 或公共 ABI。
+
 ## 文档角色
 
 本文是 block storage implementation interface 的当前状态卡，不是文件系统契约、Charm Core 或公共 ABI。

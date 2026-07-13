@@ -1,5 +1,10 @@
 # Stream IO Device Interface v0
 
+> status: `supporting`
+>
+> 本文是当前 stream/channel implementation interface 的状态卡，不替代 `io_channel_contract`，
+> 也不定义 Charm Core 或公共 ABI。
+
 ## 文档角色
 
 本文是 stream/channel implementation interface 的当前状态卡，不是 `io_channel_contract` 的替代品，也不是 Charm Core 或公共 ABI。
@@ -26,6 +31,6 @@
 
 ## 状态与下一证据
 
-状态：`proposed`（历史本地标签，不是 Constitution 裁决）。
+实现成熟度：`proposed`；这不是 Constitution 裁决。
 
 若继续推进，先用现有 channel API 做一个独立 line/frame consumer 和 fault script，验证 non-blocking 与 detach 行为，再决定是否需要更窄的 Stream device interface。基础契约不应自行吸收 scheduler、timeout 或 protocol framing。

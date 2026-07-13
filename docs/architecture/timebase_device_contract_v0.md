@@ -1,5 +1,10 @@
 # Timebase Device Interface v0
 
+> status: `supporting`
+>
+> 本文是当前 time source implementation interface 的状态卡，不定义 scheduler/timer contract、
+> Charm Core 或公共 ABI。
+
 ## 文档角色
 
 本文是 time source implementation interface 的当前状态卡，不是 scheduler/timer contract、Charm Core 或公共 ABI。

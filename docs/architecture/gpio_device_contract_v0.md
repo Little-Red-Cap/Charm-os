@@ -1,5 +1,10 @@
 # GPIO Device Interface v0
 
+> status: `supporting`
+>
+> 本文是当前 GPIO implementation interface 的状态卡，不定义 Charm Core、Stable Boundary
+> 或公共 ABI。
+
 ## 文档角色
 
 本文是 GPIO implementation interface 的当前状态卡，不是 Charm Core、Stable Boundary 或公共 ABI。
@@ -27,6 +32,6 @@
 
 ## 状态与下一证据
 
-状态：`proposed`（历史本地标签，不是 Constitution 裁决）。
+实现成熟度：`proposed`；这不是 Constitution 裁决。
 
 若继续推进，先用一个 LED output 或 button input 证明最小 owner/consumer 语义，再单独验证 edge/IRQ；在此之前不把 GPIO provider、pin graph 或 edge taxonomy 提升为 Core 原语。

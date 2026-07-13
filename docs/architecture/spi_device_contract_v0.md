@@ -1,5 +1,10 @@
 # SPI Device Interface v0
 
+> status: `supporting`
+>
+> 本文是当前 SPI implementation interface 的状态卡，不定义 Charm Core、Stable Boundary
+> 或公共 ABI。
+
 ## 文档角色
 
 本文是 SPI implementation interface 的当前状态卡。它约束讨论范围，但不是 Charm Core、Stable Boundary 或公共 ABI。

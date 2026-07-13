@@ -7,7 +7,6 @@
 - [`audio_design_retained_notes.md`](audio_design_retained_notes.md)：从旧 Pull Engine、v1 和 L1/L2/L3
   草案中保留的 DSP、重配、声道转换与 DMA 设计判断；
 - [`usb_uac_board_bringup_notes.md`](usb_uac_board_bringup_notes.md)：UAC descriptor、Windows cache 与板级时钟调试记录。
-- [`av_pipeline_overview.md`](av_pipeline_overview.md)：早期 VSF stream/pipeline 对照与 media 抽取设想。
 
 现行入口：
 

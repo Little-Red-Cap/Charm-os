@@ -27,17 +27,17 @@
 
 - [`real_board_landing_gap_audit_v0.md`](real_board_landing_gap_audit_v0.md)：保留早期 stm32h747-player
   路径、五类落地问题、局部术语和 P0-P4 排期；其中项目路径已经失效；
-- [`capability_recovery_rules.md`](capability_recovery_rules.md)：保留旧 UI/Board 回收顺序与记录模板；
-- [`capability_recovery_matrix.md`](capability_recovery_matrix.md)：保留当时的 Done/TODO/In Progress 快照，
-  不代表当前源码或完成度。
 - [`rk3506_boot_staging_plan.md`](rk3506_boot_staging_plan.md)：保留 RK3506 SDK 启动线索、
   Stage A/B/C 职责和早期推进建议；其中地址与 vendor loader 判断是历史分析，
   不能替代 TRM、当前源码或实板证据。
 
+旧 capability recovery rules/matrix 已删除：其中 UI/Board 排期、Done/TODO 状态和
+`DefaultConsolePath`、`EvidenceRig` 等局部词汇没有现行消费者。仍有效的判断只有两条：板级 workaround
+不能自动进入公共契约；Host、QEMU 和真实板证据必须分开记录。
+
 现行入口：
 
 - [`../../architecture/real_board_landing_gap_audit_v0.md`](../../architecture/real_board_landing_gap_audit_v0.md)
-- [`../../architecture/capability_recovery_rules.md`](../../architecture/capability_recovery_rules.md)
 - [`../../board/rk3506/boot_staging_plan.md`](../../board/rk3506/boot_staging_plan.md)
 
 需要追溯原始细节时使用 Git 历史；不要把本摘要恢复成第二份全局架构定义。

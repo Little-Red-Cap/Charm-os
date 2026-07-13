@@ -151,8 +151,8 @@ function New-OpenEventWitnessWorld {
             "If the session opening drifts, does the testimony witness remain explainable through the bundle?"
         )
         contract_refs = @(
-            (Resolve-FullPath -Path (Join-Path $RepoRoot "docs\system\witness_bundle_v0.md")),
-            (Resolve-FullPath -Path (Join-Path $RepoRoot "docs\system\system_compiler_front_page_entry_opening_flow_open_event_witness_v0.md"))
+            (Resolve-FullPath -Path (Join-Path $RepoRoot "docs\architecture\system_compiler_roadmap.md")),
+            (Resolve-FullPath -Path (Join-Path $RepoRoot "docs\archive\system-compiler-front-page-v0\README.md"))
         )
         witness_plan = @(
             [ordered]@{

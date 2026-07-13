@@ -47,8 +47,8 @@
     "baseline_witness_bundle": "schemas/examples/system_compiler.witness_bundle.v0.sample.json",
     "candidate_witness_bundle": "schemas/examples/system_compiler.witness_bundle.v0.candidate_drift.sample.json",
     "output_root": "schemas/examples",
-    "report_markdown_path": "docs/archive/system-compiler-front-page-v0/world_compare_v0.md",
-    "check_text_path": "docs/archive/system-compiler-front-page-v0/world_compare_v0.md"
+    "report_markdown_path": "docs/archive/system-compiler-front-page-v0/README.md",
+    "check_text_path": "docs/archive/system-compiler-front-page-v0/README.md"
   },
   "bundle_status": {
     "baseline_result": "ok",

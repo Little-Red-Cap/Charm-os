@@ -104,8 +104,3 @@ runner 参数、工具安装、timeout 与 artifact 发布由 workflow 和脚本
 
 通过一次 bundle 只证明该次 Host/QEMU 输入满足当前证据契约；它不等于真实板验证、完整 OS、
 用户态隔离、进程模型或产品级运行时已经成立。
-
-## 历史材料
-
-早期完整产物树、逐 seam verifier matrix、session 旁路命令、inspect 参数矩阵和 CI 阶段说明已删除。
-这些易漂移信息由脚本、schema、workflow 和 Git 历史追溯，不作为第二份证据契约保留。

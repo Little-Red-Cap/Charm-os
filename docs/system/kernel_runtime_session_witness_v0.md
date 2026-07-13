@@ -97,8 +97,3 @@ session/check.txt
 
 CI、compare consumer 和其它 runner 的参数由各自脚本及 workflow 维护，本文件不复制完整命令矩阵。
 检查通过只证明该次输入与当前契约一致；没有当次 artifact 时，不能从本文推断 Host、QEMU 或真实板已通过。
-
-## 历史材料
-
-早期完整设计中的分层与 handoff 取舍已经收敛到本文；重复的字段枚举、world compare 展开、runner
-清单和阶段叙事已删除。历史实现过程由 Git 追溯。

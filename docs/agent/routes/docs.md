@@ -11,6 +11,5 @@
 3. [`charm_core_contract.md`](../../architecture/charm_core_contract.md)
 4. 目标目录的 `README.md`
 5. [`documentation_maintenance.md`](../../documentation_maintenance.md)
-6. [`charm-docs-minimal skill`](../skills/charm-docs-minimal/SKILL.md)
 
 涉及编码损坏时转到 [`utf8 route`](utf8.md)。先修权威、状态、路由和坏链接，再处理正文。

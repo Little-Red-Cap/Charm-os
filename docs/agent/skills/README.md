@@ -16,7 +16,6 @@
 | Channel/Reactor/Registry | [`charm-io-contracts/SKILL.md`](charm-io-contracts/SKILL.md) |
 | Capability 实现索引 | [`charm-capability-map/SKILL.md`](charm-capability-map/SKILL.md) |
 | Block device 与 VFS 挂载 | [`charm-block-device/SKILL.md`](charm-block-device/SKILL.md) |
-| 文档路由与 dead link | [`charm-docs-minimal/SKILL.md`](charm-docs-minimal/SKILL.md) |
 | UTF-8 与乱码修复 | [`charm-docs-utf8/SKILL.md`](charm-docs-utf8/SKILL.md) |
 | CMake 与构建接线 | [`charm-cmake/SKILL.md`](charm-cmake/SKILL.md) |
 

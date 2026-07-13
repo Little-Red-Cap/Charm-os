@@ -1,86 +1,48 @@
 # 嵌入式 C++ 早期取舍保留笔记
 
-> status: `archived`
->
-> scope: 早期实践指南中仍值得保留的边界问题，不作为当前编码规范
+> `status`: `archived`
 
-现行规则见 [`embedded-modern-cpp.md`](../../agent/rules/embedded-modern-cpp.md)。本文只保留不能由
-“现代 C++ 更好”或全仓禁止清单替代的技术取舍；具体 target、toolchain 和执行路径必须重新核对。
+现行规则见 [`embedded-modern-cpp.md`](../../agent/rules/embedded-modern-cpp.md)。本文只保留依赖 target、
+执行上下文和硬件边界的技术取舍，不作为全仓禁止清单。
 
-## 执行上下文先于语言偏好
+## Execution Context
 
-同一种 C++ 设施在不同上下文中的成本不同。ISR、DMA callback、协议 ingress 和调度路径需要有界
-延迟；初始化、离线转换和 host 工具可以接受更宽松的内存与标准库策略。判断应回答：
+选择语言设施前必须明确：
 
-- 代码进入哪些 target，是否会被 MCU 链接；
-- 调用发生在 ISR、实时 callback、普通 task、初始化阶段还是 host process；
-- 最坏容量、阻塞点、析构时机和失败路径是否可观察；
-- host 便利是否泄漏进可移植接口。
+- 代码进入哪些 MCU/Host target；
+- 调用发生在 ISR、DMA callback、实时 task、初始化还是 host process；
+- 最坏容量、阻塞点、析构时机和失败路径；
+- Host 便利是否泄漏到可移植接口。
 
-固定容量、禁用虚调用或禁用动态内存都不是脱离执行上下文的全仓真理。
+固定容量、禁用虚调用或禁用动态内存都不是脱离执行上下文的全仓规则。
 
-## Buffer 与所有权
+## Buffer、DMA 与 Cache
 
-连续区间优先用 `span` 表达大小和可写性，但 `span` 只解决视图形状，不解决生命周期。异步提交、
-DMA 和延迟 callback 必须另外说明：
+- `span` 表达视图，不解决生命周期。异步提交必须说明 owner、借用终点、读写方向、取消和 short IO。
+- 裸 pointer+length 可留在 C ABI、vendor SDK、MMIO 与 DMA descriptor adapter，不能扩散到业务接口。
+- `volatile` 不提供线程同步或 cache coherency。
+- DMA 必须明确 alignment、memory region、clean/invalidate 方向与范围、descriptor/payload lifetime，
+  以及 complete/timeout/abort 后的 ownership 归还。
 
-- buffer 由谁拥有，借用持续到哪个事件；
-- 允许谁写，设备与 CPU 的读写方向是什么；
-- short read/write、buffer too small 和取消时如何返回；
-- 固定容量的上限来自协议、硬件还是项目配置。
+这些约束属于 BSP/HAL 或局部 execution domain，不提升为平台无关 Core 语义。
 
-裸指针和长度在 C ABI、vendor SDK、MMIO 与 DMA 描述符边界仍然合理，但应在 adapter 内立即转换，
-不能让边界表示扩散成业务接口。
+## Template 与 Callback
 
-## MMIO、DMA 与 Cache
+Template 适合稳定配置、能力约束和固定维度，不把运行数据搬进类型系统。公共 template 应使用窄 concept；
+转发构造默认 `explicit`、排除自身类型，并避免一个万能构造函数用 `if constexpr` 猜测意图。还需检查
+实例化数量、Flash 增量、诊断可读性和增量构建成本。
 
-`volatile` 只表达必须保留的硬件可见访问，不提供线程同步、内存所有权或 cache 一致性。DMA buffer
-除了地址和长度，还需要平台侧明确：
+函数指针、trampoline、`function_ref`、固定容量 callable 和虚接口按 ownership、解绑、ABI、代码尺寸与
+最坏调用成本选择。实时路径中的 owning callable 必须证明无无界分配；`void* context` 停留在 adapter。
 
-- 对齐和可访问 memory region；
-- clean/invalidate 的方向、时机和覆盖范围；
-- descriptor 与 payload 的生命周期；
-- 传输完成、超时、中止后的 ownership 归还。
+## Error Boundary
 
-这些约束通常属于 BSP/HAL 或局部执行域，不应包装成平台无关 Core 语义。
-
-## 模板与构造
-
-模板适合表达稳定配置、能力约束和固定维度，不适合把运行期数据搬进类型系统。公共模板需要足够窄
-的 `concept` 或 `requires`，使失败发生在接口边界。
-
-转发引用构造函数尤其容易劫持复制或移动构造。保留的最低约束是：
-
-- 默认 `explicit`；
-- 排除自身类型；
-- 用 concept 限定输入类别；
-- 不用一个万能构造函数加大段 `if constexpr` 猜测调用意图。
-
-是否采用模板还应核对实例化数量、Flash 增量、错误可读性和增量构建成本。
-
-## 回调与类型擦除
-
-函数指针、对象加 trampoline、`function_ref`、固定容量 callable 和虚接口都有适用位置。选择依据是
-ownership、解绑时机、代码尺寸、最坏调用成本和 ABI，而不是统一偏好。实时路径若使用拥有型 callable，
-必须证明它不进行无界分配；跨 C 或 vendor callback 时，`void* context` 应停留在 adapter 内。
-
-## 错误与断言
-
-外部输入、设备状态、资源不足、short IO 和暂时不可用属于运行期失败，应通过专题契约定义的状态或
-Result 返回。assert/contract 只适合调用者违反不可恢复前置条件，不能代替正常错误路径。
-
-不依赖异常的 target 需要显式错误传播；host 测试可以使用异常和动态容器，但不得迫使 MCU 可链接
-接口采用相同模型。资源获取失败后必须能证明释放、解绑和半初始化状态均被处理。
+外部输入、设备状态、资源不足、short IO 和暂时不可用是运行期错误，应返回专题契约定义的状态。
+assert/contract 只处理不可恢复的调用者违约。不使用异常的 target 要显式传播错误并处理释放、解绑与
+半初始化状态；Host 测试可以使用异常，但不能迫使 MCU 接口采用同一模型。
 
 ## Escape Hatch
 
-硬件、ABI 或第三方库迫使实现偏离默认规则时，例外必须：
-
-1. 限制在最小 adapter 或函数范围；
-2. 记录真实约束和被拒绝的替代方案；
-3. 给出手册、ABI、map/size、benchmark 或生成代码证据；
-4. 明确 ownership、失败行为与退出条件；
-5. 不污染公共 Core 接口。
-
-当前登记入口见 [`escape_hatches.md`](../../project/escape_hatches.md)。语言与资源约束按 target 和执行
-上下文判断，不使用全仓统一禁用表。
+硬件、ABI 或第三方约束要求例外时，必须限制在最小 adapter 范围，记录被拒绝方案与手册/map/benchmark
+等证据，并明确 ownership、失败行为和退出条件。例外不得污染 Core 接口；登记入口见
+[`escape_hatches.md`](../../project/escape_hatches.md)。

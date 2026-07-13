@@ -15,7 +15,7 @@ using namespace ui::render;
 
 // Simple foldable panel with header/body
 export
-class FoldablePanel : public WidgetBase<FoldablePanel> {
+class FoldablePanel : public WidgetBase<FoldablePanel, 64> {
 public:
     explicit FoldablePanel(const char* title = "Panel") {
         set_focusable(true);

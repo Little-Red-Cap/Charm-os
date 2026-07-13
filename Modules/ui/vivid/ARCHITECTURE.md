@@ -119,6 +119,10 @@ Object-level widget 不在 `ObjectBase` 常驻通用交互表。需要 gesture/i
 直接派发对应 strategy；自定义控件需要组合多个 strategy 时，可以自行持有固定容量 `InteractionList`。
 未使用交互扩展的 object widget 不支付其 RAM 成本。
 
+`ObjectBase` 同样不常驻子节点数组。`WidgetBase<Derived, ChildCapacity>` 的默认容量为零；只有 List、
+FoldablePanel、ScrollContainer 等明确的 object-level 容器选择固定容量子表。子表使用
+内联固定数组，容量耗尽由 `add/insert_child()` 的 `false` 显式报告，不分配动态内存。
+
 跨帧保存的 UI callback 使用 `util::delegate` 并由 owner 保证 target 生命周期。`std::function_ref` 只适合
 未来同步、非逃逸的函数参数，不得存入 widget、strategy、Scene 或 payload。
 

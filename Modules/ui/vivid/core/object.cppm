@@ -1,4 +1,5 @@
 module;
+#include <array>
 #include <cstddef>
 #include <cstdint>
 export module charm.core.object;
@@ -270,109 +271,8 @@ public:
     int flex_padding() const noexcept { return flex_padding_; }
     LayoutMode layout_mode() const noexcept { return layout_mode_; }
 
-    bool add_child(WidgetHandle child) noexcept {
-        if (child_count_ >= kMaxChildren) return false;
-        children_[child_count_++] = child;
-        return true;
-    }
-
-    void clear_children() noexcept {
-        for (std::size_t i = 0; i < child_count_; ++i) {
-            children_[i] = {};
-        }
-        child_count_ = 0;
-    }
-
-    bool remove_child(WidgetHandle child) noexcept {
-        for (std::size_t i = 0; i < child_count_; ++i) {
-            if (children_[i] == child) {
-                for (std::size_t j = i + 1; j < child_count_; ++j) {
-                    children_[j - 1] = children_[j];
-                }
-                children_[child_count_ - 1] = {};
-                --child_count_;
-                return true;
-            }
-        }
-        return false;
-    }
-
-    bool insert_child_before(WidgetHandle child, WidgetHandle before) noexcept {
-        if (child_count_ >= kMaxChildren) return false;
-        std::size_t idx = child_count_;
-        for (std::size_t i = 0; i < child_count_; ++i) {
-            if (children_[i] == before) { idx = i; break; }
-        }
-        if (idx == child_count_) {
-            return add_child(child);
-        }
-        for (std::size_t i = child_count_; i > idx; --i) {
-            children_[i] = children_[i - 1];
-        }
-        children_[idx] = child;
-        ++child_count_;
-        return true;
-    }
-
-    bool insert_child_after(WidgetHandle child, WidgetHandle after) noexcept {
-        if (child_count_ >= kMaxChildren) return false;
-        std::size_t idx = child_count_;
-        for (std::size_t i = 0; i < child_count_; ++i) {
-            if (children_[i] == after) { idx = i + 1; break; }
-        }
-        if (idx >= child_count_) {
-            return add_child(child);
-        }
-        for (std::size_t i = child_count_; i > idx; --i) {
-            children_[i] = children_[i - 1];
-        }
-        children_[idx] = child;
-        ++child_count_;
-        return true;
-    }
-
-    bool move_child_to_front(WidgetHandle child) noexcept {
-        if (child_count_ <= 1) return true;
-        std::size_t idx = child_count_;
-        for (std::size_t i = 0; i < child_count_; ++i) {
-            if (children_[i] == child) { idx = i; break; }
-        }
-        if (idx == child_count_ || idx == child_count_ - 1) return true;
-        auto temp = children_[idx];
-        for (std::size_t i = idx + 1; i < child_count_; ++i) {
-            children_[i - 1] = children_[i];
-        }
-        children_[child_count_ - 1] = temp;
-        return true;
-    }
-
-    bool move_child_to_back(WidgetHandle child) noexcept {
-        if (child_count_ <= 1) return true;
-        std::size_t idx = child_count_;
-        for (std::size_t i = 0; i < child_count_; ++i) {
-            if (children_[i] == child) { idx = i; break; }
-        }
-        if (idx == child_count_ || idx == 0) return true;
-        auto temp = children_[idx];
-        for (std::size_t i = idx; i > 0; --i) {
-            children_[i] = children_[i - 1];
-        }
-        children_[0] = temp;
-        return true;
-    }
-
     void set_parent(WidgetHandle parent) noexcept { parent_ = parent; }
     WidgetHandle parent() const noexcept { return parent_; }
-
-    std::size_t child_count() const noexcept { return child_count_; }
-    WidgetHandle child_at(std::size_t i) const noexcept { return (i < child_count_) ? children_[i] : WidgetHandle{}; }
-    bool has_child(WidgetHandle child) const noexcept { return child_index(child) < child_count_; }
-    std::size_t child_index(WidgetHandle child) const noexcept {
-        for (std::size_t i = 0; i < child_count_; ++i) {
-            if (children_[i] == child) return i;
-        }
-        return child_count_;
-    }
 
     void draw(CanvasBase& cvs) { vtable_->draw(*this, cvs); }
 
@@ -396,8 +296,6 @@ public:
     }
 
 protected:
-    static constexpr std::size_t kMaxChildren = 64;
-
     Rect rect_{};
     Rect children_bounds_{};
     bool children_bounds_valid_{false};
@@ -440,8 +338,6 @@ protected:
     CachePolicy cache_policy_{CachePolicy::None};
     bool cache_dirty_{false};
     WidgetHandle parent_{};
-    WidgetHandle children_[kMaxChildren]{};
-    std::size_t child_count_{0};
     Rect dirty_hint_{};
     bool dirty_hint_valid_{false};
     const VTable* vtable_{nullptr};
@@ -574,14 +470,176 @@ static Rect children_clip_rect_thunk(const ObjectBase& self) noexcept {
     }
 };
 
+static_assert(sizeof(ObjectBase) <= 288,
+              "ObjectBase must not regain resident child or interaction storage");
+
+namespace vivid_object_detail {
+    template<std::size_t Capacity>
+    struct ChildStorage {
+        std::array<WidgetHandle, Capacity> children{};
+        std::size_t count{0};
+    };
+
+    template<>
+    struct ChildStorage<0> {};
+}
+
 export
-template<typename Derived>
-class WidgetBase : public ObjectBase {
+template<typename Derived, std::size_t ChildCapacity = 0>
+class WidgetBase : public ObjectBase,
+                   private vivid_object_detail::ChildStorage<ChildCapacity> {
 public:
+    static constexpr std::size_t child_capacity = ChildCapacity;
+
     WidgetBase() {
         init_vtable<Derived>();
     }
+
+    bool add_child(WidgetHandle child) noexcept
+        requires (ChildCapacity > 0) {
+        auto& count = child_size();
+        if (count >= ChildCapacity) return false;
+        child_handles()[count++] = child;
+        return true;
+    }
+
+    void clear_children() noexcept
+        requires (ChildCapacity > 0) {
+        auto& count = child_size();
+        for (std::size_t i = 0; i < count; ++i) {
+            child_handles()[i] = {};
+        }
+        count = 0;
+    }
+
+    bool remove_child(WidgetHandle child) noexcept
+        requires (ChildCapacity > 0) {
+        auto& count = child_size();
+        const auto index = child_index(child);
+        if (index >= count) return false;
+        for (std::size_t i = index + 1; i < count; ++i) {
+            child_handles()[i - 1] = child_handles()[i];
+        }
+        child_handles()[count - 1] = {};
+        --count;
+        return true;
+    }
+
+    bool insert_child_before(WidgetHandle child, WidgetHandle before) noexcept
+        requires (ChildCapacity > 0) {
+        const auto index = child_index(before);
+        return insert_child_at(child, index);
+    }
+
+    bool insert_child_after(WidgetHandle child, WidgetHandle after) noexcept
+        requires (ChildCapacity > 0) {
+        const auto index = child_index(after);
+        const auto count = child_size();
+        return insert_child_at(child, index < count ? index + 1 : index);
+    }
+
+    bool move_child_to_front(WidgetHandle child) noexcept
+        requires (ChildCapacity > 0) {
+        const auto count = child_size();
+        if (count <= 1) return true;
+        const auto index = child_index(child);
+        if (index >= count || index + 1 == count) return true;
+        const auto value = child_handles()[index];
+        for (std::size_t i = index + 1; i < count; ++i) {
+            child_handles()[i - 1] = child_handles()[i];
+        }
+        child_handles()[count - 1] = value;
+        return true;
+    }
+
+    bool move_child_to_back(WidgetHandle child) noexcept
+        requires (ChildCapacity > 0) {
+        const auto count = child_size();
+        if (count <= 1) return true;
+        const auto index = child_index(child);
+        if (index >= count || index == 0) return true;
+        const auto value = child_handles()[index];
+        for (std::size_t i = index; i > 0; --i) {
+            child_handles()[i] = child_handles()[i - 1];
+        }
+        child_handles()[0] = value;
+        return true;
+    }
+
+    [[nodiscard]] std::size_t child_count() const noexcept
+        requires (ChildCapacity > 0) {
+        return child_size();
+    }
+
+    [[nodiscard]] WidgetHandle child_at(std::size_t index) const noexcept
+        requires (ChildCapacity > 0) {
+        return index < child_size() ? child_handles()[index] : WidgetHandle{};
+    }
+
+    [[nodiscard]] bool has_child(WidgetHandle child) const noexcept
+        requires (ChildCapacity > 0) {
+        return child_index(child) < child_size();
+    }
+
+    [[nodiscard]] std::size_t child_index(WidgetHandle child) const noexcept
+        requires (ChildCapacity > 0) {
+        const auto count = child_size();
+        for (std::size_t i = 0; i < count; ++i) {
+            if (child_handles()[i] == child) return i;
+        }
+        return count;
+    }
+
+private:
+    bool insert_child_at(WidgetHandle child, std::size_t index) noexcept
+        requires (ChildCapacity > 0) {
+        auto& count = child_size();
+        if (count >= ChildCapacity) return false;
+        if (index >= count) return add_child(child);
+        for (std::size_t i = count; i > index; --i) {
+            child_handles()[i] = child_handles()[i - 1];
+        }
+        child_handles()[index] = child;
+        ++count;
+        return true;
+    }
+
+    using ChildStorage = vivid_object_detail::ChildStorage<ChildCapacity>;
+
+    [[nodiscard]] ChildStorage& child_storage() noexcept {
+        return static_cast<ChildStorage&>(*this);
+    }
+
+    [[nodiscard]] const ChildStorage& child_storage() const noexcept {
+        return static_cast<const ChildStorage&>(*this);
+    }
+
+    [[nodiscard]] auto& child_handles() noexcept
+        requires (ChildCapacity > 0) {
+        return child_storage().children;
+    }
+
+    [[nodiscard]] const auto& child_handles() const noexcept
+        requires (ChildCapacity > 0) {
+        return child_storage().children;
+    }
+
+    [[nodiscard]] std::size_t& child_size() noexcept
+        requires (ChildCapacity > 0) {
+        return child_storage().count;
+    }
+
+    [[nodiscard]] const std::size_t& child_size() const noexcept
+        requires (ChildCapacity > 0) {
+        return child_storage().count;
+    }
 };
+
+namespace {
+    struct WidgetBaseLeafLayoutProbe final : WidgetBase<WidgetBaseLeafLayoutProbe> {};
+    static_assert(sizeof(WidgetBaseLeafLayoutProbe) == sizeof(ObjectBase),
+                  "zero-capacity WidgetBase must not add resident child storage");
+}
 
 export
 constexpr ObjectBase::State operator|(ObjectBase::State a, ObjectBase::State b) noexcept {

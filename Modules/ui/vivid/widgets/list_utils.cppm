@@ -5,7 +5,7 @@ export module charm.widgets.list_utils;
 import charm.core.handle;
 import charm.core.object;
 
-// Resolver: WidgetHandle -> ObjectBase*
+// Resolver: WidgetHandle -> an object that explicitly owns child storage.
 // ItemResolver: WidgetHandle -> ObjectBase* (ListItem)
 export
 template<typename Resolver, typename ItemResolver>

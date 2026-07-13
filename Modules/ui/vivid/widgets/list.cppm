@@ -100,7 +100,7 @@ private:
 };
 
 export
-class List : public WidgetBase<List> {
+class List : public WidgetBase<List, 64> {
 public:
     List() {
         set_size(200, 160);

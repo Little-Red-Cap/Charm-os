@@ -14,7 +14,8 @@ escape hatch 和具体审查发现，但也存在以下问题：
 
 - [`embedded_cpp_retained_notes.md`](embedded_cpp_retained_notes.md)：从早期 593 行实践指南中提取的
   执行上下文、DMA、模板构造、错误边界和 escape hatch 取舍；重复规则与禁止清单已删除。
-- [`主框架全仓审查与收敛_backlog.md`](主框架全仓审查与收敛_backlog.md)
+- [`repository_review_retained_notes.md`](repository_review_retained_notes.md)：从旧全仓 backlog 提取的
+  聚合入口、复合职责、桥接边界和分刀顺序；旧路径、行数、优先级和任务状态已删除。
 
 当前操作规则以根 `AGENTS.md` 和 [`../../agent/README.md`](../../agent/README.md) 为准；项目编码
 入口见 [`../../project/standards/README.md`](../../project/standards/README.md)。归档中的任务状态、

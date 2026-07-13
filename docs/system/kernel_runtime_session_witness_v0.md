@@ -25,12 +25,25 @@ host semantic summary + QEMU machine summary
   boot medium 等契约时才重新划分边界。
 - ledger 记录 exporter 已消费事实的顺序，不重判 session verdict。
 
+## Ledger 边界
+
+`runtime_ledger.json` 由同一 session exporter 从 runtime evidence summary 派生，不解析 Host/QEMU
+raw log，也不拥有 verdict。其 event count 必须与 session summary 一致；phase、status 和顺序只由
+exporter 决定。
+
+`standing` 表示输入 fact 被接受，`missing` 表示输入不足且不单独决定 session 失败；`collapsed`
+只反映 exporter 已判定失败的 session。`arch.ingress.seam` 是新 QEMU summary 的 preferred anchor，
+旧输入缺失时下游不得推断为 standing。
+
+消费者只能把 ledger 作为 supporting artifact 或 explain context，不得绕过 session verdict、修改
+phase/status，或将 events 解释为 scheduler timeline、profiler 或新 failure taxonomy。Ledger 当前没有
+独立 schema/validator/gate；提升为交换格式前必须另行定义兼容与失败语义。
+
 ## 事实源与失败
 
 机器 shape 与派生规则由
 [`minimal_kernel.kernel_runtime_session.v0.schema.json`](../../schemas/minimal_kernel.kernel_runtime_session.v0.schema.json)
-和 [`export_minimal_kernel_runtime_session.py`](../../scripts/export_minimal_kernel_runtime_session.py) 定义；ledger
-语义见 [`minimal_kernel_runtime_ledger_fact_contract_v0.md`](minimal_kernel_runtime_ledger_fact_contract_v0.md)。
+和 [`export_minimal_kernel_runtime_session.py`](../../scripts/export_minimal_kernel_runtime_session.py) 定义。
 
 失败必须保留 code、domain、layer、focus、phase 等结构化来源。consumer 不得从 message、Markdown report、
 text check 或 raw log 发明 verdict；人读投影也不是独立运行证据。

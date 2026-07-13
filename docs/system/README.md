@@ -16,7 +16,7 @@
 | Minimal-kernel host smoke | [`minimal_kernel_host_smoke_bundle_contract.md`](minimal_kernel_host_smoke_bundle_contract.md) |
 | Runtime bridge / task message | [`minimal_kernel_runtime_bridge_contract.md`](minimal_kernel_runtime_bridge_contract.md)、[`minimal_kernel_task_message_runtime_contract.md`](minimal_kernel_task_message_runtime_contract.md) |
 | Syscall / trap | [`minimal_kernel_task_syscall_table_contract.md`](minimal_kernel_task_syscall_table_contract.md)、[`minimal_kernel_trap_syscall_contract.md`](minimal_kernel_trap_syscall_contract.md) |
-| Session witness / ledger | [`kernel_runtime_session_witness_v0.md`](kernel_runtime_session_witness_v0.md)、[`minimal_kernel_runtime_ledger_fact_contract_v0.md`](minimal_kernel_runtime_ledger_fact_contract_v0.md) |
+| Session witness / ledger | [`kernel_runtime_session_witness_v0.md`](kernel_runtime_session_witness_v0.md) |
 | POSIX | [`posix_support_overview.md`](posix_support_overview.md) |
 | RTOS runtime / ISR | [`rtos_runtime_contract.md`](rtos_runtime_contract.md) |
 | Power | [`power_lowpower_overview.md`](power_lowpower_overview.md) |

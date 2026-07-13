@@ -44,10 +44,8 @@ session exporter 将 Host semantic witness、QEMU machine witness、runtime fact
 投影到 `kernel_runtime_session.summary.json`。`arch_ingress_seam` 是当前 preferred lower-half ingress anchor；
 旧 summary 的兼容推断只由 exporter 持有。
 
-session 与 ledger 的局部边界见：
-
-- [`kernel_runtime_session_witness_v0.md`](kernel_runtime_session_witness_v0.md)
-- [`minimal_kernel_runtime_ledger_fact_contract_v0.md`](minimal_kernel_runtime_ledger_fact_contract_v0.md)
+Session 与 ledger 的局部边界见
+[`kernel_runtime_session_witness_v0.md`](kernel_runtime_session_witness_v0.md)。
 
 ### Witness Projection
 

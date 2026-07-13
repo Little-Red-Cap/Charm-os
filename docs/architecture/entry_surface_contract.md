@@ -69,5 +69,4 @@ service locator 或 dependency injection container。
 ## 相关契约
 
 - 依赖边界：[`dependency_contract.md`](dependency_contract.md)
-- 历史 facade：[`legacy_runtime_facade_retirement_contract.md`](legacy_runtime_facade_retirement_contract.md)
 - Charm Core 准入：[`../../CONSTITUTION.md`](../../CONSTITUTION.md)

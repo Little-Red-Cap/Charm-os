@@ -64,5 +64,4 @@ first-party source 不得 import：
 - 不把稳定入口、Provider、Driver 或 Graph 提升为 Charm Core；
 - 不替代真实 consumer、host/QEMU/board run 或行为测试。
 
-入口语义见 [`entry_surface_contract.md`](entry_surface_contract.md)，历史 facade 见
-[`legacy_runtime_facade_retirement_contract.md`](legacy_runtime_facade_retirement_contract.md)。
+入口分类和历史 facade 语义见 [`entry_surface_contract.md`](entry_surface_contract.md)。

@@ -1,28 +1,32 @@
 # H747 Lab Memory Evidence
 
-This document records the current board-level memory facts for the DIY H747
-lab target. It is evidence for `h747_lab_diag_shell`, not a generic SDRAM
-datasheet note.
+## 文档状态
 
-## Verified Target
+- `status`: `supporting`
+- `scope`: 2026-05-23 DIY H747 板 SDRAM/QSPI 保留证据
+- `source`: [`diag_shell.cpp`](../apps/diag_shell/diag_shell.cpp) 与本文保留的 console token
 
-- Firmware target: `h747_lab_diag_shell`
-- Flash identity readback: `0x24080000 0x08000411 0x0800A519 0x0800A52F`
-- Serial: `USART1 / 115200 8N1`
-- PMIC transport: `i2c1_gpio_swapped`
-- SDRAM profile: `is42s32800g_32m`
-- Test date: 2026-05-23
+本文不是 SDRAM datasheet，也不代表其它固件、板卡或日期的当前状态。
 
-## Power Preconditions
+## 测试目标
 
-- PMIC communication works through the swapped software I2C path.
-- LDO4 reads back as 3300 mV and is treated as the SDRAM1/SDRAM2 supply.
-- DCDC1 defaults to 1500 mV in this boot state, so QSPI probe is not meaningful
-  until it is explicitly set to 3300 mV.
+| 项 | 值 |
+|---|---|
+| firmware | `h747_lab_diag_shell` |
+| flash identity | `0x24080000 0x08000411 0x0800A519 0x0800A52F` |
+| serial | `USART1 / 115200 8N1` |
+| PMIC transport | `i2c1_gpio_swapped` |
+| SDRAM profile | `is42s32800g_32m` |
 
-## SDRAM Evidence
+## 供电前置
 
-Both SDRAM banks were tested through the same command chain:
+- swapped software I2C 可访问 PMIC；
+- LDO4 回读 `3300 mV`，作为 SDRAM1/SDRAM2 电源；
+- 该启动状态下 DCDC1 默认为 `1500 mV`，QSPI probe 前必须显式切到 `3300 mV`。
+
+## SDRAM
+
+两个 bank 使用相同命令链：
 
 ```text
 memory mpu normal
@@ -35,38 +39,21 @@ sdramX verify
 memory status
 ```
 
-SDRAM1 passed:
+| Bank | 基址 | 容量 | 结果 |
+|---|---|---|---|
+| SDRAM1 | `0xC0000000` | `0x02000000` | `locate/addr/lane/repeat/probe/verify ok` |
+| SDRAM2 | `0xD0000000` | `0x02000000` | `locate/addr/lane/repeat/probe/verify ok` |
 
-- `locate ok`
-- `addr ok`
-- `lane ok`
-- `repeat ok`
-- `probe ok`
-- `verify ok`
-- Final status:
-  `profile=is42s32800g_32m ready=true verify=true base=0xC0000000 size=0x02000000 words=192 vwords=320`
+最终状态：
 
-SDRAM2 passed:
+- SDRAM1：`profile=is42s32800g_32m ready=true verify=true base=0xC0000000 size=0x02000000 words=192 vwords=320`
+- SDRAM2：`profile=is42s32800g_32m ready=true verify=true base=0xD0000000 size=0x02000000 words=192 vwords=320`
 
-- `locate ok`
-- `addr ok`
-- `lane ok`
-- `repeat ok`
-- `probe ok`
-- `verify ok`
-- Final status:
-  `profile=is42s32800g_32m ready=true verify=true base=0xD0000000 size=0x02000000 words=192 vwords=320`
+硬件修复后未再复现旧 `+0x20` alias；`locate` 显示每个 sampled write 只命中自身地址。
 
-The previous `+0x20` alias symptom was not reproduced after the hardware fix.
-The `locate` diagnostics now report each sampled write landing at its own
-address with one hit.
+## QSPI
 
-## QSPI Evidence
-
-The first `qspi probe` with DCDC1 at 1500 mV failed, which is expected for this
-board policy.
-
-After explicitly running:
+DCDC1 为 `1500 mV` 时首次 `qspi probe` 失败，符合该板供电前置。执行：
 
 ```text
 pmic enable dcdc1 1
@@ -74,20 +61,12 @@ pmic set dcdc1 3300
 qspi probe
 ```
 
-QSPI passed:
+随后得到：`qspi1: probe ok`、JEDEC `EF/40/19`、`sr1=0x00 sr2=0x00`、read command
+`0x03`，地址 `0x00000000` 的末次读取全为 `0xFF`。
 
-- `qspi1: probe ok`
-- JEDEC: `EF/40/19`
-- Status bytes: `sr1=0x00 sr2=0x00`
-- Read command: `0x03`
-- Last read data at `0x00000000`: all `0xFF`
+## 结论
 
-## Current Conclusion
-
-- SDRAM1 is usable and read/write verified as a 32 MiB bank.
-- SDRAM2 is usable and read/write verified as a 32 MiB bank.
-- The populated SDRAM capacity verified by firmware evidence is 64 MiB total.
-- QSPI is usable after the DCDC1 rail is explicitly set to 3.3 V.
-- If a future board shows the old `+0x20` alias again, inspect the shared FMC
-  address path around external word address bit A3 / MCU PF3 before changing
-  memory profiles or app-level code.
+- SDRAM1、SDRAM2 各通过 32 MiB 读写验证，合计 64 MiB；
+- QSPI 在 DCDC1 显式设为 3.3 V 后可用；
+- 若再次出现 `+0x20` alias，应先检查 external word address A3 / MCU PF3 的共享 FMC 地址路径，
+  不应先改 memory profile 或 App 代码。

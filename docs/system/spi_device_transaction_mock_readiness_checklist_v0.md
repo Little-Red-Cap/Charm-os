@@ -2,9 +2,7 @@
 
 > **文档状态：`exploration`（尚无对应 mock）**
 
-完整准备清单见
-[`../archive/device-readiness-and-phase2-v0/spi_device_transaction_mock_readiness_checklist_v0.md`](../archive/device-readiness-and-phase2-v0/spi_device_transaction_mock_readiness_checklist_v0.md)。现行接口状态见
-[`../architecture/spi_device_contract_v0.md`](../architecture/spi_device_contract_v0.md)。
+现行接口状态见 [`../architecture/spi_device_contract_v0.md`](../architecture/spi_device_contract_v0.md)。
 
 ## 当前事实
 

@@ -2,9 +2,7 @@
 
 > **文档状态：`exploration`（尚无统一 mock）**
 
-完整准备清单见
-[`../archive/device-readiness-and-phase2-v0/gpio_device_input_output_edge_readiness_checklist_v0.md`](../archive/device-readiness-and-phase2-v0/gpio_device_input_output_edge_readiness_checklist_v0.md)。现行接口状态见
-[`../architecture/gpio_device_contract_v0.md`](../architecture/gpio_device_contract_v0.md)。
+现行接口状态见 [`../architecture/gpio_device_contract_v0.md`](../architecture/gpio_device_contract_v0.md)。
 
 ## 当前事实
 

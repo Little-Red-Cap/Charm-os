@@ -1,34 +1,35 @@
-# App Lab Mainline Smoke
+# App Lab Compatibility Smoke
 
-This host-only smoke validates the current official `app_lab` mainline
-narrative without touching H747 firmware or board services.
+> status: `supporting`
+>
+> note: the directory/target keeps its historical `mainline` name
 
-It closes one complete host-first chain:
+This Host-only fixture mirrors the H747 `app_lab` embedded/QSPI baseline:
 
 ```text
 embedded app lookup/run
--> qspi store install
--> qspi named/raw run-path
--> generic file-backed stub
--> diagnostics-first status report
+-> memory-NOR Store install/readback
+-> named/raw Store staging
+-> unsupported generic path
+-> status diagnostics
 ```
 
-The smoke does not execute Arm ELF on the host and does not reuse
-`Examples/project/h747-lab/apps/app_lab/app_lab.cpp` directly. Instead, it
-rebuilds the minimum host-side model needed to mirror `app_lab` semantics:
+It does not execute Arm ELF or reuse H747 monitor code. The fixture rebuilds a
+small Host model around `hello_app`, `player_min`, `AppStoreReader`, Store install
+and the stable file-backed `not_supported` result.
 
-- embedded `hello_app` and `player_min`
-- memory-backed NOR install/readback
-- named/raw QSPI staging through `AppStoreReader`
-- stable generic file-backed `not_supported` stub
-- `last_*` and store-install diagnostics state
+The target proves compatibility with the
+[`app_lab` baseline](../../project/h747-lab/apps/app_lab/README.md). It is not the
+resident platform mainline and does not replace `dev_loader`, generic AppRuntime
+smokes or H747 board evidence.
 
-This keeps the `app_lab` mainline separate from the more generic
-`app_abi_runtime_smoke`, which still only proves reusable `AppRuntime`
-semantics.
+Configure and validate using one existing build directory owned by this smoke:
 
 ```powershell
-cmake -S Examples/system/app_lab_mainline_smoke -B Examples/system/app_lab_mainline_smoke/cmake-build-app-lab-mainline-smoke -G Ninja -DCMAKE_CXX_COMPILER="D:/Toolchains/w64devkit/bin/g++.exe" -DCMAKE_C_COMPILER="D:/Toolchains/w64devkit/bin/gcc.exe"
-cmake --build Examples/system/app_lab_mainline_smoke/cmake-build-app-lab-mainline-smoke
-ctest --test-dir Examples/system/app_lab_mainline_smoke/cmake-build-app-lab-mainline-smoke --output-on-failure
+cmake -S Examples/system/app_lab_mainline_smoke -B <cmake-build-dir> -G Ninja
+cmake --build <cmake-build-dir> -- -j1
+ctest --test-dir <cmake-build-dir> --output-on-failure
 ```
+
+`CMakeLists.txt` and `main.cpp` own the current compiler requirements, fixtures
+and assertions.

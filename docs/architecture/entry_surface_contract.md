@@ -57,13 +57,8 @@ service locator 或 dependency injection container。
 
 ## 自动检查边界
 
-启用 `CHARM_ENABLE_DEPENDENCY_WHITELIST=ON` 后，CMake 会：
-
-- 检查 `Modules`、`Examples`、`Draft` 中的 first-party source 不导入兼容或退役入口；
-- 要求 `Modules/**/charm.*.cppm` 进入稳定或非稳定台账；
-- 检查稳定入口文件存在，并执行上述 re-export 卫生规则。
-
-检查默认关闭，且不验证完整依赖图、runtime 行为或某个概念的 Core 准入资格。具体实现与启用方式见
+Opt-in CMake 门禁检查 first-party 的历史入口 import、`charm.*` 台账和稳定入口卫生。它不验证完整
+依赖图、runtime 行为或 Core 准入资格；启用方式与失败边界见
 [`dependency_whitelist.md`](dependency_whitelist.md)。
 
 ## 相关契约

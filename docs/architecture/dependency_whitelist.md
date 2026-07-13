@@ -20,32 +20,13 @@ cmake -S . -B cmake-build-whitelist-check -G Ninja -DCHARM_ENABLE_DEPENDENCY_WHI
 
 ## 检查项
 
-### 历史入口
+- first-party source 不得 import entry contract 标记的兼容或退役入口；匹配按完整 module 名边界执行。
+- Kernel core 不得 import `out.*`；`*_export.cppm` 是 presentation/export 例外。
+- 新增 `Modules/**/charm.*.cppm` 必须进入 stable 或 non-stable 台账。
+- 稳定入口文件必须存在，不得 re-export 历史入口或名称含 `internal/bridge/compat/alias` 的过渡表面。
 
-first-party source 不得 import：
-
-- `charm.foundation`：兼容迁移 facade；
-- `charm.runtime`：退役 tombstone；
-- `charm.domain`：历史入口。
-
-应按依赖意图使用稳定聚合或叶子 module。边界匹配不会把 `charm.runtime_extra` 误判为 `charm.runtime`。
-
-### Kernel presentation
-
-`Modules/system/kernel/*.cppm` 不得 import `out.*`；`*_export.cppm` 是 presentation/export 例外。
-这只约束 kernel core 的导出边界，不规定所有 port adapter 的 IO 组织。
-
-### Entry inventory
-
-新增 `Modules/**/charm.*.cppm` 必须进入 CMake 的 stable 或 non-stable 台账。当前入口集合与分类只在
-[`entry_surface_contract.md`](entry_surface_contract.md) 和 `DependencyWhitelist.cmake` 维护；台账分类
-不授予 Core 身份。
-
-### Stable entry hygiene
-
-稳定入口文件必须存在，不得 re-export 历史入口，也不得 re-export 名称包含 `internal`、`bridge`、
-`compat` 或 `alias` 的过渡表面。完整分类与聚合边界见
-[`entry_surface_contract.md`](entry_surface_contract.md)。
+入口集合、分类和聚合边界只由
+[`entry_surface_contract.md`](entry_surface_contract.md) 与 CMake 台账维护；检查通过不授予 Core 身份。
 
 ## 不负责的事
 
@@ -53,5 +34,3 @@ first-party source 不得 import：
 - 不统一不同领域的错误、lifecycle 或 interface；
 - 不把稳定入口、Provider、Driver 或 Graph 提升为 Charm Core；
 - 不替代真实 consumer、host/QEMU/board run 或行为测试。
-
-入口分类和历史 facade 语义见 [`entry_surface_contract.md`](entry_surface_contract.md)。

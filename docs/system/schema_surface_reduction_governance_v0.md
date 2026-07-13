@@ -5,9 +5,6 @@
 这份文档约束 `schemas/` 的新增与复用，不是 schema 实现计划，也不定义 Charm Core。
 公开 artifact shape 由 contract/schema 负责；exporter、validator 和 smoke 只消费并验证该 shape。
 
-历史数量盘点与 pilot 建议见
-[`tool-surface-reduction-v0`](../archive/tool-surface-reduction-v0/)。
-
 ## 四类边界
 
 ### Artifact Contract Schema

@@ -16,13 +16,16 @@
 - [`posix_program_image_elf_minimal_design.md`](posix_program_image_elf_minimal_design.md)
 - [`posix_program_image_modulex_adapter.md`](posix_program_image_modulex_adapter.md)
 - [`posix_spawn_minimal_design.md`](posix_spawn_minimal_design.md)
-- [`posix_subsystem_principles.md`](posix_subsystem_principles.md)
-- [`posix_three_layer_contract.md`](posix_three_layer_contract.md)
+- [`posix_architecture_retained_notes.md`](posix_architecture_retained_notes.md)：从早期 subsystem principles
+  与 three-layer 草案中保留宏边界、三层责任、ABI spine 和 image 执行取舍。
 - [`posix_user_runtime_minimal_design.md`](posix_user_runtime_minimal_design.md)
 
 BusyBox phase checklist、cleanup plan、compat roadmap、Linux tasklist、maintenance collaboration、
 stage summary 和 v0 closure checklist 已删除。它们维护的“当前/下一步/Done/P1”和旧 runner 路径
 没有长期证据价值；需要追溯时使用 Git 历史。
+
+早期 subsystem principles 与 three-layer 全文也已合并；重复模块枚举、阶段能力判断、路线建议和
+宣言式总结不再保留。
 
 当前源码边界和验证入口见：
 

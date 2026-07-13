@@ -1,5 +1,7 @@
 # M2 Thread/Blocking Spec (Draft)
 
+> `status`: `archived`。接口行为需以当前 thread module 源码为准。
+
 ## 1. ThreadTask
 - `ThreadControl::finish()` stops further tick processing.
 - `on_start()` resets control state (if provided by task).

@@ -13,6 +13,10 @@
 
 本目录同时保留 session witness 的早期完整设计：
 
+kernel module 的早期结构、M1 sync、M2 thread 与 M3 observability 阶段材料见
+[`kernel-module-milestones/`](kernel-module-milestones/)。这些文件中的 freeze、demo 路径和 CSV
+字段不约束当前源码。
+
 - [`kernel_runtime_session_witness_v0.md`](kernel_runtime_session_witness_v0.md)：保留 semantic/machine/runtime
   分层、failure taxonomy、world compare 与 runner 消费链的原始讨论。现行 supporting contract 已收敛到
   [`../../system/kernel_runtime_session_witness_v0.md`](../../system/kernel_runtime_session_witness_v0.md)。

@@ -1,5 +1,7 @@
 # Charm-os 内核+基础设施（kernel + utilities）结构草案
 
+> `status`: `archived`。目录、Windows 入口与阶段计划均为历史设计。
+
 > 目标：在 `Modules/` 中以 C++26 Modules 构建“可验证、零运行期成本、可裁剪”的内核与基础设施；通过能力注入与编译期配置实现平台无关，先在 Windows 上验证。
 
 ---

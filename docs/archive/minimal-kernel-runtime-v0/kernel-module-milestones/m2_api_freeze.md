@@ -1,5 +1,7 @@
 # M2 API Freeze (Thread/Blocking)
 
+> `status`: `archived`。历史 freeze 不约束当前 API。
+
 ## Frozen Types
 - `kernel::ThreadControl`
 - `kernel::ThreadTask<Context, StepFn, Priority>`

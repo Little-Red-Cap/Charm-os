@@ -7,7 +7,7 @@
 - `authority`: [`CONSTITUTION.md`](../../CONSTITUTION.md) 与
   [`charm_core_contract.md`](charm_core_contract.md)
 
-本文不复述首批裁决，不记录开发进度，也不为现有代码补发 Core 准入资格。运行状态必须查看当次
+本文不复述当前裁决，不记录开发进度，也不为现有代码补发 Core 准入资格。运行状态必须查看当次
 源码、CMake target 和测试输出。
 
 ## 审计规则

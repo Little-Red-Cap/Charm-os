@@ -99,42 +99,7 @@ public:
         : type(t), ms(ms_in), x(px), y(py), dx(ddx), dy(ddy), button(btn) {}
 };
 
-export
-struct Callback {
-    using Fn = void(*)(void*);
-    using delegate_type = util::delegate<>;
+export using Callback = util::delegate<>;
 
-    Fn fn{nullptr};
-    void* ctx{nullptr};
-    delegate_type delegate{};
-
-    constexpr void operator()() const noexcept {
-        if (delegate) {
-            delegate();
-        } else if (fn) {
-            fn(ctx);
-        }
-    }
-
-    [[nodiscard]] constexpr bool same_as(const Callback& other) const noexcept {
-        return fn == other.fn && ctx == other.ctx && delegate.same_as(other.delegate);
-    }
-
-    constexpr explicit operator bool() const noexcept {
-        return static_cast<bool>(delegate) || fn != nullptr;
-    }
-
-    template <auto Method, class T>
-    [[nodiscard]] static constexpr Callback bind(T& obj) noexcept {
-        Callback callback{};
-        callback.delegate = delegate_type::bind<Method>(obj);
-        return callback;
-    }
-
-    template <auto Fn0>
-    [[nodiscard]] static constexpr Callback bind() noexcept {
-        Callback callback{};
-        callback.delegate = delegate_type::bind<Fn0>();
-        return callback;
-    }
-};
+static_assert(sizeof(Callback) == sizeof(void*) + sizeof(Callback::stub_t),
+              "UI callbacks must remain a single non-owning delegate");

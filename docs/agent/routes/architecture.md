@@ -16,5 +16,4 @@
 
 涉及 signal/state 时补读
 [`signal_state_contract_v0.md`](../../architecture/signal_state_contract_v0.md)；真实板问题补读
-[`real_board_landing_gap_audit_v0.md`](../../architecture/real_board_landing_gap_audit_v0.md) 和
-[`capability_recovery_rules.md`](../../architecture/capability_recovery_rules.md)。
+[`real_board_landing_gap_audit_v0.md`](../../architecture/real_board_landing_gap_audit_v0.md)。

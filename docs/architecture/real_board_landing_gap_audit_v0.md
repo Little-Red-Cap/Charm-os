@@ -49,11 +49,23 @@ pre-graph、fault 和极早期生存证据可以直连 port/UART。系统建立�
 
 Host、QEMU 和真实板是不同证据域。Host metadata、schema、README 或 build-only 不能替代真实板运行。
 
+## 修复规则
+
+1. 先确认真实 consumer、所需行为和失败语义，再选择或新增实现。
+2. 先迁移使用路径，再删除旧接口；保留旧路径时写明例外范围和退出条件。
+3. 默认路径必须进入 profile、binding、template 或 build check，仅写“推荐”不算完成。
+4. early/fault 直连不能无界扩散到正常 runtime；共享协调层优先消费只读 snapshot。
+5. 用 source/CMake 检查约束非法依赖，不用全局 locator、平台宏或 forward declaration 绕过边界。
+6. 至少保留一次相关编译检查、一个成功行为证据和一个关键失败/缺失证据，并分开声明
+   Host、QEMU 与 real board 的覆盖范围。
+
+修复记录应包含 consumer、目标 contract/implementation、旧路径退出条件、检查命令、正反例、
+日志位置与剩余风险。整理实现不会自动授予新名称或接口 Core 身份。
+
 ## 与 Core 的关系
 
 `DefaultConsolePath`、`EarlyConsole`、`ServiceSnapshotContract` 与 `EvidenceRig` 是历史审计中的局部术语，
-不属于 Constitution 已批准的 Core vocabulary。现行工程规则见
-[`capability_recovery_rules.md`](capability_recovery_rules.md)。
+不属于 Constitution 已批准的 Core vocabulary。
 
 旧 H747 路径、完整问题清单和 P0-P4 排期见
 [`../archive/architecture-inventory-v0/real_board_landing_gap_audit_v0.md`](../archive/architecture-inventory-v0/real_board_landing_gap_audit_v0.md)。

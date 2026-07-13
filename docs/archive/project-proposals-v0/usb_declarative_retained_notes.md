@@ -44,6 +44,20 @@ spec/plan 成功只能证明模型在当前约束下可构造，不能证明真�
 覆写必须停留在明确 adapter 或 function 边界，不能让默认 spec 依赖某块板、某个 class driver 或现场
 调试变量。
 
+## MSC Storage 组合边界
+
+“将一个 block device 以 USB MSC 导出”需要组合 storage backend、read-only policy、inquiry identity、
+USB descriptor/class config、controller binding 与 ready/connect 生命周期。它不应拥有：
+
+- 文件系统 mount 或文件暴露策略；
+- UI 与业务状态机；
+- board handle 的生命周期；
+- 与 MSC 无关的媒体能力。
+
+block device 的 readiness、capacity、block size、read/write failure 和只读行为应由 storage/class bridge
+明确传播。观测可以记录 setup/reset、SCSI command、block IO 和最后错误，但不能用日志成功替代 BOT
+状态、backend 返回值或真实主机传输证据。
+
 ## 调试沉淀出的协议边界
 
 早期 MSC bring-up 暴露了几类不应留在场景 `main` 中的语义：
@@ -65,4 +79,4 @@ spec/plan 成功只能证明模型在当前约束下可构造，不能证明真�
 - trace/replay 等于真实 IRQ、DMA、cache 或主机证据；
 - 旧 `UsbApp`、`assemble()` 伪 API 是必须恢复的公共接口。
 
-旧草案的代码样例、Player/H747 路径、第一轮迁移顺序和愿景总结已删除。
+旧草案的代码样例、Player/H747 路径、`usb_storage_bundle` 名词、第一轮迁移顺序和愿景总结已删除。

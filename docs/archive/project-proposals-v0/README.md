@@ -20,8 +20,7 @@ USB storage bundle 的独立草案。
 - [`charm_构建系统升级方向草案.md`](charm_构建系统升级方向草案.md)
 - [`charm_foundation_runtime_与统一应用入口模型草案.md`](charm_foundation_runtime_与统一应用入口模型草案.md)
 - [`usb_declarative_retained_notes.md`](usb_declarative_retained_notes.md)：从早期声明式 USB 草案保留
-  spec/runtime binding、generator 顺序、专家边界与协议调试取舍。
-- [`usb_storage_bundle_设计草案.md`](usb_storage_bundle_设计草案.md)
+  spec/runtime binding、generator 顺序、专家边界、MSC storage 组合与协议调试取舍。
 - [`config_module_draft.md`](config_module_draft.md)
 
 通用 Bundle 概念、复杂场景总括提案和工程变体模型已删除：前两者的机制由具体提案承接，工程
@@ -29,3 +28,6 @@ USB storage bundle 的独立草案。
 
 声明式 USB 全文也已压缩；旧伪 API、场景文件映射、MSC 迁移排期和重复示例由当前 USB source、
 overview 与 Git 历史替代。
+
+`usb_storage_bundle` 草案已并入同一保留笔记；已删除的通用 Bundle 名词、Player/HQZY 迁移步骤和
+旧 profile/runtime 文件映射不再保留。

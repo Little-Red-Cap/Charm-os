@@ -471,9 +471,13 @@ export namespace player::ui {
 
         using IconBuildFn = bool (*)(::ui::gfx::svg::RasterWorkspace&, IconBuffer&, const rgba&);
 
-        ::ui::gfx::svg::RasterWorkspace& host_icon_raster_workspace() noexcept {
+        ::ui::gfx::svg::RasterWorkspace* host_icon_raster_workspace() noexcept {
+#if CHARM_PLAYER_REQUIRE_ICON_ARENA
+            return nullptr;
+#else
             static ::ui::gfx::svg::RasterWorkspace workspace{};
-            return workspace;
+            return &workspace;
+#endif
         }
 
         ImageView icon_view_from_buffer(const IconBuffer& buf) noexcept {
@@ -484,6 +488,17 @@ export namespace player::ui {
                                    buf.data(),
                                    false,
                                    false);
+        }
+
+        ImageView host_icon_view(IconBuffer& buf,
+                                 bool& initialized,
+                                 IconBuildFn build,
+                                 const rgba& color) noexcept {
+            auto* workspace = host_icon_raster_workspace();
+            if (!initialized && workspace != nullptr && build != nullptr) {
+                initialized = build(*workspace, buf, color);
+            }
+            return icon_view_from_buffer(buf);
         }
 
         ImageView icon_view_from_arena(PlayerIconPixelArena arena, std::size_t index) noexcept {
@@ -618,157 +633,109 @@ export namespace player::ui {
     inline ImageView icon_prev() noexcept {
         static detail::IconBuffer buf{};
         static bool init = false;
-        if (!init) {
-            init = detail::build_prev_icon(detail::host_icon_raster_workspace(), buf, kUiListFont);
-        }
-        return detail::icon_view_from_buffer(buf);
+        return detail::host_icon_view(buf, init, detail::build_prev_icon, kUiListFont);
     }
 
     inline ImageView icon_play() noexcept {
         static detail::IconBuffer buf{};
         static bool init = false;
-        if (!init) {
-            init = detail::build_play_icon(detail::host_icon_raster_workspace(), buf, kUiListFont);
-        }
-        return detail::icon_view_from_buffer(buf);
+        return detail::host_icon_view(buf, init, detail::build_play_icon, kUiListFont);
     }
 
     inline ImageView icon_pause() noexcept {
         static detail::IconBuffer buf{};
         static bool init = false;
-        if (!init) {
-            init = detail::build_pause_icon(detail::host_icon_raster_workspace(), buf, kUiListFont);
-        }
-        return detail::icon_view_from_buffer(buf);
+        return detail::host_icon_view(buf, init, detail::build_pause_icon, kUiListFont);
     }
 
     inline ImageView icon_loop() noexcept {
         static detail::IconBuffer buf{};
         static bool init = false;
-        if (!init) {
-            init = detail::build_loop_icon(detail::host_icon_raster_workspace(), buf, kUiListFont);
-        }
-        return detail::icon_view_from_buffer(buf);
+        return detail::host_icon_view(buf, init, detail::build_loop_icon, kUiListFont);
     }
 
     inline ImageView icon_single() noexcept {
         static detail::IconBuffer buf{};
         static bool init = false;
-        if (!init) {
-            init = detail::build_single_icon(detail::host_icon_raster_workspace(), buf, kUiListFont);
-        }
-        return detail::icon_view_from_buffer(buf);
+        return detail::host_icon_view(buf, init, detail::build_single_icon, kUiListFont);
     }
 
     inline ImageView icon_shuffle() noexcept {
         static detail::IconBuffer buf{};
         static bool init = false;
-        if (!init) {
-            init = detail::build_shuffle_icon(detail::host_icon_raster_workspace(), buf, kUiListFont);
-        }
-        return detail::icon_view_from_buffer(buf);
+        return detail::host_icon_view(buf, init, detail::build_shuffle_icon, kUiListFont);
     }
 
     inline ImageView icon_next() noexcept {
         static detail::IconBuffer buf{};
         static bool init = false;
-        if (!init) {
-            init = detail::build_next_icon(detail::host_icon_raster_workspace(), buf, kUiListFont);
-        }
-        return detail::icon_view_from_buffer(buf);
+        return detail::host_icon_view(buf, init, detail::build_next_icon, kUiListFont);
     }
 
     inline ImageView icon_chevron_right() noexcept {
         static detail::IconBuffer buf{};
         static bool init = false;
-        if (!init) {
-            init = detail::build_chevron_right_icon(detail::host_icon_raster_workspace(), buf, kUiListFont);
-        }
-        return detail::icon_view_from_buffer(buf);
+        return detail::host_icon_view(buf, init, detail::build_chevron_right_icon, kUiListFont);
     }
 
     inline ImageView icon_folder() noexcept {
         static detail::IconBuffer buf{};
         static bool init = false;
-        if (!init) {
-            init = detail::build_folder_icon(detail::host_icon_raster_workspace(), buf, kUiListFont);
-        }
-        return detail::icon_view_from_buffer(buf);
+        return detail::host_icon_view(buf, init, detail::build_folder_icon, kUiListFont);
     }
 
     inline ImageView icon_home() noexcept {
         static detail::IconBuffer buf{};
         static bool init = false;
-        if (!init) {
-            init = detail::build_home_icon(detail::host_icon_raster_workspace(), buf, kUiListFont);
-        }
-        return detail::icon_view_from_buffer(buf);
+        return detail::host_icon_view(buf, init, detail::build_home_icon, kUiListFont);
     }
 
     inline ImageView icon_home_active() noexcept {
         static detail::IconBuffer buf{};
         static bool init = false;
-        if (!init) {
-            init = detail::build_home_icon(detail::host_icon_raster_workspace(), buf, kUiOk);
-        }
-        return detail::icon_view_from_buffer(buf);
+        return detail::host_icon_view(buf, init, detail::build_home_icon, kUiOk);
     }
 
     inline ImageView icon_search() noexcept {
         static detail::IconBuffer buf{};
         static bool init = false;
-        if (!init) {
-            init = detail::build_search_icon(detail::host_icon_raster_workspace(), buf, kUiListFont);
-        }
-        return detail::icon_view_from_buffer(buf);
+        return detail::host_icon_view(buf, init, detail::build_search_icon, kUiListFont);
     }
 
     inline ImageView icon_search_active() noexcept {
         static detail::IconBuffer buf{};
         static bool init = false;
-        if (!init) {
-            init = detail::build_search_icon(detail::host_icon_raster_workspace(), buf, kUiOk);
-        }
-        return detail::icon_view_from_buffer(buf);
+        return detail::host_icon_view(buf, init, detail::build_search_icon, kUiOk);
     }
 
     inline ImageView icon_settings() noexcept {
         static detail::IconBuffer buf{};
         static bool init = false;
-        if (!init) {
-            init = detail::build_settings_icon(detail::host_icon_raster_workspace(), buf, kUiListFont);
-        }
-        return detail::icon_view_from_buffer(buf);
+        return detail::host_icon_view(buf, init, detail::build_settings_icon, kUiListFont);
     }
 
     inline ImageView icon_down() noexcept {
         static detail::IconBuffer buf{};
         static bool init = false;
-        if (!init) {
-            init = detail::build_down_icon(detail::host_icon_raster_workspace(), buf, kUiListFont);
-        }
-        return detail::icon_view_from_buffer(buf);
+        return detail::host_icon_view(buf, init, detail::build_down_icon, kUiListFont);
     }
 
     inline ImageView icon_more() noexcept {
         static detail::IconBuffer buf{};
         static bool init = false;
-        if (!init) {
-            init = detail::build_more_icon(detail::host_icon_raster_workspace(), buf, kUiListFont);
-        }
-        return detail::icon_view_from_buffer(buf);
+        return detail::host_icon_view(buf, init, detail::build_more_icon, kUiListFont);
     }
 
     inline ImageView icon_folder_active() noexcept {
         static detail::IconBuffer buf{};
         static bool init = false;
-        if (!init) {
-            init = detail::build_folder_icon(detail::host_icon_raster_workspace(), buf, kUiOk);
-        }
-        return detail::icon_view_from_buffer(buf);
+        return detail::host_icon_view(buf, init, detail::build_folder_icon, kUiOk);
     }
 
     inline PlayerIconIds register_player_icons() noexcept {
+#if CHARM_PLAYER_REQUIRE_ICON_ARENA
+        return {};
+#else
         PlayerIconIds out{};
         auto reg = [](const ImageView& view) noexcept {
             const auto res = ::ui::gfx::register_image_dedup(view);
@@ -792,6 +759,7 @@ export namespace player::ui {
         out.more = reg(icon_more());
         out.folder_active = reg(icon_folder_active());
         return out;
+#endif
     }
 
     inline PlayerIconIds register_player_icons(PlayerIconPixelArena arena) noexcept {

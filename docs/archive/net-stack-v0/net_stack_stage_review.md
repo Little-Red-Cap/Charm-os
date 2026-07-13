@@ -136,7 +136,7 @@
 - `网络底座进入维护式回归`
 - `后续网络工作以自研数据面的最小闭环推进为主`
 
-阶段出关口径现已独立沉淀到 `docs/io/net_stack_v0_closure_checklist.md`，这样“是否关单”和“关单后怎么推进”可以共用同一份判断基准。
+阶段出关口径见 [`net_stack_v0_closure_checklist.md`](net_stack_v0_closure_checklist.md)，用于复原当时的关单判断。
 
 这比继续使用“还在关单准备中”的说法更准确，也更利于团队判断下一步主线。
 

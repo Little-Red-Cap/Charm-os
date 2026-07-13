@@ -61,7 +61,7 @@
 
 ---
 
-收口判定：`docs/io/net_stack_v0_closure_checklist.md`
+收口判定：[`net_stack_v0_closure_checklist.md`](net_stack_v0_closure_checklist.md)
 
 ## 当前进度判断
 

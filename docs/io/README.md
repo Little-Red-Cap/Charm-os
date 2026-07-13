@@ -17,6 +17,7 @@ driver、service 和 domain 的依赖位置，不覆盖契约正文。
 | IO 与 driver/device 分工 | [`../architecture/driver_model.md`](../architecture/driver_model.md) |
 | block device | [`../agent/routes/block-device.md`](../agent/routes/block-device.md) |
 | 输入分层 | [`../input/README.md`](../input/README.md) |
+| AT parser/session | [`at_runtime_contract.md`](at_runtime_contract.md) |
 | 网络 socket v0 | [`net_socket_v0_contract.md`](net_socket_v0_contract.md) |
 | 网络双表面设计 | [`net_stack_dual_surface_design.md`](net_stack_dual_surface_design.md) |
 

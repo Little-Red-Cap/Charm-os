@@ -53,5 +53,3 @@ Materializer 的局部责任是：
 4. 生成 Node IR、有效过滤参数与观察所需 kind metadata。
 
 它不执行 node、不发现硬件、不拥有 runtime topology，也不能用 materialized graph 证明系统已运行。
-
-旧 HQZY/Player 路径、迁移完成度、模块文件清单和 legacy API 淘汰流水账已删除。

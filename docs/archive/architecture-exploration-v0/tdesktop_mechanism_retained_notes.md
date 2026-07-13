@@ -72,5 +72,3 @@ backend 和 execution environment 仍保持各自 ownership。
 - 不因 schema/codegen 成功，就把所有配置升级为 schema；
 - 不因 platform adapter 存在，就宣称平台差异已经统一；
 - 不把外部协作文件直接复制为 Charm Core 规则。
-
-旧 upstream 文件清单、RPL/CRL 伪 API、P0-P3 排期、Player/Vivid 映射和愿景总结已删除。

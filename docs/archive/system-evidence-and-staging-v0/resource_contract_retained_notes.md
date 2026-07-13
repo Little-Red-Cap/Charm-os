@@ -63,5 +63,3 @@ IRQ safety 必须绑定到具体操作，并说明 lock-free/critical section、
 
 RAM/stack map、heap peak、ISR latency、reactor budget 和 clock accuracy 是不同证据，不能压成一个
 `resource_ok` verdict。
-
-旧 JSON 示例、case manifest 字段、resource summary 命令矩阵、compare smoke 清单和未来执法路线已删除。

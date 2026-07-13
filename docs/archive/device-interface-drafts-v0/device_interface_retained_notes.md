@@ -56,6 +56,3 @@ closed、detached、would-block 和 backend fault 必须可区分。reactor/EDA 
 
 未绑定返回零会混淆 missing 与真实零时刻，是现有 `Clock` 形状的已知缺口。timeout-aware consumer 在
 依赖 timebase 前还需声明最低 resolution 和 wrap 处理策略。
-
-旧正文中的拟议 C++ API、facts 全量清单、`proposed -> experimental` gate、producer 命名、阶段排期和
-next steps 已删除。需要追溯原文时使用 Git 历史。

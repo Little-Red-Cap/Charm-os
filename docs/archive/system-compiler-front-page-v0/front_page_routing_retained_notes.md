@@ -60,5 +60,3 @@ Compatibility fallback 必须可见。缺失新 provenance 时使用旧字段，
 - front-page summary 不增加 lower-level evidence；
 - handoff 不等于执行、部署或 App launch；
 - reader convenience 不构成新的 Core World、Witness 或 Judgment 模型。
-
-旧 corridor 八层链、breakpoint taxonomy、runtime/non-runtime 样本和 future work 已删除。

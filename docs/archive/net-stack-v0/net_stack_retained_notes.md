@@ -40,5 +40,4 @@ frame ingress，不承担 socket policy；reactor 只负责 readiness progressio
 早期设计没有证明完整 TCP/IP、IPv6、socket options、动态路由、产品安全、零拷贝或跨平台 ABI。
 公开/半公开/内部模块清单、typed session 路线和具体 API 示例均是阶段方案，不再作为扩展依据。
 
-原 tasklist、stage review、closure checklist 和“v0 closed”结论已删除。当前能力只能由源码、CMake
-和当次 Host/QEMU/real-board 证据分别证明。
+当前能力只能由源码、CMake 和当次 Host/QEMU/real-board 证据分别证明。

@@ -59,5 +59,3 @@ facade 或 App ABI 可以消费这条边界，但不能反向定义 arch frame �
 
 每次提升 leaf 语义到 common/kernel 前，应保留正例、失败例、入口/出口 machine state 与 artifact。
 build-only、schema-only 或一次成功日志都不足以证明运行边界。
-
-旧五阶段排期、目录草图、协作分工、QEMU runner 参数、完成标志和比喻性总结已删除。

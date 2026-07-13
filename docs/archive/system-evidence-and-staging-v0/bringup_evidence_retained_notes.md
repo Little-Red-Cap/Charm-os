@@ -62,5 +62,3 @@ comparison payload，不应伪造 node/edge diff，也不能因结构 unchanged 
 - published/observed 不证明消费者行为正确；
 - 横向 case matrix 不定义统一 system model；
 - evidence 工具不拥有 Capability Contract 或硬件事实。
-
-旧 fixture catalog、DOT/JSON 样例、inspect 参数矩阵、compare 演进和路线总结已删除。

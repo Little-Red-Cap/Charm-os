@@ -2,8 +2,8 @@
 
 > **文档状态：`supporting`**
 
-完整起步设计见
-[`../archive/net-stack-v0/net_stack_dual_surface_design.md`](../archive/net-stack-v0/net_stack_dual_surface_design.md)。当前 socket 行为以
+早期设计取舍见
+[`net_stack_retained_notes.md`](../archive/net-stack-v0/net_stack_retained_notes.md)。当前 socket 行为以
 [`net_socket_v0_contract.md`](net_socket_v0_contract.md) 和源码为准。
 
 ## 对外边界

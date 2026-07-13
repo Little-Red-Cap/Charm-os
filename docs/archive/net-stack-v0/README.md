@@ -1,8 +1,10 @@
 # Net Stack v0 归档
 
-本目录保存网络双层起步设计、底座任务单、阶段复盘和 v0 关单清单的完整正文。
+本目录保留网络双表面起步设计中仍有独立价值的分层与 ownership 判断。
 
-这些文档包含分层取舍和历史 smoke 清单，但也混入大量排期、重复总结和逐次新增 token，已不适合作为当前入口。
+原 646 行设计、底座任务单、阶段复盘和 v0 关单清单已收敛到
+[`net_stack_retained_notes.md`](net_stack_retained_notes.md)。历史 smoke、排期、API 示例和逐次 token
+不再保留。
 
 默认入口：
 

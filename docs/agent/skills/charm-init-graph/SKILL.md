@@ -1,57 +1,59 @@
 ---
 name: charm-init-graph
-description: 新增或更新 Charm 的 init.graph 节点、board_caps 与 bringup 链路。用于新增 UART/SPI/I2C/Flash/USB 等能力并接入 init.graph。
+description: 审查或接入已经选择 init.graph 的静态初始化目标。
 ---
 
-# Charm InitGraph 工作流
+# Charm Init Graph
 
-## 适用范围
-当你需要新增板级能力，并通过 init.graph、board_caps、bringup 链路把能力装配进系统时，使用本技能。适用于 UART/SPI/I2C/Flash/USB 等板级能力的标准接入路径。
+> status: `supporting`
 
-## 不可妥协项
-- 禁止隐式全局（使用 Context/registry）。
-- 禁止在 init.graph 之外直接 init。
-- provides/requires 必须显式且一致。
-- Capability 名称是稳定字符串，不得随意变体。
+Use this skill only when the affected target already uses `init::Graph`, or when
+source evidence shows a static dependency graph is required. It does not require
+every board capability, dynamic device or application to adopt init.graph.
 
-## 步骤（最小顺序）
-1) **定义 board caps**
-   - 增补或扩展 `platform/board/<board>` 的 caps 结构。
-   - 为能力提供描述符（UART/I2C/SPI/Flash）。
+## Before Editing
 
-2) **驱动适配层**
-   - 在 driver 层实现适配（Channel 或 block.device）。
-   - 保证 non-blocking 语义与显式错误处理。
+1. Read the target/profile CMake, startup path and current nodes.
+2. Identify the consumer, owner and initialization lifetime.
+3. Read [`init_graph_contract.md`](../../../system/init_graph_contract.md) and
+   the actual `init.node`/`init.graph` source.
+4. Decide whether the dependency is static initialization. Dynamic discovery,
+   hot-plug and runtime lookup need a different owner.
 
-3) **init.node 注册**
-   - 创建包含 `provides`/`requires` 的节点。
-   - 保持 phase 顺序：platform -> hal -> driver -> service/app。
+## Wiring
 
-4) **Bringup 链**
-   - 按目标的 `init.graph` 和 bringup wiring 接入节点。
-   - Bringup 只负责链路组合，避免在 main 写自定义 init。
+- Define the smallest node with explicit `provides` and `requires_caps`.
+- Choose `runlevel_mask` and one real `Phase` (`early`, `core`, `service`,
+  `app`) from target behavior, not a generic platform/HAL/driver hierarchy.
+- Keep each selected capability to one provider; do not add fallback selection
+  to hide duplicate or missing wiring.
+- Bind the node in the owning target/profile rather than an unrelated global
+  entry.
+- Register a channel/block/device endpoint only when the consumer uses the
+  corresponding registry contract. Registry insertion is not an init.graph
+  requirement.
+- Keep board/HAL handles and vendor state in the project/backend adapter.
 
-5) **Registry 接线**
-   - 在 driver node 的 init 中注册 endpoint 到 `io.registry` 或 `block.registry`。
-   - 消费端按名称打开（禁止从 platform 直拿句柄）。
+CapId strings are hashed identifiers used by the graph. Centralize them with
+their owner and test duplicates/collisions relevant to the target; a string's
+presence does not make it a global Charm capability namespace.
 
-## Capability 命名规则
-- 使用稳定命名：`platform.irq`、`hal.uart1`、`io.uart1`、`block.sd0`。
-- 避免别名，确需别名时用 replace_channel 或 registry 映射。
+## Validation
 
-## 验证清单
-- Win stub 路径构建通过。
-- `registry.open(...)` 能找到新增能力。
-- 协议层不直接引用 platform/hal。
+Cover the applicable paths directly:
 
-## 常见陷阱
-- IRQ 提前启用，channel 尚未注册。
-- Channel read/write 返回 Ok(0)。
-- 把 core 节点塞进 extra node。
+- selected positive graph order and init calls;
+- missing and duplicate provider;
+- zero capability ID, capacity overflow and phase inversion;
+- dependency cycle or self-dependency;
+- runlevel/max-phase filtering;
+- first init failure stopping later nodes, with no inferred rollback/deinit.
 
-## 参考
-- docs/overview.md
-- docs/system/init_graph_contract.md
-- docs/io/io_channel_contract.md
-- docs/io/io_reactor_contract.md
-- docs/io/io_registry_contract.md
+Also run the real target when the claim includes platform startup. Host graph
+tests cannot prove IRQ, clock, peripheral or board readiness.
+
+## Review Output
+
+State the node owner, selected target, provides/requires, phase/runlevel,
+failure behavior and validation domain. Do not describe directory layering or a
+successful configure as proof that initialization completed.

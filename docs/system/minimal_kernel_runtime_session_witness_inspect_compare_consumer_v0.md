@@ -7,8 +7,8 @@
 - `authority`: 受 [`kernel_runtime_session_witness_v0.md`](kernel_runtime_session_witness_v0.md) 与
   [`explain_surface_v0.md`](explain_surface_v0.md) 约束
 
-本路径被 workflow 与 schema 索引引用，因此继续保留。它是局部诊断工具契约，不定义 Charm Core、
-runtime verdict 或新的 compare 语言。
+本文件定义 workflow 与 schema index 消费的局部诊断工具边界，不定义 Charm Core、runtime verdict
+或新的 compare 语言。
 
 ## 输入与输出
 

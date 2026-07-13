@@ -6,8 +6,8 @@
 - `scope`: minimal-kernel 一次运行会话的汇总边界与消费约束
 - `authority`: 受 [`minimal_kernel_runtime_evidence_bundle_contract.md`](minimal_kernel_runtime_evidence_bundle_contract.md) 约束
 
-本文件保留既有路径，因为 workflow、canonical world、schema sample 和 front-page fixture 会引用它。
-它不是 Charm Core 契约，也不以文档、schema 或 report 的存在证明 runtime 已运行。
+本文件定义 workflow、canonical world、schema sample 和 front-page fixture 共同消费的 session summary
+边界。它不是 Charm Core 契约，也不以文档、schema 或 report 的存在证明 runtime 已运行。
 
 ## 对象边界
 

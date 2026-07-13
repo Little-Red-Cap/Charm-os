@@ -59,5 +59,9 @@ device 带 `Caps::cached`。具体 cache 行为与边界见
 - hot-plug policy、持久命名或自动 discovery；
 - transaction、filesystem 或 partition 语义。
 
+当前也没有统一的介质故障注入脚本。若补充 memory/file-backed fixture，应至少区分越界/对齐、
+read/write/erase/flush failure、short operation 与 detach 后访问；filesystem、App Store 和 raw flash
+必须分别验证，不能共享一个笼统的 storage 成功结论。
+
 验证入口：`Examples/fs/fs_block_vfs_demo`、`Examples/init/bringup_block_observe_demo`、
 `Examples/system/device_runtime_block_slot_demo` 及 registry self-check。

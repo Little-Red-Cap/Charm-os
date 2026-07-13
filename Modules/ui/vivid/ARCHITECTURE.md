@@ -53,10 +53,10 @@ widget/scene state
 - tile 命中索引容量不足时必须回退到正确但更慢的扫描路径；
 - 产品 evidence 只消费 Scene stats 和 artifact 摘要，不依赖 CmdHeader/payload 私有布局。
 
-DrawCmd、Scene 内部支撑和 state-to-artifact evidence 分别见：
+`Scene` 的 builder/layer support 是附属实现层，render detail 是 private partition；它们不建立新的产品或
+evidence surface。DrawCmd 与 state-to-artifact evidence 分别见：
 
 - [`vivid_draw_cmd_evidence_boundary_v0.md`](../../../docs/ui/vivid_draw_cmd_evidence_boundary_v0.md)；
-- [`vivid_scene_support_boundary_v0.md`](../../../docs/ui/vivid_scene_support_boundary_v0.md)；
 - [`vivid_render_evidence_chain_v0.md`](../../../docs/ui/vivid_render_evidence_chain_v0.md)。
 
 ## Workspace 与静态内存

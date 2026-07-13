@@ -39,7 +39,6 @@
 
 先读 [`posix_support_overview.md`](posix_support_overview.md)。现行专题契约包括：
 
-- [`posix_three_layer_contract.md`](posix_three_layer_contract.md)
 - [`posix_program_image_contract.md`](posix_program_image_contract.md)
 - [`posix_spawn_contract.md`](posix_spawn_contract.md)
 - [`posix_fd_table_contract.md`](posix_fd_table_contract.md)

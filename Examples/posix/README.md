@@ -5,7 +5,7 @@
 如果你想先看现行执行面与边界，再看示例，建议先读：
 
 - [`../../docs/system/posix_support_overview.md`](../../docs/system/posix_support_overview.md)
-- [`../../docs/system/posix_three_layer_contract.md`](../../docs/system/posix_three_layer_contract.md)
+- [`../../docs/system/posix_program_image_contract.md`](../../docs/system/posix_program_image_contract.md)
 
 ## 当前内容
 

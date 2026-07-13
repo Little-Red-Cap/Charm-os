@@ -9,6 +9,7 @@
 - [`audio_design_full_draft.md`](audio_design_full_draft.md)：原 Modules 目录中的完整 L1/L2/L3 草案；
 - [`audio_readme_legacy.md`](audio_readme_legacy.md)：早期音频文档路由。
 - [`usb_uac_board_bringup_notes.md`](usb_uac_board_bringup_notes.md)：UAC descriptor、Windows cache 与板级时钟调试记录。
+- [`av_pipeline_overview.md`](av_pipeline_overview.md)：早期 VSF stream/pipeline 对照与 media 抽取设想。
 
 现行入口：
 

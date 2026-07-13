@@ -89,8 +89,8 @@ GCC16 可用后新增实验模块，例如 `charm.core.widget_spec.reflection_ex
 
 ## 风险与护栏
 
-- `WidgetSpec` 是单一真相候选，不应变成第二套手写 registry 森林；如果长期不能驱动生成或约束代码，就应回收。
-- 当前 `widgets.registry.def` 仍是启用/裁剪/行为表的重要来源；`WidgetSpec` 第一阶段只做 API 契约试点，不替代 registry。
+- `cmake/widget_catalog.cmake` 已是 WidgetKind ABI、module/factory、payload、style/defaults 和 input behavior 的构建期单一源；`WidgetSpec` 不得重新手写这些字段形成第二套 catalog。
+- `WidgetSpec` 当前只做运行时/API 契约试点。它要进入主线，必须从 catalog 派生，或用静态比较证明与 catalog 一致；如果长期不能驱动生成或约束代码，就应回收。
 - 不允许用大量宏模拟反射；手写后端必须保持 constexpr 数据结构，反射后端另行隔离。
 - 结构化视图族必须等试点闭环后再进入，因为其虚拟化、回调、滚动和列/树模型会显著扩大模型复杂度。
 

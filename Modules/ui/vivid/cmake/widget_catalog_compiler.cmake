@@ -168,6 +168,40 @@ function(vivid_load_widget_catalog)
     set_property(GLOBAL PROPERTY VIVID_WIDGET_CATALOG_LOADED TRUE)
 endfunction()
 
+function(vivid_widget_catalog_fingerprint out_var)
+    vivid_load_widget_catalog()
+    get_property(_kinds GLOBAL PROPERTY VIVID_WIDGET_KINDS)
+    get_property(_pools GLOBAL PROPERTY VIVID_PAYLOAD_POOLS)
+
+    set(_canonical "schema=1\n")
+    foreach(_pool IN LISTS _pools)
+        string(APPEND _canonical "pool=${_pool}")
+        foreach(_field IN ITEMS MEMBER STATS_FIELD CAP_KIND)
+            _vivid_payload_get("${_pool}" "${_field}" _value)
+            string(APPEND _canonical "|${_field}=${_value}")
+        endforeach()
+        string(APPEND _canonical "\n")
+    endforeach()
+
+    foreach(_kind IN LISTS _kinds)
+        string(APPEND _canonical "widget=${_kind}")
+        foreach(_field IN ITEMS
+                ID MODULE CPP_TYPE THEME_BASE FACTORY FACTORY_POOL FACTORY_CREATE
+                PAYLOAD_POOL STYLE CLICK CLICK_INDEX GROUP_KIND WHEEL_TARGET
+                DRAG_BEHAVIOR DRAG_BEHAVIOR_ONLY WHEEL_TARGET_ONLY
+                SCROLL_AXIS WHEEL_AXIS RUNTIME_ONLY HIT_TEST_FALSE FOCUSABLE
+                CLIP_CHILDREN LAYOUT_LIST CLICK_ENABLED CHECKABLE SCROLL_ENABLED
+                DRAG_ENABLED WHEEL_ENABLED EXTRA_ENABLED CAPTURE_ENABLED)
+            _vivid_widget_get("${_kind}" "${_field}" _value)
+            string(APPEND _canonical "|${_field}=${_value}")
+        endforeach()
+        string(APPEND _canonical "\n")
+    endforeach()
+
+    string(SHA256 _fingerprint "${_canonical}")
+    set(${out_var} "${_fingerprint}" PARENT_SCOPE)
+endfunction()
+
 function(vivid_widget_profile_resolve out_modules out_pools out_defines)
     set(_options)
     set(_one_value PROFILE)

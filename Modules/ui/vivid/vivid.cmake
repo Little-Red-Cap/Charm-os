@@ -1,6 +1,7 @@
 set(_VIVID_CMAKE_DIR "${CMAKE_CURRENT_LIST_DIR}")
 
 include("${CMAKE_CURRENT_LIST_DIR}/cmake/widget_catalog_compiler.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/cmake/product_profile_compiler.cmake")
 
 macro(vivid_cache_default name type default_value doc)
     if (NOT DEFINED ${name})
@@ -16,134 +17,103 @@ function(vivid_bool_literal out_var value)
     endif()
 endfunction()
 
-function(vivid_widget_feature_define_name out_var widget_module_name)
-    string(REPLACE "_" ";" _vivid_widget_parts "${widget_module_name}")
-    set(_vivid_widget_define "")
-    foreach(_vivid_widget_part IN LISTS _vivid_widget_parts)
-        if (_vivid_widget_part STREQUAL "")
-            continue()
+function(vivid_reject_legacy_product_configuration)
+    set(_legacy_names
+        CHARM_VIVID_PRODUCT_CORE_MODULES
+        CHARM_VIVID_PRODUCT_GFX_MODULES
+        CHARM_VIVID_PRODUCT_WIDGETS)
+    get_cmake_property(_known_variables VARIABLES)
+    foreach(_name IN LISTS _known_variables)
+        if(_name MATCHES "^CHARM_VIVID_PAYLOAD_CAP_")
+            list(APPEND _legacy_names "${_name}")
         endif()
-        string(SUBSTRING "${_vivid_widget_part}" 0 1 _vivid_widget_first)
-        string(SUBSTRING "${_vivid_widget_part}" 1 -1 _vivid_widget_rest)
-        string(TOUPPER "${_vivid_widget_first}" _vivid_widget_first)
-        string(APPEND _vivid_widget_define "${_vivid_widget_first}${_vivid_widget_rest}")
     endforeach()
-    if (_vivid_widget_define STREQUAL "Scrollbar")
-        set(_vivid_widget_define "ScrollBar")
-    elseif (_vivid_widget_define STREQUAL "Switcher")
-        set(_vivid_widget_define "Switch")
-    endif()
-    set(${out_var} "${_vivid_widget_define}" PARENT_SCOPE)
-endfunction()
+    list(REMOVE_DUPLICATES _legacy_names)
 
-function(vivid_widget_module_file_name out_var widget_module_name)
-    if (widget_module_name STREQUAL "switcher")
-        set(_vivid_widget_file "switch")
-    else()
-        set(_vivid_widget_file "${widget_module_name}")
-    endif()
-    set(${out_var} "${_vivid_widget_file}" PARENT_SCOPE)
-endfunction()
-
-function(vivid_collect_product_widget_modules out_var)
-    if (NOT CHARM_VIVID_PRODUCT_WIDGETS)
+    set(_found)
+    foreach(_name IN LISTS _legacy_names)
+        if(DEFINED ${_name})
+            list(APPEND _found "${_name}")
+        endif()
+    endforeach()
+    if(_found)
+        list(JOIN _found ", " _found_text)
         message(FATAL_ERROR
-            "CHARM_VIVID_FEATURESET=PRODUCT requires CHARM_VIVID_PRODUCT_WIDGETS")
+            "Vivid PRODUCT legacy configuration is no longer supported: ${_found_text}. "
+            "Define a vivid product profile and target envelope instead.")
     endif()
-
-    set(_vivid_product_modules "")
-    foreach(_vivid_product_widget IN LISTS CHARM_VIVID_PRODUCT_WIDGETS)
-        if (_vivid_product_widget STREQUAL "")
-            message(FATAL_ERROR "Empty CHARM_VIVID_PRODUCT_WIDGETS entry")
-        endif()
-        vivid_widget_module_file_name(_vivid_product_widget_file "${_vivid_product_widget}")
-        set(_vivid_product_widget_module
-            "${_VIVID_CMAKE_DIR}/widgets/${_vivid_product_widget_file}.cppm")
-        if (NOT EXISTS "${_vivid_product_widget_module}")
-            message(FATAL_ERROR
-                "Unknown Vivid PRODUCT widget '${_vivid_product_widget}': "
-                "${_vivid_product_widget_module} does not exist")
-        endif()
-        list(APPEND _vivid_product_modules "${_vivid_product_widget_module}")
-    endforeach()
-    list(REMOVE_DUPLICATES _vivid_product_modules)
-    set(${out_var} "${_vivid_product_modules}" PARENT_SCOPE)
 endfunction()
 
-function(vivid_collect_product_area_modules out_var area list_var)
-    if (NOT area STREQUAL "core" AND NOT area STREQUAL "gfx")
-        message(FATAL_ERROR "Unknown Vivid PRODUCT module area '${area}'")
+function(vivid_payload_cap_variable_name out_var cap_kind)
+    string(REGEX REPLACE "([a-z0-9])([A-Z])" "\\1_\\2" _suffix "${cap_kind}")
+    string(TOUPPER "${_suffix}" _suffix)
+    if(_suffix STREQUAL "SCROLL_BAR")
+        set(_suffix "SCROLLBAR")
     endif()
-    if (NOT DEFINED ${list_var} OR NOT ${list_var})
-        message(FATAL_ERROR
-            "CHARM_VIVID_FEATURESET=PRODUCT requires ${list_var}")
+    set(${out_var} "SOA_POOL_CAP_${_suffix}" PARENT_SCOPE)
+endfunction()
+
+function(vivid_json_escape out_var value)
+    set(_escaped "${value}")
+    string(REPLACE "\\" "\\\\" _escaped "${_escaped}")
+    string(REPLACE "\"" "\\\"" _escaped "${_escaped}")
+    string(REPLACE "\n" "\\n" _escaped "${_escaped}")
+    string(REPLACE "\r" "\\r" _escaped "${_escaped}")
+    string(REPLACE "\t" "\\t" _escaped "${_escaped}")
+    set(${out_var} "${_escaped}" PARENT_SCOPE)
+endfunction()
+
+function(vivid_json_string_array out_var)
+    set(_json "[")
+    set(_separator "")
+    foreach(_value IN LISTS ARGN)
+        vivid_json_escape(_escaped "${_value}")
+        string(APPEND _json "${_separator}\"${_escaped}\"")
+        set(_separator ",")
+    endforeach()
+    string(APPEND _json "]")
+    set(${out_var} "${_json}" PARENT_SCOPE)
+endfunction()
+
+function(vivid_filter_sources_provided_by_linked_targets out_var target_name)
+    set(_provided_sources)
+    get_target_property(_linked_targets ${target_name} LINK_LIBRARIES)
+    if(_linked_targets AND NOT _linked_targets STREQUAL "_linked_targets-NOTFOUND")
+        foreach(_linked_target IN LISTS _linked_targets)
+            if(NOT TARGET ${_linked_target})
+                continue()
+            endif()
+            get_target_property(_linked_sources ${_linked_target} SOURCES)
+            get_target_property(_module_sets ${_linked_target} CXX_MODULE_SETS)
+            foreach(_module_set IN LISTS _module_sets)
+                get_target_property(
+                    _module_set_sources ${_linked_target} "CXX_MODULE_SET_${_module_set}")
+                if(_module_set_sources
+                   AND NOT _module_set_sources STREQUAL "_module_set_sources-NOTFOUND")
+                    list(APPEND _linked_sources ${_module_set_sources})
+                endif()
+            endforeach()
+            foreach(_source IN LISTS _linked_sources)
+                if(_source MATCHES "^\\$<")
+                    continue()
+                endif()
+                get_filename_component(_source_abs "${_source}" ABSOLUTE)
+                file(TO_CMAKE_PATH "${_source_abs}" _source_abs)
+                list(APPEND _provided_sources "${_source_abs}")
+            endforeach()
+        endforeach()
     endif()
+    list(REMOVE_DUPLICATES _provided_sources)
 
-    set(_vivid_product_modules "")
-    foreach(_vivid_product_module IN LISTS ${list_var})
-        if (_vivid_product_module STREQUAL "")
-            message(FATAL_ERROR "Empty ${list_var} entry")
-        endif()
-        if (_vivid_product_module MATCHES "[/\\\\]" OR _vivid_product_module MATCHES "\\.cppm$")
-            message(FATAL_ERROR
-                "${list_var} entries must be module basenames without path or .cppm: "
-                "'${_vivid_product_module}'")
-        endif()
-        set(_vivid_product_module_path
-            "${_VIVID_CMAKE_DIR}/${area}/${_vivid_product_module}.cppm")
-        if (NOT EXISTS "${_vivid_product_module_path}")
-            message(FATAL_ERROR
-                "Unknown Vivid PRODUCT ${area} module '${_vivid_product_module}': "
-                "${_vivid_product_module_path} does not exist")
-        endif()
-        if (_vivid_product_module STREQUAL "snapshot"
-            OR _vivid_product_module STREQUAL "display_policy"
-            OR _vivid_product_module STREQUAL "host_tools")
-            message(FATAL_ERROR
-                "Host-only Vivid ${area} module '${_vivid_product_module}' is not allowed "
-                "in CHARM_VIVID_FEATURESET=PRODUCT")
-        endif()
-        list(APPEND _vivid_product_modules "${_vivid_product_module_path}")
-    endforeach()
-    list(REMOVE_DUPLICATES _vivid_product_modules)
-    set(${out_var} "${_vivid_product_modules}" PARENT_SCOPE)
-endfunction()
-
-function(vivid_collect_product_core_modules out_var)
-    vivid_collect_product_area_modules(
-        _vivid_product_modules core CHARM_VIVID_PRODUCT_CORE_MODULES)
-    set(${out_var} "${_vivid_product_modules}" PARENT_SCOPE)
-endfunction()
-
-function(vivid_collect_product_gfx_modules out_var)
-    vivid_collect_product_area_modules(
-        _vivid_product_modules gfx CHARM_VIVID_PRODUCT_GFX_MODULES)
-    set(${out_var} "${_vivid_product_modules}" PARENT_SCOPE)
-endfunction()
-
-function(vivid_product_widget_defines out_var)
-    set(_vivid_product_defines "")
-    foreach(_vivid_product_widget IN LISTS CHARM_VIVID_PRODUCT_WIDGETS)
-        vivid_widget_feature_define_name(_vivid_product_define "${_vivid_product_widget}")
-        if (_vivid_product_define STREQUAL "")
-            message(FATAL_ERROR "Empty CHARM_VIVID_PRODUCT_WIDGETS entry")
-        endif()
-        string(APPEND _vivid_product_defines
-            "#define CHARM_VIVID_ENABLE_WIDGET_${_vivid_product_define} 1\n")
-    endforeach()
-    set(${out_var} "${_vivid_product_defines}" PARENT_SCOPE)
-endfunction()
-
-function(vivid_product_widget_enabled_by_define out_var widget_define)
-    set(_vivid_product_widget_enabled OFF)
-    foreach(_vivid_product_widget IN LISTS CHARM_VIVID_PRODUCT_WIDGETS)
-        vivid_widget_feature_define_name(_vivid_product_define "${_vivid_product_widget}")
-        if (_vivid_product_define STREQUAL "${widget_define}")
-            set(_vivid_product_widget_enabled ON)
-            break()
+    set(_filtered)
+    foreach(_source IN LISTS ARGN)
+        get_filename_component(_source_abs "${_source}" ABSOLUTE)
+        file(TO_CMAKE_PATH "${_source_abs}" _source_abs)
+        if(NOT _source_abs IN_LIST _provided_sources)
+            list(APPEND _filtered "${_source}")
         endif()
     endforeach()
-    set(${out_var} "${_vivid_product_widget_enabled}" PARENT_SCOPE)
+    set(${out_var} "${_filtered}" PARENT_SCOPE)
 endfunction()
 
 function(vivid_require_uint16_capacity var_name value)
@@ -161,77 +131,110 @@ function(vivid_require_nonnegative_integer var_name value)
     endif()
 endfunction()
 
-function(vivid_apply_product_payload_cap cap_var knob_suffix)
-    set(_vivid_payload_knob "CHARM_VIVID_PAYLOAD_CAP_${knob_suffix}")
-    set(_vivid_payload_widget_enabled OFF)
-    set(_vivid_payload_widget_names "")
-    foreach(_vivid_payload_widget_define IN LISTS ARGN)
-        list(APPEND _vivid_payload_widget_names "${_vivid_payload_widget_define}")
-        vivid_product_widget_enabled_by_define(
-            _vivid_payload_widget_define_enabled
-            "${_vivid_payload_widget_define}")
-        if (_vivid_payload_widget_define_enabled)
-            set(_vivid_payload_widget_enabled ON)
-        endif()
-    endforeach()
-    string(REPLACE ";" "/" _vivid_payload_widget_text "${_vivid_payload_widget_names}")
-    if (_vivid_payload_widget_enabled)
-        if (NOT DEFINED ${_vivid_payload_knob} OR "${${_vivid_payload_knob}}" STREQUAL "")
-            message(FATAL_ERROR
-                "CHARM_VIVID_FEATURESET=PRODUCT requires explicit ${_vivid_payload_knob} "
-                "because widget ${_vivid_payload_widget_text} is enabled")
-        endif()
-        vivid_require_uint16_capacity("${_vivid_payload_knob}" "${${_vivid_payload_knob}}")
-        set(${cap_var} "${${_vivid_payload_knob}}" PARENT_SCOPE)
-    else()
-        if (DEFINED ${_vivid_payload_knob} AND NOT "${${_vivid_payload_knob}}" STREQUAL "")
-            vivid_require_uint16_capacity("${_vivid_payload_knob}" "${${_vivid_payload_knob}}")
-            if (NOT "${${_vivid_payload_knob}}" STREQUAL "0")
-                message(FATAL_ERROR
-                    "${_vivid_payload_knob}=${${_vivid_payload_knob}} is not allowed because "
-                    "widget ${_vivid_payload_widget_text} is not enabled in CHARM_VIVID_PRODUCT_WIDGETS")
-            endif()
-        endif()
-        set(${cap_var} 0 PARENT_SCOPE)
-    endif()
-endfunction()
-
 function(vivid_collect_modules target_name module_list_var base_dirs_var)
     if (NOT CHARM_ENABLE_UI_VIVID)
         return()
     endif()
 
-    vivid_cache_default(CHARM_VIVID_SCREEN_WIDTH STRING 480 "Vivid screen width")
-    vivid_cache_default(CHARM_VIVID_SCREEN_HEIGHT STRING 800 "Vivid screen height")
-    vivid_cache_default(CHARM_VIVID_SCREEN_PIXEL_FORMAT STRING RGB888 "Vivid screen pixel format")
-    set_property(CACHE CHARM_VIVID_SCREEN_PIXEL_FORMAT PROPERTY STRINGS RGB888 RGB565)
-    math(EXPR _vivid_default_layer_cache_width "${CHARM_VIVID_SCREEN_WIDTH} / 2")
-    math(EXPR _vivid_default_layer_cache_height "${CHARM_VIVID_SCREEN_HEIGHT} / 2")
-    vivid_cache_default(CHARM_VIVID_LAYER_CACHE_SLOTS STRING 1 "Vivid layer cache slot count")
-    vivid_cache_default(CHARM_VIVID_LAYER_CACHE_WIDTH STRING ${_vivid_default_layer_cache_width} "Vivid layer cache width")
-    vivid_cache_default(CHARM_VIVID_LAYER_CACHE_HEIGHT STRING ${_vivid_default_layer_cache_height} "Vivid layer cache height")
-    vivid_cache_default(CHARM_VIVID_ENABLE_FLOAT_WIDGETS BOOL ON "Enable float-backed vivid widgets")
-    vivid_cache_default(CHARM_VIVID_SOA_MAX_NODES STRING 256 "Vivid SoA max node count")
-    vivid_cache_default(CHARM_VIVID_SOA_TEXT_ARENA_BYTES STRING "" "Vivid SoA text arena bytes override; empty keeps the featureset default")
-    vivid_cache_default(CHARM_VIVID_STYLE_CLASS_MAX STRING 256 "Vivid style class capacity")
-    vivid_cache_default(CHARM_VIVID_STYLE_RULE_CAP STRING 32 "Vivid stylesheet rule capacity")
-    vivid_cache_default(CHARM_VIVID_STYLE_METRICS_POOL_CAP STRING 64 "Vivid stylesheet metrics pool capacity")
-    vivid_cache_default(CHARM_VIVID_DRAW_CMD_MAX_COMMANDS STRING 1024 "Vivid DrawCmd command capacity")
-    vivid_cache_default(CHARM_VIVID_DRAW_CMD_TEXT_BYTES STRING 4096 "Vivid DrawCmd text arena bytes")
-    vivid_cache_default(CHARM_VIVID_DRAW_CMD_BLOB_BYTES STRING 2048 "Vivid DrawCmd blob arena bytes")
-    vivid_cache_default(CHARM_VIVID_MAX_HOT_STACK_FRAME_BYTES STRING 4096 "Vivid selected-module stack frame limit")
-    vivid_cache_default(CHARM_VIVID_DRAW_DETAIL_EVIDENCE BOOL OFF "Enable DrawCmd detail evidence")
-    vivid_cache_default(CHARM_VIVID_RUNTIME_SCENE_INSTANCES STRING "" "Vivid resident Scene instance count; required by PRODUCT and MCU_MIN")
-    vivid_cache_default(CHARM_VIVID_STATIC_MEMORY_BUDGET_BYTES STRING "" "Vivid resident RAM budget; required by PRODUCT and MCU_MIN")
-    vivid_cache_default(CHARM_VIVID_STATIC_MEMORY_MIN_HEADROOM_BYTES STRING "" "Minimum Vivid resident RAM headroom; required by PRODUCT and MCU_MIN")
-    foreach(_vivid_payload_cap IN ITEMS
-            LABEL BUTTON IMAGE TEXT_INPUT TEXT_AREA NUMBER_INPUT
-            SEGMENTED_CONTROL STEPPER TOGGLE_GROUP CHECKBOX RADIO
-            LIST_ITEM TEXT_LIST LIST_VIEW TABLE_VIEW TREE_VIEW NUMBER_LIST
-            ROLLER SWITCH SLIDER PROGRESS SCROLLBAR LIST SCROLL_CONTAINER SPINNER)
-        vivid_cache_default(CHARM_VIVID_PAYLOAD_CAP_${_vivid_payload_cap}
-            STRING "" "Vivid payload pool capacity override for ${_vivid_payload_cap}")
-    endforeach()
+    if(CHARM_VIVID_FEATURESET STREQUAL "PRODUCT")
+        vivid_reject_legacy_product_configuration()
+        _vivid_target_get("${target_name}" CONFIGURED _vivid_target_configured)
+        if(NOT _vivid_target_configured)
+            message(FATAL_ERROR
+                "Vivid PRODUCT target '${target_name}' has no configured product profile. "
+                "Call vivid_configure_product_target(TARGET ${target_name} ...) before source collection.")
+        endif()
+        _vivid_target_get("${target_name}" PROFILE _vivid_profile_name)
+        _vivid_target_get("${target_name}" PROFILE_FINGERPRINT _vivid_profile_fingerprint)
+        _vivid_target_get("${target_name}" TARGET_FINGERPRINT _vivid_target_fingerprint)
+        _vivid_profile_get("${_vivid_profile_name}" CATALOG_FINGERPRINT _vivid_catalog_fingerprint)
+        _vivid_profile_get("${_vivid_profile_name}" ROOT_MODULES _vivid_profile_roots)
+        _vivid_profile_get("${_vivid_profile_name}" WIDGET_KINDS _vivid_profile_widget_kinds)
+        _vivid_profile_get("${_vivid_profile_name}" PAYLOAD_CAPACITIES _vivid_profile_payload_capacities)
+
+        foreach(_field IN ITEMS
+                SOA_MAX_NODES SOA_TEXT_ARENA_BYTES STYLE_CLASS_MAX STYLE_RULE_CAP
+                STYLE_METRICS_POOL_CAP DRAW_CMD_MAX_COMMANDS DRAW_CMD_TEXT_BYTES
+                DRAW_CMD_BLOB_BYTES FLOAT_WIDGETS)
+            _vivid_profile_get("${_vivid_profile_name}" "${_field}" _profile_value)
+            set(_vivid_profile_${_field} "${_profile_value}")
+        endforeach()
+        foreach(_field IN ITEMS
+                SCREEN_WIDTH SCREEN_HEIGHT PIXEL_FORMAT LAYER_CACHE_SLOTS
+                LAYER_CACHE_WIDTH LAYER_CACHE_HEIGHT RUNTIME_SCENE_INSTANCES
+                STATIC_MEMORY_BUDGET_BYTES STATIC_MEMORY_MIN_HEADROOM_BYTES
+                MAX_HOT_STACK_FRAME_BYTES DRAW_DETAIL_EVIDENCE)
+            _vivid_target_get("${target_name}" "${_field}" _target_value)
+            set(_vivid_target_${_field} "${_target_value}")
+        endforeach()
+
+        set(CHARM_VIVID_SCREEN_WIDTH "${_vivid_target_SCREEN_WIDTH}")
+        set(CHARM_VIVID_SCREEN_HEIGHT "${_vivid_target_SCREEN_HEIGHT}")
+        set(CHARM_VIVID_SCREEN_PIXEL_FORMAT "${_vivid_target_PIXEL_FORMAT}")
+        set(CHARM_VIVID_LAYER_CACHE_SLOTS "${_vivid_target_LAYER_CACHE_SLOTS}")
+        set(CHARM_VIVID_LAYER_CACHE_WIDTH "${_vivid_target_LAYER_CACHE_WIDTH}")
+        set(CHARM_VIVID_LAYER_CACHE_HEIGHT "${_vivid_target_LAYER_CACHE_HEIGHT}")
+        set(CHARM_VIVID_ENABLE_FLOAT_WIDGETS "${_vivid_profile_FLOAT_WIDGETS}")
+        set(CHARM_VIVID_SOA_MAX_NODES "${_vivid_profile_SOA_MAX_NODES}")
+        set(CHARM_VIVID_SOA_TEXT_ARENA_BYTES "${_vivid_profile_SOA_TEXT_ARENA_BYTES}")
+        set(CHARM_VIVID_STYLE_CLASS_MAX "${_vivid_profile_STYLE_CLASS_MAX}")
+        set(CHARM_VIVID_STYLE_RULE_CAP "${_vivid_profile_STYLE_RULE_CAP}")
+        set(CHARM_VIVID_STYLE_METRICS_POOL_CAP "${_vivid_profile_STYLE_METRICS_POOL_CAP}")
+        set(CHARM_VIVID_DRAW_CMD_MAX_COMMANDS "${_vivid_profile_DRAW_CMD_MAX_COMMANDS}")
+        set(CHARM_VIVID_DRAW_CMD_TEXT_BYTES "${_vivid_profile_DRAW_CMD_TEXT_BYTES}")
+        set(CHARM_VIVID_DRAW_CMD_BLOB_BYTES "${_vivid_profile_DRAW_CMD_BLOB_BYTES}")
+        set(CHARM_VIVID_MAX_HOT_STACK_FRAME_BYTES "${_vivid_target_MAX_HOT_STACK_FRAME_BYTES}")
+        set(CHARM_VIVID_DRAW_DETAIL_EVIDENCE "${_vivid_target_DRAW_DETAIL_EVIDENCE}")
+        set(CHARM_VIVID_RUNTIME_SCENE_INSTANCES "${_vivid_target_RUNTIME_SCENE_INSTANCES}")
+        set(CHARM_VIVID_STATIC_MEMORY_BUDGET_BYTES "${_vivid_target_STATIC_MEMORY_BUDGET_BYTES}")
+        set(CHARM_VIVID_STATIC_MEMORY_MIN_HEADROOM_BYTES "${_vivid_target_STATIC_MEMORY_MIN_HEADROOM_BYTES}")
+
+        vivid_widget_profile_resolve(
+            _vivid_widget_module_roots
+            _vivid_active_payload_pools
+            VIVID_PRODUCT_WIDGET_DEFINES
+            PROFILE "${_vivid_profile_name}"
+            KINDS ${_vivid_profile_widget_kinds}
+            PAYLOAD_CAPACITIES ${_vivid_profile_payload_capacities})
+        vivid_compute_product_module_closure(
+            _vivid_product_sources
+            _vivid_product_modules
+            _vivid_external_requirements
+            KEY "${target_name}:${_vivid_profile_fingerprint}"
+            ROOT_MODULES ${_vivid_profile_roots}
+            INTERNAL_ROOT_MODULES ${_vivid_widget_module_roots})
+        vivid_filter_sources_provided_by_linked_targets(
+            _vivid_product_sources "${target_name}" ${_vivid_product_sources})
+    else()
+        string(TOLOWER "${CHARM_VIVID_FEATURESET}" _vivid_profile_name)
+        set(_vivid_profile_fingerprint "")
+        set(_vivid_target_fingerprint "")
+        set(_vivid_catalog_fingerprint "")
+        set(VIVID_PRODUCT_WIDGET_DEFINES "")
+        vivid_cache_default(CHARM_VIVID_SCREEN_WIDTH STRING 480 "Vivid screen width")
+        vivid_cache_default(CHARM_VIVID_SCREEN_HEIGHT STRING 800 "Vivid screen height")
+        vivid_cache_default(CHARM_VIVID_SCREEN_PIXEL_FORMAT STRING RGB888 "Vivid screen pixel format")
+        set_property(CACHE CHARM_VIVID_SCREEN_PIXEL_FORMAT PROPERTY STRINGS RGB888 RGB565)
+        math(EXPR _vivid_default_layer_cache_width "${CHARM_VIVID_SCREEN_WIDTH} / 2")
+        math(EXPR _vivid_default_layer_cache_height "${CHARM_VIVID_SCREEN_HEIGHT} / 2")
+        vivid_cache_default(CHARM_VIVID_LAYER_CACHE_SLOTS STRING 1 "Vivid layer cache slot count")
+        vivid_cache_default(CHARM_VIVID_LAYER_CACHE_WIDTH STRING ${_vivid_default_layer_cache_width} "Vivid layer cache width")
+        vivid_cache_default(CHARM_VIVID_LAYER_CACHE_HEIGHT STRING ${_vivid_default_layer_cache_height} "Vivid layer cache height")
+        vivid_cache_default(CHARM_VIVID_ENABLE_FLOAT_WIDGETS BOOL ON "Enable float-backed vivid widgets")
+        vivid_cache_default(CHARM_VIVID_SOA_MAX_NODES STRING 256 "Vivid SoA max node count")
+        vivid_cache_default(CHARM_VIVID_SOA_TEXT_ARENA_BYTES STRING "" "Vivid SoA text arena bytes override; empty keeps the featureset default")
+        vivid_cache_default(CHARM_VIVID_STYLE_CLASS_MAX STRING 256 "Vivid style class capacity")
+        vivid_cache_default(CHARM_VIVID_STYLE_RULE_CAP STRING 32 "Vivid stylesheet rule capacity")
+        vivid_cache_default(CHARM_VIVID_STYLE_METRICS_POOL_CAP STRING 64 "Vivid stylesheet metrics pool capacity")
+        vivid_cache_default(CHARM_VIVID_DRAW_CMD_MAX_COMMANDS STRING 1024 "Vivid DrawCmd command capacity")
+        vivid_cache_default(CHARM_VIVID_DRAW_CMD_TEXT_BYTES STRING 4096 "Vivid DrawCmd text arena bytes")
+        vivid_cache_default(CHARM_VIVID_DRAW_CMD_BLOB_BYTES STRING 2048 "Vivid DrawCmd blob arena bytes")
+        vivid_cache_default(CHARM_VIVID_MAX_HOT_STACK_FRAME_BYTES STRING 4096 "Vivid selected-module stack frame limit")
+        vivid_cache_default(CHARM_VIVID_DRAW_DETAIL_EVIDENCE BOOL OFF "Enable DrawCmd detail evidence")
+        vivid_cache_default(CHARM_VIVID_RUNTIME_SCENE_INSTANCES STRING "" "Vivid resident Scene instance count; required by MCU_MIN")
+        vivid_cache_default(CHARM_VIVID_STATIC_MEMORY_BUDGET_BYTES STRING "" "Vivid resident RAM budget; required by MCU_MIN")
+        vivid_cache_default(CHARM_VIVID_STATIC_MEMORY_MIN_HEADROOM_BYTES STRING "" "Minimum Vivid resident RAM headroom; required by MCU_MIN")
+    endif()
 
     target_compile_definitions(${target_name} PRIVATE CHARM_VIVID_SOA_ONLY=1 CHARM_VIVID_KERNEL_SOA=1)
     vivid_bool_literal(_vivid_enable_float_widgets ${CHARM_VIVID_ENABLE_FLOAT_WIDGETS})
@@ -479,38 +482,14 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
     endif()
 
     if (CHARM_VIVID_FEATURESET STREQUAL "PRODUCT")
-        if (NOT CHARM_VIVID_PRODUCT_WIDGETS)
-            message(FATAL_ERROR
-                "CHARM_VIVID_FEATURESET=PRODUCT requires CHARM_VIVID_PRODUCT_WIDGETS")
-        endif()
-        vivid_apply_product_payload_cap(SOA_POOL_CAP_LABEL LABEL Label TextBox)
-        vivid_apply_product_payload_cap(SOA_POOL_CAP_BUTTON BUTTON Button IconButton)
-        vivid_apply_product_payload_cap(SOA_POOL_CAP_IMAGE IMAGE Image ImageBox)
-        vivid_apply_product_payload_cap(SOA_POOL_CAP_TEXT_INPUT TEXT_INPUT TextInput)
-        vivid_apply_product_payload_cap(SOA_POOL_CAP_TEXT_AREA TEXT_AREA TextArea)
-        vivid_apply_product_payload_cap(SOA_POOL_CAP_NUMBER_INPUT NUMBER_INPUT NumberInput)
-        vivid_apply_product_payload_cap(SOA_POOL_CAP_SEGMENTED_CONTROL SEGMENTED_CONTROL SegmentedControl TabView)
-        vivid_apply_product_payload_cap(SOA_POOL_CAP_STEPPER STEPPER Stepper)
-        vivid_apply_product_payload_cap(SOA_POOL_CAP_TOGGLE_GROUP TOGGLE_GROUP ToggleGroup)
-        vivid_apply_product_payload_cap(SOA_POOL_CAP_CHECKBOX CHECKBOX Checkbox)
-        vivid_apply_product_payload_cap(SOA_POOL_CAP_RADIO RADIO Radio)
-        vivid_apply_product_payload_cap(SOA_POOL_CAP_LIST_ITEM LIST_ITEM ListItem MenuItem)
-        vivid_apply_product_payload_cap(SOA_POOL_CAP_TEXT_LIST TEXT_LIST TextList ConsoleBox)
-        vivid_apply_product_payload_cap(SOA_POOL_CAP_LIST_VIEW LIST_VIEW ListView IconList)
-        vivid_apply_product_payload_cap(SOA_POOL_CAP_TABLE_VIEW TABLE_VIEW TableView)
-        vivid_apply_product_payload_cap(SOA_POOL_CAP_TREE_VIEW TREE_VIEW TreeView)
-        vivid_apply_product_payload_cap(SOA_POOL_CAP_NUMBER_LIST NUMBER_LIST NumberList)
-        vivid_apply_product_payload_cap(SOA_POOL_CAP_ROLLER ROLLER Roller)
-        vivid_apply_product_payload_cap(SOA_POOL_CAP_SWITCH SWITCH Switch)
-        vivid_apply_product_payload_cap(SOA_POOL_CAP_SLIDER SLIDER Slider)
-        vivid_apply_product_payload_cap(SOA_POOL_CAP_PROGRESS PROGRESS Progress ProgressWheel ProgressBarSimple ProgressBarRound ProgressBarDrill ProgressFlowing)
-        vivid_apply_product_payload_cap(SOA_POOL_CAP_SCROLLBAR SCROLLBAR ScrollBar)
-        vivid_apply_product_payload_cap(SOA_POOL_CAP_LIST LIST List)
-        vivid_apply_product_payload_cap(SOA_POOL_CAP_SCROLL_CONTAINER SCROLL_CONTAINER ScrollContainer)
-        vivid_apply_product_payload_cap(SOA_POOL_CAP_SPINNER SPINNER Spinner BusyWheel)
-        vivid_product_widget_defines(VIVID_PRODUCT_WIDGET_DEFINES)
-    else()
-        set(VIVID_PRODUCT_WIDGET_DEFINES "")
+        get_property(_vivid_catalog_payload_pools GLOBAL PROPERTY VIVID_PAYLOAD_POOLS)
+        foreach(_pool IN LISTS _vivid_catalog_payload_pools)
+            _vivid_payload_get("${_pool}" CAP_KIND _cap_kind)
+            vivid_payload_capacity_from_profile(
+                _capacity "${_pool}" "${_vivid_profile_payload_capacities}")
+            vivid_payload_cap_variable_name(_capacity_var "${_cap_kind}")
+            set(${_capacity_var} "${_capacity}")
+        endforeach()
     endif()
 
     math(EXPR _vivid_payload_slot_cap_total
@@ -592,8 +571,15 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
         set(_vivid_admission_status profile_only)
     endif()
 
+    set(_vivid_generated_dir
+        "${CMAKE_CURRENT_BINARY_DIR}/generated/vivid/${target_name}/${_vivid_profile_name}")
+    file(MAKE_DIRECTORY "${_vivid_generated_dir}")
+
     set(_vivid_static_memory_manifest
         "featureset=${CHARM_VIVID_FEATURESET}\n"
+        "profile=${_vivid_profile_name}\n"
+        "profile_fingerprint=${_vivid_profile_fingerprint}\n"
+        "target_fingerprint=${_vivid_target_fingerprint}\n"
         "admission_required=${VIVID_STATIC_MEMORY_ADMISSION_REQUIRED}\n"
         "status=${_vivid_admission_status}\n"
         "scene_instances=${VIVID_RUNTIME_SCENE_INSTANCES}\n"
@@ -614,9 +600,8 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
         "min_headroom_bytes=${VIVID_STATIC_MEMORY_MIN_HEADROOM_BYTES}\n"
         "configured_headroom_bytes=${_vivid_configured_headroom_bytes}\n")
     list(JOIN _vivid_static_memory_manifest "" _vivid_static_memory_manifest_text)
-    file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/generated/vivid")
     file(WRITE
-        "${CMAKE_CURRENT_BINARY_DIR}/generated/vivid/static_memory_admission.txt"
+        "${_vivid_generated_dir}/static_memory_admission.txt"
         "${_vivid_static_memory_manifest_text}")
     message(STATUS
         "Vivid static memory: featureset=${CHARM_VIVID_FEATURESET} "
@@ -625,7 +610,122 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
         "headroom=${_vivid_configured_headroom_bytes} "
         "status=${_vivid_admission_status}")
 
-    set(vivid_pool_caps_output_dir "${CMAKE_CURRENT_BINARY_DIR}/generated/vivid")
+    if(CHARM_VIVID_FEATURESET STREQUAL "PRODUCT")
+        set(_payload_json "{")
+        set(_separator "")
+        foreach(_entry IN LISTS _vivid_profile_payload_capacities)
+            if(NOT _entry MATCHES "^([A-Za-z][A-Za-z0-9_]*)=([0-9]+)$")
+                message(FATAL_ERROR "Invalid Vivid payload evidence entry '${_entry}'")
+            endif()
+            string(APPEND _payload_json
+                "${_separator}\"${CMAKE_MATCH_1}\":${CMAKE_MATCH_2}")
+            set(_separator ",")
+        endforeach()
+        string(APPEND _payload_json "}")
+
+        set(_profile_roots_json_values ${_vivid_profile_roots})
+        set(_profile_kinds_json_values ${_vivid_profile_widget_kinds})
+        vivid_json_string_array(_profile_roots_json ${_profile_roots_json_values})
+        vivid_json_string_array(_profile_kinds_json ${_profile_kinds_json_values})
+        file(WRITE "${_vivid_generated_dir}/profile.json"
+            "{\n"
+            "  \"schema\": 1,\n"
+            "  \"name\": \"${_vivid_profile_name}\",\n"
+            "  \"catalog_fingerprint\": \"${_vivid_catalog_fingerprint}\",\n"
+            "  \"profile_fingerprint\": \"${_vivid_profile_fingerprint}\",\n"
+            "  \"root_modules\": ${_profile_roots_json},\n"
+            "  \"widget_kinds\": ${_profile_kinds_json},\n"
+            "  \"payload_capacities\": ${_payload_json},\n"
+            "  \"workset\": {\n"
+            "    \"soa_max_nodes\": ${VIVID_SOA_MAX_NODES},\n"
+            "    \"soa_text_arena_bytes\": ${_vivid_text_arena_bytes},\n"
+            "    \"style_class_max\": ${VIVID_STYLE_CLASS_MAX},\n"
+            "    \"style_rule_cap\": ${VIVID_STYLE_RULE_CAP},\n"
+            "    \"style_metrics_pool_cap\": ${VIVID_STYLE_METRICS_POOL_CAP},\n"
+            "    \"draw_cmd_max_commands\": ${VIVID_DRAW_CMD_MAX_COMMANDS},\n"
+            "    \"draw_cmd_text_bytes\": ${VIVID_DRAW_CMD_TEXT_BYTES},\n"
+            "    \"draw_cmd_blob_bytes\": ${VIVID_DRAW_CMD_BLOB_BYTES},\n"
+            "    \"float_widgets\": ${VIVID_ENABLE_FLOAT_WIDGETS}\n"
+            "  }\n"
+            "}\n")
+
+        if(VIVID_DRAW_DETAIL_EVIDENCE)
+            set(_draw_detail_json true)
+        else()
+            set(_draw_detail_json false)
+        endif()
+        file(WRITE "${_vivid_generated_dir}/target_envelope.json"
+            "{\n"
+            "  \"schema\": 1,\n"
+            "  \"target\": \"${target_name}\",\n"
+            "  \"profile\": \"${_vivid_profile_name}\",\n"
+            "  \"profile_fingerprint\": \"${_vivid_profile_fingerprint}\",\n"
+            "  \"target_fingerprint\": \"${_vivid_target_fingerprint}\",\n"
+            "  \"screen\": {\"width\":${VIVID_SCREEN_WIDTH},\"height\":${VIVID_SCREEN_HEIGHT},\"pixel_format\":\"${CHARM_VIVID_SCREEN_PIXEL_FORMAT}\"},\n"
+            "  \"layer_cache\": {\"slots\":${VIVID_LAYER_CACHE_SLOTS},\"width\":${VIVID_LAYER_CACHE_WIDTH},\"height\":${VIVID_LAYER_CACHE_HEIGHT}},\n"
+            "  \"runtime_scene_instances\": ${VIVID_RUNTIME_SCENE_INSTANCES},\n"
+            "  \"static_memory_budget_bytes\": ${VIVID_STATIC_MEMORY_BUDGET_BYTES},\n"
+            "  \"static_memory_min_headroom_bytes\": ${VIVID_STATIC_MEMORY_MIN_HEADROOM_BYTES},\n"
+            "  \"max_hot_stack_frame_bytes\": ${VIVID_MAX_HOT_STACK_FRAME_BYTES},\n"
+            "  \"draw_detail_evidence\": ${_draw_detail_json}\n"
+            "}\n")
+
+        list(REMOVE_ITEM _vivid_external_requirements
+            charm.core.config.generated
+            charm.core.soa_pool_caps)
+        set(_closure_modules_json_values ${_vivid_product_modules})
+        set(_closure_external_json_values ${_vivid_external_requirements})
+        list(SORT _closure_modules_json_values)
+        list(SORT _closure_external_json_values)
+        get_filename_component(_vivid_repo_root "${_VIVID_CMAKE_DIR}/../../.." ABSOLUTE)
+        set(_closure_sources_json_values)
+        foreach(_source IN LISTS _vivid_product_sources)
+            file(RELATIVE_PATH _relative_source "${_vivid_repo_root}" "${_source}")
+            file(TO_CMAKE_PATH "${_relative_source}" _relative_source)
+            list(APPEND _closure_sources_json_values "${_relative_source}")
+        endforeach()
+        list(SORT _closure_sources_json_values)
+        vivid_json_string_array(_closure_modules_json ${_closure_modules_json_values})
+        vivid_json_string_array(_closure_sources_json ${_closure_sources_json_values})
+        vivid_json_string_array(_closure_external_json ${_closure_external_json_values})
+        file(WRITE "${_vivid_generated_dir}/module_closure.json"
+            "{\n"
+            "  \"schema\": 1,\n"
+            "  \"target\": \"${target_name}\",\n"
+            "  \"profile\": \"${_vivid_profile_name}\",\n"
+            "  \"profile_fingerprint\": \"${_vivid_profile_fingerprint}\",\n"
+            "  \"target_fingerprint\": \"${_vivid_target_fingerprint}\",\n"
+            "  \"modules\": ${_closure_modules_json},\n"
+            "  \"sources\": ${_closure_sources_json},\n"
+            "  \"external_requirements\": ${_closure_external_json}\n"
+            "}\n")
+
+        file(WRITE "${_vivid_generated_dir}/admission.json"
+            "{\n"
+            "  \"schema\": 1,\n"
+            "  \"target\": \"${target_name}\",\n"
+            "  \"profile\": \"${_vivid_profile_name}\",\n"
+            "  \"profile_fingerprint\": \"${_vivid_profile_fingerprint}\",\n"
+            "  \"target_fingerprint\": \"${_vivid_target_fingerprint}\",\n"
+            "  \"status\": \"${_vivid_admission_status}\",\n"
+            "  \"payload_slot_capacity_total\": ${_vivid_payload_slot_cap_total},\n"
+            "  \"static_memory\": {\n"
+            "    \"upper_bound_bytes\": ${VIVID_STATIC_MEMORY_UPPER_BOUND_BYTES},\n"
+            "    \"budget_bytes\": ${VIVID_STATIC_MEMORY_BUDGET_BYTES},\n"
+            "    \"min_headroom_bytes\": ${VIVID_STATIC_MEMORY_MIN_HEADROOM_BYTES},\n"
+            "    \"configured_headroom_bytes\": ${_vivid_configured_headroom_bytes},\n"
+            "    \"scene_upper_bytes\": ${_vivid_scene_upper_bytes},\n"
+            "    \"global_upper_bytes\": ${_vivid_global_upper_bytes},\n"
+            "    \"command_buffer_upper_bytes\": ${_vivid_command_buffer_upper_bytes},\n"
+            "    \"compaction_workspace_upper_bytes\": ${_vivid_draw_cmd_compaction_workspace_upper_bytes},\n"
+            "    \"executor_workspace_upper_bytes\": ${_vivid_draw_cmd_executor_workspace_upper_bytes},\n"
+            "    \"soa_traversal_workspace_upper_bytes\": ${_vivid_soa_traversal_workspace_upper_bytes}\n"
+            "  },\n"
+            "  \"max_hot_stack_frame_bytes\": ${VIVID_MAX_HOT_STACK_FRAME_BYTES}\n"
+            "}\n")
+    endif()
+
+    set(vivid_pool_caps_output_dir "${_vivid_generated_dir}")
     file(MAKE_DIRECTORY "${vivid_pool_caps_output_dir}")
     vivid_generate_widget_catalog("${vivid_pool_caps_output_dir}")
     set(vivid_features_header "${vivid_pool_caps_output_dir}/vivid_features.generated.hpp")
@@ -645,7 +745,7 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
         set(_vivid_stack_usage_root
             "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/${target_name}.dir/Modules/ui/vivid")
         set(_vivid_stack_usage_manifest
-            "${CMAKE_CURRENT_BINARY_DIR}/generated/vivid/stack_usage_manifest.txt")
+            "${_vivid_generated_dir}/stack_usage_manifest.txt")
     endif()
     configure_file(
         "${_VIVID_CMAKE_DIR}/cmake/config.generated.cppm.in"
@@ -664,21 +764,9 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
         "${vivid_pool_caps_output_dir}")
 
     if (CHARM_VIVID_FEATURESET STREQUAL "PRODUCT")
-        if (CHARM_VIVID_PRODUCT_CORE_MODULES)
-            vivid_collect_product_core_modules(_vivid_product_core_modules)
-            list(FILTER ${module_list_var} EXCLUDE REGEX "/Modules/ui/vivid/core/")
-            list(APPEND ${module_list_var} ${_vivid_product_core_modules})
-        endif()
-        if (CHARM_VIVID_PRODUCT_GFX_MODULES)
-            vivid_collect_product_gfx_modules(_vivid_product_gfx_modules)
-            list(FILTER ${module_list_var} EXCLUDE REGEX "/Modules/ui/vivid/gfx/")
-            list(APPEND ${module_list_var} ${_vivid_product_gfx_modules})
-        endif()
-        vivid_collect_product_widget_modules(_vivid_product_widget_modules)
-        list(FILTER ${module_list_var} EXCLUDE REGEX "/Modules/ui/vivid/widgets/")
         list(FILTER ${module_list_var} EXCLUDE REGEX
-            "/Modules/ui/vivid/gfx/(snapshot|host_tools)\\.cppm$")
-        list(APPEND ${module_list_var} ${_vivid_product_widget_modules})
+            "[/\\\\]Modules[/\\\\]ui[/\\\\]vivid[/\\\\].*\\.cppm$")
+        list(APPEND ${module_list_var} ${_vivid_product_sources})
     endif()
     if (CHARM_VIVID_FEATURESET STREQUAL "MCU_MIN")
         list(FILTER ${module_list_var} EXCLUDE REGEX "/Modules/ui/vivid/widgets/")
@@ -696,7 +784,7 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
         get_filename_component(
             _vivid_repo_root "${_VIVID_CMAKE_DIR}/../../.." ABSOLUTE)
         set(_vivid_stack_usage_source_manifest
-            "${CMAKE_CURRENT_BINARY_DIR}/generated/vivid/stack_usage_sources.txt")
+            "${_vivid_generated_dir}/stack_usage_sources.txt")
         set(_vivid_stack_usage_sources "")
         foreach(_vivid_module_source IN LISTS ${module_list_var})
             get_filename_component(
@@ -727,6 +815,8 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
                 "-DVIVID_STACK_USAGE_SOURCE_MANIFEST=${_vivid_stack_usage_source_manifest}"
                 "-DVIVID_STACK_USAGE_OUT=${_vivid_stack_usage_manifest}"
                 "-DVIVID_STACK_USAGE_MAX_BYTES=${VIVID_MAX_HOT_STACK_FRAME_BYTES}"
+                "-DVIVID_STACK_USAGE_PROFILE_FINGERPRINT=${_vivid_profile_fingerprint}"
+                "-DVIVID_STACK_USAGE_TARGET_FINGERPRINT=${_vivid_target_fingerprint}"
                 "-DVIVID_STACK_USAGE_ENFORCE=ON"
                 -P "${_VIVID_CMAKE_DIR}/cmake/stack_usage_gate.cmake"
             VERBATIM)

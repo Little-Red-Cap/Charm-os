@@ -1,6 +1,6 @@
 module;
 
-export module charm.core.soa_kernel:behavior;
+module charm.core.soa_kernel:behavior;
 
 import :kernel_class;
 import :types;

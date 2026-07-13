@@ -2,6 +2,7 @@ include_guard(GLOBAL)
 
 set(_VIVID_PROFILE_COMPILER_DIR "${CMAKE_CURRENT_LIST_DIR}")
 get_filename_component(_VIVID_PROFILE_ROOT "${_VIVID_PROFILE_COMPILER_DIR}/.." ABSOLUTE)
+include("${_VIVID_PROFILE_COMPILER_DIR}/widget_catalog_compiler.cmake")
 
 function(_vivid_profile_key out_var value)
     string(SHA256 _key "${value}")
@@ -78,6 +79,11 @@ function(vivid_define_product_profile)
         message(FATAL_ERROR "Vivid product profile '${PROFILE_NAME}' is already defined")
     endif()
 
+    if(PROFILE_EXTENDS STREQUAL PROFILE_NAME)
+        message(FATAL_ERROR
+            "Vivid product profile inheritance cycle: ${PROFILE_NAME};${PROFILE_NAME}")
+    endif()
+
     set(_roots "")
     set(_kinds "")
     set(_payload_caps "")
@@ -150,8 +156,9 @@ function(vivid_define_product_profile)
     list(SORT _roots)
     list(SORT _kinds)
     list(SORT _payload_caps)
+    vivid_widget_catalog_fingerprint(_catalog_fingerprint)
     set(_canonical
-        "name=${PROFILE_NAME}\nextends=${PROFILE_EXTENDS}\nroots=${_roots}\n"
+        "catalog=${_catalog_fingerprint}\nname=${PROFILE_NAME}\nextends=${PROFILE_EXTENDS}\nroots=${_roots}\n"
         "kinds=${_kinds}\npayloads=${_payload_caps}\n"
         "soa_max_nodes=${PROFILE_SOA_MAX_NODES}\n"
         "soa_text_arena_bytes=${PROFILE_SOA_TEXT_ARENA_BYTES}\n"
@@ -173,6 +180,7 @@ function(vivid_define_product_profile)
         _vivid_profile_set("${PROFILE_NAME}" "${_field}" "${PROFILE_${_field}}")
     endforeach()
     _vivid_profile_set("${PROFILE_NAME}" CANONICAL "${_canonical}")
+    _vivid_profile_set("${PROFILE_NAME}" CATALOG_FINGERPRINT "${_catalog_fingerprint}")
     _vivid_profile_set("${PROFILE_NAME}" FINGERPRINT "${_fingerprint}")
 endfunction()
 

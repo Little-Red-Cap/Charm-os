@@ -3,7 +3,7 @@ module;
 #include <cstdint>
 #include <cstring>
 
-export module charm.core.soa_kernel:payload;
+module charm.core.soa_kernel:payload;
 
 import :kernel_class;
 import :types;

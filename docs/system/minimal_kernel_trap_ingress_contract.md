@@ -50,7 +50,6 @@ Call adapter 的最小 ready 条件只要求 yield/sleep builder；debug/capabil
 
 ## 证据
 
-- `Examples/kernel/runtime_trap_host`
 - `Examples/kernel/runtime_trap_armv7a_host`
 - `Examples/kernel/runtime_task_syscall_frame_armv7a_host`
 - `Examples/kernel/armv7a/qemu/run_qemu_arch_ingress_seam_ci.ps1`

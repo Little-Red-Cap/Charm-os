@@ -89,7 +89,6 @@ arch frame
 
 ## 证据
 
-- `Examples/kernel/runtime_trap_host`
 - `Examples/kernel/runtime_trap_armv7a_host`
 - `Examples/kernel/runtime_task_syscall_*`
 - `Examples/kernel/armv7a/qemu/run_qemu_runtime_trap_ci.ps1`

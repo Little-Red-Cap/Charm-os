@@ -1,80 +1,45 @@
 # 声明式 USB 早期取舍保留笔记
 
-> status: `archived`
->
-> scope: 早期 USB spec/runtime proposal 中仍可复用的设计理由，不说明当前功能
+> `status`: `archived`
 
-当前实现边界见 [`usb_dsl_overview.md`](../../usb/usb_dsl_overview.md) 和
-[`usb_architecture_overview.md`](../../usb/usb_architecture_overview.md)。字段、支持的 class、错误码和
-验证范围以 source 与当次 smoke 为准。
+当前实现见 [`usb_dsl_overview.md`](../../usb/usb_dsl_overview.md) 和
+[`usb_architecture_overview.md`](../../usb/usb_architecture_overview.md)。本文只保留早期设计理由；字段、
+class 支持、错误码和验证结果以 source 与当次 smoke 为准。
 
-## 先模型，后 Generator
+## Model Pipeline
 
-早期提案拒绝先做重型外部 generator。原因是 descriptor、endpoint、class instance 和 runtime binding
-若尚无稳定模型，generator 只会冻结另一套输入语言。合理顺序是：
+```text
+spec -> model/plan -> runtime binding -> descriptor builder
+```
 
-1. spec 表达设备身份与 function intent；
-2. model/plan 分配 interface、endpoint 并检查 target constraints；
-3. runtime binding 注入 DCD、board glue、storage 与执行资源；
-4. descriptor builder 生成 wire data；
-5. 只有重复输入已稳定且有真实消费者时，再考虑 generator。
+Spec 表达 device identity 与 function intent；model/plan 分配 interface/endpoint 并检查 target constraints；
+runtime binding 注入 DCD/HCD、IRQ/DMA/cache、storage/channel backend 与 lifecycle；builder 生成 wire data。
 
-Generator 若出现，也应生成或消费同一模型，不能建立第二套 USB 世界。
+在模型稳定且出现重复消费者前，不引入外部 generator。Generator 只能消费或生成同一模型，不能建立
+第二套 USB 语义。Plan 成功只证明模型满足当前约束，不证明真实枚举、主机兼容或 data path。
 
-## Spec 与 Runtime Binding
+## Ownership 与 Expert Override
 
-设备对外形状和平台落地事实需要分开：
-
-- spec/model 拥有 VID/PID、strings、functions、endpoint intent 和 class policy；
-- plan 拥有 target constraints、编号分配和冲突检查；
-- runtime binding 拥有控制器、DCD/HCD、IRQ/DMA/cache、block/channel backend 与生命周期；
+- spec/model 拥有 VID/PID、strings、function intent 和 class policy；
+- plan 拥有编号分配、target constraints 与冲突检查；
+- runtime binding 拥有 controller、board glue、backend 与生命周期；
 - app/profile 只选择组合，不手写协议状态机。
 
-spec/plan 成功只能证明模型在当前约束下可构造，不能证明真实控制器枚举、主机兼容或 data path。
+Descriptor provider、target constraints、endpoint/buffer scheduling、trace sink 或实验 class hook 可以作为
+局部 expert override，但必须停留在明确 adapter 边界，不能让默认 spec 依赖具体板卡或现场调试变量。
 
-## 专家入口
+## MSC 与 BOT 边界
 
-默认路径应减少 descriptor 与 endpoint glue 的重复，但不能封死协议实验。局部 expert override 可用于：
+MSC 组合 block device、read-only policy、inquiry identity、descriptor/class config、controller binding 和
+ready/connect lifecycle；它不拥有 filesystem、UI、业务状态机或 board handle lifetime。
 
-- descriptor provider 或 target-specific constraints；
-- endpoint/buffer/scheduling policy；
-- trace 与 observability sink；
-- 尚未进入通用模型的 class hook。
+早期 bring-up 固定了以下边界：
 
-覆写必须停留在明确 adapter 或 function 边界，不能让默认 spec 依赖某块板、某个 class driver 或现场
-调试变量。
+- `SET_ADDRESS` 在 control transfer 规定时点生效；
+- Bulk IN busy/completion/pump 有明确 ownership 与 backpressure；
+- data-in 到 CSW 的转换属于 BOT state machine，不属于 board glue；
+- READ(10) window 同时约束内存、吞吐和 short/error 行为；
+- storage readiness、geometry、read/write failure 和只读状态必须穿过 class bridge。
 
-## MSC Storage 组合边界
-
-“将一个 block device 以 USB MSC 导出”需要组合 storage backend、read-only policy、inquiry identity、
-USB descriptor/class config、controller binding 与 ready/connect 生命周期。它不应拥有：
-
-- 文件系统 mount 或文件暴露策略；
-- UI 与业务状态机；
-- board handle 的生命周期；
-- 与 MSC 无关的媒体能力。
-
-block device 的 readiness、capacity、block size、read/write failure 和只读行为应由 storage/class bridge
-明确传播。观测可以记录 setup/reset、SCSI command、block IO 和最后错误，但不能用日志成功替代 BOT
-状态、backend 返回值或真实主机传输证据。
-
-## 调试沉淀出的协议边界
-
-早期 MSC bring-up 暴露了几类不应留在场景 `main` 中的语义：
-
-- `SET_ADDRESS` 的实际生效必须服从 control transfer 时序，而不是收到 request 时任意写硬件；
-- Bulk IN busy、completion 和下一次 pump 之间需要明确 ownership/backpressure；
-- data-in 结束到 CSW ready/send 的转换属于 BOT 状态机，不是 board glue；
-- READ(10) window 同时影响固定内存预算、吞吐与 short/error 行为；
-- trace token 应描述协议状态和错误，不依赖临时 printf 文本。
-
-这些判断不冻结当前函数名或实现步骤。现行行为必须从 device/class source、trace vocabulary、mock/replay
-和真实板证据重新确认。
-
-## 不应从旧提案推断
-
-- UAC、CDC、MSC 或 composite 已达到同等级 runtime 支持；
-- 任意 DCD/HCD 都满足默认 FS constraints；
-- descriptor 生成成功等于设备可枚举；
-- trace/replay 等于真实 IRQ、DMA、cache 或主机证据；
-- 旧 `UsbApp`、`assemble()` 伪 API 是必须恢复的公共接口。
+Trace/replay 只能描述协议状态和错误，不能替代 BOT 返回值、真实 IRQ/DMA/cache 或主机传输证据。
+旧提案也不能证明 UAC/CDC/MSC/composite 具有同等级 runtime 支持，或要求恢复旧 `UsbApp/assemble()` API。

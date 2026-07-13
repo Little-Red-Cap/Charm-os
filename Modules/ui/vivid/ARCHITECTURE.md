@@ -130,8 +130,9 @@ Object-level widget 不在 `ObjectBase` 常驻通用交互表。需要 gesture/i
 FoldablePanel、ScrollContainer 等明确的 object-level 容器选择固定容量子表。子表使用
 内联固定数组，容量耗尽由 `add/insert_child()` 的 `false` 显式报告，不分配动态内存。
 
-跨帧保存的 UI callback 使用 `util::delegate` 并由 owner 保证 target 生命周期。`std::function_ref` 只适合
-未来同步、非逃逸的函数参数，不得存入 widget、strategy、Scene 或 payload。绑定 owner 自身的控件必须
+跨帧保存的 UI callback 使用 `util::delegate` 并由 owner 保证 target 生命周期。历史名称 `Callback` 只是
+`util::delegate<>` 的单轨别名，不得重新增加独立的 `fn + void*` fallback 或第二份 callback 存储。
+`std::function_ref` 只适合未来同步、非逃逸的函数参数，不得存入 widget、strategy、Scene 或 payload。绑定 owner 自身的控件必须
 禁止复制/移动，或显式实现 callback 重绑；保存成员 strategy 地址的 `InteractionList` 同样不可复制和移动。
 strategy 绑定外部长生命周期 target 时仍可按值复制，不能把该合法场景误收紧为全局禁用 delegate 复制。
 

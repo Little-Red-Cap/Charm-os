@@ -35,6 +35,8 @@ namespace {
     static_assert(!std::is_move_constructible_v<ScrollContainer>);
     static_assert(!std::is_copy_constructible_v<SpinZoomWidget>);
     static_assert(!std::is_move_constructible_v<SpinZoomWidget>);
+    static_assert(std::is_same_v<Callback, util::delegate<>>);
+    static_assert(sizeof(Callback) == sizeof(void*) + sizeof(Callback::stub_t));
 
     struct Probe {
         int primary_clicks{0};
@@ -167,8 +169,9 @@ namespace {
 int main() {
     print_widget_signal_run_begin();
 
-    std::printf("[ws-abi] object_base=%zu scroll_container=%zu list=%zu foldable_panel=%zu interaction_list=%zu double_tap=%zu pinch=%zu drag=%zu long_press=%zu\n",
+    std::printf("[ws-abi] object_base=%zu callback=%zu scroll_container=%zu list=%zu foldable_panel=%zu interaction_list=%zu double_tap=%zu pinch=%zu drag=%zu long_press=%zu\n",
                 sizeof(ObjectBase),
+                sizeof(Callback),
                 sizeof(ScrollContainer),
                 sizeof(List),
                 sizeof(FoldablePanel),

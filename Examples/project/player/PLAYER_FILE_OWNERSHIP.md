@@ -112,11 +112,14 @@ Player Host adapter 只从 `Backends/host/sdl3` 取得 clock、raster display、
 | `cmake/player_md3_sources.cmake` | canonical MD3 显式 source manifest，供 smoke 与后续 adapter 共用 |
 | `cmake/player_md3_vivid_product.cmake` | Player-owned Vivid PRODUCT 模块闭包与容量；平台只消费，不重新定义 |
 | `cmake/player_md3_target.cmake`、`CMakePresets.json` | canonical component target 与推荐构建入口 |
-| `README.md`、`PLAYER_SYSTEM_CAPABILITY_MAP.md`、`ARCHITECTURE_CONVERGENCE.md` | 产品文档；旧板级叙述需要逐步归档 |
+| `README.md` | canonical Player 产品入口与构建路由 |
 | `app-vivid-MaterialDesign3/*.md` | MD3 设计、维护性与性能证据 |
 
 `app-vivid-MaterialDesign3/*.tmp` 当前是 tracked include 片段，不应继续用 `.tmp` 表达正式源码。
 后续先确认与对应 `.inc` 的生成关系，再改为 generated artifact 或正式 `.inc`；本轮不做机械删除。
+
+旧架构收敛和 capability map 已移入
+[归档保留笔记](../../../docs/archive/project-guidance-and-tracking-v0/player_architecture_retained_notes.md)。
 
 ## 依赖红线
 

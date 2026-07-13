@@ -1,42 +1,25 @@
-﻿# Codegen Output Template
+# Codegen Output Template
 
-适用于 Charm 项目代码生成/接口草拟输出。
-目标：先建模、后实现，输出结构稳定。
+> status: `supporting`
+>
+> 可选模板。只记录对实现和验证有用的信息。
 
-相关文件：
-- `../skills/codegen/SKILL.md`
-- `../rules/charm-architecture.md`
+## Boundary
 
----
+- 目标与所有者：
+- 接口、错误和资源边界：
+- 不改范围：
 
-## 设计说明
-- 需求目标：
-- 关键边界：
-- 分层归属：
-- 能力装配路径：
+## Changes
 
----
+列出行为变化和关键文件，不逐文件复述机械改动。
 
-## 接口与类型
-- 核心类型：
-- 关键接口：
-- 错误模型：
-- 时间源/注入：
+## Verification
 
----
+记录实际运行的命令、结果和未验证项。
 
-## 代码草案
-```cpp
-// 代码骨架
-```
+## Risks
 
----
+只列仍会影响后续工作的风险或决策。
 
-## 风险与未决点
-- <未确认点 1>
-- <未确认点 2>
-
----
-
-## 下一步建议
-- <可执行的下一步>
+执行顺序见 [`codegen workflow`](../workflows/codegen-workflow.md)。

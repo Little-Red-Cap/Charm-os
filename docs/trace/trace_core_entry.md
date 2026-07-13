@@ -1,37 +1,56 @@
-# trace_core 统一诊断入口（约束版）
+# Trace 实现状态
 
-目标：让所有系统诊断事件通过 **同一条最小入口** 写入，避免格式化、策略与分层混乱。
+## 文档状态
 
-## 1. 入口语义（固定）
+- `status`: `supporting`
+- `scope`: `trace_core`、`service_trace`、`kernel.trace` 与局部 producer adapter
+- `source`: `Modules/core/trace_core.cppm`、`Modules/core/service/service_trace*.cppm`
 
-trace_core 只允许四种语义：
-- event：一次性事件（发生了什么）
-- counter：计数累加（累积数量）
-- span_begin：区间开始（测时）
-- span_end：区间结束（测时）
+## Core vocabulary
 
-禁止在 trace_core 内做格式化、过滤、路由、采样策略。
+`trace_core` 当前只定义共享 vocabulary 和统计辅助，不提供全局 sink、router 或 buffer：
 
-## 2. 写入规则（硬约束）
+| `TraceKind` | 语义 |
+|---|---|
+| `event` | 离散事件 |
+| `counter` | counter 当前值 |
+| `counter_delta` | counter 增量 |
+| `span_begin` / `span_end` | 分离的区间边界 |
+| `span_pair` | payload 直接携带区间时长 |
 
-- 写入必须是 **fire-and-forget**（不阻塞、不分配）
-- payload 只允许 POD 数值
-- id 必须稳定且可复现（跨版本尽量保持）
+`TraceStats` 保存各 kind 数量以及 span total/max；`observe_totals()` 只更新该结构，不记录 timestamp、
+producer 或 ID。
 
-## 3. 建议字段约定
+## Buffer 与聚合
 
-- `id`：语义稳定的事件编号
-- `payload`：数值型补充（例如队列长度、耗时、原因枚举）
-- `count`：counter 累加量（默认 1）
+`service::TraceRecord` 保存 time、32-bit ID、64-bit payload、count 和 kind。
+`service::TraceBuffer<Tick, Capacity>` 是固定容量 circular buffer；写满后覆盖最旧记录，没有 overflow
+counter。consumer 需要结合 `head()` 与 `size()` 还原顺序，`data()` 不是天然的时间顺序 view。
 
-## 4. 推荐使用层
+`service::TraceAggregator<Tick, MaxIds>` 按 ID 聚合 event、counter 和 span。ID slot 用尽后，新 ID 会
+复用第一个 stat slot，因此结果不再能区分这些 ID；实现没有 overflow/error 状态。
 
-- Kernel：调度、队列、等待、定时器、事件分发
-- Service：buffer/stream/trace_bus
-- UI/Audio：只在必要处写入高层指标（如 FPS、underrun）
+`kernel.trace` 使用包含 `TaskId` 与 `EventId` 的独立 record/buffer，并支持合并连续相同记录。它与
+`service::TraceBuffer` 共享 `TraceKind/TraceStats`，但不是同一种 record ABI。
 
-## 5. 禁止项
+## Producer 边界
 
-- 不允许调用 out.format/out.logger
-- 不允许在 trace_core 内做字符串拼装或解析
-- 不允许从 Domain 反向依赖 Runtime 做 trace
+- `input.trace` 与 `gui.trace` 各自持有静态 circular buffer、局部 ID enum 和进程内 sequence；
+- `power.trace` 持有一个全局 non-owning callback sink，未设置时静默丢弃；
+- `service_trace_bus` 将 record 指针包装成 `BusMessage`，不转移 record ownership；
+- 其它 kernel/runtime trace 类型可以定义自己的 kind、record 和 buffer，不自动汇入上述结构。
+
+仓库没有全局 trace ID registry、编号范围或 collision 检查。ID 只在 producer/domain 上下文中有意义；
+跨 producer 合并时必须额外保留来源，不能仅按裸整数 ID 聚合。
+
+## 未提供
+
+- thread safety、IRQ/多核并发保证或 memory ordering；
+- 统一 clock、timestamp 单位或跨 domain 时间同步；
+- callback 非阻塞、无分配或 bounded-time 的运行时执法；
+- filter、sampling、routing、serialization 或持久化 schema；
+- buffer overflow、aggregator ID overflow 或 sink drop 统计；
+- 稳定公共 ABI 或跨版本 ID 兼容承诺。
+
+验证入口：`Examples/system/power_demo`、`Examples/ink/demo` 以及使用各局部 trace buffer 的 host
+smoke。通过这些 fixture 不证明真实板 IRQ、多核、时钟或长期 telemetry 行为。

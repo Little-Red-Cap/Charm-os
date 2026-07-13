@@ -1,189 +1,96 @@
-# Charm App ABI Prototype
+# Charm App ABI 原型
 
-This directory holds the first-generation dynamic App ABI prototype shared by
-host smokes, H747 resident runtime experiments, and embedded App ELF samples.
+## 边界
 
-The ABI is intentionally C-compatible:
+本目录定义 resident App 的第一代 C ABI 原型：
 
 ```c
 extern "C" int charm_app_main(const CharmAppApi* api, int argc, char** argv);
 ```
 
-It is not a C++ ABI, service locator, manifest language, or final public
-runtime framework. The first contract is a narrow capability table for real app
-needs: console, time, display, input, optional storage, reserved AFE, and app
-exit/return-code recovery.
+App 只消费 `CharmAppApi` capability table。它不是 C++ ABI、service locator、manifest language
+或 POSIX `main(argc, argv, envp)`。当前 capability 包括 console、time、display、input、optional
+storage、reserved AFE 与 app exit。
 
-`charm_app_runtime.hpp` is a reusable prototype for the resident-runtime side of
-the same contract. It centralizes image lookup, image loading callbacks, API
-validation, `argc/argv` construction, optional execute-ready preparation, entry
-invocation, and staged diagnostics (`lookup/load/abi/argv/start/exit`). Its
-`prepare()` path stops at the `start` stage and materializes the loaded entry
-plus argv without calling target code; `run()` is the explicit execution path.
-It intentionally remains under
-`Examples/app_abi` until the shape has survived H747, host, and ModuleX pressure.
+主链固定为：
 
-`charm_app_staged_runtime.hpp` is the shared adapter for already-staged images.
-QSPI/eMMC App Store paths and Dev Loader received-image paths both converge on
-`AppImage -> staged AppImageSource -> AppRuntime`; the adapter only wraps one
-`AppImage` plus the caller-provided loader callback and does not define a new
-image format, entry point, or capability table.
+```text
+ImageSource/ImageStore -> AppImage -> loader -> AppRuntime -> CharmAppApi -> charm_app_main
+```
 
-`charm_app_fat_catalog.hpp` is the first file-backed resident launcher
-prototype. It provides a read-only FAT32 catalog over a block reader, enumerates
-`/CHARM/APPS/*.ELF`, reads the selected file into a caller-owned stage cache,
-and returns `AppImage(format=elf)`. It is a file source for the same staged
-runtime boundary, not a Store v2, package manifest, or writable filesystem API.
+ELF 与 ModuleX 是 image format，不定义第二套 App model。架构边界见
+[`resident_image_platform_v1_contract.md`](../../docs/architecture/resident_image_platform_v1_contract.md)。
 
-POSIX remains a compatibility layer for C/POSIX programs. Player, Scope, and
-future hot-loaded apps should target this capability-table semantic model first.
-ELF is the first image format. ModuleX is now the second App image format and
-must keep reusing the same entry and capability table rather than defining a
-second program model.
+## Runtime
 
-`charm_app_modulex_loader.hpp` is the ModuleX App loader prototype. It treats
-ModuleX as a second `AppImage` format, resolves `charm_app_main` from the
-ModuleX symbol table, and materializes the result as the same `CharmAppMainFn`
-consumed by `AppRuntime`. It deliberately does not reuse the POSIX ModuleX
-`main(argc, argv, envp)` ABI. On H747 CM7 the resident loader copies ModuleX
-bytes into the runtime-owned execute/load region before resolving the callable
-entry and sets the Thumb bit on that final entry address; host smokes do not
-alter host function pointers. Because current GCC modules and libstdc++ text
-headers are sensitive to include/import order, callers include the normal App
-ABI headers and standard library headers first, then import
-`module_core/module_view/module_loader/module_link`, then include
-`charm_app_modulex_loader.hpp`.
+[`charm_app_runtime.hpp`](charm_app_runtime.hpp) 负责 image lookup、loader callback、API 校验、argv、
+execute-ready preparation、entry 调用和 `lookup/load/abi/argv/start/exit` 诊断。`prepare()` 停在
+start 前，不调用目标代码；`run()` 才执行 entry。
 
-ModuleX App v1 is intentionally a materialized App image format, not a complete
-module system. The App ABI loader accepts materialized text/ro/data, local/global
-and external symbols, and the current `abs_addr` / `rel32` relocations. It
-rejects non-zero BSS and XIP flags so callers do not mistake this prototype for
-independent BSS allocation, execute-in-place, or the POSIX ModuleX ABI. Loader
-diagnostics record the ModuleX validate error, dependency error/index, entry
-offset, image span, and whether relocation ran; `AppRuntime` still reports loader
-failures through the existing `load` stage.
+[`charm_app_staged_runtime.hpp`](charm_app_staged_runtime.hpp) 将一个已 staged `AppImage` 和 loader
+包装为单 image source。received、QSPI、eMMC 和 FAT catalog 都必须在该边界前完成读取，不能各自
+复制 AppRuntime 或 entry ABI。
 
-`player_min_core.h` holds the first shared Player-mini app core used by both the
-host smoke and the embedded App ELF sample. It is deliberately small: query the
-display, poll input, get time, submit one bounded ARGB8888 raster payload, and
-return an exit code.
+## Image format
 
-`charm_app_store.hpp` defines the first read-only program-image store layout for
-external media such as H747 QSPI Nor Flash. The store is intentionally minimal:
-a fixed header plus fixed entries that map an app name to a byte range. Store v1
-does not change layout for format metadata; it uses the low nibble of
-`AppStoreEntry.flags`: `0` means ELF and `1` means ModuleX. Old stores with zero
-flags continue to stage as ELF. It is not a filesystem, manifest DSL, or package
-manager.
+### ELF
 
-The same header also contains the board-free store builder and staging helpers.
-The builder creates an in-memory v1 store image from named payloads, while the
-staging helper turns `AppStoreReader + name/raw range + cache buffer` into an
-`AppImage` ready for the resident runtime. This keeps QSPI, future eMMC slots,
-and test fixtures on one program-store shape without adding CRC, signatures, or
-slot policy yet.
+[`charm_app_elf_probe.hpp`](charm_app_elf_probe.hpp) 校验 ELF32 `PT_LOAD`、entry offset、load span、
+segment、alignment 和 load buffer capacity。probe/load 不拥有 image bytes 或 execute region；平台
+负责区域容量、可执行性和 cache preparation。
 
-The resident platform boundary is now shared by both development downloads and
-external stores: USB/UART packetstream receive produces verified bytes, QSPI or
-future eMMC store readers produce named byte ranges, and both must converge on
-`AppImage -> staged AppImageSource -> AppRuntime`. Store v1 remains only
-`header + entries + payload`; it is not a filesystem or product update slot
-format. On H747, large receive/stage caches may live in SDRAM, but executable
-App ELF loading still uses the board-owned execution region selected by the
-runtime backend; cache placement must not change the `AppImage` or AppRuntime
-contract.
+### ModuleX
 
-`Examples/system/resident_elf_qemu_smoke` is the first QEMU virtual-board proof
-for the resident ELF path. It is deliberately not an H747 peripheral simulator:
-the smoke runs a Cortex-M7 firmware on QEMU `mps2-an500`, generates App ELFs
-linked to that runtime domain's run region (`0x20080000..0x20090000`), then
-loads and executes `hello_app` and `player_min` through
-`app_elf_load_image() -> AppRuntime -> CharmAppApi`. This keeps QEMU focused on
-loader/runtime/capability semantics while USB CDC, QSPI, eMMC, FMC SDRAM, and
-HAL initialization remain real-board evidence.
+[`charm_app_modulex_loader.hpp`](charm_app_modulex_loader.hpp) 解析 global `charm_app_main`，执行
+dependency/external binding 与 `abs_addr/rel32` relocation，并产出相同 `CharmAppMainFn`。App v1
+拒绝 non-zero BSS 和 XIP flags。CM7 callable address 由板端 materializer 设置 Thumb bit；host
+function pointer 不修改。
 
-Resident Image Platform v1 names this boundary explicitly:
-`PlatformBoot -> ResidentRuntime -> ImageSource/ImageStore -> AppImage/ProgramImage
--> Loader -> RuntimeDomain -> AppRuntime -> Capability Table`. Runtime domains
-such as `host`, `h747_cm7`, future `h747_cm4`, Linux core, or a remote proxy are
-platform execution domains, not extra App ABI variants. The App-visible contract
-remains `CharmAppApi`; local backends and future proxy backends must present the
-same capability table shape.
+ModuleX 的原生 C++ struct 含 `uintptr_t`；跨架构 artifact 使用 pack/inspect 工具的显式 32-bit
+wire layout，不能按 host `sizeof(modulex::Symbol)` 打包。格式细节见
+[`ModuleX_格式草案.md`](../../Modules/system/modulex/ModuleX_格式草案.md)。
 
-The architecture contract lives at
-`docs/architecture/resident_image_platform_v1_contract.md`. The corresponding
-host semantic proof is `Examples/system/resident_image_platform_smoke`, which
-checks that received bytes and store-backed images both enter the same staged
-runtime adapter and keep unsupported format, missing image, and loader failure
-diagnostics on the existing `lookup/load` AppRuntime stages.
+## Image source 与 Store
 
-`elf_samples/build_resident_platform_artifacts.ps1` is the preferred artifact
-entry point for the resident platform regression chain. It rebuilds the sample
-ELFs, the CM7 ModuleX sample, the mixed Store v1 image, packetstreams for each
-single image plus the mixed store, and a host-only `artifact_manifest.json` with
-size, CRC, format, Store flags, and packetstream sizes. The manifest is only a
-developer/CI evidence index; it is not written into Store v1 and is not a product
-update manifest.
+| 文件 | 职责 |
+|---|---|
+| [`charm_app_received_image.hpp`](charm_app_received_image.hpp) | 将 verified received bytes stage 为 `AppImage` |
+| [`charm_app_fat_catalog.hpp`](charm_app_fat_catalog.hpp) | 从只读 FAT32 `/CHARM/APPS/*.ELF` 读取 named image |
+| [`charm_app_store.hpp`](charm_app_store.hpp) | Store v1 header/entry、reader、builder 与 staging |
+| [`charm_app_store_install.hpp`](charm_app_store_install.hpp) | erase/write/readback verify 的 flash-like install 语义 |
 
-`Examples/system/resident_platform_inspect_tool` is the board-free doctor for
-that artifact set. Run `resident-platform-inspect
-elf_samples/out/artifact_manifest.json` after `build_resident_platform_artifacts.ps1
--Validate` and before occupying USB, serial, QSPI, or eMMC. It verifies the
-manifest schema, artifact size/CRC, packetstream begin headers, Store v1 entries
-and flags, ELF load-probe metadata, and ModuleX v1 layout/entry/relocation
-diagnostics. `--json` emits a machine-readable summary for scripts, and
-`--strict` treats warnings as failures; neither option writes metadata into Store
-v1 or changes the product image model.
+Store v1 是 `header + entries + payload`，不是 filesystem、package manager 或 update slot。entry
+`flags & 0xF` 中 `0=ELF`、`1=ModuleX`；旧 zero flags 仍解释为 ELF。QSPI/eMMC backend 只提供
+media/read/write，不定义第二套 Store 或 App entry。
 
-`Examples/project/h747-lab/tools/capture-resident-platform-evidence-bundle.ps1`
-is the recommended one-command evidence entry for this artifact chain. Its
-default path is off-board only: regenerate artifacts, run inspect, run the
-resident platform host smokes, and build H747 `dev_loader` without opening serial,
-USB, reset, flash, QSPI, or eMMC. `-BoardMatrix` is the explicit opt-in that
-appends the existing QSPI/eMMC download+install platform matrix smoke.
-`-InstalledStoreMatrix` is the lighter persistence opt-in: it assumes the Store
-is already installed and only asks the resident runtime to list and run named
-apps from QSPI/eMMC.
+received/stage cache 可以位于 SDRAM；execute region 属于 runtime domain。内存放置不进入 App ABI。
 
-`elf_samples/build_app_store.ps1` remains a narrower helper that builds the
-current sample App ELFs and packs them into a development `.appstore.bin` file.
-That file is the host/QSPI/eMMC preparation artifact for this prototype stage;
-it is not a final product update bundle.
+## Runtime domain
 
-`charm_app_store_install.hpp` defines the board-free install semantics for
-flash-like media. It models erase/write/read/capacity/alignment and verifies a
-written `.appstore.bin` by readback. The host smoke uses a memory NOR simulator;
-H747 `dev_loader` now binds the same installer contract to QSPI NOR for the
-resident development platform, and also binds eMMC as a second raw development
-slot through the same reader/media contracts. The eMMC adapter is block-backed
-internally, but still presents Store v1 as byte ranges to the runtime. It must
-not define a second App Store protocol, filesystem convention, or app entry
-model.
+Host、H747 CM7、QEMU MPS2 和未来 remote/core domain 可以使用不同 linker address、load region 和
+capability backend，但 App-visible ABI 不变。
 
-`charm_app_received_image.hpp` defines the first received-image staging boundary
-between Dev Loader downloads and `AppRuntime`. It turns verified image bytes
-into an `AppImage` without defining a second entry point, loader, or app model.
+[`resident_elf_qemu_smoke`](../system/resident_elf_qemu_smoke/README.md) 只证明 QEMU Cortex-M7 上的
+ELF loader、AppRuntime 与 capability 语义，不证明 H747 USB、QSPI、eMMC、SDRAM、HAL 或 cache。
+真实板证据由 H747 resident runtime 脚本维护。
 
-`charm_app_elf_probe.hpp` verifies received App ELF load semantics without
-executing target code on the host. It checks ELF32 load segments, entry offset,
-load span, buffer alignment/capacity, and minimum diagnostics for H747 handoff.
-It also exposes a disabled run-plan helper plus an `AppImageSource::load`
-compatible ELF loader backend that materializes the would-be `LoadedAppImage`
-entry address after a successful dry load. Callers must still decide explicitly
-when running is enabled.
+## Artifact 与证据入口
 
-Current store validation entry points:
+1. [`build_resident_platform_artifacts.ps1`](elf_samples/build_resident_platform_artifacts.ps1) 生成 ELF、
+   ModuleX、mixed Store、packetstream 与 `artifact_manifest.json`。
+2. [`resident-platform-inspect`](../system/resident_platform_inspect_tool/) 离板检查 manifest、CRC、
+   packetstream、Store、ELF probe 与 ModuleX layout。
+3. [`capture-resident-platform-evidence-bundle.ps1`](../project/h747-lab/tools/capture-resident-platform-evidence-bundle.ps1)
+   默认运行 artifacts、inspect、host smokes 和 H747 build-only；`-BoardMatrix` 才占用板子。
 
-- `Examples/system/app_abi_store_smoke`
-- `Examples/system/app_abi_store_pack_smoke`
-- `Examples/system/app_abi_store_file_smoke`
-- `Examples/system/app_abi_store_install_smoke`
-- `Examples/system/dev_loader_store_receive_smoke`
-- `Examples/system/dev_loader_store_install_handoff_smoke`
-- `Examples/system/dev_loader_app_handoff_smoke`
-- `Examples/system/dev_loader_received_elf_smoke`
-- `Examples/system/app_abi_modulex_smoke`
-- `Examples/system/dev_loader_received_modulex_smoke`
-- `Examples/system/resident_image_platform_smoke`
-- `Examples/system/resident_platform_artifact_smoke`
-- `Examples/system/resident_platform_inspect_smoke`
+`artifact_manifest.json` 只是 host/CI 证据索引，不写入 Store，也不是产品 manifest。
+
+## 回归分组
+
+- Runtime / ABI：`app_abi_runtime_smoke`、`resident_image_platform_smoke`
+- ELF / ModuleX：`dev_loader_received_elf_smoke`、`app_abi_modulex_smoke`、
+  `dev_loader_received_modulex_smoke`
+- Store：`app_abi_store_*_smoke`、`dev_loader_store_install_handoff_smoke`
+- Artifact：`resident_platform_artifact_smoke`、`resident_platform_inspect_smoke`
+
+[`player_min_core.h`](player_min_core.h) 是 capability/ABI 压力样本，不定义 Player UI 或平台 backend。

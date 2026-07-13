@@ -13,10 +13,10 @@
   或硬件已运行。
 - [`init_plan_recipe_draft.md`](init_plan_recipe_draft.md)：保留 Plan 不继承产出、Barrier 显式导出完成能力、
   Recipe/bound recipe/Node 分层等早期设计取舍。正文中的 HQZY/Player 路径和迁移完成度已经过期。
-- [`bringup_evidence_pipeline_v0.md`](bringup_evidence_pipeline_v0.md)：保留 evidence 状态语言、来源区分与
-  报告演进讨论；现行工具边界见 [`../../system/artifact_report_v0.md`](../../system/artifact_report_v0.md)。
-- [`resource_contract_v0.md`](resource_contract_v0.md)：保留 blocking、heap、reactor、clock 与 IRQ 资源维度
-  的候选模型；当前只有 artifact report 投影，没有统一运行时资源契约。
+- [`bringup_evidence_retained_notes.md`](bringup_evidence_retained_notes.md)：保留状态解释、来源不可替代性、
+  published/live 分离与静态/动态平面边界。
+- [`resource_contract_retained_notes.md`](resource_contract_retained_notes.md)：保留 blocking、heap、reactor、
+  clock 与 IRQ 候选维度及声明/事实/审计边界；当前没有统一运行时资源契约。
 - [`armv7a_minimal_kernel_staging_plan.md`](armv7a_minimal_kernel_staging_plan.md)：保留 minimal-kernel 的历史
   分阶段路线；现行 ARMv7-A 边界见 [`../../system/armv7a_platform_contract.md`](../../system/armv7a_platform_contract.md)。
 
@@ -28,3 +28,6 @@
 - [`../../system/armv7a_platform_contract.md`](../../system/armv7a_platform_contract.md)
 
 归档中的 fact、producer、stage 或 roadmap 名称不能替代当前源码、构建和运行证据。
+
+bring-up evidence 与 resource contract 完整阶段正文已删除；schema 字段、fixture catalog、命令矩阵、
+compare 演进和 smoke 清单由现行 artifact report、脚本与 Git 历史追溯。

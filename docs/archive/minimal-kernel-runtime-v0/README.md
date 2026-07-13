@@ -11,11 +11,9 @@
 - [`../../system/minimal_kernel_host_smoke_bundle_contract.md`](../../system/minimal_kernel_host_smoke_bundle_contract.md)
 - [`../../system/minimal_kernel_runtime_evidence_bundle_contract.md`](../../system/minimal_kernel_runtime_evidence_bundle_contract.md)
 
-本目录同时保留 session witness 的早期完整设计：
-
-kernel module 的早期结构、M1 sync、M2 thread 与 M3 observability 阶段材料见
-[`kernel-module-milestones/`](kernel-module-milestones/)。这些文件中的 freeze、demo 路径和 CSV
-字段不约束当前源码。
+kernel module 早期阶段中仍有独立价值的 sync 竞争规则与 thread 职责取舍见
+[`kernel-module-milestones/`](kernel-module-milestones/)。旧目录、里程碑、demo 与 observability
+格式不再保留。
 
 - session witness 旧全文已删除；semantic/machine/runtime 分层与 handoff 边界已收敛到
   [`../../system/kernel_runtime_session_witness_v0.md`](../../system/kernel_runtime_session_witness_v0.md)，字段、

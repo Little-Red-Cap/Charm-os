@@ -158,10 +158,15 @@ export namespace player::host_sdl3 {
             return self ? self->host_.clock().now_us() : 0;
         }
 
-        [[nodiscard]] static bool poll_input(void* ctx,
-                                             input::RawInputEvent& event) noexcept {
+        [[nodiscard]] static PlayerInputPollResult poll_input(
+            void* ctx, input::RawInputEvent& event) noexcept {
             auto* self = static_cast<Runtime*>(ctx);
-            return self && self->input_.poll(event);
+            if (!self) {
+                return PlayerInputPollResult::failed;
+            }
+            return self->input_.poll(event)
+                ? PlayerInputPollResult::event
+                : PlayerInputPollResult::empty;
         }
 
         [[nodiscard]] static raster::PixelFormat to_host_format(
@@ -181,16 +186,9 @@ export namespace player::host_sdl3 {
             if (!self || !surface.valid()) {
                 return false;
             }
-            const auto row_bytes = surface.min_stride_bytes();
-            const auto height = static_cast<std::size_t>(surface.height);
-            if (height == 0
-                || (height - 1) > (std::numeric_limits<std::size_t>::max() - row_bytes)
-                    / surface.stride_bytes) {
-                return false;
-            }
-            const auto required = (height - 1) * surface.stride_bytes + row_bytes;
+            const auto required = surface.required_size_bytes();
             const raster::SurfaceView host_surface{
-                .pixels = std::span<const std::byte>{surface.pixels, required},
+                .pixels = std::span<const std::byte>{surface.pixels.first(required)},
                 .width = static_cast<std::uint32_t>(surface.width),
                 .height = static_cast<std::uint32_t>(surface.height),
                 .stride_bytes = surface.stride_bytes,

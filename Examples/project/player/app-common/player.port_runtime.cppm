@@ -25,18 +25,27 @@ export namespace player {
         [[nodiscard]] std::size_t dispatched_input_count() const noexcept {
             return dispatched_input_count_;
         }
+        [[nodiscard]] std::size_t frame_count() const noexcept { return frame_count_; }
+        [[nodiscard]] std::size_t present_count() const noexcept { return present_count_; }
+        [[nodiscard]] PlayerPortFailure last_failure() const noexcept { return last_failure_; }
 
         [[nodiscard]] bool bootstrap() {
             if (state_ != PlayerPortRuntimeState::Cold) {
+                record_failure(PlayerPortStage::validate, PlayerPortErrc::invalid_state, false);
                 return false;
             }
-            if (!port_.valid() || !endpoint_.valid()) {
-                state_ = PlayerPortRuntimeState::Failed;
+            if (!port_.valid()) {
+                record_failure(PlayerPortStage::validate, PlayerPortErrc::invalid_port);
+                return false;
+            }
+            if (!endpoint_.valid()) {
+                record_failure(PlayerPortStage::validate, PlayerPortErrc::invalid_endpoint);
                 return false;
             }
             bootstrap_attempted_ = true;
-            if (!endpoint_.bootstrap_fn(endpoint_.ctx, port_)) {
-                state_ = PlayerPortRuntimeState::Failed;
+            const auto code = endpoint_.bootstrap_fn(endpoint_.ctx, port_);
+            if (code != PlayerPortErrc::ok) {
+                record_failure(PlayerPortStage::bootstrap, code);
                 return false;
             }
             state_ = PlayerPortRuntimeState::Running;
@@ -53,25 +62,43 @@ export namespace player {
                                         PlayerClockTick dt_us,
                                         std::size_t input_budget = 16) {
             if (state_ != PlayerPortRuntimeState::Running) {
+                record_failure(PlayerPortStage::update, PlayerPortErrc::invalid_state, false);
                 return false;
             }
             if (frame_pending_render_) {
+                record_failure(PlayerPortStage::update, PlayerPortErrc::invalid_state, false);
                 return false;
             }
             if (has_last_frame_time_ && now_us < last_frame_us_) {
-                state_ = PlayerPortRuntimeState::Failed;
+                record_failure(PlayerPortStage::update, PlayerPortErrc::clock_regressed);
                 return false;
             }
 
             input::RawInputEvent event{};
-            for (std::size_t i = 0; i < input_budget && port_.raw_input.poll(event); ++i) {
+            for (std::size_t i = 0; i < input_budget; ++i) {
+                const auto poll_result = port_.raw_input.poll(event);
+                if (poll_result == PlayerInputPollResult::empty) {
+                    break;
+                }
+                if (poll_result == PlayerInputPollResult::failed) {
+                    record_failure(PlayerPortStage::input, PlayerPortErrc::input_failed);
+                    return false;
+                }
                 if (endpoint_.dispatch_raw_input_fn) {
-                    endpoint_.dispatch_raw_input_fn(endpoint_.ctx, event);
+                    const auto code = endpoint_.dispatch_raw_input_fn(endpoint_.ctx, event);
+                    if (code != PlayerPortErrc::ok) {
+                        record_failure(PlayerPortStage::input, code);
+                        return false;
+                    }
                     ++dispatched_input_count_;
                 }
             }
 
-            endpoint_.update_fn(endpoint_.ctx, now_us, dt_us);
+            const auto code = endpoint_.update_fn(endpoint_.ctx, now_us, dt_us);
+            if (code != PlayerPortErrc::ok) {
+                record_failure(PlayerPortStage::update, code);
+                return false;
+            }
             last_frame_us_ = now_us;
             has_last_frame_time_ = true;
             frame_pending_render_ = true;
@@ -80,18 +107,24 @@ export namespace player {
 
         [[nodiscard]] bool render_frame() {
             if (state_ != PlayerPortRuntimeState::Running || !frame_pending_render_) {
+                record_failure(PlayerPortStage::render, PlayerPortErrc::invalid_state, false);
                 return false;
             }
             frame_pending_render_ = false;
-            if (!endpoint_.render_fn(endpoint_.ctx, port_.raster_surface, port_.raster_display)) {
-                state_ = PlayerPortRuntimeState::Failed;
+            const auto code = endpoint_.render_fn(
+                endpoint_.ctx, port_.raster_surface, port_.raster_display);
+            if (code != PlayerPortErrc::ok) {
+                record_failure(PlayerPortStage::render, code);
                 return false;
             }
+            ++frame_count_;
+            ++present_count_;
             return true;
         }
 
         [[nodiscard]] bool frame(std::size_t input_budget = 16) {
             if (!port_.clock.valid()) {
+                record_failure(PlayerPortStage::validate, PlayerPortErrc::invalid_port);
                 return false;
             }
             const auto now_us = port_.clock.now_us();
@@ -109,6 +142,16 @@ export namespace player {
         }
 
     private:
+        void record_failure(PlayerPortStage stage,
+                            PlayerPortErrc code,
+                            bool terminal = true) noexcept {
+            last_failure_ = PlayerPortFailure{stage, code};
+            if (terminal) {
+                state_ = PlayerPortRuntimeState::Failed;
+                frame_pending_render_ = false;
+            }
+        }
+
         PlayerPort port_{};
         PlayerRuntimeEndpoint endpoint_{};
         PlayerPortRuntimeState state_{PlayerPortRuntimeState::Cold};
@@ -118,5 +161,8 @@ export namespace player {
         bool frame_pending_render_{false};
         PlayerClockTick last_frame_us_{0};
         std::size_t dispatched_input_count_{0};
+        std::size_t frame_count_{0};
+        std::size_t present_count_{0};
+        PlayerPortFailure last_failure_{};
     };
 }

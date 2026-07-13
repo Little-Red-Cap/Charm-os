@@ -3,6 +3,7 @@ module;
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <span>
 
 export module player.raster;
 
@@ -35,18 +36,21 @@ export namespace player {
     }
 
     struct PlayerRasterSurface {
-        std::byte* pixels{nullptr};
+        std::span<std::byte> pixels{};
         int width{0};
         int height{0};
         std::size_t stride_bytes{0};
         PlayerRasterPixelFormat pixel_format{PlayerRasterPixelFormat::RGB888};
         [[nodiscard]] bool valid() const noexcept {
             const auto minimum_stride = min_stride_bytes();
-            return pixels != nullptr
+            const auto required = required_size_bytes();
+            return !pixels.empty()
                 && width > 0
                 && height > 0
                 && minimum_stride != 0
-                && stride_bytes >= minimum_stride;
+                && stride_bytes >= minimum_stride
+                && required != 0
+                && pixels.size() >= required;
         }
 
         [[nodiscard]] std::size_t bytes_per_pixel() const noexcept {
@@ -60,6 +64,20 @@ export namespace player {
                 return 0;
             }
             return width_value * bpp;
+        }
+
+        [[nodiscard]] std::size_t required_size_bytes() const noexcept {
+            const auto row_bytes = min_stride_bytes();
+            const auto height_value = height > 0 ? static_cast<std::size_t>(height) : 0;
+            if (row_bytes == 0 || height_value == 0 || stride_bytes < row_bytes) {
+                return 0;
+            }
+            const auto preceding_rows = height_value - 1;
+            if (preceding_rows > (std::numeric_limits<std::size_t>::max() - row_bytes)
+                    / stride_bytes) {
+                return 0;
+            }
+            return preceding_rows * stride_bytes + row_bytes;
         }
     };
 

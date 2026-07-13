@@ -31,7 +31,7 @@ export namespace player {
     inline FrameBufferView to_framebuffer_view(const PlayerRasterSurface& surface) noexcept {
         return FrameBufferView{
             to_vivid_pixel_format(surface.pixel_format),
-            surface.pixels,
+            surface.pixels.data(),
             static_cast<std::size_t>(surface.width > 0 ? surface.width : 0),
             static_cast<std::size_t>(surface.height > 0 ? surface.height : 0),
             surface.stride_bytes,
@@ -42,7 +42,7 @@ export namespace player {
     public:
         explicit PlayerRenderRuntime(PlayerRasterSurface surface) noexcept
             : surface_(surface),
-              canvas_(surface_.pixels,
+              canvas_(surface_.pixels.data(),
                       surface_.width,
                       surface_.height,
                       to_vivid_pixel_format(surface_.pixel_format),

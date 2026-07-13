@@ -8,6 +8,7 @@ import player.raster;
 #include <cstdint>
 #include <cstdio>
 #include <limits>
+#include <span>
 
 namespace {
     struct FakeClock {
@@ -24,14 +25,18 @@ namespace {
             input::RawInputEvent{.type = input::RawInputEventType::Button, .ms = 2},
         };
         std::size_t next{0};
+        bool fail_after_events{false};
 
-        static bool poll(void* ctx, input::RawInputEvent& out) noexcept {
+        static player::PlayerInputPollResult poll(
+            void* ctx, input::RawInputEvent& out) noexcept {
             auto& self = *static_cast<FakeInput*>(ctx);
             if (self.next >= self.events.size()) {
-                return false;
+                return self.fail_after_events
+                    ? player::PlayerInputPollResult::failed
+                    : player::PlayerInputPollResult::empty;
             }
             out = self.events[self.next++];
-            return true;
+            return player::PlayerInputPollResult::event;
         }
     };
 
@@ -45,33 +50,44 @@ namespace {
         player::PlayerClockTick last_dt_us{0};
         bool bootstrap_result{true};
         bool render_result{true};
+        player::PlayerPortErrc dispatch_result{player::PlayerPortErrc::ok};
+        player::PlayerPortErrc update_result{player::PlayerPortErrc::ok};
 
-        static bool bootstrap(void* ctx, const player::PlayerPort& port) noexcept {
+        static player::PlayerPortErrc bootstrap(
+            void* ctx, const player::PlayerPort& port) noexcept {
             auto& self = *static_cast<FakePlayer*>(ctx);
             ++self.bootstrap_count;
-            return port.valid() && self.bootstrap_result;
+            return port.valid() && self.bootstrap_result
+                ? player::PlayerPortErrc::ok
+                : player::PlayerPortErrc::endpoint_failed;
         }
 
-        static void dispatch(void* ctx, const input::RawInputEvent&) noexcept {
+        static player::PlayerPortErrc dispatch(
+            void* ctx, const input::RawInputEvent&) noexcept {
             ++static_cast<FakePlayer*>(ctx)->input_count;
+            return static_cast<FakePlayer*>(ctx)->dispatch_result;
         }
 
-        static void update(void* ctx,
-                           player::PlayerClockTick now_us,
-                           player::PlayerClockTick dt_us) noexcept {
+        static player::PlayerPortErrc update(void* ctx,
+                                              player::PlayerClockTick now_us,
+                                              player::PlayerClockTick dt_us) noexcept {
             auto& self = *static_cast<FakePlayer*>(ctx);
             ++self.update_count;
             self.last_now_us = now_us;
             self.last_dt_us = dt_us;
+            return self.update_result;
         }
 
-        static bool render(void* ctx,
-                           const player::PlayerRasterSurface& surface,
-                           const player::PlayerRasterDisplay& display) noexcept {
+        static player::PlayerPortErrc render(
+            void* ctx,
+            const player::PlayerRasterSurface& surface,
+            const player::PlayerRasterDisplay& display) noexcept {
             ++static_cast<FakePlayer*>(ctx)->render_count;
             auto& self = *static_cast<FakePlayer*>(ctx);
             return self.render_result
-                && display.present(surface, player::full_player_raster_region(surface));
+                    && display.present(surface, player::full_player_raster_region(surface))
+                ? player::PlayerPortErrc::ok
+                : player::PlayerPortErrc::present_failed;
         }
 
         static void shutdown(void* ctx) noexcept {
@@ -99,12 +115,21 @@ int main() {
     FakePlayer fake_player{};
 
     const player::PlayerRasterSurface surface{
-        pixels.data(),
+        pixels,
         width,
         height,
         stride,
         player::PlayerRasterPixelFormat::RGB888,
     };
+    if (!expect(surface.required_size_bytes() == pixels.size(), "surface required bytes")
+        || !expect(surface.valid(), "complete surface valid")) {
+        return 1;
+    }
+    auto undersized_surface = surface;
+    undersized_surface.pixels = std::span<std::byte>{pixels}.first(pixels.size() - 1);
+    if (!expect(!undersized_surface.valid(), "undersized surface rejected")) {
+        return 1;
+    }
     const player::PlayerPort port{
         .clock = {&fake_clock, &FakeClock::read_us},
         .raster_surface = surface,
@@ -133,6 +158,8 @@ int main() {
     fake_clock.now_us = 16000;
     if (!expect(runtime.frame(), "second frame")
         || !expect(runtime.dispatched_input_count() == 2, "remaining input")
+        || !expect(runtime.frame_count() == 2 && runtime.present_count() == 2,
+                   "frame and present counters")
         || !expect(fake_player.last_now_us == 16000 && fake_player.last_dt_us == 16000,
                    "zero-origin frame delta")
         || !expect(display_state.present_count == 2, "raster presents")) {
@@ -145,6 +172,8 @@ int main() {
         || !expect(fake_player.bootstrap_count == 1, "single bootstrap")
         || !expect(fake_player.update_count == 2 && fake_player.render_count == 2, "frame lifecycle")
         || !expect(fake_player.shutdown_count == 1, "idempotent shutdown")
+        || !expect(runtime.frame_count() == 2 && runtime.present_count() == 2,
+                   "shutdown preserves counters")
         || !expect(!runtime.frame(), "frame rejected after shutdown")) {
         return 1;
     }
@@ -157,12 +186,18 @@ int main() {
     player::PlayerPortRuntime invalid_runtime{invalid_port, invalid_endpoint};
     if (!expect(!invalid_runtime.bootstrap(), "invalid port rejected")
         || !expect(invalid_runtime.state() == player::PlayerPortRuntimeState::Failed,
-                   "invalid port failed state")) {
+                   "invalid port failed state")
+        || !expect(invalid_runtime.last_failure().stage == player::PlayerPortStage::validate
+                       && invalid_runtime.last_failure().code
+                           == player::PlayerPortErrc::invalid_port,
+                   "invalid port diagnostics")) {
         return 1;
     }
     invalid_runtime.shutdown();
     if (!expect(invalid_player.bootstrap_count == 0, "invalid port skips endpoint bootstrap")
-        || !expect(invalid_player.shutdown_count == 0, "invalid port skips endpoint shutdown")) {
+        || !expect(invalid_player.shutdown_count == 0, "invalid port skips endpoint shutdown")
+        || !expect(invalid_runtime.last_failure().code == player::PlayerPortErrc::invalid_port,
+                   "shutdown preserves failure")) {
         return 1;
     }
 
@@ -172,7 +207,12 @@ int main() {
     player::PlayerPortRuntime bootstrap_failure_runtime{port, bootstrap_failure_endpoint};
     if (!expect(!bootstrap_failure_runtime.bootstrap(), "endpoint bootstrap failure")
         || !expect(bootstrap_failure_runtime.state() == player::PlayerPortRuntimeState::Failed,
-                   "bootstrap failure state")) {
+                   "bootstrap failure state")
+        || !expect(bootstrap_failure_runtime.last_failure().stage
+                           == player::PlayerPortStage::bootstrap
+                       && bootstrap_failure_runtime.last_failure().code
+                           == player::PlayerPortErrc::endpoint_failed,
+                   "bootstrap failure diagnostics")) {
         return 1;
     }
     bootstrap_failure_runtime.shutdown();
@@ -237,7 +277,11 @@ int main() {
         || !expect(regressing_runtime.state() == player::PlayerPortRuntimeState::Failed,
                    "regressing clock failed state")
         || !expect(regressing_player.update_count == 1,
-                   "regressing clock rejected before update")) {
+                   "regressing clock rejected before update")
+        || !expect(regressing_runtime.last_failure().stage == player::PlayerPortStage::update
+                       && regressing_runtime.last_failure().code
+                           == player::PlayerPortErrc::clock_regressed,
+                   "clock regression diagnostics")) {
         return 1;
     }
     regressing_runtime.shutdown();
@@ -259,6 +303,56 @@ int main() {
         return 1;
     }
     split_phase_runtime.shutdown();
+
+    FakeInput failing_input{.next = 2, .fail_after_events = true};
+    FakePlayer input_failure_player{};
+    auto input_failure_port = port;
+    input_failure_port.raw_input = {&failing_input, &FakeInput::poll};
+    auto input_failure_endpoint = endpoint;
+    input_failure_endpoint.ctx = &input_failure_player;
+    player::PlayerPortRuntime input_failure_runtime{input_failure_port, input_failure_endpoint};
+    if (!expect(input_failure_runtime.bootstrap(), "input failure bootstrap")
+        || !expect(!input_failure_runtime.update_frame(7000, 0), "input failure rejected")
+        || !expect(input_failure_runtime.last_failure().stage == player::PlayerPortStage::input
+                       && input_failure_runtime.last_failure().code
+                           == player::PlayerPortErrc::input_failed,
+                   "input failure diagnostics")
+        || !expect(input_failure_player.update_count == 0,
+                   "input failure prevents update")) {
+        return 1;
+    }
+    input_failure_runtime.shutdown();
+
+    FakeInput empty_input{.next = 2};
+    FakePlayer update_failure_player{
+        .update_result = player::PlayerPortErrc::endpoint_failed,
+    };
+    auto update_failure_port = port;
+    update_failure_port.raw_input = {&empty_input, &FakeInput::poll};
+    auto update_failure_endpoint = endpoint;
+    update_failure_endpoint.ctx = &update_failure_player;
+    player::PlayerPortRuntime update_failure_runtime{update_failure_port, update_failure_endpoint};
+    if (!expect(update_failure_runtime.bootstrap(), "update failure bootstrap")
+        || !expect(!update_failure_runtime.update_frame(8000, 0), "update failure rejected")
+        || !expect(update_failure_runtime.last_failure().stage == player::PlayerPortStage::update
+                       && update_failure_runtime.last_failure().code
+                           == player::PlayerPortErrc::endpoint_failed,
+                   "update failure diagnostics")) {
+        return 1;
+    }
+    update_failure_runtime.shutdown();
+
+    FakePlayer invalid_endpoint_player{};
+    player::PlayerRuntimeEndpoint missing_endpoint{};
+    missing_endpoint.ctx = &invalid_endpoint_player;
+    player::PlayerPortRuntime invalid_endpoint_runtime{port, missing_endpoint};
+    if (!expect(!invalid_endpoint_runtime.bootstrap(), "invalid endpoint rejected")
+        || !expect(invalid_endpoint_runtime.last_failure().code
+                           == player::PlayerPortErrc::invalid_endpoint,
+                   "invalid endpoint diagnostics")) {
+        return 1;
+    }
+    invalid_endpoint_runtime.shutdown();
 
     std::printf("[player-port-runtime-smoke] ok\n");
     return 0;

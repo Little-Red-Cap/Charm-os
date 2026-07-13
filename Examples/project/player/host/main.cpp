@@ -57,7 +57,7 @@ int main(int argc, char** argv) {
     const auto stride = static_cast<std::size_t>(screen_width) * bytes_per_pixel;
     std::vector<std::byte> pixels(stride * static_cast<std::size_t>(screen_height));
     const player::PlayerRasterSurface surface{
-        .pixels = pixels.data(),
+        .pixels = pixels,
         .width = screen_width,
         .height = screen_height,
         .stride_bytes = stride,

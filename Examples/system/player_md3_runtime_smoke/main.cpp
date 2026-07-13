@@ -84,10 +84,11 @@ namespace {
     struct SmokeInput {
         bool emitted{false};
 
-        static bool poll(void* ctx, input::RawInputEvent& out) noexcept {
+        static player::PlayerInputPollResult poll(
+            void* ctx, input::RawInputEvent& out) noexcept {
             auto& self = *static_cast<SmokeInput*>(ctx);
             if (self.emitted) {
-                return false;
+                return player::PlayerInputPollResult::empty;
             }
             self.emitted = true;
             out = input::RawInputEvent{
@@ -96,7 +97,7 @@ namespace {
                 .pointer = input::PointerRaw{false, 16, 16, 0},
                 .pointer_action = input::PointerAction::Move,
             };
-            return true;
+            return player::PlayerInputPollResult::event;
         }
     };
 
@@ -156,7 +157,7 @@ namespace {
         std::array<std::byte, (2 * 4 + padding) * height> bytes{};
         bytes.fill(kPaddingSentinel);
         auto runtime = std::make_unique<player::PlayerRenderRuntime>(
-            player::PlayerRasterSurface{bytes.data(), width, height, stride, format});
+            player::PlayerRasterSurface{bytes, width, height, stride, format});
         const rgba color{0xf8, 0x84, 0x1f, 0x7f};
         runtime->clear(color);
 
@@ -236,7 +237,7 @@ int main(int argc, char** argv) {
     const player::PlayerPort port{
         .clock = {&clock, &SmokeClock::read},
         .raster_surface = {
-            pixels.data(),
+            std::span<std::byte>{pixels}.first(pixel_bytes),
             screen_width,
             screen_height,
             stride,
@@ -261,7 +262,7 @@ int main(int argc, char** argv) {
         || !expect(runtime.dispatched_input_count() == 1, "raw input dispatched")
         || !expect(display.present_count == 1, "raster presented")
         || !expect(display.last_surface.valid(), "presented surface valid")
-        || !expect(display.last_surface.pixels == pixels.data(), "borrowed raster identity")
+        || !expect(display.last_surface.pixels.data() == pixels.data(), "borrowed raster identity")
         || !expect(display.last_surface.stride_bytes == stride, "borrowed raster stride")
         || !expect(display.last_surface.pixel_format == raster_case.format,
                    "borrowed raster format")

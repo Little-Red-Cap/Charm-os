@@ -53,29 +53,42 @@ export namespace player {
                 : 0;
         }
 
-        static bool bootstrap_trampoline(void* ctx, const PlayerPort& port) {
-            return static_cast<PlayerMd3PortApplication*>(ctx)->bootstrap(port);
+        static PlayerPortErrc bootstrap_trampoline(void* ctx, const PlayerPort& port) {
+            return static_cast<PlayerMd3PortApplication*>(ctx)->bootstrap(port)
+                ? PlayerPortErrc::ok
+                : PlayerPortErrc::endpoint_failed;
         }
 
-        static void dispatch_raw_input_trampoline(void* ctx, const input::RawInputEvent& event) {
+        static PlayerPortErrc dispatch_raw_input_trampoline(
+            void* ctx, const input::RawInputEvent& event) {
             auto* self = static_cast<PlayerMd3PortApplication*>(ctx);
-            if (self->runtime_) {
-                self->runtime_->dispatch_raw_input(event);
+            if (!self->runtime_) {
+                return PlayerPortErrc::invalid_state;
             }
+            self->runtime_->dispatch_raw_input(event);
+            return PlayerPortErrc::ok;
         }
 
-        static void update_trampoline(void* ctx, PlayerClockTick now_us, PlayerClockTick) {
+        static PlayerPortErrc update_trampoline(
+            void* ctx, PlayerClockTick now_us, PlayerClockTick) {
             auto* self = static_cast<PlayerMd3PortApplication*>(ctx);
-            if (self->runtime_) {
-                self->runtime_->tick(static_cast<charm::system::ClockTick>(now_us));
+            if (!self->runtime_) {
+                return PlayerPortErrc::invalid_state;
             }
+            self->runtime_->tick(static_cast<charm::system::ClockTick>(now_us));
+            return PlayerPortErrc::ok;
         }
 
-        static bool render_trampoline(void* ctx,
-                                      const PlayerRasterSurface&,
-                                      const PlayerRasterDisplay& display) {
+        static PlayerPortErrc render_trampoline(void* ctx,
+                                                const PlayerRasterSurface&,
+                                                const PlayerRasterDisplay& display) {
             auto* self = static_cast<PlayerMd3PortApplication*>(ctx);
-            return self->runtime_ && self->runtime_->render(display);
+            if (!self->runtime_) {
+                return PlayerPortErrc::invalid_state;
+            }
+            return self->runtime_->render(display)
+                ? PlayerPortErrc::ok
+                : PlayerPortErrc::present_failed;
         }
 
         static void shutdown_trampoline(void* ctx) noexcept {

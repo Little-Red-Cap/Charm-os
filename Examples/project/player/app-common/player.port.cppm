@@ -11,6 +11,40 @@ import player.raster;
 export namespace player {
     using PlayerClockTick = std::uint64_t;
 
+    enum class PlayerPortStage : std::uint8_t {
+        validate,
+        bootstrap,
+        input,
+        update,
+        render,
+    };
+
+    enum class PlayerPortErrc : std::uint8_t {
+        ok,
+        invalid_port,
+        invalid_endpoint,
+        invalid_state,
+        clock_regressed,
+        input_failed,
+        endpoint_failed,
+        present_failed,
+    };
+
+    struct PlayerPortFailure {
+        PlayerPortStage stage{PlayerPortStage::validate};
+        PlayerPortErrc code{PlayerPortErrc::ok};
+
+        [[nodiscard]] constexpr bool failed() const noexcept {
+            return code != PlayerPortErrc::ok;
+        }
+    };
+
+    enum class PlayerInputPollResult : std::uint8_t {
+        event,
+        empty,
+        failed,
+    };
+
     struct PlayerMonotonicClock {
         using NowUsFn = PlayerClockTick (*)(void* ctx) noexcept;
 
@@ -25,13 +59,14 @@ export namespace player {
     };
 
     struct PlayerRawInputSource {
-        using PollFn = bool (*)(void* ctx, input::RawInputEvent& out) noexcept;
+        using PollFn = PlayerInputPollResult (*)(void* ctx,
+                                                  input::RawInputEvent& out) noexcept;
 
         void* ctx{nullptr};
         PollFn poll_fn{nullptr};
 
-        [[nodiscard]] bool poll(input::RawInputEvent& out) const noexcept {
-            return poll_fn && poll_fn(ctx, out);
+        [[nodiscard]] PlayerInputPollResult poll(input::RawInputEvent& out) const noexcept {
+            return poll_fn ? poll_fn(ctx, out) : PlayerInputPollResult::empty;
         }
     };
 
@@ -49,12 +84,15 @@ export namespace player {
     };
 
     struct PlayerRuntimeEndpoint {
-        using BootstrapFn = bool (*)(void* ctx, const PlayerPort& port);
-        using DispatchRawInputFn = void (*)(void* ctx, const input::RawInputEvent& event);
-        using UpdateFn = void (*)(void* ctx, PlayerClockTick now_us, PlayerClockTick dt_us);
-        using RenderFn = bool (*)(void* ctx,
-                                  const PlayerRasterSurface& surface,
-                                  const PlayerRasterDisplay& display);
+        using BootstrapFn = PlayerPortErrc (*)(void* ctx, const PlayerPort& port);
+        using DispatchRawInputFn = PlayerPortErrc (*)(void* ctx,
+                                                       const input::RawInputEvent& event);
+        using UpdateFn = PlayerPortErrc (*)(void* ctx,
+                                             PlayerClockTick now_us,
+                                             PlayerClockTick dt_us);
+        using RenderFn = PlayerPortErrc (*)(void* ctx,
+                                             const PlayerRasterSurface& surface,
+                                             const PlayerRasterDisplay& display);
         using ShutdownFn = void (*)(void* ctx) noexcept;
 
         void* ctx{nullptr};

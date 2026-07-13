@@ -11,13 +11,18 @@
   尚未覆盖输入语义树三项边界。正文中的“完整闭环”和未来工具愿景只作历史记录。
 - [`init_plan_recipe_draft.md`](init_plan_recipe_draft.md)：保留 Plan 不继承产出、Barrier 显式导出完成能力、
   Recipe/bound recipe/Node 分层等早期设计取舍。正文中的 HQZY/Player 路径和迁移完成度已经过期。
+- [`bringup_evidence_pipeline_v0.md`](bringup_evidence_pipeline_v0.md)：保留 evidence 状态语言、来源区分与
+  报告演进讨论；现行工具边界见 [`../../system/artifact_report_v0.md`](../../system/artifact_report_v0.md)。
+- [`resource_contract_v0.md`](resource_contract_v0.md)：保留 blocking、heap、reactor、clock 与 IRQ 资源维度
+  的候选模型；当前只有 artifact report 投影，没有统一运行时资源契约。
+- [`armv7a_minimal_kernel_staging_plan.md`](armv7a_minimal_kernel_staging_plan.md)：保留 minimal-kernel 的历史
+  分阶段路线；现行 ARMv7-A 边界见 [`../../system/armv7a_platform_contract.md`](../../system/armv7a_platform_contract.md)。
 
 默认入口：
 
 - [`../../system/README.md`](../../system/README.md)
 - [`../../system/init_materialized_graph_observe.md`](../../system/init_materialized_graph_observe.md)
-- [`../../system/bringup_evidence_pipeline_v0.md`](../../system/bringup_evidence_pipeline_v0.md)
-- [`../../system/resource_contract_v0.md`](../../system/resource_contract_v0.md)
-- [`../../system/armv7a_minimal_kernel_staging_plan.md`](../../system/armv7a_minimal_kernel_staging_plan.md)
+- [`../../system/artifact_report_v0.md`](../../system/artifact_report_v0.md)
+- [`../../system/armv7a_platform_contract.md`](../../system/armv7a_platform_contract.md)
 
 归档中的 fact、producer、stage 或 roadmap 名称不能替代当前源码、构建和运行证据。

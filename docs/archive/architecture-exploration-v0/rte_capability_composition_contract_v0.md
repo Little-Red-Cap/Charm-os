@@ -428,7 +428,7 @@ binding:
   继续定义设备/驱动与 runtime discovery plane。本文只定义静态能力装配边界。
 - `docs/architecture/capability_recovery_rules.md`
   继续定义能力回收流程。本文为后续回收提供 RTE 词汇。
-- `docs/system/bringup_evidence_pipeline_v0.md`
+- `docs/archive/system-evidence-and-staging-v0/bringup_evidence_pipeline_v0.md`
   继续定义 bringup evidence 流程。本文只定义 RTE 层 evidence projection 的语义位置。
 - `docs/architecture/system_compiler_vocabulary_v0.md`
   继续定义 system compiler 词汇。本文的词汇可作为后续 system compiler 输入对象。

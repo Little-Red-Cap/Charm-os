@@ -63,6 +63,14 @@ Exporter 消费 `materialized_graph.export_bundle/v1` 的 `index.json`。case �
 `comparison` 和 `connection_summary` 是条件字段。准确字段、枚举和 required 关系必须查看 schema，
 不要从本文复制一份平行定义。
 
+### 投影语义
+
+- `declared`、`materialized`、`published`、`observed`、`blocked` 和 `failed` 是报告状态；
+  `published` 不表示设备可用，`observed` 也不表示结果正确。
+- `bringup_evidence` 必须保留来源与失败原因。Host fixture、QEMU 和真实板证据不能互相替代。
+- `resource_contract` 只投影声明、事实和违规结果，不是统一 C++ API，也不参与 binding、init
+  或运行时执法。blocking、heap、IRQ 和 clock 限制仍由具体模块契约负责。
+
 使用 `-OutputRoot` 导出时还会生成 `index.json`，用于列出 case、路径和 compiler headline。
 使用 `-OutputPath` 导出单份 report 时不生成 root index。
 
@@ -99,7 +107,7 @@ Exporter 或 inspector 会拒绝：
 - supporting graph 路径不存在或 graph shape 无效。
 
 报告生成成功只说明工具能读取并投影输入。它不证明输入事实真实、系统可构建、板级 bring-up
-成功或 Capability Contract 已满足。
+成功、Capability Contract 已满足，或资源约束已被运行时执行。
 
 ## 回归入口
 

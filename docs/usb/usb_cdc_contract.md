@@ -1,42 +1,35 @@
-# USB CDC 最小收发路径与回调契约
+# USB CDC 数据与回调契约
 
-本页固定 CDC ACM 的最小数据通路与回调契约，便于 DCD/驱动层接入。
+## 文档状态
 
-## 数据通路（最小）
+- `status`: `supporting`
+- `scope`: `usb.class_cdc` 的 CDC ACM control/data callback
+- `source`: [`usb.cdc.cppm`](../../Modules/io/usb/class/usb.cdc.cppm)
 
-```
-Host OUT -> EP_OUT -> CdcAcm::on_out_packet()
-Host IN  <- EP_IN  <- CdcAcm::on_in_request() -> DCD send
-IN 完成 -> CdcAcm::on_tx_done()
-```
+`CdcAcm` 不拥有 transport、buffer 或 callback context，也不调度 DCD transfer。
 
-## 回调契约（CdcOps）
+## 数据路径
 
-- `rx_buffer()`：返回 OUT 接收缓冲区（可写）。
-- `on_rx_done(len)`：接收完成，len 为写入字节数。
-- `tx_buffer()`：返回 IN 发送缓冲区（只读）。
-- `tx_length()`：可选，返回本次实际可发送长度（<= tx_buffer.size）。
-- `on_tx_done(len)`：发送完成回调。
-- `notify(data)`：发送 CDC 通知（SERIAL_STATE 等）。
-- `on_line_coding/on_control_line`：控制端点回调。
+| 入口 | 行为 |
+|---|---|
+| `on_out_packet(data)` | 将 host OUT 复制到 `rx_buffer()`，随后调用 `on_rx_done(copied)` |
+| `on_in_request(max_len)` | 从 `tx_buffer()` 返回不超过 buffer、`max_len` 与可选 `tx_length()` 的 view |
+| `on_tx_done(sent)` | 将真实 IN completion 长度转交 callback |
+| `send_serial_state(bits)` | 通过 `notify()` 发送 SERIAL_STATE；callback 缺失时返回 `false` |
 
-## DCD 接入最小示例
+OUT buffer 为空时返回 `false`。buffer 小于 packet 时只复制前缀并调用 `on_rx_done()`，返回
+`false` 表示未完整接收；上层不能只看 callback 被调用就判定成功。
 
-```cpp
-// OUT: 收到数据
-cdc.on_out_packet(data);
+IN buffer 或 callback 缺失时返回空 view。`on_in_request()` 只暴露数据，不表示 DCD 已发送；DCD
+完成后必须调用 `on_tx_done()`。
 
-// IN: 需要发送
-auto payload = cdc.on_in_request(max_len);
-if (!payload.empty()) {
-    dcd.ep.send(ctx, ep_in, payload, false);
-}
+## Control 与生命周期
 
-// IN 完成
-cdc.on_tx_done(sent);
-```
+- Line coding 和 control-line state 由 class request handler 更新，并通过对应 callback 通知。
+- `CdcOps`、context 和所有返回 buffer 都由调用方拥有；buffer 至少在当前调用或 transfer 约定期间
+  保持有效。
+- class 本身不分配、不等待；callback 是否阻塞由 backend 决定，事件循环接入方必须自行约束。
+- reset 会恢复 line coding/control state，并可能触发 line-coding callback；它不清理调用方 buffer。
 
-## 约束
-
-- 不阻塞、不分配。
-- 缓冲区由上层持有，CDC 仅读取/写入。
+Native 与 replay 入口见 [`Examples/usb/README.md`](../../Examples/usb/README.md)。这些 fixture 不证明
+真实 DCD、USB CDC COM 枚举或 host driver 兼容性。

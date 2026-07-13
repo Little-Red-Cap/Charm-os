@@ -70,7 +70,7 @@
 - 示例已迁移到 `charm.core`、`charm.system`、`charm.io` 或更窄的叶子模块入口。
 - `charm.foundation` 不删除，但仅保留迁移 facade 语义；当前 first-party 源码不保留 compat import。
 - `charm.domain` 不再作为单独模块入口存在；Domain 层统一使用 `charm.media` 与 `charm.ui.*`。
-- 具体契约见：`docs/architecture/legacy_runtime_facade_retirement_contract.md`。
+- 原 retirement contract 已删除；现行入口分类见 `docs/architecture/entry_surface_contract.md`。
 
 ---
 
@@ -331,7 +331,8 @@
 - `charm.core.cppm` 曾存在重复导出 `service_fifo` 的卫生问题，当前已清理。
 - `charm.runtime.cppm` 已退役为 tombstone，不再纳入入口聚合面规模治理。
 - 入口面分类已落到 `docs/architecture/entry_surface_contract.md`；历史入口已由 opt-in 白名单检查封住。
-- 稳定聚合入口契约已落到 `docs/architecture/stable_entry_aggregate_contract.md`，用于解释和约束仍然偏宽的长期入口。
+- 原 stable aggregate contract 已删除；仍然偏宽的长期入口由
+  `docs/architecture/entry_surface_contract.md` 与实际聚合模块共同审查。
 
 #### 建议方向
 

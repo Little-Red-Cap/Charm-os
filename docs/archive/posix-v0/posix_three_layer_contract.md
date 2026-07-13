@@ -16,11 +16,11 @@
 
 这份文档不是用来替代已有 POSIX 文档，而是把它们串成一个统一分层模型。
 
-- 总体原则：`docs/system/posix_subsystem_principles.md`
+- 历史总体原则：`docs/archive/posix-v0/posix_subsystem_principles.md`
 - POSIX 总览：`docs/system/posix_support_overview.md`
-- `spawn` 设计：`docs/system/posix_spawn_minimal_design.md`
-- `ProgramImage` 设计：`docs/system/posix_program_image_minimal_design.md`
-- ELF 加载设计：`docs/system/posix_program_image_elf_minimal_design.md`
+- `spawn`：`docs/system/posix_spawn_contract.md`
+- `ProgramImage`：`docs/system/posix_program_image_contract.md`
+- 历史 ELF 加载草案：`docs/archive/posix-v0/posix_program_image_elf_minimal_design.md`
 
 阶段任务清单与验收记录已移入 `docs/archive/posix-v0/`，不参与本契约定义。
 

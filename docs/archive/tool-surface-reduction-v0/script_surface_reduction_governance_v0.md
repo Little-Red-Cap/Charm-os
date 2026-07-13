@@ -145,7 +145,7 @@ PowerShell 不应继续增长为：
 
 详细族群清单与第一批 pilot 候选见：
 
-- `docs/system/script_surface_reduction_inventory_v0.md`
+- `docs/archive/tool-surface-reduction-v0/script_surface_reduction_inventory_v0.md`
 
 盘点口径：
 

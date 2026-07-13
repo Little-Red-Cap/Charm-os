@@ -6,5 +6,12 @@ set(PLAYER_RESOURCE_FONT_NORMAL_PX "18" CACHE STRING
     "Charm Player default normal font size")
 set(PLAYER_RESOURCE_FONT_LARGE_PX "76" CACHE STRING
     "Charm Player default large font size")
-set(PLAYER_HOST_STORAGE_VHD_PATH "G:/Project/dev.vhd" CACHE STRING
-    "Charm Player Windows host storage VHD path")
+if (NOT DEFINED PLAYER_HOST_STORAGE_VHD_PATH)
+    set(_player_storage_vhd_default "")
+    if (DEFINED ENV{PLAYER_HOST_STORAGE_VHD_PATH})
+        file(TO_CMAKE_PATH "$ENV{PLAYER_HOST_STORAGE_VHD_PATH}" _player_storage_vhd_default)
+    endif()
+    set(PLAYER_HOST_STORAGE_VHD_PATH "${_player_storage_vhd_default}" CACHE FILEPATH
+        "Charm Player legacy Windows storage VHD path")
+    unset(_player_storage_vhd_default)
+endif()

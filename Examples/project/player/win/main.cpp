@@ -1,6 +1,6 @@
-import player.win.main_host;
+extern "C" int charm_player_win_main(int argc, char** argv);
 
 int main(int argc, char** argv) {
-    return run_player_win_main(argc, argv);
+    return charm_player_win_main(argc, argv);
 }
 

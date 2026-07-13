@@ -3,10 +3,14 @@ module;
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include "player.product_policy.hpp"
 
 export module player.input;
 
 export namespace player {
+    inline constexpr bool player_legacy_touch_input_enabled =
+        CHARM_PLAYER_LEGACY_TOUCH_INPUT != 0;
+
     enum class PlayerInputEventKind : std::uint8_t {
         Pointer,
         Wheel,
@@ -93,6 +97,7 @@ export namespace player {
         }
     };
 
+#if CHARM_PLAYER_LEGACY_TOUCH_INPUT
     struct PlayerTouchSample {
         bool down{false};
         float x{0.0f};
@@ -188,4 +193,5 @@ export namespace player {
         }
         return out;
     }
+#endif
 }

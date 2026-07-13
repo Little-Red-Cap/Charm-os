@@ -9,15 +9,11 @@ module;
 #include <string_view>
 #include <utility>
 #include <vector>
-
-#ifndef CHARM_PLAYER_LYRICS
-#define CHARM_PLAYER_LYRICS 1
-#endif
+#include "../app-common/player.product_policy.hpp"
 
 export module player.controller;
 
 import player.fixed_string;
-import player.mcu_policy;
 import player.app_config;
 import audio.eq;
 import audio.player;
@@ -331,6 +327,7 @@ export namespace player {
         };
 
         PlaybackSession<kMaxTracks> playback{};
+        charm::system::ClockRef clock{};
         PlayerSceneRuntime scene_runtime{};
         ::ui::scene::SceneAccess access{};
         UiHandles handles{};
@@ -915,6 +912,19 @@ export namespace player {
             access = runtime.access;
         }
 
+        void bind_clock(charm::system::Clock& source) noexcept {
+            clock.reset(source);
+            playback.bind_clock(source);
+        }
+
+        [[nodiscard]] std::uint64_t monotonic_now_ms() const noexcept {
+            return clock.now_ms();
+        }
+
+        [[nodiscard]] std::uint64_t monotonic_now_us() const noexcept {
+            return clock.now_us();
+        }
+
         void bind_player(audio::AudioPlayer& p) {
             playback.set_player(p);
         }
@@ -1481,7 +1491,7 @@ export namespace player {
             tick_weekly_listening_stats();
 #if CHARM_PLAYER_LAYERED_TRANSITIONS
             if (now_playing_transition.active) {
-                tick_now_playing_transition(charm::system::ClockCaps::TimeSource::now());
+                tick_now_playing_transition(monotonic_now_ms());
                 return;
             }
 #endif
@@ -1687,7 +1697,7 @@ export namespace player {
         };
     }
 
-#if defined(CHARM_PLAYER_MCU) && CHARM_PLAYER_MCU && defined(__GNUC__)
+#if CHARM_PLAYER_MEMORY_PROFILE_SYMBOLS && defined(__GNUC__)
     extern "C" [[gnu::used]] void charm_player_controller_memory_profile_symbols() noexcept {
         constexpr auto profile = player_controller_memory_profile();
         asm volatile(

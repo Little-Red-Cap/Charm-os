@@ -7,21 +7,19 @@ module;
 #include <cctype>
 #include <span>
 #include <string_view>
-#if defined(CHARM_PLAYER_HOST_UI) && CHARM_PLAYER_HOST_UI && \
-    defined(CHARM_PLAYER_HOST_COVER_DECODE) && CHARM_PLAYER_HOST_COVER_DECODE
+#if defined(CHARM_PLAYER_COVER_DECODE) && CHARM_PLAYER_COVER_DECODE
 #include <string>
 #include <utility>
 #include <vector>
 #endif
 
-#if defined(CHARM_PLAYER_HOST_UI) && CHARM_PLAYER_HOST_UI && \
-    defined(CHARM_PLAYER_HOST_COVER_DECODE) && CHARM_PLAYER_HOST_COVER_DECODE
-#define CHARM_PLAYER_USE_HOST_COVER_DECODE 1
+#if defined(CHARM_PLAYER_COVER_DECODE) && CHARM_PLAYER_COVER_DECODE
+#define CHARM_PLAYER_USE_COVER_DECODE 1
 #else
-#define CHARM_PLAYER_USE_HOST_COVER_DECODE 0
+#define CHARM_PLAYER_USE_COVER_DECODE 0
 #endif
 
-#if CHARM_PLAYER_USE_HOST_COVER_DECODE
+#if CHARM_PLAYER_USE_COVER_DECODE
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_NO_STDIO
 #include <stb_image.h>
@@ -34,15 +32,15 @@ import charm.gfx.image;
 import player.fixed_string;
 import player.product_config;
 export import player.cover_resource;
-#if CHARM_PLAYER_USE_HOST_COVER_DECODE
+#if CHARM_PLAYER_USE_COVER_DECODE
 import fs_core;
 import fs_vfs;
 import util.core;
 #endif
 
 namespace player::cover_detail {
-#if CHARM_PLAYER_USE_HOST_COVER_DECODE
-    struct HostCoverDecodeImage {
+#if CHARM_PLAYER_USE_COVER_DECODE
+    struct DecodedCoverImage {
         std::string path{};
         std::vector<std::uint32_t> argb{};
         ui::gfx::ImageId image_id{ui::gfx::invalid_image_id()};
@@ -54,7 +52,7 @@ namespace player::cover_detail {
 }
 
 export namespace player {
-    inline constexpr std::uint16_t kInvalidCoverHostDecodeSlot = 0xFFFFu;
+    inline constexpr std::uint16_t kInvalidDecodedCoverSlot = 0xFFFFu;
 
     struct ResolvedCover {
         ui::gfx::ImageId image_id{ui::gfx::invalid_image_id()};
@@ -63,7 +61,7 @@ export namespace player {
         FixedString<260> key{};
         bool fallback{false};
         bool registry_ref{false};
-        std::uint16_t host_decode_slot{kInvalidCoverHostDecodeSlot};
+        std::uint16_t decoded_cover_slot{kInvalidDecodedCoverSlot};
 
         bool valid() const noexcept {
             return ui::gfx::image_id_valid(image_id);
@@ -79,8 +77,8 @@ export namespace player {
 
     namespace detail {
         constexpr std::size_t kPlaceholderCoverVariantCount = 6;
-#if CHARM_PLAYER_USE_HOST_COVER_DECODE
-        constexpr std::size_t kHostCoverDecodeSlotCount =
+#if CHARM_PLAYER_USE_COVER_DECODE
+        constexpr std::size_t kDecodedCoverSlotCount =
             product_config::list_cover_cache_entries + 1u;
 #endif
 
@@ -96,8 +94,8 @@ export namespace player {
             return (pixel & 0x00FFFFFFu) | (static_cast<std::uint32_t>(alpha) << 24);
         }
 
-#if CHARM_PLAYER_USE_HOST_COVER_DECODE
-        void normalize_cover_edge_ring(::player::cover_detail::HostCoverDecodeImage& img) {
+#if CHARM_PLAYER_USE_COVER_DECODE
+        void normalize_cover_edge_ring(::player::cover_detail::DecodedCoverImage& img) {
             if (img.width < 3 || img.height < 3 || img.argb.empty()) return;
             constexpr int kOpaqueThreshold = 250;
             constexpr int kCleanupRings = 2;
@@ -160,7 +158,7 @@ export namespace player {
             }
         }
 
-        bool is_fully_opaque(const ::player::cover_detail::HostCoverDecodeImage& img) noexcept {
+        bool is_fully_opaque(const ::player::cover_detail::DecodedCoverImage& img) noexcept {
             for (const auto px : img.argb) {
                 if ((px >> 24) != 0xFFu) return false;
             }
@@ -590,11 +588,11 @@ export namespace player {
             }
             out.registry_ref = true;
             out.fallback = false;
-            out.host_decode_slot = kInvalidCoverHostDecodeSlot;
+            out.decoded_cover_slot = kInvalidDecodedCoverSlot;
             return true;
         }
 
-#if CHARM_PLAYER_USE_HOST_COVER_DECODE
+#if CHARM_PLAYER_USE_COVER_DECODE
         bool is_flac_path(std::string_view path) noexcept {
             const auto dot = path.find_last_of('.');
             if (dot == std::string_view::npos || dot + 1 >= path.size()) return false;
@@ -620,7 +618,7 @@ export namespace player {
 
         bool decode_image_from_memory(const std::byte* data,
                                       std::size_t size,
-                                      ::player::cover_detail::HostCoverDecodeImage& out,
+                                      ::player::cover_detail::DecodedCoverImage& out,
                                       std::string_view path_tag) {
             int w = 0;
             int h = 0;
@@ -955,7 +953,7 @@ export namespace player {
             return DRFLAC_TRUE;
         }
 
-        bool load_flac_cover(std::string_view path, ::player::cover_detail::HostCoverDecodeImage& out) {
+        bool load_flac_cover(std::string_view path, ::player::cover_detail::DecodedCoverImage& out) {
             fs::File f{};
             auto st = fs::vfs_open(path, f);
             if (!st) return false;
@@ -1077,7 +1075,7 @@ export namespace player {
             return decode_image_from_memory(meta.cover.picture.data(), meta.cover.picture.size(), out, path);
         }
 
-        bool load_mp3_cover(std::string_view path, ::player::cover_detail::HostCoverDecodeImage& out) {
+        bool load_mp3_cover(std::string_view path, ::player::cover_detail::DecodedCoverImage& out) {
             fs::File f{};
             auto st = fs::vfs_open(path, f);
             if (!st) return false;
@@ -1303,8 +1301,9 @@ export namespace player {
 #endif
     } // namespace detail
 
-#if CHARM_PLAYER_USE_HOST_COVER_DECODE
-    bool load_host_cover_image(std::string_view path, ::player::cover_detail::HostCoverDecodeImage& out) noexcept {
+#if CHARM_PLAYER_USE_COVER_DECODE
+    bool load_decoded_cover_image(std::string_view path,
+                                  ::player::cover_detail::DecodedCoverImage& out) noexcept {
         if (path.empty()) return false;
         if (detail::is_flac_path(path)) {
             return detail::load_flac_cover(path, out);
@@ -1379,20 +1378,20 @@ export namespace player {
 #endif
 
     namespace detail {
-#if CHARM_PLAYER_USE_HOST_COVER_DECODE
-        std::array<::player::cover_detail::HostCoverDecodeImage, kHostCoverDecodeSlotCount>& host_cover_decode_slots() noexcept {
-            static std::array<::player::cover_detail::HostCoverDecodeImage, kHostCoverDecodeSlotCount> slots{};
+#if CHARM_PLAYER_USE_COVER_DECODE
+        std::array<::player::cover_detail::DecodedCoverImage, kDecodedCoverSlotCount>& decoded_cover_slots() noexcept {
+            static std::array<::player::cover_detail::DecodedCoverImage, kDecodedCoverSlotCount> slots{};
             return slots;
         }
 
-        std::uint16_t& host_cover_decode_next_slot() noexcept {
+        std::uint16_t& decoded_cover_next_slot() noexcept {
             static std::uint16_t next_slot = 0;
             return next_slot;
         }
 
-        void release_host_cover_slot(std::uint16_t slot) noexcept {
-            if (slot == kInvalidCoverHostDecodeSlot) return;
-            auto& slots = host_cover_decode_slots();
+        void release_decoded_cover_slot(std::uint16_t slot) noexcept {
+            if (slot == kInvalidDecodedCoverSlot) return;
+            auto& slots = decoded_cover_slots();
             if (slot >= slots.size()) return;
             auto& img = slots[slot];
             if (img.refs > 1) {
@@ -1405,10 +1404,10 @@ export namespace player {
             img = {};
         }
 
-        bool resolve_host_cover(std::string_view path, ResolvedCover& out) noexcept {
+        bool resolve_decoded_cover(std::string_view path, ResolvedCover& out) noexcept {
             if (path.empty()) return false;
-            auto& slots = host_cover_decode_slots();
-            std::uint16_t& next_slot = host_cover_decode_next_slot();
+            auto& slots = decoded_cover_slots();
+            std::uint16_t& next_slot = decoded_cover_next_slot();
             for (std::uint16_t i = 0; i < slots.size(); ++i) {
                 const auto& slot = slots[i];
                 if (slot.path == path && ui::gfx::image_id_valid(slot.image_id)) {
@@ -1418,7 +1417,7 @@ export namespace player {
                     out.key.assign(path);
                     out.fallback = false;
                     out.registry_ref = false;
-                    out.host_decode_slot = i;
+                    out.decoded_cover_slot = i;
                     if (slots[i].refs != 0xFFFFu) {
                         slots[i].refs = static_cast<std::uint16_t>(slots[i].refs + 1u);
                     }
@@ -1426,7 +1425,7 @@ export namespace player {
                 }
             }
 
-            std::uint16_t slot_index = kInvalidCoverHostDecodeSlot;
+            std::uint16_t slot_index = kInvalidDecodedCoverSlot;
             for (std::uint16_t probe = 0; probe < slots.size(); ++probe) {
                 const auto candidate = static_cast<std::uint16_t>((next_slot + probe) % slots.size());
                 if (slots[candidate].refs == 0) {
@@ -1434,13 +1433,13 @@ export namespace player {
                     break;
                 }
             }
-            if (slot_index == kInvalidCoverHostDecodeSlot) {
+            if (slot_index == kInvalidDecodedCoverSlot) {
                 return false;
             }
             next_slot = static_cast<std::uint16_t>((slot_index + 1u) % slots.size());
-            release_host_cover_slot(slot_index);
+            release_decoded_cover_slot(slot_index);
             auto& slot = slots[slot_index];
-            if (!load_host_cover_image(path, slot)) {
+            if (!load_decoded_cover_image(path, slot)) {
                 slot = {};
                 return false;
             }
@@ -1450,25 +1449,25 @@ export namespace player {
             out.key.assign(slot.path);
             out.fallback = false;
             out.registry_ref = false;
-            out.host_decode_slot = slot_index;
+            out.decoded_cover_slot = slot_index;
             slot.refs = 1;
             return true;
         }
 #else
-        void release_host_cover_slot(std::uint16_t) noexcept {}
+        void release_decoded_cover_slot(std::uint16_t) noexcept {}
 
-        bool resolve_host_cover(std::string_view, ResolvedCover&) noexcept {
+        bool resolve_decoded_cover(std::string_view, ResolvedCover&) noexcept {
             return false;
         }
 #endif
 
         bool default_cover_provider(std::string_view path, ResolvedCover& out) noexcept {
-#if !CHARM_PLAYER_USE_HOST_COVER_DECODE
+#if !CHARM_PLAYER_USE_COVER_DECODE
             (void)path;
             (void)out;
             return false;
 #else
-            return resolve_host_cover(path, out);
+            return resolve_decoded_cover(path, out);
 #endif
         }
 
@@ -1481,8 +1480,8 @@ export namespace player {
     }
 
     void release_resolved_cover(ResolvedCover& cover) {
-        if (cover.host_decode_slot != kInvalidCoverHostDecodeSlot) {
-            detail::release_host_cover_slot(cover.host_decode_slot);
+        if (cover.decoded_cover_slot != kInvalidDecodedCoverSlot) {
+            detail::release_decoded_cover_slot(cover.decoded_cover_slot);
         } else if (cover.registry_ref && ui::gfx::image_id_valid(cover.image_id)) {
             ui::gfx::unregister_image(cover.image_id);
         }

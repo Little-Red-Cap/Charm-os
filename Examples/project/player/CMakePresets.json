@@ -1,0 +1,60 @@
+{
+    "version": 4,
+    "cmakeMinimumRequired": {
+        "major": 4,
+        "minor": 0
+    },
+    "configurePresets": [
+        {
+            "name": "player-md3-canonical-debug",
+            "displayName": "Player MD3 Canonical Debug",
+            "description": "Configure the platform-independent canonical Player MD3 component.",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/../../../cmake-build-player",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CHARM_PLAYER_BUILD_LEGACY_VARIANTS": "OFF"
+            }
+        },
+        {
+            "name": "player-legacy-win-debug",
+            "displayName": "Player Legacy Win Debug",
+            "description": "Configure compatibility-only Win Vivid/Ink preview targets.",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/../../../cmake-build-player",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CHARM_PLAYER_BUILD_LEGACY_VARIANTS": "ON"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "build-player-md3-canonical-debug",
+            "displayName": "Build Player MD3 Canonical Debug",
+            "configurePreset": "player-md3-canonical-debug",
+            "targets": [
+                "charm_player_md3",
+                "player_canonical_smokes"
+            ]
+        },
+        {
+            "name": "build-player-legacy-win-md3-debug",
+            "displayName": "Build Player Legacy Win MD3 Debug",
+            "configurePreset": "player-legacy-win-debug",
+            "targets": [
+                "charm-player-win-vivid-md3"
+            ]
+        }
+    ],
+    "testPresets": [
+        {
+            "name": "test-player-md3-canonical-debug",
+            "displayName": "Test Player MD3 Canonical Debug",
+            "configurePreset": "player-md3-canonical-debug",
+            "output": {
+                "outputOnFailure": true
+            }
+        }
+    ]
+}

@@ -14,7 +14,7 @@ import audio.player;
 import audio.result;
 import charm.system.clock;
 import player.fixed_string;
-import player.host_features;
+import player.product_policy;
 
 namespace {
     void dump_path_escaped(const char* path) {
@@ -107,6 +107,7 @@ export namespace player {
 
     class PlaybackEngine {
     public:
+        void bind_clock(charm::system::Clock& clock) noexcept { clock_.reset(clock); }
         void set_player(audio::AudioPlayer& p) noexcept { player_ = &p; }
         bool has_player() const noexcept { return player_ != nullptr; }
 
@@ -154,7 +155,7 @@ export namespace player {
             if (!playing_ || !player_) return out;
             (void)update_duration_from_player();
             if (!duration_ready_ || duration_sec_ <= 0) return out;
-            const auto now_ms = charm::system::ClockCaps::TimeSource::now();
+            const auto now_ms = clock_.now_ms();
             const std::uint64_t elapsed_ms = now_ms - start_ms_;
             const int elapsed = static_cast<int>(elapsed_ms / 1000);
             const int clamped = (elapsed > duration_sec_) ? duration_sec_ : elapsed;
@@ -198,7 +199,7 @@ export namespace player {
             }
             current_sec_ = clamped;
             if (playing_) {
-                start_ms_ = charm::system::ClockCaps::TimeSource::now()
+                start_ms_ = clock_.now_ms()
                     - static_cast<std::uint64_t>(current_sec_) * 1000;
             }
             return true;
@@ -309,7 +310,7 @@ export namespace player {
             }
             if (!track_ready_) {
                 out_status.assign("Track not ready");
-                if constexpr (host_features::playback_log) {
+                if constexpr (product_policy::playback_log) {
                     std::printf("[player] track not ready: ");
                     dump_path_escaped(track_path_);
                     std::printf("\n");
@@ -317,7 +318,7 @@ export namespace player {
                 return false;
             }
             (void)player_->stop();
-            if constexpr (host_features::playback_log) {
+            if constexpr (product_policy::playback_log) {
                 std::printf("[player] play: ");
                 dump_path_escaped(track_path_);
                 std::printf("\n");
@@ -327,7 +328,7 @@ export namespace player {
                 char buf[64]{};
                 std::snprintf(buf, sizeof(buf), "Play failed (%s)", audio_err_text(res.error()));
                 out_status.assign(buf);
-                if constexpr (host_features::playback_log) {
+                if constexpr (product_policy::playback_log) {
                     std::printf("[player] play failed (%s): ", audio_err_text(res.error()));
                     dump_path_escaped(track_path_);
                     std::printf("\n");
@@ -336,7 +337,7 @@ export namespace player {
             }
             playing_ = true;
             paused_ = false;
-            start_ms_ = charm::system::ClockCaps::TimeSource::now();
+            start_ms_ = clock_.now_ms();
             current_sec_ = 0;
             out_status.assign("Opening");
             return true;
@@ -369,7 +370,7 @@ export namespace player {
             }
             paused_ = false;
             playing_ = true;
-            start_ms_ = charm::system::ClockCaps::TimeSource::now()
+            start_ms_ = clock_.now_ms()
                 - static_cast<std::uint64_t>(current_sec_) * 1000;
             out_status.assign("Playing");
             return true;
@@ -385,6 +386,7 @@ export namespace player {
         }
 
     private:
+        charm::system::ClockRef clock_{};
         audio::AudioPlayer* player_{nullptr};
         const char* track_path_{nullptr};
         bool track_ready_{false};

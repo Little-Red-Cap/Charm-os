@@ -911,8 +911,8 @@
             refresh_home_visual_content();
         }
 
-        static std::uint64_t weekly_listening_now_ms() noexcept {
-            return charm::system::ClockCaps::TimeSource::now();
+        std::uint64_t weekly_listening_now_ms() const noexcept {
+            return monotonic_now_ms();
         }
 
         bool weekly_listening_week_loaded() const noexcept {

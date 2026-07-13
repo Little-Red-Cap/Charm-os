@@ -25,7 +25,7 @@ import fs_fatfs;
 import fs_stream;
 import fs_vfs;
 import player.fs_utils;
-import player.host_features;
+import player.product_policy;
 import player.media_library;
 import player.media_scan;
 import player.product_config;
@@ -89,8 +89,9 @@ export namespace player {
 #endif
 
         StorageConfig default_storage_config() {
-            if constexpr (host_features::host_storage) {
-                return StorageConfig{&fs_utils::mount_fatfs_from_vhd, product_config::host_default_vhd_path};
+            if constexpr (product_policy::storage_default) {
+                return StorageConfig{&fs_utils::mount_fatfs_from_vhd,
+                                     product_config::default_storage_image_path};
             }
             return StorageConfig{&mount_fatfs_from_sd, nullptr};
         }

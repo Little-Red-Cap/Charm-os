@@ -1,24 +1,17 @@
 module;
 
-export module player.host_features;
+export module player.product_policy;
 
-export namespace player::host_features {
+export namespace player::product_policy {
     inline constexpr const char* profile =
-#if defined(CHARM_PLAYER_HOST_PROFILE)
-        CHARM_PLAYER_HOST_PROFILE;
+#if defined(CHARM_PLAYER_PROFILE)
+        CHARM_PLAYER_PROFILE;
 #else
-        "unknown";
+        "default";
 #endif
 
-    inline constexpr bool host_ui =
-#if defined(CHARM_PLAYER_HOST_UI) && CHARM_PLAYER_HOST_UI
-        true;
-#else
-        false;
-#endif
-
-    inline constexpr bool host_storage =
-#if defined(CHARM_PLAYER_HOST_STORAGE) && CHARM_PLAYER_HOST_STORAGE
+    inline constexpr bool storage_default =
+#if defined(CHARM_PLAYER_STORAGE_DEFAULT) && CHARM_PLAYER_STORAGE_DEFAULT
         true;
 #else
         false;
@@ -46,21 +39,19 @@ export namespace player::host_features {
 #endif
 
     inline constexpr bool cover_decode =
-#if defined(CHARM_PLAYER_HOST_COVER_DECODE) && CHARM_PLAYER_HOST_COVER_DECODE
+#if defined(CHARM_PLAYER_COVER_DECODE) && CHARM_PLAYER_COVER_DECODE
         true;
 #else
         false;
 #endif
 
     inline constexpr bool file_fonts =
-#if defined(CHARM_PLAYER_HOST_FILE_FONTS) && CHARM_PLAYER_HOST_FILE_FONTS
+#if defined(CHARM_PLAYER_FILE_FONTS) && CHARM_PLAYER_FILE_FONTS
         true;
 #else
         false;
 #endif
 
-    inline constexpr bool host_diagnostics = host_ui && (fs_log || playback_log);
-    inline constexpr bool host_fs_dump = host_ui && fs_log && fs_dump;
-    inline constexpr bool host_cover_decode = host_ui && cover_decode;
-    inline constexpr bool host_file_fonts = host_ui && file_fonts;
+    inline constexpr bool diagnostics = fs_log || playback_log;
+    inline constexpr bool fs_dump_enabled = fs_log && fs_dump;
 }

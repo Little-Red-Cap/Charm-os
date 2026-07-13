@@ -12,7 +12,7 @@
                     player::product_config::default_font_small_px,
                     player::product_config::default_font_normal_px,
                     player::product_config::default_font_large_px,
-                    player::product_config::host_default_vhd_path);
+                    player::product_config::default_storage_image_path);
     }
 
     struct PreviewOptions {

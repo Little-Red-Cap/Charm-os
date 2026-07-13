@@ -317,7 +317,7 @@
                 .active = true,
                 .reveal_started = false,
                 .route = route,
-                .start_ms = charm::system::ClockCaps::TimeSource::now(),
+        .start_ms = monotonic_now_ms(),
                 .shell_from = route.expanding ? snapshot.mini.shell : snapshot.now.shell,
                 .shell_to = route.expanding ? snapshot.now.shell : snapshot.mini.shell,
                 .cover_from = route.expanding ? snapshot.mini.cover : snapshot.now.cover,
@@ -681,7 +681,7 @@
         }
 
         static std::uint64_t transition_now_us() noexcept {
-            return charm::system::ClockCaps::TimeSource::now_us();
+    return monotonic_now_us();
         }
 
         void reset_transition_capture_timing() noexcept {
@@ -1003,7 +1003,7 @@
         void compose_now_playing_transition_pixel_layer() noexcept {
             if (!now_playing_transition.active) return;
             set_page_transition_state(PageTransitionState::Composing);
-            const auto now_ms = charm::system::ClockCaps::TimeSource::now();
+    const auto now_ms = monotonic_now_ms();
             const auto tick = sample_now_playing_transition_tick_phase(
                 now_playing_transition, now_ms);
             const auto start = transition_now_us();

@@ -701,7 +701,7 @@
             if (!tracks || tracks->size() == 0) return;
             ensure_track_duration_cache();
 
-            const std::uint64_t now_ms = charm::system::ClockCaps::TimeSource::now();
+    const std::uint64_t now_ms = monotonic_now_ms();
             if (last_list_duration_probe_ms != 0
                 && now_ms - last_list_duration_probe_ms < kListDurationProbeIntervalMs) {
                 return;
@@ -2824,7 +2824,7 @@
             close_list_action_menu();
             list_shuffle_enabled = !list_shuffle_enabled;
             if (list_shuffle_enabled) {
-                auto seed = static_cast<std::uint32_t>(charm::system::ClockCaps::TimeSource::now());
+    auto seed = static_cast<std::uint32_t>(monotonic_now_ms());
                 if (seed == 0) seed = 0x5A17D3C1u;
                 list_shuffle_seed = seed;
             }

@@ -12,7 +12,7 @@ import fs_core;
 import fs_errno;
 import fs_stream;
 import player.fs_utils;
-import player.host_features;
+import player.product_policy;
 
 export namespace player {
     using MountFn = fs::Status (*)(const char* path);
@@ -91,7 +91,7 @@ export namespace player {
         }
 
         out.mount_status.assign("Mounted");
-        if constexpr (host_features::host_fs_dump) {
+        if constexpr (product_policy::fs_dump_enabled) {
             std::printf("[fs] mount ok, dump tree:\n");
             (void)fs_utils::dump_fs_tree("/", 0, 4);
         }
@@ -151,7 +151,7 @@ export namespace player {
         }
 
         out.has_tracks = out.tracks.size() > 0;
-        if constexpr (host_features::host_fs_dump) {
+        if constexpr (product_policy::fs_dump_enabled) {
             std::printf("[fs] tracks=%zu\n", out.tracks.size());
             for (std::size_t i = 0; i < out.tracks.size(); ++i) {
                 const auto view = out.tracks[i].view();

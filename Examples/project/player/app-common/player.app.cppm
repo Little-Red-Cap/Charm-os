@@ -1,6 +1,7 @@
 module;
 
 #include <cstdint>
+#include "player.product_policy.hpp"
 
 export module player.app;
 
@@ -23,6 +24,7 @@ export namespace player {
     public:
         App(AppConfig config, charm::system::Clock& clock)
             : config_(config),
+              clock_(&clock),
               player_(config_.player_config, clock) {}
 
         audio::Result<void> play(const char* path) { return player_.play(path); }
@@ -58,6 +60,9 @@ export namespace player {
 
         template <typename Controller>
         void bind_player(Controller& controller) {
+            if constexpr (requires { controller.bind_clock(*clock_); }) {
+                controller.bind_clock(*clock_);
+            }
             controller.bind_player(player_);
         }
 
@@ -98,7 +103,7 @@ export namespace player {
         void bind_ui(::ui::scene::SceneBuilder& builder, Controller& controller) {
             apply_player_font_resource(controller, config_.font_resources);
             apply_player_theme();
-#if defined(CHARM_PLAYER_MCU) && CHARM_PLAYER_MCU
+#if CHARM_PLAYER_REQUIRE_ICON_ARENA
             controller.icons = register_player_icons(PlayerIconPixelArena{
                 config_.icon_pixels.data,
                 config_.icon_pixels.bytes,
@@ -238,6 +243,7 @@ export namespace player {
         }
 
         AppConfig config_{};
+        charm::system::Clock* clock_{nullptr};
         audio::AudioPlayer player_;
         StorageState last_storage_{};
     };

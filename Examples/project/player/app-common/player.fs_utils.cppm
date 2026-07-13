@@ -10,7 +10,7 @@ export module player.fs_utils;
 
 import service.fixed_vector;
 import player.fixed_string;
-import player.host_features;
+import player.product_policy;
 import audio.source.fs;
 import fs_core;
 import fs_errno;
@@ -27,7 +27,7 @@ import player.media_library;
 export namespace player::fs_utils {
     namespace detail {
         constexpr std::size_t kMaxScanDirs = 64;
-        constexpr bool kFsLogEnabled = player::host_features::fs_log;
+        constexpr bool kFsLogEnabled = player::product_policy::fs_log;
 #if defined(CHARM_PLAYER_COVER_DEBUG)
         constexpr bool kCoverLogEnabled = true;
 #else

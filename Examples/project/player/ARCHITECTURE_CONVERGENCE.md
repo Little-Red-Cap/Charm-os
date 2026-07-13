@@ -1,5 +1,9 @@
 # Player 架构收敛方案（强约束版）
 
+> **状态：历史兼容材料。** 本文记录 canonical Player Port 形成前的板级收敛问题，
+> 不再是当前架构入口。当前边界以 `README.md`、`PLAYER_FILE_OWNERSHIP.md` 和
+> `PLAYER_PORT_V1.md` 为准。
+
 本文档不是讨论稿，而是 Player 后续重构的收敛基线。
 
 目标不是“把代码摆整齐”，而是强制建立一套唯一可演进的结构，让 USB、Audio、UI、存储等能力都在同一条启动主线上推进。

@@ -8,6 +8,7 @@ export module player.playback_session;
 
 import audio.eq;
 import audio.player;
+import charm.system.clock;
 import player.fixed_string;
 import player.playback;
 
@@ -89,6 +90,10 @@ export namespace player {
 
         PlaybackEngine& engine() noexcept { return playback_; }
         const PlaybackEngine& engine() const noexcept { return playback_; }
+
+        void bind_clock(charm::system::Clock& clock) noexcept {
+            playback_.bind_clock(clock);
+        }
 
         void bind_player(audio::AudioPlayer& player) noexcept {
             playback_.set_player(player);

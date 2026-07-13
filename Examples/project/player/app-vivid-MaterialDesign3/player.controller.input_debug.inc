@@ -1,7 +1,7 @@
         void update_debug_overlay() {
 #if CHARM_PLAYER_DEBUG_UI
             if (!access.valid() || !handles.debug_text) return;
-            const auto now_ms = charm::system::ClockCaps::TimeSource::now();
+    const auto now_ms = monotonic_now_ms();
             if (last_debug_tick_ms != 0) {
                 const auto dt = now_ms - last_debug_tick_ms;
                 if (dt < 500) return;

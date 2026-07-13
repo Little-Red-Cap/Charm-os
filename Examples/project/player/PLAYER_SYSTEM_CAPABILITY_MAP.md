@@ -1,5 +1,8 @@
 # Player 完整系统能力地图
 
+> **状态：探索材料。** 本文保留完整产品能力域的早期盘点，不定义 Charm Core、Host API
+> 或当前 canonical source closure。当前入口见 `README.md` 与 `PLAYER_PORT_V1.md`。
+
 本文是 Player 从 UI demo 走向完整播放系统的接手入口。它记录能力域、边界、验证路线和近期优先级，不定义新的公共 API，也不把 Draft 草稿提升为正式 contract。
 
 ## 1. 定位

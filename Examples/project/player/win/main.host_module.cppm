@@ -48,6 +48,7 @@ import player.controller;
 import player.display;
 import player.fixed_string;
 import player.font_cache;
+import player.font_cache_win32;
 import player.font_resource;
 import player.fs_utils;
 import player.host_features;
@@ -61,6 +62,7 @@ import player.storage;
 import player.playback;
 import player.playback_session;
 import player.product_config;
+import player.time_utils_win32;
 import player.runtime;
 import player.runtime_probe;
 import player.ui_builder;
@@ -263,6 +265,8 @@ namespace {
 }
 
 export int run_player_win_main(int argc, char** argv) {
+    player::font_cache_win32::bind();
+    player::time_utils_win32::bind();
     PreviewOptions options = parse_preview_options(argc, argv);
     for (int i = 1; i < argc; ++i) {
         const std::string_view arg = argv[i] ? argv[i] : "";
@@ -292,4 +296,8 @@ export int run_player_win_main(int argc, char** argv) {
     run_interactive_preview_loop(runtime, options);
     shutdown_player_preview(runtime);
     return 0;
+}
+
+extern "C" int charm_player_win_main(int argc, char** argv) {
+    return run_player_win_main(argc, argv);
 }

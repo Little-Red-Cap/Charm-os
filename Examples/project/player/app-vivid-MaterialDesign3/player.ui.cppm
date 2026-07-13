@@ -7,27 +7,21 @@ module;
 #include <string>
 #include <string_view>
 #include <cstdio>
+#include "../app-common/player.product_policy.hpp"
 
-#if (defined(CHARM_PLAYER_HOST_UI) && CHARM_PLAYER_HOST_UI && \
-     defined(CHARM_PLAYER_HOST_FILE_FONTS) && CHARM_PLAYER_HOST_FILE_FONTS) || \
-    (defined(CHARM_PLAYER_FILE_FONTS) && CHARM_PLAYER_FILE_FONTS)
+#if defined(CHARM_PLAYER_FILE_FONTS) && CHARM_PLAYER_FILE_FONTS
 #define CHARM_PLAYER_USE_FILE_FONTS 1
 #else
 #define CHARM_PLAYER_USE_FILE_FONTS 0
 #endif
 
-#if CHARM_PLAYER_USE_FILE_FONTS && \
-    (!defined(CHARM_PLAYER_MCU) || !CHARM_PLAYER_MCU || \
-     !defined(CHARM_PLAYER_MCU_STRICT) || !CHARM_PLAYER_MCU_STRICT || \
-     (defined(CHARM_PLAYER_MCU_RUNTIME_FILE_FONTS) && CHARM_PLAYER_MCU_RUNTIME_FILE_FONTS))
+#if CHARM_PLAYER_USE_FILE_FONTS && CHARM_PLAYER_RUNTIME_FILE_FONTS
 #define CHARM_PLAYER_ENABLE_RUNTIME_FILE_FONT_BINDING 1
 #else
 #define CHARM_PLAYER_ENABLE_RUNTIME_FILE_FONT_BINDING 0
 #endif
 
-#if defined(CHARM_PLAYER_MCU) && CHARM_PLAYER_MCU && \
-    defined(CHARM_PLAYER_MCU_STRICT) && CHARM_PLAYER_MCU_STRICT && \
-    (!defined(CHARM_PLAYER_MCU_EXACT_FILE_FONTS) || !CHARM_PLAYER_MCU_EXACT_FILE_FONTS)
+#if CHARM_PLAYER_USE_FILE_FONTS && !CHARM_PLAYER_EXACT_FILE_FONTS
 #define CHARM_PLAYER_SKIP_EXACT_FILE_FONT_LOADS 1
 #else
 #define CHARM_PLAYER_SKIP_EXACT_FILE_FONT_LOADS 0
@@ -764,7 +758,7 @@ export namespace player::ui {
     }
 
     inline PlayerIconIds register_player_icons(PlayerIconPixelArena arena) noexcept {
-#if defined(CHARM_PLAYER_MCU) && CHARM_PLAYER_MCU
+#if CHARM_PLAYER_REQUIRE_ICON_ARENA
         if (!arena.valid()) return {};
 #else
         if (!arena.valid()) return register_player_icons();
@@ -835,14 +829,14 @@ export namespace player::ui {
     bool player_font_resource_available(std::string_view ttf_path) noexcept {
 #if CHARM_PLAYER_USE_FILE_FONTS
         if (ttf_path.empty()) return false;
-#if defined(CHARM_PLAYER_MCU) && CHARM_PLAYER_MCU
+#if CHARM_PLAYER_FONT_RESOURCE_PROBE_VFS
         fs::File file{};
         const auto st = fs::vfs_open(ttf_path, file);
         if (!st) return false;
         (void)fs::vfs_close(file);
         return true;
 #else
-        // Host preview may resolve /font resources through the FreeType host fallback search.
+        // The bound font provider may resolve virtual product paths itself.
         return true;
 #endif
 #else

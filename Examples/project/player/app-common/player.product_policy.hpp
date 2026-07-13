@@ -1,0 +1,43 @@
+#pragma once
+
+// Product defaults are intentionally conservative. A concrete Player product
+// target may override them without exposing its platform identity to app code.
+#ifndef CHARM_PLAYER_LYRICS
+#define CHARM_PLAYER_LYRICS 0
+#endif
+
+#ifndef CHARM_PLAYER_LYRICS_MAX_LINES
+#define CHARM_PLAYER_LYRICS_MAX_LINES 64
+#endif
+
+#ifndef CHARM_PLAYER_LYRICS_LINE_TEXT_CAPACITY
+#define CHARM_PLAYER_LYRICS_LINE_TEXT_CAPACITY 96
+#endif
+
+#ifndef CHARM_PLAYER_LYRICS_RAW_READ_BYTES
+#define CHARM_PLAYER_LYRICS_RAW_READ_BYTES 12288
+#endif
+
+#ifndef CHARM_PLAYER_REQUIRE_ICON_ARENA
+#define CHARM_PLAYER_REQUIRE_ICON_ARENA 1
+#endif
+
+#ifndef CHARM_PLAYER_RUNTIME_FILE_FONTS
+#define CHARM_PLAYER_RUNTIME_FILE_FONTS 0
+#endif
+
+#ifndef CHARM_PLAYER_EXACT_FILE_FONTS
+#define CHARM_PLAYER_EXACT_FILE_FONTS 0
+#endif
+
+#ifndef CHARM_PLAYER_FONT_RESOURCE_PROBE_VFS
+#define CHARM_PLAYER_FONT_RESOURCE_PROBE_VFS 1
+#endif
+
+#ifndef CHARM_PLAYER_MEMORY_PROFILE_SYMBOLS
+#define CHARM_PLAYER_MEMORY_PROFILE_SYMBOLS 1
+#endif
+
+#ifndef CHARM_PLAYER_LEGACY_TOUCH_INPUT
+#define CHARM_PLAYER_LEGACY_TOUCH_INPUT 1
+#endif

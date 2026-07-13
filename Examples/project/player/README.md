@@ -1,89 +1,128 @@
-﻿# Player Project 示例
+﻿# Player MD3
 
-## 战线关系声明
+## 定位
 
-- `track_kind`: `pressure`
-- `track_status`: `active`
-- 这条线的角色：
-  - 它是 Charm 的真实项目压力线，用真实需求而不是抽象想象去逼共享能力面收敛。
-- 它当前驱动的共享收敛面：
-  - UI/Vivid 组合层与 helper 上收
-  - profile / runtime / board glue 的组织方式
-  - Audio / USB / Storage / UI 在真实项目中的装配边界
-- 它不能反向重定义的仓库公共规则：
-  - 不能把 Player 目录默认等价为普通示例区。
-  - 不能继续保留平行启动模型、平行装配模型和长期旁路入口。
-  - 不能把共享底座收窄成 Player 私有规则。
+Player MD3 是 Charm 的 canonical 产品应用示例，用真实 UI、播放领域逻辑和资源策略验证：
+同一应用源码只消费稳定行为，不描述 Host、QEMU、OS、MCU 或 board identity。
 
-此目录用于音频播放器“项目化”验证，共用逻辑与 UI 变体拆分为 app-common / app-ink / app-vivid。
+Player MD3 是独立产品事实，不定义 Charm Core，也不拥有 Host backend。当前唯一 canonical
+应用模型是 `app-vivid-MaterialDesign3`；旧 Ink/Vivid、Win 和 H747 路径仅作为兼容实现保留。
 
-当前 Player 架构收敛基线见：`ARCHITECTURE_CONVERGENCE.md`
+## 四层边界
 
-完整播放系统的能力域、边界、验证路线和近期优先级见：
-[PLAYER_SYSTEM_CAPABILITY_MAP.md](PLAYER_SYSTEM_CAPABILITY_MAP.md)
+- **应用核心**：MD3 UI、播放命令、媒体模型和 Player 私有资源策略。
+- **Player Port**：clock、borrowed raster、raw input 与外部 frame lifecycle 的消费投影。
+- **平台适配**：把某个 execution environment 提供的行为投影为 Player Port，不定义应用语义。
+- **产品工具与测试**：截图、raster digest、UI CI、资源与播放诊断，不进入 Host API。
 
-## 目录结构
+Player MD3 canonical 应用与平台接缝的当前入口：
+
+- [PLAYER_FILE_OWNERSHIP.md](PLAYER_FILE_OWNERSHIP.md)：当前文件四层归属与依赖红线。
+- [PLAYER_PORT_V1.md](PLAYER_PORT_V1.md)：Player-owned 消费契约、生命周期和 `player.board_*` 迁移判决。
+
+当前首轮边界是 Player MD3 / Player Port。Host SDL backend 与 H747 Lab 分别由其它工作线维护，
+本目录不定义它们的实现。旧 Vivid/Ink target 暂时只作为兼容基线，MD3 是唯一 canonical 应用模型。
+
+当前离平台验收入口：
+
+- `Examples/system/player_port_runtime_smoke`：最小 Port 生命周期与失败状态。
+- `Examples/system/player_md3_runtime_smoke`：真实 MD3 controller/scene/raster runtime。
+
+canonical source set 由 `cmake/player_md3_sources.cmake` 显式维护。当前应用模块不包含 SDL、Win32、
+H747、QEMU 或 `CHARM_PLAYER_MCU/HOST/BOARD/PLATFORM` 条件；GDI 字体缓存与本地周历只存在于
+legacy Win adapter。
+
+portability gate 同时扫描 canonical `.cppm/.hpp` 及其本地 `.inc/.tmp` 实现片段，并拒绝
+OS、RTOS、vendor header/identity。文本 include 不能成为绕过应用边界的后门。
+
+## Canonical 构建入口
+
+默认 Player 根工程只构建平台无关组件 `charm_player_md3`，并提供 alias `Charm::player-md3`：
+
+```powershell
+cmake --preset player-md3-canonical-debug
+cmake --build --preset build-player-md3-canonical-debug
+ctest --preset test-player-md3-canonical-debug
+```
+
+上述 preset 固定复用仓库根 `cmake-build-player`。canonical component、Port smoke 与
+真实 MD3 runtime smoke 共用同一套 Charm 构建产物，不再创建平行构建目录。MD3 smoke
+分别运行 RGB565、RGB888、ARGB8888 三种 borrowed raster 格式。
+
+旧 Win Vivid/Ink 仅在显式 opt-in 后出现，不参与 canonical 验收：
+
+```powershell
+cmake --preset player-legacy-win-debug
+cmake --build --preset build-player-legacy-win-md3-debug
+```
+
+legacy preset 也复用同一个 `cmake-build-player`；切回 canonical 时重新运行对应 configure preset。
+legacy storage VHD 没有仓库内默认路径；需要时显式传
+`-DPLAYER_HOST_STORAGE_VHD_PATH=<path>` 或设置同名环境变量。
+
+旧架构收敛与能力地图保留为历史/探索材料：
+[ARCHITECTURE_CONVERGENCE.md](ARCHITECTURE_CONVERGENCE.md)、
+[PLAYER_SYSTEM_CAPABILITY_MAP.md](PLAYER_SYSTEM_CAPABILITY_MAP.md)。它们不覆盖本 README、
+`PLAYER_FILE_OWNERSHIP.md` 或 `PLAYER_PORT_V1.md` 的当前边界。
+
+## 当前目录结构
 
 ```
 Examples/project/player/
     CMakeLists.txt
     README.md
-    profiles/
-    runtime/
+    CMakePresets.json
+    cmake/
+        player_md3_sources.cmake
+        player_md3_target.cmake
+        player_md3_vivid_product.cmake
     app-common/
-        player.app.cppm
-        player.fs_utils.cppm
-    app-vivid/
-        player.ui.cppm
-        player.ui_debug.cppm
+        player.port.cppm
+        player.port_runtime.cppm
+        player.raster.cppm
+        player.render_runtime.cppm
+        player.md3_runtime.cppm
+        player.*.cppm
+    app-vivid-MaterialDesign3/
+        player.md3_port.cppm
         player.controller.cppm
+        player.ui.cppm
         player.ui_builder.cppm
-    app-ink/
-        hqzy/
-            player_app_state.cppm
-            player_controller.cppm
-            player_fs_utils.cppm
-            player_ui_ink.cppm
     win/
         CMakeLists.txt
         main.cpp
 ```
 
-## 说明
+`app-common/` 中的 Player 模块和 `app-vivid-MaterialDesign3/` 中的 MD3 模块组成
+`Charm::player-md3`。它们不得依赖 SDL、Win32、H747 或 QEMU。
 
-- `app-common/`：平台无关的最小应用封装与通用工具。
-- `app-vivid/`：Vivid UI 版本的实现与调试辅助。
-- `app-ink/`：Ink UI 版本（当前放板级实现，如 HQZY）。
-- `profiles/`：场景装配入口，负责声明当前跑哪条系统主线。
-- `runtime/`：板级运行时胶水与 bringup 主线实现。
-- `win/`：PC 端实现（SDL3 / Windows）相关代码。
-- `bsp/`、`stn32h747_HQZY/`、`app-test-hqzy/` 当前承载 MCU 侧板级与实验路径。
-- 这些 MCU 目录正在收敛中，后续以 `ARCHITECTURE_CONVERGENCE.md` 为准逐步整理。
+`player.port*` 与 `player.raster` 定义 Player-owned Port 和生命周期。具体 Host、QEMU、
+H747 adapter 不属于 canonical source set。`win/` 只在显式开启
+`CHARM_PLAYER_BUILD_LEGACY_VARIANTS=ON` 时构建。
 
-## MCU Profile 选择
+canonical render 闭包直接使用 borrowed `PlayerRasterSurface`：
+`player.render_runtime -> player.md3_runtime -> player.md3_port`。旧
+`player.display/platform/runtime` 仅供 H747/Win 兼容清单继续使用，不进入 `Charm::player-md3`。
 
-- `stn32h747_HQZY/CM7` 现已优先通过 `PLAYER_SCENARIO` 选择启动场景，不再通过注释切换 `main`。
-- 示例：`cmake -S Examples/project/player/stn32h747_HQZY/CM7 -B build/player-cm7 -G Ninja -DPLAYER_SCENARIO=usb_self_msc`
-- 当前可选值见 `Examples/project/player/stn32h747_HQZY/CM7/CMakeLists.txt` 中的 `PLAYER_SCENARIO` 定义。
-- `PLAYER_PROFILE` 目前仍保留兼容映射，但后续建议逐步退到兼容层。
+canonical 固定 `CHARM_PLAYER_LEGACY_TOUCH_INPUT=0`，输入只从 Port 的
+`input::RawInputEvent` 进入。旧 touch sample/source 仅供冻结兼容路径使用。
 
-## CLion / CMake Presets
+`cmake/player_md3_vivid_product.cmake` 由 Player 拥有，固定 MD3 使用的 Vivid PRODUCT
+模块闭包和容量。平台 adapter 消费该配置，不得在板级重新定义应用的 UI 组成。
 
-- `stn32h747_HQZY/CM7/CMakePresets.json` 已提供独立场景预设，每个 profile 对应单独构建目录。
-- 当前可选预设：`player-cm7-usb-audio`、`player-cm7-usb-self-msc`、`player-cm7-usb-storage`
-- `player-cm7-usb-self-msc` 现在是只读自检入口，`player-cm7-usb-storage` 已切到可写 eMMC 导出入口。
-- 在 CLion 中推荐直接选择这些 preset，而不是在同一个 `cmake-build-debug` 目录里反复切 target。
-- 当前 MCU 侧真正的固件 target 统一为 `stn32h747_hqzy_CM7`；场景差异由 preset 对应的独立构建目录承载。
-- 这样切换场景时会真正重新配置并生成独立 `elf`，不会继续复用上一份 profile 的构建缓存。
-- CLion 具体使用建议见：`Examples/project/player/stn32h747_HQZY/CM7/CLION_WORKFLOW.md`
+Player 产品 compile definitions 只施加到 `Charm::player-md3`；Charm runtime 只接收自身需要的
+audio sink 选择。修改 Player 容量或资源策略不得触发整套 Charm runtime 重编。
+
+旧板级目录、profile 和 runtime glue 当前仍保留，是迁移兼容物，不是 canonical Player
+入口，也不参与本轮验收。H747 侧装配由独立工作线维护。
 
 ## 资源
 
 - 示例音频：`Examples/project/player/assets/beautiful-trick.flac`
 
-## 主机字体构建
+## 兼容主机字体构建
 
-- Windows / Host 侧 Player 需要 FreeType 才能走 TTF / OTF 字体链路。
+- 旧 Windows / Host adapter 需要 FreeType 才能走 TTF / OTF 字体链路；这不是 canonical Player Port 的必需依赖。
 - CMake 会优先使用 `Modules/thirdparty/freetype`；若仓库内未放置源码，会继续尝试：
   - `CHARM_FREETYPE_DIR` / `FREETYPE_DIR` 环境变量
   - Cargo 缓存中的 `freetype-sys-*/freetype2`

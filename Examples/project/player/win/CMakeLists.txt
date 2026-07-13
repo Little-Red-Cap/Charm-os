@@ -44,6 +44,9 @@ foreach(_target IN ITEMS ${PLAYER_TARGET_VIVID} ${PLAYER_TARGET_VIVID_MD3})
             "${CHARM_ROOT}"
         FILES
             "${CMAKE_CURRENT_SOURCE_DIR}/main.host_module.cppm"
+            "${CMAKE_CURRENT_SOURCE_DIR}/player.font_cache_win32.cppm"
+            "${CMAKE_CURRENT_SOURCE_DIR}/player.host_features_compat.cppm"
+            "${CMAKE_CURRENT_SOURCE_DIR}/player.time_utils_win32.cppm"
     )
 endforeach()
 
@@ -59,27 +62,50 @@ foreach(_target IN ITEMS ${PLAYER_TARGET_VIVID} ${PLAYER_TARGET_INK} ${PLAYER_TA
         CHARM_PLAYER_PLATFORM="${PLAYER_PLATFORM}"
         CHARM_PLAYER_BOARD="${PLAYER_BOARD}"
         CHARM_PLAYER_HOST_PROFILE="${PLAYER_HOST_PROFILE}"
+        CHARM_PLAYER_PROFILE="${PLAYER_HOST_PROFILE}"
         CHARM_PLAYER_RESOURCE_FONT_PATH="${PLAYER_RESOURCE_FONT_PATH}"
         CHARM_PLAYER_RESOURCE_FONT_SMALL_PX=${PLAYER_RESOURCE_FONT_SMALL_PX}
         CHARM_PLAYER_RESOURCE_FONT_NORMAL_PX=${PLAYER_RESOURCE_FONT_NORMAL_PX}
         CHARM_PLAYER_RESOURCE_FONT_LARGE_PX=${PLAYER_RESOURCE_FONT_LARGE_PX}
         CHARM_PLAYER_HOST_STORAGE_VHD_PATH="${PLAYER_HOST_STORAGE_VHD_PATH}"
+        CHARM_PLAYER_STORAGE_IMAGE_PATH="${PLAYER_HOST_STORAGE_VHD_PATH}"
         CHARM_PLAYER_LIST_COVER_CACHE_ENTRIES=12
+        CHARM_PLAYER_LYRICS_MAX_LINES=192
+        CHARM_PLAYER_LYRICS_LINE_TEXT_CAPACITY=160
+        CHARM_PLAYER_LYRICS_RAW_READ_BYTES=32768
+        CHARM_PLAYER_REQUIRE_ICON_ARENA=0
+        CHARM_PLAYER_RUNTIME_FILE_FONTS=1
+        CHARM_PLAYER_EXACT_FILE_FONTS=1
+        CHARM_PLAYER_FONT_RESOURCE_PROBE_VFS=0
+        CHARM_PLAYER_MEMORY_PROFILE_SYMBOLS=0
+        CHARM_PLAYER_LEGACY_TOUCH_INPUT=1
     )
     if (CHARM_PLAYER_HOST_STORAGE)
-        target_compile_definitions(${_target} PRIVATE CHARM_PLAYER_HOST_STORAGE=1)
+        target_compile_definitions(${_target} PRIVATE
+            CHARM_PLAYER_HOST_STORAGE=1
+            CHARM_PLAYER_STORAGE_DEFAULT=1)
     else()
-        target_compile_definitions(${_target} PRIVATE CHARM_PLAYER_HOST_STORAGE=0)
+        target_compile_definitions(${_target} PRIVATE
+            CHARM_PLAYER_HOST_STORAGE=0
+            CHARM_PLAYER_STORAGE_DEFAULT=0)
     endif()
     if (CHARM_PLAYER_HOST_COVER_DECODE)
-        target_compile_definitions(${_target} PRIVATE CHARM_PLAYER_HOST_COVER_DECODE=1)
+        target_compile_definitions(${_target} PRIVATE
+            CHARM_PLAYER_HOST_COVER_DECODE=1
+            CHARM_PLAYER_COVER_DECODE=1)
     else()
-        target_compile_definitions(${_target} PRIVATE CHARM_PLAYER_HOST_COVER_DECODE=0)
+        target_compile_definitions(${_target} PRIVATE
+            CHARM_PLAYER_HOST_COVER_DECODE=0
+            CHARM_PLAYER_COVER_DECODE=0)
     endif()
     if (CHARM_PLAYER_HOST_FILE_FONTS)
-        target_compile_definitions(${_target} PRIVATE CHARM_PLAYER_HOST_FILE_FONTS=1)
+        target_compile_definitions(${_target} PRIVATE
+            CHARM_PLAYER_HOST_FILE_FONTS=1
+            CHARM_PLAYER_FILE_FONTS=1)
     else()
-        target_compile_definitions(${_target} PRIVATE CHARM_PLAYER_HOST_FILE_FONTS=0)
+        target_compile_definitions(${_target} PRIVATE
+            CHARM_PLAYER_HOST_FILE_FONTS=0
+            CHARM_PLAYER_FILE_FONTS=0)
     endif()
     if (CHARM_PLAYER_PLAYBACK_LOG)
         target_compile_definitions(${_target} PRIVATE CHARM_PLAYER_PLAYBACK_LOG=1)
@@ -143,11 +169,14 @@ endif()
 set(CHARM_PLAYER_EXCLUDE_REGEX_BASE "/stm32f407/|/stn32h747[^/]*/|/stn32common/")
 set(CHARM_PLAYER_EXCLUDE_REGEX_VIVID "${CHARM_PLAYER_EXCLUDE_REGEX_BASE}|/app-ink/")
 set(CHARM_PLAYER_EXCLUDE_REGEX_INK "${CHARM_PLAYER_EXCLUDE_REGEX_BASE}|/app-vivid/|/player\\.runtime(_probe)?\\.cppm$")
-set(CHARM_PLAYER_EXCLUDE_REGEX_MD3 "${CHARM_PLAYER_EXCLUDE_REGEX_BASE}|/app-ink/|/app-vivid/")
+set(CHARM_PLAYER_EXCLUDE_REGEX_MD3
+    "${CHARM_PLAYER_EXCLUDE_REGEX_BASE}|/app-ink/|/app-vivid/|/player\\.md3_port\\.cppm$")
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     set_source_files_properties(
         "${CHARM_ROOT}/Examples/project/player/app-common/player.platform.cppm"
+        "${CHARM_ROOT}/Examples/project/player/app-vivid-MaterialDesign3/player.controller.cppm"
+        "${CHARM_ROOT}/Examples/project/player/app-vivid-MaterialDesign3/player.ui_builder.cppm"
         PROPERTIES COMPILE_OPTIONS "-fno-module-lazy"
     )
 endif()

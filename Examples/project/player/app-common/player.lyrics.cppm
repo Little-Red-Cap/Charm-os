@@ -6,10 +6,7 @@ module;
 #include <cstdint>
 #include <span>
 #include <string_view>
-
-#ifndef CHARM_PLAYER_LYRICS
-#define CHARM_PLAYER_LYRICS 1
-#endif
+#include "player.product_policy.hpp"
 
 export module player.lyrics;
 
@@ -704,7 +701,7 @@ export namespace player {
         return LyricsService::profile();
     }
 
-#if defined(CHARM_PLAYER_MCU) && CHARM_PLAYER_MCU && defined(__GNUC__)
+#if CHARM_PLAYER_MEMORY_PROFILE_SYMBOLS && defined(__GNUC__)
     extern "C" [[gnu::used]] void charm_player_lyrics_profile_symbols() noexcept {
         constexpr auto profile = lyrics_service_profile();
         asm volatile(

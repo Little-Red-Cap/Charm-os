@@ -9,11 +9,7 @@ module;
 #include <span>
 
 #ifndef CHARM_PLAYER_COVER_THEME_EXTRACT
-#if defined(CHARM_PLAYER_HOST_UI) && CHARM_PLAYER_HOST_UI
-#define CHARM_PLAYER_COVER_THEME_EXTRACT 1
-#else
 #define CHARM_PLAYER_COVER_THEME_EXTRACT 0
-#endif
 #endif
 
 export module player.cover_theme;

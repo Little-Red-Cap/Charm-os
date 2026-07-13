@@ -1,400 +1,141 @@
 # Vivid Focus Semantic Evidence v0
 
-Semantic request ledger summary: `vivid_semantic_request_ledger_law_v0.md`.
+> status: `contract`
 
-本文定义 Vivid v0 对 semantic focus target 与 visual focus artifact 对齐的最小证据。
+本文定义 semantic target、input focus truth 与 visual focus artifact 的最小对齐法律。它不引入完整
+accessibility tree，也不允许 semantic API 绕过正常 input/runtime 边界。request ledger 见
+[`vivid_semantic_request_ledger_law_v0.md`](vivid_semantic_request_ledger_law_v0.md)。
 
-## 定位
+## Identity 与对齐
 
-`Focus Evidence Boundary v0` 证明 `focused` 不进入普通 style mask。
+### Stable identity
 
-`Focus Transfer / Scope / Navigation Evidence v0` 证明真实 input dispatch 可以提交 `input_focused`，并让 focus ring artifact 迁移。
+semantic target 必须有稳定的 `semantic_id`、role、label 与 focusable truth。identity 不得来自 handle、
+pointer、随机值或可变 display text；widget handle 只是 runtime binding。
 
-`Focus Semantic Evidence v0` 继续向前一步：证明 focus 不只是视觉 ring，也必须能映射到稳定的产品语义 target。
+装饰性 label、container、divider 可以参与布局和绘制，但在显式 opt-in 前不得成为 semantic target。
 
-v0 暂不引入完整 accessibility tree。当前已把最小语义三元组写入 Vivid SoA node，并通过 runtime API 暴露：
+### 三种 truth
 
-```text
-set_semantic(handle, role, id, label)
-semantic_snapshot(handle)
-semantic_focus_snapshot()
-semantic_tree_snapshot(root, max_nodes)
-set_semantic_default(handle, stable_id, optional_label)
-```
-
-## v0 法律
-
-### Law 1：semantic target 必须稳定
-
-每个可被语义暴露的 focus target 必须有稳定 id、role 与 label。v0 由 runtime 存储：
+input focus 提交后必须能显式解析 semantic focus：
 
 ```text
-semantic_id
-role
-label
-focusable
-```
-
-这些字段不应依赖 widget handle 地址或运行时随机值。widget handle 只作为 runtime 绑定点，不是 semantic identity。
-
-### Law 2：input focus truth 必须能解析为 semantic focus
-
-当 `input_focused` 提交到某个 target 后，runtime 必须能解析：
-
-```text
-input_focused -> semantic_id
-```
-
-如果 focused handle 没有 runtime semantic entry，必须显式输出 `semantic_found=0`，而不是静默假装对齐。
-
-### Law 3：semantic focus 与 visual focus artifact 必须对齐
-
-当 semantic target A 成为 current focus：
-
-```text
-input_truth=A.handle
+input_focused=A.handle
 semantic_current=A.semantic_id
 visual_focus_ring=A.handle
 ```
 
-v0 使用 `FocusOut / FocusIn`、`input_focused`、`cmd_hash / pixel_hash` 共同证明对齐。
+focused handle 没有 semantic entry 时必须报告 not found，不能伪造对齐。semantic target 即使存在，也
+不能绕过 active focus scope。scope 外拒绝必须保持当前 semantic/input truth，并证明无 visual artifact
+泄漏。
 
-### Law 4：semantic focus 不得绕过 active scope
+### Causal evidence
 
-scope 外 target 即使存在 semantic entry，也不得被 active scope 内的 keyboard / spatial navigation 选中。
+完整 focus alignment verdict 至少连接：stable identity、pointer/keyboard transfer、`FocusOut / FocusIn`、
+scope rejection、style boundary 与 focus ring artifact。`focused` 仍不得进入普通 style mask；causal
+资格遵循 [`vivid_causal_verdict_law_v0.md`](vivid_causal_verdict_law_v0.md)。
 
-```text
-outside_semantic_present=1
-outside_selected=0
-semantic_current remains inside scope
-```
+## Semantic Artifact
 
-### Law 5：非语义 widget 可以存在，但不能污染 semantic focus
+### Tree snapshot
 
-装饰性 label、container、divider 这类 widget 可以参与布局和绘制，但不应成为 semantic focus target。
-
-```text
-decorative_present=1
-decorative_semantic=0
-```
-
-### Law 5b: semantic focus alignment must close a causal_chain
-
-`focus_semantic_demo` 的 final causal verdict 必须同时证明：
+semantic tree 是 root-bound、fixed-capacity 的 evidence snapshot：
 
 ```text
-semantic table -> stable id / role / label
-pointer transfer -> FocusOut / FocusIn + semantic_current
-keyboard transfer -> FocusOut / FocusIn + semantic_current
-outside semantic target -> outside_selected=0
-style boundary -> focused_in_style_mask=0
-artifact alignment -> focus_ring=1
-causal_chain ok=1
+root -> deterministic preorder semantic nodes -> semantic_hash
 ```
 
-### Law 6: semantic tree artifact is a fixed-capacity snapshot
+- 只采集已有 runtime semantic entry 的 node；
+- root 是 artifact policy，page root 与 focus-scope root 可得到不同集合；
+- capacity overflow 必须显式报告，不能静默截断；
+- focused node 超出存储容量时，focus identity 仍应保留；
+- `semantic_hash` 只摘要 semantic artifact，不宣称完整 accessibility tree。
 
-Semantic Tree Artifact v0 is not a full accessibility runtime. It is a root-bound evidence artifact collected from the Vivid SoA tree:
+### Defaults
+
+pattern 可以派生 role 和 label source，但 stable id 必须由产品提供。decorative widget 不自动 opt-in；
+显式 semantic 设置可以覆盖 default。handle 和 display text 都不得自动成为 stable id。
+
+### Action mask
+
+action mask 表示节点声明的能力，不表示事件已执行。v0 中 Button/ListItem 可默认声明 `activate`，
+Text/Container 默认无 action；产品可显式覆盖。action 必须进入 tree artifact/hash，但不得因此合成 input、
+调用 callback 或绑定 OS accessibility。
+
+## Query、Admission 与 Request
+
+三层边界不得合并：
 
 ```text
-root -> preorder semantic nodes -> semantic_hash
+query      -> 当前是否可寻址
+admission  -> 是否允许未来执行及执行计划
+request    -> 受控跨入真实 input execution
 ```
 
-v0 rules:
+### Intent resolution
 
-- only nodes with runtime semantic entries are collected.
-- collection order is deterministic preorder under the requested root.
-- choosing `root` is the artifact policy: a page root can include outside semantic nodes, while a focus scope root can exclude them.
-- capacity overflow must be explicit through `overflowed=1`; truncation must not be silent.
-- `focus_id` records focus truth even when the focused node is beyond stored capacity.
-- `semantic_hash` summarizes the semantic artifact only; it is not yet an accessibility tree hash.
-- `semantic_tree_demo` closes these facts with a final `causal_chain` verdict over preorder collection, focus marker, root policy, overflow, and hash stability.
+`root + semantic_id + action` lookup 必须 root-bound 且 deterministic。duplicate id 是 ambiguous；missing
+id、invalid root、unsupported action、disabled target 都是显式状态。resolved 只表示当前可寻址，不得产生
+input、focus、state 或 callback side effect。
 
-### Law 7: semantic defaults are opt-in, not automatic identity
+### Action admission
 
-Pattern Semantic Defaults v0 lets Vivid derive role / label source, but product code must still provide stable semantic id:
+action admission 复用 intent resolution，不执行第二套 lookup。它声明未来是否需要 focus、是否会 emit
+click；admitted 仍不等于已运行。所有 rejection 必须保留原 semantic reason，且不得改变 focus/pressed/
+toggle truth。
 
-```text
-set_semantic_default(handle, stable_id)
-```
+### Focus query
 
-v0 rules:
+`root + semantic_id + active_scope` 只回答当前是否 focus-addressable。non-focusable、disabled、missing、
+ambiguous、invalid root 与 outside-active-scope 必须区分。query 不得发出 `FocusIn / FocusOut`、修改 input
+focus 或绘制 focus ring。
 
-- default role is derived from `WidgetKind`.
-- default label is derived from widget text when no label override is supplied.
-- stable id is never derived from handle, pointer, or display text.
-- decorative widgets remain non-semantic until explicitly opted in.
-- explicit `set_semantic()` may override a previous default.
-- `semantic_default_demo` closes these facts with a final `causal_chain` verdict over role derivation, label source, explicit override, decorative boundary, and tree artifact integration.
+### Focus admission
 
-### Law 8: semantic actions are artifact facts, not event execution
+focus admission 复用 focus query，并产生 transfer plan：
 
-Semantic Action Artifact v0 lets a semantic node expose the minimal fixed action mask it supports:
+- `admitted + transfer_needed`：未来允许发出 `FocusOut / FocusIn`；
+- `already_focused`：admitted no-op，不计划事件；
+- query failure：映射为同语义 rejection。
 
-```text
-semantic_id
-role
-label
-actions=activate
-```
+admission 本身不提交 focus。
 
-v0 rules:
+### Focus request
 
-- actions are stored as a fixed `SemanticActionMask`.
-- `Button` and `ListItem` default to `activate`; `Text` and `Container` default to no action.
-- product/runtime code may explicitly override the action mask through `set_semantic_actions()`.
-- semantic tree nodes carry action masks and include them in `semantic_hash`.
-- an action bit is evidence of capability, not a request to synthesize input or invoke OS accessibility.
-- v0 does not introduce a full accessibility runtime.
-- `semantic_action_demo` closes these facts with a final `causal_chain` verdict over role-derived actions, no-action roles, explicit override, tree action artifacts, and hash participation.
+focus request 是第一条允许提交 transfer 的 semantic 边界。它必须先经过 admission，并复用正常 input
+focus transfer。`already_focused` 是无事件 no-op；rejected request 保持 current truth 且不发出事件；
+committed request 暴露 before/after truth 与 event evidence。
 
-### Law 9: semantic intent resolution is address lookup, not execution
+### Action request
 
-Semantic Intent Resolution v0 lets runtime resolve a product request:
+action request 可以在 action admission 后调用 focus request，再进入 click execution。拒绝必须命名最后
+到达的边界：
 
-```text
-root + semantic_id + action -> SemanticIntentResolution
-```
+| reason | 边界 |
+|---|---|
+| `action_admission_rejected` | semantic/action policy 未通过 |
+| `focus_request_rejected` | active scope 或 focus admission 未通过 |
+| `input_action_overflow` | execution queue 无容量 |
+| `no_action_emitted` | execution 后未产生声明 action |
 
-v0 rules:
+成功必须报告 `none`。除明确的 execution-time failure 外，被拒绝路径不得产生 click、focus event 或状态
+变化。runtime ledger 是证据来源，demo printf 不能另造一套 stage 语义。
 
-- lookup is root-bound and deterministic.
-- duplicate ids under the requested root are `ambiguous_id`, not silently first-match.
-- missing id, invalid root, unsupported action, and disabled target are explicit status values.
-- `resolved` means the target is addressable and currently executable.
-- resolution must not synthesize input, dispatch callbacks, mutate pressed/focused state, or bind OS accessibility.
-- execution remains a future, separate admission step.
+## 证据入口
 
-### Law 10: semantic action admission is execution permission, not execution
+| 入口 | 证明内容 |
+|---|---|
+| `Examples/ui/vivid/focus_semantic_demo` | stable identity、focus truth 与 ring alignment |
+| `Examples/ui/vivid/semantic_tree_demo` | root policy、preorder、overflow、hash |
+| `Examples/ui/vivid/semantic_default_demo` | opt-in defaults 与 explicit override |
+| `Examples/ui/vivid/semantic_action_demo` | role-derived/overridden action artifacts |
+| `Examples/ui/vivid/semantic_intent_demo` | root-bound lookup 与 no-execute failures |
+| `Examples/ui/vivid/semantic_action_admission_demo` | action planning without side effects |
+| `Examples/ui/vivid/semantic_focus_query_demo` | focus addressability 与 scope rejection |
+| `Examples/ui/vivid/semantic_focus_admission_demo` | transfer planning 与 already-focused no-op |
+| `Examples/ui/vivid/semantic_focus_request_demo` | controlled transfer 与 rejection stability |
+| `Examples/ui/vivid/semantic_action_request_demo` | focus preparation、click execution 与 reject ledger |
 
-Semantic Action Admission v0 turns a successful semantic intent resolution into an explicit action execution plan:
-
-```text
-root + semantic_id + action -> SemanticActionAdmission
-```
-
-v0 rules:
-
-- admission reuses the root-bound `SemanticIntentResolution` result instead of inventing a second lookup law.
-- intent failures are mapped to admission rejection statuses with the same semantic reason.
-- `admitted` means the runtime may later request focus and emit the action; it does not mean the action already ran.
-- admitted plans must declare whether a future execution would request focus and emit a click.
-- admission must not synthesize input events, mutate input focus truth, press widgets, toggle state, dispatch callbacks, or draw artifacts.
-- full request execution still has a later focus-admission boundary and may reject before click emission when focus preparation is denied.
-
-### Law 11: semantic focus query is focus addressability, not focus transfer
-
-Semantic Focus Query v0 lets runtime answer whether a semantic id can become focus under a requested root and current active scope:
-
-```text
-root + semantic_id + active_scope -> SemanticFocusQuery
-```
-
-v0 rules:
-
-- query is root-bound and deterministic.
-- duplicate ids under the requested root are `ambiguous_id`.
-- non-focusable, disabled, invalid root, missing id, and missing target are explicit status values.
-- active trapped focus scope may reject an otherwise valid target as `outside_active_scope`.
-- `resolved` means the target is focus-addressable now.
-- query must not emit `FocusIn/FocusOut`, mutate input focus truth, or draw focus ring artifacts.
-
-### Law 12: semantic focus admission is transfer permission, not transfer execution
-
-Semantic Focus Admission v0 turns a successful focus query into an explicit focus-transfer plan:
-
-```text
-root + semantic_id + current_focus + active_scope -> SemanticFocusAdmission
-```
-
-v0 rules:
-
-- admission reuses the root-bound `SemanticFocusQuery` result instead of performing a second semantic law.
-- query failures are mapped to admission rejection statuses with the same semantic reason.
-- `admitted` means the runtime may transfer focus later; it does not mean focus already moved.
-- `already_focused` is admitted but has `transfer_needed=0` and no planned `FocusOut/FocusIn`.
-- transfer plans must declare whether a future execution would emit `FocusOut` and `FocusIn`.
-- admission must not emit `FocusIn/FocusOut`, mutate input focus truth, or draw focus ring artifacts.
-
-### Law 13: semantic focus request is the first controlled transfer execution
-
-Semantic Focus Request v0 is the execution boundary after query and admission:
-
-```text
-SemanticFocusQuery -> SemanticFocusAdmission -> SemanticFocusRequest
-```
-
-v0 rules:
-
-- request must first run admission and reject with the same admission reason when admission fails.
-- request may mutate input focus truth only when admission is `admitted` and `transfer_needed=1`.
-- request must reuse the normal input focus transfer path so `FocusOut/FocusIn` and focused state evidence stay consistent.
-- `already_focused` is an explicit no-op and must not emit focus events.
-- rejected requests must preserve the current focus truth and must not emit focus events.
-- committed requests must expose before/after focus truth and event evidence.
-- runtime exposes `SemanticFocusRequestLedger` so focus request evidence uses the same artifact language as action request evidence.
-- request stdout evidence should use `ledger=focus_request stage=focus_admission/already_focused/execution`.
-
-### Law 14: semantic action request rejection must name its boundary
-
-Semantic Action Request v0 is allowed to cross from semantic planning into input execution, so rejection cannot remain an undifferentiated `rejected` fact.
-
-v0 request ledger:
-
-```text
-SemanticActionAdmission rejected -> action_admission_rejected
-SemanticFocusRequest rejected    -> focus_request_rejected
-input action queue overflow      -> input_action_overflow
-no click emitted after execution -> no_action_emitted
-```
-
-v0 rules:
-
-- successful requests must report `reject_reason=none`.
-- unsupported action, disabled target, ambiguous id, missing id, and invalid root must reject at the action admission boundary.
-- active scope denial must reject at the focus request boundary after action admission succeeds.
-- rejected requests must not emit click evidence unless the reason explicitly represents an execution-time failure.
-- stdout evidence must print both high-level status and rejection reason.
-- runtime exposes `SemanticActionRequestLedger` so ledger semantics are not trapped inside demo printf code.
-- request stdout evidence should use `ledger=action_request stage=<boundary>` from the runtime ledger artifact so each case records the last boundary reached.
-
-## 首个落点
-
-`Examples/ui/vivid/focus_semantic_demo` 是 Focus Semantic Evidence v0 的第一条运行证据。
-
-它验证：
-
-- runtime semantic store 中存在 `primary / secondary / outside` 三个稳定条目。
-- decorative label 不进入 runtime semantic store。
-- pointer focus 可以从 primary 迁移到 secondary，并解析为 `semantic_id=secondary`。
-- keyboard navigation 在 active scope 内迁移 semantic focus。
-- scope 外 semantic target 不参与 active scope navigation。
-- focus ring artifact 与 semantic current target 对齐。
-
-stdout 最终约束：
-
-```text
-[fsem] run=focus_semantic_demo phase=end result=ok cases=9
-```
-
-`Examples/ui/vivid/semantic_tree_demo` is the first Semantic Tree Artifact v0 runtime evidence.
-It verifies deterministic preorder collection, decorative exclusion, focus markers, root-bound policy, overflow reporting, stable semantic hash, and final causal-chain evidence.
-
-stdout final contract:
-
-```text
-[stree] run=semantic_tree_demo phase=end result=ok cases=7
-```
-
-`Examples/ui/vivid/semantic_default_demo` is the first Pattern Semantic Defaults v0 runtime evidence.
-It verifies default role derivation, text-based label source, explicit label override, opt-in boundary for decorative labels, explicit override, semantic tree artifact integration, and final causal-chain evidence.
-
-stdout final contract:
-
-```text
-[sdef] run=semantic_default_demo phase=end result=ok cases=7
-```
-
-`Examples/ui/vivid/semantic_action_demo` is the first Semantic Action Artifact v0 runtime evidence.
-It verifies role-derived activate defaults, non-action semantic roles, explicit action override, tree action artifacts, semantic hash participation, and final causal-chain evidence.
-
-stdout final contract:
-
-```text
-[sact] run=semantic_action_demo phase=end result=ok cases=7
-```
-
-`Examples/ui/vivid/semantic_intent_demo` is the first Semantic Intent Resolution v0 runtime evidence.
-It verifies root-bound id/action lookup, no-execute side effects, unsupported action, missing id, ambiguous duplicate id, disabled target, and invalid request statuses.
-
-stdout final contract:
-
-```text
-[sint] run=semantic_intent_demo phase=end result=ok cases=7
-```
-
-`Examples/ui/vivid/semantic_action_request_demo` is the first Semantic Action Request v0 runtime evidence.
-It verifies that semantic intent resolution and action admission remain side-effect free, while action request crosses into controlled execution: it prepares semantic focus through `SemanticFocusRequest`, emits a `Click` event, reuses normal widget click behavior, rejects unsupported action ids before execution, rejects scope-forbidden targets through focus admission, and proves rejected requests do not emit focus or click events.
-It also records `SemanticActionRequestRejectReason` so CI can distinguish action-admission rejection from focus-request rejection.
-The main request cases emit `ledger=action_request stage=action_admission/focus_request/execution` lines generated from `SemanticActionRequestLedger`, and the execution cases include focus/click event traces so `focus_ready` and `click` are tied back to input evidence.
-
-stdout final contract:
-
-```text
-[sar] run=semantic_action_request_demo phase=end result=ok cases=11
-```
-
-`Examples/ui/vivid/semantic_action_admission_demo` is the first Semantic Action Admission v0 runtime evidence.
-It verifies admitted activate plans, no execution side effects, focus/click plan evidence, unsupported action rejection, disabled target rejection, ambiguous duplicate ids, missing ids, invalid root, and missing request id.
-
-stdout final contract:
-
-```text
-[saa] run=semantic_action_admission_demo phase=end result=ok cases=7
-```
-
-`Examples/ui/vivid/semantic_focus_query_demo` is the first Semantic Focus Query v0 runtime evidence.
-It verifies focus-addressable semantic ids, no focus transfer side effects, non-focusable targets, disabled targets, active-scope rejection, ambiguous duplicate ids, and invalid request statuses.
-
-stdout final contract:
-
-```text
-[sfq] run=semantic_focus_query_demo phase=end result=ok cases=7
-```
-
-`Examples/ui/vivid/semantic_focus_admission_demo` is the first Semantic Focus Admission v0 runtime evidence.
-It verifies admitted transfer plans, already-focused no-op plans, no focus transfer side effects, non-focusable and disabled rejection, active-scope rejection, ambiguous duplicate ids, and invalid request statuses.
-
-stdout final contract:
-
-```text
-[sfa] run=semantic_focus_admission_demo phase=end result=ok cases=7
-```
-
-`Examples/ui/vivid/semantic_focus_request_demo` is the first Semantic Focus Request v0 runtime evidence.
-It verifies controlled focus transfer execution, `FocusOut/FocusIn` event evidence, semantic focus truth after request, request-driven focus artifact evidence, rejection without artifact mutation, final causal-chain evidence, already-focused no-op, active-scope rejection, non-focusable and disabled rejection, ambiguous duplicate ids, and invalid request statuses.
-The main request cases emit `ledger=focus_request stage=focus_admission/already_focused/execution` lines generated from `SemanticFocusRequestLedger`.
-It also records the visual consequence of the semantic request: focused style evidence remains stable, while the focus ring render artifact moves to the semantic destination with bounded dirty evidence.
-
-stdout final contract:
-
-```text
-[sfr] run=semantic_focus_request_demo phase=end result=ok cases=12
-```
-
-核心字段：
-
-```text
-semantic_id=primary/secondary/outside
-role=button/list_item
-actions=activate
-intent_status=resolved/ambiguous_id/unsupported_action/disabled
-action_admission_status=admitted/ambiguous_id/unsupported_action/disabled
-action_request_reason=none/action_admission_rejected/focus_request_rejected/input_action_overflow/no_action_emitted
-action_will_request_focus=0/1
-action_will_emit_click=0/1
-focus_query_status=resolved/outside_active_scope/not_focusable/disabled
-focus_admission_status=admitted/already_focused/outside_active_scope/not_focusable/disabled
-focus_request_status=committed/already_focused/rejected
-focus_request_stage=focus_admission/already_focused/execution
-committed=0/1
-transfer_needed=0/1
-focus_out=0/1
-focus_in=0/1
-semantic_found=1
-semantic_current=secondary
-semantic_hash=...
-input_truth=secondary
-focus_ring=1
-outside_semantic_present=1
-outside_selected=0
-decorative_semantic=0
-causal_chain=1
-overflowed=1
-```
-
-## 后续方向
-
-- 区分 input focus、semantic focus、accessibility focus 与 visual focus ring。
-- 输出 semantic tree / accessibility tree 的 artifact hash。
-- 让 component pattern 声明默认 semantic role 与 label source。
+具体 case 数、stdout token、API 名称与当前字段枚举由源码、manifest 和测试定义；本文只固定 identity、
+artifact、query/admission/request 和拒绝无副作用边界。每个 AxisCausal profile 的 `causal_chain` 都必须
+由对应 required evidence 推导。

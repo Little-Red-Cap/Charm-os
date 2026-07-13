@@ -29,7 +29,6 @@ public:
         set_focusable(true);
         double_tap_.set_callback(DoubleTapRestoreStrategy::callback_delegate::bind<&SpinZoomWidget::on_double_tap>(*this));
         double_tap_.set_threshold(double_tap_ms_, double_tap_radius_);
-        enable_interaction(&double_tap_, InteractionList<>::mask(Event::Type::Click));
     }
 
     void set_image(const ImageView& img) noexcept { image_ = img; }
@@ -63,11 +62,6 @@ public:
     }
     void set_double_tap_restore(bool on) noexcept {
         double_tap_.set_enabled(on);
-        if (on) {
-            enable_interaction(&double_tap_, InteractionList<>::mask(Event::Type::Click));
-        } else {
-            disable_interaction(&double_tap_);
-        }
     }
     void set_double_tap_ms(int ms) noexcept {
         double_tap_ms_ = (ms > 0) ? ms : 0;
@@ -84,7 +78,7 @@ public:
         (void)e;
         return false;
 #else
-        if (dispatch_interactions(e)) return true;
+        if (double_tap_.on_event(e)) return true;
         const auto r = get_rect();
         if (e.type == Event::Type::MouseDown) {
             if (!r.contains(e.x, e.y)) return false;

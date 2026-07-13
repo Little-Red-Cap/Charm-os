@@ -1,280 +1,96 @@
-# Font Metrics Contract（不可破坏的字体度量契约）
+# Font Metrics Contract
 
-> 本文定义 Charm GUI 中 **Font / Glyph 的几何语义与数学不变量**。
->
-> 该契约同时约束：
->
-> * 字体生成器（Python / 工具链）
-> * 字体数据结构（C++ Font / Glyph）
-> * 文本排版与渲染逻辑（Label / Text / Layout）
->
-> **任何一方不得私自重新解释这些字段的含义。**
+## 文档状态
 
----
+- `status`: `contract`
+- `scope`: `Font` / `Glyph` 几何语义、生成与渲染不变量
+- `authority`: [`charm.font`](../../../gfx/font/font.cppm)、
+  [`font_builder.py`](font_builder.py)、[`text_box.cppm`](../gfx/text_box.cppm)
 
-## 1. 设计目标
+生成器、字体数据和 renderer 必须使用同一 baseline model。bitmap 只描述 coverage，不能自行携带另一套
+layout 语义。
 
-* 明确字体排版所依赖的几何模型
-* 消除“看起来能用但语义错误”的隐患
-* 保证不同字体、不同字符之间可以稳定组合
-* 支撑未来的：多字体 fallback、多行文本、对齐、裁剪、缩放
+## 坐标与行模型
 
----
-
-## 2. 坐标系与基本概念
-
-### 2.1 坐标系约定
-
-* 屏幕坐标：
-
-  * 原点在左上角 `(0,0)`
-  * x 向右增长
-  * y 向下增长
-
-* 文本排版采用 **基线（baseline）模型**
-
----
-
-### 2.2 Baseline（基线）
-
-**Baseline 是字体系统中唯一的垂直参考线。**
-
-* 所有字符都必须能够对齐到同一条 baseline
-* Baseline 不随字符变化
-* Baseline 由 Font 级别定义
+屏幕原点在左上，x 向右、y 向下。文本行以统一 baseline 定位：
 
 ```text
 baseline_y = text_top + font.baseline
 ```
 
----
-
-## 3. Font 级别契约（全局不变量）
-
-### 3.1 Font.baseline
-
-```cpp
-int Font::baseline;
-```
-
-语义：
-
-> 字体基线距离“文本行顶部”的像素距离
-
-约束：
+`Font::baseline` 是行顶部到 baseline 的距离；`Font::line_height` 是完整行高。基本约束：
 
 ```text
 0 <= baseline <= line_height
 ```
 
----
+换行推进使用 line height。不同 glyph 不得改变该行 baseline；fallback glyph 的 `y_offset` 仍相对同一
+baseline 解释。
 
-### 3.2 Font.line_height
+## Glyph 几何
 
-```cpp
-int Font::line_height;
-```
+| field | contract |
+|---|---|
+| `bitmap`、`width`、`height` | tight coverage bitmap；左上角是 bitmap `(0,0)` |
+| `bpp` | coverage packing；允许值由 `validate_font()` 冻结 |
+| `x_advance` | glyph 完成后的 pen 推进量 |
+| `x_offset` | bitmap 左边缘相对当前 pen 的偏移 |
+| `y_offset` | bitmap 顶部到 baseline 的距离，正值向上 |
 
-语义：
-
-> 一行文本所占用的完整垂直空间
-
-* 包含 ascent + descent
-* 用于：
-
-  * Label / Button 的高度计算
-  * 多行文本的行距
-
----
-
-## 4. Glyph 级别契约（核心）
-
-```cpp
-struct Glyph {
-    const uint8_t* bitmap;
-    int width, height;
-
-    int x_advance;
-    int x_offset;
-    int y_offset;
-};
-```
-
-### 4.1 Glyph.bitmap / width / height
-
-语义：
-
-* 紧包（tight）位图
-* 位图左上角视为 `(0,0)`
-* **不携带任何排版语义**
-
-> 位图只负责“画什么”，不负责“画在哪里”
-
----
-
-### 4.2 Glyph.x_advance（水平推进量）
-
-```cpp
-int Glyph::x_advance;
-```
-
-语义：
-
-> 当前 glyph 绘制完成后，光标在 x 方向推进的距离
-
-约束：
+核心公式：
 
 ```text
-x_advance > 0
+render_x = pen_x + glyph.x_offset
+render_y = baseline_y - glyph.y_offset
+pen_x   += glyph.x_advance
 ```
 
-规则：
+`bitmap.width` 不替代 advance。kerning 只在相邻 glyph 由同一 resolved font 提供时，在当前 pen 上增加
+该 font 的 kerning adjustment；它不改变 glyph 字段语义。
+
+## 数据准入
+
+`validate_font()` 至少保证：
+
+- baseline 位于 `[0, line_height]`；
+- glyph `y_offset` 位于 `[0, line_height]`；
+- 非空 glyph 必须有正 advance；空 bitmap glyph 可以不推进；
+- bpp 属于 renderer 支持集合；
+- fallback glyph 指向当前 table；
+- sparse code/id 表长度一致。
+
+生成字体模块必须在编译期调用 validator。具体 table、range、fallback、sparse 和 kerning 字段以
+`charm.font` 为准，本文不复制 struct layout。
+
+## Builder 约束
+
+当前 Pillow builder 使用：
 
 ```text
-pen_x += x_advance
+ascent, descent = getmetrics()
+baseline        = ascent
+line_height     = ascent + abs(descent)
+x_offset        = bbox.left
+y_offset        = baseline - bbox.top
+x_advance       = round(getlength(character))
 ```
 
-* 唯一影响文本宽度的字段
-* bitmap.width 不参与排版
+如果 font API 不提供 metrics/advance，fallback 结果仍必须通过 `validate_font()`；warning 不能替代验证。
+生成器的 packing、gamma、range 和 fallback 选项属于工具实现，不进入几何契约。
 
----
+## Renderer 约束
 
-### 4.3 Glyph.x_offset（Left Bearing）
+renderer 必须：
 
-```cpp
-int Glyph::x_offset;
-```
+- 先 resolve glyph/fallback font，再应用同 font kerning；
+- 按上述公式定位 bitmap；
+- 按 glyph bpp 解码 coverage，并遵守 clip；
+- 使用 advance 推进 pen，不按 bitmap width 猜测；
+- measurement、layout 和 raster path 对 newline/fallback/kerning 保持同一几何解释。
 
-语义：
+## 非目标
 
-> glyph 位图左边缘相对 pen_x 的偏移量
-
-渲染公式：
-
-```text
-render_x = pen_x + x_offset
-```
-
----
-
-### 4.4 Glyph.y_offset（最关键）
-
-```cpp
-int Glyph::y_offset;
-```
-
-**语义定义（不可更改）：**
-
-> glyph 位图【顶部】到字体 baseline 的垂直距离（像素）
-
-渲染公式：
-
-```text
-render_y = baseline_y - y_offset
-```
-
-约束：
-
-```text
-0 <= y_offset <= font.line_height
-```
-
----
-
-## 5. 标准文本渲染公式（唯一合法方式）
-
-```cpp
-int pen_x = start_x;
-int baseline_y = text_top + font.baseline;
-
-for (glyph : text) {
-    render_x = pen_x + glyph.x_offset;
-    render_y = baseline_y - glyph.y_offset;
-
-    draw_bitmap(render_x, render_y, glyph.bitmap);
-
-    pen_x += glyph.x_advance;
-}
-```
-
-任何偏离该公式的实现都视为 **违反契约**。
-
----
-
-## 6. Python 字体生成器契约
-
-### 6.1 baseline 计算
-
-```python
-ascent, descent = font.getmetrics()
-baseline = ascent
-line_height = ascent + descent
-```
-
----
-
-### 6.2 y_offset 计算（强制）
-
-```python
-bbox = font.getbbox(ch)
-# CONTRACT: y_offset = distance from glyph top to baseline
-y_offset = baseline - bbox[1]
-```
-
----
-
-### 6.3 advance 计算
-
-```python
-advance = int(round(font.getlength(ch)))
-```
-
----
-
-### 6.4 生成阶段校验（建议）
-
-```python
-assert 0 <= y_offset <= line_height
-assert advance > 0
-```
-
----
-
-## 7. C++ 侧契约校验（推荐）
-
-```cpp
-constexpr bool validate_font(const Font& f) {
-    if (f.baseline < 0 || f.baseline > f.line_height)
-        return false;
-
-    for (const auto& g : f.table) {
-        if (g.y_offset < 0 || g.y_offset > f.line_height)
-            return false;
-        if (g.x_advance <= 0)
-            return false;
-    }
-    return true;
-}
-
-static_assert(validate_font(font_noto_ascii_12));
-```
-
----
-
-## 8. 契约的意义
-
-* UI / Layout 层无需理解字体细节
-* Font 数据可被安全复用、组合、fallback
-* 多字体、多行、多对齐逻辑可自然扩展
-* 字体生成器与渲染引擎完全解耦
-
-> **只要契约成立，字体系统就永远不会“看起来差不多但其实是错的”。**
-
----
-
-## 9. 结语
-
-这份契约定义的不是“实现方式”，而是 **字体排版的几何学基础**。
-
-任何未来功能（缩放、DPI、富文本、emoji、icon font）
-都必须建立在本契约之上，而不是修改它。
+- 不定义字体选择、package/provider 生命周期或产品 typography token；
+- 不承诺所有字体共享同一 line height；
+- 不把 Python/Pillow API 形状冻结为 runtime ABI；
+- 不以“视觉上差不多”替代 validator、measurement 与 render 一致性证据。

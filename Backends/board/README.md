@@ -1,32 +1,14 @@
 # Board Backends and BSPs
 
-Board backends bind Charm to real hardware.
+## 文档状态
 
-The BSP owns the board facts and hardware-specific binding. It must not redefine
-the common backend contract.
+- `status`: `supporting`
+- `scope`: real-board backend、BSP ownership 与证据路由
+- `authority`: [`../contract/backend_contract.md`](../contract/backend_contract.md)
 
-Board backend work exposes capability provider instances. The provider instance
-is the profile binding target; UART routes, DMA channels, HAL handles, pinmux
-facts, and endpoint names are provider evidence or adapter details.
-
-## Reference evidence
-
-`board_reference.hpp` is the v0 real-board evidence reference. It does not drive
-hardware, include HAL headers, or claim the H747 board is ready. It records
-candidate provider instances and board facts in the common
-`BackendEvidenceView` shape.
-
-The current reference intentionally keeps required clock and IRQ facts as
-unknown or missing. That proves a real-board backend can export observed H747
-facts without turning partial bring-up evidence into readiness.
-
-Validate it with:
-
-```powershell
-cmake -S Backends/board/reference_smoke -B Backends/board/reference_smoke/cmake-build-backends-board-reference-smoke -G Ninja
-cmake --build Backends/board/reference_smoke/cmake-build-backends-board-reference-smoke
-ctest --test-dir Backends/board/reference_smoke/cmake-build-backends-board-reference-smoke --output-on-failure
-```
+Board backend 把 capability provider 绑定到真实硬件；BSP 拥有 board facts 和硬件接线，但不得重定义
+共同 backend contract。profile binding 选择 provider instance，不选择 UART route、DMA channel、HAL handle、
+pinmux fact 或 endpoint。
 
 ## BSP responsibilities
 
@@ -41,13 +23,18 @@ ctest --test-dir Backends/board/reference_smoke/cmake-build-backends-board-refer
 - Board evidence such as register readback, probe results, and bring-up logs
   presented as structured facts.
 
-The BSP may use HAL or vendor SDK code, but HAL is not the Charm backend
-language shared with host and QEMU.
+HAL/vendor SDK 可以留在 BSP 内，但不是 Host、QEMU 与 board 共享的 Charm backend 语言。
+
+## Reference evidence
+
+[`board_reference.hpp`](board_reference.hpp) 只验证 `BackendEvidenceView` 能表达 provider 与 board facts；它不
+驱动硬件、不包含 HAL，也不证明 H747 ready。未知 clock/IRQ fact 必须保持 unknown/missing，不能把 partial
+bring-up 写成 readiness。
+
+验证由 [`../run-backends-v1-smoke.ps1`](../run-backends-v1-smoke.ps1) 编排。磁盘受限环境不要在
+`reference_smoke/` 内创建独立 build tree。
 
 ## Relationship to targets
 
-`targets/` remains the build leaf area. A target may select a board BSP, but the
-BSP is not the same thing as the target.
-
-For example, `targets/rk3506` may continue to own the current RK3506 build leaf
-while future work extracts reusable board-backend facts under `Backends/board/`.
+`targets/` 仍拥有 concrete build leaf。target 可以选择 BSP，但 target、SoC、board 与 backend domain 不是
+同一身份；目录迁移不得把这些角色压成一个概念。

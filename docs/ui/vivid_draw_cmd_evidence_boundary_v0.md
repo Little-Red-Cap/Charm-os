@@ -79,7 +79,14 @@ Those tests must not be used as product UI evidence unless they also expose scen
 state / invalidation / dirty / cmd stats / exec stats / artifact hash / causal verdict
 ```
 
-`vivid_soa_table_tree_evidence_law_v0.md` records one narrow recorder-level exception: `soa_demo` may decode temporary DrawCmd text/fill probes when the test target is TableView/TreeView recorder behavior. That exception does not make DrawCmd payload layout a product UI contract.
+`Examples/ui/vivid/soa_demo` has one narrow recorder-level exception when the test target is TableView/TreeView
+recording behavior. It may decode a temporary `DefaultDrawCmdBuffer` to inspect header/body text alignment, fill
+shape, divider placement and scrollbar geometry, and must still assert `failed_cmds=0`.
+
+This exception does not make `CmdHeader` layout, payload bytes or executor grouping a product UI contract. The probe
+must remain in regression code and expose stable SoA CI summaries; it cannot become the sole product visual proof.
+The collection model and payload/invalidation rules remain in
+[`structured_view_model_v1.md`](structured_view_model_v1.md).
 
 ## Relationship To Render Evidence
 
@@ -87,7 +94,7 @@ state / invalidation / dirty / cmd stats / exec stats / artifact hash / causal v
 
 `vivid_evidence_vocabulary_law_v0.md` defines the field meaning for `RenderEvidence` and `RenderArtifactDeltaEvidence`.
 
-`vivid_evidence_artifact_promotion_v0.md` keeps current render evidence helpers demo-side until a backend-neutral core shape exists.
+`vivid_evidence_vocabulary_law_v0.md` keeps current render evidence helpers demo-side until a backend-neutral core shape exists.
 
 This law adds the DrawCmd-specific boundary: Evidence Plane can rely on scene-level stats and artifact summaries, but not on partition-private encoding.
 

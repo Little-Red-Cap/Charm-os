@@ -1,106 +1,46 @@
-# Vivid PageLayer 与 StylePatch 使用指南
+# Vivid PageLayer / StylePatch 边界
 
-本说明描述两项“轻量但高收益”的 UI 能力：
-1) **StylePatch**：按控件局部覆盖样式（不改全局 Theme/StyleSheet）。  
-2) **PageLayer**：页面容器 + 显式 show/hide + 进入/退出 hook。
+> status: `supporting`
+>
+> scope: local style override 与 PageLayer basic visibility/hook 使用
 
----
+本文不是 API 清单。当前字段和方法以
+[`style.cppm`](../../Modules/ui/vivid/core/style.cppm) 与
+[`scene.cppm`](../../Modules/ui/vivid/core/scene.cppm) 为准。
 
-## 1. StylePatch（控件级样式覆盖）
+## StylePatch
 
-适用场景：
-- 某个按钮/卡片需要单独改圆角、填充、描边。
-- 局部视觉强化（例如主播放按钮、列表卡片）。
+`StylePatch` 在 resolved stylesheet 结果上对单个 widget 做局部 override。构建期和运行期分别通过
+`SceneBuilder` / `SceneAccess` 设置或清除 patch。
 
-### 最小用法（SceneBuilder）
+边界：
 
-```cpp
-StylePatch patch{};
-patch.has_bg_color = true;
-patch.bg_color = kUiButtonBg;
-patch.has_border_color = true;
-patch.border_color = kUiButtonBorder;
-patch.has_corner_radius = true;
-patch.corner_radius = 12;
-builder.set_style_patch(handle, patch);
+- patch 只属于目标 widget，不修改全局 theme/stylesheet；
+- color、state color 与 metrics override 由当前 `StylePatch` 字段定义，文档不复制字段表；
+- metrics-affecting patch 必须遵守 layout/text-metrics invalidation，不能统一当作 repaint；
+- 产品专属视觉值留在产品层，不因使用 patch 就提升为 Vivid token；
+- semantic token、state mask 与 impact 法律见
+  [`vivid_style_token_law_v0.md`](vivid_style_token_law_v0.md)。
+
+## PageLayer Basic Mode
+
+`PageLayer` 持有 page root、visibility、layer state、hooks 与可选 snapshot ownership。basic mode 只使用：
+
+```text
+root + show/hide + on_show/on_hide
 ```
 
-### 运行期覆盖（SceneAccess）
+`show/hide` 通过 `SceneAccess` 提交 root visibility；hook 只在 visibility truth 实际变化时执行。重复 show
+或 hide 不得重复触发 hook。refresh/page-state 同步仍由产品 controller 决定，PageLayer 不拥有 navigation。
 
-```cpp
-access.set_style_patch(handle, patch);
-```
+`PageLayer` 还提供 freeze/replay/transition 相关能力；一旦使用 snapshot 或非 Live/Hidden state，就必须遵守
+[`vivid_layer_runtime_v0.md`](vivid_layer_runtime_v0.md) 和
+[`vivid_motion_runtime_v0.md`](vivid_motion_runtime_v0.md)，不能用本页 basic mode 规避 capture、admission、
+rollback 或 release 规则。
 
-### 清除覆盖
+## 非目标
 
-```cpp
-builder.clear_style_patch(handle);
-// 或
-access.clear_style_patch(handle);
-```
-
-### 规则说明
-
-- StylePatch 在 StyleSheet 结果上**叠加**，仅影响当前控件。
-- 有状态字段会按当前状态覆盖：
-  - `bg_hover/bg_pressed/bg_disabled`
-  - `border_hover/border_pressed/border_disabled`
-  - `font_color_disabled`
-  - `accent_*`
-- metrics（圆角/边框/内边距/字体）会直接覆盖。
-
----
-
-## 2. PageLayer（页面容器）
-
-说明：这里的 PageLayer 指页面容器与 show/hide 收口，不等同于
-[`vivid_layer_runtime_v0.md`](vivid_layer_runtime_v0.md) 中的 frozen surface / snapshot runtime。
-
-适用场景：
-- 页面切换时统一刷新 UI。
-- 避免散落的 set_visible/状态恢复逻辑。
-
-### 最小用法
-
-```cpp
-// 初始化阶段
-page_layer.set_root(page_root);
-page_layer.set_hooks(::ui::scene::PageHooks{
-    .on_show = &on_show_fn,
-    .on_hide = &on_hide_fn,
-    .ctx = this,
-});
-page_layer.set_visible(access, false);
-
-// 切页
-page_layer.show(access);
-page_layer.hide(access);
-```
-
-### Hook 形态
-
-```cpp
-static void on_show_fn(::ui::scene::SceneAccess& access,
-                       WidgetHandle root,
-                       void* ctx) noexcept {
-    (void)access;
-    (void)root;
-    auto* self = static_cast<MyController*>(ctx);
-    if (!self) return;
-    self->refresh_page();
-}
-```
-
-### 行为说明
-
-- `show/hide` 会调用 `set_visible(root, on)`。
-- hook 只在 visible 真正变化时触发（避免重复调用）。
-
----
-
-## 3. 推荐落地顺序
-
-1) 先用 PageLayer 收口页面切换逻辑。  
-2) 再用 StylePatch 精修按钮/卡片层级感。  
-
-这两项在 MCU/PC 路径均通用，不依赖平台特性。
+- 不定义页面业务状态、navigation 顺序或产品刷新策略；
+- 不建立第二套 theme/style/layout 系统；
+- 不承诺 `PageLayer` 只有 show/hide 能力；
+- 不复制 C++ 示例、字段枚举或推荐实施顺序。

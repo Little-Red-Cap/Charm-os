@@ -2,9 +2,14 @@
 
 import charm.core;
 import charm.core.event;
+import charm.core.input_interaction;
+import charm.core.object;
 import charm.widgets.button;
+import charm.widgets.image;
 import charm.widgets.list;
 import charm.widgets.menu_item;
+import charm.widgets.scroll_container;
+import charm.widgets.spin_zoom_widget;
 
 namespace {
     struct Probe {
@@ -32,6 +37,64 @@ namespace {
 
         void on_list_secondary_click() noexcept {
             ++list_secondary_clicks;
+        }
+    };
+
+    struct InteractionProbe {
+        int sequence{0};
+        int double_taps{0};
+        int pinch_begin_order{0};
+        int pinch_update_order{0};
+        int pinch_end_order{0};
+        int pinch_dy{0};
+        int drag_begin_order{0};
+        int drag_update_order{0};
+        int drag_end_order{0};
+        int drag_x{0};
+        int drag_y{0};
+        int drag_dx{0};
+        int drag_dy{0};
+        int long_presses{0};
+
+        void on_double_tap() noexcept {
+            ++double_taps;
+        }
+
+        void on_pinch_begin() noexcept {
+            pinch_begin_order = ++sequence;
+        }
+
+        void on_pinch_update(int dy) noexcept {
+            pinch_update_order = ++sequence;
+            pinch_dy = dy;
+        }
+
+        void on_pinch_end() noexcept {
+            pinch_end_order = ++sequence;
+        }
+
+        void on_drag_begin(int x, int y) noexcept {
+            drag_begin_order = ++sequence;
+            drag_x = x;
+            drag_y = y;
+        }
+
+        void on_drag_update(int x, int y, int dx, int dy) noexcept {
+            drag_update_order = ++sequence;
+            drag_x = x;
+            drag_y = y;
+            drag_dx = dx;
+            drag_dy = dy;
+        }
+
+        void on_drag_end(int x, int y) noexcept {
+            drag_end_order = ++sequence;
+            drag_x = x;
+            drag_y = y;
+        }
+
+        void on_long_press() noexcept {
+            ++long_presses;
         }
     };
 
@@ -79,6 +142,14 @@ namespace {
 
 int main() {
     print_widget_signal_run_begin();
+
+    std::printf("[ws-abi] object_base=%zu interaction_list=%zu double_tap=%zu pinch=%zu drag=%zu long_press=%zu\n",
+                sizeof(ObjectBase),
+                sizeof(InteractionList<>),
+                sizeof(DoubleTapRestoreStrategy),
+                sizeof(PinchScrollStrategy),
+                sizeof(DragStrategy),
+                sizeof(LongPressStrategy));
 
     Probe probe{};
 
@@ -200,6 +271,114 @@ int main() {
     if (!expect(probe.list_secondary_clicks == 2, "disabled list does not emit hidden edge")) return 1;
     if (!expect(g_list_legacy_clicks == 2, "disabled list does not invoke legacy callback")) return 1;
 
+    InteractionProbe interaction_probe{};
+
+    DoubleTapRestoreStrategy double_tap{};
+    double_tap.set_callback(
+        DoubleTapRestoreStrategy::callback_delegate::bind<&InteractionProbe::on_double_tap>(interaction_probe));
+    double_tap.set_threshold(300, 12);
+    if (!expect(!double_tap.on_event(Event::mouse(Event::Type::Click, 20, 20, 0, 100)),
+                "double tap waits for the second click")) return 1;
+    if (!expect(double_tap.on_event(Event::mouse(Event::Type::Click, 22, 21, 0, 200)),
+                "double tap accepts an in-threshold second click")) return 1;
+    if (!expect(interaction_probe.double_taps == 1, "double tap invokes its delegate once")) return 1;
+    double_tap.set_enabled(false);
+    if (!expect(!double_tap.on_event(Event::mouse(Event::Type::Click, 22, 21, 0, 250)),
+                "disabled double tap stays silent")) return 1;
+
+    PinchScrollStrategy pinch{};
+    pinch.set_callbacks(
+        PinchScrollStrategy::begin_delegate::bind<&InteractionProbe::on_pinch_begin>(interaction_probe),
+        PinchScrollStrategy::update_delegate::bind<&InteractionProbe::on_pinch_update>(interaction_probe),
+        PinchScrollStrategy::end_delegate::bind<&InteractionProbe::on_pinch_end>(interaction_probe));
+    if (!expect(pinch.on_event(Event::gesture(Event::Type::GesturePinch, 10, 10, 0, 0,
+                                               Event::GesturePhase::Begin)),
+                "pinch accepts begin")) return 1;
+    if (!expect(pinch.on_event(Event::gesture(Event::Type::GesturePinch, 10, 10, 0, 7,
+                                               Event::GesturePhase::Update)),
+                "pinch accepts update")) return 1;
+    if (!expect(pinch.on_event(Event::gesture(Event::Type::GesturePinch, 10, 10, 0, 0,
+                                               Event::GesturePhase::End)),
+                "pinch accepts end")) return 1;
+    if (!expect(interaction_probe.pinch_begin_order == 1
+                    && interaction_probe.pinch_update_order == 2
+                    && interaction_probe.pinch_end_order == 3
+                    && interaction_probe.pinch_dy == 7,
+                "pinch delegates preserve order and payload")) return 1;
+
+    interaction_probe.sequence = 0;
+    DragStrategy drag{};
+    drag.set_callbacks(
+        DragStrategy::begin_delegate::bind<&InteractionProbe::on_drag_begin>(interaction_probe),
+        DragStrategy::update_delegate::bind<&InteractionProbe::on_drag_update>(interaction_probe),
+        DragStrategy::end_delegate::bind<&InteractionProbe::on_drag_end>(interaction_probe));
+    if (!expect(drag.on_event(Event::drag(Event::Type::DragStart, 4, 5, 0, 0)),
+                "drag accepts start")) return 1;
+    if (!expect(drag.on_event(Event::drag(Event::Type::DragMove, 7, 9, 3, 4)),
+                "drag accepts update")) return 1;
+    if (!expect(drag.on_event(Event::drag(Event::Type::DragEnd, 8, 10, 0, 0)),
+                "drag accepts end")) return 1;
+    if (!expect(interaction_probe.drag_begin_order == 1
+                    && interaction_probe.drag_update_order == 2
+                    && interaction_probe.drag_end_order == 3
+                    && interaction_probe.drag_x == 8
+                    && interaction_probe.drag_y == 10
+                    && interaction_probe.drag_dx == 3
+                    && interaction_probe.drag_dy == 4,
+                "drag delegates preserve order and payload")) return 1;
+
+    LongPressStrategy long_press{};
+    long_press.set_callback(
+        LongPressStrategy::callback_delegate::bind<&InteractionProbe::on_long_press>(interaction_probe));
+    long_press.set_threshold(100, 3);
+    if (!expect(!long_press.on_event(Event::mouse(Event::Type::MouseDown, 10, 10, 0, 1000)),
+                "long press starts without consuming mouse down")) return 1;
+    if (!expect(long_press.on_event(Event::mouse(Event::Type::MouseUp, 10, 10, 0, 1120)),
+                "long press fires after the threshold")) return 1;
+    if (!expect(interaction_probe.long_presses == 1, "long press invokes its delegate once")) return 1;
+    if (!expect(!long_press.on_event(Event::mouse(Event::Type::MouseDown, 10, 10, 0, 2000)),
+                "second long press starts")) return 1;
+    if (!expect(!long_press.on_event(Event::mouse(Event::Type::MouseMove, 20, 10, 0, 2020)),
+                "movement cancels long press without consuming move")) return 1;
+    if (!expect(!long_press.on_event(Event::mouse(Event::Type::MouseUp, 20, 10, 0, 2200)),
+                "canceled long press stays silent on release")) return 1;
+    long_press.set_enabled(false);
+    if (!expect(!long_press.on_event(Event::mouse(Event::Type::MouseDown, 10, 10, 0, 3000)),
+                "disabled long press rejects input")) return 1;
+    if (!expect(interaction_probe.long_presses == 1, "canceled and disabled long press do not invoke delegate")) return 1;
+
+    Image image{};
+    if (!expect(!image.on_event(Event::mouse(Event::Type::Click, 4, 4, 0, 100)),
+                "image double tap waits for second click")) return 1;
+    if (!expect(image.on_event(Event::mouse(Event::Type::Click, 4, 4, 0, 200)),
+                "image directly dispatches owned double tap strategy")) return 1;
+    image.set_double_tap_restore(false);
+    if (!expect(!image.on_event(Event::mouse(Event::Type::Click, 4, 4, 0, 300)),
+                "image disables owned double tap strategy")) return 1;
+
+    ScrollContainer scroll{};
+    scroll.set_rect({0, 0, 100, 100});
+    const auto pinch_begin = Event::gesture(Event::Type::GesturePinch, 50, 50, 0, 0,
+                                            Event::GesturePhase::Begin);
+    if (!expect(scroll.on_event(pinch_begin), "scroll container directly dispatches owned pinch strategy")) return 1;
+    scroll.set_pinch_enabled(false);
+    if (!expect(!scroll.on_event(pinch_begin), "scroll container disables owned pinch strategy")) return 1;
+
+    SpinZoomWidget spin_zoom{};
+    if (!expect(!spin_zoom.on_event(Event::mouse(Event::Type::Click, 4, 4, 0, 100)),
+                "spin zoom double tap waits for second click")) return 1;
+    if (!expect(spin_zoom.on_event(Event::mouse(Event::Type::Click, 4, 4, 0, 200)),
+                "spin zoom directly dispatches owned double tap strategy")) return 1;
+    spin_zoom.set_double_tap_restore(false);
+    if (!expect(!spin_zoom.on_event(Event::mouse(Event::Type::Click, 4, 4, 0, 300)),
+                "spin zoom disables owned double tap strategy")) return 1;
+
+    if constexpr (sizeof(void*) == 8) {
+        if (!expect(sizeof(ObjectBase) <= 808, "ObjectBase host footprint did not shrink by at least 240 bytes")) {
+            return 1;
+        }
+    }
+
     print_widget_signal_case("button_click_edge");
     std::printf(" primary=%d secondary=%d legacy=%d\n",
                 probe.primary_clicks,
@@ -214,6 +393,22 @@ int main() {
                 probe.list_clicks,
                 probe.list_secondary_clicks,
                 g_list_legacy_clicks);
+    print_widget_signal_case("interaction_strategies");
+    std::printf(" double_tap=%d pinch_order=%d/%d/%d drag_order=%d/%d/%d long_press=%d\n",
+                interaction_probe.double_taps,
+                interaction_probe.pinch_begin_order,
+                interaction_probe.pinch_update_order,
+                interaction_probe.pinch_end_order,
+                interaction_probe.drag_begin_order,
+                interaction_probe.drag_update_order,
+                interaction_probe.drag_end_order,
+                interaction_probe.long_presses);
+    print_widget_signal_case("owned_interaction_dispatch");
+    std::printf(" image=direct scroll=direct spin_zoom=direct\n");
+    print_widget_signal_case("object_interaction_footprint");
+    std::printf(" object_base=%zu opt_in_components=%zu\n",
+                sizeof(ObjectBase),
+                sizeof(InteractionList<>) + sizeof(DragStrategy) + sizeof(LongPressStrategy));
     print_widget_signal_run_end(true);
     std::puts("[widget_signal_demo] ok");
     return 0;

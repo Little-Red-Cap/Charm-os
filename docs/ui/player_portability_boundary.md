@@ -1,127 +1,104 @@
 # Player Portability Boundary
 
-This note tracks the current portability boundary for the Player UI work. The goal is to keep the Player demo useful as a Vivid pressure test without letting host-only conveniences become implicit product APIs.
+## 文档状态
 
-## Current Boundary
+- `status`: `supporting`
+- `scope`: Player application、Port、adapter/provider 与 Host/Board 工具边界
+- `authority`: [`PLAYER_PORT_V1.md`](../../Examples/project/player/PLAYER_PORT_V1.md)、
+  [`PLAYER_FILE_OWNERSHIP.md`](../../Examples/project/player/PLAYER_FILE_OWNERSHIP.md)
 
-- `Examples/project/player/win` is the Windows SDL3 host shell.
-- `PLAYER_SCENARIO` selects the Windows UI target (`ink`, `vivid`, or `vivid_md3`).
-- `PLAYER_HOST_PROFILE` selects a Windows host feature record. `preview_full` is the default full preview; `portability_probe` disables host cover decoding and file fonts while keeping the UI runnable.
-- `PLAYER_RESOURCE_*` and `PLAYER_HOST_STORAGE_VHD_PATH` describe Windows preview resource defaults and are forwarded into `player.product_config`.
-- `CHARM_PLAYER_HOST_UI=1` marks host-preview code paths.
-- `CHARM_PLAYER_HOST_STORAGE=1` marks host storage defaults such as the Windows VHD path.
-- `CHARM_PLAYER_PC_FONT_CACHE=1` is only valid for the host shell and must not be treated as a portable font path.
-- `CHARM_PLAYER_PLAYBACK_LOG=1` enables host playback diagnostics.
-- `app-vivid-MaterialDesign3` is the shared Player MD3 product UI/runtime path. Windows builds it as a rich host preview; H747 `player_md3` builds the same shared runtime/controller with PRODUCT gates and MCU-strict defaults.
-- H747 `player_md3` defaults are `CHARM_VIVID_FEATURESET=PRODUCT`, `CHARM_PLAYER_MCU_STRICT=1`, `CHARM_PLAYER_HOST_COVER_DECODE=0`, `CHARM_PLAYER_COVER_THEME_EXTRACT=0`, `CHARM_PLAYER_FILE_FONTS=0`, `CHARM_PLAYER_DEBUG_UI=0`, `CHARM_PLAYER_LAYERED_TRANSITIONS=0`, and `CHARM_PLAYER_LIST_COVER_CACHE_ENTRIES=0`.
-- Windows MD3 keeps `FULL` preview behavior: SDL shell, file fonts, host cover decode, dynamic cover theme extraction, layered transitions, screenshot/UI-CI, and a fixed 12-entry list cover cache.
+本文不维护 CMake flag 默认值、H747 内存数字、迁移完成度或下一步任务。实际 source closure、target、
+profile 和测试以当前仓库为准。
 
-## Layering Direction
+## Canonical 分层
 
-The Player portability boundary should follow the same broad shape as the DAPLink-style split:
+```text
+product tools/tests
+    -> platform adapter
+    -> Player Port
+    -> Player application core
+```
 
-- Product/profile records decide which features, providers, and board resources are composed.
-- Common source modules provide stable capabilities without knowing the host preview shell.
-- Host shells own preview-only windowing, diagnostics, screenshots, and file-backed convenience paths.
-- Page controllers should depend on semantic providers, not on Windows, SDL, or file decoder details.
-- The useful DAPLink reference is its port/profile/contract discipline, not its USB firmware details; Player ports should translate that discipline into display, input, storage, font, cover, and clock providers.
+- **Application core**：MD3 UI、播放命令、媒体模型和 Player 产品资源策略；不依赖 SDL、Win32、H747、
+  QEMU 或 board identity。
+- **Player Port**：Player 自有的 clock、borrowed raster/display、raw input 与 frame lifecycle 消费契约。
+- **Adapter/provider**：把某个 execution environment 的行为投影为 Player Port 或产品资源输入。
+- **Product tools/tests**：截图、UI-CI、preview、font probe 和性能诊断；不进入应用语义或 Port。
 
-For the current ownership map, host shell split, Vivid extraction candidates, and portable UI probe contract, see `player_vivid_portability_map.md`.
+Host、Linux、QEMU 和 MCU adapter 是同层实现，不能互相成为默认模型。
 
-## Host-Only Dependencies
+## Provider Ownership
 
-- SDL3 windowing, event pump, renderer, and screenshot flow live in `Examples/project/player/win`.
-- `player.runtime` owns the shared product lifecycle for Vivid Player targets: app construction, storage bootstrap, controller binding, input dispatch, ticking, frame rendering, and shutdown. Windows/SDL calls into this shell instead of open-coding product lifecycle steps.
-- `player.board_port` is the current board assembly skeleton: it groups externally owned framebuffer metadata, display callbacks, touch sample source, app-common font resource inputs, and cover resource inputs (explicit provider binding or static record table) into records before a board shell constructs `PlayerPlatform` / `PlayerRuntime`.
-- `player.board_runtime` is the thin board lifecycle assembly helper: a board shell can pass `PlayerBoardRuntimeConfig` plus externally owned controller/clock/storage and receive a `PlayerRuntime` wired to the board surface/sink.
-- `player.runtime.hqzy_cm7.player_ui_port_bridge` is the H747-local facts bridge for framebuffer, dirty region, display callbacks, touch source, and clock source. It stays adapter-only and does not import `player.board_runtime`, so the current HQZY profile can express future UI runtime inputs without pulling MD3/Vivid into the CM7 board build.
-- The H747 bridge now has local `probe_port()` / `present_dirty()` helpers. They validate the framebuffer/clock seam, clip dirty regions, and call board display callbacks in clean-cache, flush-dirty, present order without depending on SDL, Vivid, LTDC, DMA2D, or a concrete touch driver.
-- The Windows host shell still owns preview arguments, SDL initialization, screenshot capture, UI-CI entry points, and visual preview hooks such as the spectrum overlay.
-- Player display output now goes through a small display HAL contract: app-common renders into `PlayerDisplaySurface`, and host/board code presents that surface through a `PlayerDisplaySink`.
-- SDL is only the current Windows preview display adapter. A Win32, Linux fbdev/DRM, or STM32 SDRAM/LTDC adapter can present the same `pixels / width / height / stride / pixel_format` surface without changing Player UI code.
-- `PlayerPlatform` binds an externally supplied surface; the Windows preview owns one default buffer in the host shell, while board code can pass an SDRAM framebuffer surface.
-- `make_board_display_sink()` is the board adapter seam for SDRAM/LTDC-style present. Board code owns callback state and may map clean-cache, dirty flush, and present/flip to HAL, DMA2D, LTDC, or a no-op.
-- `make_player_board_port_bindings()` turns a board framebuffer and callbacks into a `PlayerDisplaySurface`, `PlayerDisplaySink`, and `AppConfig` without knowing SDL, Win32, Linux, or MD3 page internals.
-- `make_player_board_runtime()` turns those bindings into a `PlayerPlatform` and `PlayerRuntime` without parsing argv, creating a window, or knowing page-controller internals.
-- `player.runtime.hqzy_cm7.player_ui_port_bridge` is the current H747-local seed for that board-seam shape. It keeps the port facts explicit while the board still runs the existing Ink/USB paths, and its probe reports whether touch/present callbacks are actually wired instead of pretending they already exist.
-- `MemoryDisplaySink` is the portable/CI seam for SDRAM-style output. `player.runtime_probe` renders the real Player runtime into an external buffer and verifies present metadata.
-- `--runtime-memory-smoke` is the Windows host adapter entry for that probe: it runs before SDL initialization, builds the real `PlayerRuntime`, renders MD3 Player into an external memory surface, and exits without opening a host window.
-- SDL event decoding is isolated in a host input adapter include. The adapter now emits `PlayerInputEvent`; the Player app is the only place that bridges product input to Vivid raw input, wheel events, or controller commands.
-- `read_player_touch_events()` is the board touch adapter seam: board code owns sampling state/source, while app-common converts fixed-capacity touch samples into `PlayerInputEvent` batches.
-- Windows command-line preview flags are parsed into a host-local `PreviewOptions` structure; page controllers should not learn about argv shape.
-- Host feature defaults are composed by `PLAYER_HOST_PROFILE`; explicit `CHARM_PLAYER_HOST_*` cache values remain valid overrides for local experiments.
-- Windows preview resource defaults are composed by `product_player_host_resources.cmake`; common code reads them through `player.product_config`.
-- Win32/GDI fallback font caching is gated by `CHARM_PLAYER_HOST_UI && CHARM_PLAYER_PC_FONT_CACHE && _WIN32`.
-- Host VHD storage defaults are gated by `CHARM_PLAYER_HOST_STORAGE`.
-- Product resource defaults live in `player.product_config`; host entry points should select or override them instead of hardcoding resource paths.
-- `AppConfig` stores resource paths in fixed-capacity slots so the app-level config boundary does not require dynamic strings.
-- `AppConfig` groups font resource data as `FontResourceConfig`; font source is explicit (`Builtin`, `FilePath`, or future `Package`) instead of leaking host TTF fields into page code.
-- `player.font_resource_apply` is the app-common application seam for that config. `player.app` now hands the semantic font record to the controller through `apply_player_font_resource(...)` instead of branching on file-font details itself.
-- Embedded and file-backed cover decoding is gated by `CHARM_PLAYER_HOST_COVER_DECODE`; portable targets can keep using generated/default covers or later provide pre-decoded resource images.
-- Audio spectrum visualization is routed through `audio.spectrum`; the current `host_fft` backend is gated by `CHARM_AUDIO_SPECTRUM_USE_HOST_FFT`, while no-math targets compile with no spectrum backend and keep playback independent from FFT availability.
-- The Windows host shell prints `[player.features]` at startup so a preview build and a portability-probe build can be distinguished from logs. A probe with `host_cover_decode=0` is expected to skip real cover decoding.
-- `player.cover_resource` now defines the cover resource contract (`CoverResourceRequest`, `CoverResourceView`, `PlayerCoverResourceProviderBinding`, `PlayerCoverResourceRecordTableView`) in app-common, and `player.runtime` installs either an explicit binding or a record-table-derived binding before UI/bootstrap work begins.
-- `player.cover` consumes the active cover resource binding before the host decode detail path. Portable targets return pre-decoded/resource-backed views without changing page controllers; controllers consume only fixed `ResolvedCover` metadata, while host decoded pixels remain gated by `CHARM_PLAYER_HOST_COVER_DECODE`.
-- When no cover can be decoded, Now Playing and the mini bar use generated default cover art instead of leaving image slots empty.
-- Dynamic cover-theme sampling is a Windows/FULL preview capability. H747 PRODUCT defaults keep `CHARM_PLAYER_COVER_THEME_EXTRACT=0` and use the fixed fallback theme unless a future product profile explicitly admits the extractor.
-- If dynamic cover-theme sampling is enabled in a non-host product later, the sampling workspace must remain fixed-budget and evidence-backed before it is admitted.
-- `player.font_resource` now defines small app-common helpers for builtin, file-path, and package-backed font inputs. `player.font_resource_apply` owns the controller/UI application seam for those inputs. FreeType/VFS file font binding is still gated by `CHARM_PLAYER_HOST_FILE_FONTS`; portable targets use `FontResourceKind::Builtin` or provide package bytes through `PlayerFontPackageResourceView`.
-- Playback and filesystem diagnostics are gated by explicit Player feature macros, not `_WIN32`.
-- FreeType file-backed font loading is a host/product resource path until Vivid has a board resource contract.
-- Calendar/week stamping is routed through `player.time_utils` so page controllers do not carry platform time branches.
+| 能力 | Player 消费边界 | Adapter/provider 责任 | 禁止泄漏 |
+|---|---|---|---|
+| Display | borrowed surface、dirty、present 结果 | framebuffer/texture、format/stride、cache/flush/present | SDL texture、LTDC/DMA2D handle、窗口身份 |
+| Input | raw pointer/button/axis/command 语义 | SDL/evdev/touch/encoder sampling 与坐标映射 | vendor event、HAL handle、页面直接读设备 |
+| Clock | monotonic time/tick | Host clock、RTOS timer 或 board counter | wall-clock API、平台时间分支 |
+| Audio | 播放命令、状态、PCM/sink 语义 | decoder/sink、I2S/DMA、backend DSP | CMSIS/host FFT workspace、codec handle |
+| Storage/media | file/resource/scan 与错误语义 | VHD/FAT/eMMC/QSPI/file provider | host path、Store layout、filesystem handle |
+| Font | builtin/file/package 资源记录与 typography result | package bytes、VFS/FreeType/provider lifetime | GDI/FreeType object、板级路径 |
+| Cover/theme | resolved cover/theme product result | host decode、pre-decoded record 或 board resource | decoder buffer、album file policy |
+| Diagnostics | stable counters/result | screenshot、日志、capture 与 board evidence | argv、输出文件名、UI-CI scratch |
 
-## Product Runtime Shell v0
+Provider 只在真实 consumer 需要时建立。不存在 board consumer 时，不为对称性发明 registry、虚接口或
+heap-owned provider graph。
 
-`player.runtime` is the current portable product shell for the Vivid Player line:
+## Host Boundary
 
-- It composes `App`, `PlayerController`, and `PlayerPlatform` without depending on SDL, Win32, screenshots, or command-line parsing.
-- It consumes a `PlayerRuntimeConfig<Page>` record for app config, storage config, cover resource inputs, start page, initial track, auto-start, and clear color.
-- It exposes the same product actions a board shell needs: `bootstrap`, `tick`, `dispatch_input`, `render`, and `shutdown`.
-- It still receives host-owned `PlayerPlatform` and controller storage. This keeps v0 small while allowing a future board shell to provide an SDRAM-backed `PlayerDisplaySurface` and board-owned controller storage.
-- `player.board_runtime` covers the board-side construction pattern around this shell: fixed external framebuffer in, board display sink out, runtime storage owned by the adapter.
-- `player.runtime_probe` is the reusable memory proof around this shell. It receives externally owned clock, platform, controller storage, runtime storage, display sink, and runtime config, then runs one bootstrap/tick/render/shutdown cycle.
-- The Windows host exposes `--runtime-memory-smoke` for a no-window runtime proof. It still lives in the host executable for convenience, but the construction path avoids SDL window, renderer, texture, event pump, screenshots, and overlay preview hooks.
+Host shell 拥有 window/renderer/event pump、argv、preview profile、截图、GIF/PPM、UI-CI 和 file-backed
+便利路径。它只能构造 Player Port/产品配置并驱动 canonical runtime，不能：
 
-## Display/Input HAL v0
+- 在页面/controller 中加入 `_WIN32`、SDL 或 host path 分支；
+- 把 host cover/font/storage 实现写成产品默认语义；
+- 绕过 Player input/frame lifecycle 直接调用 Scene；
+- 用 host smoke 声明 board display/input/storage/audio 已可用。
 
-The display boundary is intentionally small:
+## Board Boundary
 
-- App side: render into `PlayerDisplaySurface`.
-- Adapter side: implement `PlayerDisplaySink::present(surface, dirty)`.
-- Frame lifecycle: `render_player_frame()` owns clear, transition destination capture, scene render, and optional present so SDL preview, UI-CI, and board sinks do not duplicate render choreography.
-- Surface contract: buffer pointer, dimensions, stride, pixel format, and ownership are explicit.
-- Board SDRAM contract: board code supplies the framebuffer address and stride, then maps `present` to cache clean, dirty flush, DMA2D copy, LTDC front-buffer flip, or a no-op for single-buffer scanout.
-- Board sink contract: `PlayerBoardDisplayCallbacks` are optional and ordered as clean-cache, flush-dirty, then present/flip. The sink clips dirty regions and records the final surface/dirty evidence for CI.
-- Board assembly contract: `PlayerBoardPortConfig` carries framebuffer, display callbacks, touch source, font resource inputs, cover resource inputs, and audio player defaults. `PlayerBoardRuntimeConfig` adds storage/start-page/clear-color runtime defaults. The board shell still owns actual HAL handles and storage lifetime.
-- Host preview contract: SDL creates a texture matching the Player surface format and only copies/presents the final surface.
+Board adapter 拥有 startup、memory region、cache/DMA、framebuffer、touch/encoder、storage/audio peripheral
+和中断事实。它向 Player 提供 Port/资源记录，不把 HAL 或 BSP 类型导入 application core。
 
-The matching input boundary is also small:
+外部 framebuffer 的 pointer、size、stride、format 和 ownership 必须显式；present 前后的 cache clean、
+dirty flush、copy/flip 和 fence 由 adapter 闭合。input batch 使用固定容量，overflow/drop 有证据。
 
-- Host or board code samples hardware/window events.
-- Adapter code converts samples to `PlayerInputEvent`.
-- `PlayerInputEvent::Pointer` covers mouse and touch down/move/up/cancel samples.
-- `PlayerInputEvent::Wheel` is bridged by `player.app`, so host adapters no longer dispatch directly to `Scene`.
-- `PlayerInputEvent::Command` is delivered to the controller through `handle_input_command()`, where product actions map to page or playback semantics.
-- Board touch integration only needs to provide `{down, x, y, id, ms}` samples through the `PlayerTouchSampleSource` shape; `read_player_touch_events()` turns those samples into a fixed-capacity event batch. It does not need to simulate SDL or know Vivid internals.
-- `RawInputEvent` remains the Charm IO fact input below this boundary. It is no longer the Windows Player host adapter contract.
+旧 `player.board_port`、`player.board_runtime` 和 H747-local bridge 是兼容 adapter，不是新平台入口；具体
+淘汰判决见 `PLAYER_PORT_V1.md` 与当前 source consumer。
 
-This means Win32, Linux, SDL, and STM32 are peers at the adapter layer. None of them should leak into Player page builders or controller semantics.
+## Resource 与 Memory
 
-## Current Handoff State
+下列状态仍由 Player 产品拥有，但可按具体 profile 选择固定容量实现：
 
-- H747 `player_md3` currently builds the shared MD3 runtime/controller with PRODUCT Vivid modules and MCU-strict gates.
-- Current H747 memory evidence is generated at `Examples/project/h747-lab/cmake-build-h747-lab-debug/generated/memory/player_md3_memory_evidence.txt`.
-- Current baseline after list-cover-cache removal from the H747 default profile is `RAM_D1 45976 B`, `RAM_D2 4 KB`, and `FLASH 709208 B`.
-- `PlayerController.size_bytes=9520`, `list_cover_cache_capacity=0`, `list_cover_cache_bytes=0`, `PLAYER_ICON.ram_d1_buffer_count=0`.
-- Target-scoped module gates currently keep `alg_color_extract`, `material_color_utils`, FreeType/file-font modules, `player.ui_debug`, `motion_*`, `page_transition`, and `snapshot` out of the default H747 Player MD3 firmware.
-- `CoverImage`-style dynamic decoded image ownership is no longer part of shared controller state. Controllers consume fixed `ResolvedCover` metadata; host decode buffers live inside `player.cover` host-only detail.
-- Windows `charm-player-win-vivid-md3` is still blocked by a known GCC modules issue in `player.platform.cppm`: recursive lazy load while resolving `ui::draw_cmd::DrawCmdBuffer`. This is not a cover/controller portability regression.
+- page/controller、queue、history、media index 和 playback state；
+- resource path/key、cover/theme result、font/package metadata；
+- render/runtime storage 与产品统计。
 
-## Next Cleanup Order
+Host-only 可替换状态包括 window/texture、GDI/FreeType cache、decode scratch、screenshot/export、argv 和
+UI-CI case scratch。它们不能因 Host 运行成功进入 canonical source closure。
 
-1. Fix or route around the Windows GCC modules `recursive lazy load` blocker so `charm-player-win-vivid-md3 --ui-ci` is available again before major visual work.
-2. Treat the current H747 memory evidence as the visual-recovery baseline; every visual iteration should refresh the evidence and keep the default PRODUCT gates green.
-3. Start visual recovery in shared MD3 UI/page-builder/controller code only. Do not add a board-only hand-drawn UI fork.
-4. If a visual change needs a new widget, style slot, payload cap, list/cache slot, or dynamic resource capability, admit it through the PRODUCT profile and update evidence in the same change.
-5. Define concrete board font package and cover resource records behind the existing provider seams when product assets are ready.
-6. Wire SDRAM/LTDC/touch through board-owned runtime resources once the external memory ownership and address profile are finalized.
+Port/provider 必须说明：
+
+- 谁拥有内存及其生命周期；
+- 是否允许动态分配、阻塞、异常或线程切换；
+- 固定容量、overflow、drop 和 partial failure；
+- shutdown 后 callback/borrowed view 是否仍可能到达；
+- Host/QEMU/Board 各自证明了什么。
+
+## Portability Probe
+
+Portability probe 不是硬件模拟。它用于证明：
+
+- canonical Player 可在没有 Host window/decoder/font fallback 的条件下 materialize；
+- frame 可写入 externally owned raster 并通过 Port present；
+- input 通过同一 Port 进入产品语义；
+- host-only diagnostics 和资源路径没有进入 application core；
+- unsupported provider 能产生明确降级/错误，而不是隐藏 fallback。
+
+真实板仍需独立证明 cache、DMA、display/input/storage/audio 和内存容量。推荐 smoke 与构建入口从
+[`Examples/project/player/README.md`](../../Examples/project/player/README.md) 进入。
+
+## 非目标
+
+- 不定义 Backend/BSP 目录结构或跨仓 provider registry。
+- 不把 Player 产品能力提升为 Charm Core。
+- 不通过删除 rich Host 功能伪造 portability。
+- 不在本文维护当前 feature flags、数值 baseline、issue 或迁移排期。

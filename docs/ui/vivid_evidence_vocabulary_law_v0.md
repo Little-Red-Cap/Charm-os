@@ -1,198 +1,140 @@
 # Vivid Evidence Vocabulary Law v0
 
-This document defines the v0 field vocabulary for candidate Vivid Evidence Plane artifacts.
+> status: `contract`
 
-It does not promote `Examples/ui/vivid/support/vivid_evidence_support.hpp` into core. It only makes the stable field meanings explicit so demos, docs, and future tooling can use the same language.
-
-## Scope
-
-v0 covers these candidate vocabulary artifacts:
+本文定义 Vivid Evidence Plane 的候选字段语义和 promotion 边界。字段名称是 evidence language，不自动
+成为 public runtime API。
 
 ```text
-StateDeltaEvidence
-InvalidationEvidence
-RenderEvidence
-RenderArtifactDeltaEvidence
-CausalChainEvidence
+demo collector implementation -> stays demo-side
+stable evidence vocabulary     -> law
+runtime-native decision/result -> core-facing ledger candidate
 ```
 
-These names describe evidence language, not public runtime API. Promotion rules are defined by `vivid_evidence_artifact_promotion_v0.md`.
+`Examples/ui/vivid/evidence_vocabulary_demo` 只验证字段/helper verdict 与本法律一致，不证明实际渲染行为。
 
-`Examples/ui/vivid/evidence_vocabulary_demo` is the smallest conformance sample. It does not test rendering behavior; it verifies the field vocabulary and helper-derived verdicts remain aligned with this law.
+## 通用规则
 
-## General Rules
+- 字段描述 observed/declared causality，必须 deterministic、grep-friendly；
+- 禁止 pointer、address、wall time、random id 和 localized text 进入稳定字段；
+- field value 必须由对应 runtime fact 或 comparison 推导，不能只为 stdout 填值；
+- helper implementation 可替换，但 stable field meaning 不得静默变化；
+- stdout line shape 由 [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md) 管理。
 
-- Evidence fields describe observed or declared UI causality.
-- Evidence fields must be deterministic and grep-friendly.
-- Field names should remain stable once they appear in stdout law or CTest-gated demos.
-- Field values must avoid pointers, addresses, elapsed wall time, random ids, and localized text.
-- A helper implementation may change while preserving the field law.
+## Candidate Vocabulary
 
-## StateDeltaEvidence
+### StateDeltaEvidence
 
-State delta evidence answers:
+回答哪个 truth 由谁从什么值变成什么值。
 
-```text
-Which state truth changed?
-What was the old value?
-What is the new value?
-Who caused the change?
-```
+| field | meaning |
+|---|---|
+| `state_delta` / `changed` | `old != new` 的派生 verdict；两者必须一致 |
+| `id` | stable product/runtime owner id |
+| `key` | stable truth key |
+| `old` / `new` | 变化前后的 integer/stable enum |
+| `source` | stable cause domain |
+| `reason` | no-op/rejection 的稳定原因 |
 
-Canonical fields:
+rejected path 可以用 `state_delta=0` 证明 no mutation。state delta 不自动蕴含 layout 或 repaint，影响必须由
+invalidation evidence 单独声明。
 
-| Field | Meaning |
-| --- | --- |
-| `state_delta` | `1` when `old != new`, otherwise `0`. |
-| `id` | Stable product/runtime id for the state owner. |
-| `key` | Stable state key such as `checked`, `value`, `text`, `focused`, or `visible`. |
-| `old` | Integer or stable enum value before the change. |
-| `new` | Integer or stable enum value after the change. |
-| `changed` | Duplicate boolean verdict for grep-friendly stdout; must equal `state_delta`. |
-| `source` | Stable source name such as `user_input`, `programmatic`, `semantic_action_request`, `motion`, or `page_transaction`. |
-| `reason` | Optional stable reason for no-op or rejection paths. |
+### InvalidationEvidence
 
-Rules:
+回答变化声明了什么 impact、dirty ownership 在哪里、是否需要 layout。
 
-- `changed` must be derived from `old != new`.
-- A rejected request that does not mutate state should still be allowed to emit `state_delta=0` when proving no mutation.
-- Multi-delta cases may prefix fields, but each delta must preserve the same vocabulary.
-- A state delta alone does not imply layout or repaint; invalidation evidence must state that separately.
+| field | meaning |
+|---|---|
+| `invalidation` | 是否存在 invalidation claim |
+| `kind` | `none/paint_only/layout/text_metrics/style/render_cache` |
+| `dirty_scope` | `none/widget/component/page/layer/full_frame` |
+| component bounds | containment evidence 的范围 |
+| `layout_changed` | 是否要求 layout |
 
-## InvalidationEvidence
+`paint_only` 不得同时声称 layout changed。component-local claim 应尽可能由 artifact dirty containment 证明；
+declarative impact 不能冒充实际 render consequence。
 
-Invalidation evidence answers:
+### RenderEvidence
 
-```text
-What impact did the state/style/content change claim?
-Where is the claimed dirty scope?
-Did the change require layout?
-```
+render evidence 摘要一次 pass 的 dirty、DrawCmd、execution 与 pixel artifact：
 
-Canonical fields:
+| field family | meaning |
+|---|---|
+| `*_dirty_count/hash` | dirty rect 数量与稳定结构摘要 |
+| `*_cmd_count/bytes/hash` | draw intent 统计与摘要 |
+| `*_exec_cmds/failed` | execution 结果 |
+| `*_pixel_hash` | 被测 backend 的 pixel artifact 摘要 |
 
-| Field | Meaning |
-| --- | --- |
-| `invalidation` | `1` when an invalidation claim is present. |
-| `kind` | Stable impact class. |
-| `dirty_scope` | Claimed dirty ownership scope. |
-| `component_x/y/w/h` | Component bounds used for containment evidence. |
-| `layout_changed` | `1` when the change requires layout, otherwise `0`. |
+passing visual case 的 failed command 必须为 0，除非该 case 明确验证失败。`cmd_hash` 不是 command stream
+golden，`pixel_hash` 也不是产品视觉审批。DrawCmd 观察边界见
+[`vivid_draw_cmd_evidence_boundary_v0.md`](vivid_draw_cmd_evidence_boundary_v0.md)。
 
-Allowed `kind` values:
+### RenderArtifactDeltaEvidence
 
-```text
-none
-paint_only
-layout
-text_metrics
-style
-render_cache
-```
+比较 baseline 与 after artifact：
 
-Allowed `dirty_scope` values:
+| field | meaning |
+|---|---|
+| `artifact_delta` | delta verdict 存在 |
+| `changed` | render evidence 是否变化 |
+| `dirty_within_component` | dirty 是否在 claimed bounds 内 |
+| `single_dirty_rect` | 更强的单区域局部性证据 |
 
-```text
-none
-widget
-component
-page
-layer
-full_frame
-```
+positive mutation 通常要求 changed；reject/no-op 通常要求 unchanged。`single_dirty_rect` 不是所有 case 的
+默认法律。
 
-Rules:
+### CausalChainEvidence
 
-- `paint_only` must not claim `layout_changed=1`.
-- `layout` and `text_metrics` may imply paint, but should still name the layout/text reason.
-- If `dirty_scope=component`, render artifact evidence should prove dirty containment when possible.
-- Invalidation evidence may be declarative in v0; future runtime integration may produce it directly.
+final `causal_chain` 将 request、state、invalidation、artifact 和 rejection guard 连接起来：
 
-## RenderEvidence
+| field | meaning |
+|---|---|
+| `name` | stable chain identity |
+| `ok` | required segments 的派生总 verdict |
+| `request_ok` | request/admission/ledger segment |
+| `state_delta_ok` | state segment |
+| `invalidation_ok` | impact segment |
+| `artifact_ok` | render consequence segment |
+| `rejected_no_mutation` | rejection 保持 state/artifact 的 guard |
 
-Render evidence summarizes dirty, DrawCmd, execution, and pixel artifact facts after a render pass.
+final verdict 不能是唯一 evidence line。`AxisCausal` 资格与 count-based 迁移规则见
+[`vivid_causal_verdict_law_v0.md`](vivid_causal_verdict_law_v0.md)。
 
-Canonical prefixed fields:
+## Promotion Boundary
 
-| Field | Meaning |
-| --- | --- |
-| `<prefix>_dirty_count` | Number of dirty rects recorded for the pass. |
-| `<prefix>_dirty_hash` | Stable hash of dirty rect structure. |
-| `<prefix>_cmd_count` | Number of recorded draw commands. |
-| `<prefix>_cmd_bytes` | Bytes used by the command buffer. |
-| `<prefix>_exec_cmds` | Number of executed commands. |
-| `<prefix>_failed` | Number of failed commands. |
-| `<prefix>_cmd_hash` | Stable summary hash of command/execute stats. |
-| `<prefix>_pixel_hash` | Stable pixel artifact hash for the tested backend. |
+candidate 只有同时满足以下条件才可成为 core-facing contract：
 
-Rules:
+1. 描述 runtime semantic fact，而不是 demo collection detail；
+2. 至少被两个独立 evidence chains 消费；
+3. 不依赖 stdout、CTest、`DefaultCanvas`、fixture 或 input simulation。
 
-- `failed` must be `0` for a passing visual evidence case unless the case explicitly tests failure.
-- `cmd_hash` is draw intent evidence, not a screenshot substitute.
-- `cmd_hash` is a stats/evidence summary, not a byte-for-byte command stream golden; DrawCmd observation boundaries are defined in `vivid_draw_cmd_evidence_boundary_v0.md`.
-- `pixel_hash` is backend artifact evidence, not a product visual approval by itself.
-- Current demo support may depend on `DefaultCanvas`; any future core form must be backend-neutral.
+未通过 promotion tests 的类型可以继续作为 law vocabulary，但 implementation 保持 demo-side。
 
-## RenderArtifactDeltaEvidence
+### Demo-side
 
-Render artifact delta evidence compares two render evidence snapshots.
+以下类别不得因复用方便整体提升到 core：
 
-Canonical fields:
+- run log、expect、stdout formatter、case counter；
+- click/pointer simulation 与 fixture setup；
+- `DefaultCanvas` render/hash helper；
+- one-off trace collector、scenario assertion；
+- recorder/private wire probing helper。
 
-| Field | Meaning |
-| --- | --- |
-| `artifact_delta` | `1` when a delta verdict is present. |
-| `changed` | `1` when render evidence differs from baseline. |
-| `dirty_within_component` | `1` when all dirty rects remain inside the claimed component bounds. |
-| `single_dirty_rect` | `1` when the artifact pass produced exactly one dirty rect. |
+`Examples/ui/vivid/support/vivid_evidence_support.hpp` 可以承载这些 helper，但不是 Vivid API。
 
-Rules:
+### Runtime-native ledgers
 
-- Positive mutation paths usually require `changed=1`.
-- Rejected/no-op paths usually require `changed=0`.
-- If a case claims component-local mutation, `dirty_within_component` must be `1`.
-- `single_dirty_rect=1` is a stronger locality property, not always required by the vocabulary itself.
+由 runtime decision 或 completed execution 产生的 ledger 可以是 core-facing，例如 semantic focus/action request
+ledger、page transition ledger、layer admission/profile decision、resolved style evidence。它们必须：
 
-## CausalChainEvidence
+- 从完成的 runtime result 推导；
+- 不依赖 demo printing；
+- 保留 rejection/fallback 的真实 boundary/reason；
+- 将“ledger fact 可在 core”与“如何打印仍在 demo”分开。
 
-Causal chain evidence is a final verdict tying multiple evidence segments together.
-Verdict eligibility, `AxisCausal` rules, and the count-based versus evidence-referenced boundary are defined by `vivid_causal_verdict_law_v0.md`.
+## 非目标
 
-Canonical fields:
-
-| Field | Meaning |
-| --- | --- |
-| `causal_chain` | `1` when a chain verdict is present. |
-| `name` | Stable chain name, often a semantic id plus action. |
-| `ok` | Overall positive chain verdict. |
-| `request_ok` | Request/admission/ledger segment passed. |
-| `state_delta_ok` | State delta segment passed. |
-| `invalidation_ok` | Invalidation segment passed. |
-| `artifact_ok` | Render artifact segment passed. |
-| `rejected_no_mutation` | Rejected path preserved state/artifact when tested. |
-
-Rules:
-
-- `ok` must be derived from the required segment verdicts for the case.
-- A chain may include `rejected_no_mutation` as a separate guard; it need not be part of `ok` unless the case says so.
-- `name` must be stable and product-semantic when possible.
-- Causal chain evidence should be the summary, not the only evidence emitted.
-- Demo-side helpers may print these fields through a shared verdict formatter, but helper implementation does not change the field law or promote it into core API.
-
-## Relationship To Stdout
-
-`vivid_evidence_stdout_law.md` governs line shape:
-
-```text
-[tag] case=<case> key=value ...
-```
-
-This document governs the meaning of the `key=value` vocabulary for candidate artifacts. Printing remains demo-side.
-
-## Non-Goals
-
-- This law does not define C++ public API.
-- This law does not require all widgets to emit state delta objects.
-- This law does not define screenshot golden files.
-- This law does not replace runtime-native ledger contracts such as `SemanticActionRequestLedger`.
-- This law does not promote demo support helpers into Vivid core.
+- 不定义 screenshot golden、完整 public C++ evidence API 或所有 widget 的 state object；
+- 不替代 runtime-native ledger 专题契约；
+- 不把当前 helper type layout 冻结为 ABI；
+- 不用 vocabulary 稳定性证明 runtime behavior 已验证。

@@ -14,19 +14,20 @@
 | 任务 | 入口 |
 |---|---|
 | UI ownership、状态提交、布局与渲染硬规则 | [`ui_kernel_contract.md`](ui_kernel_contract.md) |
+| Vivid source 分层、渲染、catalog 与静态内存 | [`Modules/ui/vivid/ARCHITECTURE.md`](../../Modules/ui/vivid/ARCHITECTURE.md) |
 | 结构化视图与 widget 状态观察 | [`structured_view_model_v1.md`](structured_view_model_v1.md)、[`vivid_widget_state_observe.md`](vivid_widget_state_observe.md) |
-| Vivid runtime 范围与 backend 边界 | [`vivid_runtime_charter.md`](vivid_runtime_charter.md)、[`vivid_import_boundary_contract.md`](vivid_import_boundary_contract.md)、[`vivid_multibackend_plan.md`](vivid_multibackend_plan.md) |
-| replay 与 evidence 总入口 | [`vivid_replay_workflow.md`](vivid_replay_workflow.md)、[`vivid_evidence_lab_manifest_v0.md`](vivid_evidence_lab_manifest_v0.md)、[`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md) |
-| render/draw/scene evidence | [`vivid_render_evidence_chain_v0.md`](vivid_render_evidence_chain_v0.md)、[`vivid_draw_cmd_evidence_boundary_v0.md`](vivid_draw_cmd_evidence_boundary_v0.md)、[`vivid_soa_table_tree_evidence_law_v0.md`](vivid_soa_table_tree_evidence_law_v0.md)、[`vivid_scene_support_boundary_v0.md`](vivid_scene_support_boundary_v0.md) |
-| verdict、artifact 与 evidence vocabulary | [`vivid_causal_verdict_law_v0.md`](vivid_causal_verdict_law_v0.md)、[`vivid_evidence_artifact_promotion_v0.md`](vivid_evidence_artifact_promotion_v0.md)、[`vivid_evidence_vocabulary_law_v0.md`](vivid_evidence_vocabulary_law_v0.md)、[`vivid_intent_to_artifact_evidence_v0.md`](vivid_intent_to_artifact_evidence_v0.md) |
+| Vivid runtime 范围与 backend 边界 | [`vivid_runtime_charter.md`](vivid_runtime_charter.md)、[`vivid_import_boundary_contract.md`](vivid_import_boundary_contract.md)、[`vivid_backend_contract.md`](vivid_backend_contract.md) |
+| replay 与 evidence 总入口 | [`SoA CI / replay`](../../Examples/ui/vivid/soa_demo/README.md)、[`vivid_evidence_lab_manifest_v0.md`](vivid_evidence_lab_manifest_v0.md)、[`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md) |
+| render/draw/scene evidence | [`vivid_render_evidence_chain_v0.md`](vivid_render_evidence_chain_v0.md)、[`vivid_draw_cmd_evidence_boundary_v0.md`](vivid_draw_cmd_evidence_boundary_v0.md) |
+| verdict、artifact 与 evidence vocabulary | [`vivid_causal_verdict_law_v0.md`](vivid_causal_verdict_law_v0.md)、[`vivid_evidence_vocabulary_law_v0.md`](vivid_evidence_vocabulary_law_v0.md) |
 | style、layer 与 motion | [`vivid_style_token_law_v0.md`](vivid_style_token_law_v0.md)、[`vivid_layer_runtime_v0.md`](vivid_layer_runtime_v0.md)、[`vivid_motion_runtime_v0.md`](vivid_motion_runtime_v0.md)、[`vivid_page_layer_style_patch.md`](vivid_page_layer_style_patch.md) |
 | focus 行为与证据 | [`vivid_focus_evidence_boundary_v0.md`](vivid_focus_evidence_boundary_v0.md)、[`vivid_focus_transfer_evidence_v0.md`](vivid_focus_transfer_evidence_v0.md)、[`vivid_focus_scope_evidence_v0.md`](vivid_focus_scope_evidence_v0.md)、[`vivid_focus_semantic_evidence_v0.md`](vivid_focus_semantic_evidence_v0.md) |
-| semantic request 与 transition | [`vivid_semantic_request_ledger_law_v0.md`](vivid_semantic_request_ledger_law_v0.md)、[`vivid_semantic_transition_law_v0.md`](vivid_semantic_transition_law_v0.md)、[`vivid_semantic_transition_evidence_v0.md`](vivid_semantic_transition_evidence_v0.md)、[`vivid_semantic_action_state_transition_law_v0.md`](vivid_semantic_action_state_transition_law_v0.md)、[`vivid_semantic_action_state_transition_evidence_v0.md`](vivid_semantic_action_state_transition_evidence_v0.md) |
-| widget spec、静态内存与产品配置 | [`vivid_widget_spec_reflection_v0.md`](vivid_widget_spec_reflection_v0.md)、[`vivid_static_memory_admission.md`](vivid_static_memory_admission.md) |
+| semantic request 与 transition | [`vivid_semantic_request_ledger_law_v0.md`](vivid_semantic_request_ledger_law_v0.md)、[`vivid_semantic_transition_law_v0.md`](vivid_semantic_transition_law_v0.md) |
+| widget spec experiment、静态内存与产品配置 | [`vivid_widget_spec_experiment.md`](vivid_widget_spec_experiment.md)、[`vivid_static_memory_admission.md`](vivid_static_memory_admission.md) |
 | 显示热键 | [`vivid_display_hotkeys.md`](vivid_display_hotkeys.md) |
 | EInk refresh | [`eink_refresh_policy.md`](eink_refresh_policy.md) |
-| Player UI 与 Vivid pattern | [`player_ui.md`](player_ui.md)、[`player_vivid_patterns.md`](player_vivid_patterns.md) |
-| Player portability 与 provider 边界 | [`player_portability_boundary.md`](player_portability_boundary.md)、[`player_vivid_portability_map.md`](player_vivid_portability_map.md)、[`player_provider_portability_audit.md`](player_provider_portability_audit.md) |
+| Player 产品 UI 与 Vivid pattern | [`Player README`](../../Examples/project/player/README.md)、[`player_vivid_patterns.md`](player_vivid_patterns.md) |
+| Player portability 与 provider 边界 | [`player_portability_boundary.md`](player_portability_boundary.md) |
 
 ## Evidence 入口
 

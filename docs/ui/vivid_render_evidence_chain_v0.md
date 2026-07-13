@@ -1,402 +1,140 @@
 # Vivid Render Evidence Chain v0
 
-## 2026-05 补记：Focus Evidence
+## 文档状态
 
-Focus 进入 Evidence Plane 后，必须证明它是 navigation / focus ring artifact，而不是普通 Button style mask 的新维度：
+- `status`: `supporting`
+- `scope`: UI state 到 render artifact 的因果证据分段
+- `authority`: [`vivid_evidence_vocabulary_law_v0.md`](vivid_evidence_vocabulary_law_v0.md)、
+  [`vivid_causal_verdict_law_v0.md`](vivid_causal_verdict_law_v0.md)
 
-```text
-focused_in_style_mask=0
-style_same=1
-artifact_changed=1
-focus_ring=1
-```
+本文定义证据链及各段边界，不复制 demo stdout、case 数、helper API 或阶段 addendum。
 
-v0 由 `Examples/ui/vivid/focus_boundary_demo` 验证：`set_focused(true)` 不改变 `ResolvedStyleEvidence`，但会改变 draw command evidence 与 render artifact；`set_focused(false)` 后 artifact 回到 baseline，并由 final `causal_chain` 汇总 focus boundary verdict。详细法律见 `vivid_focus_evidence_boundary_v0.md`。
-
-`Examples/ui/vivid/focus_transfer_demo` 继续验证 focus transfer evidence：真实 input dispatch 产生 `FocusOut / FocusIn`，focus truth 提交到新 target，style evidence 保持稳定，artifact 迁移由 `dirty_hash / pixel_hash / target` 证明，并由 final `causal_chain` 汇总 transfer verdict。详细法律见 `vivid_focus_transfer_evidence_v0.md`。
-
-`Examples/ui/vivid/focus_scope_demo` 继续验证 focus scope evidence：scope policy 已接入真实 input dispatch，内部请求产生 `FocusOut / FocusIn` 并提交 `input_focused`，外部请求保留 pointer event 但不产生 focus transfer，并用外部 target 的 unfocused baseline 证明 focus ring artifact 不泄漏，最终由 `causal_chain` 汇总 inside allow / outside reject / no-leak verdict。详细法律见 `vivid_focus_scope_evidence_v0.md`。
-
-`Examples/ui/vivid/focus_scope_nested_demo` 继续验证 nested/modal focus scope evidence：push 后 active scope 切换到 modal，pop 后恢复 base scope；modal 外请求不产生 focus transfer，也不把 focus ring artifact 泄漏到 base target，并由 final `causal_chain` 汇总 push/pop transaction verdict。详细法律见 `vivid_focus_scope_evidence_v0.md`。
-
-`Examples/ui/vivid/focus_scope_navigation_demo` 继续验证 keyboard / d-pad focus navigation evidence：key event 不直接写 visual state，而是产生 `FocusOut / FocusIn`、提交 `input_focused`，再由 focus ring artifact 证明结果；scope 外 target 的 command evidence 保持 baseline，并由 final `causal_chain` 汇总 ordered navigation verdict。详细法律见 `vivid_focus_scope_evidence_v0.md`。
-
-`Examples/ui/vivid/focus_spatial_navigation_demo` 继续验证 spatial focus navigation evidence：方向键先由 runtime 根据 world rect 选择几何候选，无候选再回退到 preorder wrap；scope 外 target 的 command evidence 保持 baseline，并由 final `causal_chain` 汇总 spatial navigation verdict。详细法律见 `vivid_focus_scope_evidence_v0.md`。
-
-`Examples/ui/vivid/focus_semantic_demo` 继续验证 semantic focus evidence：runtime semantic store 可以把 `input_focused` 解析为稳定 semantic id / role / label，semantic current target 与 visual focus ring artifact 对齐，scope 外 semantic target 不参与 active scope navigation，并由 final `causal_chain` 汇总 semantic focus alignment verdict。详细法律见 `vivid_focus_semantic_evidence_v0.md`。
-
-本文定义 Vivid 从 widget 级证据进入 component 级因果证据的最小路线。
-
-它的目标不是替代截图回归，而是在截图之前先证明：
+## 因果链
 
 ```text
 state truth
-  -> invalidation intent
-  -> dirty evidence
-  -> draw command evidence
-  -> render artifact evidence
+    -> invalidation intent
+    -> dirty evidence
+    -> draw command evidence
+    -> render artifact evidence
+    -> causal verdict
 ```
 
-## 定位
+每一段都必须引用同一 case/run 中的前后事实。缺少中间段时只能声明相关性或局部结果，不能补写成
+完整因果链。
 
-`vivid_evidence_stdout_law.md` 定义 stdout 行格式。
+## Evidence Segments
 
-本文定义 stdout 中应该逐步承载哪些 UI 因果事实。
+| 段 | 必须回答 | 不能单独证明 |
+|---|---|---|
+| State truth | 哪个稳定对象/字段从什么值变到什么值，来源是什么 | 已请求正确 invalidation 或已渲染 |
+| Invalidation intent | 预期影响是 none、paint、layout、text/style/cache 等哪一类，作用域是什么 | runtime 真实 dirty 与 intent 一致 |
+| Dirty evidence | 实际 dirty 数量、范围和摘要，是否越出声明边界 | draw 命令或最终像素正确 |
+| Draw command evidence | record/execute 数量、失败、稳定摘要和支持边界 | 命令产生了预期像素 |
+| Render artifact evidence | 尺寸、像素/区域摘要、前后是否变化及边界 | 主观视觉正确或变化来源唯一 |
+| Style evidence | resolved color/metrics/state mask 与 impact | focus/navigation artifact 或产品主题正确 |
+| Causal verdict | 上述 segment identity、成功/拒绝条件和最终结论 | 未引用 segment、其它证据域或未运行路径 |
 
-## v0 证据段
+字段的稳定名称、取值和 helper shape 由 evidence vocabulary/source 维护，本文不建立第二份字段表。
 
-### State Truth
+## State 与 Invalidation
 
-状态变化必须能回答：
+State delta 必须使用稳定对象身份和字段名，并记录 old/new、changed 与 source。多个 child 同时变化时，
+分别记录 delta；不能只输出 component 最终摘要后反推每个 cause。
 
-```text
-哪个 truth 变了？
-旧值和新值是什么？
-变化来源是什么？
-```
+Invalidation intent 是请求，不是结果。它至少包含 impact 和 claimed scope。`paint_only` 必须由实际 dirty
+没有越界、layout/metrics 证据保持稳定来支持；没有 dirty 也需要解释是 no-op、rejected、deferred 还是
+证据缺失。
 
-v0 先不要求所有 Vivid 控件都产出统一 `StateDelta` 类型，但 component demo 必须在 case 中输出稳定的状态摘要。
+Rejected query/admission/request 需要证明相关 state、focus、event、dirty 和 artifact 没有被污染。
 
-2026-05 addendum: `Examples/ui/vivid/support/vivid_evidence_support.hpp` now provides a demo-side `StateDeltaEvidence` helper. It standardizes stdout fields without promoting a core Vivid API:
+## Dirty、Draw 与 Artifact
 
-```text
-state_delta=<0|1> id=<id> key=<key> old=<old> new=<new> changed=<0|1> source=<source>
-```
+Dirty evidence 应能比较 baseline/after，并验证 component/page scope。单个 dirty rect 不自动表示工作量
+最小；count、area、union 或 hash 的解释必须与实际 collector 一致。
 
-Multi-delta component cases may use named prefixes such as `enabled_old` / `level_old`, but they should still preserve `id`, `key`, `old`, `new`, `changed`, and `source` as the stable causal vocabulary.
+Draw evidence只消费稳定统计和摘要，不依赖 `CmdHeader` payload、buffer partition 或 executor 私有布局。
+详细边界见 [`vivid_draw_cmd_evidence_boundary_v0.md`](vivid_draw_cmd_evidence_boundary_v0.md)。
 
-### Invalidation Intent
+Artifact evidence至少保留尺寸、格式/范围上下文和稳定摘要。pixel hash 变化证明字节变化，不证明视觉
+符合设计；hash 不变也不能证明所有不可见状态都未变化。PNG/screenshot 是可选投影，不能替代 state、
+invalidation 和 draw segment。
 
-状态变化必须声明预期影响：
+## Style 与 Focus
 
-```text
-none
-paint_only
-layout
-text_metrics
-style
-render_cache
-```
+Style evidence 应区分 color 与 metrics，记录 style state mask 和 impact。普通 style state、focus truth、
+focus ring draw/artifact 是不同事实；focus 不得因视觉变化就被悄悄塞入普通 Button style mask。
 
-v0 先允许 demo 以 `invalidation=paint_only` 这类字段表达 intent。
+Focus 的 state、transfer、scope 和 semantic artifact 从以下专题进入：
 
-2026-05 addendum: `Examples/ui/vivid/support/vivid_evidence_support.hpp` now provides a demo-side `InvalidationEvidence` helper:
+- [`vivid_focus_evidence_boundary_v0.md`](vivid_focus_evidence_boundary_v0.md)；
+- [`vivid_focus_transfer_evidence_v0.md`](vivid_focus_transfer_evidence_v0.md)；
+- [`vivid_focus_scope_evidence_v0.md`](vivid_focus_scope_evidence_v0.md)；
+- [`vivid_focus_semantic_evidence_v0.md`](vivid_focus_semantic_evidence_v0.md)。
 
-```text
-invalidation=1 kind=<kind> dirty_scope=<scope> component_x=<x> component_y=<y> component_w=<w> component_h=<h> layout_changed=<0|1>
-```
+这些机制仍使用本链的 state/invalidation/draw/artifact segment，但执行和 admission 语义由 focus/semantic
+专题约束。
 
-### Dirty Evidence
+## Semantic 与 Intent
 
-渲染后必须能回答：
+Semantic tree、action/focus query、admission 和 request 不能合并为一个“语义成功”字段：
 
-```text
-是否产生 dirty？
-dirty 是否局部？
-dirty 是否越出 component 边界？
-```
+- tree/artifact 证明可读取的 semantic projection；
+- query/resolution 必须无执行副作用；
+- admission 只证明计划可形成；
+- request 才能提交 click/focus/state 变化；
+- transition 还需独立证明 page transaction 与 snapshot 收尾。
 
-v0 使用 `dirty_count` 与 `dirty_hash` 做最小证据。
+请求 ledger 与跨 state/render/transition 规则见：
 
-### Draw Command Evidence
+- [`vivid_semantic_request_ledger_law_v0.md`](vivid_semantic_request_ledger_law_v0.md)；
+- [`vivid_semantic_transition_law_v0.md`](vivid_semantic_transition_law_v0.md)；
+- [`vivid_evidence_vocabulary_law_v0.md`](vivid_evidence_vocabulary_law_v0.md)。
 
-截图之前，先审计绘制意图：
+semantic intent-to-artifact profile 还必须满足：
 
-```text
-cmd_count
-cmd_bytes
-cmd_hash
-exec_cmds
-failed_cmds
-```
+- semantic action 经正常 request ledger 和 input/action edge 执行，不能由 demo 直接 set widget state；
+- committed action 对应一个 stable-id state delta；
+- rejected action 证明无 edge、无 state delta、无 dirty/artifact mutation；
+- invalidation impact 与实际 dirty containment 一致；
+- DrawCmd/pixel hash 只作摘要，不作视觉审批。
 
-v0 可以用 `Scene::last_cmd_stats()` 与 `Scene::last_exec_stats()` 的稳定字段组成 `cmd_hash`。
+该 profile 的 primary evidence route 是 `Examples/ui/vivid/intent_artifact_demo`，final `causal_chain`
+必须连接 request、state、invalidation、artifact 与 rejected-no-mutation。
 
-2026-05 addendum: DrawCmd evidence is governed by `vivid_draw_cmd_evidence_boundary_v0.md`. Render evidence may observe `Scene::last_cmd_stats()` / `Scene::last_exec_stats()` summaries and artifact hashes, but must not depend on `CmdHeader` payload layout or `schema / buffer / executor` partition-private implementation details.
+## Support 与 Promotion
 
-2026-05 addendum: `Examples/ui/vivid/support/vivid_evidence_support.hpp` now provides `print_render_evidence(prefix, evidence)`. It emits a stable prefixed summary:
+[`vivid_evidence_support.hpp`](../../Examples/ui/vivid/support/vivid_evidence_support.hpp) 提供 demo-side
+collector、comparison 和 stdout helper。它们用于减少 fixture 漂移，不是 Vivid core render/input API。
 
-```text
-<prefix>_dirty_count=<n> <prefix>_dirty_hash=<hash> <prefix>_cmd_count=<n> <prefix>_cmd_bytes=<n> <prefix>_exec_cmds=<n> <prefix>_failed=<n> <prefix>_cmd_hash=<hash> <prefix>_pixel_hash=<hash>
-```
+名称从 demo helper 提升为稳定 law/runtime artifact 前，必须有重复 consumer、字段语义、失败行为和迁移
+证据。promotion 规则见
+[`vivid_evidence_vocabulary_law_v0.md`](vivid_evidence_vocabulary_law_v0.md)。
 
-### Render Artifact Evidence
+## 验收要求
 
-最终 artifact 先用摘要表达：
+一个完整 component/intent case 至少覆盖：
 
-```text
-width
-height
-pixel_hash
-```
-
-PNG / screenshot diff 是后续投影，不是 v0 的第一真相。
-
-2026-05 addendum: demo support now provides `RenderArtifactDeltaEvidence` for the final artifact verdict:
-
-```text
-artifact_delta=<0|1> changed=<0|1> dirty_within_component=<0|1> single_dirty_rect=<0|1>
-```
-
-This delta complements prefixed render summaries. It tells whether the artifact changed and whether the dirty evidence stayed inside the claimed component boundary.
-
-`Examples/ui/vivid/support/vivid_evidence_support.hpp` also provides small stdout composition helpers:
-
-```text
-render_component_artifact_delta(scene, canvas, component_bounds, before)
-print_render_artifact_verdict(delta, prefix, evidence)
-print_render_artifact_comparison(delta, before, after)
-```
-
-These helpers keep Component Lab, Focus Evidence, Style Token Law, and Intent-to-Artifact cases aligned on the same artifact capture / verdict shape. They are demo-side evidence vocabulary, not a Vivid core render API.
-
-Promotion boundary: `vivid_evidence_artifact_promotion_v0.md` records which Evidence Lab names remain demo-only, which field vocabularies are law candidates, and which runtime-native ledgers may become core-facing contracts.
-
-Field vocabulary: `vivid_evidence_vocabulary_law_v0.md` defines the stable meaning of `StateDeltaEvidence`, `InvalidationEvidence`, `RenderEvidence`, `RenderArtifactDeltaEvidence`, and `CausalChainEvidence` fields.
-
-### Style Evidence
-
-Style Token Law 进入 Evidence Plane 后，resolved style 也需要可审计摘要：
-
-```text
-style_key
-color_hash
-metrics_hash
-style_state_mask
-state_count
-impact
-impact_mask
-```
-
-v0 由 `charm.core.style_evidence` 提供 `ResolvedStyleEvidence` 与 `StyleStateEvidence`，并由 `Examples/ui/vivid/style_token_law_demo` 验证 color token 变化只改变 color evidence，不改变 metrics evidence；同时验证 Button 普通 style mask 包含 hovered / pressed / disabled，但不包含 focused。
-
-`Examples/ui/vivid/support/vivid_evidence_support.hpp` provides demo-side stdout helpers for the stable style evidence shape:
-
-```text
-print_style_state_mask(widget, law, evidence)
-print_resolved_style_evidence(widget, state, evidence)
-print_focus_style_evidence(widget, focused, evidence, style_same, focused_in_style_mask)
-```
-
-These helpers keep Style Token Law and Focus Evidence demos aligned without promoting style stdout formatting into a Vivid core API.
-
-`Examples/ui/vivid/style_token_law_demo` closes its style evidence path with a final `causal_chain` verdict:
-
-```text
-button.accent_token
-  -> token version + resolved style color
-  -> paint_only impact
-  -> stable metrics
-  -> bounded render artifact
-  -> causal_chain ok=1
-```
-
-## Evidence Lab 支撑工具
-
-`Examples/ui/vivid/support/vivid_evidence_support.hpp` 是 v0 的示例侧共享证据账本。
-
-它先服务 Component Lab，不作为 Vivid core 公共 API 承诺：
-
-- `RunLog` 统一 begin / case / end stdout 计数。
-- `expect()` 统一 `[ERR]` 失败出口。
-- `RenderEvidence` 聚合 dirty / command / pixel artifact 摘要。
-- `render_scene()` 统一 record / execute 后的证据采集。
-- `dirty_stays_inside()` 验证 component dirty 不越界。
-- `same_handle()` / `click_center()` / `mouse_down_center()` / `mouse_up_center()` 收束 demo-side handle comparison 与 pointer setup，不作为 Vivid core input API。
-- `FocusMoveTrace` / `collect_focus_move()` 与 `PointerFocusTrace` / `collect_pointer_focus_trace()` 收束 demo-side pointer / focus event 计数，不作为 Vivid core focus transaction API。
-- `count_click_events_since()` 收束 demo-side semantic action click evidence 计数，不作为 Vivid core input ledger API。
-
-## 首个落点
-
-`Examples/ui/vivid/component_settings_row_demo` 是第一条 component 级证据链样本。
-
-它验证一个 settings row component 中：
-
-- slider truth 变化可被观测。
-- progress mirror 受 slider truth 驱动。
-- value label 随 truth 更新。
-- 本次变化声明为 `paint_only`。
-- render 后输出 dirty / command / pixel artifact 摘要。
-
-`Examples/ui/vivid/component_card_state_demo` 是第二条 component 级证据链样本。
-
-它验证一个 card component 中：
-
-- checkbox 与 slider 两个 child truth 同时变化。
-- progress mirror 与 summary label 汇入同一个 component artifact。
-- 多 child state 变化仍声明为 `paint_only`。
-- render 后输出单个 card dirty rect 与 command / pixel artifact 摘要。
-
-stdout 仍遵守 `vivid_evidence_stdout_law.md`。
-
-## 2026-05 Addendum: Component Settings Row Causal Verdict
-
-`Examples/ui/vivid/component_settings_row_demo` now closes the first component-level causal chain with a final `causal_chain` verdict:
-
-```text
-settings_row.value
-  -> state_delta
-  -> paint_only invalidation
-  -> bounded dirty / DrawCmd / pixel artifact
-  -> causal_chain ok=1
-```
-
-The final verdict proves the slider truth, progress mirror, value label, paint-only invalidation intent, single dirty rect, component-bounded dirty evidence, and changed render artifact are treated as one auditable component consequence.
-
-## 2026-05 Addendum: Component Card State Causal Verdict
-
-`Examples/ui/vivid/component_card_state_demo` extends the component causal chain to multiple child state deltas:
-
-```text
-power_card.state
-  -> enabled + level state_delta
-  -> output + summary derivation
-  -> paint_only invalidation
-  -> bounded dirty / DrawCmd / pixel artifact
-  -> causal_chain ok=1
-```
-
-The final verdict proves multiple child truths can feed one component artifact without losing locality or causality evidence.
-
-## 2026-05 Addendum: Semantic Artifact Evidence
-
-`Examples/ui/vivid/semantic_tree_demo` extends semantic focus evidence into a root-bound Semantic Tree Artifact v0. The artifact is still intentionally smaller than an accessibility runtime: it collects runtime semantic entries under a requested root, preserves deterministic preorder, marks focus truth, reports fixed-capacity overflow, emits `semantic_hash`, and closes with a final `causal_chain` verdict.
-
-The evidence chain now has a semantic branch before screenshot CI:
-
-```text
-semantic store
-  -> semantic focus snapshot
-  -> semantic tree snapshot
-  -> semantic_hash
-```
-
-Stdout remains governed by `vivid_evidence_stdout_law.md`:
-
-```text
-[stree] run=semantic_tree_demo phase=end result=ok cases=7
-```
-
-## 2026-05 Addendum: Pattern Semantic Defaults
-
-`Examples/ui/vivid/semantic_default_demo` verifies Pattern Semantic Defaults v0. This is deliberately opt-in: Vivid derives default role and label source, while product code still supplies stable semantic id.
-
-Evidence chain:
-
-```text
-WidgetKind + text
-  -> set_semantic_default(stable_id)
-  -> semantic snapshot
-  -> semantic tree artifact
-```
-
-The demo guards that decorative widgets are not auto-enrolled and that explicit `set_semantic()` can override a default.
-It also closes the path with a final `causal_chain` verdict over role derivation, label source, override, decorative boundary, and tree artifact evidence.
-
-## 2026-05 Addendum: Semantic Action Artifact
-
-`Examples/ui/vivid/semantic_action_demo` verifies Semantic Action Artifact v0. Semantic nodes can now carry fixed action facts without turning Vivid into a full accessibility runtime:
-
-```text
-semantic store
-  -> semantic action mask
-  -> semantic tree node actions
-  -> semantic_hash
-```
-
-The demo guards role-derived `activate` defaults for Button/ListItem, no-action defaults for Container/Text, explicit action override, action participation in semantic tree hashes, and a final `causal_chain` verdict over those action artifact facts.
-
-## 2026-05 Addendum: Semantic Intent Resolution
-
-`Examples/ui/vivid/semantic_intent_demo` verifies Semantic Intent Resolution v0. It keeps action execution deliberately separate from address lookup:
-
-```text
-semantic tree root
-  -> semantic id + action request
-  -> SemanticIntentResolution
-  -> status evidence
-```
-
-The demo guards resolved lookup, no input/callback side effects, rejected resolutions without input mutation, unsupported action, missing id, ambiguous duplicate id, disabled target, invalid root, missing request id, and a final `causal_chain` verdict over lookup-only intent evidence.
-
-## 2026-05 Addendum: Semantic Action Request
-
-`Examples/ui/vivid/semantic_action_request_demo` verifies Semantic Action Request v0. It is the first semantic action path that crosses from intent resolution into controlled execution:
-
-```text
-SemanticIntentResolution
-  -> SemanticActionAdmission
-  -> SemanticFocusRequest
-  -> Click event evidence
-  -> normal widget click behavior
-```
-
-The demo guards no-execute resolution, executed activate requests, focus/click event traces, already-focused execution without hidden transfer, unsupported-action rejection through action admission, active-scope rejection through focus admission, rejected paths with no focus or click event pollution, ambiguous duplicate ids, missing request ids, final causal-chain evidence, and `SemanticActionRequestLedger` / `reject_reason` evidence that names the failed boundary. Ledger rules are summarized in `vivid_semantic_request_ledger_law_v0.md`.
-
-## 2026-05 Addendum: Intent-to-Artifact Evidence
-
-`Examples/ui/vivid/intent_artifact_demo` connects semantic action request evidence to component render artifact evidence:
-
-```text
-SemanticActionRequest
-  -> SemanticActionRequestLedger
-  -> checked state delta
-  -> paint_only invalidation intent
-  -> dirty / DrawCmd evidence
-  -> render artifact hash
-```
-
-The demo guards a committed `settings.wifi.toggle` semantic activate request, normal checkbox click behavior, bounded component dirty evidence, changed DrawCmd / pixel artifact summaries, and a disabled-target rejection path that leaves state and artifact unchanged. The stage law is summarized in `vivid_intent_to_artifact_evidence_v0.md`.
-
-## 2026-05 Addendum: Semantic Action Admission
-
-`Examples/ui/vivid/semantic_action_admission_demo` verifies Semantic Action Admission v0. It keeps action execution permission separate from actual input execution:
-
-```text
-semantic tree root
-  -> semantic id + action request
-  -> SemanticIntentResolution
-  -> SemanticActionAdmission
-  -> focus/click execution plan
-```
-
-The demo guards admitted activate plans, planning-only side effects, rejected admissions without focus/event/press mutation, planned focus/click evidence, unsupported action, disabled target, ambiguous duplicate id, missing id, invalid root, missing request id, and a final `causal_chain` verdict over admission plan evidence.
-
-## 2026-05 Addendum: Semantic Focus Query
-
-`Examples/ui/vivid/semantic_focus_query_demo` verifies Semantic Focus Query v0. It keeps focus addressability separate from focus transfer:
-
-```text
-semantic tree root
-  -> semantic id + active scope
-  -> SemanticFocusQuery
-  -> focus-addressability status
-```
-
-The demo guards resolved focus targets, no focus transfer side effects, rejected queries without focus/event mutation, non-focusable targets, disabled targets, active-scope rejection, ambiguous duplicate ids, missing ids, invalid root, missing request id, and a final `causal_chain` verdict over lookup-only focus query evidence.
-
-## 2026-05 Addendum: Semantic Focus Admission
-
-`Examples/ui/vivid/semantic_focus_admission_demo` verifies Semantic Focus Admission v0. It keeps transfer permission separate from transfer execution:
-
-```text
-semantic tree root
-  -> semantic id + current focus + active scope
-  -> SemanticFocusAdmission
-  -> transfer plan / rejection status
-```
-
-The demo guards admitted transfer plans, already-focused no-op plans, no focus transfer side effects, rejected admissions without focus/event mutation, non-focusable targets, disabled targets, active-scope rejection, ambiguous duplicate ids, missing ids, invalid root, missing request id, and a final `causal_chain` verdict over focus admission plan evidence.
-
-## 2026-05 Addendum: Semantic Focus Request
-
-`Examples/ui/vivid/semantic_focus_request_demo` verifies Semantic Focus Request v0. It is the first semantic focus path that crosses from admission into controlled input execution:
-
-```text
-SemanticFocusQuery
-  -> SemanticFocusAdmission
-  -> SemanticFocusRequest
-  -> input focus truth + FocusOut/FocusIn evidence
-```
-
-The demo guards committed transfer execution, event evidence, semantic focus truth after request, focus-ring artifact migration, rejection without artifact mutation, final causal-chain verdict, already-focused no-op, active-scope rejection, non-focusable targets, disabled targets, ambiguous duplicate ids, invalid root, missing request id, and `SemanticFocusRequestLedger` evidence that names the final request stage. Ledger rules are summarized in `vivid_semantic_request_ledger_law_v0.md`.
+1. baseline state 与 artifact；
+2. 一个明确 cause 或 request；
+3. state delta 和 invalidation intent；
+4. dirty/draw/artifact 的 before/after；
+5. scope、overflow、failed command 与 unsupported 状态；
+6. 一个 no-op/reject/failure 负例，证明无污染；
+7. 引用上述 segment 的 causal verdict。
+
+推荐 fixture 与 stdout 规则从 [`vivid_evidence_lab_manifest_v0.md`](vivid_evidence_lab_manifest_v0.md) 和
+[`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md) 进入。fixture 通过不等于产品视觉、性能或
+真实板行为已通过。
+
+component state/render 的 primary evidence routes 包括
+`Examples/ui/vivid/component_card_state_demo` 与
+`Examples/ui/vivid/component_settings_row_demo`；其 `causal_chain` 必须引用本页 required segments。
+
+## 非目标
+
+- 不用 screenshot/hash 代替完整因果链。
+- 不把 demo helper、日志前缀或 case 名提升为 runtime API。
+- 不依赖 draw command 私有 wire/layout 形成产品证据。
+- 不把 semantic lookup、admission 和 execution 合并为隐式副作用。
+- 不在本文维护 dated demo 结果、完成度或新增 case 记录。

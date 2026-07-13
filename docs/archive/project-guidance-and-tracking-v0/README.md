@@ -13,13 +13,13 @@ escape hatch 和具体审查发现，但也存在以下问题：
 保留文件：
 
 - [`embedded_cpp_retained_notes.md`](embedded_cpp_retained_notes.md)：从早期 593 行实践指南中提取的
-  执行上下文、DMA、模板构造、错误边界和 escape hatch 取舍；重复规则与禁止清单已删除。
+  执行上下文、DMA、模板构造、错误边界和 escape hatch 取舍。
 - [`repository_review_retained_notes.md`](repository_review_retained_notes.md)：从旧全仓 backlog 提取的
-  聚合入口、复合职责、桥接边界和分刀顺序；旧路径、行数、优先级和任务状态已删除。
+  聚合入口、复合职责、桥接边界和分刀顺序。
 
 当前操作规则以根 `AGENTS.md` 和 [`../../agent/README.md`](../../agent/README.md) 为准；项目编码
 入口见 [`../../project/standards/README.md`](../../project/standards/README.md)。归档中的任务状态、
 责任人、文件路径和完成结论不得作为当前事实。
 
-历史协作看板中仍可复用的判断已经收敛为：只有接口握手稳定后才拆并行轨道；共享高风险文件采用
-短时认领；接口、迁移和清理分开提交。旧责任人、TTL、任务状态和文件清单不再保留在当前树中。
+仍可复用的协作判断是：接口握手稳定后再拆并行轨道；共享高风险文件采用短时认领；接口、迁移和
+清理分开提交。

@@ -357,8 +357,7 @@ src/
 
 ```cpp
 // ⚠️ ESCAPE_HATCH: Performance-critical path
-// Benchmark shows type-safe version adds 15% overhead
-// See: docs/benchmarks/spi_transfer.md
+// Requires a checked-in benchmark before this exception is accepted.
 inline void fast_memcpy_u32(
     volatile uint32_t* dest,
     const uint32_t* src,

@@ -10,44 +10,18 @@
 Task syscall 是 minimal-kernel 内部实验接口，不是产品用户态 ABI、POSIX syscall 表或
 Charm App API。
 
-## 模块边界
+## 请求与映射
 
-| 模块 | 责任 |
-|---|---|
-| `kernel.task_syscall_api` | `sys_*` 的 task-facing 薄包装 |
-| `kernel.task_syscall_catalog` | syscall id 与 trap service 的静态映射 |
-| `kernel.task_syscall_dispatch` | `TaskSyscallRequest` 到一个 dispatch surface |
-| `kernel.task_syscall_table` | syscall id 到固定 handler entry 的 lookup/dispatch |
-| `kernel.task_syscall_frame` | frame capture、decode、table dispatch 与 result writeback |
+Task-facing wrapper 只把 typed operation 转成 syscall id 和四个参数，不拥有调度策略或架构
+frame。Catalog 负责 syscall id、trap service 与语义投影之间的映射；未知 id 必须保持
+invalid/unsupported，不得回退到其它 handler。
 
-这些层可以在代码中分开维护，但共享本契约，不再为每个薄 facade 建立独立文档。
-
-## 当前编号
-
-| `TaskSyscallId` | 数值 | 对应 `TrapService` | 参数 |
-|---|---:|---|---|
-| `invalid` | 0 | `invalid` | 无 |
-| `yield` | 1 | `yield_current` | 无 |
-| `sleep_until` | 2 | `sleep_until` | `arg0=due` |
-| `debug_write` | 3 | `debug_write` | `arg0=value` |
-| `capability_call` | 4 | `capability_call` | `arg0=id, arg1=operation, arg2=payload` |
-
-编号当前直接复用 `TrapService` 数值。这是实现事实，不承诺永久 wire ABI。
-
-## Request 与 catalog
-
-`TaskSyscallRequest` 固定包含：
-
-```text
-syscall / arg0 / arg1 / arg2 / arg3
-```
-
-Catalog 描述 name、trap service、view kind、参数名称、结果名称和 supported 标志。
-未知 id 映射为 invalid/unsupported，不得回退到其它 handler。
+当前 syscall id 复用 `TrapService` 数值只是实现事实，不构成永久 wire ABI。具体编号和参数名
+以 `kernel.task_syscall_catalog` 源码为准，不在本文复制。
 
 ## Static table
 
-`TaskSyscallTable` 持有固定数量的 `TaskSyscallHandlerEntry`：
+Table 持有固定数量的 handler entry，并保持以下分支可区分：
 
 - lookup 返回 entry、slot 和 matched；
 - matched 且 handler valid 时调用 handler；
@@ -55,15 +29,10 @@ Catalog 描述 name、trap service、view kind、参数名称、结果名称和 
 - 未匹配返回 `TrapError::unsupported_service`；
 - dispatch 保留 handler 返回的 disposition/error/value。
 
-Table 不提供动态注册、权限检查、进程隔离或 ABI 版本协商。
+Handler 的 disposition、error 与 value 必须原样进入统一 `TrapResult`，table 不把拒绝或失败
+包装成成功。Table 不提供动态注册、权限检查、进程隔离或 ABI 版本协商。
 
 ## Frame pipeline
-
-`kernel.task_syscall_frame` 提供架构无关的五字段视图：
-
-```text
-syscall / arg0 / arg1 / arg2 / arg3
-```
 
 处理顺序固定为：
 
@@ -71,32 +40,23 @@ syscall / arg0 / arg1 / arg2 / arg3
 capture/decode -> TaskSyscallRequest -> table dispatch -> apply_result
 ```
 
-`TaskSyscallFrameAdapter<Frame>` 由平台提供 `capture` 和 `apply_result`。Adapter 缺失、decode
-失败和 writeback 失败必须分别报告；frame bridge 不拥有真实架构 frame layout。
+公共层只看 syscall id 和四个参数。平台 adapter 拥有真实 frame layout，并提供 capture 与
+result writeback；frame bridge 不得引入平台寄存器布局。
+
+Adapter 缺失报告 `unbound_adapter`，capture/decode 失败报告 `decode_failed`，result writeback
+失败报告 `writeback_failed`。这些错误不得合并或改写为 handler 失败。
 
 ## 结果与观测
 
-所有分支使用 [`TrapResult`](minimal_kernel_trap_syscall_contract.md)：
+所有分支使用 [`TrapResult`](minimal_kernel_trap_syscall_contract.md)。Catalog、dispatch、table
+和 frame 可以产生局部 trace/witness，但这些观测不构成 syscall ABI 或系统级证据。
 
-```text
-disposition / error / value
-```
+## 验证入口
 
-Catalog、dispatch、table 和 frame 各自提供 trace/witness 类型。Witness 是局部测试结果，
-不构成 syscall ABI 或系统级证据。
-
-## 证据
-
-- `Examples/kernel/runtime_task_syscall_host`
-- `Examples/kernel/runtime_task_syscall_catalog_host`
-- `Examples/kernel/runtime_task_syscall_dispatch_host`
-- `Examples/kernel/runtime_task_syscall_table_host`
-- `Examples/kernel/runtime_task_syscall_frame_host`
-- `Examples/kernel/runtime_task_syscall_frame_caller_host`
-- `Examples/kernel/runtime_task_syscall_frame_armv7a_host`
-
-ARMv7-A 映射边界见
-[`armv7a_runtime_trap_mapping_contract.md`](armv7a_runtime_trap_mapping_contract.md)。
+Host 与 QEMU 入口由 [`Examples/kernel/README.md`](../../Examples/kernel/README.md) 路由；
+ARMv7-A frame ownership 与证据边界见
+[`armv7a_runtime_trap_mapping_contract.md`](armv7a_runtime_trap_mapping_contract.md)。验证通过只证明
+对应 fixture，不证明产品用户态隔离或稳定 syscall ABI。
 
 ## 非目标
 

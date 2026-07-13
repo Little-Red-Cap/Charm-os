@@ -52,21 +52,8 @@ load buffer and cache preparation must remain consistent. Exact Store fields,
 default fixtures and status tokens come from source and the capture script, not
 from a copied struct in this README.
 
-## Build And Validation
+## Validation
 
-Run from `Examples/project/h747-lab`:
-
-```powershell
-cmake --build --preset build-h747-lab-app-lab-debug -- -j1
-powershell -ExecutionPolicy Bypass -File tools/flash-app-lab-pyocd.ps1
-powershell -ExecutionPolicy Bypass -File tools/capture-app-lab-smoke.ps1
-```
-
-The flash wrapper uses the generated `.bin` at internal Flash base `0x08000000`;
-`-Elf` is an explicit debugging alternative. Treat flash as successful only
-when pyOCD exits zero.
-
-The board protocol, log validation and retained evidence are documented in
-[`h747_lab_app_lab_smoke.md`](../../docs/h747_lab_app_lab_smoke.md). Current role
-split is defined by
+Build、flash、capture、manual commands、token validation 与 retained board evidence 只在
+[`h747_lab_app_lab_smoke.md`](../../docs/h747_lab_app_lab_smoke.md) 维护。三个动态入口的当前分工见
 [`h747_lab_dynamic_boundary_roadmap.md`](../../docs/h747_lab_dynamic_boundary_roadmap.md).

@@ -58,5 +58,6 @@ Host/QEMU/real-board 是不同证据域。Host 程序读取 QEMU/board metadata 
 涉及新公共名词时，评审必须给出 Constitution 六问、真实 consumer、唯一裁决等级、失败语义和
 至少一个反例。证据不足时保留在局部 implementation 或 exploration，不新增 Core API。
 
-本审计不宣称跨环境 MVP 已完成，也不宣称现有 topology、Capability interface、`semantic.core`、
-RTE、init graph 或任一 Runtime 已获准成为 Charm Core。
+当前 exploration MVP 已取得 Host、真实 QEMU 与 H747 实板的同源运行证据；该事实只满足跨环境
+举证前置条件，不代表现有 topology、Capability interface、`semantic.core`、RTE、init graph
+或任一 Runtime 已获准成为 Charm Core。

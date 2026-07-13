@@ -43,14 +43,16 @@ Charm MVP 只验证一句话：
 ## 当前已经做到
 
 - 仓库已有 Host、QEMU 和真实板的独立运行与证据链。
+- 非公共 Capability MVP 已在 Host、真实 QEMU 固件和 H747 实板运行同一 App，三域得到相同
+  timestamp/checksum，并证明缺失 required capability 时不会启动 App。
 - 已有 IO、装配、运行时、板级和 Resident ELF 等实现，可作为 Core 审判与 MVP 复用材料。
 - 已有多个真实项目持续验证代码能否离开单一宿主或单一板卡。
 
-这些事实证明仓库有可用技术积累，但还没有自动证明 Charm MVP，也不批准任何既有名词进入 Core。
+这些事实已经证明当前 exploration MVP 的跨环境命题，但不会自动批准任何既有名词进入 Core。
 
 ## 当前尚未做到
 
-- 尚未用同一份最小应用和 Requirement 声明完成 Host、QEMU、真实板三环境硬验收。
+- MVP 的候选关系与 Contract 投影仍位于 exploration；正式公共所有权与准入尚未裁决。
 - 尚未完成全仓术语审计、唯一术语表与统一路线图。
 - Project 外移、目录重整、C/C++ 规范合并和 CMake 收敛尚未开始。
 - Charm 不是完整 OS，也没有承诺进程隔离、生产级驱动生态或自动 Binding Compiler。

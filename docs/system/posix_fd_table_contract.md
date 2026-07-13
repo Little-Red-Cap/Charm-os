@@ -5,19 +5,11 @@
 `FdTable<MaxFds>` 是固定容量 descriptor 表。它保存 `FdEntry` 视图并通过 `FdOps` 调用具体
 file、pipe、term、device、proc 或 socket backend；它本身不实现这些 backend。
 
-源码入口：
-
-- `Modules/io/posix/posix.fd_table.cppm`
-- `Modules/io/posix/posix.spawn_fds.cppm`
-
 ## Entry
 
-`FdEntry` 包含 fd id、kind、访问 flags、`FdOps*`、不拥有的 ctx 和 per-descriptor
-`inheritable` 标志。backend 需要共享 open-file-description 状态时，必须通过 ctx 与 `dup/close`
-hook 管理引用。
-
-`FdOps` 当前可选提供 read、write、close、stat、dup、seek、get/set status flags。缺失操作的
-上层错误语义由调用该操作的 façade 决定。
+Entry 保存 descriptor metadata、non-owning backend context/ops 和 inheritable 状态。Backend 需要
+共享 open-file-description 时，必须通过 context 与 dup/close hook 管理引用；缺失 op 的上层错误由
+调用该操作的 facade 决定。
 
 ## Table 行为
 

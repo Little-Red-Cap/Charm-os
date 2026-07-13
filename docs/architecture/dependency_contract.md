@@ -49,20 +49,9 @@ Foundation -> Runtime -> IO -> Domain
 
 ## 当前自动检查
 
-`CHARM_ENABLE_DEPENDENCY_WHITELIST=ON` 启用 [`../../cmake/DependencyWhitelist.cmake`](../../cmake/DependencyWhitelist.cmake)。它当前检查：
-
-- first-party tree 的退役/兼容 facade import；
-- `charm.*.cppm` 入口台账与稳定入口卫生；
-- kernel core 对 `out.*` 的 presentation 边界。
-
-它当前不检查：
-
-- 所有 module import 组成的完整 DAG；
-- 每个叶子模块的允许依赖列表；
-- project/backend 是否违反业务所有权；
-- runtime 行为、初始化顺序或 capability 唯一性。
-
-该检查默认关闭，是 opt-in 配置证据，不得写成“所有构建都强制”。完整规则见 [`dependency_whitelist.md`](dependency_whitelist.md)。
+`CHARM_ENABLE_DEPENDENCY_WHITELIST=ON` 检查历史入口、entry inventory/hygiene 和 kernel
+presentation 边界。它默认关闭，不证明完整 DAG、project/backend ownership、runtime/init 行为或
+capability 唯一性；完整规则见 [`dependency_whitelist.md`](dependency_whitelist.md)。
 
 ## 变更规则
 

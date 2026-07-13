@@ -1,97 +1,60 @@
 # Charm Capability MVP
 
-## Status
+## 文档状态
 
 - `status`: `exploration`
-- `scope`: non-public cross-environment proof for the Charm MVP
-- `authority`: [`CONSTITUTION.md`](../../../CONSTITUTION.md) and
+- `scope`: Charm MVP 的 Host、QEMU 与 H747 同源证据
+- `authority`: [`CONSTITUTION.md`](../../../CONSTITUTION.md) 与
   [`charm_core_contract.md`](../../../docs/architecture/charm_core_contract.md)
 
-This example contains the shared application and composition semantics used by
-the Host, real QEMU, and H747 implementation slices of the Charm MVP. It
-deliberately lives outside `Modules/*`: all three domains must produce matching
-runtime evidence before these semantics may request public promotion.
+本目录保存 portable application、contract projection、composition 与三域 verifier。它位于
+`Examples/*`，不构成公共 API 或 Core 晋升。
 
-The portable app in `mvp_app.hpp` declares exactly three requirements:
+## MVP 主张
 
-- `TextSink / report`
-- `Clock / monotonic_time`
-- `BlockDevice / record_store`
+[`mvp_app.hpp`](mvp_app.hpp) 只声明三项 requirement：
 
-The app only receives a resolved context. It does not contain a platform macro,
-vendor header, HAL handle, target name, profile name, or provider identity.
+| Contract | Role |
+|---|---|
+| `TextSink` | `report` |
+| `Clock` | `monotonic_time` |
+| `BlockDevice` | `record_store` |
 
-The Host harness proves:
+App 只接收 resolved context，不包含 platform macro、vendor header、HAL handle、target/profile name 或
+provider identity。Requirement、Provision、Binding 和 pre-start failure 由
+[`mvp_composition.hpp`](mvp_composition.hpp) 统一定义。
 
-- one shared definition for each capability contract projection;
-- explicit Requirement, Provision, and Binding values;
-- successful resolution before app start;
-- stable pre-start failure for missing, duplicate, contract-mismatched, and invalid provisions;
-- a timestamped record write/read check and TextSink report;
-- no app start after a resolution failure.
+## 证据域
 
-The Host failure matrix additionally exercises every MVP requirement position
-for missing, duplicate, out-of-range, contract-mismatched, and invalid
-provisions, plus every `app::run()` failure stage from Clock through report
-flush. It checks failure-stage Evidence flags and confirms later providers are
-not called after an earlier stage fails. This is exploration evidence, not a
-public API promotion.
+| Domain | 变化 | 必须证明 |
+|---|---|---|
+| Host | Host profile/providers | positive run、完整 resolution/app failure matrix、失败后不继续调用 |
+| QEMU | Cortex-M7 firmware profile/providers | 同一源码、相同 semantic result、firmware 内 pre-start failure |
+| H747 | board-local profile、UART/tick/RAM block providers | 真实板 positive run 与 missing binding 阻止 App start |
 
-The QEMU slice builds a Cortex-M7 firmware and runs it inside QEMU `mps2-an500`.
-It consumes the same `mvp_app.hpp`, contract definitions, and resolver as Host;
-only the Profile and providers change. It produces the same timestamp and record
-checksum and proves a missing binding stops before App start inside the firmware.
-The QEMU firmware runs the same 21-case resolution matrix as Host, covering all
-requirement positions and all binding-order permutations. It also runs the same
-12 `app::run()` failure stages, with later capability calls stopped at the
-failing boundary.
+Host 与 QEMU 的 matrix 覆盖每个 requirement position、binding order 和 App failure stage。H747 使用
+RAM-backed BlockDevice，避免把 QSPI/eMMC 可用性或写安全混入 MVP。三个 domain 必须给出可比较的
+timestamp/checksum；任一域缺失都不能宣称跨环境证据闭合。
 
-Current Host evidence passes with Clang 18.1.6 and GCC 16.1.0. The same Host
-CTest set also passes a Clang 18 Release build with AddressSanitizer and
-UndefinedBehaviorSanitizer enabled.
-Current QEMU evidence passes with Arm GNU 17.0.0 and QEMU 10.2.90.
+## 验证入口
 
-The H747 implementation target builds as
-`h747_lab_capability_mvp`, using the same headers with a board-local Profile,
-UART TextSink, tick-backed Clock adapter, and RAM BlockDevice. Its real UART log
-has passed both the board capture smoke and the three-domain verifier. Host,
-QEMU, and H747 all produced timestamp `424242` and checksum `0x49b880f0`; H747
-also proved a missing required binding retained `start_count=0`. The types remain
-exploration evidence rather than promoted public APIs.
+| 范围 | 入口 |
+|---|---|
+| Host | [`run_host_ci.ps1`](run_host_ci.ps1) |
+| QEMU | [`qemu/run_qemu_ci.ps1`](qemu/run_qemu_ci.ps1) |
+| H747 build/capture | [`H747 Capability MVP`](../../project/h747-lab/apps/capability_mvp/README.md) |
+| portable source boundary | [`verify_portable_source_boundary.ps1`](verify_portable_source_boundary.ps1) |
+| Host/QEMU comparison | [`verify_host_qemu_evidence.ps1`](verify_host_qemu_evidence.ps1) |
+| three-domain gate | [`verify_cross_environment_evidence.ps1`](verify_cross_environment_evidence.ps1) |
 
-Build and run:
+Three-domain verifier 要求真实 board log；缺失时以 `board_evidence_missing` 失败，不退化为 Host/QEMU
+成功。编译器版本、token、case count、默认 build path 和当前通过状态由 runner/verifier 输出维护。
 
-```powershell
-cmake -S Examples/system/charm_capability_mvp -B Examples/system/charm_capability_mvp/cmake-build-charm-capability-mvp -G Ninja
-cmake --build Examples/system/charm_capability_mvp/cmake-build-charm-capability-mvp
-ctest --test-dir Examples/system/charm_capability_mvp/cmake-build-charm-capability-mvp --output-on-failure
-```
+Source-boundary verifier 检查 shared headers 不含 target/OS/vendor vocabulary 或 conditional
+compilation，并要求三个 harness 各自只包含 canonical `mvp_app.hpp` 一次。Host/QEMU partial gate 必须
+显式限定 `-Domains host,qemu`，不能冒充三域证据。
 
-Run the real QEMU firmware smoke:
+## 边界
 
-```powershell
-.\Examples\system\charm_capability_mvp\qemu\run_qemu_ci.ps1
-```
-
-Build and capture the H747 execution domain from `Examples/project/h747-lab`:
-
-```powershell
-cmake --preset h747-lab-capability-mvp-debug
-cmake --build --preset build-h747-lab-capability-mvp-debug -- -j1
-.\tools\capture-capability-mvp-board-smoke.ps1
-```
-
-After a passing board log exists, machine-check all three domains:
-
-```powershell
-.\Examples\system\charm_capability_mvp\verify_portable_source_boundary.ps1
-.\Examples\system\charm_capability_mvp\verify_cross_environment_evidence.ps1
-```
-
-The source-boundary verifier rejects target/OS/vendor vocabulary and
-conditional compilation in the shared MVP headers. It also requires the Host,
-QEMU, and H747 harnesses to include the one canonical `mvp_app.hpp` exactly
-once and forbids them from reopening `charm::mvp::app` to define a private app.
-Its standalone default checks all three consumers; the Host/QEMU partial
-verifier passes `-Domains host,qemu` explicitly so partial evidence remains
-honestly scoped.
+通过 MVP 只证明这组局部 contract projection 和 composition 在三个 execution environment 中保持同一
+语义；它不自动批准 topology、Provider、Profile、Evidence、RTE 或任一 runtime 进入 Charm Core。

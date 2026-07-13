@@ -34,7 +34,6 @@ public:
         pinch_strategy_.set_callbacks(PinchScrollStrategy::begin_delegate::bind<&ScrollContainer::on_pinch_begin>(*this),
                                       PinchScrollStrategy::update_delegate::bind<&ScrollContainer::on_pinch_update>(*this),
                                       PinchScrollStrategy::end_delegate::bind<&ScrollContainer::on_pinch_end>(*this));
-        enable_interaction(&pinch_strategy_, InteractionList<>::mask(Event::Type::GesturePinch));
     }
     void set_scroll_y(int y) noexcept {
         const int old = scroll_y_;
@@ -59,11 +58,6 @@ public:
     void set_inertia_extra_ratio(float v) noexcept { inertia_extra_ratio_ = clamp_ratio(v); }
     void set_pinch_enabled(bool on) noexcept {
         pinch_strategy_.set_enabled(on);
-        if (on) {
-            enable_interaction(&pinch_strategy_, InteractionList<>::mask(Event::Type::GesturePinch));
-        } else {
-            disable_interaction(&pinch_strategy_);
-        }
     }
     void set_scroll_hint_enabled(bool on) noexcept { show_scroll_hint_ = on; }
 
@@ -202,7 +196,7 @@ public:
             return true;
         } else if (e.type == Event::Type::GesturePinch) {
             if (!r.contains(e.x, e.y)) return false;
-            return dispatch_interactions(e);
+            return pinch_strategy_.on_event(e);
         }
         return false;
     }

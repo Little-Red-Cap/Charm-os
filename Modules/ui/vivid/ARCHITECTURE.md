@@ -115,6 +115,13 @@ layout 与 clip/viewport；滚动、虚拟列表等行为不能绕过统一 layo
 SoA kernel 统一处理 hit-test、capture、drag/cancel 和 focus。dispatch 先记录 action，再在受控提交阶段修改
 状态，避免 widget 分散写入 hover/pressed/focused truth。
 
+Object-level widget 不在 `ObjectBase` 常驻通用交互表。需要 gesture/interaction strategy 的控件显式拥有并
+直接派发对应 strategy；自定义控件需要组合多个 strategy 时，可以自行持有固定容量 `InteractionList`。
+未使用交互扩展的 object widget 不支付其 RAM 成本。
+
+跨帧保存的 UI callback 使用 `util::delegate` 并由 owner 保证 target 生命周期。`std::function_ref` 只适合
+未来同步、非逃逸的函数参数，不得存入 widget、strategy、Scene 或 payload。
+
 控件实现语义行为，不拥有全局 focus/navigation policy。focus truth、scope、semantic request 与 visual
 focus artifact 的边界从 [`vivid_focus_evidence_boundary_v0.md`](../../../docs/ui/vivid_focus_evidence_boundary_v0.md)
 进入。

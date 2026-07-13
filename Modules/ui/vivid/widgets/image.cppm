@@ -65,7 +65,6 @@ public:
     Image() {
         double_tap_.set_callback(DoubleTapRestoreStrategy::callback_delegate::bind<&Image::on_double_tap>(*this));
         double_tap_.set_threshold(double_tap_ms_, double_tap_radius_);
-        enable_interaction(&double_tap_, InteractionList<>::mask(Event::Type::Click));
     }
 
     void set_image(const ImageView& img) noexcept {
@@ -130,11 +129,6 @@ public:
     }
     void set_double_tap_restore(bool on) noexcept {
         double_tap_.set_enabled(on);
-        if (on) {
-            enable_interaction(&double_tap_, InteractionList<>::mask(Event::Type::Click));
-        } else {
-            disable_interaction(&double_tap_);
-        }
     }
     void set_double_tap_ms(int ms) noexcept {
         double_tap_.set_threshold((ms > 0) ? ms : 0, double_tap_radius_);
@@ -216,7 +210,7 @@ public:
         (void)e;
         return false;
 #else
-        if (dispatch_interactions(e)) return true;
+        if (double_tap_.on_event(e)) return true;
         if (!pinch_enabled_) return false;
         if (e.type != Event::Type::GesturePinch) return false;
         if (e.gesture_phase == Event::GesturePhase::Begin) {

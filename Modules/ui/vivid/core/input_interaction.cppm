@@ -86,20 +86,10 @@ private:
 export
 class DoubleTapRestoreStrategy {
 public:
-    using Callback = void(*)(void*);
-    // Prefer util::delegate for same-domain UI binding; keep fn+ctx for legacy call sites.
     using callback_delegate = util::delegate<>;
 
     void set_callback(callback_delegate callback) noexcept {
         callback_ = callback;
-        legacy_callback_ = nullptr;
-        legacy_ctx_ = nullptr;
-    }
-
-    void set_callback(Callback fn, void* ctx) noexcept {
-        callback_ = {};
-        legacy_callback_ = fn;
-        legacy_ctx_ = ctx;
     }
 
     void set_enabled(bool on) noexcept { enabled_ = on; }
@@ -117,8 +107,6 @@ public:
         if (!is_double_tap(e.x, e.y, e.ms)) return false;
         if (callback_) {
             callback_();
-        } else if (legacy_callback_) {
-            legacy_callback_(legacy_ctx_);
         }
         return true;
     }
@@ -126,7 +114,7 @@ public:
 private:
     bool is_double_tap(int x, int y, std::uint32_t now_ms) {
         bool is_double = false;
-        if (double_tap_ms_ > 0) {
+        if (has_last_tap_ && double_tap_ms_ > 0) {
             const auto elapsed = (now_ms >= last_tap_time_) ? (now_ms - last_tap_time_) : 0;
             const int dx = x - last_tap_x_;
             const int dy = y - last_tap_y_;
@@ -139,13 +127,13 @@ private:
         last_tap_time_ = now_ms;
         last_tap_x_ = x;
         last_tap_y_ = y;
+        has_last_tap_ = true;
         return is_double;
     }
 
     callback_delegate callback_{};
-    Callback legacy_callback_{nullptr};
-    void* legacy_ctx_{nullptr};
     bool enabled_{true};
+    bool has_last_tap_{false};
     int double_tap_ms_{300};
     int double_tap_dist_sq_{144};
     int last_tap_x_{0};
@@ -156,9 +144,6 @@ private:
 export
 class PinchScrollStrategy {
 public:
-    using BeginFn = void(*)(void*);
-    using UpdateFn = void(*)(void*, int);
-    using EndFn = void(*)(void*);
     using begin_delegate = util::delegate<>;
     using update_delegate = util::delegate<int>;
     using end_delegate = util::delegate<>;
@@ -169,20 +154,6 @@ public:
         begin_ = begin_cb;
         update_ = update_cb;
         end_ = end_cb;
-        legacy_begin_ = nullptr;
-        legacy_update_ = nullptr;
-        legacy_end_ = nullptr;
-        legacy_ctx_ = nullptr;
-    }
-
-    void set_callbacks(BeginFn begin_fn, UpdateFn update_fn, EndFn end_fn, void* ctx) noexcept {
-        begin_ = {};
-        update_ = {};
-        end_ = {};
-        legacy_begin_ = begin_fn;
-        legacy_update_ = update_fn;
-        legacy_end_ = end_fn;
-        legacy_ctx_ = ctx;
     }
 
     void set_enabled(bool on) noexcept { enabled_ = on; }
@@ -193,20 +164,14 @@ public:
         if (e.gesture_phase == Event::GesturePhase::Begin) {
             if (begin_) {
                 begin_();
-            } else if (legacy_begin_) {
-                legacy_begin_(legacy_ctx_);
             }
         } else if (e.gesture_phase == Event::GesturePhase::Update) {
             if (update_) {
                 update_(e.dy);
-            } else if (legacy_update_) {
-                legacy_update_(legacy_ctx_, e.dy);
             }
         } else if (e.gesture_phase == Event::GesturePhase::End) {
             if (end_) {
                 end_();
-            } else if (legacy_end_) {
-                legacy_end_(legacy_ctx_);
             }
         }
         return true;
@@ -216,19 +181,12 @@ private:
     begin_delegate begin_{};
     update_delegate update_{};
     end_delegate end_{};
-    BeginFn legacy_begin_{nullptr};
-    UpdateFn legacy_update_{nullptr};
-    EndFn legacy_end_{nullptr};
-    void* legacy_ctx_{nullptr};
     bool enabled_{true};
 };
 
 export
 class DragStrategy {
 public:
-    using BeginFn = void(*)(void*, int, int);
-    using UpdateFn = void(*)(void*, int, int, int, int);
-    using EndFn = void(*)(void*, int, int);
     using begin_delegate = util::delegate<int, int>;
     using update_delegate = util::delegate<int, int, int, int>;
     using end_delegate = util::delegate<int, int>;
@@ -239,20 +197,6 @@ public:
         begin_ = begin_cb;
         update_ = update_cb;
         end_ = end_cb;
-        legacy_begin_ = nullptr;
-        legacy_update_ = nullptr;
-        legacy_end_ = nullptr;
-        legacy_ctx_ = nullptr;
-    }
-
-    void set_callbacks(BeginFn begin_fn, UpdateFn update_fn, EndFn end_fn, void* ctx) noexcept {
-        begin_ = {};
-        update_ = {};
-        end_ = {};
-        legacy_begin_ = begin_fn;
-        legacy_update_ = update_fn;
-        legacy_end_ = end_fn;
-        legacy_ctx_ = ctx;
     }
 
     void set_enabled(bool on) noexcept { enabled_ = on; }
@@ -262,24 +206,18 @@ public:
         if (e.type == Event::Type::DragStart) {
             if (begin_) {
                 begin_(e.x, e.y);
-            } else if (legacy_begin_) {
-                legacy_begin_(legacy_ctx_, e.x, e.y);
             }
             return true;
         }
         if (e.type == Event::Type::DragMove) {
             if (update_) {
                 update_(e.x, e.y, e.dx, e.dy);
-            } else if (legacy_update_) {
-                legacy_update_(legacy_ctx_, e.x, e.y, e.dx, e.dy);
             }
             return true;
         }
         if (e.type == Event::Type::DragEnd) {
             if (end_) {
                 end_(e.x, e.y);
-            } else if (legacy_end_) {
-                legacy_end_(legacy_ctx_, e.x, e.y);
             }
             return true;
         }
@@ -290,29 +228,16 @@ private:
     begin_delegate begin_{};
     update_delegate update_{};
     end_delegate end_{};
-    BeginFn legacy_begin_{nullptr};
-    UpdateFn legacy_update_{nullptr};
-    EndFn legacy_end_{nullptr};
-    void* legacy_ctx_{nullptr};
     bool enabled_{true};
 };
 
 export
 class LongPressStrategy {
 public:
-    using Callback = void(*)(void*);
     using callback_delegate = util::delegate<>;
 
     void set_callback(callback_delegate callback) noexcept {
         callback_ = callback;
-        legacy_callback_ = nullptr;
-        legacy_ctx_ = nullptr;
-    }
-
-    void set_callback(Callback fn, void* ctx) noexcept {
-        callback_ = {};
-        legacy_callback_ = fn;
-        legacy_ctx_ = ctx;
     }
 
     void set_enabled(bool on) noexcept { enabled_ = on; }
@@ -361,10 +286,6 @@ public:
                     callback_();
                     return true;
                 }
-                if (legacy_callback_) {
-                    legacy_callback_(legacy_ctx_);
-                    return true;
-                }
             }
             return false;
         }
@@ -373,8 +294,6 @@ public:
 
 private:
     callback_delegate callback_{};
-    Callback legacy_callback_{nullptr};
-    void* legacy_ctx_{nullptr};
     bool enabled_{true};
     bool pressed_{false};
     bool canceled_{false};
@@ -384,3 +303,18 @@ private:
     int start_y_{0};
     std::uint32_t start_time_{0};
 };
+
+static_assert(sizeof(DoubleTapRestoreStrategy)
+              <= sizeof(DoubleTapRestoreStrategy::callback_delegate) + 24);
+static_assert(sizeof(PinchScrollStrategy)
+              <= sizeof(PinchScrollStrategy::begin_delegate)
+                   + sizeof(PinchScrollStrategy::update_delegate)
+                   + sizeof(PinchScrollStrategy::end_delegate)
+                   + sizeof(void*));
+static_assert(sizeof(DragStrategy)
+              <= sizeof(DragStrategy::begin_delegate)
+                   + sizeof(DragStrategy::update_delegate)
+                   + sizeof(DragStrategy::end_delegate)
+                   + sizeof(void*));
+static_assert(sizeof(LongPressStrategy)
+              <= sizeof(LongPressStrategy::callback_delegate) + 24);

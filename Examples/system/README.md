@@ -51,6 +51,17 @@ Charm Core 身份。具体 token、负例和编译器要求以各目录 CMake/so
 这些 fixture 不证明 QSPI/eMMC 硬件、filesystem、签名或 update slot。Store v1 当前边界见
 [`app_abi/README.md`](../app_abi/README.md)，断言以各目录 CMake/source 为准。
 
+## App ABI runtime fixtures
+
+| Fixture | 局部证明 |
+|---|---|
+| `app_abi_host_smoke` | 直接链接 `hello_app`/`player_min`，以 mock capability table 调用 `charm_app_main` |
+| `app_abi_runtime_smoke` | staged function image 的 `lookup/load/abi/argv/start/exit` 与稳定失败阶段 |
+| `app_abi_modulex_smoke` | ModuleX image 经 external resolver 绑定 host fake entry 后进入同一 `AppRuntime` |
+
+这些 host fixture 不执行 ARM ELF 或 ModuleX text，也不形成第二套 App ABI。当前 ABI 与 image format
+边界见 [`app_abi/README.md`](../app_abi/README.md)。
+
 ## Dev Loader receive fixtures
 
 | Fixture | 局部证明 |
@@ -63,6 +74,10 @@ Charm Core 身份。具体 token、负例和编译器要求以各目录 CMake/so
 | `dev_loader_packet_console_smoke` | packetstream 与 `dev packet ingest <hex>` 命令互转 |
 | `dev_loader_command_smoke` | session 之上的共享命令层与诊断结果 |
 | `dev_loader_stage_probe_smoke` | `launch_ready` payload 的 received read、ELF stage 与 probe |
+| `dev_loader_app_handoff_smoke` | received image 经 fake function loader 进入 `AppRuntime::run()` |
+| `dev_loader_received_elf_smoke` | received ELF 的 stage、segment copy、probe metadata 与失败诊断 |
+| `dev_loader_received_modulex_smoke` | received ModuleX 经 staged source 进入同一 App ABI runtime |
+| `dev_loader_store_receive_smoke` | memory NOR Store install/stage 后多 chunk receive 与 CRC dry-run |
 
 这些 fixture 分别冻结下载链的局部语义，不证明 USB/UART、板级内存、重传或真实 App 执行。构建
 target、负例和断言以各目录 CMake/source 为准。

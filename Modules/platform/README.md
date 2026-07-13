@@ -1,40 +1,25 @@
-# Modules/platform
+# `Modules/platform` 实现状态
 
-`Modules/platform/` is currently a legacy/prototype area.
+## 文档状态
 
-It contains useful early platform experiments, Windows host helpers, board stub
-modules, and board capability shapes. These files may inform the backend work,
-but this directory is not the long-term root of the Charm backend architecture.
+- `status`: `supporting`
+- `scope`: 当前 platform/board module 与 host fixture
+- `source`: `cmake/sources/CharmPlatformSources.cmake`、`platform.cmake`、`baremetal.cmake`
 
-New backend contract work belongs under:
+本目录仍被现有 target 和示例使用，不是待删除目录，也不因名称成为 Charm Core 或稳定 backend
+contract。
 
-```text
-Backends/contract/
-```
+| 路径 | 当前职责 |
+|---|---|
+| `platform.board.cppm` | `BoardCaps` 与 boot/load/exec 等板级 capability shape |
+| `platform.board_facts.cppm` | board fact 数据形状 |
+| `platform.irq.cppm` | IRQ guard 抽象 |
+| `boards/*_stub/` | ARMv7-A、STM32 与 Windows board fixture |
+| `win/` | time、wakeup、power 与 IRQ host helper |
 
-New concrete backend work should be staged under:
+`CharmPlatformSources.cmake` 收集公共 platform modules；其它 source collection 仍显式接入 Windows
+fixture。移动或删除前必须先迁移 import consumer、CMake source collection 和对应 smoke。
 
-```text
-Backends/host/
-Backends/qemu/
-Backends/board/
-```
-
-## Compatibility rule
-
-Do not delete or move existing modules from this directory just to introduce the
-backend boundary. Existing `system` and `boot` code may still depend on this area
-during migration.
-
-New `Modules/system` code should not import concrete backend implementations.
-It should depend on backend contracts, capability registry surfaces, or explicit
-compatibility layers.
-
-## Promotion rule
-
-Any useful idea from this directory should be promoted intentionally:
-
-1. document the backend contract need under `Backends/contract/`;
-2. identify whether the implementation belongs to host, QEMU, or board;
-3. keep the old module as compatibility code until callers are migrated;
-4. remove or demote the old path only after evidence and build coverage exist.
+本页不规定未来目录布局。公共语义准入、backend ownership 或 project/BSP 归属应通过
+[`architecture route`](../../docs/agent/routes/architecture.md) 裁决；现有 module 只按当前源码和
+consumer 解释。

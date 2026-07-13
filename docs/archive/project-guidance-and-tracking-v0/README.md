@@ -2,7 +2,7 @@
 
 状态：archive。
 
-本目录保留早期嵌入式 C++ 实践长文和仓库 review。它们包含可复用的 buffer/DMA、模板约束、
+本目录保留早期嵌入式 C++ 取舍笔记和仓库 review。它们包含可复用的 buffer/DMA、模板约束、
 escape hatch 和具体审查发现，但也存在以下问题：
 
 - 与 `AGENTS.md`、Agent rules 和较短项目规范重复
@@ -12,7 +12,8 @@ escape hatch 和具体审查发现，但也存在以下问题：
 
 保留文件：
 
-- [`嵌入式C++编程实践指南.md`](嵌入式C++编程实践指南.md)
+- [`embedded_cpp_retained_notes.md`](embedded_cpp_retained_notes.md)：从早期 593 行实践指南中提取的
+  执行上下文、DMA、模板构造、错误边界和 escape hatch 取舍；重复规则与禁止清单已删除。
 - [`主框架全仓审查与收敛_backlog.md`](主框架全仓审查与收敛_backlog.md)
 
 当前操作规则以根 `AGENTS.md` 和 [`../../agent/README.md`](../../agent/README.md) 为准；项目编码

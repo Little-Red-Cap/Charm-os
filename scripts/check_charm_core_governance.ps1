@@ -107,7 +107,7 @@ $expectedStatuses = @{
     'docs/architecture_overview.md' = 'supporting'
     'docs/architecture/resident_image_platform_v1_contract.md' = 'supporting'
     'docs/architecture/charm_spine_v0.md' = 'exploration'
-    'docs/architecture/rte_capability_composition_contract_v0.md' = 'exploration'
+    'docs/archive/architecture-exploration-v0/rte_capability_composition_contract_v0.md' = 'exploration'
     'docs/architecture/rte_to_h747_platform_roadmap.md' = 'exploration'
     'docs/architecture/system_compiler_roadmap.md' = 'exploration'
     'docs/architecture/system_compiler_vocabulary_v0.md' = 'exploration'
@@ -129,7 +129,7 @@ $linkFiles = $canonical + @(
     'docs/architecture_overview.md',
     'docs/architecture/charm_spine_v0.md',
     'docs/architecture/resident_image_platform_v1_contract.md',
-    'docs/architecture/rte_capability_composition_contract_v0.md',
+    'docs/archive/architecture-exploration-v0/rte_capability_composition_contract_v0.md',
     'docs/architecture/rte_to_h747_platform_roadmap.md',
     'docs/architecture/system_compiler_roadmap.md',
     'docs/architecture/system_compiler_vocabulary_v0.md'

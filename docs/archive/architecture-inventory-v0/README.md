@@ -26,7 +26,7 @@
 ## 真实板与能力回收
 
 - [`real_board_landing_gap_audit_v0.md`](real_board_landing_gap_audit_v0.md)：保留早期 stm32h747-player
-  路径、五类落地问题、局部术语和 P0-P4 排期；其中项目路径已经失效；
+  的并行 console、私有诊断、默认接线和规则工程化反例；其中项目路径已经失效；
 - [`rk3506_boot_staging_plan.md`](rk3506_boot_staging_plan.md)：保留 RK3506 SDK 启动线索、
   Stage A/B/C 职责和早期推进建议；其中地址与 vendor loader 判断是历史分析，
   不能替代 TRM、当前源码或实板证据。

@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -25,6 +26,7 @@ import charm.gfx.display_policy;
 import charm.gfx.image;
 import charm.gfx.snapshot;
 import charm.gfx.pixel_ops;
+import charm.gfx.svg;
 import charm.gfx.text_box;
 import charm.font.typography;
 import charm.widgets.menu_tree;
@@ -86,6 +88,47 @@ namespace {
             hash *= 16777619u;
         }
         return hash;
+    }
+
+    bool run_svg_workspace_regression() {
+        constexpr int kRasterWidth = 24;
+        constexpr int kRasterHeight = 24;
+        constexpr ::ui::gfx::svg::RasterConfig kConfig{
+            .width = kRasterWidth,
+            .height = kRasterHeight,
+            .view = {68.0f, 24.0f},
+        };
+        constexpr std::string_view kSquare = "M2 2 L22 2 L22 22 L2 22 Z";
+        static ::ui::gfx::svg::RasterWorkspace workspace{};
+        static std::array<std::byte,
+                          static_cast<std::size_t>(kRasterWidth * kRasterHeight * 4)> pixels{};
+
+        const auto raster = [&](std::string_view path) {
+            return ::ui::gfx::svg::rasterize_path(
+                workspace,
+                path,
+                kConfig,
+                std::span<std::byte>{pixels.data(), pixels.size()},
+                rgba{32, 120, 220, 255},
+                true);
+        };
+        if (!raster(kSquare)) return false;
+        if (std::none_of(pixels.begin(), pixels.end(), [](std::byte value) {
+                return value != std::byte{0};
+            })) {
+            return false;
+        }
+
+        std::string intersection_overflow{"M0 0"};
+        intersection_overflow.reserve(512);
+        for (int i = 1; i <= 66; ++i) {
+            intersection_overflow += " L";
+            intersection_overflow += std::to_string(i);
+            intersection_overflow += (i % 2 == 0) ? " 0" : " 24";
+        }
+        if (raster(intersection_overflow)) return false;
+
+        return raster(kSquare);
     }
 
 
@@ -3412,6 +3455,7 @@ int main(int argc, char** argv) {
     bool table_tree_ok = true;
     bool table_tree_ran = false;
     bool ui_ok = true;
+    bool svg_workspace_ok = true;
     auto trace_regress_stage = [&](const char* stage) noexcept {
         (void)out::println<"[soa] regress stage={}">(g_console, stage);
         if (!g_regress_log) return;
@@ -3421,6 +3465,15 @@ int main(int argc, char** argv) {
 #endif
 
 #if defined(VIVID_SOA_TRACE_INPUT)
+    if (run_ci) {
+        svg_workspace_ok = run_svg_workspace_regression();
+        (void)out::println<"[soa] svg_workspace ok={}">(
+            g_console,
+            svg_workspace_ok ? 1u : 0u);
+        if (!svg_workspace_ok) {
+            ci_mark_fail("svg_workspace");
+        }
+    }
     if (run_regress) {
         bool regress_ok = true;
         trace_regress_stage("input.begin");
@@ -4018,6 +4071,7 @@ int main(int argc, char** argv) {
             && list_peak_ok
             && table_tree_ok
             && ui_ok
+            && svg_workspace_ok
             && img_growth_ok
             && img_overflow_ok
             && img_dedup_ok

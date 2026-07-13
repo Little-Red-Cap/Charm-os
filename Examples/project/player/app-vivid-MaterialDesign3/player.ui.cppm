@@ -3,6 +3,7 @@ module;
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <new>
 #include <span>
 #include <string>
 #include <string_view>
@@ -255,14 +256,25 @@ export namespace player::ui {
     inline constexpr std::size_t kPlayerIconCount = 17;
     inline constexpr std::size_t kPlayerIconBytes =
         static_cast<std::size_t>(kPlayerIconStrideBytes) * static_cast<std::size_t>(kPlayerIconSizePx);
-    inline constexpr std::size_t kPlayerIconArenaBytes = kPlayerIconCount * kPlayerIconBytes;
+    inline constexpr std::size_t kPlayerIconPixelBytes = kPlayerIconCount * kPlayerIconBytes;
+    // Persistent icon pixels occupy the front; one reusable SVG scratch block lives at the aligned tail.
+    inline constexpr std::size_t kPlayerIconRasterWorkspaceOffset =
+        kPlayerIconPixelBytes
+        + ((alignof(::ui::gfx::svg::RasterWorkspace)
+            - (kPlayerIconPixelBytes % alignof(::ui::gfx::svg::RasterWorkspace)))
+           % alignof(::ui::gfx::svg::RasterWorkspace));
+    inline constexpr std::size_t kPlayerIconArenaBytes =
+        kPlayerIconRasterWorkspaceOffset + sizeof(::ui::gfx::svg::RasterWorkspace);
 
     struct PlayerIconPixelArena {
         std::byte* data{nullptr};
         std::size_t bytes{0};
 
-        constexpr bool valid() const noexcept {
-            return data != nullptr && bytes >= kPlayerIconArenaBytes;
+        bool valid() const noexcept {
+            return data != nullptr
+                && bytes >= kPlayerIconArenaBytes
+                && (reinterpret_cast<std::uintptr_t>(data + kPlayerIconRasterWorkspaceOffset)
+                    % alignof(::ui::gfx::svg::RasterWorkspace)) == 0U;
         }
     };
 
@@ -286,12 +298,15 @@ export namespace player::ui {
             buf[idx + 3] = std::byte{color.b};
         }
 
-        bool rasterize_svg_path(IconBuffer& buf, std::string_view path, const rgba& color,
+        bool rasterize_svg_path(::ui::gfx::svg::RasterWorkspace& workspace,
+                                IconBuffer& buf,
+                                std::string_view path,
+                                const rgba& color,
                                 ::ui::gfx::svg::ViewBox view = kIconView) {
             const ::ui::gfx::svg::RasterConfig cfg{.width = kIconSize, .height = kIconSize, .view = view};
-            return ::ui::gfx::svg::rasterize_path(path, cfg,
-                                                std::span<std::byte>(buf.data(), buf.size()),
-                                                color, true);
+            return ::ui::gfx::svg::rasterize_path(workspace, path, cfg,
+                                                 std::span<std::byte>(buf.data(), buf.size()),
+                                                 color, true);
         }
 
         constexpr std::string_view kPathPrev =
@@ -356,77 +371,110 @@ export namespace player::ui {
             "M12 10a2 2 0 1 0 0 4a2 2 0 1 0 0-4z"
             "M12 16a2 2 0 1 0 0 4a2 2 0 1 0 0-4z";
 
-        void build_prev_icon(IconBuffer& buf, const rgba& color) {
+        bool build_prev_icon(::ui::gfx::svg::RasterWorkspace& workspace,
+                             IconBuffer& buf,
+                             const rgba& color) {
             icon_clear(buf);
-            rasterize_svg_path(buf, kPathPrev, color);
+            return rasterize_svg_path(workspace, buf, kPathPrev, color);
         }
 
-        void build_play_icon(IconBuffer& buf, const rgba& color) {
+        bool build_play_icon(::ui::gfx::svg::RasterWorkspace& workspace,
+                             IconBuffer& buf,
+                             const rgba& color) {
             icon_clear(buf);
-            rasterize_svg_path(buf, kPathPlay, color);
+            return rasterize_svg_path(workspace, buf, kPathPlay, color);
         }
 
-        void build_pause_icon(IconBuffer& buf, const rgba& color) {
+        bool build_pause_icon(::ui::gfx::svg::RasterWorkspace& workspace,
+                              IconBuffer& buf,
+                              const rgba& color) {
             icon_clear(buf);
-            rasterize_svg_path(buf, kPathPause, color);
+            return rasterize_svg_path(workspace, buf, kPathPause, color);
         }
 
-        void build_loop_icon(IconBuffer& buf, const rgba& color) {
+        bool build_loop_icon(::ui::gfx::svg::RasterWorkspace& workspace,
+                             IconBuffer& buf,
+                             const rgba& color) {
             icon_clear(buf);
-            rasterize_svg_path(buf, kPathLoop, color);
+            return rasterize_svg_path(workspace, buf, kPathLoop, color);
         }
 
-        void build_single_icon(IconBuffer& buf, const rgba& color) {
+        bool build_single_icon(::ui::gfx::svg::RasterWorkspace& workspace,
+                               IconBuffer& buf,
+                               const rgba& color) {
             icon_clear(buf);
-            rasterize_svg_path(buf, kPathSingle, color);
+            return rasterize_svg_path(workspace, buf, kPathSingle, color);
         }
 
-        void build_shuffle_icon(IconBuffer& buf, const rgba& color) {
+        bool build_shuffle_icon(::ui::gfx::svg::RasterWorkspace& workspace,
+                                IconBuffer& buf,
+                                const rgba& color) {
             icon_clear(buf);
-            rasterize_svg_path(buf, kPathShuffle, color);
+            return rasterize_svg_path(workspace, buf, kPathShuffle, color);
         }
 
-        void build_next_icon(IconBuffer& buf, const rgba& color) {
+        bool build_next_icon(::ui::gfx::svg::RasterWorkspace& workspace,
+                             IconBuffer& buf,
+                             const rgba& color) {
             icon_clear(buf);
-            rasterize_svg_path(buf, kPathNext, color);
+            return rasterize_svg_path(workspace, buf, kPathNext, color);
         }
 
-        void build_chevron_right_icon(IconBuffer& buf, const rgba& color) {
+        bool build_chevron_right_icon(::ui::gfx::svg::RasterWorkspace& workspace,
+                                      IconBuffer& buf,
+                                      const rgba& color) {
             icon_clear(buf);
-            rasterize_svg_path(buf, kPathChevronRight, color);
+            return rasterize_svg_path(workspace, buf, kPathChevronRight, color);
         }
 
-        void build_folder_icon(IconBuffer& buf, const rgba& color) {
+        bool build_folder_icon(::ui::gfx::svg::RasterWorkspace& workspace,
+                               IconBuffer& buf,
+                               const rgba& color) {
             icon_clear(buf);
-            rasterize_svg_path(buf, kPathFolder, color);
+            return rasterize_svg_path(workspace, buf, kPathFolder, color);
         }
 
-        void build_home_icon(IconBuffer& buf, const rgba& color) {
+        bool build_home_icon(::ui::gfx::svg::RasterWorkspace& workspace,
+                             IconBuffer& buf,
+                             const rgba& color) {
             icon_clear(buf);
-            rasterize_svg_path(buf, kPathHome, color);
+            return rasterize_svg_path(workspace, buf, kPathHome, color);
         }
 
-        void build_search_icon(IconBuffer& buf, const rgba& color) {
+        bool build_search_icon(::ui::gfx::svg::RasterWorkspace& workspace,
+                               IconBuffer& buf,
+                               const rgba& color) {
             icon_clear(buf);
-            rasterize_svg_path(buf, kPathSearch, color);
+            return rasterize_svg_path(workspace, buf, kPathSearch, color);
         }
 
-        void build_settings_icon(IconBuffer& buf, const rgba& color) {
+        bool build_settings_icon(::ui::gfx::svg::RasterWorkspace& workspace,
+                                 IconBuffer& buf,
+                                 const rgba& color) {
             icon_clear(buf);
-            rasterize_svg_path(buf, kPathSettings, color);
+            return rasterize_svg_path(workspace, buf, kPathSettings, color);
         }
 
-        void build_down_icon(IconBuffer& buf, const rgba& color) {
+        bool build_down_icon(::ui::gfx::svg::RasterWorkspace& workspace,
+                             IconBuffer& buf,
+                             const rgba& color) {
             icon_clear(buf);
-            rasterize_svg_path(buf, kPathDown, color);
+            return rasterize_svg_path(workspace, buf, kPathDown, color);
         }
 
-        void build_more_icon(IconBuffer& buf, const rgba& color) {
+        bool build_more_icon(::ui::gfx::svg::RasterWorkspace& workspace,
+                             IconBuffer& buf,
+                             const rgba& color) {
             icon_clear(buf);
-            rasterize_svg_path(buf, kPathMore, color);
+            return rasterize_svg_path(workspace, buf, kPathMore, color);
         }
 
-        using IconBuildFn = void (*)(IconBuffer&, const rgba&);
+        using IconBuildFn = bool (*)(::ui::gfx::svg::RasterWorkspace&, IconBuffer&, const rgba&);
+
+        ::ui::gfx::svg::RasterWorkspace& host_icon_raster_workspace() noexcept {
+            static ::ui::gfx::svg::RasterWorkspace workspace{};
+            return workspace;
+        }
 
         ImageView icon_view_from_buffer(const IconBuffer& buf) noexcept {
             return make_image_view(PixelFormat::ARGB8888,
@@ -449,15 +497,21 @@ export namespace player::ui {
                                    false);
         }
 
+        ::ui::gfx::svg::RasterWorkspace* construct_raster_workspace(PlayerIconPixelArena arena) noexcept {
+            if (!arena.valid()) return nullptr;
+            auto* storage = arena.data + kPlayerIconRasterWorkspaceOffset;
+            return ::new (static_cast<void*>(storage)) ::ui::gfx::svg::RasterWorkspace{};
+        }
+
         bool build_icon_in_arena(PlayerIconPixelArena arena,
+                                 ::ui::gfx::svg::RasterWorkspace& workspace,
                                  std::size_t index,
                                  IconBuildFn build,
                                  const rgba& color) noexcept {
             if (!arena.valid() || index >= kPlayerIconCount || build == nullptr) return false;
             auto* bytes = arena.data + index * kPlayerIconBytes;
             auto& buf = *::new (static_cast<void*>(bytes)) IconBuffer{};
-            build(buf, color);
-            return true;
+            return build(workspace, buf, color);
         }
 
         ::ui::gfx::ImageId register_icon_view(const ImageView& view) noexcept {
@@ -565,8 +619,7 @@ export namespace player::ui {
         static detail::IconBuffer buf{};
         static bool init = false;
         if (!init) {
-            detail::build_prev_icon(buf, kUiListFont);
-            init = true;
+            init = detail::build_prev_icon(detail::host_icon_raster_workspace(), buf, kUiListFont);
         }
         return detail::icon_view_from_buffer(buf);
     }
@@ -575,8 +628,7 @@ export namespace player::ui {
         static detail::IconBuffer buf{};
         static bool init = false;
         if (!init) {
-            detail::build_play_icon(buf, kUiListFont);
-            init = true;
+            init = detail::build_play_icon(detail::host_icon_raster_workspace(), buf, kUiListFont);
         }
         return detail::icon_view_from_buffer(buf);
     }
@@ -585,8 +637,7 @@ export namespace player::ui {
         static detail::IconBuffer buf{};
         static bool init = false;
         if (!init) {
-            detail::build_pause_icon(buf, kUiListFont);
-            init = true;
+            init = detail::build_pause_icon(detail::host_icon_raster_workspace(), buf, kUiListFont);
         }
         return detail::icon_view_from_buffer(buf);
     }
@@ -595,8 +646,7 @@ export namespace player::ui {
         static detail::IconBuffer buf{};
         static bool init = false;
         if (!init) {
-            detail::build_loop_icon(buf, kUiListFont);
-            init = true;
+            init = detail::build_loop_icon(detail::host_icon_raster_workspace(), buf, kUiListFont);
         }
         return detail::icon_view_from_buffer(buf);
     }
@@ -605,8 +655,7 @@ export namespace player::ui {
         static detail::IconBuffer buf{};
         static bool init = false;
         if (!init) {
-            detail::build_single_icon(buf, kUiListFont);
-            init = true;
+            init = detail::build_single_icon(detail::host_icon_raster_workspace(), buf, kUiListFont);
         }
         return detail::icon_view_from_buffer(buf);
     }
@@ -615,8 +664,7 @@ export namespace player::ui {
         static detail::IconBuffer buf{};
         static bool init = false;
         if (!init) {
-            detail::build_shuffle_icon(buf, kUiListFont);
-            init = true;
+            init = detail::build_shuffle_icon(detail::host_icon_raster_workspace(), buf, kUiListFont);
         }
         return detail::icon_view_from_buffer(buf);
     }
@@ -625,8 +673,7 @@ export namespace player::ui {
         static detail::IconBuffer buf{};
         static bool init = false;
         if (!init) {
-            detail::build_next_icon(buf, kUiListFont);
-            init = true;
+            init = detail::build_next_icon(detail::host_icon_raster_workspace(), buf, kUiListFont);
         }
         return detail::icon_view_from_buffer(buf);
     }
@@ -635,8 +682,7 @@ export namespace player::ui {
         static detail::IconBuffer buf{};
         static bool init = false;
         if (!init) {
-            detail::build_chevron_right_icon(buf, kUiListFont);
-            init = true;
+            init = detail::build_chevron_right_icon(detail::host_icon_raster_workspace(), buf, kUiListFont);
         }
         return detail::icon_view_from_buffer(buf);
     }
@@ -645,8 +691,7 @@ export namespace player::ui {
         static detail::IconBuffer buf{};
         static bool init = false;
         if (!init) {
-            detail::build_folder_icon(buf, kUiListFont);
-            init = true;
+            init = detail::build_folder_icon(detail::host_icon_raster_workspace(), buf, kUiListFont);
         }
         return detail::icon_view_from_buffer(buf);
     }
@@ -655,8 +700,7 @@ export namespace player::ui {
         static detail::IconBuffer buf{};
         static bool init = false;
         if (!init) {
-            detail::build_home_icon(buf, kUiListFont);
-            init = true;
+            init = detail::build_home_icon(detail::host_icon_raster_workspace(), buf, kUiListFont);
         }
         return detail::icon_view_from_buffer(buf);
     }
@@ -665,8 +709,7 @@ export namespace player::ui {
         static detail::IconBuffer buf{};
         static bool init = false;
         if (!init) {
-            detail::build_home_icon(buf, kUiOk);
-            init = true;
+            init = detail::build_home_icon(detail::host_icon_raster_workspace(), buf, kUiOk);
         }
         return detail::icon_view_from_buffer(buf);
     }
@@ -675,8 +718,7 @@ export namespace player::ui {
         static detail::IconBuffer buf{};
         static bool init = false;
         if (!init) {
-            detail::build_search_icon(buf, kUiListFont);
-            init = true;
+            init = detail::build_search_icon(detail::host_icon_raster_workspace(), buf, kUiListFont);
         }
         return detail::icon_view_from_buffer(buf);
     }
@@ -685,8 +727,7 @@ export namespace player::ui {
         static detail::IconBuffer buf{};
         static bool init = false;
         if (!init) {
-            detail::build_search_icon(buf, kUiOk);
-            init = true;
+            init = detail::build_search_icon(detail::host_icon_raster_workspace(), buf, kUiOk);
         }
         return detail::icon_view_from_buffer(buf);
     }
@@ -695,8 +736,7 @@ export namespace player::ui {
         static detail::IconBuffer buf{};
         static bool init = false;
         if (!init) {
-            detail::build_settings_icon(buf, kUiListFont);
-            init = true;
+            init = detail::build_settings_icon(detail::host_icon_raster_workspace(), buf, kUiListFont);
         }
         return detail::icon_view_from_buffer(buf);
     }
@@ -705,8 +745,7 @@ export namespace player::ui {
         static detail::IconBuffer buf{};
         static bool init = false;
         if (!init) {
-            detail::build_down_icon(buf, kUiListFont);
-            init = true;
+            init = detail::build_down_icon(detail::host_icon_raster_workspace(), buf, kUiListFont);
         }
         return detail::icon_view_from_buffer(buf);
     }
@@ -715,8 +754,7 @@ export namespace player::ui {
         static detail::IconBuffer buf{};
         static bool init = false;
         if (!init) {
-            detail::build_more_icon(buf, kUiListFont);
-            init = true;
+            init = detail::build_more_icon(detail::host_icon_raster_workspace(), buf, kUiListFont);
         }
         return detail::icon_view_from_buffer(buf);
     }
@@ -725,8 +763,7 @@ export namespace player::ui {
         static detail::IconBuffer buf{};
         static bool init = false;
         if (!init) {
-            detail::build_folder_icon(buf, kUiOk);
-            init = true;
+            init = detail::build_folder_icon(detail::host_icon_raster_workspace(), buf, kUiOk);
         }
         return detail::icon_view_from_buffer(buf);
     }
@@ -764,11 +801,14 @@ export namespace player::ui {
         if (!arena.valid()) return register_player_icons();
 #endif
 
+        auto* workspace = detail::construct_raster_workspace(arena);
+        if (workspace == nullptr) return {};
+
         PlayerIconIds out{};
         std::size_t slot = 0;
         auto reg = [&](detail::IconBuildFn build, const rgba& color) noexcept {
             const std::size_t index = slot++;
-            if (!detail::build_icon_in_arena(arena, index, build, color)) {
+            if (!detail::build_icon_in_arena(arena, *workspace, index, build, color)) {
                 return ::ui::gfx::invalid_image_id();
             }
             return detail::register_icon_view(detail::icon_view_from_arena(arena, index));

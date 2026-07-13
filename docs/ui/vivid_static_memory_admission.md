@@ -83,13 +83,15 @@ exact_headroom_bytes >= min_headroom_bytes
 
 ## 栈准入
 
-`PRODUCT` 与 `MCU_MIN` 使用 GNU 或 Clang 的 `-fstack-usage` 生成 `.su` 证据。目标构建完成后，Vivid 栈门只检查当前 featureset 选中的 Scene、SoA render/layout/input/semantic 与 DrawCmd compaction/execution 热路径 module：
+`PRODUCT` 与 `MCU_MIN` 使用 GNU 或 Clang 的 `-fstack-usage` 生成 `.su` 证据。目标构建完成后，Vivid 栈门检查当前 featureset 实际选中的全部 Vivid module：
 
 ```text
 ${CMAKE_CURRENT_BINARY_DIR}/generated/vivid/stack_usage_manifest.txt
 ```
 
-任一 Vivid 函数超过 `CHARM_VIVID_MAX_HOT_STACK_FRAME_BYTES`，或出现 unbounded dynamic stack usage，构建直接失败并报告函数名、实际字节数和 `vivid-stack-usage` 规则名。workspace 由对象持有并在单 UI 执行域串行复用，因此同一 `Scene` / `SoaGui` / `SoaKernel` 上的渲染、布局、输入和 semantic 操作不可重入。
+任一选中 module 内的 Vivid 函数超过 `CHARM_VIVID_MAX_HOT_STACK_FRAME_BYTES`，或出现 unbounded dynamic stack usage，构建直接失败并报告函数名、实际字节数和 `vivid-stack-usage` 规则名。manifest 以当前选中 source 清单过滤 `.su`，因此复用构建目录切换 featureset 不会引入旧 module 证据。
+
+该门证明的是单函数 frame 上限，不是累计调用链峰值。对象内 workspace 由单 UI 执行域串行复用；SVG raster workspace 则由调用方显式持有并传入。二者都不支持同一 workspace 上的并发或重入调用，产品任务栈仍需由实际入口的调用链或运行时 high-water 证据补齐。
 
 ## 验证
 

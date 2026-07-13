@@ -372,26 +372,22 @@ export namespace ui::gfx::svg {
                            int width,
                            int height,
                            int y,
-                           const FixedVector<float, kMaxIntersections>& xs,
+                           FixedVector<float, kMaxIntersections>& xs,
                            const rgba& color) noexcept {
             if (y < 0 || y >= height) return;
             if (xs.size < 2) return;
-            std::array<float, kMaxIntersections> sorted{};
-            for (std::size_t i = 0; i < xs.size; ++i) {
-                sorted[i] = xs.data[i];
-            }
             for (std::size_t i = 1; i < xs.size; ++i) {
-                float v = sorted[i];
+                float v = xs.data[i];
                 std::size_t j = i;
-                while (j > 0 && sorted[j - 1] > v) {
-                    sorted[j] = sorted[j - 1];
+                while (j > 0 && xs.data[j - 1] > v) {
+                    xs.data[j] = xs.data[j - 1];
                     --j;
                 }
-                sorted[j] = v;
+                xs.data[j] = v;
             }
             for (std::size_t i = 0; i + 1 < xs.size; i += 2) {
-                int x0 = static_cast<int>(std::floor(sorted[i]));
-                int x1 = static_cast<int>(std::ceil(sorted[i + 1]));
+                int x0 = static_cast<int>(std::floor(xs.data[i]));
+                int x1 = static_cast<int>(std::ceil(xs.data[i + 1]));
                 if (x1 < x0) std::swap(x0, x1);
                 if (x0 < 0) x0 = 0;
                 if (x1 >= width) x1 = width - 1;
@@ -402,29 +398,59 @@ export namespace ui::gfx::svg {
         }
     } // namespace detail
 
-    bool rasterize_path(std::string_view d,
+    class RasterWorkspace final {
+    public:
+        constexpr RasterWorkspace() noexcept = default;
+
+        RasterWorkspace(const RasterWorkspace&) = delete;
+        RasterWorkspace& operator=(const RasterWorkspace&) = delete;
+        RasterWorkspace(RasterWorkspace&&) = delete;
+        RasterWorkspace& operator=(RasterWorkspace&&) = delete;
+
+    private:
+        void reset() noexcept {
+            points_.size = 0;
+            contours_.size = 0;
+            intersections_.size = 0;
+        }
+
+        detail::FixedVector<detail::PointF, detail::kMaxPoints> points_{};
+        detail::FixedVector<int, detail::kMaxContours> contours_{};
+        detail::FixedVector<float, detail::kMaxIntersections> intersections_{};
+
+        friend bool rasterize_path(RasterWorkspace& workspace,
+                                   std::string_view d,
+                                   const RasterConfig& cfg,
+                                   std::span<std::byte> out,
+                                   const rgba& color,
+                                   bool clear_buffer) noexcept;
+    };
+
+    bool rasterize_path(RasterWorkspace& workspace,
+                        std::string_view d,
                         const RasterConfig& cfg,
                         std::span<std::byte> out,
                         const rgba& color,
                         bool clear_buffer = true) noexcept {
         if (cfg.width <= 0 || cfg.height <= 0) return false;
         if (clear_buffer) detail::clear(out);
-        detail::FixedVector<detail::PointF, detail::kMaxPoints> points{};
-        detail::FixedVector<int, detail::kMaxContours> contours{};
-        if (!detail::parse_path(d, points, contours)) return false;
+        workspace.reset();
+        if (!detail::parse_path(d, workspace.points_, workspace.contours_)) return false;
 
         const float scale_x = (cfg.view.w <= 0.0f) ? 1.0f : (static_cast<float>(cfg.width) / cfg.view.w);
         const float scale_y = (cfg.view.h <= 0.0f) ? 1.0f : (static_cast<float>(cfg.height) / cfg.view.h);
 
         for (int y = 0; y < cfg.height; ++y) {
             const float scan_y = static_cast<float>(y) + 0.5f;
-            detail::FixedVector<float, detail::kMaxIntersections> xs{};
-            for (std::size_t ci = 0; ci < contours.size; ++ci) {
-                const int start = contours[ci];
-                const int end = (ci + 1 < contours.size) ? contours[ci + 1] : static_cast<int>(points.size);
+            workspace.intersections_.size = 0;
+            for (std::size_t ci = 0; ci < workspace.contours_.size; ++ci) {
+                const int start = workspace.contours_[ci];
+                const int end = (ci + 1 < workspace.contours_.size)
+                    ? workspace.contours_[ci + 1]
+                    : static_cast<int>(workspace.points_.size);
                 for (int i = start + 1; i < end; ++i) {
-                    const auto p0 = points[static_cast<std::size_t>(i - 1)];
-                    const auto p1 = points[static_cast<std::size_t>(i)];
+                    const auto p0 = workspace.points_[static_cast<std::size_t>(i - 1)];
+                    const auto p1 = workspace.points_[static_cast<std::size_t>(i)];
                     const float y0 = p0.y * scale_y;
                     const float y1 = p1.y * scale_y;
                     if ((scan_y < std::min(y0, y1)) || (scan_y >= std::max(y0, y1))) continue;
@@ -432,10 +458,15 @@ export namespace ui::gfx::svg {
                     if (dy == 0.0f) continue;
                     const float t = (scan_y - y0) / dy;
                     const float x = (p0.x + (p1.x - p0.x) * t) * scale_x;
-                    xs.push_back(x);
+                    if (!workspace.intersections_.push_back(x)) return false;
                 }
             }
-            detail::fill_scanline(out, cfg.width, cfg.height, y, xs, color);
+            detail::fill_scanline(out,
+                                  cfg.width,
+                                  cfg.height,
+                                  y,
+                                  workspace.intersections_,
+                                  color);
         }
         return true;
     }

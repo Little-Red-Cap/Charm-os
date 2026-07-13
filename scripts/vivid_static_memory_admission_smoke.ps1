@@ -9,6 +9,7 @@ if (-not [System.IO.Path]::IsPathRooted($BuildDir)) {
 }
 $SourceDir = Join-Path $RepoRoot "Examples/ui/vivid/soa_demo"
 $Manifest = Join-Path $BuildDir "Charm/generated/vivid/static_memory_admission.txt"
+$StackSourceManifest = Join-Path $BuildDir "Charm/generated/vivid/stack_usage_sources.txt"
 
 function Invoke-VividConfigure {
     param(
@@ -94,6 +95,27 @@ function Assert-Admission {
     Write-Host "[vivid-static-memory] featureset=$FeatureSet status=$Status upper=$upper budget=$budget headroom=$headroom"
 }
 
+function Assert-ProductStackSources {
+    if (-not (Test-Path -LiteralPath $StackSourceManifest)) {
+        throw "Missing Vivid stack source manifest: $StackSourceManifest"
+    }
+    $sources = @(Get-Content -LiteralPath $StackSourceManifest -Encoding UTF8)
+    foreach ($expected in @(
+        "Modules/ui/vivid/charm.ui.vivid.cppm",
+        "Modules/ui/vivid/core/style_sheet.cppm",
+        "Modules/ui/vivid/gfx/svg.cppm",
+        "Modules/ui/vivid/widgets/button.cppm"
+    )) {
+        if ($sources -notcontains $expected) {
+            throw "PRODUCT stack source manifest is missing selected Vivid module: $expected"
+        }
+    }
+    if ($sources -contains "Modules/ui/vivid/gfx/snapshot.cppm") {
+        throw "PRODUCT stack source manifest contains host-only snapshot module"
+    }
+    Write-Host "[vivid-static-memory] PRODUCT stack_sources=$($sources.Count) scope=all-selected"
+}
+
 $fullArgs = @(
     "-DCHARM_VIVID_RUNTIME_SCENE_INSTANCES=1",
     "-DCHARM_VIVID_SOA_MAX_NODES=256",
@@ -160,6 +182,7 @@ try {
     )
     Invoke-VividConfigure -FeatureSet "PRODUCT" -Budget "5242880" -Headroom "524288" -ExtraArgs $productArgs | Out-Null
     Assert-Admission -Values (Read-AdmissionManifest) -FeatureSet "PRODUCT" -Status "admitted" -MinimumHeadroom 524288
+    Assert-ProductStackSources
 
     $tooSmall = Invoke-VividConfigure -FeatureSet "PRODUCT" -Budget "3145728" -Headroom "524288" -ExtraArgs $productArgs -ExpectSuccess $false
     if ($tooSmall -notmatch 'Vivid static memory admission failed') {

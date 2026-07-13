@@ -174,8 +174,10 @@ flowchart LR
 
 - `CHARM_VIVID_DRAW_CMD_MAX_COMMANDS`、`CHARM_VIVID_DRAW_CMD_TEXT_BYTES`、`CHARM_VIVID_DRAW_CMD_BLOB_BYTES` 决定 DrawCmd profile；FULL 默认保持 `1024/4096/2048`，PRODUCT 必须由产品 profile 固定。
 - `PRODUCT` 与 `MCU_MIN` 对 Vivid 编译启用 `-fstack-usage`，当前 `CHARM_VIVID_MAX_HOT_STACK_FRAME_BYTES` 默认上限为 `4096`。
-- 栈门只读取当前 featureset 实际选中的 Scene、SoA render/layout/input/semantic 与 DrawCmd compaction/execution 热路径 module；切换 featureset 时不会把同一构建目录中的旧 `.su` 文件算入当前画像。
+- 栈门读取当前 featureset 实际选中的全部 Vivid module；切换 featureset 时不会把同一构建目录中的旧 `.su` 文件或未选 module 算入当前画像。
 - `SoaKernel`、`SoaLayoutPass`、`SoaGui` 和 `DrawCmdExecutor` 的 workspace 是单 UI 执行域内的串行 scratch，不支持同一对象上的并发或重入调用。
+- SVG path raster 使用调用方持有、不可复制的 `RasterWorkspace`；Vivid 不再把解析点、轮廓和扫描线交点隐式放入任务栈，workspace 耗尽时 raster 调用失败。
+- `-fstack-usage` 门只证明单函数 frame 上限，不证明一条调用链的累计栈峰值；产品任务栈仍需结合真实入口做调用链或运行时 high-water 证据。
 
 ### 2.4 SoA Payload Pools（C1）
 

@@ -9,8 +9,8 @@
 
 ## 生命周期归属
 
-Reactive pipeline 的关键不是 operator 语法，而是订阅、callback 和 target 由谁取消。嵌入式实现需
-额外回答固定容量、取消时机、并发 emit、对象销毁和 pending delivery。
+Reactive pipeline 必须明确订阅、callback 和 target 的取消责任。嵌入式实现还需说明固定容量、
+取消时机、并发 emit、对象销毁和 pending delivery。
 
 Charm 当前的 delegate/signal/state 是局部、同步、non-owning 原语，不自动等价于 RPL，也不提供通用
 producer graph。若未来增加 producer/value，必须先证明真实消费者和 lifetime owner。
@@ -39,7 +39,7 @@ style runtime。单位、fallback、memory cost 和编译产物仍需由具体 U
 但不是所有配置都需要 DSL/codegen。只有存在跨语言/版本消费者、wire compatibility 或重复手写漂移时，
 schema 才可能比局部 typed API 更合适。
 
-`spec -> validate -> plan -> runtime` 是可选处理链，不是 Charm Core 世界模型。生成器不能重新定义领域
+`spec -> validate -> plan -> runtime` 是可选处理链，不是 Charm Core 模型。生成器不能重新定义领域
 语义，也不能用 schema 存在证明 runtime 行为。
 
 ## 平台差异隔离
@@ -58,7 +58,7 @@ backend 和 execution environment 仍保持各自 ownership。
 - endian、alignment、wear 与容量上限由谁负责；
 - reader/writer compatibility 是否有 fixture。
 
-“字段只能 append”只适用于某些顺序格式，不应提升为所有 storage 的全局法律。
+“字段只能 append”只适用于某些顺序格式，不应提升为所有 storage 的通用规则。
 
 ## 注释解释原因
 

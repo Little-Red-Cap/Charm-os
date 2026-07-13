@@ -11,7 +11,7 @@ component topology、service locator、DI container、manifest、generator 或�
 
 ## 可保留的关系
 
-实验中真正可复用的是三类已获准关系：
+可复用的已获准关系有三类：
 
 - Requirement：消费方声明依赖某项 Capability Contract；
 - Provision：提供方声明可满足该契约；

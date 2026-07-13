@@ -95,7 +95,7 @@ BootROM / boot media ingress
 
 ### 3.5 对仓库的含义
 
-这一段即使以后要自己做，也应尽量隐藏在 `targets/rk3506/` 私有层里。
+这部分即使后续自行实现，也应隐藏在 `targets/rk3506/` 私有层里。
 
 它不应该反向塑形：
 
@@ -105,11 +105,11 @@ BootROM / boot media ingress
 
 ## 4. Stage B: DDR Init / Relocation Stage
 
-这一段是“世界开始变宽”的过渡层。
+这一层负责从片上 SRAM 过渡到 DDR。
 
 ### 4.1 目标
 
-- 真正把 DDR 带起来
+- 初始化并训练 DDR
 - 验证基本内存可用
 - 把执行体搬到更合理的地址
 - 切换到更大的栈、更正常的 BSS 和镜像布局
@@ -122,7 +122,7 @@ BootROM / boot media ingress
 - `FlashBoot` 的 `LOAD_ADDR=0x03f00000`
 - `CONFIG_SPL_TEXT_BASE`、`CONFIG_SPL_STACK`、`CONFIG_SPL_MAX_SIZE` 也都对这段给出非常紧的早期约束
 
-也就是说，至少在 Rockchip 当前主路径里，这一段不是“可选优化”，而是实际存在的物理分层。
+在 Rockchip 当时的主路径中，这不是可选优化，而是实际存在的物理分层。
 
 ### 4.3 适合做的事
 
@@ -141,11 +141,11 @@ BootROM / boot media ingress
 
 ## 5. Stage C: Post-DDR Normal Image
 
-这才是当前仓库最应该优先打稳的层。
+当前仓库应优先稳定这一层。
 
 ### 5.1 它是什么
 
-这是 DDR 已经可用、镜像布局比较正常、可以开始承载真正 Cortex-A bring-up 逻辑的阶段。
+DDR 可用且镜像完成迁移后，这一层承载 Cortex-A bring-up 逻辑。
 
 ### 5.2 适合放进来的内容
 

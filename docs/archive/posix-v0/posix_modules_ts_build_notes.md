@@ -3,15 +3,15 @@
 ## 背景
 - 时间点：在推进 POSIX process-control 与 real-ELF `kill_self` 信号烟测期间，`cmake-build-posix-qemu` 的全量构建被新的模块导入冲突阻塞。
 - 现象：`posix-qemu-demo` 无法完成链接，导致 QEMU 回归无法继续作为 POSIX 主线验收手段。
-- 影响面：表面上是 POSIX 被挡住，但真正的阻塞点位于 `net` / `posix` 的模块导入边界，而不是 POSIX 语义本身。
+- 影响面：POSIX 构建被阻塞，根因位于 `net` / `posix` 的模块导入边界，不是 POSIX 语义。
 
 ## 典型症状
 - `Modules/io/net/net.reactor.cppm`、`Modules/io/posix/posix.api.cppm` 一带出现与 `std::span` / `std::array` 相关的 modules-ts 冲突。
 - `Modules/io/net/net.stack.cppm` 会出现看似不合理的“默认构造函数重复声明”类错误。
-- 清空构建目录中的 `.gcm` 缓存后，问题依然可以稳定复现，说明它不是单纯的缓存脏数据，而是模块边界本身对编译器不友好。
+- 清空构建目录中的 `.gcm` 缓存后仍可稳定复现，排除单纯缓存污染。
 
 ## 经验判断
-- 这类问题在 GCC `-fmodules-ts` 下，常常不是“报错文件自己写错了”，而是：
+- GCC `-fmodules-ts` 下的同类问题常来自：
   - 多个模块接口都直接暴露了标准库模板类型；
   - 同一组类型通过不同导入路径重复进入一个更高层模块；
   - 编译器在合并导入图时，对标准库模板实例或接口单元状态处理不稳定。
@@ -55,7 +55,7 @@
 - 文件：`Modules/io/posix/posix.api.cppm`
 - 做法：
   - 删除不再必要的 `import net.socket;`；
-  - 保留真正需要的 `net.common` / `net.posix`。
+  - 保留所需的 `net.common` / `net.posix`。
 - 收益：
   - 缩小高层接口单元的导入图；
   - 降低未来再触发类似冲突的概率。

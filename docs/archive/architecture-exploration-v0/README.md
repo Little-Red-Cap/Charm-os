@@ -1,6 +1,8 @@
 # Architecture Exploration v0 归档
 
-本目录保留方法论、Spine、RTE 和外部项目机制案例讨论。它们有术语来源、设计取舍和未决问题，不能直接删除；但当前没有足够源码与跨环境证据支撑其作为 Charm Core 或统一运行时模型。
+本目录保留 RTE 和外部项目机制案例中仍有独立价值的设计讨论。方法论宣言、Spine 全文与
+RTE-to-H747 五阶段 roadmap 已删除；当前没有足够源码与跨环境证据支撑剩余模型成为 Charm Core
+或统一运行时。
 
 默认入口是：
 
@@ -12,14 +14,15 @@
 
 保留文件：
 
-- [`charm_methodology_charter.md`](charm_methodology_charter.md)
-- [`charm_spine_v0.md`](charm_spine_v0.md)
 - [`rte_capability_composition_contract_v0.md`](rte_capability_composition_contract_v0.md)
-- [`rte_to_h747_platform_roadmap.md`](rte_to_h747_platform_roadmap.md)
 - [`tdesktop_mechanism_lessons_for_charm.md`](tdesktop_mechanism_lessons_for_charm.md)
+
+已删除正文中仍有效的判断只有：平台承载系统而不定义系统；系统秩序应独立于平台细节；边界应
+显式、可验证并尽可能机器可读。它们现在由 Constitution、核心契约和现行 architecture rules 约束，
+不再保留“术/法/道”、五阶段排期或统一 Spine 链条。
 
 Telegram Desktop 案例中的 lifetime、execution domain、style/schema/storage law 仍可作为设计反例和
 候选机制来源，但其中的 P0-P3 排期及 Charm 机制映射从未成为现行 roadmap。
 
-RTE/H747 路线归档保留旧 Display + Player 压力切片、五阶段排期和 host smoke
-inventory；这些内容不代表当前 H747 target、Player 结构或 Core 准入状态。
+旧 Display + Player 压力切片、五阶段排期和 host smoke inventory 可从 Git 历史追溯；这些内容
+不代表当前 H747 target、Player 结构或 Core 准入状态。

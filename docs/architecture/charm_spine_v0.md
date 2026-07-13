@@ -2,8 +2,8 @@
 
 > **文档状态：`exploration`（冻结）**
 
-完整 v0 推演保留在
-[`../archive/architecture-exploration-v0/charm_spine_v0.md`](../archive/architecture-exploration-v0/charm_spine_v0.md)。
+完整 v0 推演已删除；退出原因见
+[`architecture-exploration-v0`](../archive/architecture-exploration-v0/README.md)。
 当前 Core 裁决见 [`../../CONSTITUTION.md`](../../CONSTITUTION.md) 和
 [`charm_core_contract.md`](charm_core_contract.md)。
 

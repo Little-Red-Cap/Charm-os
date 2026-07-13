@@ -3,8 +3,8 @@
 > status: `exploration`
 >
 > `RTE -> H747` 与 `Display + Player` 是已停线的压力路线，不是当前 Charm roadmap、
-> Core 定义或 H747 验收要求。完整原文见
-> [`../archive/architecture-exploration-v0/rte_to_h747_platform_roadmap.md`](../archive/architecture-exploration-v0/rte_to_h747_platform_roadmap.md)。
+> Core 定义或 H747 验收要求。完整五阶段原文已删除；退出原因见
+> [`architecture-exploration-v0`](../archive/architecture-exploration-v0/README.md)。
 
 ## 历史假设
 

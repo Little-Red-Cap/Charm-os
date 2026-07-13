@@ -70,7 +70,7 @@ Session handle 只在当前 acceptor/slot 实现范围内有效。当前代码�
 
 ## 共同不变量
 
-- 所有操作保持显式异步；调用方通过 event/step 推进 completion。
+- `send/receive/reply/dispatch` 立即返回；等待与 completion 通过 event/`step()` 推进。
 - Capacity、queue、frame 和 session slot 由具体模板或配置决定，满载必须显式失败。
 - Reply 和 timeout 是不同 completion 分支；late/stale event 不能被当作成功。
 - `valid()` 只检查当前对象绑定条件，不证明整个服务链可运行。
@@ -80,7 +80,7 @@ Session handle 只在当前 acceptor/slot 实现范围内有效。当前代码�
 
 ## 失败分类
 
-当前各层会暴露不同结果类型，但评审时至少应保留这些类别：
+当前 API 使用 `bool`、分层 result 和 witness 字段表达失败，没有统一错误枚举。组合层不得丢失：
 
 - invalid/unbound object；
 - queue、frame 或 channel capacity exhausted；

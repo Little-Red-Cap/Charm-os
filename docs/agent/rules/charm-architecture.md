@@ -22,7 +22,8 @@ exploration 或局部 contract。
 特别禁止：
 
 - 用现有实现反向证明它应进入 Core；
-- 为 Backend、Driver、Provider、Graph、Compiler、Loader 建立全局宇宙模型；
+- 在没有共同 consumer 和行为契约时，把 Backend、Driver、Provider、Graph、Compiler 或 Loader
+  统一为全局抽象；
 - 把 H747、Host、QEMU 或某个产品的 profile 事实推广成跨平台语义；
 - 因多个模块使用相似接口就先发明公共基类、Manager 或 Registry。
 

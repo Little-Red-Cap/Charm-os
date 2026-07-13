@@ -52,5 +52,5 @@ clock、总线、内存时序或外设状态。真实板必须单独提供对应
 - RK3506 handoff：[`../board/rk3506/post_ddr_handoff_contract.md`](../board/rk3506/post_ddr_handoff_contract.md)
 - QEMU minimal-kernel 证据：
   [`minimal_kernel_runtime_evidence_bundle_contract.md`](minimal_kernel_runtime_evidence_bundle_contract.md)
-- 历史 staging 计划：
-  [`../archive/system-evidence-and-staging-v0/armv7a_minimal_kernel_staging_plan.md`](../archive/system-evidence-and-staging-v0/armv7a_minimal_kernel_staging_plan.md)
+- 历史 staging 取舍：
+  [`../archive/system-evidence-and-staging-v0/armv7a_staging_retained_notes.md`](../archive/system-evidence-and-staging-v0/armv7a_staging_retained_notes.md)

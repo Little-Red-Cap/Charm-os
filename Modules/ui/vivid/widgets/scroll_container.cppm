@@ -1,4 +1,5 @@
 module;
+#include <array>
 #include <cstddef>
 #include <cstdlib>
 export module charm.widgets.scroll_container;
@@ -53,30 +54,30 @@ public:
     }
     void set_scroll_hint_enabled(bool on) noexcept { show_scroll_hint_ = on; }
 
+    // Captures the post-layout origin. Scrolling then becomes one common
+    // translation instead of a resident base position for every child.
     template<typename Resolver>
-    void sync_child_bases(Resolver&& resolve) {
+    bool sync_child_bases(Resolver&& resolve) {
         const auto container = get_rect();
-        content_height_ = 0;
         const std::size_t total = child_count();
-        base_count_ = (total < kMax) ? total : kMax;
+        int next_content_height = 0;
         for (std::size_t i = 0; i < total; ++i) {
             auto h = child_at(i);
             auto* ch = resolve(h);
-            if (!ch) continue;
+            if (!ch) return false;
             const auto child_rect = ch->get_rect();
-            int base_x = child_rect.x - container.x;
-            int base_y = child_rect.y - container.y + scroll_y_;
-            if (i < base_count_) {
-                base_x_[i] = base_x;
-                base_y_[i] = base_y;
-                base_x = base_x_[i];
-                base_y = base_y_[i];
-            }
+            const int base_y = child_rect.y - container.y + scroll_y_;
             const int bottom = base_y + child_rect.h;
-            if (bottom > content_height_) content_height_ = bottom;
+            if (bottom > next_content_height) next_content_height = bottom;
         }
+
+        content_height_ = next_content_height;
+        layout_origin_x_ = container.x;
+        layout_origin_y_ = container.y;
+        applied_scroll_y_ = scroll_y_;
+        layout_valid_ = true;
         update_scroll_bounds();
-        apply_scroll(resolve, false);
+        return true;
     }
 
     void draw(CanvasBase& cvs) {
@@ -192,27 +193,40 @@ public:
     }
 
     template<typename Resolver>
-    void apply_scroll(Resolver&& resolve, bool advance = true) {
+    bool apply_scroll(Resolver&& resolve, bool advance = true) {
+        if (!layout_valid_) return false;
+
         const auto r = get_rect();
         const std::size_t total = child_count();
+        std::array<ObjectBase*, child_capacity> resolved;
+
+        // Resolve the entire set first so a missing child cannot leave a
+        // partially translated tree.
         for (std::size_t i = 0; i < total; ++i) {
-            auto h = child_at(i);
-            auto* ch = resolve(h);
-            if (!ch) continue;
-            int base_x = ch->get_rect().x - r.x;
-            int base_y = ch->get_rect().y - r.y + scroll_y_;
-            if (i < base_count_) {
-                base_x = base_x_[i];
-                base_y = base_y_[i];
-            }
-            ch->set_pos(r.x + base_x, r.y + base_y - scroll_y_);
+            resolved[i] = resolve(child_at(i));
+            if (!resolved[i]) return false;
         }
+
+        const int dx = r.x - layout_origin_x_;
+        const int dy = r.y - layout_origin_y_ - (scroll_y_ - applied_scroll_y_);
+        if (dx != 0 || dy != 0) {
+            for (std::size_t i = 0; i < total; ++i) {
+                const auto child_rect = resolved[i]->get_rect();
+                resolved[i]->set_pos(child_rect.x + dx, child_rect.y + dy);
+            }
+        }
+
+        layout_origin_x_ = r.x;
+        layout_origin_y_ = r.y;
+        applied_scroll_y_ = scroll_y_;
+
         if (advance && !dragging_ && velocity_ != 0) {
             const int next = clamp_scroll(scroll_y_ + velocity_);
             scroll_y_ = next;
             velocity_ = static_cast<int>(static_cast<float>(velocity_) * decel_);
             if (std::abs(velocity_) < 1) velocity_ = 0;
         }
+        return true;
     }
 
     void set_style(rgba bg, rgba border) noexcept {
@@ -254,11 +268,11 @@ private:
         max_scroll_ = alg::scroll_bounds::compute_max(content_height_, r.h);
     }
 
-    static constexpr std::size_t kMax = 64;
-    int base_x_[kMax]{};
-    int base_y_[kMax]{};
-    std::size_t base_count_{0};
     int content_height_{0};
+    int layout_origin_x_{0};
+    int layout_origin_y_{0};
+    int applied_scroll_y_{0};
+    bool layout_valid_{false};
 
     int scroll_y_{0};
     int max_scroll_{0};

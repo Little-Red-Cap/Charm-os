@@ -47,6 +47,8 @@ namespace {
     static_assert(!std::is_move_constructible_v<Image>);
     static_assert(!std::is_copy_constructible_v<ScrollContainer>);
     static_assert(!std::is_move_constructible_v<ScrollContainer>);
+    static_assert(sizeof(ScrollContainer) <= 920,
+                  "ScrollContainer must not retain per-child layout base arrays");
     static_assert(!std::is_copy_constructible_v<SpinZoomWidget>);
     static_assert(!std::is_move_constructible_v<SpinZoomWidget>);
     static_assert(!std::is_copy_constructible_v<ListView>);
@@ -598,6 +600,56 @@ int main() {
     if (!expect(scroll.on_event(pinch_begin), "scroll container directly dispatches owned pinch strategy")) return 1;
     scroll.set_pinch_enabled(false);
     if (!expect(!scroll.on_event(pinch_begin), "scroll container disables owned pinch strategy")) return 1;
+
+    ScrollContainer translated_scroll{};
+    translated_scroll.set_rect({10, 20, 100, 50});
+    ObjectBase translated_child_a{};
+    ObjectBase translated_child_b{};
+    translated_child_a.set_rect({14, 26, 20, 20});
+    translated_child_b.set_rect({14, 70, 20, 20});
+    const WidgetHandle translated_handle_a{WidgetKind::Button, 70, 1};
+    const WidgetHandle translated_handle_b{WidgetKind::Button, 71, 1};
+    if (!expect(translated_scroll.add_child(translated_handle_a)
+                    && translated_scroll.add_child(translated_handle_b),
+                "scroll translation fixture owns child handles")) return 1;
+    const auto resolve_translated = [&](WidgetHandle handle) noexcept -> ObjectBase* {
+        if (handle == translated_handle_a) return &translated_child_a;
+        if (handle == translated_handle_b) return &translated_child_b;
+        return nullptr;
+    };
+    if (!expect(translated_scroll.sync_child_bases(resolve_translated),
+                "scroll synchronizes a fully resolved layout")) return 1;
+    translated_scroll.set_scroll_y(15);
+    if (!expect(translated_scroll.apply_scroll(resolve_translated, false)
+                    && translated_child_a.get_rect().x == 14
+                    && translated_child_a.get_rect().y == 11
+                    && translated_child_b.get_rect().x == 14
+                    && translated_child_b.get_rect().y == 55,
+                "scroll applies one common child translation")) return 1;
+    translated_scroll.set_pos(30, 40);
+    if (!expect(translated_scroll.apply_scroll(resolve_translated, false)
+                    && translated_child_a.get_rect().x == 34
+                    && translated_child_a.get_rect().y == 31
+                    && translated_child_b.get_rect().x == 34
+                    && translated_child_b.get_rect().y == 75,
+                "container movement preserves child-local positions")) return 1;
+
+    translated_scroll.set_scroll_y(20);
+    const Rect before_failed_apply_a = translated_child_a.get_rect();
+    const Rect before_failed_apply_b = translated_child_b.get_rect();
+    const auto resolve_with_gap = [&](WidgetHandle handle) noexcept -> ObjectBase* {
+        return handle == translated_handle_b ? nullptr : resolve_translated(handle);
+    };
+    if (!expect(!translated_scroll.apply_scroll(resolve_with_gap, false)
+                    && translated_child_a.get_rect().x == before_failed_apply_a.x
+                    && translated_child_a.get_rect().y == before_failed_apply_a.y
+                    && translated_child_b.get_rect().x == before_failed_apply_b.x
+                    && translated_child_b.get_rect().y == before_failed_apply_b.y,
+                "unresolved scroll child fails before partial mutation")) return 1;
+    if (!expect(translated_scroll.apply_scroll(resolve_translated, false)
+                    && translated_child_a.get_rect().y == 26
+                    && translated_child_b.get_rect().y == 70,
+                "successful retry applies the pending scroll delta once")) return 1;
 
     SpinZoomWidget spin_zoom{};
     if (!expect(!spin_zoom.on_event(Event::mouse(Event::Type::Click, 4, 4, 0, 100)),

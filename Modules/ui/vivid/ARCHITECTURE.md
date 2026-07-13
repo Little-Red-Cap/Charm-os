@@ -126,6 +126,11 @@ Object-level widget 不在 `ObjectBase` 常驻通用交互表。需要 gesture/i
 直接派发对应 strategy；自定义控件需要组合多个 strategy 时，可以自行持有固定容量 `InteractionList`。
 未使用交互扩展的 object widget 不支付其 RAM 成本。
 
+`ScrollContainer` 不为每个 child 常驻逐项布局基准数组。`sync_child_bases()` 在 layout 完成后记录容器
+原点与当前 scroll，`apply_scroll()` 只对已解析的 child 应用统一的整数平移增量；容器移动和滚动变化不会
+复制或重建 child 布局表。两个操作都在修改前完整解析 child，resolver 缺失时返回 `false` 且不部分移动；
+调用方应在 child layout 或集合变化后重新同步，resolver 必须在一次调用期间保持稳定。
+
 `ObjectBase` 同样不常驻子节点数组。`WidgetBase<Derived, ChildCapacity>` 的默认容量为零；只有 List、
 FoldablePanel、ScrollContainer 等明确的 object-level 容器选择固定容量子表。子表使用
 内联固定数组，容量耗尽由 `add/insert_child()` 的 `false` 显式报告，不分配动态内存。

@@ -37,24 +37,14 @@ first-party source 不得 import：
 
 ### Entry inventory
 
-新增 `Modules/**/charm.*.cppm` 必须在 CMake 台账中分类。当前稳定聚合入口为：
-
-- `charm.core`
-- `charm.system`
-- `charm.io`
-- `charm.net`
-- `charm.media`
-- `charm.media.audio`
-- `charm.ui.ink`
-- `charm.ui.vivid`
-
-当前非稳定分类为：`charm.foundation`、`charm.runtime`、`charm.core.event` 和
-`charm.ui.vivid_internal`。分类只说明入口治理，不授予 Core 身份。
+新增 `Modules/**/charm.*.cppm` 必须进入 CMake 的 stable 或 non-stable 台账。当前入口集合与分类只在
+[`entry_surface_contract.md`](entry_surface_contract.md) 和 `DependencyWhitelist.cmake` 维护；台账分类
+不授予 Core 身份。
 
 ### Stable entry hygiene
 
 稳定入口文件必须存在，不得 re-export 历史入口，也不得 re-export 名称包含 `internal`、`bridge`、
-`compat` 或 `alias` 的过渡表面。稳定入口的分类与聚合边界见
+`compat` 或 `alias` 的过渡表面。完整分类与聚合边界见
 [`entry_surface_contract.md`](entry_surface_contract.md)。
 
 ## 不负责的事

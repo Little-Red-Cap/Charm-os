@@ -17,7 +17,7 @@
 | 当前认领与 backlog | [`tracking/README.md`](tracking/README.md) |
 | 低层实现例外 | [`escape_hatches.md`](escape_hatches.md) |
 | PowerShell / UTF-8 | [`Powershell设置utf8.md`](tooling/Powershell设置utf8.md) |
-| CMake / preset / 构建目录 | [`build route`](../agent/routes/build.md)、[根 README](../../README.md) |
+| CMake / preset / 构建目录 | [`build route`](../agent/routes/build.md) |
 
 系统与架构问题优先进入 [`architecture_overview.md`](../architecture_overview.md) 和
 [`system/README.md`](../system/README.md)。

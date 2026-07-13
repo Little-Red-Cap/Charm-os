@@ -1,61 +1,41 @@
 # ARMv7-A Minimal-kernel Staging 保留笔记
 
-> status: `archived`
->
-> scope: 从 bare-metal 证据走向最小内核的历史演进纪律，不作为当前 roadmap
+> `status`: `archived`
 
-现行机器所有权与 handoff 要求见
-[`armv7a_platform_contract.md`](../../system/armv7a_platform_contract.md)。具体 target、runner 和已实现
-能力必须核对 source、CMake 与当次 Host/QEMU/真实板证据。
+现行机器 ownership 与 handoff 见
+[`armv7a_platform_contract.md`](../../system/armv7a_platform_contract.md)。本文只保留 bare-metal 到
+minimal-kernel 的风险隔离顺序，不表示当前 roadmap 或实现阶段。
 
-## 不建立第二套内核
+## Ownership
 
-ARMv7-A leaf 的任务是提供异常、中断、timer、context 与 MMU/cache 的机器入口，不复制 scheduler、
-thread、timer、sync 或 syscall policy。平台无关策略留在 kernel modules；ARMv7-A common 只保存 ISA
-级语义；SoC/QEMU/board 常量留在 leaf。
+ARMv7-A leaf 提供 exception、interrupt、timer、context 与 MMU/cache 的机器入口，不复制 scheduler、
+thread、sync 或 syscall policy。平台无关策略属于 kernel modules，ISA 语义属于 ARMv7-A common，
+SoC/QEMU/board 地址与时钟属于 leaf。
 
-旧草案中的 `ArchExceptionPort`、`ArchInterruptPort`、`ArchTimerPort`、`ArchContextPort` 和
-`RuntimeLoopPort` 只是候选切分，不是冻结 API。接口形状必须由当前 kernel consumer 和至少两个 leaf
-实现共同证明。
+旧 `Arch*Port` 和 `RuntimeLoopPort` 只是候选切分。接口必须由当前 kernel consumer 与至少两个 leaf
+实现共同证明，不能从历史名称恢复 API。
 
-## 历史演进顺序
+## 风险隔离顺序
 
-### 1. Machine bring-up
+1. **Machine bring-up**：reset、mode/stack、vector、abort、IRQ/timer、GIC、MMU/cache/TLB 与 handoff。
+2. **Arch ingress**：frame ownership、ack/eoi、writeback 和 barrier，形成 kernel 可消费的最小入口。
+3. **Single-core thread**：复用 scheduler/thread/timer，验证 fixed stack、initial frame、yield/sleep、tick
+   与 context switch；preemption 是 policy，不是 leaf 常量。
+4. **Memory mapping**：在 thread/fault 可观察后加入 region、stack guard、page table、memory attribute 与
+   最小 allocator，不直接跳到 fork/COW 或完整用户地址空间。
+5. **Trap/syscall**：贯通 SVC ingress、frame、decode、dispatch、writeback 与错误证据；POSIX/App ABI 不
+   反向定义 arch frame 或 kernel policy。
+6. **Higher layers**：isolation、image loader、VFS、shell、multicore 和更宽 POSIX 分别进入专题。
 
-先证明 reset、mode/stack、vector、abort、IRQ/timer、GIC、MMU/cache/TLB 与 handoff state。串口 token
-只能辅助定位，不能替代寄存器、异常帧或状态检查。
+该顺序只隔离风险，不表示仓库处于固定阶段。串口 token 可定位故障，不能替代寄存器、异常帧或机器
+状态检查。
 
-### 2. Arch ingress
+## Evidence Discipline
 
-把 exception/IRQ/tick/context 转换成 kernel 可消费的最小入口，明确 frame ownership、ack/eoi、返回值
-writeback 和 barrier。此阶段不需要先承诺线程或用户态 ABI。
+- Host verifier 证明纯语义、frame mapping 或状态转换，不证明机器入口。
+- QEMU 证明虚拟机器中的指令、exception、timer 和 MMU/cache，不证明真实 SoC。
+- Real board 证明 clock、interconnect、memory timing、controller 与 boot chain。
+- CI 证明检查可重复，不扩大其证据域。
 
-### 3. 单核线程
-
-在入口稳定后复用既有 scheduler/thread/timer，先验证固定栈、初始 frame、yield/sleep、tick 与
-context switch。cooperative/preemptive 是调度策略选择，不应混进 leaf 常量。
-
-### 4. 内存与映射
-
-线程和 fault 入口可观察后，再引入 kernel region、stack guard、page table helper、device/normal memory
-属性和最小 allocator。不要直接跳到完整用户地址空间、fork/COW 或复杂 page fault policy。
-
-### 5. Trap/syscall
-
-SVC ingress、trap frame、number/argument decode、dispatch、writeback 和错误证据应形成一条链。POSIX
-facade 或 App ABI 可以消费这条边界，但不能反向定义 arch frame 或 kernel policy。
-
-### 6. 更高系统能力
-
-用户态隔离、image loader、VFS、shell、多核和更宽 POSIX 只有在前述入口与证据稳定后再进入各自专题。
-该顺序是风险隔离方法，不表示当前仓库处于某个固定阶段。
-
-## 证据纪律
-
-- Host verifier 证明纯语义、frame mapping 或状态转换，不证明机器入口；
-- QEMU 证明对应虚拟机器中的指令、异常、timer 和 MMU/cache 路径，不证明真实 SoC；
-- 真实板证明 clock、interconnect、memory timing、controller 与 boot chain；
-- CI 证明同一检查可重复，不提升其证据域。
-
-每次提升 leaf 语义到 common/kernel 前，应保留正例、失败例、入口/出口 machine state 与 artifact。
-build-only、schema-only 或一次成功日志都不足以证明运行边界。
+Leaf 语义提升到 common/kernel 前应保留正例、失败例、入口/出口 machine state 与 artifact。
+Build-only、schema-only 或单次成功日志不足以证明运行边界。

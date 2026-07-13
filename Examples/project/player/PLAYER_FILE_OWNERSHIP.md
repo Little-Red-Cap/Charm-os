@@ -75,9 +75,11 @@ Port v1 的规范见 [PLAYER_PORT_V1.md](PLAYER_PORT_V1.md)。
 | `win/player.font_cache_win32.cppm` | GDI glyph-cache provider，只由 legacy Win adapter bind |
 | `win/player.time_utils_win32.cppm` | 本地周历 provider，属于 Player 产品适配，不进入 Host API |
 | `win/player.host_features_compat.cppm` | 旧 Win 工具输出的兼容投影，不进入 canonical source set |
+| `host/player.host_sdl3_adapter.cppm` | canonical Host SDL 到 `PlayerPort` 的薄投影；不拥有 Host 契约 |
+| `host/main.cpp` | canonical Player-on-Host executable 入口与 Host 产品 frame pacing |
 
-本轮禁止修改 `Backends/host/sdl3` 与 `Examples/project/h747-lab`。未来 adapter 只能从 Host 取得
-clock、raster display、raw input 和 run loop，并把它们投影到 `PlayerPort`。
+Player Host adapter 只从 `Backends/host/sdl3` 取得 clock、raster display、raw input 和 run loop，
+并把它们投影到 `PlayerPort`；Host backend 不定义 Player 页面、命令、资源或生命周期。
 
 `player.mcu_policy` 已不再被 MD3 controller import，也不属于 canonical source manifest；文件暂留仅供
 旧显式板级清单兼容。

@@ -23,6 +23,10 @@ Player MD3 canonical 应用与平台接缝的当前入口：
 当前首轮边界是 Player MD3 / Player Port。Host SDL backend 与 H747 Lab 分别由其它工作线维护，
 本目录不定义它们的实现。旧 Vivid/Ink target 暂时只作为兼容基线，MD3 是唯一 canonical 应用模型。
 
+`host/player.host_sdl3_adapter.cppm` 是 Player 对已存在 Host SDL 契约的薄投影：它复用 Host
+`Clock`、`RunLoop`、`RawSinkRef` 和 `RasterDisplay`，只负责组装 `PlayerPort`。SDL 类型、事件轮询
+和 texture 仍由 `Backends/host/sdl3` 拥有；Player 播放命令、资源策略和 UI 状态仍由本项目拥有。
+
 当前离平台验收入口：
 
 - `Examples/system/player_port_runtime_smoke`：最小 Port 生命周期与失败状态。
@@ -60,6 +64,17 @@ legacy preset 也复用同一个 `cmake-build-player`；切回 canonical 时重�
 legacy storage VHD 没有仓库内默认路径；需要时显式传
 `-DPLAYER_HOST_STORAGE_VHD_PATH=<path>` 或设置同名环境变量。
 
+canonical Player-on-Host 执行端使用同一个 `Charm::player-md3`，只在显式 Host preset 中启用：
+
+```powershell
+cmake --preset player-md3-host-debug
+cmake --build --preset build-player-md3-host-debug -- -j1
+ctest --preset test-player-md3-host-debug
+```
+
+运行 `cmake-build-player/charm-player-md3-host.exe` 可打开实际 SDL 窗口。CTest 使用隐藏窗口和固定
+三帧，只验证 Host clock/input/present/run-loop 到 Player Port 的接线，不接管 Player 截图或 UI CI。
+
 旧架构收敛与能力地图保留为历史/探索材料：
 [ARCHITECTURE_CONVERGENCE.md](ARCHITECTURE_CONVERGENCE.md)、
 [PLAYER_SYSTEM_CAPABILITY_MAP.md](PLAYER_SYSTEM_CAPABILITY_MAP.md)。它们不覆盖本 README、
@@ -88,6 +103,9 @@ Examples/project/player/
         player.controller.cppm
         player.ui.cppm
         player.ui_builder.cppm
+    host/
+        player.host_sdl3_adapter.cppm
+        main.cpp
     win/
         CMakeLists.txt
         main.cpp

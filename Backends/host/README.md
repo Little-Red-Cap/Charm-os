@@ -27,6 +27,45 @@ truth.
 
 Linux host support is intentionally out of scope for the first contract pass.
 
+## SDL3 backend v1
+
+`sdl3/` is the first concrete Host execution backend. It provides:
+
+- a monotonic `charm::system::Clock` backed by SDL ticks;
+- one SDL event pump that emits existing `input::RawInputEvent` values;
+- `RasterDisplay.present()` through an SDL streaming texture;
+- a CMake target named `Charm::host-sdl3`.
+
+It does not own Player commands, UI lifecycle, storage, audio, fonts,
+screenshots, or product profiles. An application binds the backend clock and
+callbacks to the existing `charm::system::RunLoop`.
+
+Run its independent vertical smoke with:
+
+```powershell
+.\Backends\host\run-host-sdl3-smoke.ps1
+```
+
+Pass `-Sdl3SourceDir <path>` to use an explicit third-party SDL3 checkout;
+otherwise the shared SDL3 discovery rules use a configured package, local
+source, or the pinned FetchContent fallback. Explicit source wins over a system
+package. Pass `-NoFetch` to require an already available dependency.
+
+The stability gate repeatedly opens and closes the backend while exercising
+cross-row partial presentation with pixel readback, ordered input bursts, sink
+rejection, and event draining:
+
+```powershell
+.\Backends\host\run-host-sdl3-stability-gate.ps1 -NoFetch
+```
+
+Its defaults run `100` sessions, `30` partial frames per session, and `64`
+events per frame. `-Repeat`, `-Frames`, and `-EventBurst` make the same gate
+usable for quick checks and longer soak runs. The final output records the SDL3
+origin/version plus sessions, presents, event counts, errors, and elapsed time.
+The FetchContent fallback is fixed to `release-3.2.8` and verifies its checked
+out Git revision before reporting success.
+
 ## Reference backend v0
 
 `host_reference.hpp` is the first host backend implementation candidate. It is

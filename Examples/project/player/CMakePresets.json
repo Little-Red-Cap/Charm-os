@@ -13,7 +13,8 @@
             "binaryDir": "${sourceDir}/../../../cmake-build-player",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug",
-                "CHARM_PLAYER_BUILD_LEGACY_VARIANTS": "OFF"
+                "CHARM_PLAYER_BUILD_LEGACY_VARIANTS": "OFF",
+                "CHARM_PLAYER_BUILD_HOST_SDL3": "OFF"
             }
         },
         {
@@ -24,7 +25,20 @@
             "binaryDir": "${sourceDir}/../../../cmake-build-player",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug",
-                "CHARM_PLAYER_BUILD_LEGACY_VARIANTS": "ON"
+                "CHARM_PLAYER_BUILD_LEGACY_VARIANTS": "ON",
+                "CHARM_PLAYER_BUILD_HOST_SDL3": "OFF"
+            }
+        },
+        {
+            "name": "player-md3-host-debug",
+            "displayName": "Player MD3 Host SDL3 Debug",
+            "description": "Configure the canonical Player MD3 application with the thin Charm Host SDL3 adapter.",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/../../../cmake-build-player",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CHARM_PLAYER_BUILD_LEGACY_VARIANTS": "OFF",
+                "CHARM_PLAYER_BUILD_HOST_SDL3": "ON"
             }
         }
     ],
@@ -45,6 +59,15 @@
             "targets": [
                 "charm-player-win-vivid-md3"
             ]
+        },
+        {
+            "name": "build-player-md3-host-debug",
+            "displayName": "Build Player MD3 Host SDL3 Debug",
+            "configurePreset": "player-md3-host-debug",
+            "targets": [
+                "charm-player-md3-host",
+                "player_canonical_smokes"
+            ]
         }
     ],
     "testPresets": [
@@ -52,6 +75,14 @@
             "name": "test-player-md3-canonical-debug",
             "displayName": "Test Player MD3 Canonical Debug",
             "configurePreset": "player-md3-canonical-debug",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "test-player-md3-host-debug",
+            "displayName": "Test Player MD3 Host SDL3 Debug",
+            "configurePreset": "player-md3-host-debug",
             "output": {
                 "outputOnFailure": true
             }

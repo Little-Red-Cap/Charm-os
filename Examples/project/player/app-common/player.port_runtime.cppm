@@ -46,7 +46,16 @@ export namespace player {
         [[nodiscard]] bool frame(PlayerClockTick now_us,
                                  PlayerClockTick dt_us,
                                  std::size_t input_budget = 16) {
+            return update_frame(now_us, dt_us, input_budget) && render_frame();
+        }
+
+        [[nodiscard]] bool update_frame(PlayerClockTick now_us,
+                                        PlayerClockTick dt_us,
+                                        std::size_t input_budget = 16) {
             if (state_ != PlayerPortRuntimeState::Running) {
+                return false;
+            }
+            if (frame_pending_render_) {
                 return false;
             }
             if (has_last_frame_time_ && now_us < last_frame_us_) {
@@ -65,6 +74,15 @@ export namespace player {
             endpoint_.update_fn(endpoint_.ctx, now_us, dt_us);
             last_frame_us_ = now_us;
             has_last_frame_time_ = true;
+            frame_pending_render_ = true;
+            return true;
+        }
+
+        [[nodiscard]] bool render_frame() {
+            if (state_ != PlayerPortRuntimeState::Running || !frame_pending_render_) {
+                return false;
+            }
+            frame_pending_render_ = false;
             if (!endpoint_.render_fn(endpoint_.ctx, port_.raster_surface, port_.raster_display)) {
                 state_ = PlayerPortRuntimeState::Failed;
                 return false;
@@ -86,6 +104,7 @@ export namespace player {
                 endpoint_.shutdown_fn(endpoint_.ctx);
                 shutdown_called_ = true;
             }
+            frame_pending_render_ = false;
             state_ = PlayerPortRuntimeState::Stopped;
         }
 
@@ -96,6 +115,7 @@ export namespace player {
         bool bootstrap_attempted_{false};
         bool shutdown_called_{false};
         bool has_last_frame_time_{false};
+        bool frame_pending_render_{false};
         PlayerClockTick last_frame_us_{0};
         std::size_t dispatched_input_count_{0};
     };

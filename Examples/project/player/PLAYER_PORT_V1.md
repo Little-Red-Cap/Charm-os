@@ -83,6 +83,8 @@ construct
 - Host/board/QEMU run loop 拥有主循环；Player 不调用 `while (running)`。
 - adapter 把 run-loop 的 `now_us/dt_us` 传给 `frame(now_us, dt_us)`。
 - `frame()` 的 clock convenience 入口只用于 smoke/简单宿主；正式 adapter 优先传入 run-loop 时间。
+- 分阶段 run loop 使用 `update_frame(now_us, dt_us)` 与 `render_frame()`；两次 update 之间必须完成
+  一次 render，重复 update 或重复 render 都会被拒绝。`frame()` 只是顺序调用二者的 convenience 入口。
 - bootstrap 失败或 render 失败后状态为 `Failed`，不得继续 frame。
 - endpoint bootstrap 已尝试后，shutdown 对 `Running`/`Failed` 最多调用一次 endpoint shutdown；
   Port 或 endpoint 校验失败而从未进入 endpoint bootstrap 时不调用它。
@@ -124,9 +126,9 @@ construct
    - 当前 `charm-player-win-vivid-md3` 保留可运行基线，但只在
      `CHARM_PLAYER_BUILD_LEGACY_VARIANTS=ON` 时出现，不代表最终 Host 契约；
    - 不改 `Backends/host/sdl3`，不改 H747 target。
-2. Host SDL smoke 稳定后：
+2. Host SDL adapter：
    - 继续复用 `charm_player_md3`，不复制应用源码；
-   - 新建薄 executable `charm-player-md3-host`，只负责 Host capability 到 `PlayerPort` 的投影；
+   - 薄 executable `charm-player-md3-host` 只负责 Host capability 到 `PlayerPort` 的投影；
    - `charm-player-win-vivid` 与 `charm-player-win-ink` 移入默认关闭的
      `CHARM_PLAYER_BUILD_LEGACY_VARIANTS`，只做兼容构建；
    - canonical CI 只验收 MD3 runtime smoke、Port smoke、Player-on-Host 与 Player 私有 UI CI。

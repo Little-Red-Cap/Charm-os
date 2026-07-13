@@ -1,42 +1,24 @@
 # UI 示例入口
 
-本目录收纳 Vivid UI 相关的主机侧验证样例，重点覆盖 object-level widget、SceneAccess、主题、导航、fullframe/tile 渲染和移植模板。
+## 文档状态
 
-如果你还没先看 UI 文档，建议先回到：
+- `status`: `supporting`
+- `scope`: Host Vivid fixture 路由
+- `authority`: [`../../docs/ui/README.md`](../../docs/ui/README.md)、demo source、CMake/CTest
 
-- [`../../docs/ui/README.md`](../../docs/ui/README.md)
-- [`../cmake/README.md`](../cmake/README.md)
+本目录只提供 fixture。行为、失败语义和 evidence field 由 UI 专题契约与当前测试定义，不在每个 demo
+目录复制 README。
 
-## 按任务进入
+## 路由
 
-### 我想先看当前语义冻结点
+| 目标 | 契约 | fixture |
+|---|---|---|
+| object widget truth/edge、SoA scene/helper | [`vivid_widget_state_observe.md`](../../docs/ui/vivid_widget_state_observe.md) | [`widget_state_demo`](vivid/widget_state_demo/)、[`widget_signal_demo`](vivid/widget_signal_demo/)、[`scene_state_demo`](vivid/scene_state_demo/)、[`dropdown_popup_demo`](vivid/dropdown_popup_demo/)、[`menu_tree_demo`](vivid/menu_tree_demo/) |
+| structured row/list/table/tree | [`structured_view_model_v1.md`](../../docs/ui/structured_view_model_v1.md) | [`list_row_flags_demo`](vivid/list_row_flags_demo/)、[`soa_demo`](vivid/soa_demo/) |
+| focus、semantic、motion、transaction、render evidence | [`Vivid Evidence Lab`](../../docs/ui/vivid_evidence_lab_manifest_v0.md) | [`vivid/`](vivid/) 下对应 CTest demo |
+| fullframe/tile/text/theme/navigation | [`Vivid architecture`](../../Modules/ui/vivid/ARCHITECTURE.md) | [`fullframe_demo`](vivid/fullframe_demo/)、[`tile_demo`](vivid/tile_demo/)、[`text_demo`](vivid/text_demo/)、[`theme_demo`](vivid/theme_demo/)、[`nav_demo`](vivid/nav_demo/) |
+| port template 与 assets | 当前 source/config | [`port_template`](vivid/port_template/)、[`assets`](vivid/assets/) |
 
-先读：
-
-- [`vivid/widget_state_demo/README.md`](vivid/widget_state_demo/README.md)
-- [`vivid/scene_state_demo/README.md`](vivid/scene_state_demo/README.md)
-- [`vivid/list_row_flags_demo/README.md`](vivid/list_row_flags_demo/README.md)
-
-### 我想看交互、布局与渲染路径
-
-先看：
-
-- [`vivid/fullframe_demo/`](vivid/fullframe_demo/)
-- [`vivid/nav_demo/`](vivid/nav_demo/)
-- [`vivid/text_demo/`](vivid/text_demo/)
-- [`vivid/theme_demo/`](vivid/theme_demo/)
-- [`vivid/tile_demo/`](vivid/tile_demo/)
-- [`vivid/soa_demo/`](vivid/soa_demo/)
-
-### 我想看移植模板与资源
-
-先看：
-
-- [`vivid/port_template/README.txt`](vivid/port_template/README.txt)
-- [`vivid/assets/`](vivid/assets/)
-
-## 使用提醒
-
-- 大多数 Vivid 示例依赖 SDL3 与 [`../cmake/ExampleTemplate.cmake`](../cmake/ExampleTemplate.cmake)。
-- 这里偏宿主侧 UI 验证，不直接替代最终产品化页面或板级渲染接线。
-- Vivid Evidence Lab manifest 的快速漂移检查入口是 `../../scripts/vivid_evidence_lab_manifest_smoke.ps1`。
+`soa_demo` 的专用 run/dump/replay workflow 仍见
+[`soa_demo/README.md`](vivid/soa_demo/README.md)。其它 fixture 的 target、参数和 pass gate 直接查看各目录
+`CMakeLists.txt` 与 source。Host fixture 不替代产品或真实板证据。

@@ -1,68 +1,49 @@
-﻿# VFS 挂载与多盘规则（草案）
+# VFS mount 实现状态
 
-目标：统一 VFS 路径解析与多盘规划，避免上层协议出现隐式耦合。
+## 文档状态
 
-## 1. 当前规则
+- `status`: `supporting`
+- `scope`: `fs_vfs` mount table、路径调度与 block mount adapter
+- `source`: `Modules/io/fs/fs_vfs.cppm`、`Modules/io/fs/fs_path.cppm`
 
-- VFS 通过 `add_mount(prefix, mount)` 注册前缀，按“最长前缀匹配”选中挂载点。
-- FatFs 支持多盘注册，`disk_*` 按 `pdrv` 路由到对应设备。
+## Mount table
 
-## 2. 建议的多盘前缀规则
+VFS 使用进程内固定表保存最多 8 个 `MountPoint`。`add_mount(prefix, mount)` 去掉 prefix 的前导
+分隔符后，保存 non-owning `std::string_view` 和 `Mount*`；caller 必须保证两者生命周期覆盖注册期。
 
-推荐路径规则（保持最简单的一致性）：
-- `"/"`：默认挂载（单盘）
-- `"/d0"`：磁盘 0
-- `"/d1"`：磁盘 1
-- 以此类推
+`add_mount()` 的当前失败语义：
 
-例如：
-- `add_mount("/d0", fat0.mount_point())`
-- `add_mount("/d1", fat1.mount_point())`
+- null mount：`Errc::inval`；
+- mount table 已满：`Errc::busy`。
 
-上层使用：
-- `vfs_open("/d0/music/track.flac")`
-- `vfs_open("/d1/logs/run.log")`
+它不检查重复 prefix。`clear_mounts()` 只清空表，不调用 filesystem unmount。
+`remove_mount()` 也只移除记录；`vfs_unmount()` 才会先调用可选的 `MountOps::unmount`。
 
-## 3. FatFs 的 pdrv 对接
+## 路径匹配
 
-注册接口：
-- `fatfs_register_block_device(dev, pdrv)`
+`find_mount()` 去掉 path 的前导分隔符，并选择最长字符串前缀；空 prefix 可作为 fallback root mount。
+当前匹配不检查路径组件边界，因此 prefix `d0` 也会匹配 `d01/file`。mount naming 与冲突规避仍由
+装配层负责，源码没有规定 `/d0`、`/d1` 等产品命名。
 
-建议约定：
-- 每个 `FatFsMount` 对应一个 `pdrv`
-- 多盘时保持 `pdrv` 与 VFS 前缀一一对应
+选中 mount 后，VFS 去掉 prefix，再把剩余相对路径交给 `MountOps`。未找到 mount 或缺少对应 op
+时，多数 file operation 返回 `Errc::nosys`；跨 mount rename 返回 `Errc::notsup`。
 
-## 4. 约束与注意事项
+## Block adapter
 
-- `pdrv` 上限由 `CHARM_FATFS_MAX_PDRV` 控制（默认 4）。
-- `disk_*` 仅在对应 `pdrv` 注册设备后可用。
+`vfs_mount_block()` 可按 registry name 或 cap 查找 `block::Device`。device 缺失返回 `Errc::noent`；
+filesystem mount 错误与 `add_mount()` 错误原样返回。
 
-## 5. VFS 调度流程（最小闭环）
+## Flush 与 dirty state
 
-```mermaid
-sequenceDiagram
-  participant App as App
-  participant VFS as fs_vfs
-  participant M as MountOps
-  participant N as NodeOps
+成功的 write/unlink/rename/truncate/mkdir 会标记 mount dirty。`vfs_flush(file)` 只调用 file node
+flush；`vfs_flush(prefix)` 调用 mount flush，成功后清除 dirty。`vfs_close()` 只调用 node close，
+不隐式 flush mount。
 
-  App->>VFS: vfs_open(path, flags)
-  VFS->>VFS: longest-prefix match
-  VFS->>M: open(path, flags)
-  M-->>VFS: File + NodeOps
+## 未提供
 
-  App->>VFS: vfs_read/write/seek
-  VFS->>N: read/write/seek
-  N-->>VFS: status/data
+- mount table locking、动态扩容或 ownership；
+- prefix 重复和路径组件边界校验；
+- mount namespace、权限或 sandbox；
+- 自动 mount discovery 或持久化 mount policy。
 
-  App->>VFS: vfs_flush(file)
-  VFS->>N: flush
-
-  App->>VFS: vfs_flush(prefix)
-  VFS->>M: flush
-```
-
-说明：
-- `vfs_close` 仅释放资源，不保证落盘。
-- 需要强一致时，显式调用 `vfs_flush(file)` 或 `vfs_flush(prefix)`。
-
+验证入口：`Examples/fs/fs_vfs_demo`、`Examples/fs/fs_block_vfs_demo`。

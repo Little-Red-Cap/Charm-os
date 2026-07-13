@@ -40,8 +40,8 @@ media discovery。
 ## FatFs
 
 `FatFsMount` 可以接收 `BlockDevice` 或 `MalDevice`，后者先通过 `mal_to_block()` 进入相同 diskio
-路径。可选 cache buffer 由 caller 提供。mount、format-if-needed、file slot 和 UTF path 行为由
-[`fs_fatfs_demo.md`](fs_fatfs_demo.md) 与源码约束。
+路径。可选 cache buffer 由 caller 提供。mount、format-if-needed、file slot、UTF path 与多盘边界
+见 [`fs_fatfs_demo.md`](fs_fatfs_demo.md)。
 
 ## 未提供
 

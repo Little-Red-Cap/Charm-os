@@ -1,56 +1,47 @@
-# FatFs 文件镜像示例（PC 端验证）
+# FatFs adapter 与示例状态
 
-目标：用 **file-backed block device + FatFs** 打通“块设备 → FAT32 → VFS → 上层”链路。
+## 文档状态
 
-## 前置条件
+- `status`: `supporting`
+- `scope`: `fs_fatfs` adapter 与 file-backed host fixture
+- `source`: `Modules/io/fs/fs_fatfs.cppm`、`Examples/fs/fs_fatfs_demo`
 
-- FatFs 源码放在 `Modules/thirdparty/fatfs/`
-  - 必含：`ff.c`、`ff.h`、`diskio.h`、`ffconf.h`、`integer.h`
-- CMake 开关：`-DCHARM_ENABLE_FATFS=ON`
-- 镜像文件（例如 `dev.vhd` 或 `.img`），已初始化为 MBR + FAT32
+`CHARM_ENABLE_FATFS=ON` 时，Charm 从 `Modules/thirdparty/fatfs` 编译 FatFs，并启用
+`fs::FatFsMount`。关闭时保留 stub，mount/unmount 返回 `Errc::nosys`。
 
-建议配置（`ffconf.h`）：
-- `FF_USE_LFN = 2` 或 `3`（启用 LFN）
-- `FF_MAX_LFN` 按需设置
+## Adapter
 
-可选工程开关（构建时）：
-- `CHARM_FATFS_MAX_FILES`（最大打开文件数，默认 8）
-- `CHARM_FATFS_MAX_PATH`（路径长度上限，默认 256）
-- `CHARM_FATFS_MAX_PDRV`（多盘上限，默认 4）
+`FatFsMount` 可接收 `BlockDevice` 或 `MalDevice`；MAL 路径先通过 `mal_to_block()` 进入相同
+diskio adapter。mount 成功后，caller 通过 `fs::add_mount()` 或 `fs::vfs_mount_block()` 注册到
+VFS。
 
-## 示例工程
+当前固定资源默认值：
 
-路径：`Examples/fs/fs_fatfs_demo`
+- file slots：8，可由 `CHARM_FATFS_MAX_FILES` 或 caller-owned slot span 覆盖；
+- path buffer：两块、每块 256 TCHAR，可由 `CHARM_FATFS_MAX_PATH` 或 caller-owned span 覆盖；
+- physical drive slots：4，可由 `CHARM_FATFS_MAX_PDRV` 覆盖；
+- optional diskio cache：caller-owned 单 block buffer。
 
-行为：
-- 读取镜像 `LBA0`，解析 MBR 分区表，定位 FAT32 分区
-- 挂载 FatFs 到 `/`
-- 列出根目录并读取 `/hello.txt`
+`format_if_needed` 只在 FatFs 返回 `FR_NO_FILESYSTEM` 时尝试 FAT32 mkfs；未启用 `FF_USE_MKFS`
+则返回 `Errc::notsup`。FatFs error 通过 `err_from_fr()` 映射为 `fs::Errc`。
 
-## 使用方式（示例）
+`pdrv` 已用于 `disk_*` device/cache 路由，但当前 mount/unmount 调用仍使用空 FatFs drive path。
+因此不能仅凭 `CHARM_FATFS_MAX_PDRV` 宣称多盘 VFS mount 已闭环；显式 drive path 与多 mount
+隔离仍需单独验证。
 
-```bash
-# 配置
-cmake -S . -B cmake-build-debug -DCHARM_ENABLE_FATFS=ON
+## Host fixture
 
-# 构建
-cmake --build cmake-build-debug -j 12
+`Examples/fs/fs_fatfs_demo` 强制启用 FatFs，打开 512-byte block 的 disk image，读取 MBR 的第一个
+FAT32 partition offset，挂载 image 或该 partition，列出根目录并尝试读取 `/hello.txt`。fixture
+只证明 file-backed read path，不定义产品 partition、format 或 write policy。
 
-# 运行（传入镜像路径）
-Examples/fs/fs_fatfs_demo/<build>/fs-fatfs-demo G:\Project\dev.vhd
-```
+## 未提供
 
-## 说明与注意事项
+- filesystem 或 block device ownership；
+- thread safety、async IO 或 hot-plug policy；
+- journal、transaction 或 power-fail guarantee；
+- 已验证的多盘 mount contract；
+- close 时自动执行 mount flush。
 
-- 默认 block size 为 512。
-- `vfs_open(path)` 默认只读；创建/截断需使用 `OpenFlags`（写权限）。
-- LFN 需 `FF_USE_LFN` 开启且 `FILINFO.lfname/lfsize` 已传入。
-- `BlockFile` 使用 64-bit seek，支持 2GB 以上镜像。
-- `vfs_close` 仅释放资源，不保证落盘；需要时显式 `vfs_flush(file)` 或 `vfs_flush(prefix)`。
-
-## 可选优化入口
-
-- 外部缓存：`FatFsMount::mount(dev, cache, ..., pdrv)`
-- 自定义文件槽：`FatFsMount::set_file_slots(span<FatFsFileSlot>)`
-- 自定义路径缓冲：`FatFsMount::set_path_buffers(span<TCHAR> buf0, span<TCHAR> buf1)`
-
+cache 行为见 [`fs_block_cache_strategy.md`](fs_block_cache_strategy.md)，VFS 路由见
+[`fs_vfs_mount_rules.md`](fs_vfs_mount_rules.md)。

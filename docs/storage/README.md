@@ -12,8 +12,7 @@
 | MAL implementation | [`mal_overview.md`](mal_overview.md) |
 | VFS mount | [`fs_vfs_mount_rules.md`](fs_vfs_mount_rules.md) |
 | block/MAL cache | [`fs_block_cache_strategy.md`](fs_block_cache_strategy.md) |
-| FatFs + BlockDevice | [`fs_fatfs_demo.md`](fs_fatfs_demo.md) |
-| FatFs + MAL | [`mal_fatfs_demo.md`](mal_fatfs_demo.md) |
+| FatFs adapter + host fixture | [`fs_fatfs_demo.md`](fs_fatfs_demo.md) |
 | 示例 | [`Examples/fs/README.md`](../../Examples/fs/README.md) |
 
 FileX 对标属于外部参考，不是当前接口契约：

@@ -14,6 +14,5 @@
 - [`block_device_contract.md`](../../docs/storage/block_device_contract.md)
 - [`fs_vfs_mount_rules.md`](../../docs/storage/fs_vfs_mount_rules.md)
 - [`fs_fatfs_demo.md`](../../docs/storage/fs_fatfs_demo.md)
-- [`mal_fatfs_demo.md`](../../docs/storage/mal_fatfs_demo.md)
 
 示例只证明对应 fixture，不定义产品 filesystem、partition 或 mount policy。

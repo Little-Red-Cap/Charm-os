@@ -14,7 +14,7 @@
 | `io::Registry` | 固定容量 endpoint 发布与查找 | 对象所有权、热插拔生命周期、动态分配 |
 
 协议和 service 在这些 primitive 上构建，不能绕过 `would_block`、callback budget、
-静态 name lifetime 或 registry ownership 规则。
+name backing lifetime 或 registry ownership 规则。
 
 ## 实现层次
 

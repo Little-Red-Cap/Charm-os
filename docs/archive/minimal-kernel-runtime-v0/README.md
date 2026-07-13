@@ -43,3 +43,8 @@ kernel module 早期阶段中仍有独立价值的 sync 竞争规则与 thread �
 - 优先级继承、死锁检测和多核调度一致性。
 
 若以后实现其中任一方向，应从具体源码、失败语义和独立证据重新建立契约，不恢复旧文档中的阶段性叙事。
+
+## 历史故障
+
+- 2026-07-13：`runtime_task_syscall_frame_armv7a_host` 通过，但
+  `run_qemu_task_syscall_ci.ps1` 被 GCC 17 modules/libstdc++ 重复定义错误阻断，未进入 QEMU。

@@ -43,9 +43,8 @@ Armv7a observation
 QEMU 证明 firmware/exception seam 可以运行，不证明真实 SoC 的中断控制器、MMU/cache 时序或
 板级异常现场完全一致。
 
-当前复测状态：`runtime_task_syscall_frame_armv7a_host` 已通过；
-`run_qemu_task_syscall_ci.ps1` 在 2026-07-13 被 GCC 17 modules/libstdc++ 重复定义错误阻断，
-尚未进入 QEMU。修复前，QEMU 文件和脚本只能证明入口存在，不能作为当前绿色证据。
+脚本存在只证明验证入口存在；Host/QEMU 状态以当次输出为准。历史工具链阻断记录在
+[`minimal-kernel-runtime-v0`](../archive/minimal-kernel-runtime-v0/README.md)。
 
 ## 映射约束
 

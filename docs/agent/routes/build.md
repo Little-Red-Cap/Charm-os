@@ -13,6 +13,10 @@
 3. [`../skills/charm-cmake/SKILL.md`](../skills/charm-cmake/SKILL.md)
 4. 目标目录下的 `README.md` 或示例入口
 
+仅在出现 `conflicting language linkage for imported declaration` 时，参考
+[`cpp_modules_stdlib_linkage_conflicts.md`](../../architecture/cpp_modules_stdlib_linkage_conflicts.md) 的事件边界；
+不要把局部 workaround 当作全仓 modules 规则。
+
 ## 先不要做什么
 
 - 不要无理由绕开 preset。

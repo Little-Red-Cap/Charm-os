@@ -14,6 +14,7 @@
 | summary/report/check bundle | [`minimal_kernel_runtime_host_smoke_bundle.ps1`](../../scripts/minimal_kernel_runtime_host_smoke_bundle.ps1) |
 | cold/warm wrappers | `ci_*` / `daily_*` host smoke scripts |
 | 推荐双态入口 | [`minimal_kernel_runtime_host_smoke_dual_bundle.ps1`](../../scripts/minimal_kernel_runtime_host_smoke_dual_bundle.ps1) |
+| 语义阶梯局部回归 | [`minimal_kernel_semantic_witness_ladder_smoke_contract.md`](minimal_kernel_semantic_witness_ladder_smoke_contract.md) |
 | CI | [`minimal-kernel-host-smoke.yml`](../../.github/workflows/minimal-kernel-host-smoke.yml) |
 
 ## Cold 与 Warm

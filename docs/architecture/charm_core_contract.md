@@ -190,20 +190,11 @@ Kernel、scheduler、process model、bootloader、driver framework 和 filesyste
 
 通用 Driver 可以成为独立驱动包，但不能因为“可能复用”直接进入 Core。
 
-## 9. 当前事实与下一证明
+## 9. 证据边界
 
-仓库已经积累 Host、QEMU、真实板、IO、装配、Resident ELF 和其它机制的实现与证据链。
-这些都是审判材料，不自动构成 Core，也不等于 MVP 已成立。
+Host、QEMU、真实板、IO、装配和 image loader 的实现与验证属于 supporting 文档、源码和当次
+smoke 结果，不在本契约中记录项目进度。它们可以提供 Core 审查材料，但不能因实现存在、构建
+通过或样例运行就自动获得 Core 身份，也不能替代第 6 节要求的独立证据。
 
-[`Examples/system/charm_capability_mvp`](../../Examples/system/charm_capability_mvp/README.md)
-已经完成 Host 与真实 QEMU `mps2-an500` 两条实现切片：三项 Contract 使用单一定义，同一
-App source 只更换 Profile 和 provider；两域得到相同 timestamp/checksum，missing binding
-均在 App 启动前失败。源码边界检查同时确认共享头文件不含平台条件分支，并要求 Host、QEMU、
-H747 harness 只能包含同一个 `mvp_app.hpp`，不得各自重定义 App。
-
-H747 foundation profile 与固件 target 已经能够消费同一 App、Contract 和 resolver，并完成
-build-only 验证；这仍不等于真实板执行。只有 UART capture 同时证明正例、启动前 missing-binding
-负例和可比较 Evidence 后，才构成第三证据域。因此当前仍不是跨环境 MVP 闭环。
-
-当前下一项平台级证明是完成第 6 节的同源三环境 MVP。目录迁移、Compiler 生成、Resident ELF 扩面、
-完整 OS、Studio 或新公共框架都不能替代这项证明。
+判断某项 MVP 或跨环境主张是否成立时，应核对对应源码、CMake target、正反例和实际运行证据；
+不要从本契约推断当前完成度或下一项排期。

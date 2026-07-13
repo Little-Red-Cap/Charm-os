@@ -71,5 +71,5 @@ runner 的 token 和参数是当前验收事实；是否通过必须以当次构
 - fd 与错误语义：[`posix_fd_table_contract.md`](posix_fd_table_contract.md)、
   [`posix_error_semantics.md`](posix_error_semantics.md)
 
-POSIX v0 的阶段基线、roadmap、任务清单、维护话术和工具链解阻记录已移入
+POSIX v0 的阶段基线、早期设计和工具链解阻记录已移入
 [`../archive/posix-v0/`](../archive/posix-v0/README.md)，只用于历史追溯。

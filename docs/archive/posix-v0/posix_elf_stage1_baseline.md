@@ -213,7 +213,4 @@
 4. `Examples/posix/elf_samples/README.md`
 5. `Examples/kernel/posix/qemu/README.md`
 
-如果你要看维护规则，再回去看：
-
-- `docs/system/posix_maintenance_mode_collaboration.md`
-- `docs/system/posix_v0_closure_checklist.md`
+维护方式和当前验收入口只以 `docs/system/posix_support_overview.md`、源码与当次 runner 为准。

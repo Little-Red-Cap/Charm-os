@@ -18,7 +18,8 @@ Player MD3 是独立产品事实，不定义 Charm Core，也不拥有 Host back
 Player MD3 canonical 应用与平台接缝的当前入口：
 
 - [PLAYER_FILE_OWNERSHIP.md](PLAYER_FILE_OWNERSHIP.md)：当前文件四层归属与依赖红线。
-- [PLAYER_PORT_V1.md](PLAYER_PORT_V1.md)：Player-owned 消费契约、生命周期和 `player.board_*` 迁移判决。
+- [PLAYER_PORT_V2.md](PLAYER_PORT_V2.md)：当前 Player-owned 消费契约、实例状态、失败与预算边界。
+- [PLAYER_PORT_V1.md](PLAYER_PORT_V1.md)：`player.board_*` 迁移判决与 v1 历史。
 
 当前首轮边界是 Player MD3 / Player Port。Host SDL backend 与 H747 Lab 分别由其它工作线维护，
 本目录不定义它们的实现。旧 Vivid/Ink target 暂时只作为兼容基线，MD3 是唯一 canonical 应用模型。
@@ -31,6 +32,10 @@ Player MD3 canonical 应用与平台接缝的当前入口：
 
 - `Examples/system/player_port_runtime_smoke`：最小 Port 生命周期与失败状态。
 - `Examples/system/player_md3_runtime_smoke`：真实 MD3 controller/scene/raster runtime。
+- `Examples/system/player_instance_isolation_smoke`：storage/cover 实例隔离与单次扫描。
+- `Examples/system/player_audio_binding_smoke`：source/sink 注入、失败和 legacy constructor。
+- `Examples/system/player_host_input_burst_smoke`：Host 输入突发、合并和丢弃统计。
+- `Examples/system/player_memory_report`：Player/Vivid/audio 静态内存账本。
 
 canonical source set 由 `cmake/player_md3_sources.cmake` 显式维护。当前应用模块不包含 SDL、Win32、
 H747、QEMU 或 `CHARM_PLAYER_MCU/HOST/BOARD/PLATFORM` 条件；GDI 字体缓存与本地周历只存在于
@@ -52,6 +57,15 @@ ctest --preset test-player-md3-canonical-debug
 上述 preset 固定复用仓库根 `cmake-build-player`。canonical component、Port smoke 与
 真实 MD3 runtime smoke 共用同一套 Charm 构建产物，不再创建平行构建目录。MD3 smoke
 分别运行 RGB565、RGB888、ARGB8888 三种 borrowed raster 格式。
+
+ARM freestanding compile-only 同样复用该目录；切换 toolchain 前必须清理目录：
+
+```powershell
+cmake --preset player-md3-arm-freestanding-debug
+cmake --build --preset build-player-md3-arm-freestanding-debug -- -j1
+```
+
+该 preset 只生成 `libcharm_player_md3.a`，不链接 firmware、不运行 QEMU、不占用板子。
 
 旧 Win Vivid/Ink 仅在显式 opt-in 后出现，不参与 canonical 验收：
 
@@ -78,7 +92,8 @@ ctest --preset test-player-md3-host-debug
 旧架构收敛与能力地图保留为历史/探索材料：
 [ARCHITECTURE_CONVERGENCE.md](ARCHITECTURE_CONVERGENCE.md)、
 [PLAYER_SYSTEM_CAPABILITY_MAP.md](PLAYER_SYSTEM_CAPABILITY_MAP.md)。它们不覆盖本 README、
-`PLAYER_FILE_OWNERSHIP.md` 或 `PLAYER_PORT_V1.md` 的当前边界。
+`PLAYER_FILE_OWNERSHIP.md` 或 `PLAYER_PORT_V2.md` 的当前边界。
+当前 Port 契约以 `PLAYER_PORT_V2.md` 为准，V1 只保留迁移历史。
 
 ## 当前目录结构
 
@@ -130,6 +145,10 @@ canonical 固定 `CHARM_PLAYER_LEGACY_TOUCH_INPUT=0`，输入只从 Port 的
 
 Player 产品 compile definitions 只施加到 `Charm::player-md3`；Charm runtime 只接收自身需要的
 audio sink 选择。修改 Player 容量或资源策略不得触发整套 Charm runtime 重编。
+
+canonical 构建使用 `cmake/player_charm_closure.cmake` 与通用 leaf helper，不链接聚合
+`Charm-os`。当前干净 Host evidence 为 485 steps / 0.967 GiB；应用对象 5,352,744 bytes，
+应用加 ARGB framebuffer 8,101,864 bytes。详细口径见 [PLAYER_PORT_V2.md](PLAYER_PORT_V2.md)。
 
 旧板级目录、profile 和 runtime glue 当前仍保留，是迁移兼容物，不是 canonical Player
 入口，也不参与本轮验收。H747 侧装配由独立工作线维护。

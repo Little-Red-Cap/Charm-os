@@ -45,12 +45,12 @@ canonical source gate 同时扫描 `player.product_policy.hpp`，并拒绝
 
 | 当前文件 | 判定 |
 |---|---|
-| `app-common/player.port.cppm` | v1 消费契约：clock、raster surface/display、raw input |
-| `app-common/player.port_runtime.cppm` | v1 生命周期：bootstrap、bounded input、update、render、shutdown |
+| `app-common/player.port.cppm` | v2 消费契约：clock、完整容量 raster、三态 raw input |
+| `app-common/player.port_runtime.cppm` | v2 生命周期：分阶段失败、bounded input、counters、幂等 shutdown |
 | `app-common/player.raster.cppm` | 无 UI/平台依赖的 Port raster 投影、present sink 与 memory test sink |
 | `app-vivid-MaterialDesign3/player.md3_port.cppm` | canonical MD3 到 `PlayerRuntimeEndpoint` 的 materializer |
 
-Port v1 的规范见 [PLAYER_PORT_V1.md](PLAYER_PORT_V1.md)。
+当前规范见 [PLAYER_PORT_V2.md](PLAYER_PORT_V2.md)；v1 文档只保留迁移判决。
 
 ## 3. 平台适配
 
@@ -106,12 +106,16 @@ Player Host adapter 只从 `Backends/host/sdl3` 取得 clock、raster display、
 | `win/cmake/product_player_host_scenarios.cmake`、`product_player_identity.cmake` | 旧场景与 target 兼容配置 |
 | `player.product_policy`（当前物理文件仍为 `app-common/player.host_features.cppm`） | Player product/test 编译策略；禁止新增 Host 命名 |
 | `Examples/system/player_*_smoke` | Player 产品语义 smoke |
-| `Examples/system/player_port_runtime_smoke` | Player Port v1 无平台 runtime smoke |
+| `Examples/system/player_port_runtime_smoke` | Player Port v2 容量、状态与失败阶段 smoke |
 | `Examples/system/player_md3_runtime_smoke` | 真实 MD3 controller/scene/render 的无 SDL canonical smoke |
+| `Examples/system/player_instance_isolation_smoke` | storage/cover 每实例隔离与单次扫描 smoke |
+| `Examples/system/player_audio_binding_smoke` | media source/sink 实例注入与兼容桥 smoke |
+| `Examples/system/player_host_input_burst_smoke` | 512 pointer burst、coalesce/drop 统计 smoke |
+| `Examples/system/player_memory_report` | application/framebuffer/Vivid/audio 内存账本 |
 | `app-common/player.runtime_probe.cppm` | Player runtime 私有证据，不包含平台探测 |
 | `cmake/player_md3_sources.cmake` | canonical MD3 显式 source manifest，供 smoke 与后续 adapter 共用 |
 | `cmake/player_md3_vivid_product.cmake` | Player-owned Vivid PRODUCT 模块闭包与容量；平台只消费，不重新定义 |
-| `cmake/player_md3_target.cmake`、`CMakePresets.json` | canonical component target 与推荐构建入口 |
+| `cmake/player_charm_closure.cmake`、`cmake/player_md3_target.cmake`、`CMakePresets.json` | canonical leaf closure、Host 与 ARM 推荐构建入口 |
 | `README.md`、`PLAYER_SYSTEM_CAPABILITY_MAP.md`、`ARCHITECTURE_CONVERGENCE.md` | 产品文档；旧板级叙述需要逐步归档 |
 | `app-vivid-MaterialDesign3/*.md` | MD3 设计、维护性与性能证据 |
 

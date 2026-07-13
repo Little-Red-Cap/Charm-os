@@ -2,33 +2,27 @@
 
 状态：archive。
 
-本目录保存 POSIX v0 的 ELF 基线、工具链解阻记录和早期 fd/spawn/image/runtime 分层论证。
-这些材料包含真实取舍与故障经验，但不再作为现行能力说明。
+本目录只保存 POSIX v0 中仍可独立消费的 ELF 基线、工具链故障记录和架构取舍。
+这些材料不作为现行能力说明。
 
 保留文件：
 
 - [`posix_elf_stage1_baseline.md`](posix_elf_stage1_baseline.md)
-- [`posix_errno_mapping.md`](posix_errno_mapping.md)
-- [`posix_error_semantics_v1.md`](posix_error_semantics_v1.md)
-- [`posix_fd_table_minimal_design.md`](posix_fd_table_minimal_design.md)
 - [`posix_modules_ts_build_notes.md`](posix_modules_ts_build_notes.md)
-- [`posix_program_image_minimal_design.md`](posix_program_image_minimal_design.md)
-- [`posix_program_image_elf_minimal_design.md`](posix_program_image_elf_minimal_design.md)
-- [`posix_program_image_modulex_adapter.md`](posix_program_image_modulex_adapter.md)
-- [`posix_spawn_minimal_design.md`](posix_spawn_minimal_design.md)
 - [`posix_architecture_retained_notes.md`](posix_architecture_retained_notes.md)：从早期 subsystem principles
   与 three-layer 草案中保留宏边界、三层责任、ABI spine 和 image 执行取舍。
-- [`posix_user_runtime_minimal_design.md`](posix_user_runtime_minimal_design.md)
 
-BusyBox phase checklist、cleanup plan、compat roadmap、Linux tasklist、maintenance collaboration、
-stage summary 和 v0 closure checklist 已删除。它们维护的“当前/下一步/Done/P1”和旧 runner 路径
-没有长期证据价值；需要追溯时使用 Git 历史。
-
-早期 subsystem principles 与 three-layer 全文也已合并；重复模块枚举、阶段能力判断、路线建议和
-宣言式总结不再保留。
+早期 fd、error、program image、spawn 与 user runtime 最小设计稿已由现行 contract 覆盖，
+不再重复归档。阶段 checklist、cleanup plan、roadmap、tasklist、协作旁白和 closure 总结也已删除；
+需要追溯时使用 Git 历史。
 
 当前源码边界和验证入口见：
 
 - [`../../system/posix_support_overview.md`](../../system/posix_support_overview.md)
+- [`../../system/posix_error_semantics.md`](../../system/posix_error_semantics.md)
+- [`../../system/posix_fd_table_contract.md`](../../system/posix_fd_table_contract.md)
+- [`../../system/posix_program_image_contract.md`](../../system/posix_program_image_contract.md)
+- [`../../system/posix_spawn_contract.md`](../../system/posix_spawn_contract.md)
+- [`../../system/posix_user_runtime_contract.md`](../../system/posix_user_runtime_contract.md)
 
 判断当前能力时必须重新检查源码、CMake 与当次 smoke，不得引用归档中的阶段结论代替验证。

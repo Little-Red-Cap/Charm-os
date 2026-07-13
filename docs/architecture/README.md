@@ -9,16 +9,7 @@
 目录位置不授予文档相同权威。先读 Constitution，再读唯一 canonical 核心契约；其它文件只在其
 声明的局部范围内有效。
 
-Charm 的正式定位是：
-
-> **Charm 是一个能力导向的嵌入式应用平台。**
-
-## 第一入口
-
-1. [`../../CONSTITUTION.md`](../../CONSTITUTION.md)
-2. [`charm_core_contract.md`](charm_core_contract.md)
-3. [`../../README.md`](../../README.md)
-4. [`../README.md`](../README.md)
+Charm 是一个能力导向的嵌入式应用平台。
 
 ## Canonical
 
@@ -50,18 +41,6 @@ Signal/State 与能力回收历史见对应 archive；归档材料不覆盖现�
 
 完整历史讨论见 [`../archive/architecture-exploration-v0/README.md`](../archive/architecture-exploration-v0/README.md)。
 System Compiler、IR、Graph 和 RTE 不因出现在本列表而成为 Core 身份。
-
-## 按问题进入
-
-| 问题 | 先读 |
-|---|---|
-| 概念能否进入 Core | [`../../CONSTITUTION.md`](../../CONSTITUTION.md) |
-| Requirement / Provision / Binding | [`charm_core_contract.md`](charm_core_contract.md) |
-| 源码与裁决的冲突 | [`charm_core_semantic_audit.md`](charm_core_semantic_audit.md) |
-| 模块入口与依赖 | [`entry_surface_contract.md`](entry_surface_contract.md)、[`dependency_contract.md`](dependency_contract.md) |
-| Driver/device 组织 | [`driver_model.md`](driver_model.md) |
-| signal/state | [`signal_state_contract_v0.md`](signal_state_contract_v0.md) |
-| Resident ELF/ModuleX | [`resident_image_platform_v1_contract.md`](resident_image_platform_v1_contract.md) |
 
 ## 使用规则
 

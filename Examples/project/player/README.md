@@ -155,7 +155,7 @@ Player 产品 compile definitions 只施加到 `Charm::player-md3`；Charm runti
 audio sink 选择。修改 Player 容量或资源策略不得触发整套 Charm runtime 重编。
 
 canonical 构建使用 `cmake/player_charm_closure.cmake` 与通用 leaf helper，不链接聚合
-`Charm-os`。当前干净 Host evidence 为 493 steps / 0.953 GiB；应用对象 5,767,168 bytes，
+`Charm-os`。当前干净 Host evidence 为 491 steps / 0.946 GiB；应用对象 5,767,168 bytes，
 应用加 ARGB framebuffer 8,516,288 bytes。详细口径见 [PLAYER_PORT_V2.md](PLAYER_PORT_V2.md)。
 
 旧板级目录、profile 和 runtime glue 当前仍保留，是迁移兼容物，不是 canonical Player

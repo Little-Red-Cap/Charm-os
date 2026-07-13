@@ -36,4 +36,4 @@ For any added/modified `RunLoop::add_step(...)`:
 
 Run:
 
-- scripts/ssu_submit_gate.ps1`n
+- `scripts/ssu_submit_gate.ps1`

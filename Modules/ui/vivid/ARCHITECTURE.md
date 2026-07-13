@@ -135,6 +135,10 @@ Object-level widget 不在 `ObjectBase` 常驻通用交互表。需要 gesture/i
 `Style`、nine-slice skin 或调试型拖动文本。逐实例差异使用既有 style variant/rule；图片化外观应由显式
 装饰控件组合，而不是让每个基础滚动容器常驻未使用的 image/font 状态。
 
+高频 `Button` 同样不保存 instance-local `Style` 或 nine-slice skin；背景、边框、字体和 focus ring 统一从
+Theme/StyleSheet 解析。icon 是按钮的显式内容能力，仍由选择该能力的实例持有；逐实例视觉差异使用既有
+style variant/rule，图片化背景通过显式装饰组合实现。
+
 `ObjectBase` 同样不常驻子节点数组。`WidgetBase<Derived, ChildCapacity>` 的默认容量为零；只有 List、
 FoldablePanel、ScrollContainer 等明确的 object-level 容器选择固定容量子表。子表使用
 内联固定数组，容量耗尽由 `add/insert_child()` 的 `false` 显式报告，不分配动态内存。

@@ -39,6 +39,8 @@ namespace {
     };
 
     static_assert(!OwnsObjectChildren<Button>);
+    static_assert(sizeof(Button) <= 360,
+                  "Button must not retain per-instance style or nine-slice skin storage");
     static_assert(OwnsObjectChildren<List>);
     static_assert(OwnsObjectChildren<FoldablePanel>);
     static_assert(OwnsObjectChildren<ScrollContainer>);
@@ -345,9 +347,10 @@ namespace {
 int main() {
     print_widget_signal_run_begin();
 
-    std::printf("[ws-abi] object_base=%zu callback=%zu scroll_container=%zu list=%zu foldable_panel=%zu interaction_list=%zu double_tap=%zu pinch=%zu drag=%zu long_press=%zu\n",
+    std::printf("[ws-abi] object_base=%zu callback=%zu button=%zu scroll_container=%zu list=%zu foldable_panel=%zu interaction_list=%zu double_tap=%zu pinch=%zu drag=%zu long_press=%zu\n",
                 sizeof(ObjectBase),
                 sizeof(Callback),
+                sizeof(Button),
                 sizeof(ScrollContainer),
                 sizeof(List),
                 sizeof(FoldablePanel),
@@ -678,6 +681,23 @@ int main() {
                     && themed_scroll_pixel.g <= 12
                     && themed_scroll_pixel.b <= 12,
                 "scroll container resolves visual state from Theme")) return 1;
+
+    const Style saved_button_style = Theme::instance().get<Button>();
+    Style themed_button_style = saved_button_style;
+    themed_button_style.colors.bg_color = {248, 8, 8, 255};
+    themed_button_style.colors.border_color = {8, 8, 8, 255};
+    themed_button_style.metrics.corner_radius = 0;
+    Theme::instance().set<Button>(themed_button_style);
+    Button themed_button{""};
+    themed_button.set_rect({8, 8, 40, 24});
+    callback_fb.clear({0, 0, 0, 255});
+    themed_button.draw(callback_canvas);
+    const auto themed_button_pixel = callback_fb.get_pixel(24, 18);
+    Theme::instance().set<Button>(saved_button_style);
+    if (!expect(themed_button_pixel.r >= 240
+                    && themed_button_pixel.g <= 12
+                    && themed_button_pixel.b <= 12,
+                "button resolves visual state from Theme")) return 1;
 
     StructuredCallbackProbe list_data{};
     StructuredCallbackProbe list_draw{};

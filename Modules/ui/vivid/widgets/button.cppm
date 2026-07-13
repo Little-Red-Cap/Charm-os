@@ -52,22 +52,6 @@ public:
         has_icon_ = static_cast<bool>(icon_);
     }
 
-    void set_style(const Style& s) noexcept {
-        style_ = s;
-        has_local_style_ = true;
-        label_.set_font(resolve_font(style_));
-        update_size();
-    }
-
-    void set_skin(const ImageView& img, int left, int top, int right, int bottom) noexcept {
-        skin_ = img;
-        slice_left_ = left;
-        slice_top_ = top;
-        slice_right_ = right;
-        slice_bottom_ = bottom;
-        has_skin_ = true;
-    }
-
     void draw(CanvasBase& cvs) {
         const auto r = get_rect();
 
@@ -75,28 +59,21 @@ public:
         rgba border{};
         rgba font{};
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
-        const Style& base = has_local_style_ ? style_ : Theme::instance().get<Button>();
+        const Style& base = Theme::instance().get<Button>();
         Style st_scratch;
         const Style& st = resolve_style(WidgetKind::Button, state, base, st_scratch);
         resolve_colors(st, state,
                        bg, border, font);
+        label_.set_font(resolve_font(st));
 
-        if (has_skin_) {
-            draw_image_nine_slice(cvs, r.x, r.y, r.w, r.h, skin_,
-                                  slice_left_, slice_top_, slice_right_, slice_bottom_);
-            for (int i = 0; i < st.metrics.border_width; ++i) {
-                draw_rect(cvs, r.x + i, r.y + i, r.w - 2 * i, r.h - 2 * i, border, false);
-            }
-        } else {
-            draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.metrics.corner_radius, bg, true);
-            for (int i = 0; i < st.metrics.border_width; ++i) {
-                draw_round_rect(cvs,
-                                r.x + i, r.y + i,
-                                r.w - 2 * i, r.h - 2 * i,
-                                st.metrics.corner_radius,
-                                border,
-                                false);
-            }
+        draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.metrics.corner_radius, bg, true);
+        for (int i = 0; i < st.metrics.border_width; ++i) {
+            draw_round_rect(cvs,
+                            r.x + i, r.y + i,
+                            r.w - 2 * i, r.h - 2 * i,
+                            st.metrics.corner_radius,
+                            border,
+                            false);
         }
         draw_focus_ring(cvs, r, st, has_state(State::Focused), 0, st.metrics.corner_radius);
 
@@ -136,7 +113,7 @@ public:
 
 private:
     void update_size() {
-        const Style& st = has_local_style_ ? style_ : Theme::instance().get<Button>();
+        const Style& st = Theme::instance().get<Button>();
         label_.set_font(resolve_font(st));
         const auto lr = label_.get_rect();
         set_size(lr.w + st.metrics.padding * 2, lr.h + st.metrics.padding * 2);
@@ -145,14 +122,6 @@ private:
     click_signal_type clicked_{};
     Label label_;
     Callback callback_{};
-    Style style_{};
-    bool has_local_style_{false};
-    ImageView skin_{};
-    bool has_skin_{false};
-    int slice_left_{0};
-    int slice_top_{0};
-    int slice_right_{0};
-    int slice_bottom_{0};
     ImageView icon_{};
     bool has_icon_{false};
     int icon_w_{0};

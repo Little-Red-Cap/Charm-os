@@ -87,7 +87,7 @@ Windows / Linux / MCU 不应被视为完全割裂的世界，而应统一在同�
 
 关于它与统一应用入口模型的详细说明，见：
 
-- `docs/project/charm_foundation_runtime_与统一应用入口模型草案.md`
+- [`charm_foundation_runtime_与统一应用入口模型草案.md`](charm_foundation_runtime_与统一应用入口模型草案.md)
 
 ## 5. `Product`
 

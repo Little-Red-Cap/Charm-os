@@ -24,8 +24,8 @@
 
 ## 提案与历史
 
-根目录下的 `*草案`、`*提案` 和 `player_design.md` 是项目级
-讨论，不是现行契约。短摘要保留结论、未实施状态和重新推进条件；完整早期正文见：
+[`charm_工程对象模型草案.md`](charm_工程对象模型草案.md) 只为现有 Player 落地稿保留状态桥接；
+它与 `player_design.md` 均不是现行系统契约。其它未实施项目提案只保留归档正文：
 
 - Bundle、工程对象/变体、构建升级和 USB 装配：
   [`project-proposals-v0`](../archive/project-proposals-v0/README.md)

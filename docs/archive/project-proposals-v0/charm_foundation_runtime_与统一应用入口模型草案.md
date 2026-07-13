@@ -11,9 +11,9 @@
 
 这份文档与以下文档形成互补关系：
 
-- `docs/project/charm_工程对象模型草案.md`
-- `docs/project/charm_构建系统升级方向草案.md`
-- `docs/project/charm_复杂场景开发体验改进提案.md`
+- [`charm_工程对象模型草案.md`](charm_工程对象模型草案.md)
+- [`charm_构建系统升级方向草案.md`](charm_构建系统升级方向草案.md)
+- [`charm_复杂场景开发体验改进提案.md`](charm_复杂场景开发体验改进提案.md)
 
 其中：
 

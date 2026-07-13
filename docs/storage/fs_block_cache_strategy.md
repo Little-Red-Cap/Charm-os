@@ -1,75 +1,46 @@
-﻿# Block Cache 位置与策略（决定稿）
+# Block cache 实现状态
 
-目标：明确 block cache 放置层级，避免重复缓存与一致性问题。
+## 文档状态
 
-## 结论（当前决策）
+- `status`: `supporting`
+- `scope`: `fs_mal_cache`、`block.cache` 与 FatFs 可选 cache
+- `source`: `Modules/io/fs/fs_mal_cache.cppm`、`Modules/io/block/block.cache.cppm`、`Modules/io/fs/fs_fatfs.cppm`
 
-- **首选：MAL 层封装缓存（cached_mal 风格）**
-- VFS/FS 层默认不再引入额外 block cache
-- 只有在需要“按文件语义优化”的场景才考虑 FS 层缓存（另开模块）
+## MAL 与 BlockDevice cache
 
-理由：
-- MAL 是统一 block/flash/file 的抽象层，在此处缓存收益最大、耦合最小。
-- 避免 FatFs/BlockFs 内部再做一层 block cache 造成重复与一致性复杂化。
+`fs::CachedMal<MaxEntries>` 是 `MalDevice` 的 non-owning cache wrapper。caller 提供 cache
+buffer，wrapper 自己保存固定数量的 entry metadata；实际 entry 数量取 `MaxEntries` 与 buffer
+可容纳 block 数的较小值。
 
-## 层级划分
+`bind()` 要求有效 geometry、read/write callback，以及至少能容纳一个 block 的 buffer。读写只接受
+完整 block，并检查 LBA 范围。
 
-```
-[Device Driver] -> [MAL cached wrapper] -> [FS/VFS] -> [App]
-```
+当前行为：
 
-- Driver 可能已有硬件缓存（由驱动自行管理）
-- MAL 缓存提供统一策略（LRU/直写/回写）
-- FS/VFS 只做语义层（open/rename/目录等）
+- read-through：命中时从 cache 返回，未命中时读取 backend 并填充 cache；
+- write-through：先写 backend，成功后更新 cache；
+- entry 满时按 stamp 选择最久未使用的 entry；
+- erase 成功后使对应范围失效；
+- flush 直接转发给 backend；backend 不支持时返回 `Errc::nosys`。
 
-## 缓存策略（建议默认）
+`block::CachedDevice<MaxEntries>` 通过 `MalBlock` 与 `CachedMal` 包装可写 `BlockDevice`，输出设备带
+`Caps::cached`。它不拥有底层 device 或 cache buffer。缺少 read 返回 `Errc::nosys`，缺少 write
+返回 `Errc::rofs`。
 
-- **写策略**：Write‑through（默认）
-  - 简单、安全，适合 MCU。
-- **读策略**：LRU + 单扇区缓存（默认）
-  - 足够覆盖 FAT/FATFS 的热点访问。
+## FatFs cache
 
-## 与 FatFs 的关系
+`FatFsMount` 的 cache overload 通过 `fatfs_set_cache()` 接收 caller-owned buffer。当前 diskio
+adapter 只缓存单 block read/write；多 block write 会使重叠的单 block cache entry 失效。
 
-- FatFs 内部仍有自己的“扇区缓冲机制”，但它依赖 `disk_*` 的行为。
-- 建议：
-  - 当启用 MAL cache 时，**不要**再额外启用 FatFs 自定义 cache（避免双层缓存）。
-  - 若必须使用 FatFs cache，则关闭 MAL cache（或仅保留最薄的 read‑through）。
+FatFs cache 与 `CachedMal` / `CachedDevice` 可以同时接线，源码没有自动互斥门禁。双层 cache 会增加
+内存占用和一致性分析成本，装配时需要显式评估；这不是当前 module 强制执行的“一层 cache”契约。
 
-## 决策速查（避免双层缓存）
+## 未提供
 
-| 场景 | 推荐缓存层 | 备注 |
-| --- | --- | --- |
-| MCU 默认 / 简单存储 | MAL | 统一策略，最低耦合 |
-| 已依赖 FatFs 自带缓存行为 | FatFs | 关闭 MAL cache |
-| 高并发小文件随机 IO | FS 层（独立模块） | 与 MAL cache 互斥或只保留极薄 read‑through |
+- write-back、dirty entry 或延迟刷写；
+- transaction、journaling 或 power-fail guarantee；
+- thread safety、并发仲裁或异步 IO；
+- 按文件语义的预读、合并写或 FS-level cache policy；
+- cache ownership、生命周期管理或自动装配策略。
 
-## 明确约束（工程规范）
-
-- 默认只启用 **一层** block cache。
-- `MAL cache` 与 `FatFs cache` 不可同时启用（除非明确评估并记录）。
-
-## 接口草案（仅作为规范说明）
-
-```
-MalDevice raw = ...;
-CachedMal cache = make_cached_mal(raw, CachePolicy{.write_through=true, .capacity_sectors=16});
-FatFsMount fat;
-fat.mount(cache.device(), ...);
-```
-
-> 具体实现可后置，本文件只定义“落点与策略”。
-
-## 何时需要 FS 层缓存
-
-- 大量小文件随机读写
-- 需要“按文件语义”做预读/合并写
-
-在这些场景下，FS 层缓存应作为独立模块（例如 `fs_block_cache`），并明确与 MAL cache 互斥或协作。
-
-## 后续动作
-
-- 引入 `fs_mal_cache`（可选）作为 MAL 层缓存封装
-- 在 `docs/storage/fs_fatfs_demo.md` 中注明缓存策略选择
-- 为 USB MSC / 网络盘场景准备可插拔缓存策略
-
+验证入口：`Examples/fs/fs_block_vfs_demo`、`Examples/fs/fs_fatfs_demo` 及相关 FS tests。

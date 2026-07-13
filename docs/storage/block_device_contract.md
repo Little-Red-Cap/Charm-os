@@ -1,62 +1,63 @@
-# block.device / block.registry 规范（最小契约）
+# BlockDevice 与 registry 实现状态
 
-目标：把所有存储后端统一为 block.device，并通过 block.registry 装配进 init.graph。
+## 文档状态
 
-## 1) 设备能力（Caps）
+- `status`: `supporting`
+- `scope`: `block.device`、`block.registry`、VFS block mount 与 cache adapter
+- `source`: `Modules/io/block/*.cppm`、`Modules/io/fs/fs_vfs.cppm`
 
-block.device 的能力位用于“只读/擦写能力”判断：
+`block::Device` 是 `fs::BlockDevice` 的别名。它保存 non-owning `ctx`、read/write/erase/flush
+callback、block geometry 和 capability bits；接口本身不提供 ownership、locking 或 media discovery。
 
-- `read`：可读
-- `write`：可写（无此能力视为只读）
-- `erase`：支持擦除
-- `flush`：支持 flush
-- `cached`：该设备为缓存代理
+## Capability
 
-规则：
-- `write/erase` 缺失即视为只读
-- `caps==0` 时允许通过函数指针自动推导
+| `Caps` | 含义 |
+|---|---|
+| `read` | 提供 read callback |
+| `write` | 提供 write callback |
+| `erase` | 提供 erase callback |
+| `flush` | 提供 flush callback |
+| `cached` | device 是 cache adapter |
 
-## 2) 注册与命名
+`caps_from_ops()` 只根据 callback 计算 bit mask，不修改 device。具体 node/adapter 可以在
+`caps == 0` 时调用它补全能力；直接构造 `Device` 的 caller 仍需自行设置或推导。`is_read_only()`
+只检查 `Caps::write`，不会检查 write callback 是否与 caps 一致。
 
-block.registry 只接受**唯一 cap**，同名同 cap 不允许重复注册。
+## Registry
 
-推荐命名：
-- SD/TF：`block.sd0`
-- 外部 Flash：`block.flash0`
-- RAM disk：`block.ram0`
+`block::Registry<MaxDevices>` 使用 caller-owned 固定数组，不分配内存。`register_device()` 要求：
 
-## 3) init.graph 依赖示例
+- name 非空且 cap 非零；
+- name 在 registry 中唯一；
+- cap 在 registry 中唯一；
+- 尚有可用 slot。
 
-核心链（CoreSystemChain）已包含：
+错误分别为 `invalid_arg`、`exist` 和 `buffer_overflow`。`replace_device()` 只替换 name 与 cap
+同时匹配的既有 endpoint；`unregister_device()` 可按 name 或 cap 删除。`open_device()` 返回底层
+device 指针或 `nullptr`，registry 不拥有该 device。
 
-- `block.registry`
+`cap_id()` 使用稳定的 32-bit FNV-1a hash，并将结果 `0` 映射为 `1`。registry 不处理 hash collision；
+碰撞会表现为重复 cap。
 
-板级链路示例：
+`RegistryBinding` 将 registry 作为 `block.registry` capability 接入 init graph。具体 block node 在
+自身 init callback 中注册 endpoint；稳定的 capability name 由装配层决定，例如 `block.sd0`。
 
-```
-platform.irq
-  -> hal.sdmmc1
-    -> block.sdmmc (provides block.sd0, requires block.registry + hal.sdmmc1)
-```
+## VFS 与 cache
 
-## 4) VFS 挂载方式（统一入口）
+`fs::vfs_mount_block()` 按 name 或 cap 从 registry 查找 device，再交给 filesystem mount adapter；
+缺失 device 和 mount 失败沿现有 `fs::Status` 返回。
 
-上层只依赖 block.registry：
+`block::CachedDevice<MaxEntries>` 是 non-owning、caller-buffered 的可写 block cache adapter，输出
+device 带 `Caps::cached`。具体 cache 行为与边界见
+[`fs_block_cache_strategy.md`](fs_block_cache_strategy.md)。
 
-```cpp
-fs::FatFsMount fat{};
-auto st = fs::vfs_mount_block("/sd", block_registry, "block.sd0", fat);
-```
+## 未提供
 
-## 5) 缓存代理
+- registry 并发安全、引用计数或 device 生命周期管理；
+- capability hash collision resolution；
+- caps 与 callback 一致性的全局校验；
+- hot-plug policy、持久命名或自动 discovery；
+- transaction、filesystem 或 partition 语义。
 
-`block.cache` 提供最小缓存代理：
-
-```cpp
-block::CachedDevice<4> cache;
-std::array<util::u8, 2048> buf{};
-cache.bind(dev, buf);
-auto& cached = cache.device();
-```
-
-缓存代理设备会带 `Caps::cached`，上层可识别。
+验证入口：`Examples/fs/fs_block_vfs_demo`、`Examples/init/bringup_block_observe_demo`、
+`Examples/system/device_runtime_block_slot_demo` 及 registry self-check。

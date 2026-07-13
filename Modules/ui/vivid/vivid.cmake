@@ -214,6 +214,10 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
     vivid_cache_default(CHARM_VIVID_STYLE_CLASS_MAX STRING 256 "Vivid style class capacity")
     vivid_cache_default(CHARM_VIVID_STYLE_RULE_CAP STRING 32 "Vivid stylesheet rule capacity")
     vivid_cache_default(CHARM_VIVID_STYLE_METRICS_POOL_CAP STRING 64 "Vivid stylesheet metrics pool capacity")
+    vivid_cache_default(CHARM_VIVID_DRAW_CMD_MAX_COMMANDS STRING 1024 "Vivid DrawCmd command capacity")
+    vivid_cache_default(CHARM_VIVID_DRAW_CMD_TEXT_BYTES STRING 4096 "Vivid DrawCmd text arena bytes")
+    vivid_cache_default(CHARM_VIVID_DRAW_CMD_BLOB_BYTES STRING 2048 "Vivid DrawCmd blob arena bytes")
+    vivid_cache_default(CHARM_VIVID_MAX_HOT_STACK_FRAME_BYTES STRING 4096 "Vivid hot-path stack frame limit")
     vivid_cache_default(CHARM_VIVID_DRAW_DETAIL_EVIDENCE BOOL OFF "Enable DrawCmd detail evidence")
     vivid_cache_default(CHARM_VIVID_RUNTIME_SCENE_INSTANCES STRING "" "Vivid resident Scene instance count; required by PRODUCT and MCU_MIN")
     vivid_cache_default(CHARM_VIVID_STATIC_MEMORY_BUDGET_BYTES STRING "" "Vivid resident RAM budget; required by PRODUCT and MCU_MIN")
@@ -284,6 +288,30 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
     set(VIVID_STYLE_CLASS_MAX ${CHARM_VIVID_STYLE_CLASS_MAX})
     set(VIVID_STYLE_RULE_CAP ${CHARM_VIVID_STYLE_RULE_CAP})
     set(VIVID_STYLE_METRICS_POOL_CAP ${CHARM_VIVID_STYLE_METRICS_POOL_CAP})
+    foreach(_vivid_draw_cmd_capacity IN ITEMS
+            CHARM_VIVID_DRAW_CMD_MAX_COMMANDS
+            CHARM_VIVID_DRAW_CMD_TEXT_BYTES
+            CHARM_VIVID_DRAW_CMD_BLOB_BYTES)
+        vivid_require_nonnegative_integer(
+            "${_vivid_draw_cmd_capacity}"
+            "${${_vivid_draw_cmd_capacity}}")
+        if ("${${_vivid_draw_cmd_capacity}}" LESS 1)
+            message(FATAL_ERROR "${_vivid_draw_cmd_capacity} must be > 0")
+        endif()
+        if ("${${_vivid_draw_cmd_capacity}}" GREATER 4294967295)
+            message(FATAL_ERROR "${_vivid_draw_cmd_capacity} must be <= 4294967295")
+        endif()
+    endforeach()
+    set(VIVID_DRAW_CMD_MAX_COMMANDS ${CHARM_VIVID_DRAW_CMD_MAX_COMMANDS})
+    set(VIVID_DRAW_CMD_TEXT_BYTES ${CHARM_VIVID_DRAW_CMD_TEXT_BYTES})
+    set(VIVID_DRAW_CMD_BLOB_BYTES ${CHARM_VIVID_DRAW_CMD_BLOB_BYTES})
+    vivid_require_nonnegative_integer(
+        "CHARM_VIVID_MAX_HOT_STACK_FRAME_BYTES"
+        "${CHARM_VIVID_MAX_HOT_STACK_FRAME_BYTES}")
+    if ("${CHARM_VIVID_MAX_HOT_STACK_FRAME_BYTES}" LESS 1)
+        message(FATAL_ERROR "CHARM_VIVID_MAX_HOT_STACK_FRAME_BYTES must be > 0")
+    endif()
+    set(VIVID_MAX_HOT_STACK_FRAME_BYTES ${CHARM_VIVID_MAX_HOT_STACK_FRAME_BYTES})
     set(VIVID_DRAW_DETAIL_EVIDENCE ${_vivid_draw_detail_evidence})
     if ("${CHARM_VIVID_RUNTIME_SCENE_INSTANCES}" STREQUAL "")
         if (VIVID_STATIC_MEMORY_ADMISSION_REQUIRED)
@@ -488,7 +516,13 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
 
     # Conservative configure-time model. scene.cppm validates this upper bound
     # against target-ABI sizeof values, so configuration drift cannot undercount.
-    set(_vivid_draw_cmd_buffer_upper_bytes 131072)
+    math(EXPR _vivid_draw_cmd_buffer_upper_bytes
+        "${VIVID_DRAW_CMD_MAX_COMMANDS} * 128 + ${VIVID_DRAW_CMD_TEXT_BYTES} + ${VIVID_DRAW_CMD_BLOB_BYTES} + 4096")
+    math(EXPR _vivid_draw_cmd_compaction_workspace_upper_bytes
+        "${VIVID_DRAW_CMD_MAX_COMMANDS} * 4 + 32768")
+    set(_vivid_draw_cmd_executor_workspace_upper_bytes 32768)
+    math(EXPR _vivid_soa_traversal_workspace_upper_bytes
+        "${CHARM_VIVID_SOA_MAX_NODES} * 256")
     set(_vivid_soa_node_upper_bytes 512)
     set(_vivid_payload_slot_upper_bytes 512)
     set(_vivid_soa_fixed_upper_bytes 65536)
@@ -501,7 +535,7 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
     math(EXPR _vivid_soa_upper_bytes
         "${CHARM_VIVID_SOA_MAX_NODES} * ${_vivid_soa_node_upper_bytes} + ${_vivid_payload_slot_cap_total} * ${_vivid_payload_slot_upper_bytes} + ${_vivid_text_arena_bytes} + ${_vivid_soa_fixed_upper_bytes}")
     math(EXPR _vivid_scene_upper_bytes
-        "${_vivid_pixel_snapshot_upper_bytes} + ${_vivid_command_buffer_upper_bytes} + ${_vivid_soa_upper_bytes} + ${_vivid_scene_fixed_upper_bytes}")
+        "${_vivid_pixel_snapshot_upper_bytes} + ${_vivid_command_buffer_upper_bytes} + ${_vivid_draw_cmd_compaction_workspace_upper_bytes} + ${_vivid_draw_cmd_executor_workspace_upper_bytes} + ${_vivid_soa_traversal_workspace_upper_bytes} + ${_vivid_soa_upper_bytes} + ${_vivid_scene_fixed_upper_bytes}")
     math(EXPR _vivid_global_upper_bytes
         "${_vivid_global_fixed_upper_bytes} + ${CHARM_VIVID_STYLE_CLASS_MAX} * 256 + ${CHARM_VIVID_STYLE_RULE_CAP} * 256 + ${CHARM_VIVID_STYLE_METRICS_POOL_CAP} * 64")
     math(EXPR VIVID_STATIC_MEMORY_UPPER_BOUND_BYTES
@@ -563,6 +597,13 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
         "scene_instances=${VIVID_RUNTIME_SCENE_INSTANCES}\n"
         "pixel_snapshot_upper_bytes=${_vivid_pixel_snapshot_upper_bytes}\n"
         "command_buffer_upper_bytes=${_vivid_command_buffer_upper_bytes}\n"
+        "draw_cmd_max_commands=${VIVID_DRAW_CMD_MAX_COMMANDS}\n"
+        "draw_cmd_text_bytes=${VIVID_DRAW_CMD_TEXT_BYTES}\n"
+        "draw_cmd_blob_bytes=${VIVID_DRAW_CMD_BLOB_BYTES}\n"
+        "max_hot_stack_frame_bytes=${VIVID_MAX_HOT_STACK_FRAME_BYTES}\n"
+        "draw_cmd_compaction_workspace_upper_bytes=${_vivid_draw_cmd_compaction_workspace_upper_bytes}\n"
+        "draw_cmd_executor_workspace_upper_bytes=${_vivid_draw_cmd_executor_workspace_upper_bytes}\n"
+        "soa_traversal_workspace_upper_bytes=${_vivid_soa_traversal_workspace_upper_bytes}\n"
         "soa_upper_bytes=${_vivid_soa_upper_bytes}\n"
         "scene_upper_bytes=${_vivid_scene_upper_bytes}\n"
         "global_upper_bytes=${_vivid_global_upper_bytes}\n"
@@ -591,6 +632,18 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
         "${_VIVID_CMAKE_DIR}/cmake/features.generated.hpp.in"
         "${vivid_features_header}"
         @ONLY)
+
+    if(VIVID_STATIC_MEMORY_ADMISSION_REQUIRED)
+        if(NOT CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+            message(FATAL_ERROR
+                "Vivid PRODUCT/MCU_MIN stack admission requires GNU or Clang -fstack-usage")
+        endif()
+        target_compile_options(${target_name} PRIVATE -fstack-usage)
+        set(_vivid_stack_usage_root
+            "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/${target_name}.dir/Modules/ui/vivid")
+        set(_vivid_stack_usage_manifest
+            "${CMAKE_CURRENT_BINARY_DIR}/generated/vivid/stack_usage_manifest.txt")
+    endif()
     configure_file(
         "${_VIVID_CMAKE_DIR}/cmake/config.generated.cppm.in"
         "${vivid_config_cppm}"
@@ -620,7 +673,8 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
         endif()
         vivid_collect_product_widget_modules(_vivid_product_widget_modules)
         list(FILTER ${module_list_var} EXCLUDE REGEX "/Modules/ui/vivid/widgets/")
-        list(FILTER ${module_list_var} EXCLUDE REGEX "/Modules/ui/vivid/gfx/snapshot\\.cppm$")
+        list(FILTER ${module_list_var} EXCLUDE REGEX
+            "/Modules/ui/vivid/gfx/(snapshot|host_tools)\\.cppm$")
         list(APPEND ${module_list_var} ${_vivid_product_widget_modules})
     endif()
     if (CHARM_VIVID_FEATURESET STREQUAL "MCU_MIN")
@@ -633,6 +687,50 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
             "${PROJECT_SOURCE_DIR}/Modules/ui/vivid/core/string.cppm"
             "${PROJECT_SOURCE_DIR}/Modules/ui/vivid/core/virtual_list.cppm"
         )
+    endif()
+
+    if(VIVID_STATIC_MEMORY_ADMISSION_REQUIRED)
+        get_filename_component(
+            _vivid_repo_root "${_VIVID_CMAKE_DIR}/../../.." ABSOLUTE)
+        set(_vivid_stack_usage_source_manifest
+            "${CMAKE_CURRENT_BINARY_DIR}/generated/vivid/stack_usage_sources.txt")
+        set(_vivid_stack_usage_sources "")
+        foreach(_vivid_module_source IN LISTS ${module_list_var})
+            get_filename_component(
+                _vivid_module_source_abs "${_vivid_module_source}" ABSOLUTE)
+            file(TO_CMAKE_PATH
+                "${_vivid_module_source_abs}" _vivid_module_source_normalized)
+            string(FIND
+                "${_vivid_module_source_normalized}" "/Modules/ui/vivid/" _vivid_module_source_pos)
+            if(_vivid_module_source_pos EQUAL -1)
+                continue()
+            endif()
+            file(RELATIVE_PATH
+                _vivid_module_source_relative
+                "${_vivid_repo_root}"
+                "${_vivid_module_source_abs}")
+            file(TO_CMAKE_PATH
+                "${_vivid_module_source_relative}" _vivid_module_source_relative)
+            if(NOT _vivid_module_source_relative MATCHES
+                "^Modules/ui/vivid/(core/(scene|scene_layer_support|scene_render_detail|soa_gui.*|soa_kernel_class|soa_kernel_input.*|soa_kernel_semantic|soa_layout)\\.cppm|gfx/(draw_cmd_buffer|draw_cmd_executor)\\.cppm)$")
+                continue()
+            endif()
+            string(APPEND _vivid_stack_usage_sources
+                "${_vivid_module_source_relative}\n")
+        endforeach()
+        file(WRITE
+            "${_vivid_stack_usage_source_manifest}"
+            "${_vivid_stack_usage_sources}")
+        add_custom_command(TARGET ${target_name} POST_BUILD
+            BYPRODUCTS "${_vivid_stack_usage_manifest}"
+            COMMAND ${CMAKE_COMMAND}
+                "-DVIVID_STACK_USAGE_ROOT=${_vivid_stack_usage_root}"
+                "-DVIVID_STACK_USAGE_SOURCE_MANIFEST=${_vivid_stack_usage_source_manifest}"
+                "-DVIVID_STACK_USAGE_OUT=${_vivid_stack_usage_manifest}"
+                "-DVIVID_STACK_USAGE_MAX_BYTES=${VIVID_MAX_HOT_STACK_FRAME_BYTES}"
+                "-DVIVID_STACK_USAGE_ENFORCE=ON"
+                -P "${_VIVID_CMAKE_DIR}/cmake/stack_usage_gate.cmake"
+            VERBATIM)
     endif()
 
     set(${module_list_var} "${${module_list_var}}" PARENT_SCOPE)

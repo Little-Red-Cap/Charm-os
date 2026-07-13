@@ -14,6 +14,9 @@ import charm.core.soa_registry;
 export
 class SoaLayoutPass {
 public:
+    static constexpr std::size_t kTraversalWorkspaceBytes =
+        sizeof(std::array<WidgetHandle, SoaKernel::kMaxNodes>);
+
     explicit SoaLayoutPass(SoaKernel& kernel) noexcept
         : kernel_(kernel) {}
 
@@ -40,6 +43,7 @@ private:
     SoaKernel& kernel_;
     std::uint32_t tokens_version_{0};
     std::uint32_t stylesheet_version_{0};
+    std::array<WidgetHandle, SoaKernel::kMaxNodes> traversal_stack_{};
 
     static StyleState make_state(const SoaKernel& kernel, WidgetHandle h) noexcept {
         const StateCompact state = kernel.state_compact(h);
@@ -61,7 +65,7 @@ private:
     }
 
     void layout_tree(WidgetHandle root) noexcept {
-        std::array<WidgetHandle, 256> stack{};
+        auto& stack = traversal_stack_;
         std::size_t sp = 0;
         stack[sp++] = root;
         while (sp > 0) {
@@ -79,6 +83,8 @@ private:
             for (auto child = kernel_.last_child(h); child; child = kernel_.prev_sibling(child)) {
                 if (sp < stack.size()) {
                     stack[sp++] = child;
+                } else {
+                    kernel_.note_workspace_overflow();
                 }
             }
         }

@@ -929,7 +929,7 @@ import charm.core.soa_registry;
 
     WidgetHandle SoaKernel::input_first_focus_candidate(WidgetHandle root) const noexcept {
         if (!root || !valid(root)) return {};
-        std::array<WidgetHandle, 256> stack{};
+        auto& stack = input_traversal_stack_;
         std::size_t sp = 0;
         stack[sp++] = root;
         while (sp > 0) {
@@ -937,7 +937,10 @@ import charm.core.soa_registry;
             if (!valid(h) || !visible(h) || !enabled(h)) continue;
             if (input_is_focus_candidate(h)) return h;
             for (auto child = last_child(h); child; child = prev_sibling(child)) {
-                if (sp >= stack.size()) break;
+                if (sp >= stack.size()) {
+                    note_workspace_overflow();
+                    break;
+                }
                 stack[sp++] = child;
             }
         }
@@ -948,9 +951,9 @@ import charm.core.soa_registry;
                                                        WidgetHandle current,
                                                        bool reverse) const noexcept {
         if (!root || !valid(root)) return {};
-        std::array<WidgetHandle, 256> candidates{};
+        auto& candidates = input_focus_candidates_;
         std::size_t count = 0;
-        std::array<WidgetHandle, 256> stack{};
+        auto& stack = input_traversal_stack_;
         std::size_t sp = 0;
         stack[sp++] = root;
         while (sp > 0) {
@@ -960,7 +963,10 @@ import charm.core.soa_registry;
                 candidates[count++] = h;
             }
             for (auto child = last_child(h); child; child = prev_sibling(child)) {
-                if (sp >= stack.size()) break;
+                if (sp >= stack.size()) {
+                    note_workspace_overflow();
+                    break;
+                }
                 stack[sp++] = child;
             }
         }
@@ -992,7 +998,7 @@ import charm.core.soa_registry;
         std::int64_t best_order = 0;
         std::int64_t order = 0;
 
-        std::array<WidgetHandle, 256> stack{};
+        auto& stack = input_traversal_stack_;
         std::size_t sp = 0;
         stack[sp++] = root;
         while (sp > 0) {
@@ -1047,7 +1053,10 @@ import charm.core.soa_registry;
                 ++order;
             }
             for (auto child = last_child(h); child; child = prev_sibling(child)) {
-                if (sp >= stack.size()) break;
+                if (sp >= stack.size()) {
+                    note_workspace_overflow();
+                    break;
+                }
                 stack[sp++] = child;
             }
         }

@@ -42,7 +42,7 @@ if (CHARM_VIVID_SOA_TRACE_INPUT)
         COMMAND $<TARGET_FILE:${target_name}> --soa-ci --regress-ui)
     set_tests_properties(${target_name} PROPERTIES
         WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
-        PASS_REGULAR_EXPRESSION "\\[soa-ci\\].*ok=1.*failed_cmds=0.*table_tree_ok=1.*ui_ok=1"
+        PASS_REGULAR_EXPRESSION "\\[soa-ci\\].*ok=1.*failed_cmds=0.*workspace_overflow=0.*table_tree_ok=1.*ui_ok=1"
         FAIL_REGULAR_EXPRESSION "\\[ERR\\]|result=fail|\\[soa-ci\\] ok=0")
 endif()
 

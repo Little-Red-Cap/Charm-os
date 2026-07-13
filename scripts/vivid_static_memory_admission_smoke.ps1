@@ -70,6 +70,24 @@ function Assert-Admission {
     $budget = [int64]$Values.budget_bytes
     $headroom = [int64]$Values.configured_headroom_bytes
     if ($upper -le 0) { throw "Upper bound must be positive" }
+    foreach ($field in @(
+        "command_buffer_upper_bytes",
+        "draw_cmd_compaction_workspace_upper_bytes",
+        "draw_cmd_executor_workspace_upper_bytes",
+        "soa_traversal_workspace_upper_bytes"
+    )) {
+        if ([int64]$Values[$field] -le 0) {
+            throw "Static memory manifest field must be positive: $field=$($Values[$field])"
+        }
+    }
+    if ($Values.draw_cmd_max_commands -ne "1024" -or
+        $Values.draw_cmd_text_bytes -ne "4096" -or
+        $Values.draw_cmd_blob_bytes -ne "2048") {
+        throw "Unexpected DrawCmd profile in static memory manifest"
+    }
+    if ($Values.max_hot_stack_frame_bytes -ne "4096") {
+        throw "Unexpected Vivid stack frame limit: $($Values.max_hot_stack_frame_bytes)"
+    }
     if ($Status -eq "admitted" -and ($budget -le 0 -or $headroom -lt $MinimumHeadroom)) {
         throw "Admission headroom is insufficient: upper=$upper budget=$budget headroom=$headroom"
     }
@@ -96,7 +114,7 @@ try {
     Invoke-VividConfigure -FeatureSet "FULL" -Budget "" -Headroom "" -ExtraArgs $fullArgs | Out-Null
     Assert-Admission -Values (Read-AdmissionManifest) -FeatureSet "FULL" -Status "profile_only" -MinimumHeadroom 0
 
-    $missingSceneCount = Invoke-VividConfigure -FeatureSet "MCU_MIN" -Budget "1572864" -Headroom "262144" -ExtraArgs ($fullArgs + @("-UCHARM_VIVID_RUNTIME_SCENE_INSTANCES")) -ExpectSuccess $false
+    $missingSceneCount = Invoke-VividConfigure -FeatureSet "MCU_MIN" -Budget "1835008" -Headroom "262144" -ExtraArgs ($fullArgs + @("-UCHARM_VIVID_RUNTIME_SCENE_INSTANCES")) -ExpectSuccess $false
     if ($missingSceneCount -notmatch 'CHARM_VIVID_RUNTIME_SCENE_INSTANCES') {
         throw "MCU_MIN missing-scene-count failure did not report the expected rule"
     }
@@ -106,12 +124,12 @@ try {
         throw "MCU_MIN missing-budget failure did not report the expected rule"
     }
 
-    $zeroHeadroom = Invoke-VividConfigure -FeatureSet "MCU_MIN" -Budget "1572864" -Headroom "0" -ExtraArgs $fullArgs -ExpectSuccess $false
+    $zeroHeadroom = Invoke-VividConfigure -FeatureSet "MCU_MIN" -Budget "1835008" -Headroom "0" -ExtraArgs $fullArgs -ExpectSuccess $false
     if ($zeroHeadroom -notmatch 'CHARM_VIVID_STATIC_MEMORY_MIN_HEADROOM_BYTES must be > 0') {
         throw "MCU_MIN zero-headroom failure did not report the expected rule"
     }
 
-    Invoke-VividConfigure -FeatureSet "MCU_MIN" -Budget "1572864" -Headroom "262144" -ExtraArgs $fullArgs | Out-Null
+    Invoke-VividConfigure -FeatureSet "MCU_MIN" -Budget "1835008" -Headroom "262144" -ExtraArgs $fullArgs | Out-Null
     Assert-Admission -Values (Read-AdmissionManifest) -FeatureSet "MCU_MIN" -Status "admitted" -MinimumHeadroom 262144
 
     $productArgs = @(

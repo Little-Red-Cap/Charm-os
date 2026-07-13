@@ -92,11 +92,14 @@ sequenceDiagram
 
 - SoA 渲染改为 **record/execute**：控件只记录命令，不直接绘制。
 - `DrawCmdBuffer` 固定容量、无堆分配；命令使用 `CmdHeader + payload` 的线性 **arena** 存储（变长、顺序遍历），统计以 `cmd_count/cmd_bytes` 为准。
+- 每个 `Scene` 只拥有一套 live DrawCmd runtime：一个 command buffer、一个 compaction workspace 和一个 executor；内部 `SoaGui` 只引用这套状态，不重复持有 command buffer。
+- compaction、executor 以及 render/layout/input/semantic 遍历的 scratch 都是 `Scene` 内可复用的固定容量 workspace，计入静态内存画像，不占用热路径大栈帧。
 - `DrawCmdExecutor` 是唯一“画像素”的入口，支持：
   - **FullFrame**：直接执行到 `CanvasBase`（全屏缓冲）。
   - **Tile/PFB**：执行到 `RuntimeCanvas` + `RenderBackend::blit_span`（分块刷新）。
 - `SoaGui::render()` 默认走命令缓冲；`SoaGui::render_tiles()` 用于 MCU PFB/Tile。
 - 命令缓冲溢出与文本缓冲溢出有显式标志（stats 可观测）。
+- traversal workspace 耗尽会置位 sticky `workspace_overflowed`；该证据进入 `DrawCmdStats` 和 `Scene::last_cmd_stats()`，不得静默截断。
 - 业务侧只使用 `Scene`：`Scene` 暴露 `CmdStats/ExecStats/TileStats/TileConfig`，SoA/DrawCmd 作为内部实现不对外直连。
 - `draw_cmd` 内部按 `schema / buffer / executor` 三个 module partitions 组织，公开入口仍只保留 `charm.gfx.draw_cmd`。
 - Evidence Plane 的 DrawCmd 观察边界见 `docs/ui/vivid_draw_cmd_evidence_boundary_v0.md`：产品级证据依赖 scene-level stats / artifact 摘要，不依赖 partition 私有编码。
@@ -113,6 +116,7 @@ sequenceDiagram
 **命令合批（Compaction）：**
 
 - compaction 仅在 record 结束后执行，保证回放与哈希一致性。
+- `DrawCmdBuffer::compact()` 必须显式接收与 buffer 容量匹配的 compaction workspace；command snapshot 只复制 buffer，不复制 workspace。
 - 合批的联合面积阈值可通过运行时参数调节（默认因子 8）。
 - 已覆盖的 batch：
   - `FillRect/StrokeRect`
@@ -165,6 +169,13 @@ flowchart LR
 
 - Tile 执行阶段先基于命令包围盒构建命中表（tile_count <= 1024），避免逐 tile 全量扫描。
 - tile_count 超过上限时回退到逐 tile 命中检测，保持正确性。
+
+### 2.3.1 Workspace 与栈准入
+
+- `CHARM_VIVID_DRAW_CMD_MAX_COMMANDS`、`CHARM_VIVID_DRAW_CMD_TEXT_BYTES`、`CHARM_VIVID_DRAW_CMD_BLOB_BYTES` 决定 DrawCmd profile；FULL 默认保持 `1024/4096/2048`，PRODUCT 必须由产品 profile 固定。
+- `PRODUCT` 与 `MCU_MIN` 对 Vivid 编译启用 `-fstack-usage`，当前 `CHARM_VIVID_MAX_HOT_STACK_FRAME_BYTES` 默认上限为 `4096`。
+- 栈门只读取当前 featureset 实际选中的 Scene、SoA render/layout/input/semantic 与 DrawCmd compaction/execution 热路径 module；切换 featureset 时不会把同一构建目录中的旧 `.su` 文件算入当前画像。
+- `SoaKernel`、`SoaLayoutPass`、`SoaGui` 和 `DrawCmdExecutor` 的 workspace 是单 UI 执行域内的串行 scratch，不支持同一对象上的并发或重入调用。
 
 ### 2.4 SoA Payload Pools（C1）
 

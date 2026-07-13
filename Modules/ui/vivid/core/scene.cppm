@@ -145,7 +145,7 @@ export namespace ui::scene {
         explicit Scene(CanvasBase& canvas) noexcept
             : canvas_(canvas),
               factory_(kernel_),
-              gui_(canvas_, kernel_, {}) {}
+              gui_(canvas_, kernel_, {}, cmd_buf_, compaction_workspace_, cmd_exec_) {}
 
         SceneBuilder begin() noexcept { return SceneBuilder(kernel_, factory_); }
         void end(const SceneBuilder& builder) noexcept { set_root(builder.root()); }
@@ -545,12 +545,13 @@ export namespace ui::scene {
         CanvasBase& canvas_;
         SoaKernel kernel_{};
         SoaFactory factory_;
+        ui::draw_cmd::DefaultDrawCmdBuffer cmd_buf_{};
+        ui::draw_cmd::DefaultDrawCmdCompactionWorkspace compaction_workspace_{};
+        ui::draw_cmd::DrawCmdExecutor cmd_exec_{};
         SoaGui gui_;
         WidgetHandle root_{};
-        ui::draw_cmd::DefaultDrawCmdBuffer cmd_buf_{};
         CommandSnapshotPayloadStore<static_cast<std::size_t>(layer_cache_slots)> command_snapshot_payloads_{};
         PixelSnapshotPayloadStore<static_cast<std::size_t>(layer_cache_slots)> pixel_snapshot_payloads_{};
-        ui::draw_cmd::DrawCmdExecutor cmd_exec_{};
         CmdStats last_cmd_stats_{};
         ExecStats last_exec_stats_{};
         SceneTimingSource timing_source_{};
@@ -682,6 +683,10 @@ namespace {
         std::uint64_t soa_kernel_bytes{0};
         std::uint64_t payload_manager_bytes{0};
         std::uint64_t draw_cmd_buffer_bytes{0};
+        std::uint64_t draw_cmd_buffer_instances_per_scene{0};
+        std::uint64_t draw_cmd_compaction_workspace_bytes{0};
+        std::uint64_t draw_cmd_executor_bytes{0};
+        std::uint64_t soa_traversal_workspace_bytes{0};
         std::uint64_t command_snapshot_bytes{0};
         std::uint64_t pixel_snapshot_bytes{0};
         std::uint64_t theme_bytes{0};
@@ -724,6 +729,10 @@ namespace {
             sizeof(SoaKernel),
             sizeof(soa_detail::PayloadManager),
             sizeof(ui::draw_cmd::DefaultDrawCmdBuffer),
+            1,
+            sizeof(ui::draw_cmd::DefaultDrawCmdCompactionWorkspace),
+            sizeof(ui::draw_cmd::DrawCmdExecutor),
+            SoaGui::kTraversalWorkspaceBytes,
             sizeof(ui::scene::CommandSnapshotPayloadStore<static_cast<std::size_t>(layer_cache_slots)>),
             sizeof(ui::scene::PixelSnapshotPayloadStore<static_cast<std::size_t>(layer_cache_slots)>),
             theme_bytes,
@@ -767,27 +776,39 @@ extern "C" [[gnu::used]] void charm_vivid_static_memory_profile_symbols() noexce
         ".set charm_vivid_static_profile_payload_manager_bytes, %c2\n"
         ".global charm_vivid_static_profile_draw_cmd_buffer_bytes\n"
         ".set charm_vivid_static_profile_draw_cmd_buffer_bytes, %c3\n"
+        ".global charm_vivid_static_profile_draw_cmd_buffer_instances_per_scene\n"
+        ".set charm_vivid_static_profile_draw_cmd_buffer_instances_per_scene, %c4\n"
+        ".global charm_vivid_static_profile_draw_cmd_compaction_workspace_bytes\n"
+        ".set charm_vivid_static_profile_draw_cmd_compaction_workspace_bytes, %c5\n"
+        ".global charm_vivid_static_profile_draw_cmd_executor_bytes\n"
+        ".set charm_vivid_static_profile_draw_cmd_executor_bytes, %c6\n"
+        ".global charm_vivid_static_profile_soa_traversal_workspace_bytes\n"
+        ".set charm_vivid_static_profile_soa_traversal_workspace_bytes, %c7\n"
         ".global charm_vivid_static_profile_command_snapshot_bytes\n"
-        ".set charm_vivid_static_profile_command_snapshot_bytes, %c4\n"
+        ".set charm_vivid_static_profile_command_snapshot_bytes, %c8\n"
         ".global charm_vivid_static_profile_pixel_snapshot_bytes\n"
-        ".set charm_vivid_static_profile_pixel_snapshot_bytes, %c5\n"
+        ".set charm_vivid_static_profile_pixel_snapshot_bytes, %c9\n"
         ".global charm_vivid_static_profile_global_bytes\n"
-        ".set charm_vivid_static_profile_global_bytes, %c6\n"
+        ".set charm_vivid_static_profile_global_bytes, %c10\n"
         ".global charm_vivid_static_profile_total_bytes\n"
-        ".set charm_vivid_static_profile_total_bytes, %c7\n"
+        ".set charm_vivid_static_profile_total_bytes, %c11\n"
         ".global charm_vivid_static_profile_upper_bound_bytes\n"
-        ".set charm_vivid_static_profile_upper_bound_bytes, %c8\n"
+        ".set charm_vivid_static_profile_upper_bound_bytes, %c12\n"
         ".global charm_vivid_static_profile_budget_bytes\n"
-        ".set charm_vivid_static_profile_budget_bytes, %c9\n"
+        ".set charm_vivid_static_profile_budget_bytes, %c13\n"
         ".global charm_vivid_static_profile_min_headroom_bytes\n"
-        ".set charm_vivid_static_profile_min_headroom_bytes, %c10\n"
+        ".set charm_vivid_static_profile_min_headroom_bytes, %c14\n"
         ".global charm_vivid_static_profile_exact_headroom_bytes\n"
-        ".set charm_vivid_static_profile_exact_headroom_bytes, %c11\n"
+        ".set charm_vivid_static_profile_exact_headroom_bytes, %c15\n"
         :
         : "i"(profile.scene_bytes),
           "i"(profile.soa_kernel_bytes),
           "i"(profile.payload_manager_bytes),
           "i"(profile.draw_cmd_buffer_bytes),
+          "i"(profile.draw_cmd_buffer_instances_per_scene),
+          "i"(profile.draw_cmd_compaction_workspace_bytes),
+          "i"(profile.draw_cmd_executor_bytes),
+          "i"(profile.soa_traversal_workspace_bytes),
           "i"(profile.command_snapshot_bytes),
           "i"(profile.pixel_snapshot_bytes),
           "i"(profile.global_bytes),

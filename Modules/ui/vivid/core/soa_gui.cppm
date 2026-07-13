@@ -57,7 +57,15 @@ namespace {
 export
 class SoaGui {
 public:
-    SoaGui(CanvasBase& canvas, SoaKernel& kernel, WidgetHandle root) noexcept;
+    using DrawCmdBuffer = ui::draw_cmd::DefaultDrawCmdBuffer;
+    using CompactionWorkspace = ui::draw_cmd::DefaultDrawCmdCompactionWorkspace;
+
+    SoaGui(CanvasBase& canvas,
+           SoaKernel& kernel,
+           WidgetHandle root,
+           DrawCmdBuffer& cmd_buffer,
+           CompactionWorkspace& compaction_workspace,
+           ui::draw_cmd::DrawCmdExecutor& cmd_exec) noexcept;
 
     void set_root(WidgetHandle root) noexcept;
     WidgetHandle root() const noexcept;
@@ -74,14 +82,48 @@ public:
     ui::draw_cmd::DrawCmdExecStats last_exec_stats() const noexcept { return last_exec_stats_; }
 
 private:
+    struct RenderTraversalFrame {
+        static constexpr std::uint8_t kEntered = 1u << 0;
+        static constexpr std::uint8_t kClipEnabled = 1u << 1;
+        static constexpr std::uint8_t kClipPushed = 1u << 2;
+
+        WidgetHandle h{};
+        WidgetHandle child{};
+        std::uint8_t flags{0};
+        Rect clip_rect{};
+        int offset_x{0};
+        int offset_y{0};
+        int child_offset_x{0};
+        int child_offset_y{0};
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+        ui::draw_cmd::DrawScope draw_scope{};
+#endif
+
+        constexpr bool entered() const noexcept { return (flags & kEntered) != 0; }
+        constexpr bool clip_enabled() const noexcept { return (flags & kClipEnabled) != 0; }
+        constexpr bool clip_pushed() const noexcept { return (flags & kClipPushed) != 0; }
+        constexpr void set_entered() noexcept { flags |= kEntered; }
+        constexpr void set_clip_enabled() noexcept { flags |= kClipEnabled; }
+        constexpr void set_clip_pushed() noexcept { flags |= kClipPushed; }
+    };
+
+public:
+    static constexpr std::size_t kTraversalWorkspaceBytes =
+        sizeof(std::array<RenderTraversalFrame, SoaKernel::kMaxNodes>)
+        + SoaLayoutPass::kTraversalWorkspaceBytes
+        + SoaKernel::kTraversalWorkspaceBytes;
+
+private:
     CanvasBase& canvas_;
     SoaKernel& kernel_;
     WidgetHandle root_{};
     SoaLayoutPass layout_;
     std::uint32_t style_version_{0};
     std::uint32_t stylesheet_version_{0};
-    ui::draw_cmd::DefaultDrawCmdBuffer cmd_buffer_{};
-    ui::draw_cmd::DrawCmdExecutor cmd_exec_{};
+    DrawCmdBuffer& cmd_buffer_;
+    CompactionWorkspace& compaction_workspace_;
+    ui::draw_cmd::DrawCmdExecutor& cmd_exec_;
+    std::array<RenderTraversalFrame, SoaKernel::kMaxNodes> render_stack_{};
     ui::draw_cmd::DrawCmdStats last_cmd_stats_{};
     ui::draw_cmd::DrawCmdExecStats last_exec_stats_{};
 
@@ -91,8 +133,19 @@ private:
     void record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::DefaultDrawCmdBuffer& out);
 };
 
-SoaGui::SoaGui(CanvasBase& canvas, SoaKernel& kernel, WidgetHandle root) noexcept
-    : canvas_(canvas), kernel_(kernel), root_(root), layout_(kernel) {
+SoaGui::SoaGui(CanvasBase& canvas,
+               SoaKernel& kernel,
+               WidgetHandle root,
+               DrawCmdBuffer& cmd_buffer,
+               CompactionWorkspace& compaction_workspace,
+               ui::draw_cmd::DrawCmdExecutor& cmd_exec) noexcept
+    : canvas_(canvas),
+      kernel_(kernel),
+      root_(root),
+      layout_(kernel),
+      cmd_buffer_(cmd_buffer),
+      compaction_workspace_(compaction_workspace),
+      cmd_exec_(cmd_exec) {
     kernel_.set_input_root(root_);
     refresh_styles();
 }
@@ -114,8 +167,9 @@ WidgetHandle SoaGui::root() const noexcept {
         ui::draw_cmd::ImageRegistryPhaseGuard phase_record{ui::draw_cmd::ImageRegisterReason::FrameRecord};
         record_tree(cmd_buffer_);
         ui::draw_cmd::ImageRegistryPhaseGuard phase_compact{ui::draw_cmd::ImageRegisterReason::FrameCompact};
-        (void)cmd_buffer_.compact();
+        (void)cmd_buffer_.compact(compaction_workspace_);
         last_cmd_stats_ = cmd_buffer_.stats();
+        last_cmd_stats_.workspace_overflowed = kernel_.workspace_overflowed();
         text_profile_reset();
         canvas_.begin_frame();
         ui::draw_cmd::ImageRegistryPhaseGuard phase_execute{ui::draw_cmd::ImageRegisterReason::FrameExecute};
@@ -131,8 +185,9 @@ WidgetHandle SoaGui::root() const noexcept {
         ui::draw_cmd::ImageRegistryPhaseGuard phase_record{ui::draw_cmd::ImageRegisterReason::FrameRecord};
         record_tree(out);
         ui::draw_cmd::ImageRegistryPhaseGuard phase_compact{ui::draw_cmd::ImageRegisterReason::FrameCompact};
-        (void)out.compact();
+        (void)out.compact(compaction_workspace_);
         last_cmd_stats_ = out.stats();
+        last_cmd_stats_.workspace_overflowed = kernel_.workspace_overflowed();
         return last_cmd_stats_;
     }
 
@@ -147,8 +202,9 @@ template <ui::RenderBackend Backend>
         ui::draw_cmd::ImageRegistryPhaseGuard phase_record{ui::draw_cmd::ImageRegisterReason::FrameRecord};
         record_tree(cmd_buffer_);
         ui::draw_cmd::ImageRegistryPhaseGuard phase_compact{ui::draw_cmd::ImageRegisterReason::FrameCompact};
-        (void)cmd_buffer_.compact();
+        (void)cmd_buffer_.compact(compaction_workspace_);
         last_cmd_stats_ = cmd_buffer_.stats();
+        last_cmd_stats_.workspace_overflowed = kernel_.workspace_overflowed();
         text_profile_reset();
         ui::draw_cmd::ImageRegistryPhaseGuard phase_execute{ui::draw_cmd::ImageRegisterReason::FrameExecute};
         return cmd_exec_.execute_tiles(backend, tile_buffer, cmd_buffer_, config);
@@ -181,26 +237,18 @@ ResolvedStyleView SoaGui::resolve_style(WidgetKind kind, const StyleState& state
 
 void SoaGui::record_tree(ui::draw_cmd::DefaultDrawCmdBuffer& out) {
     if (!root_) return;
-    struct Frame {
-        WidgetHandle h{};
-        WidgetHandle child{};
-        bool entered{false};
-        Rect clip_rect{};
-        bool clip_enabled{false};
-        bool clip_pushed{false};
-        int offset_x{0};
-        int offset_y{0};
-        int child_offset_x{0};
-        int child_offset_y{0};
-        Rect world_rect{};
-#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
-        ui::draw_cmd::DrawScope draw_scope{};
-#endif
-    };
-    std::array<Frame, 256> stack{};
+    auto& stack = render_stack_;
     std::size_t sp = 0;
     const auto base_clip = canvas_.save_clip();
-    stack[sp++] = Frame{root_, {}, false, base_clip.rect, base_clip.enabled, false, 0, 0, 0, 0, Rect{}
+    stack[sp++] = RenderTraversalFrame{
+        root_,
+        {},
+        base_clip.enabled ? RenderTraversalFrame::kClipEnabled : std::uint8_t{0},
+        base_clip.rect,
+        0,
+        0,
+        0,
+        0
 #if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
         , ui::draw_cmd::draw_scope_default()
 #endif
@@ -208,8 +256,8 @@ void SoaGui::record_tree(ui::draw_cmd::DefaultDrawCmdBuffer& out) {
 
     while (sp > 0) {
         auto& frame = stack[sp - 1];
-        if (!frame.entered) {
-            frame.entered = true;
+        if (!frame.entered()) {
+            frame.set_entered();
             if (!kernel_.valid(frame.h) || !kernel_.visible(frame.h)) {
                 --sp;
                 continue;
@@ -222,7 +270,7 @@ void SoaGui::record_tree(ui::draw_cmd::DefaultDrawCmdBuffer& out) {
             out.set_draw_scope(frame.draw_scope);
 #endif
             const Rect local_rect = kernel_.rect(frame.h);
-            frame.world_rect = Rect{
+            const Rect world_rect{
                 local_rect.x + frame.offset_x,
                 local_rect.y + frame.offset_y,
                 local_rect.w,
@@ -238,14 +286,14 @@ void SoaGui::record_tree(ui::draw_cmd::DefaultDrawCmdBuffer& out) {
                 paint.w,
                 paint.h
             };
-            if (frame.clip_enabled) {
+            if (frame.clip_enabled()) {
                 Rect out_clip{};
                 if (!rect_intersect(paint, frame.clip_rect, out_clip)) {
                     --sp;
                     continue;
                 }
             }
-            record_node(frame.h, frame.world_rect, out);
+            record_node(frame.h, world_rect, out);
             frame.child = kernel_.first_child(frame.h);
             frame.child_offset_x = frame.offset_x + local_rect.x;
             frame.child_offset_y = frame.offset_y + local_rect.y;
@@ -253,10 +301,10 @@ void SoaGui::record_tree(ui::draw_cmd::DefaultDrawCmdBuffer& out) {
                 frame.child_offset_y -= kernel_.scroll_y(frame.h);
             }
             if (kernel_.clip_children(frame.h)) {
-                Rect clip_rect = frame.world_rect;
+                Rect clip_rect = world_rect;
                 Rect out_clip{};
                 bool ok = rect_valid(clip_rect);
-                if (ok && frame.clip_enabled) {
+                if (ok && frame.clip_enabled()) {
                     ok = rect_intersect(clip_rect, frame.clip_rect, out_clip);
                     clip_rect = out_clip;
                 }
@@ -267,16 +315,16 @@ void SoaGui::record_tree(ui::draw_cmd::DefaultDrawCmdBuffer& out) {
                     out.set_draw_scope(frame.draw_scope);
 #endif
                     out.push_clip(clip_rect);
-                    frame.clip_pushed = true;
+                    frame.set_clip_pushed();
                     frame.clip_rect = clip_rect;
-                    frame.clip_enabled = true;
+                    frame.set_clip_enabled();
                 }
             }
             continue;
         }
 
         if (!frame.child) {
-            if (frame.clip_pushed) {
+            if (frame.clip_pushed()) {
 #if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
                 out.set_draw_scope(frame.draw_scope);
 #endif
@@ -288,19 +336,19 @@ void SoaGui::record_tree(ui::draw_cmd::DefaultDrawCmdBuffer& out) {
 
         WidgetHandle child = frame.child;
         frame.child = kernel_.next_sibling(child);
-        if (sp >= stack.size()) continue;
-        stack[sp++] = Frame{
+        if (sp >= stack.size()) {
+            kernel_.note_workspace_overflow();
+            continue;
+        }
+        stack[sp++] = RenderTraversalFrame{
             child,
             {},
-            false,
+            frame.clip_enabled() ? RenderTraversalFrame::kClipEnabled : std::uint8_t{0},
             frame.clip_rect,
-            frame.clip_enabled,
-            false,
             frame.child_offset_x,
             frame.child_offset_y,
             0,
-            0,
-            Rect{}
+            0
 #if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
             , frame.draw_scope
 #endif

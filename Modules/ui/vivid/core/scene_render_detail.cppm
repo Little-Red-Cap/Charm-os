@@ -75,6 +75,7 @@ namespace ui::scene::detail {
         out.cmd_overflowed = stats.cmd_overflowed;
         out.text_overflowed = stats.text_overflowed;
         out.blob_overflowed = stats.blob_overflowed;
+        out.workspace_overflowed = stats.workspace_overflowed;
         return out;
     }
 

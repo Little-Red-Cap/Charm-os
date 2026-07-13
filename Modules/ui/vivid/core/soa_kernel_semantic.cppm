@@ -101,13 +101,9 @@ import charm.core.soa_payload;
             return out;
         }
 
-        struct StackEntry {
-            WidgetHandle handle{};
-        };
-
-        std::array<StackEntry, kMaxNodes> stack{};
+        auto& stack = semantic_traversal_stack_;
         std::size_t sp = 0;
-        stack[sp++] = StackEntry{root};
+        stack[sp++] = SemanticTraversalEntry{root, 0};
 
         while (sp > 0) {
             const WidgetHandle h = stack[--sp].handle;
@@ -129,8 +125,11 @@ import charm.core.soa_payload;
             }
 
             for (auto child = last_child(h); child; child = prev_sibling(child)) {
-                if (sp >= stack.size()) break;
-                stack[sp++] = StackEntry{child};
+                if (sp >= stack.size()) {
+                    note_workspace_overflow();
+                    break;
+                }
+                stack[sp++] = SemanticTraversalEntry{child, 0};
             }
         }
 
@@ -285,13 +284,9 @@ import charm.core.soa_payload;
             return out;
         }
 
-        struct StackEntry {
-            WidgetHandle handle{};
-        };
-
-        std::array<StackEntry, kMaxNodes> stack{};
+        auto& stack = semantic_traversal_stack_;
         std::size_t sp = 0;
-        stack[sp++] = StackEntry{root};
+        stack[sp++] = SemanticTraversalEntry{root, 0};
 
         while (sp > 0) {
             const WidgetHandle h = stack[--sp].handle;
@@ -314,8 +309,11 @@ import charm.core.soa_payload;
             }
 
             for (auto child = last_child(h); child; child = prev_sibling(child)) {
-                if (sp >= stack.size()) break;
-                stack[sp++] = StackEntry{child};
+                if (sp >= stack.size()) {
+                    note_workspace_overflow();
+                    break;
+                }
+                stack[sp++] = SemanticTraversalEntry{child, 0};
             }
         }
 
@@ -450,17 +448,12 @@ import charm.core.soa_payload;
             max_nodes = kSemanticTreeMaxNodes;
         }
 
-        struct StackEntry {
-            WidgetHandle handle{};
-            std::uint16_t depth{0};
-        };
-
-        std::array<StackEntry, kMaxNodes> stack{};
+        auto& stack = semantic_traversal_stack_;
         std::size_t sp = 0;
-        stack[sp++] = StackEntry{root, 0};
+        stack[sp++] = SemanticTraversalEntry{root, 0};
 
         while (sp > 0) {
-            const StackEntry entry = stack[--sp];
+            const SemanticTraversalEntry entry = stack[--sp];
             const WidgetHandle h = entry.handle;
             if (!valid(h) || !visible(h)) continue;
             ++out.visited_count;
@@ -500,9 +493,10 @@ import charm.core.soa_payload;
             for (auto child = last_child(h); child; child = prev_sibling(child)) {
                 if (sp >= stack.size()) {
                     out.overflowed = true;
+                    note_workspace_overflow();
                     break;
                 }
-                stack[sp++] = StackEntry{
+                stack[sp++] = SemanticTraversalEntry{
                     child,
                     static_cast<std::uint16_t>(entry.depth + 1),
                 };

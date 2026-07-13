@@ -34,6 +34,7 @@ export namespace ui::scene {
         bool cmd_overflowed{false};
         bool text_overflowed{false};
         bool blob_overflowed{false};
+        bool workspace_overflowed{false};
     };
 
     struct ExecStats {

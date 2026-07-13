@@ -514,20 +514,13 @@ public:
 
     WidgetHandle input_hit_test(int x, int y) noexcept {
         if (!input_.root) return {};
-        struct Frame {
-            WidgetHandle h{};
-            int offset_x{0};
-            int offset_y{0};
-            Rect clip{};
-            bool clip_enabled{false};
-        };
-        std::array<Frame, 256> stack{};
+        auto& stack = input_hit_stack_;
         std::size_t sp = 0;
-        stack[sp++] = Frame{input_.root, 0, 0, Rect{}, false};
+        stack[sp++] = InputHitTraversalFrame{input_.root, 0, 0, Rect{}, false};
         WidgetHandle result{};
 
         while (sp > 0) {
-            Frame frame = stack[--sp];
+            InputHitTraversalFrame frame = stack[--sp];
             if (!valid(frame.h)) continue;
             if (!visible(frame.h)) continue;
             if (!enabled(frame.h)) continue;
@@ -570,8 +563,17 @@ public:
             }
 
             for (auto child = last_child(frame.h); child; child = prev_sibling(child)) {
-                if (sp >= stack.size()) break;
-                stack[sp++] = Frame{child, child_offset_x, child_offset_y, child_clip, child_clip_enabled};
+                if (sp >= stack.size()) {
+                    note_workspace_overflow();
+                    break;
+                }
+                stack[sp++] = InputHitTraversalFrame{
+                    child,
+                    child_offset_x,
+                    child_offset_y,
+                    child_clip,
+                    child_clip_enabled,
+                };
             }
         }
         return result;
@@ -779,6 +781,9 @@ public:
     std::uint32_t paint_dirty_version() const noexcept ;
     bool payload_overflowed() const noexcept ;
     bool text_overflowed() const noexcept ;
+    bool workspace_overflowed() const noexcept { return workspace_overflowed_; }
+    void clear_workspace_overflow() noexcept { workspace_overflowed_ = false; }
+    void note_workspace_overflow() const noexcept { workspace_overflowed_ = true; }
     soa_detail::PayloadStats payload_stats() const noexcept ;
     std::uint32_t layout_applied_version() const noexcept ;
     void set_layout_applied_version(std::uint32_t v) noexcept ;
@@ -849,6 +854,32 @@ public:
         if (!soa_detail::payload_valid(handle)) return nullptr;
         return payloads_.get<T>(handle, idx, common_.kind[idx]);
     }
+
+private:
+    struct InputHitTraversalFrame {
+        WidgetHandle h{};
+        int offset_x{0};
+        int offset_y{0};
+        Rect clip{};
+        bool clip_enabled{false};
+    };
+
+    struct SemanticTraversalEntry {
+        WidgetHandle handle{};
+        std::uint16_t depth{0};
+    };
+
+    std::array<InputHitTraversalFrame, kMaxNodes> input_hit_stack_{};
+    mutable std::array<WidgetHandle, kMaxNodes> input_traversal_stack_{};
+    mutable std::array<WidgetHandle, kMaxNodes> input_focus_candidates_{};
+    mutable std::array<SemanticTraversalEntry, kMaxNodes> semantic_traversal_stack_{};
+    mutable bool workspace_overflowed_{false};
+
+public:
+    static constexpr std::size_t kTraversalWorkspaceBytes =
+        sizeof(std::array<InputHitTraversalFrame, kMaxNodes>)
+        + sizeof(std::array<WidgetHandle, kMaxNodes>) * 2
+        + sizeof(std::array<SemanticTraversalEntry, kMaxNodes>);
 
 private:
     void mark_layout_dirty() noexcept;

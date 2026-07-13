@@ -192,6 +192,10 @@ function(_h747_mem_run_evidence)
         soa_kernel_bytes
         payload_manager_bytes
         draw_cmd_buffer_bytes
+        draw_cmd_buffer_instances_per_scene
+        draw_cmd_compaction_workspace_bytes
+        draw_cmd_executor_bytes
+        soa_traversal_workspace_bytes
         command_snapshot_bytes
         pixel_snapshot_bytes
         global_bytes
@@ -488,6 +492,19 @@ function(_h747_mem_run_evidence)
             _h747_mem_fail(
                 "Vivid target-ABI total ${_vivid_static_profile_total_bytes} exceeds configure upper bound ${_vivid_static_profile_upper_bound_bytes}")
         endif()
+        if(NOT _vivid_static_profile_draw_cmd_buffer_instances_per_scene EQUAL 1)
+            _h747_mem_fail(
+                "Vivid Scene must own exactly one live DrawCmd buffer, got ${_vivid_static_profile_draw_cmd_buffer_instances_per_scene}")
+        endif()
+        foreach(_vivid_workspace_field IN ITEMS
+                draw_cmd_compaction_workspace_bytes
+                draw_cmd_executor_bytes
+                soa_traversal_workspace_bytes)
+            if(NOT _vivid_static_profile_${_vivid_workspace_field} GREATER 0)
+                _h747_mem_fail(
+                    "Vivid target-ABI workspace field ${_vivid_workspace_field} must be positive")
+            endif()
+        endforeach()
         if(_vivid_static_profile_total_bytes GREATER _vivid_static_profile_budget_bytes)
             _h747_mem_fail(
                 "Vivid target-ABI total ${_vivid_static_profile_total_bytes} leaves less than required headroom ${_vivid_static_profile_min_headroom_bytes} in budget ${_vivid_static_profile_budget_bytes}")

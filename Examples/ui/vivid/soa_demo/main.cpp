@@ -2747,6 +2747,71 @@ namespace {
         return fails == 0;
     }
 
+    bool run_workspace_regression(SoaGui& gui,
+                                  SoaKernel& kernel,
+                                  SoaFactory& factory,
+                                  WidgetHandle root,
+                                  ui::draw_cmd::DefaultDrawCmdBuffer& probe_buffer) noexcept {
+        int fails = 0;
+        static std::array<WidgetHandle, SoaKernel::kMaxNodes> chain{};
+        chain.fill({});
+
+        WidgetHandle parent = root;
+        std::size_t chain_count = 0;
+        while (chain_count < chain.size()) {
+            const WidgetHandle node = factory.create_container();
+            if (!node) break;
+            if (!factory.link(parent, node)) {
+                kernel.destroy(node);
+                expect_true(false, "workspace: failed to link deep chain", fails);
+                break;
+            }
+            kernel.set_rect(node, {0, 0, 2, 2});
+            chain[chain_count++] = node;
+            parent = node;
+        }
+
+        expect_true(chain_count >= SoaKernel::kMaxNodes / 2,
+                    "workspace: chain did not approach soa_max_nodes", fails);
+        if constexpr (SoaKernel::kMaxNodes > 256) {
+            expect_true(chain_count > 256,
+                        "workspace: chain did not cross legacy 256-node limit", fails);
+        }
+
+        if (chain_count > 0) {
+            constexpr const char* kLeafId = "workspace.deep.leaf";
+            const WidgetHandle leaf = chain[chain_count - 1];
+            kernel.set_hit_testable(leaf, true);
+            kernel.set_focusable(leaf, true);
+            kernel.set_semantic(leaf, SemanticRole::Container, kLeafId, "Deep workspace leaf");
+            kernel.set_semantic_actions(leaf, semantic_action_mask(SemanticAction::Activate));
+
+            const auto cmd_stats = gui.record_commands(probe_buffer);
+            const WidgetHandle hit = gui.hit_test(1, 1);
+            const auto semantic = kernel.resolve_semantic_intent(root, kLeafId, SemanticAction::Activate);
+
+            expect_true(!cmd_stats.cmd_overflowed, "workspace: draw command overflow", fails);
+            expect_true(!cmd_stats.text_overflowed, "workspace: draw text overflow", fails);
+            expect_true(!cmd_stats.blob_overflowed, "workspace: draw blob overflow", fails);
+            expect_true(same_handle(hit, leaf), "workspace: deep hit-test truncated", fails);
+            expect_true(semantic.found && same_handle(semantic.handle, leaf),
+                        "workspace: deep semantic traversal truncated", fails);
+            expect_true(!kernel.workspace_overflowed(), "workspace: traversal overflowed", fails);
+        }
+
+        for (std::size_t i = chain_count; i > 0; --i) {
+            kernel.destroy(chain[i - 1]);
+        }
+
+        (void)out::println<"[soa] workspace chain={} max={} overflow={} result={}">(
+            g_console,
+            static_cast<unsigned>(chain_count),
+            static_cast<unsigned>(SoaKernel::kMaxNodes),
+            kernel.workspace_overflowed() ? 1u : 0u,
+            fails == 0 ? "ok" : "fail");
+        return fails == 0;
+    }
+
     void dump_payload_stats(const soa_detail::PayloadStats& stats) {
         if (g_payload_stats_dumped) return;
         g_payload_stats_dumped = true;
@@ -3297,7 +3362,16 @@ int main(int argc, char** argv) {
         row_y += 22;
     }
 
-    SoaGui gui(canvas, kernel, root);
+    ui::draw_cmd::DefaultDrawCmdBuffer gui_cmd_buffer{};
+    ui::draw_cmd::DefaultDrawCmdCompactionWorkspace gui_compaction_workspace{};
+    ui::draw_cmd::DrawCmdExecutor gui_cmd_exec{};
+    SoaGui gui(canvas,
+               kernel,
+               root,
+               gui_cmd_buffer,
+               gui_compaction_workspace,
+               gui_cmd_exec);
+    kernel.clear_workspace_overflow();
 
 #if defined(VIVID_SOA_TRACE_INPUT)
     if (run_replay) {
@@ -3456,6 +3530,20 @@ int main(int argc, char** argv) {
         trace_regress_stage("ui.end");
 #endif
     }
+#if defined(VIVID_SOA_TRACE_INPUT)
+    if (run_regress) {
+        trace_regress_stage("workspace.begin");
+        if (!run_workspace_regression(gui, kernel, factory, root, gui_cmd_buffer)) {
+            if (run_ci) {
+                ci_mark_fail("workspace_regression");
+            } else {
+                close_regress_log();
+                return 1;
+            }
+        }
+        trace_regress_stage("workspace.end");
+    }
+#endif
 #endif
     ui::draw_cmd::DefaultDrawCmdBuffer compare_buf{};
     bool has_recorded = false;
@@ -3503,7 +3591,7 @@ int main(int argc, char** argv) {
         append_path_icon(compare_buf, screen_width);
         append_compaction_probe(compare_buf, screen_width, screen_height);
         compare_cmd_count_raw = compare_buf.stats().cmd_count;
-        compare_buf.compact();
+        compare_buf.compact(gui_compaction_workspace);
         has_recorded = true;
         img_stats_after_record = ui::draw_cmd::image_registry_stats();
         img_stats_valid = true;
@@ -3638,7 +3726,7 @@ int main(int argc, char** argv) {
                                         TextAlignH::Left, TextAlignV::Center,
                                         TextWrap::None, TextEllipsis::None);
             const auto before = compact_probe.stats().cmd_count;
-            compact_probe.compact();
+            compact_probe.compact(gui_compaction_workspace);
             const auto after = compact_probe.stats().cmd_count;
             compact_saved = (before > after) ? (before - after) : 0;
             if (compact_saved == 0) {
@@ -3759,7 +3847,7 @@ int main(int argc, char** argv) {
             append_path_icon(compare_buf, screen_width);
             append_compaction_probe(compare_buf, screen_width, screen_height);
             compare_cmd_count_raw = compare_buf.stats().cmd_count;
-            compare_buf.compact();
+            compare_buf.compact(gui_compaction_workspace);
         }
         const auto dump_stats = compare_buf.stats();
         if (dump_stats.cmd_overflowed || dump_stats.text_overflowed || dump_stats.blob_overflowed || dump_stats.cmd_count == 0) {
@@ -3908,6 +3996,11 @@ int main(int argc, char** argv) {
         if (!tile_failed_ok) {
             ci_mark_fail("tile_failed_cmds");
         }
+        const bool workspace_ok = !kernel.workspace_overflowed()
+            && !gui.last_cmd_stats().workspace_overflowed;
+        if (!workspace_ok) {
+            ci_mark_fail("workspace_overflow");
+        }
         const bool ok = ci_ok
               && compare_ok
               && dump_ok
@@ -3928,7 +4021,8 @@ int main(int argc, char** argv) {
             && img_growth_ok
             && img_overflow_ok
             && img_dedup_ok
-            && cmd_budget_ok;
+            && cmd_budget_ok
+            && workspace_ok;
 
         (void)out::println<"[soa-ci] display mode={} bw1={} gray2={} gray2_curve={} eink_max_partial={} eink_min_full_ms={} eink_partial_pct={} missing_glyphs={} fallback_glyphs={} utf8_replace={} text_draw={} text_glyphs={} text_pixels={}">(
             g_console,
@@ -3946,7 +4040,7 @@ int main(int argc, char** argv) {
             static_cast<unsigned long long>(text_profile.glyphs),
             static_cast<unsigned long long>(text_profile.pixels));
 
-        (void)out::println<"[soa-ci] ok={} hash=0x{:08X} replay_full=0x{:08X} replay_tile=0x{:08X} failed_cmds={} overflows(p/t/b)={}/{}/{} alloc_fail={} peak_ok={} table_tree_ok={} ui_ok={} compact_saved={} batch_shrink={} batch_shrink_line={} batch_shrink_path={} batch_shrink_rect={} batch_shrink_round={} batch_shrink_image={} batch_shrink_focus={} cmd_raw={} cmd_count={} cmd_saved={} cmd_saved_pct={} cmd_budget={} dispatch_groups={} batch_flushes={} groups(rect/text/img/line/path/other)={}/{}/{}/{}/{}/{} cmds(rect/text/img/line/path/other)={}/{}/{}/{}/{}/{} fail(text/img/blob/path/clip/other)={}/{}/{}/{}/{}/{} clip(push_over/pop_under/invalid)={}/{}/{} tile_flushes={} tile_hit_pct={} tile_dispatch_groups={} tile_batch_flushes={} tile_failed_cmds={} img_new_total={} img_new_after_lock={} img_new_record={} img_new_compact={} img_new_execute={} img_bytes={} img_reuse={} img_growth={} img_overflow={} img_dedup_ok={} img_after_lock_reason={} img_after_lock_tag={} reason={}">(
+        (void)out::println<"[soa-ci] ok={} hash=0x{:08X} replay_full=0x{:08X} replay_tile=0x{:08X} failed_cmds={} overflows(p/t/b)={}/{}/{} workspace_overflow={} alloc_fail={} peak_ok={} table_tree_ok={} ui_ok={} compact_saved={} batch_shrink={} batch_shrink_line={} batch_shrink_path={} batch_shrink_rect={} batch_shrink_round={} batch_shrink_image={} batch_shrink_focus={} cmd_raw={} cmd_count={} cmd_saved={} cmd_saved_pct={} cmd_budget={} dispatch_groups={} batch_flushes={} groups(rect/text/img/line/path/other)={}/{}/{}/{}/{}/{} cmds(rect/text/img/line/path/other)={}/{}/{}/{}/{}/{} fail(text/img/blob/path/clip/other)={}/{}/{}/{}/{}/{} clip(push_over/pop_under/invalid)={}/{}/{} tile_flushes={} tile_hit_pct={} tile_dispatch_groups={} tile_batch_flushes={} tile_failed_cmds={} img_new_total={} img_new_after_lock={} img_new_record={} img_new_compact={} img_new_execute={} img_bytes={} img_reuse={} img_growth={} img_overflow={} img_dedup_ok={} img_after_lock_reason={} img_after_lock_tag={} reason={}">(
             g_console,
             ok ? 1u : 0u,
             static_cast<unsigned>(compare_hash_full),
@@ -3956,6 +4050,7 @@ int main(int argc, char** argv) {
             payload_ok ? 0u : 1u,
             text_ok ? 0u : 1u,
             blob_ok ? 0u : 1u,
+            workspace_ok ? 0u : 1u,
             static_cast<unsigned>(total_fail),
             list_peak_ok ? 1u : 0u,
             table_tree_ok ? 1u : 0u,
@@ -4053,7 +4148,7 @@ int main(int argc, char** argv) {
             snap_buf.clear();
             gui.record_commands(snap_buf);
             append_path_icon(snap_buf, screen_width);
-            snap_buf.compact();
+            snap_buf.compact(gui_compaction_workspace);
             fb.clear(kDemoBg);
             canvas.begin_frame();
             exec.execute(canvas, snap_buf);
@@ -4333,7 +4428,7 @@ int main(int argc, char** argv) {
                                 last_stats_tiles,
                                 last_stats_valid);
         }
-        cmd_buf.compact();
+        cmd_buf.compact(gui_compaction_workspace);
         const auto cmd_stats = cmd_buf.stats();
 
         ui::draw_cmd::DrawCmdTileStats tile_stats{};

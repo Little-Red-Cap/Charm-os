@@ -84,7 +84,7 @@ export namespace ui::draw_cmd {
             last_detail_stats_ = {};
 #endif
 
-            std::array<CanvasBase::ClipState, 64> clip_stack{};
+            auto& clip_stack = clip_stack_;
             std::size_t sp = 0;
             const auto base_clip = canvas.save_clip();
             if (initial_clip) {
@@ -1046,8 +1046,7 @@ export namespace ui::draw_cmd {
                     stats.dispatch_groups++;
                     count_group(kind);
                     if (kind == GroupKind::RectLike) {
-                        constexpr std::size_t kMaxExecBatchItems = 64;
-                        std::array<RectBatchItem, kMaxExecBatchItems> rect_items{};
+                        auto& rect_items = rect_items_;
                         while (true) {
                             DrawCmd cur = cmd;
                             std::size_t cur_stride = stride;
@@ -1092,8 +1091,7 @@ export namespace ui::draw_cmd {
                         continue;
                     }
                     if (kind == GroupKind::ImageLike) {
-                        constexpr std::size_t kMaxExecBatchItems = 64;
-                        std::array<RectBatchItem, kMaxExecBatchItems> rect_items{};
+                        auto& rect_items = rect_items_;
                         while (true) {
                             DrawCmd cur = cmd;
                             std::size_t cur_stride = stride;
@@ -1214,8 +1212,7 @@ export namespace ui::draw_cmd {
                         continue;
                     }
                     if (kind == GroupKind::DrawLine) {
-                        constexpr std::size_t kMaxExecBatchItems = 64;
-                        std::array<DrawCmd, kMaxExecBatchItems> line_items{};
+                        auto& line_items = command_items_;
                         while (true) {
                             DrawCmd cur = cmd;
                             std::size_t cur_stride = stride;
@@ -1264,8 +1261,7 @@ export namespace ui::draw_cmd {
                         continue;
                     }
                     if (kind == GroupKind::DrawPath) {
-                        constexpr std::size_t kMaxExecBatchItems = 64;
-                        std::array<DrawCmd, kMaxExecBatchItems> path_items{};
+                        auto& path_items = command_items_;
                         while (true) {
                             DrawCmd cur = cmd;
                             std::size_t cur_stride = stride;
@@ -1379,11 +1375,11 @@ export namespace ui::draw_cmd {
 
             const int tiles_x = (screen_w + tile_w - 1) / tile_w;
             const int tiles_y = (screen_h + tile_h - 1) / tile_h;
-            constexpr std::size_t kMaxTileHitEntries = 1024;
             const std::size_t tile_count = static_cast<std::size_t>(tiles_x) * static_cast<std::size_t>(tiles_y);
-            std::array<std::uint8_t, kMaxTileHitEntries> tile_hits{};
+            auto& tile_hits = tile_hits_;
             const bool use_hit_cache = (tile_count <= kMaxTileHitEntries);
             if (use_hit_cache) {
+                tile_hits.fill(0);
                 Rect screen_rect{0, 0, screen_w, screen_h};
                 Rect clipped{};
                 auto mark_bounds = [&](const Rect& bounds) noexcept {
@@ -1545,9 +1541,15 @@ export namespace ui::draw_cmd {
             return stats;
         }
 
-#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
     private:
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
         DrawCmdDetailStats last_detail_stats_{};
 #endif
+        static constexpr std::size_t kMaxExecBatchItems = 64;
+        static constexpr std::size_t kMaxTileHitEntries = 1024;
+        std::array<CanvasBase::ClipState, 64> clip_stack_{};
+        std::array<RectBatchItem, kMaxExecBatchItems> rect_items_{};
+        std::array<DrawCmd, kMaxExecBatchItems> command_items_{};
+        std::array<std::uint8_t, kMaxTileHitEntries> tile_hits_{};
     };
 }

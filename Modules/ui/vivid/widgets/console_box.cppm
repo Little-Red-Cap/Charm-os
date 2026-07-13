@@ -1,6 +1,9 @@
 module;
 #include <array>
 #include <cstddef>
+#include <cstdint>
+#include <span>
+#include <string_view>
 export module charm.widgets.console_box;
 
 import charm.core.object;
@@ -16,47 +19,127 @@ using namespace ui::render;
 export
 class ConsoleBox : public WidgetBase<ConsoleBox> {
 public:
+    class Buffer {
+    public:
+        static constexpr std::size_t line_length = 96;
+        static_assert(line_length <= 255);
+
+        struct Line {
+            std::array<char, line_length + 1> text{};
+            std::uint8_t length{0};
+        };
+
+        explicit Buffer(std::span<Line> lines) noexcept
+            : lines_(lines) {
+            clear();
+        }
+
+        template<std::size_t Capacity>
+        explicit Buffer(std::array<Line, Capacity>& lines) noexcept
+            : Buffer(std::span<Line>{lines.data(), lines.size()}) {}
+
+        Buffer(const Buffer&) = delete;
+        Buffer& operator=(const Buffer&) = delete;
+        Buffer(Buffer&&) = delete;
+        Buffer& operator=(Buffer&&) = delete;
+
+        void clear() noexcept {
+            start_ = 0;
+            cursor_ = 0;
+            count_ = lines_.empty() ? 0 : 1;
+            if (!lines_.empty()) reset_line(0);
+        }
+
+        void append(const char* text) noexcept {
+            if (!text) return;
+            for (const char* p = text; *p; ++p) append_char(*p);
+        }
+
+        void append_char(char ch) noexcept {
+            if (lines_.empty() || ch == '\r') return;
+            if (ch == '\n') {
+                advance_line();
+                return;
+            }
+
+            auto& line = lines_[cursor_];
+            if (line.length >= line_length) advance_line();
+
+            auto& out = lines_[cursor_];
+            if (out.length < line_length) {
+                out.text[out.length++] = ch;
+                out.text[out.length] = '\0';
+            }
+        }
+
+        [[nodiscard]] std::size_t capacity() const noexcept {
+            return lines_.size();
+        }
+
+        [[nodiscard]] std::size_t line_count() const noexcept {
+            return count_;
+        }
+
+        [[nodiscard]] std::string_view line_at(std::size_t index) const noexcept {
+            if (index >= count_) return {};
+            const auto& line = lines_[physical_index(index)];
+            return std::string_view{line.text.data(), line.length};
+        }
+
+    private:
+        std::span<Line> lines_{};
+        std::size_t start_{0};
+        std::size_t count_{0};
+        std::size_t cursor_{0};
+
+        void reset_line(std::size_t index) noexcept {
+            lines_[index].length = 0;
+            lines_[index].text[0] = '\0';
+        }
+
+        void advance_line() noexcept {
+            if (lines_.empty()) return;
+            if (count_ < lines_.size()) {
+                cursor_ = (start_ + count_) % lines_.size();
+                ++count_;
+            } else {
+                start_ = (start_ + 1) % lines_.size();
+                cursor_ = (start_ + count_ - 1) % lines_.size();
+            }
+            reset_line(cursor_);
+        }
+
+        [[nodiscard]] std::size_t physical_index(std::size_t index) const noexcept {
+            return (start_ + index) % lines_.size();
+        }
+    };
+
     ConsoleBox() {
         set_size(260, 140);
-        clear();
+    }
+
+    void attach_buffer(Buffer& buffer) noexcept {
+        buffer_ = &buffer;
+    }
+
+    void detach_buffer() noexcept {
+        buffer_ = nullptr;
+    }
+
+    [[nodiscard]] bool has_buffer() const noexcept {
+        return buffer_ != nullptr;
     }
 
     void clear() noexcept {
-        for (auto& line : lines_) {
-            line.len = 0;
-            line.text[0] = '\0';
-        }
-        start_ = 0;
-        count_ = 1;
-        cursor_ = 0;
+        if (buffer_) buffer_->clear();
     }
 
     void append(const char* text) noexcept {
-        if (!text) return;
-        for (const char* p = text; *p; ++p) {
-            append_char(*p);
-        }
+        if (buffer_) buffer_->append(text);
     }
 
     void append_char(char ch) noexcept {
-        if (ch == '\r') return;
-        if (ch == '\n') {
-            advance_line();
-            return;
-        }
-        auto& line = lines_[cursor_];
-        if (line.len >= kLineLen) {
-            advance_line();
-        }
-        auto& out = lines_[cursor_];
-        if (out.len < kLineLen) {
-            out.text[out.len++] = ch;
-            out.text[out.len] = '\0';
-        }
-    }
-
-    void set_max_lines(std::size_t max_lines) noexcept {
-        max_lines_ = (max_lines == 0) ? 1 : max_lines;
+        if (buffer_) buffer_->append_char(ch);
     }
 
     void draw(CanvasBase& cvs) {
@@ -83,53 +166,24 @@ public:
         const int max_visible = inner.h / line_height;
         if (max_visible <= 0) return;
 
-        const std::size_t draw_count = (count_ < static_cast<std::size_t>(max_visible))
-            ? count_
+        const std::size_t line_count = buffer_ ? buffer_->line_count() : 0;
+        const std::size_t draw_count = (line_count < static_cast<std::size_t>(max_visible))
+            ? line_count
             : static_cast<std::size_t>(max_visible);
-        const std::size_t skip = (count_ > draw_count) ? (count_ - draw_count) : 0;
+        const std::size_t skip = (line_count > draw_count) ? (line_count - draw_count) : 0;
 
         auto clip_state = cvs.save_clip();
         cvs.set_clip(inner);
         for (std::size_t i = 0; i < draw_count; ++i) {
-            const std::size_t idx = line_index(skip + i);
-            const auto& line = lines_[idx];
+            const auto line = buffer_->line_at(skip + i);
             const int y = inner.y + static_cast<int>(i) * line_height;
-            draw_text(cvs, inner.x, y, line.text, font, font_ref);
+            draw_text(cvs, inner.x, y, line.data(), font, font_ref);
         }
         cvs.restore_clip(clip_state);
     }
 
 private:
-    static constexpr std::size_t kMaxLines = 32;
-    static constexpr std::size_t kLineLen = 96;
-
-    struct Line {
-        char text[kLineLen + 1]{};
-        std::size_t len{0};
-    };
-
-    std::array<Line, kMaxLines> lines_{};
-    std::size_t start_{0};
-    std::size_t count_{1};
-    std::size_t cursor_{0};
-    std::size_t max_lines_{kMaxLines};
-
-    void advance_line() noexcept {
-        if (count_ < max_lines_) {
-            cursor_ = (start_ + count_) % max_lines_;
-            ++count_;
-        } else {
-            start_ = (start_ + 1) % max_lines_;
-            cursor_ = (start_ + count_ - 1) % max_lines_;
-        }
-        lines_[cursor_].len = 0;
-        lines_[cursor_].text[0] = '\0';
-    }
-
-    std::size_t line_index(std::size_t i) const noexcept {
-        if (count_ == 0) return 0;
-        return (start_ + i) % max_lines_;
-    }
+    Buffer* buffer_{nullptr};
 };
 
 

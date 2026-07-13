@@ -1,3 +1,4 @@
+#include <array>
 #include <cstdint>
 #include <cstdio>
 #include <type_traits>
@@ -7,6 +8,7 @@ import charm.core.event;
 import charm.core.input_interaction;
 import charm.core.object;
 import charm.widgets.button;
+import charm.widgets.console_box;
 import charm.widgets.foldable_panel;
 import charm.widgets.image;
 import charm.widgets.list;
@@ -50,6 +52,11 @@ namespace {
     static_assert(!std::is_move_constructible_v<TreeView::ItemPoolWorkspace>);
     static_assert(sizeof(ListView) <= 256);
     static_assert(sizeof(TreeView) <= 224);
+    static_assert(!std::is_copy_constructible_v<ConsoleBox::Buffer>);
+    static_assert(!std::is_move_constructible_v<ConsoleBox::Buffer>);
+    static_assert(sizeof(ConsoleBox::Buffer::Line) <= ConsoleBox::Buffer::line_length + 2);
+    static_assert(sizeof(ConsoleBox)
+                  <= sizeof(ObjectBase) + sizeof(void*) + alignof(void*) - 1);
     static_assert(std::is_same_v<Callback, util::delegate<>>);
     static_assert(sizeof(Callback) == sizeof(void*) + sizeof(Callback::stub_t));
 
@@ -721,6 +728,28 @@ int main() {
         }
     }
 
+    std::array<ConsoleBox::Buffer::Line, 2> console_lines{};
+    ConsoleBox::Buffer console_buffer{console_lines};
+    ConsoleBox console_box{};
+    console_box.append("ignored");
+    if (!expect(console_buffer.line_count() == 1 && console_buffer.line_at(0).empty(),
+                "console box does not write without an attached buffer")) return 1;
+    console_box.attach_buffer(console_buffer);
+    console_box.append("alpha\nbeta\ngamma");
+    if (!expect(console_box.has_buffer()
+                    && console_buffer.capacity() == 2
+                    && console_buffer.line_count() == 2
+                    && console_buffer.line_at(0) == "beta"
+                    && console_buffer.line_at(1) == "gamma",
+                "console buffer preserves bounded ring order")) return 1;
+    console_box.draw(callback_canvas);
+    console_box.detach_buffer();
+    console_box.append("ignored-after-detach");
+    if (!expect(!console_box.has_buffer()
+                    && console_buffer.line_at(0) == "beta"
+                    && console_buffer.line_at(1) == "gamma",
+                "console box detach preserves caller-owned data")) return 1;
+
     print_widget_signal_case("button_click_edge");
     std::printf(" primary=%d secondary=%d legacy=%d\n",
                 probe.primary_clicks,
@@ -748,10 +777,13 @@ int main() {
     print_widget_signal_case("owned_interaction_dispatch");
     std::printf(" image=direct scroll=direct spin_zoom=direct\n");
     print_widget_signal_case("object_runtime_footprint");
-    std::printf(" object_base=%zu child_capacity=%zu opt_in_components=%zu\n",
+    std::printf(" object_base=%zu child_capacity=%zu opt_in_components=%zu console_box=%zu console_line=%zu console_buffer=%zu\n",
                 sizeof(ObjectBase),
                 ScrollContainer::child_capacity,
-                sizeof(InteractionList<>) + sizeof(DragStrategy) + sizeof(LongPressStrategy));
+                sizeof(InteractionList<>) + sizeof(DragStrategy) + sizeof(LongPressStrategy),
+                sizeof(ConsoleBox),
+                sizeof(ConsoleBox::Buffer::Line),
+                sizeof(ConsoleBox::Buffer));
     print_widget_signal_case("structured_callback_contexts");
     std::printf(" list_draw=%d table_width=%d tree_toggle=%d list_pool=%d/%d/%d tree_pool=%d/%d/%d list_size=%zu tree_size=%zu\n",
                 list_draw.draw_calls,

@@ -144,6 +144,11 @@ ListView/TreeView 的虚拟 item pool 同样按需付费。控件本体只保存
 attach 到一个同类型控件，控件与 workspace 均不可复制或移动；任一方销毁或显式 detach 时先回收 live slot
 并解除绑定。workspace 内保存的 pool/cache callback target 必须覆盖其配置与回收周期。
 
+ConsoleBox 的 object surface 只负责视图行为，不在每个控件实例中常驻文本历史。调用方按所需行数拥有
+`ConsoleBox::Buffer::Line` 数组和 `Buffer`，再显式 attach；未 attach 时 append 为无副作用操作。Buffer 可以
+被多个只读视图观察，但其写入与视图 draw 必须位于同一串行 UI execution domain，且 Buffer/行存储必须覆盖
+所有 attach view 的使用期。SoA ConsoleBox 继续使用 kernel payload/TextArena，不与 object Buffer 混用。
+
 控件实现语义行为，不拥有全局 focus/navigation policy。focus truth、scope、semantic request 与 visual
 focus artifact 的边界从 [`vivid_focus_evidence_boundary_v0.md`](../../../docs/ui/vivid_focus_evidence_boundary_v0.md)
 进入。

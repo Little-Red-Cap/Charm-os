@@ -67,6 +67,11 @@ public:
         double_tap_.set_threshold(double_tap_ms_, double_tap_radius_);
     }
 
+    Image(const Image&) = delete;
+    Image& operator=(const Image&) = delete;
+    Image(Image&&) = delete;
+    Image& operator=(Image&&) = delete;
+
     void set_image(const ImageView& img) noexcept {
         image_ = img;
         if (image_) {

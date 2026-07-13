@@ -31,6 +31,11 @@ public:
         double_tap_.set_threshold(double_tap_ms_, double_tap_radius_);
     }
 
+    SpinZoomWidget(const SpinZoomWidget&) = delete;
+    SpinZoomWidget& operator=(const SpinZoomWidget&) = delete;
+    SpinZoomWidget(SpinZoomWidget&&) = delete;
+    SpinZoomWidget& operator=(SpinZoomWidget&&) = delete;
+
     void set_image(const ImageView& img) noexcept { image_ = img; }
     const ImageView& image() const noexcept { return image_; }
 

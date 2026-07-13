@@ -1,5 +1,6 @@
 #include <cstdint>
 #include <cstdio>
+#include <type_traits>
 
 import charm.core;
 import charm.core.event;
@@ -26,6 +27,14 @@ namespace {
     static_assert(OwnsObjectChildren<List>);
     static_assert(OwnsObjectChildren<FoldablePanel>);
     static_assert(OwnsObjectChildren<ScrollContainer>);
+    static_assert(!std::is_copy_constructible_v<InteractionList<>>);
+    static_assert(!std::is_move_constructible_v<InteractionList<>>);
+    static_assert(!std::is_copy_constructible_v<Image>);
+    static_assert(!std::is_move_constructible_v<Image>);
+    static_assert(!std::is_copy_constructible_v<ScrollContainer>);
+    static_assert(!std::is_move_constructible_v<ScrollContainer>);
+    static_assert(!std::is_copy_constructible_v<SpinZoomWidget>);
+    static_assert(!std::is_move_constructible_v<SpinZoomWidget>);
 
     struct Probe {
         int primary_clicks{0};

@@ -28,6 +28,12 @@ public:
                                       PinchScrollStrategy::update_delegate::bind<&ScrollContainer::on_pinch_update>(*this),
                                       PinchScrollStrategy::end_delegate::bind<&ScrollContainer::on_pinch_end>(*this));
     }
+
+    ScrollContainer(const ScrollContainer&) = delete;
+    ScrollContainer& operator=(const ScrollContainer&) = delete;
+    ScrollContainer(ScrollContainer&&) = delete;
+    ScrollContainer& operator=(ScrollContainer&&) = delete;
+
     void set_scroll_y(int y) noexcept {
         scroll_y_ = clamp_scroll(y);
         velocity_ = 0;

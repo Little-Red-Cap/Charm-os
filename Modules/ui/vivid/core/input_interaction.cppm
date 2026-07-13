@@ -21,6 +21,12 @@ public:
     static constexpr std::size_t kMax = Capacity;
     static constexpr EventMask kAll = ~EventMask{0};
 
+    InteractionList() = default;
+    InteractionList(const InteractionList&) = delete;
+    InteractionList& operator=(const InteractionList&) = delete;
+    InteractionList(InteractionList&&) = delete;
+    InteractionList& operator=(InteractionList&&) = delete;
+
     static constexpr EventMask mask(Event::Type type) noexcept {
         return (static_cast<unsigned>(type) < 64)
             ? (EventMask{1} << static_cast<unsigned>(type))

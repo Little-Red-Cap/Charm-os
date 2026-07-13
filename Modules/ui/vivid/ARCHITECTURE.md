@@ -131,7 +131,9 @@ FoldablePanel、ScrollContainer 等明确的 object-level 容器选择固定容�
 内联固定数组，容量耗尽由 `add/insert_child()` 的 `false` 显式报告，不分配动态内存。
 
 跨帧保存的 UI callback 使用 `util::delegate` 并由 owner 保证 target 生命周期。`std::function_ref` 只适合
-未来同步、非逃逸的函数参数，不得存入 widget、strategy、Scene 或 payload。
+未来同步、非逃逸的函数参数，不得存入 widget、strategy、Scene 或 payload。绑定 owner 自身的控件必须
+禁止复制/移动，或显式实现 callback 重绑；保存成员 strategy 地址的 `InteractionList` 同样不可复制和移动。
+strategy 绑定外部长生命周期 target 时仍可按值复制，不能把该合法场景误收紧为全局禁用 delegate 复制。
 
 控件实现语义行为，不拥有全局 focus/navigation policy。focus truth、scope、semantic request 与 visual
 focus artifact 的边界从 [`vivid_focus_evidence_boundary_v0.md`](../../../docs/ui/vivid_focus_evidence_boundary_v0.md)

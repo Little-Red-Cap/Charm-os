@@ -36,6 +36,9 @@ Player MD3 canonical 应用与平台接缝的当前入口：
 - `Examples/system/player_audio_binding_smoke`：source/sink 注入、失败和 legacy constructor。
 - `Examples/system/player_host_input_burst_smoke`：Host 输入突发、合并和丢弃统计。
 - `Examples/system/player_memory_report`：Player/Vivid/audio 静态内存账本。
+- `Examples/system/player_media_library_smoke`：媒体格式与元数据派生回归。
+- `Examples/system/player_playback_engine_smoke`：播放引擎与 session 行为回归。
+- `Examples/system/player_recent_history_smoke`：最近播放历史容量与序列化回归。
 
 canonical source set 由 `cmake/player_md3_sources.cmake` 显式维护。当前应用模块不包含 SDL、Win32、
 H747、QEMU 或 `CHARM_PLAYER_MCU/HOST/BOARD/PLATFORM` 条件；GDI 字体缓存与本地周历只存在于
@@ -152,7 +155,7 @@ Player 产品 compile definitions 只施加到 `Charm::player-md3`；Charm runti
 audio sink 选择。修改 Player 容量或资源策略不得触发整套 Charm runtime 重编。
 
 canonical 构建使用 `cmake/player_charm_closure.cmake` 与通用 leaf helper，不链接聚合
-`Charm-os`。当前干净 Host evidence 为 481 steps / 0.950 GiB；应用对象 5,767,168 bytes，
+`Charm-os`。当前干净 Host evidence 为 493 steps / 0.953 GiB；应用对象 5,767,168 bytes，
 应用加 ARGB framebuffer 8,516,288 bytes。详细口径见 [PLAYER_PORT_V2.md](PLAYER_PORT_V2.md)。
 
 旧板级目录、profile 和 runtime glue 当前仍保留，是迁移兼容物，不是 canonical Player

@@ -1,10 +1,11 @@
-import player.recent_history;
-import player.product_config;
-
 #include <array>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <string_view>
+
+import player.recent_history;
+import player.product_config;
 
 namespace {
     bool expect(bool condition, const char* message) {

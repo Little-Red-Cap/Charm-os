@@ -1,8 +1,8 @@
-import player.media_library;
-
 #include <array>
 #include <cstdio>
 #include <string_view>
+
+import player.media_library;
 
 namespace {
     bool expect(bool condition, const char* message) {

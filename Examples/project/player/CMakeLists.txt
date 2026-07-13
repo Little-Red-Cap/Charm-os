@@ -146,6 +146,18 @@ if (CHARM_PLAYER_BUILD_CANONICAL_SMOKES)
         "${CHARM_ROOT}/Examples/system/player_controller_playback_smoke/main.cpp")
     target_link_libraries(player_controller_playback_smoke PRIVATE Charm::player-md3)
 
+    add_executable(player_media_library_smoke
+        "${CHARM_ROOT}/Examples/system/player_media_library_smoke/main.cpp")
+    target_link_libraries(player_media_library_smoke PRIVATE Charm::player-md3)
+
+    add_executable(player_playback_engine_smoke
+        "${CHARM_ROOT}/Examples/system/player_playback_engine_smoke/main.cpp")
+    target_link_libraries(player_playback_engine_smoke PRIVATE Charm::player-md3)
+
+    add_executable(player_recent_history_smoke
+        "${CHARM_ROOT}/Examples/system/player_recent_history_smoke/main.cpp")
+    target_link_libraries(player_recent_history_smoke PRIVATE Charm::player-md3)
+
     if (CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
         target_compile_options(player_port_runtime_smoke PRIVATE -Wall -Wextra -Wpedantic)
         target_compile_options(player_md3_runtime_smoke PRIVATE -Wall -Wextra -Wpedantic)
@@ -153,6 +165,9 @@ if (CHARM_PLAYER_BUILD_CANONICAL_SMOKES)
         target_compile_options(player_audio_binding_smoke PRIVATE -Wall -Wextra -Wpedantic)
         target_compile_options(player_memory_report PRIVATE -Wall -Wextra -Wpedantic)
         target_compile_options(player_controller_playback_smoke PRIVATE -Wall -Wextra -Wpedantic)
+        target_compile_options(player_media_library_smoke PRIVATE -Wall -Wextra -Wpedantic)
+        target_compile_options(player_playback_engine_smoke PRIVATE -Wall -Wextra -Wpedantic)
+        target_compile_options(player_recent_history_smoke PRIVATE -Wall -Wextra -Wpedantic)
     endif()
 
     add_test(NAME player_port_runtime_smoke COMMAND player_port_runtime_smoke)
@@ -181,6 +196,15 @@ if (CHARM_PLAYER_BUILD_CANONICAL_SMOKES)
     add_test(NAME player_controller_playback_smoke COMMAND player_controller_playback_smoke)
     set_tests_properties(player_controller_playback_smoke PROPERTIES
         PASS_REGULAR_EXPRESSION "\\[player-controller-playback-smoke\\] ok")
+    add_test(NAME player_media_library_smoke COMMAND player_media_library_smoke)
+    set_tests_properties(player_media_library_smoke PROPERTIES
+        PASS_REGULAR_EXPRESSION "\\[player-media-library-smoke\\] ok")
+    add_test(NAME player_playback_engine_smoke COMMAND player_playback_engine_smoke)
+    set_tests_properties(player_playback_engine_smoke PROPERTIES
+        PASS_REGULAR_EXPRESSION "\\[player-playback-engine-smoke\\] ok")
+    add_test(NAME player_recent_history_smoke COMMAND player_recent_history_smoke)
+    set_tests_properties(player_recent_history_smoke PROPERTIES
+        PASS_REGULAR_EXPRESSION "\\[player-recent-history-smoke\\] ok")
 
     add_custom_target(player_canonical_smokes
         DEPENDS
@@ -188,7 +212,10 @@ if (CHARM_PLAYER_BUILD_CANONICAL_SMOKES)
             player_md3_runtime_smoke
             player_instance_isolation_smoke
             player_audio_binding_smoke
-            player_controller_playback_smoke)
+            player_controller_playback_smoke
+            player_media_library_smoke
+            player_playback_engine_smoke
+            player_recent_history_smoke)
     add_dependencies(player_canonical_smokes player_memory_report)
 endif()
 

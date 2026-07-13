@@ -1,13 +1,13 @@
+#include <array>
+#include <chrono>
+#include <cstdio>
+#include <cstdint>
+
 import audio.player;
 import charm.system.clock;
 import player.fixed_string;
 import player.playback;
 import player.playback_session;
-
-#include <array>
-#include <chrono>
-#include <cstdio>
-#include <cstdint>
 
 namespace {
     charm::system::ClockTick smoke_now_us(void*) noexcept {

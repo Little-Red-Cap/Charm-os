@@ -7,13 +7,9 @@
 
 ## 模块边界
 
-| 模块 | 责任 |
-|---|---|
-| [`charm.media.audio`](../../Modules/media/charm.media.audio.cppm) | 格式、FIFO、decoder、resampler、pull simulator、spectrum 与 file source 聚合入口 |
-| [`audio.data_plane`](../../Modules/media/audio/audio_data_plane.cppm) | decode、frame queue、DSP、量化、FIFO 与 pump |
-| [`audio.player`](../../Modules/media/audio/audio_player.cppm) | 播放状态、source/sink 生命周期与 refill |
-| [`audio.pump`](../../Modules/media/audio/audio_pump.cppm) | 实时侧 FIFO 消费与 underrun 统计 |
-| [`audio.sink.common`](../../Modules/media/audio/audio_sink_common.cppm) | fill 与补零规则 |
+聚合入口导出格式、FIFO、decoder、resampler、pull simulator、spectrum 与 file source。Data plane
+拥有 decode、frame queue、DSP、量化和 FIFO；player 拥有 source/sink 生命周期与 refill；pump 和
+sink common 只负责实时侧消费、underrun 统计与补零。具体 module 拆分以源码为准。
 
 `audio.player` 与 SDL sink 只在对应构建开关启用时由聚合入口导出。I2S sink 属于 project/board
 backend，不在公共聚合模块中声明为跨平台能力。UI 与产品播放器策略不进入 AudioDataPlane。

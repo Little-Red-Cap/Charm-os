@@ -1,52 +1,31 @@
-# POSIX ELF 样本
+# POSIX ELF Fixture
 
-该目录保存 Cortex-M Thumb freestanding ELF，用于验证
-`spawn -> load_image -> start_image -> waitpid`。样本不是 Linux 用户态兼容声明。
+## 文档状态
 
-## 样本
+- `status`: `supporting`
+- `scope`: POSIX ProgramImage 的 Cortex-M ELF fixture
+- `authority`: [`build_elf_samples.ps1`](build_elf_samples.ps1)、[`elf_samples.ld`](elf_samples.ld) 与
+  [`../tests/`](../tests/)
 
-| sample | 主要覆盖 |
-|---|---|
-| `hello` | 最小 ELF load、stdout、exit 0 |
-| `argv_dump` | `argc/argv` entry ABI |
-| `env_dump` | `envp` entry ABI |
-| `stderr_demo` | fd 1/2 分流与 stderr redirect |
-| `exit_code` | 参数解析与 wait status |
-| `cat_file` | open/read/close/fstat/isatty、file 或 pipe stdin |
-| `write_file` | create/truncate/write/reopen/EOF 与 cwd relative path |
-| `append_file` | append 保留前缀并可重开读取 |
-| `fd_probe` | term/pipe/file 的 isatty/fstat/error |
-| `stat_probe` | fd type、mode 与 size |
+本目录生成 Cortex-M7 Thumb freestanding ELF，用于 POSIX
+`spawn -> load_image -> start_image -> waitpid` 测试。它不声明 Linux 用户态兼容，也不使用 resident
+`AppImage/CharmAppApi` 入口。
 
-样本可通过 `elfmem:<name>` 的内嵌 bytes 或 `elf:/path.elf` 的文件路径进入同一 ProgramImage
-loader。具体 argv、fixture 文件和 expected output 由
-[`posix.programs.tests.cppm`](../tests/posix.programs.tests.cppm) 维护。
+## Fixture 边界
 
-## 生成
+- linker 入口是 `entry(argc, argv, envp)`，默认 load base 为 `0x20080000`；
+- `.hostcall` 表由测试 runtime 注入，具体调用面以 [`elf_hostcall.h`](elf_hostcall.h) 为准；
+- image 可由 `elfmem:<name>` 或 `elf:<path>` 进入同一 ProgramImage loader；
+- ELF materialize、入口 ABI 和生命周期由
+  [`posix_program_image_contract.md`](../../../docs/system/posix_program_image_contract.md) 定义。
 
-- [`build_elf_samples.ps1`](build_elf_samples.ps1)：构建 ELF 并更新 `*.elf.inc`；
-- [`elf_samples.ld`](elf_samples.ld)：测试链接布局；
-- `out/`：临时 ELF，已忽略；
-- `*.elf.inc`：供 memory registry 测试使用的生成输入。
+这些地址、hostcall 和 ABI 是测试 fixture 条件，不是通用 ELF ABI。
 
-固定 load base 与 Cortex-M ABI 是该 fixture 的输入条件，不是通用 ELF ABI。
+## 生成与验证
 
-## 运行面
+[`build_elf_samples.ps1`](build_elf_samples.ps1) 维护样本集合、编译参数和生成路径：临时 ELF 写入已忽略的
+`out/`，内嵌 registry 输入写入 `*.elf.inc`。不要在本页复制样本 inventory。
 
-样本共同依赖：
-
-- ELF `PT_LOAD` copy、BSS zero-fill、entry range validation；
-- `spawn/waitpid`、argv/envp 与 exit status；
-- fd 0/1/2、read/write/open/close/fstat/isatty；
-- RAMFS file input 与 pipe-backed stdin。
-
-它们不要求 heap、`brk/mmap`、dynamic linker、signal、session 或完整 libc/syscall surface。
-
-## 验证入口
-
-- Program tests：[`Examples/posix/tests`](../tests/)
-- QEMU runner：[`Examples/kernel/posix/qemu`](../../kernel/posix/qemu/README.md)
-- ProgramImage contract：
-  [`posix_program_image_contract.md`](../../../docs/system/posix_program_image_contract.md)
-
-是否通过以当次生成、构建和 QEMU runner 结果为准，不从已提交的 `*.elf.inc` 推导当前绿色状态。
+程序行为和 expected output 由 [`../tests/`](../tests/) 维护；系统级入口是
+[`kernel/posix/qemu`](../../kernel/posix/qemu/README.md)。已提交的 `*.elf.inc` 只是生成输入，不能证明
+当前 runner 通过。

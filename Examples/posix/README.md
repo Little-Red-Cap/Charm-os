@@ -1,18 +1,19 @@
 # POSIX 示例入口
 
-本目录保存 ProgramImage/POSIX 的真实样本和模块测试，不替代完整 QEMU 运行入口。
+## 文档状态
 
-## 先读
+- `status`: `supporting`
+- `scope`: POSIX ProgramImage fixture 与模块测试路由
+- `authority`: [`posix_support_overview.md`](../../docs/system/posix_support_overview.md) 与本目录源码
 
-- 执行面与边界：[`posix_support_overview.md`](../../docs/system/posix_support_overview.md)
-- ProgramImage：[`posix_program_image_contract.md`](../../docs/system/posix_program_image_contract.md)
-- QEMU 回归：[`kernel/posix/qemu/README.md`](../kernel/posix/qemu/README.md)
+本目录保存 POSIX 兼容执行面的 fixture 和模块测试，不定义完整 Linux/POSIX 兼容性。
 
 ## 内容
 
 | 路径 | 用途 |
 |---|---|
-| [`elf_samples/`](elf_samples/README.md) | 静态 ELF 样本及 `spawn -> load -> start -> waitpid` 主链 |
-| `tests/` | fd、errno、pipe、proc 与程序执行的模块 smoke |
+| [`elf_samples/`](elf_samples/README.md) | Cortex-M freestanding ELF fixture |
+| `tests/` | fd、errno、pipe、proc 与 ProgramImage smoke |
 
-能力是否可用以当前源码和当次 smoke 为准，不从样本数量推导完整 POSIX 兼容性。
+执行模型见 [`ProgramImage contract`](../../docs/system/posix_program_image_contract.md)，系统回归见
+[`kernel/posix/qemu`](../kernel/posix/qemu/README.md)。能力状态以当前源码和当次 runner 为准。

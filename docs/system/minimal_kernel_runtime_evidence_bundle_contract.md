@@ -107,5 +107,5 @@ runner 参数、工具安装、timeout 与 artifact 发布由 workflow 和脚本
 
 ## 历史材料
 
-早期完整产物树、session 旁路 smoke、inspect 命令矩阵和 CI 验收说明归档于
-[`../archive/minimal-kernel-runtime-v0/minimal_kernel_runtime_evidence_bundle_contract.md`](../archive/minimal-kernel-runtime-v0/minimal_kernel_runtime_evidence_bundle_contract.md)。
+早期完整产物树、逐 seam verifier matrix、session 旁路命令、inspect 参数矩阵和 CI 阶段说明已删除。
+这些易漂移信息由脚本、schema、workflow 和 Git 历史追溯，不作为第二份证据契约保留。

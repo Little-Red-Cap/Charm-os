@@ -20,12 +20,10 @@ kernel module 的早期结构、M1 sync、M2 thread 与 M3 observability 阶段�
 - session witness 旧全文已删除；semantic/machine/runtime 分层与 handoff 边界已收敛到
   [`../../system/kernel_runtime_session_witness_v0.md`](../../system/kernel_runtime_session_witness_v0.md)，字段、
   failure code 与派生规则以 schema/exporter 为准。旧 world compare 展开和 runner 清单不再保留。
-- [`minimal_kernel_runtime_evidence_bundle_contract.md`](minimal_kernel_runtime_evidence_bundle_contract.md)：
-  保留 Host/QEMU 总证据链的完整产物树、session 旁路 smoke、inspect 命令矩阵与早期 CI 验收口径。
-  现行默认入口仍是
-  [`../../system/minimal_kernel_runtime_evidence_bundle_contract.md`](../../system/minimal_kernel_runtime_evidence_bundle_contract.md)。
-- [`minimal_kernel_runtime_evidence_matrix.md`](minimal_kernel_runtime_evidence_matrix.md)：保留早期 runtime seam、
-  verifier、handoff 与“不证明”边界的逐项映射。该表不再作为新增 seam 的维护门禁。
+- runtime evidence bundle 旧全文与逐 seam evidence matrix 已删除。Host semantic、QEMU machine、session
+  与 witness 的聚合边界由
+  [`../../system/minimal_kernel_runtime_evidence_bundle_contract.md`](../../system/minimal_kernel_runtime_evidence_bundle_contract.md)
+  维护；完整产物树、runner 参数、verifier 路径和 CI 快照以脚本、schema、workflow 与 Git 历史为准。
 
 ## 保留的设计判断
 

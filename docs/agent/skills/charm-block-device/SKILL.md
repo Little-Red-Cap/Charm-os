@@ -1,41 +1,42 @@
-﻿# charm-block-device
+# charm-block-device
 
-用途：
-- 用于 block.device 适配与 VFS 挂载链路的落地检查。
+> status: `supporting`
 
-适用场景：
-- SDMMC / SPI Flash / RAM block 的 block.device 适配
-- block.registry 注册与 VFS mount
+Use this skill for block-media adapters, registry binding, cache wrappers or VFS
+block mounts. Start from the
+[`BlockDevice contract`](../../../storage/block_device_contract.md); do not
+assume every media consumer needs registry or filesystem mounting.
 
-不适用场景：
-- 文件系统内部实现优化
+## Determine The Boundary
 
-依赖规则：
-- `../../rules/charm-architecture.md`
-- `../../rules/embedded-modern-cpp.md`
+1. Identify media geometry, supported read/write/erase/flush operations,
+   alignment and partial-operation behavior.
+2. Identify ownership and lifetime of media context, callbacks and buffers.
+3. Decide which boundary the real consumer needs:
+   - direct `block::Device` injection;
+   - named/capability lookup through `block::Registry`;
+   - a cache adapter;
+   - VFS/filesystem mount;
+   - a protocol bridge such as USB MSC.
+4. Keep partition, filesystem, Store and protocol semantics outside the base
+   block adapter unless that adapter explicitly owns them.
 
----
+## Checks
 
-## 工作流程
+- `Caps` and callbacks agree for operations used by the consumer.
+- block count/size arithmetic, byte conversion, range and alignment are checked
+  without overflow.
+- timeout, short operation, media busy/error and post-failure state are explicit.
+- registry names/caps are unique; hash collision and non-owning device lifetime
+  are not hidden.
+- replace/unregister cannot leave consumers with an undocumented stale pointer.
+- cache ownership, dirty eviction and flush/failure policy match the cache
+  contract.
+- board/HAL handles remain below the adapter; upper layers see media semantics.
 
-1. 明确介质类型与 block.device 边界（读/写/擦除/对齐）
-2. 完成适配层（介质 -> block.device）
-3. 注册到 block.registry（能力入口唯一）
-4. 通过 VFS 挂载（只依赖 block.device）
-5. 做最小验证（mount/open/read/write）
+## Evidence
 
----
-
-## 产出要求
-
-- 适配层职责边界说明
-- registry/mount 入口说明
-- 最小验证路径（含错误路径）
-
----
-
-## 检查要点
-
-- 是否绕过 block.device 直连介质
-- 是否在上层引入平台细节
-- 是否有最小读写验证链
+Use the smallest applicable positive and negative path. Registry/mount tests do
+not prove raw media fault behavior; Host file/memory media does not prove SDMMC,
+flash timing, detach or power-loss behavior. Report which layer and evidence
+domain were actually exercised.

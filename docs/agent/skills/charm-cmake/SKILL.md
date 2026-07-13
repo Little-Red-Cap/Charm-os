@@ -1,39 +1,41 @@
-﻿# charm-cmake
+# charm-cmake
 
-用途：
-- 用于 Charm 项目中的 CMake 改动与构建系统调整。
-- 统一 CMake 版本与写法，避免跨平台不一致。
+> status: `supporting`
 
-适用场景：
-- 修改 CMakeLists.txt
-- 新增目标/模块/示例
-- 调整构建选项与依赖
+Use this skill for CMake targets, presets, toolchains, source ownership and
+generated build inputs. The affected project's CMake and presets are the source
+of truth; root conventions do not silently override an independent project.
 
-不适用场景：
-- 纯代码逻辑修改
+## Before Editing
 
-依赖规则：
-- `../../rules/charm-architecture.md`
-- `../../rules/embedded-modern-cpp.md`
+1. Identify the real configure root, preset/toolchain and explicit target.
+2. Read the target's current minimum CMake version. Root and most examples use
+   4.0, but some independent targets intentionally use another minimum.
+3. Trace source ownership: first-party, generated, vendor, board/BSP or external
+   package.
+4. Check whether the worktree already has a build directory for that configure
+   root; reuse it instead of creating parallel `cmake-build-*` trees.
 
----
+## Change Rules
 
-## 版本约束
+- Keep app/service/board/profile source selection with its owning target.
+- Do not add a root default dependency merely to make one project convenient.
+- Missing generated/vendor/CubeMX input must fail with a path and affected
+  target, not at an arbitrary compiler step.
+- Preserve toolchain and language ownership; do not set global flags to repair
+  one source file.
+- For C++ modules, keep FILE_SET/import and scan behavior consistent with the
+  target's compiler; do not generalize a local compiler workaround.
+- New options need a real consumer, deterministic default and clear scope.
+- Build output stays under a reused `cmake-build-*` directory; source trees do
+  not receive `build/` directories.
 
-- 项目要求使用 CMake **4.0**
-- 新增/修改脚本不得降低最低版本
+## Validation
 
----
+Record configure root, preset/options, reused build directory, target and exact
+result. Build the narrowest affected target first, then broader dependents when
+the ownership boundary changed. A successful configure is not evidence that a
+target linked or ran.
 
-## 工作约定
-
-- 保持目标命名与模块分层一致
-- 不在示例工程里引入核心库的反向依赖
-- 变更需说明影响的构建目标
-
----
-
-## 输出要求
-
-- 提供改动目标列表
-- 说明 CMake 版本要求是否满足
+Update the nearest README only when target names, prerequisites or usage change;
+do not copy complete source lists or generated paths into prose.

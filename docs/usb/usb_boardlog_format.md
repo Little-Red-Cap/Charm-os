@@ -1,88 +1,59 @@
-# USB Boardlog Format v1
+# USB Boardlog 导入格式
 
-本文档冻结当前 `usb.boardlog` 导入器支持的一组最小板级日志语法，用于把真实板级 USB 日志导入为 `usb.replay.v1`。
+## 文档状态
 
-## 目标
+- `status`: `supporting`
+- `scope`: `usb.boardlog` 文本到 `usb.replay.v1` 的当前映射
+- `source`: [`usb.boardlog.cppm`](../../Modules/io/usb/mock/usb.boardlog.cppm)
 
-- 让板级日志能够稳定导入到 PC 原生 replay
-- 让 `boardlog -> replay -> regression` 成为可维护链路
-- 固定当前可依赖的最小日志 grammar，避免字段漂移
+Boardlog 是宽松的开发日志导入格式，没有显式 schema/version header。它不是 USB trace 标准、
+时间序列格式或电气层记录。
 
-## 支持的日志行
+## 输入行
 
-- `usb: connect on`
-- `usb: connect off`
-- `usb: reset`
-- `usb: stall ep=0x..`
-- `usb: out ep=0x.. zlp=0|1 data=<hex|- >`
-- `usb: in ep=0x.. zlp=0|1 data=<hex|- >`
-- `usb: dev_desc size=<N> <hex bytes...>`
-- `usb: cfg_desc size=<N> <hex bytes...>`
-- `usb: setup bm=0x.. b=0x.. wValue=0x.... wIndex=0x.... wLen=0x....`
+| 输入 | 必需字段 | replay 结果 |
+|---|---|---|
+| `usb: connect [state]` | 可选 `on/off/true/false/connected/disconnected/1/0` | `connect`，省略 state 时为 true |
+| `usb: reset` | 无 | `reset` |
+| `usb: stall ep=<hex>` | `ep` | `stall` |
+| `usb: out ...` | `ep`、`zlp`、`data` | 单个 `out` step |
+| `usb: in ...` | `ep`、`zlp`、`data` | 同 endpoint 的连续未结束 IN 合并为一个事务 |
+| `usb: dev_desc size=<N> <bytes...>` | `size` token 与至少一个 byte | 缓存 descriptor，不生成 step |
+| `usb: cfg_desc size=<N> <bytes...>` | 同上 | 缓存 descriptor，不生成 step |
+| `usb: setup ...` | `bm/bmRequestType`、`b/bRequest`、`wv/wValue`、`wi/wIndex`、`wl/wLen` | 按下表翻译 control step |
 
-无关行会被忽略，例如启动日志、串口日志或其它外设日志。
+`data=-` 表示空 payload。Hex payload 可含 `,`、`:`、`_`、`-` 分隔符；清理分隔符后必须是
+偶数个 hex digit。Descriptor 的 `size=<N>` 当前只作为 byte 列表起点，不校验 N 与实际长度。
 
-## 导入规则
+## Setup 映射
 
-- `usb: connect on/off`
-  - 导入为 `connect true/false`
+| request | 结果 |
+|---|---|
+| IN `GET_DESCRIPTOR(Device)` | 从此前 `dev_desc` 缓存裁剪到 `wLength` 后生成 `control_in` |
+| IN `GET_DESCRIPTOR(Config)` | 从此前 `cfg_desc` 缓存裁剪到 `wLength` 后生成 `control_in` |
+| `GET_MAX_LUN` (`A1/FE`, length 1) | 固定 payload `00` 的 `control_in` |
+| OUT `CLEAR_FEATURE(ENDPOINT_HALT)` | `clear_stall`，endpoint 取 `wIndex` 低字节 |
+| 其它 `wLength=0` OUT request | 带 ZLP 期望的 `control_out` |
+| 其它 setup | 不生成 step，增加 `skipped_steps` |
 
-- `usb: reset`
-  - 导入为 `reset`
+Descriptor GET 出现在对应缓存之前返回 `missing_descriptor`；不支持的 descriptor type 被跳过。
 
-- `usb: stall ep=0x..`
-  - 导入为 `stall ep=..`
-  - 语义上表示设备在对应 endpoint 上发起 halt / STALL，供 replay 对 recovery 闭环做断言
+## 结果与失败
 
-- `usb: out ep=0x.. zlp=.. data=...`
-  - 导入为 `out ep=.. zlp=.. data=...`
-  - 语义上表示主机向设备发送 bulk/interrupt/其它非控制数据包
-  - 当 `data=-` 且 `zlp=1` 时，表示该事务是一个独立的零长度包
-  - 连续、同端点的多条 `usb: out` 当前按包级事件原样保留，不自动合并为更高层事务
+`LoadResult` 返回 replay trace、错误行、`imported_steps` 和 `skipped_steps`。错误分类为：
 
-- `usb: in ep=0x.. zlp=.. data=...`
-  - 导入为 `in ep=.. zlp=.. data=...`
-  - 语义上表示设备向主机返回的数据事务期望值
-  - 当 `data=-` 且 `zlp=1` 时，表示该事务是一个独立的零长度包
-  - 连续、同端点的多条 `usb: in` 会在导入时自动拼接为一个 replay `in` 事务，末条的 `zlp` 作为事务结束标记
-  - 单条 replay `in` 表示事务级期望值，不承诺运行时只产生一次设备发包或一次 `in_complete`；例如 MSC 的 `data + trailing CSW` 可能在同一个 `in` 事务内拆成多次 ACK
+- `syntax`：必需字段缺失或值越界；
+- `invalid_hex`：IN/OUT payload 不是可解析 byte sequence；
+- `missing_descriptor`：descriptor GET 没有前置缓存；
+- `file_io`：`load_file()` 打开或读取失败。
 
-- `usb: dev_desc`
-  - 缓存设备描述符原始字节
-  - 本行本身不生成 replay step
+空行和大多数无关日志被忽略，但不会统一增加 `skipped_steps`。`to_text()` 序列化的是
+规范化 `usb.replay.v1`，不能还原原始 boardlog 文本、注释、分包或被忽略行。
 
-- `usb: cfg_desc`
-  - 缓存配置描述符原始字节
-  - 本行本身不生成 replay step
+## 限制
 
-- `usb: setup ...`
-  - `GET_DESCRIPTOR(Device)` 导入为 `control_in`，数据来自缓存的 `dev_desc`
-  - `GET_DESCRIPTOR(Config)` 导入为 `control_in`，数据来自缓存的 `cfg_desc`
-  - `GET_MAX_LUN` 导入为 `control_in`，当前固定响应 `00`
-  - `CLEAR_FEATURE(ENDPOINT_HALT)` 导入为 `clear_stall ep=..`
-  - 其它 `wLen=0` 的 OUT setup 导入为 `control_out` + `zlp=1`
-
-## 当前限制
-
-- 还不区分 bulk / interrupt / isoch 的端点语义，只按 `ep` + `data` 导入
-- `usb: stall` 目前只记录 endpoint，不区分更细的 stall 原因或时间信息
-- 多包分段目前只自动合并 `usb: in`；`usb: out` 仍按逐包事件导入
-- 还不导入字符串描述符读取
-- 如果 `GET_DESCRIPTOR(Device/Config)` 出现在对应描述符缓存之前，导入会失败
-
-## 推荐日志顺序
-
-- 先记录 `connect/reset`
-- 再记录 `dev_desc/cfg_desc`
-- 再记录关键 `setup`
-- 如果涉及 stall / recovery，记录 `usb: stall ...`
-- 如果涉及恢复路径，保留 `CLEAR_FEATURE` setup
-- 如果涉及数据阶段，记录 `usb: out ...` / `usb: in ...`
-
-## 推荐用途
-
-- 从真板日志快速还原枚举序列
-- 从真板日志还原 clear-stall / 标准请求路径
-- 从真板日志还原 stall / clear-stall / CSW 的最小 recovery 闭环
-- 从真板日志还原 MSC 最小数据阶段与 recovery 片段
-- 给 native replay 构建最小 regression fixture
+- endpoint 没有 bulk/interrupt/isochronous 类型信息；
+- IN 可按 endpoint 合并，OUT 始终保留逐包 step；
+- 没有 timestamp、frame number、IRQ、DMA、cache 或 stall cause；
+- 不导入 string descriptor 内容；
+- 导入成功只证明语法可投影，不证明 replay 通过或真实设备行为正确。

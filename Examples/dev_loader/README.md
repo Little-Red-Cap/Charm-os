@@ -1,5 +1,11 @@
 # Dev Loader 原型
 
+## 文档状态
+
+- `status`: `supporting`
+- `scope`: board-free resident download/session 原型
+- `authority`: 本目录 headers 与 [`Examples/system`](../system/README.md) fixture
+
 ## 边界
 
 本目录提供 board-free resident download 原型。UART、USB、console 或 host frontend 只负责提供
@@ -70,6 +76,15 @@ reader/staging。QSPI、eMMC、memory NOR 或其它 media 不改变 Store v1、A
 
 ELF/ModuleX probe、relocation、entry ABI 与 execute region 由 App ABI loader/runtime 和平台 backend
 负责，不属于 transport/session contract。
+
+## Host 工具
+
+- [`dev-loader-packet-stream`](../system/dev_loader_packet_stream_tool/main.cpp) 将 payload 编码为 packet v0
+  byte stream；
+- [`dev-loader-packet-console`](../system/dev_loader_packet_console_tool/main.cpp) 将 packetstream 转成
+  `dev packet ingest <hex>` 文本命令。
+
+CLI 参数与默认值由各自 `main.cpp` 定义；工具不扩展 packet/session 语义。
 
 ## 验证
 

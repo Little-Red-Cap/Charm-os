@@ -1,21 +1,11 @@
 ﻿# Scope Project 示例
 
-此目录用于便携式示波器“项目化”验证，平台无关代码放在项目根目录，平台相关代码放在子目录（如 win、stm32）。
+该示例验证一个小型项目如何分离 portable app 与平台 backend，不定义通用 Project 模型。
 
-## 目录结构
+## 当前边界
 
-```
-Examples/project/scope/
-    CMakeLists.txt
-    README.md
-    scope.app.cppm
-    win/
-        CMakeLists.txt
-        main.cpp
-```
+- [`scope.app.cppm`](scope.app.cppm) 生成模拟波形、触发、测量与图表数据，不依赖 Win 入口。
+- [`win/main.cpp`](win/main.cpp) 提供当前唯一 backend，使用 SDL3/Vivid。
+- 构建入口由根与 [`win/CMakeLists.txt`](win/CMakeLists.txt) 维护。
 
-## 说明
-
-- `scope.app.cppm`：平台无关的最小应用封装，包含模拟波形、触发、测量与图表数据整理。
-- `win/`：PC 端实现（SDL3 / Vivid UI）相关代码。
-- 后续移植到 MCU 时，在 `stm32/` 下新增平台实现即可。
+当前没有 MCU backend 或跨平台运行证据；Win 示例通过不能证明板级显示、输入、采样或实时性。

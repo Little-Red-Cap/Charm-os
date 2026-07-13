@@ -71,16 +71,8 @@ reader/staging。QSPI、eMMC、memory NOR 或其它 media 不改变 Store v1、A
 ELF/ModuleX probe、relocation、entry ABI 与 execute region 由 App ABI loader/runtime 和平台 backend
 负责，不属于 transport/session contract。
 
-## 回归分组
+## 验证
 
-- Session/command：`dev_loader_session_smoke`、`dev_loader_command_smoke`、
-  `dev_loader_binary_receive_smoke`
-- Packet/transport：`dev_loader_packet_smoke`、`dev_loader_packet_stream_smoke`、
-  `dev_loader_byte_transport_smoke`、`dev_loader_raw_uart_smoke`
-- Console adapter：`dev_loader_packet_console_smoke`、`dev_loader_hex_ingest_smoke`
-- Store/handoff：`dev_loader_store_receive_smoke`、`dev_loader_store_install_handoff_smoke`、
-  `dev_loader_app_handoff_smoke`
-- Image：`dev_loader_received_elf_smoke`、`dev_loader_received_modulex_smoke`、
-  `dev_loader_stage_probe_smoke`
-
-这些 host smokes 不证明真实 USB/UART、Flash、SDRAM、cache 或目标代码执行。
+Host fixture 位于 [`Examples/system`](../system/README.md) 的 `dev_loader_*` 目录，覆盖 session、packet、
+byte transport、console adapter、Store handoff 与 received image。target、负例和断言以各目录
+CMake/source 为准；Host smoke 不证明真实 USB/UART、Flash、SDRAM、cache 或目标代码执行。

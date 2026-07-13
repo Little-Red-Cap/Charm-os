@@ -85,12 +85,10 @@ ELF loader、AppRuntime 与 capability 语义，不证明 H747 USB、QSPI、eMMC
 
 `artifact_manifest.json` 只是 host/CI 证据索引，不写入 Store，也不是产品 manifest。
 
-## 回归分组
+## 验证
 
-- Runtime / ABI：`app_abi_runtime_smoke`、`resident_image_platform_smoke`
-- ELF / ModuleX：`dev_loader_received_elf_smoke`、`app_abi_modulex_smoke`、
-  `dev_loader_received_modulex_smoke`
-- Store：`app_abi_store_*_smoke`、`dev_loader_store_install_handoff_smoke`
-- Artifact：`resident_platform_artifact_smoke`、`resident_platform_inspect_smoke`
+Host fixture 从 [`Examples/system`](../system/README.md) 的 `app_abi_*`、`dev_loader_*` 与 `resident_*`
+目录进入，分别覆盖 runtime/ABI、ELF/ModuleX、Store 和 artifact。target、负例与断言以各目录
+CMake/source 为准；板级证据仍由上面的 H747 evidence bundle 维护。
 
 [`player_min_core.h`](player_min_core.h) 是 capability/ABI 压力样本，不定义 Player UI 或平台 backend。

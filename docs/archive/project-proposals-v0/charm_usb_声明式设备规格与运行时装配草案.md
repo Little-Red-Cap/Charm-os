@@ -5,7 +5,6 @@
 这份草案与以下文档互补：
 
 - [`charm_工程对象模型草案.md`](charm_工程对象模型草案.md)
-- [`charm_bundle_概念草案.md`](charm_bundle_概念草案.md)
 - [`charm_foundation_runtime_与统一应用入口模型草案.md`](charm_foundation_runtime_与统一应用入口模型草案.md)
 - [`usb_storage_bundle_设计草案.md`](usb_storage_bundle_设计草案.md)
 

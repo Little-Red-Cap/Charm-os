@@ -296,7 +296,7 @@ Examples/project/player/stn32h747_HQZY/CM7/
 
 **利用 Player 反向驱动 Charm 平台化，包括代码架构、构建系统与开发工作流的同步升级。**
 
-相关工程抽象模型见：[`charm_工程变体模型草案.md`](charm_工程变体模型草案.md)
+相关工程抽象模型见：[`charm_工程对象模型草案.md`](charm_工程对象模型草案.md)
 
 运行时层面的补充方向见：
 [`charm_foundation_runtime_与统一应用入口模型草案.md`](charm_foundation_runtime_与统一应用入口模型草案.md)

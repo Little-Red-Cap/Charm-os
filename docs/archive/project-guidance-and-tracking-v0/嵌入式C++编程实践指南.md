@@ -1,8 +1,12 @@
 # 嵌入式 C++ 编程实践指南
 
-本文用于回答一个具体问题：在 Charm 的嵌入式代码里，C++ 应该怎么写。
+> status: `archived`
+>
+> 本文保留早期场景矩阵、buffer/DMA、模板和 escape-hatch 示例，不作为当前编码规范。
 
-它不是替代 [`项目C++编码要求.md`](../../project/standards/项目C++编码要求.md)，而是把其中的“允许 / 受限 / 禁止”落到更具体的接口、内存、模板、错误处理、测试代码与平台边界场景中。
+现行规则见 [`embedded-modern-cpp.md`](../../agent/rules/embedded-modern-cpp.md) 和
+[`charm-architecture.md`](../../agent/rules/charm-architecture.md)。下文的“必须 / 禁止”只表示归档时
+判断，使用前必须重新核对 target、源码和当前专题契约。
 
 ## 0. 适用范围
 

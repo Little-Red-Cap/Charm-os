@@ -130,7 +130,7 @@ Application -> Contract +-> QEMU implementation
 
 ## 6. MVP Contract
 
-MVP 只验证一句话：
+MVP 验证以下命题：
 
 > **同一应用源码无需描述目标平台，只声明所需 Capability Contract。**
 

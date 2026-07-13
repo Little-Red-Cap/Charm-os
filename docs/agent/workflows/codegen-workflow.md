@@ -1,56 +1,17 @@
-﻿# Codegen Workflow
+# Codegen Workflow
 
-本文件定义 Charm 项目代码生成类任务的标准执行路径。
-目标：保证生成过程“先建模、后实现”，且符合项目约束。
+> status: `supporting`
+>
+> 入口与规则加载顺序见 [`codegen route`](../routes/codegen.md)。本页只规定代码生成的执行顺序。
 
-相关文件：
-- `../rules/collaboration.md`
-- `../rules/embedded-modern-cpp.md`
-- `../rules/charm-architecture.md`
-- `../skills/codegen/SKILL.md`
-- `../templates/codegen-output.md`
+## 执行
 
----
+1. 核对目标、约束、所有权和验收方式；只有会改变行为边界的歧义才暂停确认。
+2. 读取现有源码、CMake、测试和同目录惯例，优先复用已有接口。
+3. 使用 [`codegen skill`](../skills/codegen/SKILL.md) 确认类型、错误、资源和装配边界。
+4. 实现最小完整改动，同步必要文档，不顺带重构无关代码。
+5. 运行与风险匹配的构建和测试，记录未验证项。
+6. 输出结果、验证和风险；需要结构化说明时参考
+   [`codegen template`](../templates/codegen-output.md)。
 
-## 1. 适用范围
-
-适用于：
-- 新增模块/接口
-- 补全实现骨架
-- 将设计讨论落地
-
-不适用于：
-- 代码审查
-- 架构归属判断（切换 architect-review）
-
----
-
-## 2. 执行顺序
-
-### 第一步：判断需求清晰度
-- 需求清晰 → 继续
-- 关键歧义 → 先讨论方案
-
-### 第二步：加载规则
-- `../rules/embedded-modern-cpp.md`
-- `../rules/charm-architecture.md`
-- 如需对齐协作 → `../rules/collaboration.md`
-
-### 第三步：加载技能
-- `../skills/codegen/SKILL.md`
-
-### 第四步：建模再实现
-- 明确 domain、核心类型、边界与装配路径
-- 再生成代码骨架
-- 最后补齐实现细节
-
-### 第五步：套用输出模板
-- `../templates/codegen-output.md`
-
----
-
-## 3. 输出风格
-
-- 结构清晰
-- 先设计后代码
-- 明确风险与未决点
+能力归属或 Core 准入问题应先切换到 [`architecture route`](../routes/architecture.md)。

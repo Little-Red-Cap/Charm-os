@@ -35,28 +35,6 @@ exploration 或局部 contract。
 - 错误必须保留并传播；具体 `Errc`、Result 或状态模型由专题 contract 定义；
 - Project/BSP 拥有 startup、linker、vendor SDK、板级资源和产品 binding，Core 不吸收这些事实。
 
-## 专题路由
-
-| 问题 | 先读 |
-|---|---|
-| Capability 与 Core 归属 | [`../routes/capability.md`](../routes/capability.md) |
-| init.graph 与装配 | [`../routes/init-graph.md`](../routes/init-graph.md) |
-| Channel/Reactor/Registry | [`../routes/io.md`](../routes/io.md) |
-| block device / storage | [`../routes/block-device.md`](../routes/block-device.md) |
-| CMake、preset、target | [`../routes/build.md`](../routes/build.md) |
-| signal/state/post | [`signal_state_contract_v0.md`](../../architecture/signal_state_contract_v0.md) |
-| 语言与嵌入式 C++ 取舍 | [`embedded-modern-cpp.md`](embedded-modern-cpp.md) |
-
-专题 route/contract 的规则只在其行为边界内成立。不要把某个 Channel、filesystem、clock、container
-或 board 的约束复制成全仓默认。
-
-## 审查检查点
-
-- 改动的真实消费者和所有者是谁；
-- 是否新增未经准入的 Core 名词或全局对象；
-- 是否把 Project Fact、Backend 或工具细节泄漏到应用 contract；
-- 是否跨执行上下文 direct call，或隐藏了生命周期/ownership；
-- 失败语义是否稳定、可观察且未被吞掉；
-- source/CMake/test 是否与文档声明一致；
-- 验证是否覆盖实际环境，还是只检查了 metadata/build/schema；
-- 是否可以用更小的局部实现解决，而不增加全仓词汇和例外。
+专题阅读路径由 [architecture route](../routes/architecture.md) 选择，评审步骤由
+[architect-review skill](../skills/architect-review/SKILL.md) 维护。专题 contract 的局部约束不能被复制成
+全仓默认。

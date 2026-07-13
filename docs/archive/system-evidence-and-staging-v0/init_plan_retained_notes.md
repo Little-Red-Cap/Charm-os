@@ -4,8 +4,8 @@
 >
 > scope: Recipe、Plan、Barrier 与 materialization 的分层和合并语义
 
-当前接入纪律见 [`init_plan_review_rules.md`](../../system/init_plan_review_rules.md)，Graph 硬规则见
-[`init_graph_contract.md`](../../system/init_graph_contract.md)。准确行为以 `Modules/init` source 和 smoke 为准。
+当前 Recipe/Plan 接口以 [`Modules/init`](../../../Modules/init/) source 为准，Graph 硬规则见
+[`init_graph_contract.md`](../../system/init_graph_contract.md)。本文只保留早期设计取舍，不定义接入清单。
 
 ## 分层
 

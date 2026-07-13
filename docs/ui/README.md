@@ -23,7 +23,7 @@
 | style、layer 与 motion | [`vivid_style_token_law_v0.md`](vivid_style_token_law_v0.md)、[`vivid_layer_runtime_v0.md`](vivid_layer_runtime_v0.md)、[`vivid_motion_runtime_v0.md`](vivid_motion_runtime_v0.md)、[`vivid_page_layer_style_patch.md`](vivid_page_layer_style_patch.md) |
 | focus 行为与证据 | [`vivid_focus_evidence_boundary_v0.md`](vivid_focus_evidence_boundary_v0.md)、[`vivid_focus_transfer_evidence_v0.md`](vivid_focus_transfer_evidence_v0.md)、[`vivid_focus_scope_evidence_v0.md`](vivid_focus_scope_evidence_v0.md)、[`vivid_focus_semantic_evidence_v0.md`](vivid_focus_semantic_evidence_v0.md) |
 | semantic request 与 transition | [`vivid_semantic_request_ledger_law_v0.md`](vivid_semantic_request_ledger_law_v0.md)、[`vivid_semantic_transition_law_v0.md`](vivid_semantic_transition_law_v0.md) |
-| widget spec、静态内存与产品配置 | [`vivid_widget_spec_reflection_v0.md`](vivid_widget_spec_reflection_v0.md)、[`vivid_static_memory_admission.md`](vivid_static_memory_admission.md) |
+| widget spec experiment、静态内存与产品配置 | [`vivid_widget_spec_experiment.md`](vivid_widget_spec_experiment.md)、[`vivid_static_memory_admission.md`](vivid_static_memory_admission.md) |
 | 显示热键 | [`vivid_display_hotkeys.md`](vivid_display_hotkeys.md) |
 | EInk refresh | [`eink_refresh_policy.md`](eink_refresh_policy.md) |
 | Player 产品 UI 与 Vivid pattern | [`Player README`](../../Examples/project/player/README.md)、[`player_vivid_patterns.md`](player_vivid_patterns.md) |

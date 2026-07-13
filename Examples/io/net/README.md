@@ -1,8 +1,7 @@
 # 网络示例入口
 
 网络契约与分层见 [`docs/io/README.md`](../../../docs/io/README.md)、
-[`net_socket_v0_contract.md`](../../../docs/io/net_socket_v0_contract.md) 和
-[`net_stack_dual_surface_design.md`](../../../docs/io/net_stack_dual_surface_design.md)。
+[`net_socket_v0_contract.md`](../../../docs/io/net_socket_v0_contract.md)。
 
 ## 分组
 

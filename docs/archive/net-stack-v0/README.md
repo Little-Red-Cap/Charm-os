@@ -3,7 +3,6 @@
 > **状态：`archived`**
 >
 > 本文保留早期双表面设计的取舍，不定义当前 socket 行为。现行入口见
-> [`net_stack_dual_surface_design.md`](../../io/net_stack_dual_surface_design.md) 和
 > [`net_socket_v0_contract.md`](../../io/net_socket_v0_contract.md)。
 
 ## 双表面

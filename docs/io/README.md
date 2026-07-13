@@ -19,7 +19,6 @@ driver、service 和 domain 的依赖位置，不覆盖契约正文。
 | 输入分层 | [`../input/README.md`](../input/README.md) |
 | AT parser/session | [`at_runtime_contract.md`](at_runtime_contract.md) |
 | 网络 socket v0 | [`net_socket_v0_contract.md`](net_socket_v0_contract.md) |
-| 网络双表面设计 | [`net_stack_dual_surface_design.md`](net_stack_dual_surface_design.md) |
 
 网络 tasklist、review 和 checklist 是阶段记录，不高于现行 contract。完整历史材料
 位于 [`../archive/net-stack-v0/README.md`](../archive/net-stack-v0/README.md)。

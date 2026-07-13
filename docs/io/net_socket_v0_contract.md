@@ -11,6 +11,15 @@
 
 本契约不承诺完整 Linux socket 兼容。
 
+## 承载边界
+
+应用通过 `net.api` facade 使用 endpoint、TCP client/listener 与 UDP socket；backend handle、packet
+pool、ARP/route state 和 reactor driver 留在实现层。OS socket backend 与自研 packet/data plane 是
+两种承载路径，只共享本契约的可观察状态和错误，不假设内部连接、buffer 或协议行为一致。
+
+调用方 buffer 默认只在一次调用期间有效。暂不可推进返回 `would_block`；socket/protocol 层不得
+busy-spin、sleep 或隐藏重试。
+
 ## 地址与端点
 
 v0 只支持 IPv4。

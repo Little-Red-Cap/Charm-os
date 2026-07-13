@@ -34,5 +34,4 @@
 - 没有真实 consumer、失败行为或独立证据时，保持在局部 implementation 或 exploration；
 - 不为 Backend、Driver、Provider、Graph、Compiler 或 Loader 建立全局宇宙模型。
 
-局部函数或 PR 缺陷切换到 [`code-review skill`](../code-review/SKILL.md)。完整执行顺序见
-[`architect-review workflow`](../../workflows/architect-review-workflow.md)。
+局部函数或 PR 缺陷切换到 [`code-review skill`](../code-review/SKILL.md)。

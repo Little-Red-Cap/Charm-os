@@ -21,5 +21,3 @@
 ## Risks
 
 只列仍会影响后续工作的风险或决策。
-
-执行顺序见 [`codegen workflow`](../workflows/codegen-workflow.md)。

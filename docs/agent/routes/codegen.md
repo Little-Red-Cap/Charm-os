@@ -13,8 +13,7 @@
 3. [`../rules/charm-architecture.md`](../rules/charm-architecture.md)
 4. [`../../architecture/signal_state_contract_v0.md`](../../architecture/signal_state_contract_v0.md)（涉及事件连接时）
 5. [`../skills/codegen/SKILL.md`](../skills/codegen/SKILL.md)
-6. [`../workflows/codegen-workflow.md`](../workflows/codegen-workflow.md)
-7. [`../templates/codegen-output.md`](../templates/codegen-output.md)
+6. [`../templates/codegen-output.md`](../templates/codegen-output.md)
 
 ## 先不要做什么
 

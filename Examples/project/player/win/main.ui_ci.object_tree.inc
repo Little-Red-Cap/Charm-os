@@ -25,7 +25,6 @@
         WidgetHandle add_child(WidgetKind kind, std::uint16_t index, Widget& widget) noexcept {
             if (count >= nodes.size()) return {};
             const WidgetHandle handle{kind, index, 1};
-            widget.set_parent({WidgetKind::ScrollContainer, 0, 1});
             const bool linked = scroll.add_child(handle);
             if (!linked) return {};
             nodes[count++] = ScrollContainerCiNode{handle, &widget};

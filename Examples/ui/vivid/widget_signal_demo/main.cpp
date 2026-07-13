@@ -424,7 +424,7 @@ int main() {
                 "spin zoom disables owned double tap strategy")) return 1;
 
     if constexpr (sizeof(void*) == 8) {
-        if (!expect(sizeof(ObjectBase) <= 48, "ObjectBase retained legacy layout or invalidation storage")) {
+        if (!expect(sizeof(ObjectBase) <= 32, "ObjectBase retained legacy ownership or dispatch storage")) {
             return 1;
         }
     }

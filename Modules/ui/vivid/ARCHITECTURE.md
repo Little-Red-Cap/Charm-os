@@ -100,9 +100,10 @@ layout 与 clip/viewport；滚动、虚拟列表等行为不能绕过统一 layo
 
 Object-level widget 不再暴露通用 layout spec、anchor、cache policy 或 dirty hint。这些状态原本只服务于已删除的
 legacy Gui/layout 执行器；继续保留会让每个对象支付 RAM，并让调用方误以为写入能够影响产品布局或重绘。
-Object widget 只保留显式 `Rect` 与控件确实覆写的 geometry/clip vtable 行为；产品 layout 与 invalidation truth
-属于 SoA Scene/kernel。未来若增加 object-level layout 扩展，必须同时拥有明确执行器、固定预算和 evidence，
-不能只向 `ObjectBase` 增加被动配置字段。
+Object widget 只保留显式 `Rect`、视觉状态和控件自身的具体方法；`ObjectBase` 不保存 parent graph，也不提供
+draw/event/geometry 手写动态派发。固定容量容器拥有 child handle，通用 resolver 只借用基类几何与状态面；
+产品 layout 与 invalidation truth 属于 SoA Scene/kernel。未来若增加 object-level layout 或动态派发扩展，必须
+同时拥有明确执行器、固定预算和 evidence，不能只向 `ObjectBase` 增加被动配置字段或函数表。
 
 状态影响由 source 中的 `layout_state_influence_mask(kind)` 决定：
 

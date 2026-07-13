@@ -28,6 +28,7 @@ import charm.widgets.tree_view;
 import charm.widgets.waveform_view;
 import charm.gfx.canvas;
 import charm.gfx.framebuffer;
+import charm.gfx.text_box;
 
 namespace {
     template<typename T>
@@ -50,8 +51,8 @@ namespace {
                   "List must not retain a fixed 64-handle child table");
     static_assert(!std::is_copy_constructible_v<FoldablePanel>);
     static_assert(!std::is_move_constructible_v<FoldablePanel>);
-    static_assert(sizeof(FoldablePanel) <= 608,
-                  "FoldablePanel must not retain a fixed 64-handle child table");
+    static_assert(sizeof(FoldablePanel) <= 104,
+                  "FoldablePanel must only retain non-owning text and child storage");
     static_assert(!std::is_copy_constructible_v<InteractionList<>>);
     static_assert(!std::is_move_constructible_v<InteractionList<>>);
     static_assert(!std::is_copy_constructible_v<Image>);
@@ -701,9 +702,55 @@ int main() {
     if (!expect(!spin_zoom.on_event(Event::mouse(Event::Type::Click, 4, 4, 0, 300)),
                 "spin zoom disables owned double tap strategy")) return 1;
 
+    char foldable_title[]{"Telemetry"};
+    char foldable_body[]{"Mutable body"};
+    FoldablePanel foldable_panel{foldable_title};
+    foldable_panel.set_body(foldable_body);
+    foldable_panel.set_rect({0, 0, 96, 96});
+    if (!expect(foldable_panel.title() == foldable_title
+                    && foldable_panel.body() == foldable_body,
+                "foldable panel borrows caller-owned title and body")) return 1;
+    foldable_title[0] = 't';
+    foldable_body[0] = 'm';
+    if (!expect(foldable_panel.title()[0] == 't' && foldable_panel.body()[0] == 'm',
+                "foldable panel observes caller-owned text updates")) return 1;
+    const auto foldable_wheel = Event::wheel(48, 48, 1);
+    const auto foldable_drag = Event::drag(Event::Type::DragMove, 48, 48, 0, 4);
+    if (!expect(foldable_panel.on_event(foldable_wheel)
+                    && foldable_panel.on_event(foldable_drag),
+                "expanded foldable panel dispatches wheel and drag input")) return 1;
+    if (!expect(foldable_panel.on_event(Event::mouse(Event::Type::Click, 8, 8))
+                    && !foldable_panel.is_expanded(),
+                "foldable panel header click collapses the panel")) return 1;
+    if (!expect(!foldable_panel.on_event(foldable_wheel)
+                    && !foldable_panel.on_event(foldable_drag),
+                "collapsed foldable panel rejects wheel and drag input")) return 1;
+    if (!expect(foldable_panel.on_event(Event::mouse(Event::Type::Click, 8, 8))
+                    && foldable_panel.is_expanded(),
+                "foldable panel header click expands the panel")) return 1;
+
     using CallbackFrameBuffer = FrameBuffer<PixelFormat::RGB565, 96, 96>;
     static CallbackFrameBuffer callback_fb{};
     Canvas<PixelFormat::RGB565, 96, 96> callback_canvas{callback_fb};
+
+    const Style saved_foldable_style = Theme::instance().get<FoldablePanel>();
+    Style profiled_foldable_style = saved_foldable_style;
+    Font foldable_probe_font{};
+    foldable_probe_font.line_height = 12;
+    foldable_probe_font.baseline = 10;
+    profiled_foldable_style.font = &foldable_probe_font;
+    Theme::instance().set<FoldablePanel>(profiled_foldable_style);
+    text_profile_reset();
+    foldable_panel.draw(callback_canvas);
+    const auto foldable_text_profile = text_profile_sample();
+    Theme::instance().set<FoldablePanel>(saved_foldable_style);
+    if (!expect(foldable_text_profile.draw_calls >= 3,
+                "foldable panel draws its borrowed title and body")) return 1;
+    foldable_panel.set_title(nullptr);
+    foldable_panel.set_body(nullptr);
+    if (!expect(foldable_panel.title() != nullptr && foldable_panel.title()[0] == '\0'
+                    && foldable_panel.body() != nullptr && foldable_panel.body()[0] == '\0',
+                "foldable panel normalizes null text to empty strings")) return 1;
 
     const Style saved_scroll_style = Theme::instance().get<ScrollContainer>();
     Style themed_scroll_style = saved_scroll_style;

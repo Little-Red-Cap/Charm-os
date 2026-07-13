@@ -24,8 +24,8 @@ public:
         set_title(title);
     }
 
-    void set_title(const char* text) noexcept { assign(title_, title_len_, text); }
-    void set_body(const char* text) noexcept { assign(body_, body_len_, text); }
+    void set_title(const char* text) noexcept { title_ = text ? text : ""; }
+    void set_body(const char* text) noexcept { body_ = text ? text : ""; }
 
     const char* title() const noexcept { return title_; }
     const char* body() const noexcept { return body_; }
@@ -86,7 +86,7 @@ public:
             }
         }
 
-        if (child_count() == 0 && body_len_ > 0) {
+        if (child_count() == 0 && body_[0] != '\0') {
             const auto body_box = layout_rect();
             draw_text_box(cvs, body_box, body_, font, resolve_font(st),
                           TextAlignH::Left, TextAlignV::Top, TextWrap::Word, TextEllipsis::None);
@@ -94,24 +94,24 @@ public:
     }
 
     bool on_event(const Event& e) {
-        if (e.type != Event::Type::Click) return false;
         const auto r = get_rect();
-        const int header_h = (header_h_ < r.h) ? header_h_ : r.h;
-        if (e.x >= r.x && e.x < r.x + r.w && e.y >= r.y && e.y < r.y + header_h) {
-            toggle();
+        if (e.type == Event::Type::Click) {
+            const int header_h = (header_h_ < r.h) ? header_h_ : r.h;
+            if (e.x >= r.x && e.x < r.x + r.w && e.y >= r.y && e.y < r.y + header_h) {
+                toggle();
+                return true;
+            }
+            return false;
+        }
+
+        if (!expanded_ || !r.contains(e.x, e.y)) return false;
+        if (e.type == Event::Type::MouseWheel) {
+            add_scroll_y(-e.wheel_y * wheel_step_);
             return true;
         }
-        if (expanded_ && e.type == Event::Type::MouseWheel) {
-            if (r.contains(e.x, e.y)) {
-                add_scroll_y(-e.wheel_y * wheel_step_);
-                return true;
-            }
-        }
-        if (expanded_ && e.type == Event::Type::DragMove) {
-            if (r.contains(e.x, e.y)) {
-                add_scroll_y(-e.dy);
-                return true;
-            }
+        if (e.type == Event::Type::DragMove) {
+            add_scroll_y(-e.dy);
+            return true;
         }
         return false;
     }
@@ -132,11 +132,8 @@ public:
     }
 
 private:
-    static constexpr int kMax = 256;
-    char title_[kMax + 1]{};
-    char body_[kMax + 1]{};
-    int title_len_{0};
-    int body_len_{0};
+    const char* title_{"Panel"};
+    const char* body_{""};
     int header_h_{28};
     bool expanded_{true};
     int scroll_y_{0};
@@ -149,16 +146,6 @@ private:
 
     void add_scroll_y(int dy) noexcept {
         scroll_y_ = clamp_scroll(scroll_y_ + dy);
-    }
-
-    static void assign(char* dst, int& len, const char* src) noexcept {
-        len = 0;
-        if (!src) { dst[0] = '\0'; return; }
-        while (src[len] != '\0' && len < kMax) {
-            dst[len] = src[len];
-            ++len;
-        }
-        dst[len] = '\0';
     }
 
     void update_scroll_bounds() noexcept {

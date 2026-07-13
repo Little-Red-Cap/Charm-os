@@ -146,6 +146,10 @@ style variant/rule，图片化背景通过显式装饰组合实现。
 handle，容器析构也会清空仍 active 的 handle。容量耗尽显式返回 `false`，不分配动态内存；ScrollContainer
 的 resolver 在一次调用内必须稳定。
 
+`FoldablePanel` 的标题和正文同样按需借用调用方提供的 NUL 结尾文本，不在每个实例中预留固定文本缓冲。
+文本 owner 必须覆盖控件的完整绘制周期；传入 `nullptr` 等价于空字符串。需要独立文本所有权时，由上层状态或
+专用文本存储承担，不能把最大内容容量重新乘到每个折叠面板实例上。
+
 跨帧保存的 UI callback 使用 `util::delegate` 并由 owner 保证 target 生命周期。历史名称 `Callback` 只是
 `util::delegate<>` 的单轨别名，不得重新增加独立的 `fn + void*` fallback 或第二份 callback 存储。
 `std::function_ref` 只适合未来同步、非逃逸的函数参数，不得存入 widget、strategy、Scene 或 payload。绑定 owner 自身的控件必须

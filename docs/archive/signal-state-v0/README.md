@@ -2,13 +2,8 @@
 
 状态：archive。
 
-本目录保留 Signal / State v0 的完整阶段设计稿。它记录了原语选型、执行域判断以及与
-scheduler、reactor、`init.connection` 和 UI 表面的组合设想，因此仍有追溯价值；但其中
-实现事实、未来方向和跨子系统推演混在一起，不再作为默认契约入口。
-
-归档文件：
-
-- [`signal_state_v0.md`](signal_state_v0.md)
+Signal / State v0 的完整阶段设计稿已删除。其原语选型、执行域、slot、ISR、生命周期和静态 wiring
+边界已收敛到现行 contract；重复示例清单、完成标志、未来方向和跨子系统推演不再保留。
 
 当前可审查边界：
 

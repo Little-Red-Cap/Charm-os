@@ -38,6 +38,9 @@ truth cell 仍正常更新。
 该 wrapper 保存非 owning `Poster*`，只转发 `post(event)`，不执行 slot，也不提供队列或调度器。
 poster 的生命周期、容量、IRQ 安全和 dispatch 时机由具体实现负责。
 
+选型上，`signal` 表达一次边沿通知，`state` 表达可读取的当前真相与变化通知，`deferred_signal`
+只表达事件必须交给外部 poster 跨域投递。三者不能互相掩盖 ownership、队列或执行上下文。
+
 ## 执行域
 
 `signal::emit()` 和 `state::set()` 是同一执行域内的同步调用。调用方承担全部 slot 的耗时和副作用。
@@ -46,6 +49,9 @@ queue、reactor ingress 或 scheduler submit。
 
 当前实现不提供并发保护、IRQ-safe broadcast 或递归保护。不得并发修改或调用同一 signal/state，
 也不得在 `emit()` 期间修改其连接表。slot 应为 `noexcept`、有界、非阻塞；遍历顺序不构成业务协议。
+
+若调用点不能证明自己可以承担全部 slot 的最坏耗时，默认按不同执行域处理并使用显式 ingress/post。
+系统级固定 wiring 不应隐藏在匿名 connect 网中。
 
 ## 生命周期与缺口
 

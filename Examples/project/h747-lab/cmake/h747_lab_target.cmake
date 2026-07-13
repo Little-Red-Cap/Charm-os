@@ -595,6 +595,7 @@ function(h747_lab_add_profile profile_name)
     unset(H747_LAB_APP_MODULE_SOURCES)
     unset(H747_LAB_APP_MODULE_BASE_DIRS)
     unset(H747_LAB_APP_COMPILE_DEFINITIONS)
+    unset(H747_LAB_APP_PLATFORM_TIER)
     include("${_app_manifest}")
 
     if(NOT H747_LAB_APP_NAME STREQUAL H747_LAB_PROFILE_APP)
@@ -605,11 +606,27 @@ function(h747_lab_add_profile profile_name)
     if(NOT H747_LAB_APP_SOURCES)
         message(FATAL_ERROR "${_app_manifest}: H747_LAB_APP_SOURCES is required")
     endif()
+    if(NOT H747_LAB_APP_PLATFORM_TIER)
+        set(H747_LAB_APP_PLATFORM_TIER dev_platform)
+    endif()
+    if((NOT H747_LAB_APP_PLATFORM_TIER STREQUAL "foundation") AND
+       (NOT H747_LAB_APP_PLATFORM_TIER STREQUAL "dev_platform"))
+        message(FATAL_ERROR
+            "${_app_manifest}: unsupported H747_LAB_APP_PLATFORM_TIER='${H747_LAB_APP_PLATFORM_TIER}'")
+    endif()
+    if(H747_LAB_APP_PLATFORM_TIER STREQUAL "dev_platform" AND
+       NOT H747_LAB_BSP_DEV_PLATFORM_READY)
+        message(FATAL_ERROR
+            "${H747_LAB_PROFILE_TARGET}: profile requires the full H747 dev platform, "
+            "but DRAFT_ROOT='${DRAFT_ROOT}' is missing required generated files. "
+            "See the H747 Lab BSP doctor report above or configure only a foundation profile.")
+    endif()
 
     h747_lab_add_firmware(
         TARGET "${H747_LAB_PROFILE_TARGET}"
         PROFILE "${profile_name}"
         APP "${H747_LAB_PROFILE_APP}"
+        PLATFORM_TIER "${H747_LAB_APP_PLATFORM_TIER}"
         APP_SOURCES ${H747_LAB_APP_SOURCES}
         APP_INCLUDE_DIRS ${H747_LAB_APP_INCLUDE_DIRS}
         APP_MODULE_SOURCES ${H747_LAB_APP_MODULE_SOURCES}
@@ -620,7 +637,7 @@ endfunction()
 
 function(h747_lab_add_firmware)
     set(options)
-    set(oneValueArgs TARGET PROFILE APP)
+    set(oneValueArgs TARGET PROFILE APP PLATFORM_TIER)
     set(multiValueArgs APP_SOURCES APP_INCLUDE_DIRS APP_MODULE_SOURCES APP_MODULE_BASE_DIRS APP_COMPILE_DEFINITIONS SERVICES)
     cmake_parse_arguments(H747_LAB_FW "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
@@ -632,6 +649,9 @@ function(h747_lab_add_firmware)
     endif()
     if(NOT H747_LAB_FW_APP)
         message(FATAL_ERROR "h747_lab_add_firmware(...): APP is required")
+    endif()
+    if(NOT H747_LAB_FW_PLATFORM_TIER)
+        message(FATAL_ERROR "h747_lab_add_firmware(...): PLATFORM_TIER is required")
     endif()
     if(NOT H747_LAB_FW_APP_SOURCES)
         message(FATAL_ERROR "h747_lab_add_firmware(...): APP_SOURCES is required")
@@ -741,8 +761,14 @@ function(h747_lab_add_firmware)
         list(APPEND _generated_app_sources ${_generated_incs})
     endif()
 
+    if(H747_LAB_FW_PLATFORM_TIER STREQUAL "foundation")
+        set(_platform_sources ${H747_LAB_FOUNDATION_PLATFORM_SOURCES})
+    else()
+        set(_platform_sources ${H747_LAB_PLATFORM_SOURCES})
+    endif()
+
     add_executable(${H747_LAB_FW_TARGET}
-        ${H747_LAB_PLATFORM_SOURCES}
+        ${_platform_sources}
         ${H747_LAB_BOARD_SOURCES}
         ${H747_LAB_RUNTIME_SOURCES}
         ${_service_sources}
@@ -750,6 +776,8 @@ function(h747_lab_add_firmware)
         ${_generated_app_sources}
         "${_profile_source}"
     )
+    set_property(GLOBAL APPEND PROPERTY H747_LAB_CONFIGURED_TARGETS
+        "${H747_LAB_FW_TARGET}")
 
     if(H747_LAB_FW_TARGET STREQUAL "h747_lab_player_md3")
         set(CHARM_DR_LIBS_DIR "${CHARM_ROOT}/Modules/thirdparty/dr_libs" CACHE PATH "" FORCE)
@@ -811,6 +839,12 @@ function(h747_lab_add_firmware)
         list(REMOVE_DUPLICATES H747_LAB_FW_APP_MODULE_BASE_DIRS)
     endif()
 
+    if(H747_LAB_FW_PLATFORM_TIER STREQUAL "foundation")
+        set(_platform_module_sources ${H747_LAB_FOUNDATION_MODULE_SOURCES})
+    else()
+        set(_platform_module_sources ${H747_LAB_MODULE_SOURCES})
+    endif()
+
     target_sources(${H747_LAB_FW_TARGET}
         PUBLIC
             FILE_SET modules TYPE CXX_MODULES
@@ -818,7 +852,7 @@ function(h747_lab_add_firmware)
                 "${CHARM_ROOT}/Modules"
                 ${H747_LAB_FW_APP_MODULE_BASE_DIRS}
             FILES
-                ${H747_LAB_MODULE_SOURCES}
+                ${_platform_module_sources}
                 ${H747_LAB_FW_APP_MODULE_SOURCES}
     )
 

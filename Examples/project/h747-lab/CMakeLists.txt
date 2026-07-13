@@ -17,6 +17,12 @@ if((NOT EXISTS "${DRAFT_ROOT}/CM7") AND
     set(DRAFT_ROOT "${H747_LAB_FALLBACK_BARE_WORKSPACE_ROOT}/Charm-os/Draft"
         CACHE PATH "Charm CubeMX Draft root" FORCE)
 endif()
+if((NOT EXISTS "${DRAFT_ROOT}/CM7") AND
+   EXISTS "${H747_LAB_FALLBACK_BARE_WORKSPACE_ROOT}/boards/stn32h747_HQZY/CM7")
+    set(DRAFT_ROOT
+        "${H747_LAB_FALLBACK_BARE_WORKSPACE_ROOT}/boards/stn32h747_HQZY"
+        CACHE PATH "Charm CubeMX Draft root" FORCE)
+endif()
 set(DRAFT_CM7_ROOT "${DRAFT_ROOT}/CM7")
 set(STM32CUBE_H7_ROOT "C:/Users/Joho/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1"
     CACHE PATH "STM32Cube FW H7 package root")
@@ -80,18 +86,40 @@ include("${H747_LAB_ROOT}/cmake/h747_lab_sources.cmake")
 include("${H747_LAB_ROOT}/cmake/h747_lab_memory_evidence.cmake")
 include("${H747_LAB_ROOT}/cmake/h747_lab_target.cmake")
 
-h747_lab_add_profile(diag_shell)
-h747_lab_add_profile(display_demo)
-h747_lab_add_profile(display_raster_demo)
-h747_lab_add_profile(input_probe)
-h747_lab_add_profile(player)
-h747_lab_add_profile(player_md3)
-h747_lab_add_profile(storage_firmware_runtime)
-h747_lab_add_profile(usb_msc_legacy_probe)
-h747_lab_add_profile(posix_lab)
-h747_lab_add_profile(app_lab)
-h747_lab_add_profile(dev_loader)
-h747_lab_add_profile(resident_launcher)
+set(H747_LAB_ALL_PROFILES
+    capability_mvp
+    diag_shell
+    display_demo
+    display_raster_demo
+    input_probe
+    player
+    player_md3
+    storage_firmware_runtime
+    usb_msc_legacy_probe
+    posix_lab
+    app_lab
+    dev_loader
+    resident_launcher)
+set(H747_LAB_ENABLED_PROFILES "" CACHE STRING
+    "Semicolon-separated H747 Lab profiles to configure; empty configures all profiles")
+
+if(H747_LAB_ENABLED_PROFILES)
+    set(_h747_lab_profiles_to_configure ${H747_LAB_ENABLED_PROFILES})
+    foreach(_profile IN LISTS _h747_lab_profiles_to_configure)
+        if(NOT _profile IN_LIST H747_LAB_ALL_PROFILES)
+            message(FATAL_ERROR
+                "Unknown H747 Lab profile '${_profile}'. Known profiles: ${H747_LAB_ALL_PROFILES}")
+        endif()
+    endforeach()
+else()
+    set(_h747_lab_profiles_to_configure ${H747_LAB_ALL_PROFILES})
+endif()
+
+foreach(_profile IN LISTS _h747_lab_profiles_to_configure)
+    h747_lab_add_profile("${_profile}")
+endforeach()
+
+get_property(_h747_lab_configured_targets GLOBAL PROPERTY H747_LAB_CONFIGURED_TARGETS)
 
 message(STATUS "========================================")
 message(STATUS " H747 Lab")
@@ -100,7 +128,8 @@ message(STATUS "Charm root: ${CHARM_ROOT}")
 message(STATUS "Draft CM7 root: ${DRAFT_CM7_ROOT}")
 message(STATUS "HAL root: ${HAL_ROOT}")
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
-message(STATUS "Targets: h747_lab_diag_shell; h747_lab_display_demo; h747_lab_display_raster_demo; h747_lab_input_probe; h747_lab_player; h747_lab_player_md3; h747_lab_storage_firmware_runtime; h747_lab_usb_msc_legacy_probe; h747_lab_posix_lab; h747_lab_app_lab; h747_lab_dev_loader; h747_lab_resident_launcher")
+message(STATUS "Profiles: ${_h747_lab_profiles_to_configure}")
+message(STATUS "Targets: ${_h747_lab_configured_targets}")
 message(STATUS "Display panel profile: ${H747_LAB_DISPLAY_PANEL_PROFILE}")
 message(STATUS "Linker script: ${STM32_LINKER_SCRIPT}")
 message(STATUS "========================================")

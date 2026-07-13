@@ -24,7 +24,7 @@ set(H747_LAB_COMMON_INCLUDE_DIRS
 set(H747_LAB_USB_DEVICE_ROOT
     "${STM32CUBE_H7_ROOT}/Middlewares/ST/STM32_USB_Device_Library")
 
-set(H747_LAB_BSP_BASE_GENERATED_SOURCES
+set(H747_LAB_BSP_FOUNDATION_REQUIRED_GENERATED_FILES
     "${DRAFT_CM7_ROOT}/Core/Startup/startup_stm32h747xx_CM7.s"
     "${DRAFT_ROOT}/Common/Src/system_stm32h7xx_dualcore_boot_cm4_cm7.c"
     "${DRAFT_CM7_ROOT}/Core/Src/gpio.c"
@@ -33,13 +33,13 @@ set(H747_LAB_BSP_BASE_GENERATED_SOURCES
     "${DRAFT_CM7_ROOT}/Core/Src/stm32h7xx_hal_msp.c"
     "${DRAFT_CM7_ROOT}/Core/Src/syscalls.c"
     "${DRAFT_CM7_ROOT}/Core/Src/sysmem.c"
+)
+
+set(H747_LAB_BSP_DEV_PLATFORM_REQUIRED_GENERATED_FILES
     "${DRAFT_CM7_ROOT}/Core/Src/i2c.c"
     "${DRAFT_CM7_ROOT}/Core/Src/i2s.c"
     "${DRAFT_CM7_ROOT}/Core/Src/sdmmc.c"
     "${DRAFT_CM7_ROOT}/Core/Src/tim.c"
-)
-
-set(H747_LAB_BSP_DEV_PLATFORM_REQUIRED_GENERATED_FILES
     "${DRAFT_CM7_ROOT}/Core/Inc/fmc.h"
     "${DRAFT_CM7_ROOT}/Core/Src/fmc.c"
     "${DRAFT_CM7_ROOT}/Core/Inc/quadspi.h"
@@ -68,9 +68,9 @@ function(h747_lab_collect_existing_sources out_var missing_var)
 endfunction()
 
 h747_lab_collect_existing_sources(
-    H747_LAB_BSP_BASE_GENERATED_SOURCES_EXISTING
-    H747_LAB_BSP_BASE_GENERATED_SOURCES_MISSING
-    ${H747_LAB_BSP_BASE_GENERATED_SOURCES})
+    H747_LAB_BSP_FOUNDATION_REQUIRED_GENERATED_FILES_EXISTING
+    H747_LAB_BSP_FOUNDATION_REQUIRED_GENERATED_FILES_MISSING
+    ${H747_LAB_BSP_FOUNDATION_REQUIRED_GENERATED_FILES})
 h747_lab_collect_existing_sources(
     H747_LAB_BSP_DEV_PLATFORM_REQUIRED_GENERATED_FILES_EXISTING
     H747_LAB_BSP_DEV_PLATFORM_REQUIRED_GENERATED_FILES_MISSING
@@ -80,32 +80,43 @@ h747_lab_collect_existing_sources(
     H747_LAB_BSP_OPTIONAL_GENERATED_SOURCES_MISSING
     ${H747_LAB_BSP_OPTIONAL_GENERATED_SOURCES})
 
-set(H747_LAB_BSP_MISSING_REQUIRED_FILES
-    ${H747_LAB_BSP_BASE_GENERATED_SOURCES_MISSING}
-    ${H747_LAB_BSP_DEV_PLATFORM_REQUIRED_GENERATED_FILES_MISSING})
-
-if(H747_LAB_BSP_MISSING_REQUIRED_FILES)
+if(H747_LAB_BSP_FOUNDATION_REQUIRED_GENERATED_FILES_MISSING)
     message(STATUS "========================================")
     message(STATUS " H747 Lab BSP doctor")
     message(STATUS "========================================")
     message(STATUS "DRAFT_ROOT: ${DRAFT_ROOT}")
     message(STATUS "DRAFT_CM7_ROOT: ${DRAFT_CM7_ROOT}")
-    message(STATUS "Affected target class: h747_lab_dev_loader and every profile that uses the common H747 platform sources")
-    message(STATUS "Missing required CubeMX generated files:")
-    foreach(_missing IN LISTS H747_LAB_BSP_MISSING_REQUIRED_FILES)
+    message(STATUS "Affected target class: every H747 Lab profile")
+    message(STATUS "Missing foundation CubeMX generated files:")
+    foreach(_missing IN LISTS H747_LAB_BSP_FOUNDATION_REQUIRED_GENERATED_FILES_MISSING)
         message(STATUS "  - ${_missing}")
     endforeach()
-    if(H747_LAB_BSP_OPTIONAL_GENERATED_SOURCES_MISSING)
-        message(STATUS "Missing optional CubeMX generated files:")
-        foreach(_missing IN LISTS H747_LAB_BSP_OPTIONAL_GENERATED_SOURCES_MISSING)
-            message(STATUS "  - ${_missing}")
-        endforeach()
-    endif()
-    message(STATUS "Reason: dev_loader currently requires SDRAM/FMC, QSPI NOR, and the default SPI init boundary.")
-    message(STATUS "Fix: restore the matching CubeMX generated BSP files under DRAFT_ROOT, or intentionally refactor h747_lab_sources.cmake/profile init before building.")
+    message(STATUS "Fix: select the matching external BSP with DRAFT_ROOT or restore its foundation generated files.")
     message(STATUS "========================================")
-    message(FATAL_ERROR "H747 BSP generated source set is incomplete; stopping before Ninja receives missing source paths.")
+    message(FATAL_ERROR "H747 BSP foundation source set is incomplete")
 endif()
+
+if(H747_LAB_BSP_DEV_PLATFORM_REQUIRED_GENERATED_FILES_MISSING)
+    set(H747_LAB_BSP_DEV_PLATFORM_READY FALSE)
+    message(STATUS "========================================")
+    message(STATUS " H747 Lab BSP doctor")
+    message(STATUS "========================================")
+    message(STATUS "DRAFT_ROOT: ${DRAFT_ROOT}")
+    message(STATUS "Foundation profiles remain available.")
+    message(STATUS "Profiles requiring the full dev platform are unavailable because these generated files are missing:")
+    foreach(_missing IN LISTS H747_LAB_BSP_DEV_PLATFORM_REQUIRED_GENERATED_FILES_MISSING)
+        message(STATUS "  - ${_missing}")
+    endforeach()
+    message(STATUS "Reason: the full dev platform currently requires I2C, storage, SDRAM/FMC, QSPI NOR, and SPI generated boundaries.")
+    message(STATUS "========================================")
+else()
+    set(H747_LAB_BSP_DEV_PLATFORM_READY TRUE)
+endif()
+
+set(H747_LAB_BSP_DEV_PLATFORM_GENERATED_SOURCES_EXISTING
+    ${H747_LAB_BSP_DEV_PLATFORM_REQUIRED_GENERATED_FILES_EXISTING})
+list(FILTER H747_LAB_BSP_DEV_PLATFORM_GENERATED_SOURCES_EXISTING
+    INCLUDE REGEX "\\.[cCsS]$")
 
 if(H747_LAB_BSP_OPTIONAL_GENERATED_SOURCES_MISSING)
     message(STATUS "H747 Lab BSP doctor: optional generated sources not present and not added to common platform sources:")
@@ -114,19 +125,25 @@ if(H747_LAB_BSP_OPTIONAL_GENERATED_SOURCES_MISSING)
     endforeach()
 endif()
 
-set(H747_LAB_PLATFORM_SOURCES
-    ${H747_LAB_BSP_BASE_GENERATED_SOURCES_EXISTING}
-    "${DRAFT_CM7_ROOT}/Core/Src/fmc.c"
-    "${DRAFT_CM7_ROOT}/Core/Src/quadspi.c"
-    "${DRAFT_CM7_ROOT}/Core/Src/spi.c"
+set(H747_LAB_FOUNDATION_PLATFORM_SOURCES
+    ${H747_LAB_BSP_FOUNDATION_REQUIRED_GENERATED_FILES_EXISTING}
     "${HAL_ROOT}/Src/stm32h7xx_hal.c"
     "${HAL_ROOT}/Src/stm32h7xx_hal_cortex.c"
     "${HAL_ROOT}/Src/stm32h7xx_hal_gpio.c"
     "${HAL_ROOT}/Src/stm32h7xx_hal_dma.c"
     "${HAL_ROOT}/Src/stm32h7xx_hal_dma_ex.c"
-    "${HAL_ROOT}/Src/stm32h7xx_hal_dma2d.c"
     "${HAL_ROOT}/Src/stm32h7xx_hal_pwr.c"
     "${HAL_ROOT}/Src/stm32h7xx_hal_pwr_ex.c"
+    "${HAL_ROOT}/Src/stm32h7xx_hal_uart.c"
+    "${HAL_ROOT}/Src/stm32h7xx_hal_uart_ex.c"
+    "${HAL_ROOT}/Src/stm32h7xx_hal_rcc.c"
+    "${HAL_ROOT}/Src/stm32h7xx_hal_rcc_ex.c"
+)
+
+set(H747_LAB_PLATFORM_SOURCES
+    ${H747_LAB_FOUNDATION_PLATFORM_SOURCES}
+    ${H747_LAB_BSP_DEV_PLATFORM_GENERATED_SOURCES_EXISTING}
+    "${HAL_ROOT}/Src/stm32h7xx_hal_dma2d.c"
     "${HAL_ROOT}/Src/stm32h7xx_hal_pcd.c"
     "${HAL_ROOT}/Src/stm32h7xx_hal_pcd_ex.c"
     "${HAL_ROOT}/Src/stm32h7xx_hal_flash.c"
@@ -134,10 +151,6 @@ set(H747_LAB_PLATFORM_SOURCES
     "${HAL_ROOT}/Src/stm32h7xx_hal_exti.c"
     "${HAL_ROOT}/Src/stm32h7xx_hal_tim.c"
     "${HAL_ROOT}/Src/stm32h7xx_hal_tim_ex.c"
-    "${HAL_ROOT}/Src/stm32h7xx_hal_uart.c"
-    "${HAL_ROOT}/Src/stm32h7xx_hal_uart_ex.c"
-    "${HAL_ROOT}/Src/stm32h7xx_hal_rcc.c"
-    "${HAL_ROOT}/Src/stm32h7xx_hal_rcc_ex.c"
     "${HAL_ROOT}/Src/stm32h7xx_hal_i2c.c"
     "${HAL_ROOT}/Src/stm32h7xx_hal_i2c_ex.c"
     "${HAL_ROOT}/Src/stm32h7xx_hal_i2s.c"
@@ -173,14 +186,18 @@ set(H747_LAB_RUNTIME_SOURCES
     "${H747_LAB_ROOT}/runtime/newlib_time_stub.c"
 )
 
-set(H747_LAB_MODULE_SOURCES
+set(H747_LAB_FOUNDATION_MODULE_SOURCES
     "${CHARM_ROOT}/Modules/core/util/core.cppm"
     "${CHARM_ROOT}/Modules/core/util/expected.cppm"
     "${CHARM_ROOT}/Modules/core/util/error.cppm"
-    "${CHARM_ROOT}/Modules/core/service/service_ring_buffer.cppm"
-    "${CHARM_ROOT}/Modules/init/init.binding.cppm"
     "${CHARM_ROOT}/Modules/core/init/init.node.cppm"
     "${CHARM_ROOT}/Modules/core/init/init.graph.cppm"
+)
+
+set(H747_LAB_MODULE_SOURCES
+    ${H747_LAB_FOUNDATION_MODULE_SOURCES}
+    "${CHARM_ROOT}/Modules/core/service/service_ring_buffer.cppm"
+    "${CHARM_ROOT}/Modules/init/init.binding.cppm"
     "${CHARM_ROOT}/Modules/io/channel/io.channel.cppm"
     "${CHARM_ROOT}/Modules/io/reactor/io.reactor.cppm"
     "${CHARM_ROOT}/Modules/io/registry/io.registry.cppm"

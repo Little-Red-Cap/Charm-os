@@ -18,6 +18,7 @@ void init_default_peripherals() {
     MX_GPIO_Init();
     MX_DMA_Init();
     MX_USART1_UART_Init();
+#if !defined(H747_LAB_FOUNDATION_PLATFORM)
     MX_USART2_UART_Init();
     MX_I2C1_Init();
     MX_I2C4_Init();
@@ -26,6 +27,7 @@ void init_default_peripherals() {
     MX_SPI5_Init();
     MX_TIM5_Init();
     MX_TIM8_Init();
+#endif
 }
 
 } // namespace h747::board

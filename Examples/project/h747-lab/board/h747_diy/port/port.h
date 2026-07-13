@@ -43,7 +43,9 @@ std::uint32_t tick_ms();
 void delay_ms(std::uint32_t ms);
 UART_HandleTypeDef* uart1_handle();
 UART_HandleTypeDef* uart2_handle();
+#if !defined(H747_LAB_FOUNDATION_PLATFORM)
 I2C_HandleTypeDef* i2c1_handle();
+#endif
 GPIO_TypeDef* gpio_port(GpioPortId port);
 std::uint16_t gpio_mask(Pin pin);
 GPIO_PinState gpio_read(Pin pin);

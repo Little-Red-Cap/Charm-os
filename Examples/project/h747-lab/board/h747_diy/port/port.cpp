@@ -37,9 +37,11 @@ UART_HandleTypeDef* uart2_handle() {
     return &huart2;
 }
 
+#if !defined(H747_LAB_FOUNDATION_PLATFORM)
 I2C_HandleTypeDef* i2c1_handle() {
     return &hi2c1;
 }
+#endif
 
 GPIO_TypeDef* gpio_port(const GpioPortId port) {
     switch (port) {

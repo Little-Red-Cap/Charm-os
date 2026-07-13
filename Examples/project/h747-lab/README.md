@@ -11,6 +11,11 @@ profiles, and firmware targets.
 
 ## First Targets
 
+- `h747_lab_capability_mvp`: the foundation-tier real-board slice of the Charm
+  cross-environment MVP. It consumes the same portable app, capability
+  contracts, and resolver as Host/QEMU, while replacing only Profile and
+  providers. Its BlockDevice is intentionally RAM-backed, so the semantic MVP
+  does not write QSPI or eMMC.
 - `h747_lab_diag_shell`: the default board evidence shell for serial, PMIC,
   SDRAM1, SDRAM2, and QSPI proof.
 - `h747_lab_display_demo`: the minimal HX8394D red-screen baseline using the
@@ -69,6 +74,8 @@ and binutils paths, so changing only `H747_LAB_ARM_GNU_TOOLCHAIN_ROOT` may leave
 the old linker and archive tools in place.
 
 ```powershell
+cmake --preset h747-lab-capability-mvp-debug
+cmake --build --preset build-h747-lab-capability-mvp-debug -- -j1
 cmake --preset h747-lab-debug
 cmake --build --preset build-h747-lab-diag-shell-debug
 cmake --build --preset build-h747-lab-display-demo-debug
@@ -82,13 +89,18 @@ cmake --build --preset build-h747-lab-app-lab-debug
 cmake --build --preset build-h747-lab-dev-loader-debug
 ```
 
-Configure now runs a small H747 BSP doctor before generating Ninja build files.
-If the selected `DRAFT_ROOT` is missing required CubeMX-generated files such as
-`fmc.h/.c`, `quadspi.h/.c`, or `spi.h/.c`, CMake stops early and prints the BSP
-root, missing files, affected target class, and repair hint. Treat that as a BSP
+Configure runs a small H747 BSP doctor before generating Ninja build files.
+Foundation profiles require only startup, GPIO, DMA, UART, MSP, and C runtime
+generated files. Full dev-platform profiles additionally require I2C, storage,
+SDRAM/FMC, QSPI NOR, and SPI generated boundaries. A missing full-platform file
+does not block `h747_lab_capability_mvp`, but selecting a dependent profile
+fails with the BSP root, missing files, and repair hint. Treat that as a BSP
 source-set problem, not an ELF, AppRuntime, packetstream, or Store regression.
-`h747_lab_dev_loader` currently requires the SDRAM/FMC, QSPI, eMMC/SDMMC, and
-default SPI-init boundary to be coherent before board ELF validation can run.
+
+Use `H747_LAB_ENABLED_PROFILES` to configure an isolated profile. The dedicated
+Capability MVP preset does this automatically and can consume the extracted
+`G:/Project/BareWorkspace/boards/stn32h747_HQZY` BSP through the existing
+`DRAFT_ROOT` boundary without copying board facts back into Charm.
 
 The alternate HX8394D table can be built with:
 

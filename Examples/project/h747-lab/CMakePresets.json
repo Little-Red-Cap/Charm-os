@@ -26,6 +26,16 @@
             "cacheVariables": {
                 "H747_LAB_DISPLAY_PANEL_PROFILE": "github4lane_2lane"
             }
+        },
+        {
+            "name": "h747-lab-capability-mvp-debug",
+            "displayName": "H747 Lab Capability MVP Debug",
+            "description": "Configure only the foundation-tier real-board Capability MVP.",
+            "inherits": "h747-lab-debug",
+            "binaryDir": "${sourceDir}/cmake-build-h747-lab-capability-mvp-debug",
+            "cacheVariables": {
+                "H747_LAB_ENABLED_PROFILES": "capability_mvp"
+            }
         }
     ],
     "buildPresets": [
@@ -35,6 +45,14 @@
             "configurePreset": "h747-lab-debug",
             "targets": [
                 "h747_lab_diag_shell"
+            ]
+        },
+        {
+            "name": "build-h747-lab-capability-mvp-debug",
+            "displayName": "Build H747 Lab Capability MVP Debug",
+            "configurePreset": "h747-lab-capability-mvp-debug",
+            "targets": [
+                "h747_lab_capability_mvp"
             ]
         },
         {

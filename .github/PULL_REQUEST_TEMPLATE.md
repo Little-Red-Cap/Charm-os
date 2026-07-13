@@ -1,39 +1,29 @@
-## Summary
+## 摘要
 
-- What changed
-- Why this change is needed
+- 改了什么：
+- 为什么需要：
 
-## SSU Submit Mapping (Required for execution-path changes)
+## 执行路径审计（按需）
 
-If this PR introduces or changes any execution path (task wakeup, pump, loop step, deferred work, submit API, ISR defer path), fill all items below.
+涉及 task wakeup、pump/drain、loop step、deferred work、submit API 或 ISR defer 时填写：
 
-- Submit kind: `event-submit` / `io-ready-submit` / `demand-submit` / `none`
-- Why this submit kind is correct:
-- Execution domain: `task_only` / `isr_safe` / `mixed`
-- Blocking behavior: `non_blocking` / `may_block`
-- Budget behavior: `single_step` / `budgeted`
-- Resubmit path (if any):
-- Recovery path if fallback/temporary bypass exists:
+- Submit kind：`event-submit` / `io-ready-submit` / `demand-submit` / `none`
+- 选择理由：
+- Execution domain：`isr_only` / `task_only` / `anywhere`
+- Blocking：`non_blocking` / `may_block`
+- Budget：`single_step` / `budgeted`
+- Resubmit / recovery / 临时旁路退出条件：
+- `RunLoop::add_step()` 的显式 `submit_projection`（如适用）：
 
-## RunLoop/Phase Audit (if applicable)
+同时核对 [`ssu_review_checklist.md`](../docs/system/ssu_review_checklist.md)，并运行：
 
-For any added/modified `RunLoop::add_step(...)`:
+```powershell
+scripts/ssu_submit_gate.ps1 -Staged
+```
 
-- `submit_projection` explicitly set: yes / no
-- Projection value: `event-submit` / `io-ready-submit` / `demand-submit`
+## 风险与验证
 
-## Risk & Validation
-
-- Main risk:
-- Build/verify commands run:
-- Target(s) verified:
-
-## Notes
-
-- Anything intentionally deferred
-
-## SSU Submit Gate (Required when submit paths change)
-
-Run:
-
-- `scripts/ssu_submit_gate.ps1`
+- 主要风险：
+- 已运行命令：
+- 已验证 target / evidence domain：
+- 明确 deferred：

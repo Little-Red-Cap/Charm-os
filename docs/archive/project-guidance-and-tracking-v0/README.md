@@ -20,6 +20,8 @@ escape hatch 和具体审查发现，但也存在以下问题：
   双核 ownership、内存域、容量估算和压力验证问题，不保留旧板级状态。
 - [`player_architecture_retained_notes.md`](player_architecture_retained_notes.md)：合并旧 Player 多入口收敛
   方案与能力地图，保留 ownership 和证据域判断，不保留旧完成度与排期。
+- [`player_ink_ui_spec_retained_notes.md`](player_ink_ui_spec_retained_notes.md)：保留 ST7305 168x384
+  Player Ink 页面与低刷新设计约束，不作为当前产品或板级事实。
 
 当前操作规则以根 `AGENTS.md` 和 [`../../agent/README.md`](../../agent/README.md) 为准；项目编码
 入口见 [`../../project/standards/README.md`](../../project/standards/README.md)。归档中的任务状态、

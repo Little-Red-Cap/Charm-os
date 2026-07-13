@@ -26,7 +26,7 @@
 | widget spec、静态内存与产品配置 | [`vivid_widget_spec_reflection_v0.md`](vivid_widget_spec_reflection_v0.md)、[`vivid_static_memory_admission.md`](vivid_static_memory_admission.md) |
 | 显示热键 | [`vivid_display_hotkeys.md`](vivid_display_hotkeys.md) |
 | EInk refresh | [`eink_refresh_policy.md`](eink_refresh_policy.md) |
-| Player UI 与 Vivid pattern | [`player_ui.md`](player_ui.md)、[`player_vivid_patterns.md`](player_vivid_patterns.md) |
+| Player 产品 UI 与 Vivid pattern | [`Player README`](../../Examples/project/player/README.md)、[`player_vivid_patterns.md`](player_vivid_patterns.md) |
 | Player portability 与 provider 边界 | [`player_portability_boundary.md`](player_portability_boundary.md) |
 
 ## Evidence 入口

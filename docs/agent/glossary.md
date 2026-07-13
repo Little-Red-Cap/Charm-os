@@ -1,51 +1,36 @@
-﻿# Charm Agent Glossary
+# Charm Agent Glossary
 
-本文件用于统一 Charm 项目中的常用术语，避免协作时语义漂移。
+> status: `supporting`
+>
+> 本页只提供 Agent 文档中的术语定位，不定义 Charm Core 或公共 API。源码、CMake 和专题契约
+> 才是实现事实来源。
 
-## 1. Agent
-在本项目语境中，Agent 指执行协作任务的 AI 协作者：
-- 受 rules 约束
-- 按 skills 选择工作流
-- 使用统一模板组织输出
+## Agent 文档
 
-## 2. Rules
-Rules 是跨任务生效的硬约束，回答“在 Charm 里必须遵守什么”。
+- **Agent**：执行协作任务的 AI 协作者。
+- **Rules**：跨任务生效的操作和工程约束。
+- **Skills**：面向具体任务的检查和工作流程。
+- **Prompt**：一次任务的输入、约束和输出要求。
+- **Session**：当前对话中的任务、选择和未决事项。
 
-## 3. Skills
-Skills 是面向具体任务的流程模板，回答“遇到这类任务应如何做”。
+## 实现名词
 
-## 4. Prompt
-Prompt 是当前任务的输入说明，回答“这次要做什么”。
+- **`init.graph`**：系统装配和初始化顺序的输入/表示。具体语义以
+  [`init_graph_contract.md`](../system/init_graph_contract.md) 和装配代码为准。
+- **`CoreSystemChain`**：`Modules/system/init` 中的局部装配实现，不是所有系统对象的共同基类。
+- **`io::Channel`**：`io.channel` 提供的字节读写对象；它不自动定义协议 framing、设备所有权或
+  全局能力发现。
+- **`io.reactor`**：事件驱动 IO 的实现模块；调用方仍需遵守对应 IO contract 的上下文、阻塞和错误语义。
+- **`io.registry`**：IO endpoint 的注册和查找入口；它不等于全局 Provider Registry，也不授予能力
+  名称公共契约身份。
+- **`util::Errc` / `util::Result`**：当前代码使用的结果和错误投影；具体错误集合与接口边界由各专题契约定义。
+- **non-blocking**：一种行为约束，通常表示无资源时返回可处理错误，例如 `Errc::would_block`；
+  不能仅凭函数名或元数据推断成立。
 
-## 5. Session
-Session 是当前对话上下文（任务、约束、选择、未决点）。
+## 不作为全局术语
 
-## 6. init.graph
-统一的能力装配与初始化图，禁止入口手写顺序。
+`BoardChain`、`extra nodes` 和通用 `RuntimeContext` 不在 Charm glossary 中定义。它们若出现在
+某个项目、示例或平台实现中，应按局部源码和专题文档解释，不能据此推导统一架构模型。
 
-## 7. CoreSystemChain
-系统底座能力装配链（registry/reactor/eda/pump/clock）。
-
-## 8. BoardChain
-板级能力装配链（irq/hal/driver/io.*）。
-
-## 9. extra nodes
-仅用于服务/应用/实验节点的额外链路，禁止底座能力进入。
-
-## 10. io::Channel
-统一非阻塞字节通道，read/write 禁止 Ok(0)。
-
-## 11. io.reactor
-统一事件驱动 IO，协议层禁止 busy-spin/自带超时。
-
-## 12. io.registry
-统一能力发现入口，禁止隐式全局默认通道。
-
-## 13. RuntimeContext
-统一能力注入容器，禁止模块偷取全局对象。
-
-## 14. util::Errc / util::Result
-统一错误模型与结果类型，禁止自建错误枚举导致语义分裂。
-
-## 15. Non-blocking
-不阻塞、不 busy-spin、无资源时返回可处理错误（如 Errc::would_block）。
+涉及 Core 准入时先读 [`CONSTITUTION.md`](../../CONSTITUTION.md)；涉及实现状态时不要以本页替代源码、
+CMake、测试或板级证据。

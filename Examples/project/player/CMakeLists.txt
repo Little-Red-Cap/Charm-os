@@ -12,6 +12,9 @@ option(CHARM_PLAYER_BUILD_LEGACY_VARIANTS
 option(CHARM_PLAYER_BUILD_CANONICAL_SMOKES
     "Build the platform-independent Player Port and MD3 runtime smokes"
     ON)
+option(CHARM_PLAYER_BUILD_HOST_SDL3
+    "Build the thin Player MD3 adapter over Charm Host SDL3"
+    OFF)
 option(CHARM_PLAYER_DEBUG_UI "Build Player-owned debug UI modules" OFF)
 
 if (CHARM_PLAYER_BUILD_LEGACY_VARIANTS)
@@ -114,4 +117,37 @@ if (CHARM_PLAYER_BUILD_CANONICAL_SMOKES)
 
     add_custom_target(player_canonical_smokes
         DEPENDS player_port_runtime_smoke player_md3_runtime_smoke)
+endif()
+
+if (CHARM_PLAYER_BUILD_HOST_SDL3)
+    set(CHARM_HOST_SDL3_TESTING OFF CACHE BOOL "" FORCE)
+    set(SDL_TEST OFF CACHE BOOL "" FORCE)
+    set(SDL_AUDIO OFF CACHE BOOL "" FORCE)
+    set(SDL_VIDEO ON CACHE BOOL "" FORCE)
+    set(SDL_RENDER ON CACHE BOOL "" FORCE)
+    set(SDL_SHARED OFF CACHE BOOL "" FORCE)
+    set(SDL_STATIC ON CACHE BOOL "" FORCE)
+    set(SDL3_DISABLE_WINDOWS_MAIN ON CACHE BOOL "" FORCE)
+
+    add_subdirectory("${CHARM_ROOT}/Backends/host/sdl3"
+        "${CMAKE_BINARY_DIR}/charm-host-sdl3")
+
+    add_executable(charm-player-md3-host
+        "${CMAKE_CURRENT_SOURCE_DIR}/host/main.cpp")
+    target_sources(charm-player-md3-host
+        PRIVATE
+        FILE_SET player_host_modules TYPE CXX_MODULES
+        BASE_DIRS "${CHARM_ROOT}"
+        FILES "${CMAKE_CURRENT_SOURCE_DIR}/host/player.host_sdl3_adapter.cppm")
+    target_link_libraries(charm-player-md3-host
+        PRIVATE Charm::player-md3 Charm::host-sdl3)
+    if (CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+        target_compile_options(charm-player-md3-host PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+
+    include(CTest)
+    add_test(NAME player_md3_host_sdl3_smoke
+        COMMAND charm-player-md3-host --hidden --frames=3)
+    set_tests_properties(player_md3_host_sdl3_smoke PROPERTIES
+        PASS_REGULAR_EXPRESSION "player-md3-host: ok frames=3 presented=3")
 endif()

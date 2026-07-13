@@ -242,6 +242,24 @@ int main() {
     }
     regressing_runtime.shutdown();
 
+    FakePlayer split_phase_player{};
+    auto split_phase_endpoint = endpoint;
+    split_phase_endpoint.ctx = &split_phase_player;
+    player::PlayerPortRuntime split_phase_runtime{port, split_phase_endpoint};
+    if (!expect(split_phase_runtime.bootstrap(), "split phase bootstrap")
+        || !expect(split_phase_runtime.update_frame(5000, 0), "split phase update")
+        || !expect(split_phase_player.update_count == 1
+                       && split_phase_player.render_count == 0,
+                   "update phase excludes render")
+        || !expect(!split_phase_runtime.update_frame(6000, 1000),
+                   "second update rejected before render")
+        || !expect(split_phase_runtime.render_frame(), "split phase render")
+        || !expect(split_phase_player.render_count == 1, "render phase isolated")
+        || !expect(!split_phase_runtime.render_frame(), "duplicate render rejected")) {
+        return 1;
+    }
+    split_phase_runtime.shutdown();
+
     std::printf("[player-port-runtime-smoke] ok\n");
     return 0;
 }

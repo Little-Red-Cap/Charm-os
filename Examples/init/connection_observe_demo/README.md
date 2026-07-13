@@ -8,7 +8,7 @@ materialize 成 `kind=connection` 的观察节点，并导出：
 
 详细说明见：
 
-- `docs/architecture/signal_state_v0.md`
+- `docs/architecture/signal_state_contract_v0.md`
 - `docs/system/init_materialized_graph_observe.md`
 
 默认输出文件：

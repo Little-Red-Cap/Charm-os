@@ -1,136 +1,78 @@
-# HAL Ops Binding Templates (Draft)
+# HAL ops backend 模板
 
-This note shows the minimal "ops/vtable" binding shape for HAL backends.
-Keep the backend-specific details outside the interface module.
+## 文档状态
 
-## SPI binding template
+- `status`: `supporting`
+- `scope`: 当前 `{ctx, ops}` HAL handle 的 backend 绑定
+- `source`: `hal_spi.cppm`、`hal_gpio.cppm` 及同目录接口 module
+
+HAL interface 保存非 owning context 和 ops table。clock、reset、IRQ、pinmux 与寄存器 ownership
+留在 platform/board backend，不进入公共 handle。
+
+## SPI 示例
 
 ```cpp
-// platform/<vendor>/<board>/hal_spi_backend.cppm
 module;
 
 #include <span>
 
-export module hal_spi_backend;
+export module platform.example.spi;
 
 import hal_core;
 import hal_spi;
 import util.core;
 
-namespace {
-    struct SpiCtx {
-        // platform-specific state (register base, dma handle, etc.)
+namespace platform::example {
+    struct SpiContext {
+        // Register base, vendor handle, DMA state, etc.
     };
 
-    hal::Result spi_init_impl(void* ctx, const hal::SpiConfig& cfg) noexcept {
-        auto* self = static_cast<SpiCtx*>(ctx);
-        (void)self;
-        (void)cfg;
+    hal::Result init(void* raw, const hal::SpiConfig& config) noexcept {
+        auto& context = *static_cast<SpiContext*>(raw);
+        (void)context;
+        (void)config;
         return hal::ok();
     }
 
-    hal::Result spi_transfer_impl(void* ctx,
-                                  std::span<const util::u8> tx,
-                                  std::span<util::u8> rx) noexcept {
-        auto* self = static_cast<SpiCtx*>(ctx);
-        (void)self;
+    hal::Result enable(void* raw) noexcept {
+        (void)raw;
+        return hal::ok();
+    }
+
+    hal::Result disable(void* raw) noexcept {
+        (void)raw;
+        return hal::ok();
+    }
+
+    hal::Result transfer(void* raw,
+                         std::span<const util::u8> tx,
+                         std::span<util::u8> rx) noexcept {
+        (void)raw;
         (void)tx;
         (void)rx;
         return hal::ok();
     }
 
-    hal::Result spi_set_speed_impl(void* ctx, util::u32 hz) noexcept {
-        auto* self = static_cast<SpiCtx*>(ctx);
-        (void)self;
-        (void)hz;
-        return hal::ok();
-    }
-
-    constexpr hal::SpiOps kSpiOps{
-        &spi_init_impl,
-        &spi_transfer_impl,
-        &spi_set_speed_impl,
+    inline constexpr hal::SpiOps spi_ops{
+        .init = &init,
+        .enable = &enable,
+        .disable = &disable,
+        .transfer = &transfer,
     };
-}
 
-export namespace hal {
-    inline SpiHandle make_spi_handle(SpiCtx& ctx) noexcept {
-        return SpiHandle{&ctx, &kSpiOps};
+    hal::SpiIoHandle bind(SpiContext& context) noexcept {
+        return {&context, &spi_ops};
     }
 }
 ```
 
-## GPIO binding template
+GPIO、UART、I2C 和 timer backend 使用相同模式，但必须以各自 interface module 的当前 ops 字段
+为准，不复制本示例的 SPI 操作集。
 
-```cpp
-// platform/<vendor>/<board>/hal_gpio_backend.cppm
-module;
+## 规则
 
-export module hal_gpio_backend;
-
-import hal_core;
-import hal_gpio;
-import util.core;
-
-namespace {
-    struct GpioCtx {};
-
-    hal::Result gpio_init_impl(void* ctx, hal::GpioPin pin, hal::GpioConfig cfg) noexcept {
-        (void)ctx; (void)pin; (void)cfg;
-        return hal::ok();
-    }
-
-    hal::Result gpio_write_impl(void* ctx, hal::GpioPin pin, hal::GpioLevel lvl) noexcept {
-        (void)ctx; (void)pin; (void)lvl;
-        return hal::ok();
-    }
-
-    hal::Result gpio_read_impl(void* ctx, hal::GpioPin pin, hal::GpioLevel& out) noexcept {
-        (void)ctx; (void)pin;
-        out = hal::GpioLevel::low;
-        return hal::ok();
-    }
-
-    constexpr hal::GpioOps kGpioOps{
-        &gpio_init_impl,
-        &gpio_write_impl,
-        &gpio_read_impl,
-    };
-}
-
-export namespace hal {
-    inline GpioIoHandle make_gpio_handle(GpioCtx& ctx) noexcept {
-        return GpioIoHandle{&ctx, &kGpioOps};
-    }
-}
-```
-
-## Notes
-
-- Keep ISR/clock/reset/pinmux in platform code; do not leak into HAL interfaces.
-- Handles are cheap: `{ctx, ops}` only.
-- If a backend does not support a feature, return `Status::unsupported`.
-
-## Driver Template Rules (strict)
-
-This section defines what the HAL backend must implement vs what the platform must provide.
-
-### Backend responsibilities
-
-- Only implement the peripheral core logic.
-- Do not own clock/reset/irq/pinmux decisions.
-- Return `Status::unsupported` for unsupported operations.
-
-### Platform hooks (outside HAL backend)
-
-- Clock enable/disable
-- Reset assert/deassert
-- IRQ routing/priority
-- Pinmux configuration
-
-### Minimal binding checklist
-
-1) Provide `ctx` storage (register base, DMA handle, etc.)
-2) Bind ops table with `constexpr` function pointers
-3) Expose `make_*_handle(ctx)` to upper layers
-4) Register device/driver with registry if needed
+- context 的生命周期覆盖所有 handle 调用；handle 不拥有 context 或 ops。
+- backend 返回 `hal::Result`，不支持的操作返回 `Status::unsupported`。
+- platform 负责 clock/reset/IRQ/pinmux；interface 不读取 board global。
+- ops table 使用固定函数指针，不在调用路径动态分配。
+- 需要 registry/init.graph 发布时，在装配层创建 binding，不把注册逻辑放入 ops callback。

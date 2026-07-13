@@ -6,6 +6,7 @@
 
 - [`hal_demo/main.cpp`](hal_demo/main.cpp)
 - [`hal_demo/CMakeLists.txt`](hal_demo/CMakeLists.txt)
+- [`HAL ops backend 模板`](../../Modules/io/hal/hal_ops_template_guide.md)
 
 ## 当前示例
 

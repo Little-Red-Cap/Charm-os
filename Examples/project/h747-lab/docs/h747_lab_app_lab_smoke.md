@@ -1,164 +1,94 @@
 # H747 Lab App Lab Smoke
 
-This document defines the board-level smoke protocol for `h747_lab_app_lab`.
-It validates the first-generation dynamic App ABI resident monitor:
+> status: `supporting`
+>
+> scope: board validation for `h747_lab_app_lab`
+
+This smoke validates the embedded-image baseline:
 
 ```text
-resident runtime/monitor -> load App ELF -> charm_app_main(api, argc, argv)
+resident app_lab -> embedded/QSPI App ELF -> AppRuntime -> charm_app_main
 ```
 
-## Verified Target
+## Target
 
-- Firmware target: `h747_lab_app_lab`
-- Serial: `USART1 / 115200 8N1`
-- Monitor prompt: `app-lab>`
-- Embedded App ELF images: `hello_app`, `player_min`
-- Entry ABI: `charm_app_main(const CharmAppApi* api, int argc, char** argv)`
+- firmware: `h747_lab_app_lab`
+- console: USART1, 115200 8N1, prompt `app-lab>`
+- fixtures: `hello_app`, `player_min`
+- entry: `charm_app_main(const CharmAppApi*, int, char**)`
 
-## Build
+## Automated Flow
+
+Run from `Examples/project/h747-lab` and reuse the configured H747 build tree:
 
 ```powershell
-cmake --preset h747-lab-debug -DH747_LAB_ARM_GNU_TOOLCHAIN_ROOT="D:/Toolchains/Arm GNU Toolchain arm-none-eabi/latest"
-cmake --build --preset build-h747-lab-app-lab-debug
+cmake --build --preset build-h747-lab-app-lab-debug -- -j1
+powershell -ExecutionPolicy Bypass -File tools/flash-app-lab-pyocd.ps1
+powershell -ExecutionPolicy Bypass -File tools/capture-app-lab-smoke.ps1
 ```
 
-Expected artifacts:
+The capture script resets the target, sends `app smoke` followed by `app
+status`, writes the board log and validates the required tokens. The script is
+the authority for token spelling and default log/port parameters.
 
-```text
-cmake-build-h747-lab-debug/h747_lab_app_lab.elf
-cmake-build-h747-lab-debug/h747_lab_app_lab.bin
-```
-
-## Flash
-
-Use the App Lab wrapper:
+Validate an existing log without opening serial or touching reset:
 
 ```powershell
-.\tools\flash-app-lab-pyocd.ps1
+powershell -ExecutionPolicy Bypass -File tools/capture-app-lab-smoke.ps1 -ValidateLog <path>
 ```
 
-The default short-term flashing path writes the binary image to internal Flash
-base `0x08000000`:
+Validate only script parsing with synthetic input:
 
 ```powershell
-pyocd load -u 0001 -t stm32h747xihx -f 1000k --format bin -a 0x08000000 .\cmake-build-h747-lab-debug\h747_lab_app_lab.bin
+powershell -ExecutionPolicy Bypass -File tools/capture-app-lab-smoke.ps1 -SelfTest
 ```
 
-This is intentional: the current board workflow keeps `.bin @ 0x08000000` as
-the fast-path smoke input and treats ELF flashing as an explicit debug fallback.
-Use `.\tools\flash-app-lab-pyocd.ps1 -Elf <path>` only when ELF-specific load
-behavior is being investigated.
-
-`Exception reading AP#2 IDR: Memory transfer fault` can appear with the current
-CMSIS-DAP/pyOCD path. Treat flashing as successful only when pyOCD exits with
-code 0 and prints the final erase/program summary.
-
-## Capture
-
-Use the capture wrapper after flashing:
-
-```powershell
-.\tools\capture-app-lab-smoke.ps1
-```
-
-By default it opens `COM16` at `115200`, tries reset through a fallback chain
-(`pyocd reset -M halt -m hw` first, `pyocd commander` second), sends
-`app smoke`, and writes:
-
-```text
-cmake-build-h747-lab-debug/h747_lab_app_lab_smoke.log
-```
-
-The script exits with code 0 only when the serial capture contains all required
-tokens:
-
-- `status: monitor=ready display_ready=true input_ready=true file_backed=false`
-- `[app-smoke] builtin=ok`
-- `[app-smoke] install=ok`
-- `[app-smoke] qspi_named=ok`
-- `[app-smoke] qspi_raw=ok`
-- `[app-smoke] generic_stub=ok`
-- `[app-smoke] result=ok`
-- `status: source embedded entries=2 readable=true valid=true qspi_ready=true qspi_readable=true qspi_valid=true`
-- `status: store install attempted=true ready=true code=ok`
-- `status: last request=/not-supported image=/not-supported source=file-backed stage=file-backed code=not_supported exited=false exit=0 backend=0`
-- `status: elf_load=[0x24070000,0x24072000) size=8192`
-
-The wrapper now sends `app smoke` first and then `app status`, so board smoke
-proves both execution closure and the staged diagnostics report.
-The startup banner is intentionally not a required token because the serial
-capture can attach after the banner has already been emitted; monitor readiness
-is validated through `app status` instead.
-
-For host-only token validation without serial/reset access:
-
-```powershell
-.\tools\capture-app-lab-smoke.ps1 -ValidateLog .\cmake-build-h747-lab-debug\h747_lab_app_lab_smoke.log
-```
-
-That mode only validates the required tokens in an existing log. It does not
-open the serial port or touch the probe/reset path.
-
-For host-only validation of the capture token logic itself:
-
-```powershell
-.\tools\capture-app-lab-smoke.ps1 -SelfTest
-```
-
-That mode uses synthetic in-memory logs and does not open the serial port,
-invoke pyOCD, reset the board, or read board output.
-
-## Manual Smoke
-
-At the `app-lab>` prompt:
+## Manual Flow
 
 ```text
 app list
+app run hello_app demo
+app run player_min
 app store install
 app store status
 app store list
-app status
-app run hello_app demo
-app run player_min
 app run-path qspi:hello_app demo
+app run-path qspi:@<offset>:<size> demo
+app run-path /not-supported
 app smoke
+app status
 ```
 
-The minimum acceptable result is that:
+Acceptance requires:
 
-- builtin `hello_app` and `player_min` both report exit code `0`
-- `app store install` reports `code=ok`
-- `app run-path qspi:hello_app demo` reports exit code `0`
-- `app smoke` prints the full builtin/install/qspi/stub summary and
-  `[app-smoke] result=ok`
-- `app status` reports the fixed diagnostics order:
-  monitor -> source/store -> install -> last result -> elf_load -> display/input
-- after `app smoke`, `app status` must show the stable final blocked-stub fact:
-  `last request=/not-supported ... source=file-backed stage=file-backed code=not_supported exited=false`
+- embedded `hello_app` and `player_min` exit zero;
+- Store install and named/raw QSPI runs succeed;
+- the generic file-backed path returns stable `not_supported` without entering
+  the App;
+- status reports source, install, run stage/code, exit and ELF load region;
+- the complete capture script token set passes.
 
-## Current Status
+## Retained Board Evidence
 
-Build verification is complete for `h747_lab_app_lab` with the latest local Arm
-GNU toolchain.
+The board smoke has completed with `.bin` flashed at `0x08000000`:
 
-Fresh board closure is complete for the current `app_lab` smoke path. The latest
-run used `.bin @ 0x08000000`, then `capture-app-lab-smoke.ps1` reset the target,
-sent `app smoke`, sent `app status`, and passed the required token set.
+- embedded `hello_app` and `player_min` exited zero;
+- Store v1 installed to QSPI and named/raw QSPI ELF entered `charm_app_main`;
+- QSPI JEDEC and Store header were readable;
+- unsupported file-backed input remained a non-executing `not_supported` result;
+- ELF loaded in the D1 region beginning at `0x24070000`.
 
-Observed board facts include:
+These facts prove the app_lab baseline only. Resident download, SDRAM staging,
+eMMC and ModuleX evidence belong to `dev_loader`.
 
-- builtin `hello_app` and `player_min` both exited with code `0`
-- QSPI install reported `code=ok`, `written=10416`, `erased=12288`
-- `qspi:hello_app`, `qspi:player_min`, and raw `qspi:@offset:size` execution
-  reached `charm_app_main` and returned `0`
-- `status: source embedded entries=2 readable=true valid=true qspi_ready=true qspi_readable=true qspi_valid=true`
-- `status: qspi jedec=0x00ef4019 capacity=33554432`
-- `status: store install attempted=true ready=true code=ok`
-- `status: last request=/not-supported image=/not-supported source=file-backed stage=file-backed code=not_supported exited=false exit=0 backend=0`
-- `status: elf_load=[0x24070000,0x24072000) size=8192`
+## Failure Classification
 
-Remaining probe-path caveat:
+- pyOCD AP discovery warnings do not prove failure; require process exit zero.
+- reset failure and capture-token failure are separate outcomes in the wrapper.
+- a late serial attach may miss the startup banner, so readiness is checked by
+  `app status` rather than requiring the banner.
+- build-only, host log validation and real-board capture are distinct evidence
+  domains and must not be substituted for one another.
 
-- pyOCD still prints AP#2 discovery faults on reset/load, but the latest
-  `app_lab` flash and capture both completed with exit code `0`
-- flashing `238972` bytes at `1000k` still took about 185s, around `1.43 KiB/s`
+Implementation entry: [`app_lab README`](../apps/app_lab/README.md). Capture
+logic: [`capture-app-lab-smoke.ps1`](../tools/capture-app-lab-smoke.ps1).

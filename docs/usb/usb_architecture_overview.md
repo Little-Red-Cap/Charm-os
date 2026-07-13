@@ -12,13 +12,10 @@ USB 是 IO 专题实现，不定义 Charm Core。具体类型以 `Modules/io/usb
 
 ## 当前分层
 
-| 范围 | module | 责任 |
-|---|---|---|
-| common | `usb.common`、`usb.model`、`usb.spec`、`usb.dsl`、`usb.plan`、`usb.runtime` | 描述符、规格投影与平台无关模型 |
-| device | `usb.device`、`usb.device_driver`、`usb.ep0_driver`、`usb.class_mux` | EP0、标准请求、class 分派与 device driver 边界 |
-| class | `usb.cdc`、`usb.msc`、`usb.msc_block`、`usb.uac` 及 node modules | class 状态、storage bridge 与装配节点 |
-| host | `usb.host.core`、`usb.host.runtime*` | discovery 到 runtime registry、block/channel binding 与 manager |
-| mock | `usb.fixture`、`usb.mock`、`usb.replay`、`usb.boardlog` | host fixture、trace replay 与板级日志导入 |
+Common 层拥有 descriptor、spec/model/plan 和平台无关 runtime binding；device 层拥有 EP0、标准请求和
+class 分派；class 层实现 CDC/MSC/UAC 状态及 storage bridge；host 层把 discovery 接到 runtime
+registry、stable export 和 manager；mock 层只提供 fixture、replay 与 boardlog 导入。具体 module
+拆分以源码为准。
 
 Descriptor/common 不依赖具体 DCD/HCD。Class 通过 device/host 边界消费 control/data 事件；平台
 driver 负责把真实控制器的端点、完成与错误事件映射进这些边界。

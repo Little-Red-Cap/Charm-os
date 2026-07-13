@@ -15,10 +15,9 @@
 ## 建议阅读顺序
 
 1. [`vsf_comparison.md`](vsf_comparison.md)
-2. [`vsf_component_scan.md`](vsf_component_scan.md)
-3. [`vsf_storage_map.md`](vsf_storage_map.md)
-4. [`vsf_tcpip_map.md`](vsf_tcpip_map.md)
-5. [`vsf_usb_map.md`](vsf_usb_map.md)
+2. [`vsf_storage_map.md`](vsf_storage_map.md)
+3. [`vsf_tcpip_map.md`](vsf_tcpip_map.md)
+4. [`vsf_usb_map.md`](vsf_usb_map.md)
 
 ## 使用提醒
 

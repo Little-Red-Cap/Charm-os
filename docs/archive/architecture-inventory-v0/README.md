@@ -31,13 +31,11 @@
   Stage A/B/C 职责和早期推进建议；其中地址与 vendor loader 判断是历史分析，
   不能替代 TRM、当前源码或实板证据。
 
-旧 capability recovery rules/matrix 已删除：其中 UI/Board 排期、Done/TODO 状态和
-`DefaultConsolePath`、`EvidenceRig` 等局部词汇没有现行消费者。仍有效的判断只有两条：板级 workaround
-不能自动进入公共契约；Host、QEMU 和真实板证据必须分开记录。
+板级 workaround 不能自动进入公共契约；Host、QEMU 和真实板证据必须分开记录。
 
 现行入口：
 
 - [`../../architecture/real_board_landing_gap_audit_v0.md`](../../architecture/real_board_landing_gap_audit_v0.md)
 - [`../../board/rk3506/boot_staging_plan.md`](../../board/rk3506/boot_staging_plan.md)
 
-需要追溯原始细节时使用 Git 历史；不要把本摘要恢复成第二份全局架构定义。
+不要把本摘要恢复成第二份全局架构定义。

@@ -2,8 +2,7 @@
 
 > **状态：`archived`**
 
-本目录保留音频子系统早期设计中仍有独立价值的取舍。固定水位、MCU 内存区域、Driver 草图、
-Actor 事件和 v1/v2/v3 路线均已删除，不代表当前跨平台契约。
+本目录保留音频子系统早期设计中仍有独立价值的取舍，不代表当前跨平台契约。
 
 - [`audio_design_retained_notes.md`](audio_design_retained_notes.md)：从旧 Pull Engine、v1 和 L1/L2/L3
   草案中保留的 DSP、重配、声道转换与 DMA 设计判断；

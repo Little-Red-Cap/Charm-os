@@ -12,16 +12,9 @@
 - [`../../system/minimal_kernel_runtime_evidence_bundle_contract.md`](../../system/minimal_kernel_runtime_evidence_bundle_contract.md)
 
 kernel module 早期阶段中仍有独立价值的 sync 竞争规则与 thread 职责取舍见
-[`kernel-module-milestones/`](kernel-module-milestones/)。旧目录、里程碑、demo 与 observability
-格式不再保留。
-
-- session witness 旧全文已删除；semantic/machine/runtime 分层与 handoff 边界已收敛到
-  [`../../system/kernel_runtime_session_witness_v0.md`](../../system/kernel_runtime_session_witness_v0.md)，字段、
-  failure code 与派生规则以 schema/exporter 为准。旧 world compare 展开和 runner 清单不再保留。
-- runtime evidence bundle 旧全文与逐 seam evidence matrix 已删除。Host semantic、QEMU machine、session
-  与 witness 的聚合边界由
-  [`../../system/minimal_kernel_runtime_evidence_bundle_contract.md`](../../system/minimal_kernel_runtime_evidence_bundle_contract.md)
-  维护；完整产物树、runner 参数、verifier 路径和 CI 快照以脚本、schema、workflow 与 Git 历史为准。
+[`kernel-module-milestones/`](kernel-module-milestones/)。Session witness 的 semantic/machine/runtime 分层
+见 [`kernel_runtime_session_witness_v0.md`](../../system/kernel_runtime_session_witness_v0.md)；字段、failure
+code 与派生规则以 schema/exporter 为准。
 
 ## 保留的设计判断
 
@@ -42,7 +35,7 @@ kernel module 早期阶段中仍有独立价值的 sync 竞争规则与 thread �
 - 用户指针校验、errno/libc facade 与完整用户态 ABI；
 - 优先级继承、死锁检测和多核调度一致性。
 
-若以后实现其中任一方向，应从具体源码、失败语义和独立证据重新建立契约，不恢复旧文档中的阶段性叙事。
+若以后实现其中任一方向，应从具体源码、失败语义和独立证据重新建立契约。
 
 ## 历史故障
 

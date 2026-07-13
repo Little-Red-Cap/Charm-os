@@ -12,10 +12,6 @@
 - [`posix_architecture_retained_notes.md`](posix_architecture_retained_notes.md)：从早期 subsystem principles
   与 three-layer 草案中保留宏边界、三层责任、ABI spine 和 image 执行取舍。
 
-早期 fd、error、program image、spawn 与 user runtime 最小设计稿已由现行 contract 覆盖，
-不再重复归档。阶段 checklist、cleanup plan、roadmap、tasklist、协作旁白和 closure 总结也已删除；
-需要追溯时使用 Git 历史。
-
 当前源码边界和验证入口见：
 
 - [`../../system/posix_support_overview.md`](../../system/posix_support_overview.md)

@@ -2,9 +2,7 @@
 
 本目录保留网络双表面起步设计中仍有独立价值的分层与 ownership 判断。
 
-原 646 行设计、底座任务单、阶段复盘和 v0 关单清单已收敛到
-[`net_stack_retained_notes.md`](net_stack_retained_notes.md)。历史 smoke、排期、API 示例和逐次 token
-不再保留。
+保留内容见 [`net_stack_retained_notes.md`](net_stack_retained_notes.md)。
 
 默认入口：
 

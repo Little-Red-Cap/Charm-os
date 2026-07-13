@@ -17,10 +17,5 @@
 | [`usb_declarative_retained_notes.md`](usb_declarative_retained_notes.md) | USB spec/runtime binding、generator、MSC storage 与调试边界 |
 | [`config_module_draft.md`](config_module_draft.md) | typed config、生成实现和 compatibility alias 的分层问题 |
 
-## 已删除范围
-
-通用 Bundle、复杂场景总括、九对象工程模型、Foundation Runtime、旧 USB/CMake 伪 API、旧目录映射、
-Player/HQZY 迁移步骤和阶段排期没有独立事实源，已由上述保留笔记、当前源码或 Git 历史替代。
-
 重新推进任一提案前，先核对当前 consumer、源码/CMake、失败语义和跨环境证据；优先补入现有契约
 或建立局部实验，不恢复整套旧词汇。

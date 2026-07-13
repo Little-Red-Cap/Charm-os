@@ -2,6 +2,7 @@ module;
 
 #include "Backends/contract/raster_display.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -53,6 +54,7 @@ export namespace player::host_sdl3 {
                 return OpenCode::host_open_failed;
             }
 
+            input_.reset();
             surface_ = surface;
             port_ = PlayerPort{
                 .clock = {this, &Runtime::read_clock_us},
@@ -118,19 +120,73 @@ export namespace player::host_sdl3 {
         [[nodiscard]] std::uint64_t presented_frames() const noexcept {
             return host_.presented_frames();
         }
+        [[nodiscard]] std::size_t input_received_count() const noexcept {
+            return input_.received_count;
+        }
+        [[nodiscard]] std::size_t input_coalesced_count() const noexcept {
+            return input_.coalesced_count;
+        }
+        [[nodiscard]] std::size_t input_dropped_count() const noexcept {
+            return input_.dropped_count;
+        }
+        [[nodiscard]] std::size_t dispatched_input_count() const noexcept {
+            return runtime_ ? runtime_->dispatched_input_count() : 0;
+        }
         [[nodiscard]] const char* last_error() const noexcept { return host_.last_error(); }
 
     private:
-        static constexpr std::size_t kInputCapacity = 64;
+        static constexpr std::size_t kInputCapacity = 256;
+        static constexpr std::size_t kInputDrainBudget = 64;
 
         struct InputQueue {
             std::array<input::RawInputEvent, kInputCapacity> events{};
             std::size_t head{0};
             std::size_t size{0};
+            std::size_t received_count{0};
+            std::size_t coalesced_count{0};
+            std::size_t dropped_count{0};
+
+            [[nodiscard]] bool try_coalesce(const input::RawInputEvent& event) noexcept {
+                if (size == 0) {
+                    return false;
+                }
+                auto& previous = events[(head + size - 1) % events.size()];
+                if (event.type == input::RawInputEventType::Pointer
+                    && previous.type == input::RawInputEventType::Pointer
+                    && event.pointer_action == input::PointerAction::Move
+                    && previous.pointer_action == input::PointerAction::Move
+                    && event.pointer.id == previous.pointer.id) {
+                    previous = event;
+                    return true;
+                }
+                if (event.type == input::RawInputEventType::Axis
+                    && previous.type == input::RawInputEventType::Axis) {
+                    previous = event;
+                    return true;
+                }
+                if (event.type == input::RawInputEventType::Encoder
+                    && previous.type == input::RawInputEventType::Encoder) {
+                    const auto accumulated = static_cast<int>(previous.encoder_delta)
+                        + static_cast<int>(event.encoder_delta);
+                    previous.encoder_delta = static_cast<std::int16_t>(std::clamp(
+                        accumulated,
+                        static_cast<int>(std::numeric_limits<std::int16_t>::min()),
+                        static_cast<int>(std::numeric_limits<std::int16_t>::max())));
+                    previous.ms = event.ms;
+                    return true;
+                }
+                return false;
+            }
 
             [[nodiscard]] bool on_raw(const input::RawInputEvent& event) noexcept {
+                ++received_count;
+                if (try_coalesce(event)) {
+                    ++coalesced_count;
+                    return true;
+                }
                 if (size == events.size()) {
-                    return false;
+                    ++dropped_count;
+                    return true;
                 }
                 events[(head + size) % events.size()] = event;
                 ++size;
@@ -150,6 +206,13 @@ export namespace player::host_sdl3 {
             void clear() noexcept {
                 head = 0;
                 size = 0;
+            }
+
+            void reset() noexcept {
+                clear();
+                received_count = 0;
+                coalesced_count = 0;
+                dropped_count = 0;
             }
         };
 
@@ -208,7 +271,7 @@ export namespace player::host_sdl3 {
             }
             const auto result = self->host_.pump_events(input::RawSinkRef::bind(self->input_));
             self->quit_requested_ = result.quit_requested;
-            self->failed_ = !result.is_ok() || result.rejected != 0;
+            self->failed_ = !result.is_ok();
         }
 
         static void run_update(void* ctx,
@@ -218,7 +281,8 @@ export namespace player::host_sdl3 {
             if (!self || self->failed_ || self->quit_requested_ || !self->runtime_) {
                 return;
             }
-            self->failed_ = !self->runtime_->update_frame(now_us, dt_us);
+            self->failed_ = !self->runtime_->update_frame(
+                now_us, dt_us, kInputDrainBudget);
         }
 
         static void run_render(void* ctx,

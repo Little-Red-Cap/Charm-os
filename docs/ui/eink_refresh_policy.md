@@ -1,65 +1,34 @@
-# e‑ink Refresh Policy 草案（Vivid 后端）
+# EInk Refresh Policy 候选边界
 
-目标：为 e‑ink 后端提供可配置的刷新策略，兼容 **Tile/PFB + DrawCmd** 的渲染模型。
+> `status`: `exploration`
 
-## 1. 设计原则
+仓库当前没有 EInk refresh policy、partial/full refresh backend 或 dirty-tile 决策实现。本文只保留
+未来真实 panel backend 需要回答的问题，不定义默认参数或 Vivid 已有能力。
 
-- **只刷新变化区域**：默认以 tile 命中表作为 dirty 来源。
-- **避免频繁全刷**：全刷频率受限，必要时降级。
-- **可预测**：刷新策略必须确定性可配置。
-- **后端独立**：UI 与 DrawCmd 不感知刷新策略。
+## Ownership
 
-## 2. 刷新模式（最小集合）
-
-```text
-FullRefresh        // 全屏刷新（慢、稳定）
-PartialRefresh     // 局部刷新（快、残影风险）
-Auto               // 基于频率/面积/时间自动切换
-```
-
-## 3. 关键策略参数
+UI/widget 只提交 invalidation 与 DrawCmd；executor/backend 产生 clipped dirty region；display policy 决定
+full/partial refresh、ghosting control、pacing 和 panel waveform。Policy 不改写 layout、widget state 或
+semantic action。
 
 ```text
-max_partial_count      // 连续局刷次数上限，超出触发全刷
-min_full_interval_ms   // 两次全刷的最小间隔
-partial_area_ratio     // 局部刷新面积阈值（超过则全刷）
+UI invalidation -> DrawCmd/backend dirty region -> display policy -> panel refresh
 ```
 
-## 4. 典型策略（推荐默认）
+## 候选决策
 
-```text
-mode = Auto
-max_partial_count = 20
-min_full_interval_ms = 30_000
-partial_area_ratio = 0.35
-```
+真实实现至少需要区分 full、partial 与 automatic policy，并明确：
 
-执行逻辑（伪码）：
+- dirty area 的计算、合并、clipping 和空区域行为；
+- 连续 partial refresh、elapsed time、ghosting 与强制 full refresh 条件；
+- panel LUT/waveform、temperature、pixel format 和 dithering 对策略的影响；
+- refresh in-flight 时新 dirty region 的 queue/coalesce/drop 行为；
+- timeout、panel fault、cancel 和 shutdown 后的状态恢复。
 
-```cpp
-if (dirty_area_ratio >= partial_area_ratio)
-    do_full_refresh();
-else if (partial_count >= max_partial_count)
-    do_full_refresh();
-else
-    do_partial_refresh();
-```
+阈值、计数、时间窗口和 LUT 都是 panel/profile 实测结果，不在公共文档给出伪默认。
 
-## 5. 与 Tile/PFB 的对接
+## 准入证据
 
-- `DrawCmdExecutor::execute_tiles()` 输出 tile 命中表
-- backend 统计 dirty tile → dirty rect → dirty area ratio
-- refresh policy 根据 ratio / counter / time 决策
-
-## 6. 透明/抖动注意事项
-
-- e‑ink 仅在 **1bit/2bit 输出**下稳定
-- 透明与 alpha 建议在 executor 中 **阈值化/抖动**
-- 局刷频率高时，适当降低抖动强度
-
-## 7. 未来扩展
-
-- 多阶段刷新（fast → slow）
-- 批量局刷合并窗口
-- 设备级 LUT/波形切换
-
+提升为 supporting/contract 前，必须有真实 backend consumer、明确状态机与失败返回、Host policy fixture，
+以及至少一块真实 panel 的 full/partial refresh capture。Host dirty-region 测试不能证明 waveform、ghosting、
+timing、power 或视觉质量。

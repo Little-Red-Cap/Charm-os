@@ -2,8 +2,8 @@
 
 > **文档状态：`supporting`**
 
-本文记录当前 `materialized_graph` 的只读观察与导出边界。完整演进说明见
-[`../archive/system-evidence-and-staging-v0/init_materialized_graph_observe.md`](../archive/system-evidence-and-staging-v0/init_materialized_graph_observe.md)。
+本文记录当前 `materialized_graph` 的只读观察与导出边界。行为以模块源码、示例与脚本为准；
+旧 API、样例输出和阶段路线的实现流水账已删除，不作为历史契约保留。
 
 ## 实现入口
 

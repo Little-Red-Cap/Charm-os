@@ -1,136 +1,70 @@
 # Vivid Evidence Lab Manifest v0
 
-This document records the v0 manifest for CTest-gated Vivid Evidence Lab demos.
+## 文档状态
 
-The manifest is not a screenshot runner, a build orchestrator, or a Vivid core API. It is a small evidence map that keeps demo names, stdout tags, case counts, and coverage axes visible as the lab grows.
+- `status`: `supporting`
+- `scope`: CTest-gated Vivid evidence fixture registry 与漂移检查
+- `authority`: [`evidence_lab_manifest_demo`](../../Examples/ui/vivid/evidence_lab_manifest_demo/)、
+  [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md)、各 demo `CMakeLists.txt`
 
-## Why This Exists
+本文不复制 registry 行、case 总数、stdout final line 或当前 anchor 清单。它只定义 manifest 的角色和
+一致性规则。
 
-Vivid Evidence Lab now has many independent proofs:
+## Registry 边界
 
-```text
-edge
-state
-style
-render
-semantic
-focus
-motion
-transaction
-layer
-vocabulary
-causal chain
-admission
-```
-
-Without a manifest, the lab can drift into a museum of demos. The manifest keeps the demos arranged as an evidence lattice:
+manifest 将 fixture 连接到可验证入口：
 
 ```text
-demo -> stdout gate -> evidence axes -> contract document
+demo -> stdout/CTest gate -> evidence axes -> primary law
 ```
 
-## v0 Runtime Sample
+每个 row 包含：
 
-`Examples/ui/vivid/evidence_lab_manifest_demo` is the smallest manifest conformance sample.
+| field | contract |
+|---|---|
+| `run` | stable demo identity，与 stdout/CMake gate 一致 |
+| `tag` | stable short stdout domain |
+| `cases` | 该 demo final gate 的显式 case 数 |
+| `axes` | stdout 或 primary law 实际覆盖的 evidence domain |
+| `primary_doc` | 解释 evidence meaning 且指回 demo path 的唯一首选文档 |
 
-It verifies:
+run/tag 必须唯一，cases 必须为正，primary doc 必须存在。多个 demo 可以共享同一 primary law，但每个
+demo path 都必须在该 law 中可发现。
 
-```text
-registered demos have stable run/tag/cases fields
-run names and tags are unique
-the total registered case count is explicit
-all v0 evidence axes have at least one gated sample
-intent_artifact_demo remains the vertical causal anchor
-semantic_transition_demo remains the first semantic-to-transaction cross-axis sample with a primary boundary law
-semantic_action_state_transition_demo remains the broader semantic-action-state-transaction cross-axis sample with a primary boundary law
-evidence_vocabulary_demo remains the field-law anchor
-promotion boundaries stay demo-side / law / runtime-ledger separated
-stdout law registry matches manifest gates
-demo CMake PASS gates match manifest gates
-primary law documents point back to their demos
-AxisCausal entries remain tied to causal verdict law or primary-doc causal evidence
-```
+## Coverage 法律
 
-`semantic_transition_demo` and `semantic_action_state_transition_demo` share
-`vivid_semantic_transition_law_v0.md`; the latter adds the state/invalidation/artifact bridge before transaction
-admission. Concrete stdout remains in the demos and their CTest gates.
+- axis 只表示 fixture 已输出或 paired law 已定义的证据，不表示产品能力完成；
+- `AxisCausal` 必须满足 [`vivid_causal_verdict_law_v0.md`](vivid_causal_verdict_law_v0.md)，不能只打印
+  `causal_chain=1`；
+- vocabulary fixture 只验证字段/helper verdict，不证明 runtime behavior；
+- manifest fixture 只验证 registry、route 和 gate 同步，不运行全部 fixture；
+- Host fixture、screenshot/hash 和 CTest pass 都不能替代产品或真实板证据。
 
-CTest guards the final line:
+## Conformance
 
-```text
-[elm] run=evidence_lab_manifest_demo phase=end result=ok cases=10
-```
+`Examples/ui/vivid/evidence_lab_manifest_demo` 检查：
 
-The fast smoke entry is:
+- registry shape、run/tag uniqueness 和 required axis coverage；
+- stdout law 与 demo CMake pass gate 一致；
+- primary doc 指回 demo，并为 causal row 提供 causal evidence；
+- demo-side helper、law vocabulary 与 runtime-native ledger 的 promotion boundary 未混淆。
+
+快速入口：
 
 ```powershell
 ./scripts/vivid_evidence_lab_manifest_smoke.ps1
 ```
 
-## Manifest Fields
+该脚本会构建独立 fixture；磁盘受限环境应显式复用已批准的 build root，不能无意创建平行构建树。
 
-Each manifest row has:
+## 维护
 
-| Field | Meaning |
-| --- | --- |
-| `run` | Stable demo run name used in stdout. |
-| `tag` | Short stdout domain tag. |
-| `cases` | Expected final `cases=<n>` value. |
-| `axes` | Evidence axes covered by the demo. |
-| `primary_doc` | First law or route document that owns the demo's evidence meaning. |
+新增、删除、拆分或重命名 gated demo 时同步：
 
-The manifest row must match `vivid_evidence_stdout_law.md` when a demo is CTest-gated by that law.
-The primary document must mention the demo path so route drift is visible.
+1. `Examples/ui/vivid/evidence_lab_manifest_demo/main.cpp` registry；
+2. `vivid_evidence_stdout_law.md` final gate；
+3. demo `CMakeLists.txt` pass/fail gate；
+4. primary law 的 demo route；
+5. 推荐入口变化时的 [`README.md`](README.md)。
 
-## Coverage Axes
-
-v0 uses these axes:
-
-```text
-edge
-state
-style
-render
-semantic
-focus
-motion
-transaction
-layer
-vocabulary
-causal
-admission
-manifest
-```
-
-Rules:
-
-- A demo may cover multiple axes.
-- A demo should only claim axes that are visible in stdout evidence or the paired law document.
-- `causal` coverage is governed by `vivid_causal_verdict_law_v0.md`; `AxisCausal` requires a connected evidence chain and final verdict, not just a decorative `causal_chain` field.
-- Manifest smoke verifies `AxisCausal` rows have primary docs with causal evidence wording, and verifies the causal verdict law remains discoverable.
-- `intent_artifact_demo` is the vertical causal anchor because it connects semantic request, state delta, invalidation, render artifact, rejection, and causal verdict.
-- `semantic_transition_demo` is the first semantic-to-transaction anchor; its primary law is `vivid_semantic_transition_law_v0.md`.
-- `semantic_action_state_transition_demo` adds state, invalidation and render artifact evidence before transaction admission under the same primary law.
-- `evidence_vocabulary_demo` is the field-law anchor because it verifies helper-derived vocabulary verdicts without claiming runtime behavior.
-- `evidence_lab_manifest_demo` verifies the manifest shape and drift guards, not the runtime behavior of every listed demo.
-
-## Non-Goals
-
-- This manifest does not replace individual demo CTest gates.
-- This manifest does not build every Evidence Lab demo.
-- This manifest does not define screenshot golden files.
-- This manifest does not promote demo support helpers into Vivid core.
-
-## Maintenance Law
-
-When adding, deleting, splitting, or renaming a CTest-gated Evidence Lab demo:
-
-```text
-1. Update vivid_evidence_stdout_law.md.
-2. Update this manifest document.
-3. Update Examples/ui/vivid/evidence_lab_manifest_demo.
-4. Update docs/ui/README.md when the entry is a recommended route.
-5. Run scripts/vivid_evidence_lab_manifest_smoke.ps1.
-```
-
-This keeps Vivid Evidence Plane from becoming a set of clever local proofs without a stable map.
+具体 fixture 行和 token 由上述事实源维护，本文不建立第二份快照。

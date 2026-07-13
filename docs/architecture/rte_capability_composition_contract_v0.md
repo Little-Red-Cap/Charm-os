@@ -2,20 +2,21 @@
 
 > **文档状态：`exploration`（停线冻结）**
 
-完整提案保留在
+冻结实验笔记保留在
 [`../archive/architecture-exploration-v0/rte_capability_composition_contract_v0.md`](../archive/architecture-exploration-v0/rte_capability_composition_contract_v0.md)。
 `RTE` 当前裁决为 `Rejected / Deferred`，不进入 Core 词汇。
 
 ## 提案内容
 
-原提案把 component requirements、provider provisions 和 profile bindings 组织成多个投影：
+原提案把 requirements、provisions 和 profile bindings 组织成多个投影：
 
 - init projection；
 - runtime/context projection；
 - host projection；
 - evidence/explain projection。
 
-这组投影可作为未来工具设计的讨论材料，但不能被称为已经存在的 RTE runtime 或统一对象模型。
+这组投影只保留 resolved binding identity 一致性的实验价值，不能被称为已经存在的 RTE runtime、
+component topology 或统一对象模型。
 
 ## 当前源码事实
 

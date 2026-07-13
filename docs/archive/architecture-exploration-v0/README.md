@@ -14,7 +14,8 @@ RTE-to-H747 五阶段 roadmap 已删除；当前没有足够源码与跨环境�
 
 保留文件：
 
-- [`rte_capability_composition_contract_v0.md`](rte_capability_composition_contract_v0.md)
+- [`rte_capability_composition_contract_v0.md`](rte_capability_composition_contract_v0.md)：压缩后的
+  Requirement/Provision/Binding resolution 与投影一致性实验；`RTE` 继续停线冻结。
 - [`tdesktop_mechanism_retained_notes.md`](tdesktop_mechanism_retained_notes.md)：保留 lifetime、execution
   domain、style/schema/platform/storage 与注释边界的外部机制比较。
 
@@ -30,3 +31,6 @@ Telegram Desktop 比较全文已压缩；上游仓库导览、伪 API、Player/V
 
 旧 Display + Player 压力切片、五阶段排期和 host smoke inventory 可从 Git 历史追溯；这些内容
 不代表当前 H747 target、Player 结构或 Core 准入状态。
+
+RTE 全文已压缩；Component/World 总模型、伪 descriptor/schema、示例清单、采用顺序和 H747 映射
+不再保留。

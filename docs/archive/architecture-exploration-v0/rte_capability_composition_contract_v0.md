@@ -1,494 +1,90 @@
-# Charm RTE Capability Composition Contract v0
+# RTE Capability Composition v0 保留笔记
 
-> [!IMPORTANT]
-> **文档状态：`exploration`（停线冻结）**
-> `RTE` 当前裁决为 `Rejected / Deferred` Core 词汇。本文保留能力装配实验语义作为证据，
-> 不再承担 canonical Core 契约。上位入口是
-> [`../../../CONSTITUTION.md`](../../../CONSTITUTION.md) 与
-> [`../../architecture/charm_core_contract.md`](../../architecture/charm_core_contract.md)。
+> status: `exploration`（停线冻结）
+>
+> scope: Requirement/Provision/Binding resolution 与投影一致性实验
 
-本文件定义 Charm RTE v0 的边界。
+`RTE` 当前裁决为 `Rejected / Deferred` Core 词汇。最高边界见
+[`CONSTITUTION.md`](../../../CONSTITUTION.md) 和
+[`charm_core_contract.md`](../../architecture/charm_core_contract.md)。本文不定义 runtime framework、
+component topology、service locator、DI container、manifest、generator 或统一系统模型。
 
-这里的 RTE 不是 runtime framework。它不接管调度、不实现事件循环、
-不充当 service locator、DI container，也不试图复制 AUTOSAR RTE。
+## 可保留的关系
 
-Charm RTE v0 的职责只有一个：
+实验中真正可复用的是三类已获准关系：
 
-```text
-capability composition boundary
-```
+- Requirement：消费方声明依赖某项 Capability Contract；
+- Provision：提供方声明可满足该契约；
+- Binding：一次项目/profile 组合中把 requirement 关联到 provision。
 
-也就是把组件声明的能力需求、板级或系统服务提供的能力、profile 中的绑定关系、
-以及后续 init / evidence / host / ABI 等投影统一收束成一套可解释的系统结构。
+Provider 只是 Provision 关系中的角色，不需要公共基类、manager 或 registry。Profile 是项目组合选择，
+不定义 Capability Contract。
 
-## 1. 非目标
+## Kind 与 Role
 
-RTE v0 明确不做以下事情：
+同一类能力可能在一个项目里承担不同用途，例如 log 与 debug trace 都消费文本输出。局部 role 可以帮助
+binding 消歧，但 role 不是自动获准的全仓 vocabulary。
 
-- 不做 YAML / TOML / JSON manifest。
-- 不做 DSL。
-- 不做 graph compiler。
-- 不做 preset generator。
-- 不新增 C++ module 实现。
-- 不修改 H747 Lab 底座。
-- 不把 `init.graph` 扩展成运行期拓扑框架。
-- 不把 runtime capability ref 变成 service locator。
+每个 role 必须有独立 requirement/provision/binding。提供某种 capability kind 不表示 provider 自动
+满足所有 role，也不能让消费方按 kind 在运行时任选 provider。
 
-v0 只验证语义。任何未来工具化形式都必须先证明这些语义能在普通 C++
-中自然表达。
+## Resolution
 
-## 2. 核心不变量
+一个最小 resolved binding 过程应满足：
 
-### 2.1 RTE 只表达能力装配
+1. 每个 required relation 有且只有一个显式 binding；
+2. binding 指向声明了匹配 provision 的提供方；
+3. duplicate、missing、wrong-role、stale 与 extra binding 被明确拒绝；
+4. 同一 provider 绑定多个 role 时，每个 role 分别声明；
+5. unresolved requirement 是组合错误，不触发隐藏 fallback lookup；
+6. consumer source 不依赖具体 provider 名称。
 
-RTE 的输入是：
+这些规则可由普通 C++ 数据和 host smoke 验证，不需要先建立 DSL 或 RTE module。
 
-- component 的 requirements。
-- provider 的 provides。
-- profile 的 binding。
+## Resolved Binding Snapshot
 
-RTE 的输出不是一个新的 runtime，而是多个投影：
+Resolution 的输出可以形成局部 `ResolvedBinding`/snapshot，供不同工具或 runtime boundary 消费。它是
+一次组合结果，不是新的 Core 原语，也不拥有 provider instance lifetime。
 
-- init projection：进入 `init.graph`。
-- context projection：形成 app 可见的 `ContextView`。
-- evidence projection：形成结构化证据面。
-- host projection：形成 mock / host backend 装配。
-- ABI projection：未来形成 hostcall / capability table。
+所有投影必须消费同一份已解析结果，不能各自重新选择 provider：
 
-### 2.2 Component topology 是源头
+- init projection 只派生启动依赖，不等于 runtime topology；
+- context projection 只暴露当前 consumer 声明的 requirements；
+- evidence/explain projection 只报告 binding identity 与来源；
+- ABI projection 若存在，只投影稳定调用表，不复制 binding 语义。
 
-`ComponentDesc` 描述系统节点。
+投影可以有不同数据布局和生命周期，不能因 capability 名称相同就互相替代。
 
-`init.graph`、scheduler 注册、reactor 绑定、evidence 收集、host mock
-都只是 component topology 的不同投影。不要把 `init.graph` 反过来当作
-系统结构的唯一源头。
+## Context Slice
 
-### 2.3 World 是投影，不是容器
+历史 `ContextView` 实验的有效边界是最小权限切片：consumer 只能访问自己声明的 requirement，不能看到
+整个 profile、provider registry 或其它 component 的能力。
 
-应用不应拿到全局能力容器。
+Context slice 不负责 fallback、discovery、ownership 或 hotplug。动态 App ABI 的 capability table 与
+C++ context view 可以表达相似行为，但需要各自的 ABI/lifetime 证据。
 
-应用只能拿到由 requirements 裁剪出的 `ContextView`。这个 view 只暴露
-该 app 声明需要的能力，避免 `world` 膨胀成 god object。
+## Evidence Side Channel
 
-### 2.4 Evidence 不是 log
+Evidence 应是结构化、带来源的只读事实，不是预格式化 log。采集不应隐式改变 provider 状态，也不应
+为了观察把 collector 注入每个 consumer context。
 
-Evidence 是结构化事实，不是字符串日志。
+Evidence projection 成功只证明 snapshot 可读取，不证明 provider 正确、hardware live 或 capability
+contract 已满足。Host、QEMU 与真实板证据域保持分离。
 
-provider 可以产出 `EvidenceFrame`；presentation 层可以把它打印为文本。
-实时路径不得在 evidence 采集阶段做格式化、分配或策略判断。
+## 明确拒绝
 
-### 2.5 语义统一，载体分层
+- 不建立全局 `World` 或 capability bag；
+- 不把 init graph、runtime topology、evidence 和 ABI 合成一张 component graph；
+- 不新增 RTE manager、公共 Component 基类或按名 service locator；
+- 不从 reflection/schema 数量推断统一 compiler 已成立；
+- 不让 profile/provider 名称进入 App 业务接口；
+- 不因历史 smoke 存在就恢复 RTE roadmap。
 
-同一个 capability 语义可以有三种载体：
+## 重新推进条件
 
-| 载体 | 作用 | 当前状态 |
-|---|---|---|
-| Concept capability | 编译期零成本语义边界 | v0 主载体 |
-| Runtime capability ref | 运行期装配与 profile materialization | v0 约束语义 |
-| ABI capability table | 未来 ELF / dynamic boundary | v0 只保留方向 |
+先选择一个真实 consumer 和一个无法由现有 binding helper 表达的最小问题。只有在至少两个 execution
+environment 中证明相同关系、失败语义和替换实现后，才评估局部 Stable Boundary；仍不自动恢复
+`RTE` 名称。
 
-三者表达同一语义，但不能互相替代。
-
-## 3. 词汇表
-
-### 3.1 `CapabilityKind`
-
-能力种类。它回答“这是什么能力”。
-
-示例：
-
-- `cap::TextSink`
-- `cap::Clock`
-- `cap::LineSource`
-- `cap::SolidFillDisplay`
-- `cap::RasterDisplaySink`
-- `cap::BlockDevice`
-- `cap::AudioSink`
-
-`CapabilityKind` 不回答“由谁提供”，也不回答“绑定到哪个用途”。
-
-### 3.2 `CapabilityRole`
-
-能力角色。它回答“这个能力在当前组件里承担什么用途”。
-
-示例：
-
-- `role::log`
-- `role::shell_input`
-- `role::monotonic_time`
-- `role::primary_display`
-- `role::firmware_storage`
-
-同一种 `CapabilityKind` 可以有多个 role。例如同一 profile 中可以同时存在
-`log`、`shell`、`debug_trace` 三个 `TextSink` 角色。
-同一个 provider 可以显式声明并承担多个 role，但每个 role 都必须有独立的
-`Provided<CapabilityKind, CapabilityRole>` token 和独立 binding；不能因为
-provider 满足某个 `CapabilityKind` 就隐式满足所有同 kind role。
-
-### 3.3 `ProviderDesc`
-
-provider 声明它提供的能力。
-
-provider 可以来自 board port、system service、domain backend 或 host mock。
-它应把 provider 身份和可提供的能力 token 分开表达：
-
-- `ProviderDesc`
-  描述“由谁提供”。
-- `Provided<CapabilityKind, CapabilityRole>`
-  描述“这个 provider 可以满足哪个 role 的哪类能力”。
-
-示例语义：
-
-```cpp
-provide<cap::TextSink, provider::uart1_console>();
-provide<cap::TextSink, provider::usb_cdc_console>();
-provide<cap::Clock, provider::systick_clock>();
-```
-
-provider 只是候选能力来源。它不会被 app 隐式查找。
-`Provided` token 也不是 provider 实例；它只是 profile resolution 可检查的
-类型级事实。
-
-### 3.4 `RequirementDesc`
-
-component 声明它需要的能力和 role。
-
-示例语义：
-
-```cpp
-require<cap::TextSink, role::log>();
-require<cap::Clock, role::monotonic_time>();
-require<cap::SolidFillDisplay, role::primary_display>();
-```
-
-requirement 不指定 provider。provider 由 profile binding 决定。
-resolution 时，requirement 必须匹配某个 provider 声明过的
-`Provided<CapabilityKind, CapabilityRole>` token。
-
-### 3.5 `ComponentDesc`
-
-系统节点的静态语义描述。
-
-`ComponentDesc` 不是运行期对象，也不是 service locator 注册项。
-
-它至少表达：
-
-- name
-- phase
-- provides
-- requires
-- lifecycle entry points
-- optional evidence producer
-- optional runtime participation tags
-
-示例语义：
-
-```cpp
-constexpr ComponentDesc display_demo{
-    .name = "display_demo",
-    .requires = requirements(
-        require<cap::TextSink, role::log>(),
-        require<cap::Clock, role::monotonic_time>(),
-        require<cap::SolidFillDisplay, role::primary_display>()),
-    .provides = providers(
-        provide<cap::App, role::main_app>()),
-    .phase = init::Phase::app,
-};
-```
-
-### 3.6 `ComponentInstance`
-
-组件的运行期状态实体。
-
-它可以保存 app/service/backend 的状态，但不能替代 `ComponentDesc`。
-一个 desc 可以对应一个或多个 instance。一个 instance 不能自行扩大它的
-requirements。
-
-### 3.7 `ProfileBinding`
-
-profile 对 requirements 和 providers 的绑定结论。
-
-示例语义：
-
-```text
-role::log             <- provider::uart1_console
-role::shell_input     <- provider::uart1_console_rx
-role::monotonic_time  <- provider::systick_clock
-role::primary_display <- provider::hx8394d_panel
-```
-
-binding 是显式结论。app 不应在运行时“查找一个可用 TextSink”。
-
-### 3.8 `ContextView`
-
-按组件 requirements 裁剪出来的能力访问面。
-
-示例语义：
-
-```cpp
-using DisplayDemoContext = ContextView<
-    Requirement<cap::TextSink, role::log>,
-    Requirement<cap::Clock, role::monotonic_time>,
-    Requirement<cap::SolidFillDisplay, role::primary_display>>;
-```
-
-`ContextView` 只暴露 requirements 声明过的能力。它不是全局 world。
-同一个 resolved profile 可以同时包含多个 component slice，但每个 `ContextView`
-只能 materialize 当前 component 的 requirements，不得暴露 profile 中的其它
-provider 或其它 component 的能力。
-
-### 3.9 `EvidenceFrame`
-
-结构化证据帧。
-
-示例语义：
-
-```cpp
-EvidenceFrame {
-    capability = "display.primary",
-    provider = "hx8394d.dsi_ltdc",
-    status = ok,
-    fields = {
-        {"mode", "720x1280"},
-        {"format", "rgb888"},
-        {"lanes", "2"},
-    },
-};
-```
-
-v0 不规定具体字段编码，但规定 evidence 必须是结构化事实，而不是预格式化日志。
-
-## 4. Capability 三层载体
-
-### 4.1 Concept capability
-
-Concept capability 用于源码级协作、host mock、MCU 静态绑定和零成本抽象。
-
-它适合表达：
-
-- app template requirements。
-- provider 是否满足语义。
-- host / MCU 共享 app 的编译期约束。
-
-它不适合直接作为 ELF ABI。
-
-### 4.2 Runtime capability ref
-
-Runtime capability ref 用于 profile materialization 后的运行期访问。
-
-它适合表达：
-
-- 已绑定 provider 的轻量引用。
-- registry / context view 的内部存储。
-- 静态组件和运行期发现平面之间的桥。
-
-它不得退化成“随时按名字查服务”的 service locator。
-
-### 4.3 ABI capability table
-
-ABI capability table 是未来 dynamic / ELF 边界的方向。
-
-它适合表达：
-
-- hostcall table。
-- C ABI ops table。
-- dynamic app 与 resident monitor 之间的稳定边界。
-
-v0 不实现 ABI table，只要求 concept 和 runtime ref 的语义不要阻塞未来映射。
-
-## 5. Component projection
-
-### 5.1 Init projection
-
-init projection 把 component topology 中的启动依赖 materialize 到 `init.graph`。
-
-规则：
-
-- init projection 入口必须接受已解析 profile，而不是原始 component/provider 列表。
-- init projection 中暴露的 provider identity 必须来自同一个 profile binding。
-- init dependency 必须是 DAG。
-- `init.graph` 只负责启动顺序和 init lifecycle。
-- 运行期事件循环、scheduler、reactor 不得被强行塞进 init DAG。
-
-示例：
-
-```text
-power -> display -> display_demo
-```
-
-这只是启动依赖，不代表 display 在运行期同步调用 app。
-
-### 5.2 Runtime projection
-
-runtime projection 描述组件进入 scheduler / reactor / event pump 的方式。
-
-它可以引用 component topology，但不能和 init projection 混为一谈。
-
-运行期拓扑通常是 temporal、reactive、cyclic、asynchronous 的，不要求是 DAG。
-
-### 5.3 Context projection
-
-context projection 根据 `ProfileBinding` 生成 app 可见的 `ContextView`。
-
-规则：
-
-- context projection 入口必须接受已解析 profile。
-- app 只能访问它声明过的 requirements。
-- `ContextView` 中 materialize 的 provider identity 必须来自同一个 profile binding。
-- 多 component profile 必须为每个 component materialize 独立 `ContextView` slice。
-- ContextView 不暴露 provider registry。
-- ContextView 不提供 fallback lookup。
-
-`Examples/system/rte_context_slice_smoke` 是 `ContextView` slice 的 v0 可执行样本：
-同一个 resolved profile 同时服务 UI app 与 diagnostics app，但两个 app 分别只能访问
-自己的 log/display/clock 或 trace/clock 能力切片。
-`Examples/system/rte_evidence_slice_smoke` 进一步验证 evidence 不属于任何 app 的
-`ContextView` slice；它是 profile-wide side channel，可以观测 profile 内 provider，
-但不会把 evidence collector 注入应用世界。
-
-### 5.4 Evidence projection
-
-evidence projection 收集 provider / component 产出的结构化状态。
-
-规则：
-
-- evidence projection 入口必须接受已解析 profile。
-- evidence frame 中报告的 provider identity 必须来自同一个 profile binding。
-- evidence producer 不能隐式改变硬件状态。
-- evidence snapshot 应可重复读取。
-- presentation 层负责格式化。
-
-`Examples/system/rte_projection_gate_smoke` 是 projection gate 的 v0 可执行样本：
-原始 `ProfileSpec` 不能直接进入 init、context 或 evidence projection，只有
-profile resolution 产生的 `ResolvedProfile` token 可以继续派生 projection。
-`Examples/system/rte_projection_consistency_smoke` 进一步验证同一份 binding 在
-init、context 与 evidence projection 中必须保留一致的 provider identity。
-
-### 5.5 Explain projection
-
-explain projection 从已解析 profile 派生只读 report / explain surface。
-
-规则：
-
-- explain projection 入口必须接受已解析 profile。
-- raw `ProfileSpec` 不能直接进入 explain projection。
-- explain row 中报告的 provider identity 必须来自同一个 profile binding。
-- explain 可以呈现 provider facts，但不读取 runtime provider 实例。
-- presentation 层负责把 report 格式化为文本或未来 artifact。
-- v0 不定义 JSON、schema、generator 或 system compiler artifact 管线。
-
-`Examples/system/rte_explain_projection_smoke` 是 explain projection 的 v0 可执行样本：
-host 与 H747 profile 共享同一组 app capability 语义，但 explain report 可以展示
-不同 provider identity 以及 display / input fact 差异。
-
-## 6. Profile resolution rules
-
-Profile resolution 至少要满足以下规则：
-
-1. 每个 `RequirementDesc` 必须有显式 binding。
-2. 多个 provider 满足同一 `CapabilityKind` 时，必须通过 role / binding 消歧。
-3. binding 只能指向提供了匹配 `Provided<CapabilityKind, CapabilityRole>` token 的 provider。
-4. app 不能直接依赖 provider 名称。
-5. provider 不能通过隐藏全局对象绕过 binding。
-6. unresolved requirement 是配置错误，不是运行期 fallback 场景。
-7. 同一个 provider 可以绑定多个 role，但每个 role 必须分别声明和绑定。
-
-`Examples/system/rte_profile_resolution_smoke` 是这组规则的 v0 可执行样本。
-它把 missing binding、duplicate binding、wrong role binding、duplicate provider
-token、stale binding 与 extra binding 都固定为 profile resolution 失败场景，
-同时只让已解析的 profile 继续派生 init、context 与 evidence projection。
-`Examples/system/rte_profile_selection_smoke` 验证同一 app requirements 可以在
-host/mock profile 与 board/H747 profile 间切换：app 只依赖裁剪后的 `ContextView`，
-provider identity 的差异只出现在 profile binding、evidence projection 与 explain
-projection 中。
-`Examples/system/rte_multi_role_provider_smoke` 验证同一 provider 多 role 的合法路径：
-例如 `shared_console` 同时提供 `TextSink.log` 与 `TextSink.debug_trace`，但两个 role
-仍然必须分别声明、分别绑定、分别投影。
-
-示例：
-
-```text
-providers:
-  uart1_console: TextSink
-  usb_cdc_console: TextSink
-
-requirements:
-  display_demo.log: TextSink as log
-
-binding:
-  display_demo.log <- uart1_console
-```
-
-## 7. 与现有 Charm 文档的关系
-
-- `docs/system/init_graph_contract.md`
-  继续定义 init graph 的现行契约。本文只说明 init graph 是 component topology
-  的 init projection。
-- `docs/architecture/driver_model.md`
-  继续定义设备/驱动与 runtime discovery plane。本文只定义静态能力装配边界。
-- `docs/archive/architecture-inventory-v0/README.md`
-  记录已经退役的 capability recovery 模型；当前没有统一能力回收流程，本文的 RTE 词汇也不再进入现行入口。
-- `docs/archive/system-evidence-and-staging-v0/bringup_evidence_retained_notes.md`
-  继续定义 bringup evidence 流程。本文只定义 RTE 层 evidence projection 的语义位置。
-- `docs/architecture/system_compiler_vocabulary_v0.md`
-  继续定义 system compiler 词汇。本文的词汇可作为后续 system compiler 输入对象。
-
-## 8. 验证场景
-
-### 8.1 Multiple TextSink providers
-
-同一 profile 中存在 `uart1_console` 与 `usb_cdc_console`。
-
-期望：
-
-- app 声明 `TextSink as log`。
-- profile 显式绑定 `log <- uart1_console`。
-- app 不能隐式选择任意 `TextSink`。
-
-### 8.2 Host / MCU shared app
-
-同一 app requirements 在 host mock 与 H747 provider 下生成不同 `ContextView`。
-
-期望：
-
-- app 代码不依赖 HAL。
-- app 代码不依赖 BSP global。
-- app 代码不关心 provider 是 host 还是 MCU。
-
-### 8.3 Init projection
-
-`power -> display -> app` 进入 init projection。
-
-期望：
-
-- init graph 只表达启动顺序。
-- runtime event / scheduler / reactor 另行投影。
-
-### 8.4 Evidence side channel
-
-display provider 初始化后产出结构化 `EvidenceFrame`。
-
-期望：
-
-- provider 不直接格式化日志。
-- presentation 层可以把 evidence 打印为文本。
-- evidence snapshot 可被 host / CI 对比。
-
-### 8.5 No DSL dependency
-
-所有 v0 语义必须能用普通 C++ constexpr 描述表达。
-
-期望：
-
-- 没有 manifest parser。
-- 没有 code generator。
-- 没有 graph DSL。
-
-## 9. v0 采用顺序建议
-
-1. 先在文档和 review 语言中使用本文词汇。
-2. 再挑一个 host / MCU 共享 app 作为 `ComponentDesc + ContextView` 语义样本。
-3. 再把一个 board service 的 snapshot 接入 `EvidenceFrame` 语义。
-4. 最后再评估是否需要 manifest 或 generator。
-
-任何工具化动作都必须晚于语义验证。
+旧 descriptor 词汇表、Component/World 源模型、H747/Player 映射、projection 示例清单、reflection
+路线和采用顺序已删除。

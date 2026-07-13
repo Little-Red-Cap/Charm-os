@@ -2,7 +2,8 @@
 
 ## 状态
 
-本目录记录 Constitution 建立前的设备接口准入实验。旧体系由五份文档组成：interface policy、narrow waist、admission matrix、evidence ladder 和 promotion queue，共约两千行。它们现已退出默认阅读路径。
+本目录记录 Constitution 建立前的设备接口准入实验。旧 interface policy、narrow waist、admission
+matrix、evidence ladder 和 promotion queue 已退出默认阅读路径。
 
 现行 implementation interface review：
 

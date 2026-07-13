@@ -21,11 +21,4 @@
 - Host caller/frame fixture 只验证映射，不证明真实 privilege transition。
 - Trace/witness 是局部诊断，不是稳定协议。
 
-## 被收敛的文档
-
-- `minimal_kernel_task_syscall_api_contract.md`
-- `minimal_kernel_task_syscall_catalog_contract.md`
-- `minimal_kernel_task_syscall_dispatch_contract.md`
-- `minimal_kernel_task_syscall_frame_contract.md`
-
-其中 frame 文档曾有历史编码损坏；可复用语义已从当前源码重新提炼，不保留损坏正文。
+历史 frame 文档存在编码损坏；当前语义以源码和上列现行契约为准。

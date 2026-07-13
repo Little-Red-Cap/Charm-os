@@ -3,7 +3,7 @@
 ## 文档状态
 
 - `status`: `archived`
-- `scope`: 已删除 compiler world/freeze/lowering 文档中的独立讨论
+- `scope`: compiler world/freeze/lowering 的历史设计问题
 - `current entry`: [`../../compiler/README.md`](../../compiler/README.md)
 
 原目录曾把一套未实现的 compiler 理论拆成 constitution、pass authority、world lifecycle、
@@ -31,20 +31,3 @@ contract 保留。
 - observation import pass；
 - LLVM/MLIR pipeline；
 - 由 static reflection 自动生成项目 residue。
-
-## 被收敛的文件
-
-- `charm_compiler_constitution_v0.md`
-- `compiler_pass_authority_and_freeze_boundary_v0.md`
-- `compiler_world_lifecycle_v0.md`
-- `compiler_world_lifecycle_projection_v0.md`
-- `compiler_world_lifecycle_projection_coverage_v0.md`
-- `compiler_sidecar_landing_order_v0.md`
-- `compiler_world_ir_pipeline_contract_v0.md`
-- `compiler_world_ir_first_landing_slice_v0.md`
-- `compiler_hosted_reflection_extraction_surface_v0.md`
-- `compiler_lowering_surface_contract_v0.md`
-- `compiler_freeze_receipt_contract_v0.md`
-- `compiler_archive_manifest_contract_v0.md`
-
-低价值重复由 Git 历史保留；上述独立问题已在本页提炼。

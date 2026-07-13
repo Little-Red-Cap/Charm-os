@@ -1,74 +1,43 @@
 # H747 POSIX Lab
 
-`posix_lab` is the H747 compatibility shell for C/POSIX ELF programs. It is
-separate from the resident App ABI used by `app_lab` and `dev_loader`.
+## 文档状态
+
+- `status`: `supporting`
+- `scope`: H747 上的 C/POSIX ELF compatibility shell
+- `source`: [`posix_lab.cpp`](posix_lab.cpp)、[`app.cmake`](app.cmake)
+
+`posix_lab` 使用 POSIX `main(argc, argv, envp)`，与 `app_lab/dev_loader` 的
+`charm_app_main(CharmAppApi, ...)` 分离：
 
 ```text
 POSIX ProgramImage -> spawn -> load_image -> start -> waitpid
 ```
 
-It validates POSIX `main(argc, argv, envp)` behavior. It does not adapt that
-entry into `charm_app_main` or define `CharmAppApi`.
+## Monitor
 
-## Monitor Commands
+| 命令 | 作用 |
+|---|---|
+| `elf list` / `elf status` | builtin fixture 与 runtime/load/cwd/PATH diagnostics |
+| `elf run <name> [args...]` | 运行 embedded fixture |
+| `elf run-path <path> [args...]` | generic path surface |
+| `elf smoke` | 运行 source-defined compatibility subset |
 
-- `elf list`: list embedded POSIX ELF fixtures.
-- `elf status`: print runtime, load-region, cwd and PATH diagnostics.
-- `elf run <name> [args...]`: run an embedded fixture.
-- `elf run-path <path> [args...]`: use the generic path surface.
-- `elf smoke`: run the source-defined compatibility subset.
+fixture name、smoke membership、参数和输出由 `posix_lab.cpp` 维护。
 
-Fixture names and smoke membership are owned by `posix_lab.cpp` and the embedded
-ELF build inputs, not duplicated here.
+## 边界
 
-## Owned Boundary
+本 target 验证 C/POSIX ELF load/entry、spawn/start/wait result、argv/env/cwd/PATH、RAMFS file、fd、
+pipe、stat 和 terminal fixture。它不拥有 resident download/Store、`CharmAppApi`、Player policy、package
+manager 或通用 process runtime。
 
-This target checks:
+Embedded ELF 是已接线 source。file-backed executable backend 尚未接入，因此 `elf run-path <path>`
+稳定返回 `not_supported`，不得 fallback 到无关 embedded fixture。load region/cache 属于 H747 project；
+build-only 不证明 POSIX runtime 成功。
 
-- C/POSIX ELF loading and entry;
-- `spawn/load/start/wait` result propagation;
-- argv, env, cwd and PATH behavior;
-- RAMFS-backed file operations;
-- minimal fd, pipe, stat and terminal compatibility used by its fixtures.
+## 验证
 
-It does not own:
+从 `Examples/project/h747-lab` 复用 `build-h747-lab-posix-lab-debug`。板级验收至少执行 `elf run hello`、
+`elf smoke`、unsupported `elf run-path` 与 `elf status`；结果以当次 console log 为准。
 
-- resident App download, Store or image selection;
-- `CharmAppApi` or App capability tables;
-- Player/display/input policy;
-- a product shell, package manager or general process runtime.
-
-## Current Limits
-
-Embedded ELF is the verified path. Generic `elf run-path <path>` keeps a stable
-`not_supported` result until a real file-backed executable source is connected.
-Do not replace this with fallback to an unrelated embedded fixture.
-
-The load region and cache behavior are H747 project resources. POSIX source,
-file or process semantics must not infer success from a successful firmware
-build alone.
-
-## Build And Acceptance
-
-Run from `Examples/project/h747-lab` and reuse the configured build directory:
-
-```powershell
-cmake --build --preset build-h747-lab-posix-lab-debug -- -j1
-```
-
-Minimum board acceptance:
-
-```text
-elf list
-elf run hello
-elf smoke
-elf run-path <unsupported-path>
-elf status
-```
-
-The embedded run and smoke must complete with their expected exit/results; the
-unsupported path must remain a non-executing `not_supported` result. Host,
-build-only and H747 evidence remain separate.
-
-The current role split is documented in
-[`h747_lab_dynamic_boundary_roadmap.md`](../../docs/h747_lab_dynamic_boundary_roadmap.md).
+动态入口分工见
+[`h747_lab_dynamic_boundary_roadmap.md`](../../docs/h747_lab_dynamic_boundary_roadmap.md)。

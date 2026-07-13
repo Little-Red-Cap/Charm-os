@@ -54,6 +54,10 @@ host semantic summary + QEMU machine summary
 v0 汇总 `tick`、`trap`、`thread`、`task_syscall` 与 `handoff_continuity`。这些布尔值是 exporter
 对输入 summary 的投影，不是仅凭 schema presence 成立的声明。
 
+`handoff_continuity` 当前只是 session continuity fact，不单独构成一个 world。只有 handoff 开始承担
+image format、payload verification、slot/rollback、multi-stage boot chain 或 boot medium 契约时，
+才应重新评估其边界。
+
 ### Ledger 与 Verdict
 
 `runtime_ledger.json` 记录 exporter 已消费事实的顺序；session summary 的 `ledger` 字段只定位该侧车
@@ -96,5 +100,5 @@ CI、compare consumer 和其它 runner 的参数由各自脚本及 workflow 维�
 
 ## 历史材料
 
-早期完整设计、阶段叙事、world compare 展开和 runner 清单归档于
-[`../archive/minimal-kernel-runtime-v0/kernel_runtime_session_witness_v0.md`](../archive/minimal-kernel-runtime-v0/kernel_runtime_session_witness_v0.md)。
+早期完整设计中的分层与 handoff 取舍已经收敛到本文；重复的字段枚举、world compare 展开、runner
+清单和阶段叙事已删除。历史实现过程由 Git 追溯。

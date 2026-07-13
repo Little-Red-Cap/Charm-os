@@ -15,6 +15,16 @@ FIFO 取完整 frame、不足补零并更新 underrun 计数；读取文件、�
 早期主数据路径选择 S32 interleaved 作为处理域，在写入 PCM FIFO 前量化为 S16。该选择后来进入
 当前实现，但本文不冻结未来格式。
 
+## Driver binding 取舍
+
+- `ctx + function table` 适合需要运行期替换、稳定 C ABI 或跨语言接入的边界，但会擦除静态类型并
+  引入间接调用与手工表维护。
+- concept/template 能保留类型检查、内联和编译期裁剪，但会把 implementation 固定到 consumer，
+  也可能扩大实例化与构建耦合。
+- 二者不是全局二选一。backend 内部可以保持 typed/static；只有真实存在运行期替换或 ABI 隔离需求的
+  source/sink 边界才引入窄 type erasure。
+- 不应由 Audio 定义仓库级通用 Driver 对象模型；binding 形状必须由 consumer、生命周期和替换需求决定。
+
 ## Buffer 与 DSP
 
 - 容量、请求和水位应以 frame 为主要单位；换算到 byte 时必须使用完整 `frame_size`，读写不得产生

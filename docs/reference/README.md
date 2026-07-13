@@ -22,11 +22,10 @@
 
 - [`vsf/README.md`](vsf/README.md)
 
-### 我想看音频驱动对象 / 架构讨论摘录
+### 我想看早期音频架构取舍
 
-先读：
-
-- [`Charm Audio Design.md`](Charm Audio Design.md)
+原始对话转储已去除；driver binding、pull/DMA、graph 与 reconfigure 的独立取舍压缩在
+[`audio_design_retained_notes.md`](../archive/audio-v0/audio_design_retained_notes.md)。
 
 ### 我想看 FileX / MAL 对照
 

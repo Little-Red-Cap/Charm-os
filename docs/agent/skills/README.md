@@ -88,12 +88,8 @@ skills 回答的是：
   - 定义该技能的检查清单
   - 适合 review、审核、验收类任务
 
-如未来需要，还可以增加：
-
-- `examples.md`
-- `templates/`
-- `schemas/`
-- `scripts/`
+技能目录可以包含 `examples.md`、`templates/`、`schemas/` 或 `scripts/`，但只有在该技能确实需要
+独立示例、结构化输入或自动检查时才添加。
 
 ## 总体原则
 

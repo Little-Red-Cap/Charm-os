@@ -41,6 +41,9 @@ Runtime sidecar 是场景结束快照。multi fixture 在最后执行 remove/for
 
 ## Runner
 
-[`usb_native_smoke.ps1`](../../scripts/usb_native_smoke.ps1) 是 Host 聚合入口。默认复用既有 build
-directory；`-ConfigureOnly` 只配置，`-Clean` 仅在明确需要丢弃缓存时使用。MCU/real-board 使用各自
-toolchain 与 evidence runner。
+[`usb_native_smoke.ps1`](../../scripts/usb_native_smoke.ps1) 是 Host 聚合入口。它为每个 case 使用独立的
+根目录 `cmake-build-usb-*`，后续运行复用对应目录；成功后不会自动清理。`-ConfigureOnly` 只配置，
+`-Clean` 会先删除每个 case 的既有目录。
+
+磁盘受限时不要运行完整聚合入口；按需将单个 case 配置到调用方拥有的统一临时 build directory。
+MCU/real-board 使用各自 toolchain 与 evidence runner。

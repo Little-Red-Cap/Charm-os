@@ -23,7 +23,7 @@ import alg_scroll_thumb;
 using namespace ui::render;
 
 export
-class ScrollContainer : public WidgetBase<ScrollContainer> {
+class ScrollContainer : public WidgetBase<ScrollContainer, 64> {
 public:
     static constexpr int kLayoutId = 1;
 

@@ -1,30 +1,16 @@
 # Build Route
 
-## 适用场景
+## 文档状态
 
-- CMake / preset / 构建接线
-- 示例构建入口
-- 构建目录、配置与 toolchain 相关问题
+- `status`: `supporting`
+- `scope`: CMake、preset、toolchain 与 target build 路由
 
-## 最短阅读顺序
+## 最短路径
 
-1. [`../../../CMakePresets.json`](../../../CMakePresets.json)
-2. [`../../project/README.md`](../../project/README.md)
-3. [`../skills/charm-cmake/SKILL.md`](../skills/charm-cmake/SKILL.md)
-4. 目标目录下的 `README.md` 或示例入口
+1. [`CMakePresets.json`](../../../CMakePresets.json)
+2. [Project 文档入口](../../project/README.md)
+3. 目标目录的 README、CMake 与 source
+4. [CMake skill](../skills/charm-cmake/SKILL.md)
 
-仅在出现 `conflicting language linkage for imported declaration` 时，参考
-[`cpp_modules_stdlib_linkage_conflicts.md`](../../architecture/cpp_modules_stdlib_linkage_conflicts.md) 的事件边界；
-不要把局部 workaround 当作全仓 modules 规则。
-
-## 先不要做什么
-
-- 不要无理由绕开 preset。
-- 不要发明与仓库约定不一致的构建目录命名。
-- 不要只改构建脚本，不同步相关入口文档。
-
-## 完成前自检
-
-- preset / toolchain / 构建目录是否一致。
-- 新入口是否可从 README 找到。
-- 构建或使用方式变化是否已回写文档。
+构建事实以 preset/CMake/target 为准；行为或使用入口变化时同步对应 README。仅遇到 imported declaration
+linkage 冲突时再读 [专项事件记录](../../architecture/cpp_modules_stdlib_linkage_conflicts.md)。

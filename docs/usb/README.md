@@ -17,7 +17,7 @@
 | descriptor DSL 与 string/lang | [`usb_dsl_overview.md`](usb_dsl_overview.md)、[`usb_strings_overview.md`](usb_strings_overview.md) |
 | native mock/replay | [`usb_native_mock_workflow.md`](usb_native_mock_workflow.md) |
 | CDC control/data | [`usb_cdc_contract.md`](usb_cdc_contract.md) |
-| boardlog/replay | [`usb_boardlog_format.md`](usb_boardlog_format.md)、[`usb_boardlog_coverage_matrix.md`](usb_boardlog_coverage_matrix.md)、[`usb_msc_trace_vocabulary.md`](usb_msc_trace_vocabulary.md) |
+| boardlog/replay | [`usb_boardlog_format.md`](usb_boardlog_format.md)、[`usb_msc_trace_vocabulary.md`](usb_msc_trace_vocabulary.md) |
 
 `contract` 只约束对应局部接口；`workflow`、`matrix` 和 `guidelines` 不自动成为架构契约。Native
 fixture 不替代板级 DCD/HCD、IRQ、DMA、cache 和真实主机兼容性验证。

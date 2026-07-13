@@ -1,27 +1,16 @@
 # Block Device Route
 
-## 适用场景
+## 文档状态
 
-- block device 抽象
-- 存储接线
-- MAL / cache / mount 相关讨论
+- `status`: `supporting`
+- `scope`: block device、MAL、cache 与 VFS mount 阅读路由
 
-## 最短阅读顺序
+## 最短路径
 
-1. [`../../storage/README.md`](../../storage/README.md)
-2. [`../../storage/block_device_contract.md`](../../storage/block_device_contract.md)
-3. [`../../storage/mal_overview.md`](../../storage/mal_overview.md)
-4. [`../../storage/fs_vfs_mount_rules.md`](../../storage/fs_vfs_mount_rules.md)
-5. [`../skills/charm-block-device/SKILL.md`](../skills/charm-block-device/SKILL.md)
+1. [Storage 入口](../../storage/README.md)
+2. [BlockDevice contract](../../storage/block_device_contract.md)
+3. [MAL](../../storage/mal_overview.md)
+4. [VFS mount](../../storage/fs_vfs_mount_rules.md)
+5. [Block device skill](../skills/charm-block-device/SKILL.md)
 
-## 先不要做什么
-
-- 不要跳过 block 能力定义直接谈 FS 挂载。
-- 不要把 cache、协议桥接和设备抽象混成一层。
-- 不要忽略块大小、特性标志与错误模型。
-
-## 完成前自检
-
-- block 能力边界是否清楚。
-- mount / cache / bridge 分层是否明确。
-- 文档与示例入口是否同步。
+先确定 block 行为与 ownership，再讨论 cache、bridge 和 filesystem mount；后者不能反向定义 block。

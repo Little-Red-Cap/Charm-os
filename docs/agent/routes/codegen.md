@@ -1,28 +1,17 @@
 # Codegen Route
 
-## 适用场景
+## 文档状态
 
-- 代码生成
-- 模块骨架设计
-- 现有接口的增量扩展
+- `status`: `supporting`
+- `scope`: 代码生成、模块骨架与接口扩展路由
 
-## 最短阅读顺序
+## 最短路径
 
-1. [`../rules/collaboration.md`](../rules/collaboration.md)
-2. [`../rules/embedded-modern-cpp.md`](../rules/embedded-modern-cpp.md)
-3. [`../rules/charm-architecture.md`](../rules/charm-architecture.md)
-4. [`../../architecture/signal_state_contract_v0.md`](../../architecture/signal_state_contract_v0.md)（涉及事件连接时）
-5. [`../skills/codegen/SKILL.md`](../skills/codegen/SKILL.md)
-6. [`../templates/codegen-output.md`](../templates/codegen-output.md)
+1. [协作规则](../rules/collaboration.md)
+2. [嵌入式 C++ 规则](../rules/embedded-modern-cpp.md)
+3. [架构规则](../rules/charm-architecture.md)
+4. [Codegen skill](../skills/codegen/SKILL.md)
+5. [输出模板](../templates/codegen-output.md)
 
-## 先不要做什么
-
-- 不要在架构不清时直接开写。
-- 不要为了局部方便破坏分层、初始化纪律或 IO 纪律。
-- 不要跳过文档同步。
-
-## 完成前自检
-
-- 能力归属是否清晰。
-- 初始化、依赖方向、错误模型是否一致。
-- 行为变化是否同步回写文档。
+涉及 signal/state 时补读 [对应契约](../../architecture/signal_state_contract_v0.md)。先明确 ownership、
+依赖、错误与验证边界，再生成代码。

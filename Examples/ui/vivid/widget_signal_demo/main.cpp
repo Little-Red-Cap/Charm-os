@@ -1,3 +1,4 @@
+#include <cstdint>
 #include <cstdio>
 
 import charm.core;
@@ -5,6 +6,7 @@ import charm.core.event;
 import charm.core.input_interaction;
 import charm.core.object;
 import charm.widgets.button;
+import charm.widgets.foldable_panel;
 import charm.widgets.image;
 import charm.widgets.list;
 import charm.widgets.menu_item;
@@ -12,6 +14,19 @@ import charm.widgets.scroll_container;
 import charm.widgets.spin_zoom_widget;
 
 namespace {
+    template<typename T>
+    concept OwnsObjectChildren = requires(T& object, WidgetHandle child) {
+        object.add_child(child);
+        object.remove_child(child);
+        object.child_count();
+        object.child_at(0);
+    };
+
+    static_assert(!OwnsObjectChildren<Button>);
+    static_assert(OwnsObjectChildren<List>);
+    static_assert(OwnsObjectChildren<FoldablePanel>);
+    static_assert(OwnsObjectChildren<ScrollContainer>);
+
     struct Probe {
         int primary_clicks{0};
         int secondary_clicks{0};
@@ -143,8 +158,12 @@ namespace {
 int main() {
     print_widget_signal_run_begin();
 
-    std::printf("[ws-abi] object_base=%zu interaction_list=%zu double_tap=%zu pinch=%zu drag=%zu long_press=%zu\n",
+    std::printf("[ws-abi] object_base=%zu layout_spec=%zu scroll_container=%zu list=%zu foldable_panel=%zu interaction_list=%zu double_tap=%zu pinch=%zu drag=%zu long_press=%zu\n",
                 sizeof(ObjectBase),
+                sizeof(ObjectBase::LayoutSpec),
+                sizeof(ScrollContainer),
+                sizeof(List),
+                sizeof(FoldablePanel),
                 sizeof(InteractionList<>),
                 sizeof(DoubleTapRestoreStrategy),
                 sizeof(PinchScrollStrategy),
@@ -358,6 +377,38 @@ int main() {
 
     ScrollContainer scroll{};
     scroll.set_rect({0, 0, 100, 100});
+    const WidgetHandle child_a{WidgetKind::Button, 1, 1};
+    const WidgetHandle child_b{WidgetKind::Label, 2, 1};
+    const WidgetHandle child_c{WidgetKind::Image, 3, 1};
+    if (!expect(scroll.add_child(child_a) && scroll.add_child(child_c),
+                "scroll container owns child handles")) return 1;
+    if (!expect(scroll.insert_child_before(child_b, child_c)
+                    && scroll.child_count() == 3
+                    && scroll.child_at(0) == child_a
+                    && scroll.child_at(1) == child_b
+                    && scroll.child_at(2) == child_c,
+                "owned child storage preserves insertion order")) return 1;
+    if (!expect(scroll.move_child_to_front(child_b)
+                    && scroll.child_at(2) == child_b,
+                "owned child storage moves a child to the front")) return 1;
+    if (!expect(scroll.move_child_to_back(child_b)
+                    && scroll.child_at(0) == child_b,
+                "owned child storage moves a child to the back")) return 1;
+    if (!expect(scroll.remove_child(child_a)
+                    && !scroll.has_child(child_a)
+                    && scroll.child_count() == 2,
+                "owned child storage removes a child")) return 1;
+    scroll.clear_children();
+    bool filled_to_capacity = true;
+    for (std::size_t i = 0; i < ScrollContainer::child_capacity; ++i) {
+        filled_to_capacity = filled_to_capacity
+            && scroll.add_child(WidgetHandle{WidgetKind::Button, static_cast<std::uint16_t>(i), 1});
+    }
+    if (!expect(filled_to_capacity
+                    && scroll.child_count() == ScrollContainer::child_capacity
+                    && !scroll.add_child(WidgetHandle{WidgetKind::Button, 65, 1}),
+                "owned child storage reports fixed-capacity overflow")) return 1;
+    scroll.clear_children();
     const auto pinch_begin = Event::gesture(Event::Type::GesturePinch, 50, 50, 0, 0,
                                             Event::GesturePhase::Begin);
     if (!expect(scroll.on_event(pinch_begin), "scroll container directly dispatches owned pinch strategy")) return 1;
@@ -373,8 +424,49 @@ int main() {
     if (!expect(!spin_zoom.on_event(Event::mouse(Event::Type::Click, 4, 4, 0, 300)),
                 "spin zoom disables owned double tap strategy")) return 1;
 
+    ObjectBase layout_probe{};
+    layout_probe.set_flex_layout(1, 2, 3, 4, 5);
+    if (!expect(layout_probe.has_layout_spec()
+                    && layout_probe.has_flex_layout()
+                    && layout_probe.layout_mode() == ObjectBase::LayoutMode::Flex
+                    && layout_probe.flex_flow() == 1
+                    && layout_probe.flex_main_align() == 2
+                    && layout_probe.flex_cross_align() == 3
+                    && layout_probe.flex_gap() == 4
+                    && layout_probe.flex_padding() == 5,
+                "flex layout getters read the canonical layout spec")) return 1;
+
+    ObjectBase::LayoutSpec grid_spec{};
+    grid_spec.kind = ObjectBase::LayoutMode::Grid;
+    grid_spec.columns = 3;
+    grid_spec.cell_w = 40;
+    grid_spec.cell_h = 24;
+    grid_spec.grid_gap = 6;
+    grid_spec.grid_padding = 8;
+    layout_probe.set_layout_spec(grid_spec);
+    if (!expect(!layout_probe.has_flex_layout()
+                    && layout_probe.layout_mode() == ObjectBase::LayoutMode::Grid
+                    && layout_probe.grid_columns() == 3
+                    && layout_probe.grid_cell_width() == 40
+                    && layout_probe.grid_cell_height() == 24
+                    && layout_probe.grid_gap() == 6
+                    && layout_probe.grid_padding() == 8,
+                "direct layout spec updates all compatibility getters")) return 1;
+
+    layout_probe.set_flow_layout(7, 9, 11);
+    if (!expect(layout_probe.layout_mode() == ObjectBase::LayoutMode::Flow
+                    && layout_probe.flow_gap() == 7
+                    && layout_probe.flow_line_gap() == 9
+                    && layout_probe.flow_padding() == 11,
+                "layout mode changes replace the canonical layout spec")) return 1;
+    layout_probe.clear_layout_spec();
+    if (!expect(!layout_probe.has_layout_spec()
+                    && !layout_probe.has_flex_layout()
+                    && layout_probe.layout_mode() == ObjectBase::LayoutMode::Anchor,
+                "clearing layout spec resets compatibility state")) return 1;
+
     if constexpr (sizeof(void*) == 8) {
-        if (!expect(sizeof(ObjectBase) <= 808, "ObjectBase host footprint did not shrink by at least 240 bytes")) {
+        if (!expect(sizeof(ObjectBase) <= 232, "ObjectBase host footprint retained mirrored layout storage")) {
             return 1;
         }
     }
@@ -406,8 +498,10 @@ int main() {
     print_widget_signal_case("owned_interaction_dispatch");
     std::printf(" image=direct scroll=direct spin_zoom=direct\n");
     print_widget_signal_case("object_interaction_footprint");
-    std::printf(" object_base=%zu opt_in_components=%zu\n",
+    std::printf(" object_base=%zu layout_spec=%zu child_capacity=%zu opt_in_components=%zu\n",
                 sizeof(ObjectBase),
+                sizeof(ObjectBase::LayoutSpec),
+                ScrollContainer::child_capacity,
                 sizeof(InteractionList<>) + sizeof(DragStrategy) + sizeof(LongPressStrategy));
     print_widget_signal_run_end(true);
     std::puts("[widget_signal_demo] ok");

@@ -1,4 +1,5 @@
 module;
+#include <array>
 #include <cstddef>
 #include <cstdint>
 export module charm.core.object;
@@ -125,13 +126,6 @@ public:
     std::uint8_t style_variant() const noexcept { return style_variant_; }
 
     void set_flex_layout(int flow, int main_align, int cross_align, int gap, int padding) noexcept {
-        flex_enabled_ = true;
-        layout_mode_ = LayoutMode::Flex;
-        flex_flow_ = flow;
-        flex_main_align_ = main_align;
-        flex_cross_align_ = cross_align;
-        flex_gap_ = gap;
-        flex_padding_ = padding;
         layout_spec_enabled_ = true;
         layout_spec_ = {};
         layout_spec_.kind = LayoutMode::Flex;
@@ -146,10 +140,6 @@ public:
     int flex_grow() const noexcept { return flex_grow_; }
 
     void set_flow_layout(int gap, int line_gap, int padding) noexcept {
-        layout_mode_ = LayoutMode::Flow;
-        flow_gap_ = gap;
-        flow_line_gap_ = line_gap;
-        flow_padding_ = padding;
         layout_spec_enabled_ = true;
         layout_spec_ = {};
         layout_spec_.kind = LayoutMode::Flow;
@@ -158,35 +148,28 @@ public:
         layout_spec_.padding = padding;
     }
 
-    int flow_gap() const noexcept { return flow_gap_; }
-    int flow_line_gap() const noexcept { return flow_line_gap_; }
-    int flow_padding() const noexcept { return flow_padding_; }
+    int flow_gap() const noexcept { return layout_spec_.gap; }
+    int flow_line_gap() const noexcept { return layout_spec_.line_gap; }
+    int flow_padding() const noexcept { return layout_spec_.padding; }
 
     void set_grid_layout(int columns, int cell_w, int cell_h, int gap, int padding) noexcept {
-        layout_mode_ = LayoutMode::Grid;
-        grid_cols_ = (columns > 0) ? columns : 1;
-        grid_cell_w_ = cell_w;
-        grid_cell_h_ = cell_h;
-        grid_gap_ = gap;
-        grid_padding_ = padding;
         layout_spec_enabled_ = true;
         layout_spec_ = {};
         layout_spec_.kind = LayoutMode::Grid;
-        layout_spec_.columns = grid_cols_;
+        layout_spec_.columns = (columns > 0) ? columns : 1;
         layout_spec_.cell_w = cell_w;
         layout_spec_.cell_h = cell_h;
         layout_spec_.grid_gap = gap;
         layout_spec_.grid_padding = padding;
     }
 
-    int grid_columns() const noexcept { return grid_cols_; }
-    int grid_cell_width() const noexcept { return grid_cell_w_; }
-    int grid_cell_height() const noexcept { return grid_cell_h_; }
-    int grid_gap() const noexcept { return grid_gap_; }
-    int grid_padding() const noexcept { return grid_padding_; }
+    int grid_columns() const noexcept { return layout_spec_.columns; }
+    int grid_cell_width() const noexcept { return layout_spec_.cell_w; }
+    int grid_cell_height() const noexcept { return layout_spec_.cell_h; }
+    int grid_gap() const noexcept { return layout_spec_.grid_gap; }
+    int grid_padding() const noexcept { return layout_spec_.grid_padding; }
 
     void set_constraint_layout(int padding = 0) noexcept {
-        layout_mode_ = LayoutMode::Constraint;
         layout_spec_enabled_ = true;
         layout_spec_ = {};
         layout_spec_.kind = LayoutMode::Constraint;
@@ -198,7 +181,6 @@ public:
                            int p1 = 0,
                            int p2 = 0,
                            int p3 = 0) noexcept {
-        layout_mode_ = LayoutMode::Custom;
         layout_spec_enabled_ = true;
         layout_spec_ = {};
         layout_spec_.kind = LayoutMode::Custom;
@@ -212,13 +194,11 @@ public:
     void set_layout_spec(const LayoutSpec& spec) noexcept {
         layout_spec_enabled_ = true;
         layout_spec_ = spec;
-        layout_mode_ = spec.kind;
     }
 
     void clear_layout_spec() noexcept {
         layout_spec_enabled_ = false;
         layout_spec_ = {};
-        layout_mode_ = LayoutMode::Anchor;
     }
     bool has_layout_spec() const noexcept { return layout_spec_enabled_; }
     const LayoutSpec& layout_spec() const noexcept { return layout_spec_; }
@@ -262,117 +242,20 @@ public:
     int align_h() const noexcept { return align_h_; }
     int align_v() const noexcept { return align_v_; }
 
-    bool has_flex_layout() const noexcept { return flex_enabled_; }
-    int flex_flow() const noexcept { return flex_flow_; }
-    int flex_main_align() const noexcept { return flex_main_align_; }
-    int flex_cross_align() const noexcept { return flex_cross_align_; }
-    int flex_gap() const noexcept { return flex_gap_; }
-    int flex_padding() const noexcept { return flex_padding_; }
-    LayoutMode layout_mode() const noexcept { return layout_mode_; }
-
-    bool add_child(WidgetHandle child) noexcept {
-        if (child_count_ >= kMaxChildren) return false;
-        children_[child_count_++] = child;
-        return true;
+    bool has_flex_layout() const noexcept {
+        return layout_spec_enabled_ && layout_spec_.kind == LayoutMode::Flex;
     }
-
-    void clear_children() noexcept {
-        for (std::size_t i = 0; i < child_count_; ++i) {
-            children_[i] = {};
-        }
-        child_count_ = 0;
-    }
-
-    bool remove_child(WidgetHandle child) noexcept {
-        for (std::size_t i = 0; i < child_count_; ++i) {
-            if (children_[i] == child) {
-                for (std::size_t j = i + 1; j < child_count_; ++j) {
-                    children_[j - 1] = children_[j];
-                }
-                children_[child_count_ - 1] = {};
-                --child_count_;
-                return true;
-            }
-        }
-        return false;
-    }
-
-    bool insert_child_before(WidgetHandle child, WidgetHandle before) noexcept {
-        if (child_count_ >= kMaxChildren) return false;
-        std::size_t idx = child_count_;
-        for (std::size_t i = 0; i < child_count_; ++i) {
-            if (children_[i] == before) { idx = i; break; }
-        }
-        if (idx == child_count_) {
-            return add_child(child);
-        }
-        for (std::size_t i = child_count_; i > idx; --i) {
-            children_[i] = children_[i - 1];
-        }
-        children_[idx] = child;
-        ++child_count_;
-        return true;
-    }
-
-    bool insert_child_after(WidgetHandle child, WidgetHandle after) noexcept {
-        if (child_count_ >= kMaxChildren) return false;
-        std::size_t idx = child_count_;
-        for (std::size_t i = 0; i < child_count_; ++i) {
-            if (children_[i] == after) { idx = i + 1; break; }
-        }
-        if (idx >= child_count_) {
-            return add_child(child);
-        }
-        for (std::size_t i = child_count_; i > idx; --i) {
-            children_[i] = children_[i - 1];
-        }
-        children_[idx] = child;
-        ++child_count_;
-        return true;
-    }
-
-    bool move_child_to_front(WidgetHandle child) noexcept {
-        if (child_count_ <= 1) return true;
-        std::size_t idx = child_count_;
-        for (std::size_t i = 0; i < child_count_; ++i) {
-            if (children_[i] == child) { idx = i; break; }
-        }
-        if (idx == child_count_ || idx == child_count_ - 1) return true;
-        auto temp = children_[idx];
-        for (std::size_t i = idx + 1; i < child_count_; ++i) {
-            children_[i - 1] = children_[i];
-        }
-        children_[child_count_ - 1] = temp;
-        return true;
-    }
-
-    bool move_child_to_back(WidgetHandle child) noexcept {
-        if (child_count_ <= 1) return true;
-        std::size_t idx = child_count_;
-        for (std::size_t i = 0; i < child_count_; ++i) {
-            if (children_[i] == child) { idx = i; break; }
-        }
-        if (idx == child_count_ || idx == 0) return true;
-        auto temp = children_[idx];
-        for (std::size_t i = idx; i > 0; --i) {
-            children_[i] = children_[i - 1];
-        }
-        children_[0] = temp;
-        return true;
+    int flex_flow() const noexcept { return layout_spec_.flow; }
+    int flex_main_align() const noexcept { return layout_spec_.main_align; }
+    int flex_cross_align() const noexcept { return layout_spec_.cross_align; }
+    int flex_gap() const noexcept { return layout_spec_.gap; }
+    int flex_padding() const noexcept { return layout_spec_.padding; }
+    LayoutMode layout_mode() const noexcept {
+        return layout_spec_enabled_ ? layout_spec_.kind : LayoutMode::Anchor;
     }
 
     void set_parent(WidgetHandle parent) noexcept { parent_ = parent; }
     WidgetHandle parent() const noexcept { return parent_; }
-
-    std::size_t child_count() const noexcept { return child_count_; }
-    WidgetHandle child_at(std::size_t i) const noexcept { return (i < child_count_) ? children_[i] : WidgetHandle{}; }
-    bool has_child(WidgetHandle child) const noexcept { return child_index(child) < child_count_; }
-    std::size_t child_index(WidgetHandle child) const noexcept {
-        for (std::size_t i = 0; i < child_count_; ++i) {
-            if (children_[i] == child) return i;
-        }
-        return child_count_;
-    }
 
     void draw(CanvasBase& cvs) { vtable_->draw(*this, cvs); }
 
@@ -396,8 +279,6 @@ public:
     }
 
 protected:
-    static constexpr std::size_t kMaxChildren = 64;
-
     Rect rect_{};
     Rect children_bounds_{};
     bool children_bounds_valid_{false};
@@ -405,22 +286,7 @@ protected:
     State state_{State::None};
     bool focusable_{false};
     std::uint8_t style_variant_{0};
-    bool flex_enabled_{false};
-    int flex_flow_{0};
-    int flex_main_align_{0};
-    int flex_cross_align_{0};
-    int flex_gap_{0};
-    int flex_padding_{0};
     int flex_grow_{0};
-    LayoutMode layout_mode_{LayoutMode::Anchor};
-    int flow_gap_{0};
-    int flow_line_gap_{0};
-    int flow_padding_{0};
-    int grid_cols_{1};
-    int grid_cell_w_{0};
-    int grid_cell_h_{0};
-    int grid_gap_{0};
-    int grid_padding_{0};
     bool anchor_enabled_{false};
     int anchor_left_{0};
     int anchor_top_{0};
@@ -440,8 +306,6 @@ protected:
     CachePolicy cache_policy_{CachePolicy::None};
     bool cache_dirty_{false};
     WidgetHandle parent_{};
-    WidgetHandle children_[kMaxChildren]{};
-    std::size_t child_count_{0};
     Rect dirty_hint_{};
     bool dirty_hint_valid_{false};
     const VTable* vtable_{nullptr};
@@ -574,14 +438,176 @@ static Rect children_clip_rect_thunk(const ObjectBase& self) noexcept {
     }
 };
 
+static_assert(sizeof(ObjectBase) <= 232,
+              "ObjectBase must not regain mirrored layout or optional runtime storage");
+
+namespace vivid_object_detail {
+    template<std::size_t Capacity>
+    struct ChildStorage {
+        std::array<WidgetHandle, Capacity> children{};
+        std::size_t count{0};
+    };
+
+    template<>
+    struct ChildStorage<0> {};
+}
+
 export
-template<typename Derived>
-class WidgetBase : public ObjectBase {
+template<typename Derived, std::size_t ChildCapacity = 0>
+class WidgetBase : public ObjectBase,
+                   private vivid_object_detail::ChildStorage<ChildCapacity> {
 public:
+    static constexpr std::size_t child_capacity = ChildCapacity;
+
     WidgetBase() {
         init_vtable<Derived>();
     }
+
+    bool add_child(WidgetHandle child) noexcept
+        requires (ChildCapacity > 0) {
+        auto& count = child_size();
+        if (count >= ChildCapacity) return false;
+        child_handles()[count++] = child;
+        return true;
+    }
+
+    void clear_children() noexcept
+        requires (ChildCapacity > 0) {
+        auto& count = child_size();
+        for (std::size_t i = 0; i < count; ++i) {
+            child_handles()[i] = {};
+        }
+        count = 0;
+    }
+
+    bool remove_child(WidgetHandle child) noexcept
+        requires (ChildCapacity > 0) {
+        auto& count = child_size();
+        const auto index = child_index(child);
+        if (index >= count) return false;
+        for (std::size_t i = index + 1; i < count; ++i) {
+            child_handles()[i - 1] = child_handles()[i];
+        }
+        child_handles()[count - 1] = {};
+        --count;
+        return true;
+    }
+
+    bool insert_child_before(WidgetHandle child, WidgetHandle before) noexcept
+        requires (ChildCapacity > 0) {
+        const auto index = child_index(before);
+        return insert_child_at(child, index);
+    }
+
+    bool insert_child_after(WidgetHandle child, WidgetHandle after) noexcept
+        requires (ChildCapacity > 0) {
+        const auto index = child_index(after);
+        const auto count = child_size();
+        return insert_child_at(child, index < count ? index + 1 : index);
+    }
+
+    bool move_child_to_front(WidgetHandle child) noexcept
+        requires (ChildCapacity > 0) {
+        const auto count = child_size();
+        if (count <= 1) return true;
+        const auto index = child_index(child);
+        if (index >= count || index + 1 == count) return true;
+        const auto value = child_handles()[index];
+        for (std::size_t i = index + 1; i < count; ++i) {
+            child_handles()[i - 1] = child_handles()[i];
+        }
+        child_handles()[count - 1] = value;
+        return true;
+    }
+
+    bool move_child_to_back(WidgetHandle child) noexcept
+        requires (ChildCapacity > 0) {
+        const auto count = child_size();
+        if (count <= 1) return true;
+        const auto index = child_index(child);
+        if (index >= count || index == 0) return true;
+        const auto value = child_handles()[index];
+        for (std::size_t i = index; i > 0; --i) {
+            child_handles()[i] = child_handles()[i - 1];
+        }
+        child_handles()[0] = value;
+        return true;
+    }
+
+    [[nodiscard]] std::size_t child_count() const noexcept
+        requires (ChildCapacity > 0) {
+        return child_size();
+    }
+
+    [[nodiscard]] WidgetHandle child_at(std::size_t index) const noexcept
+        requires (ChildCapacity > 0) {
+        return index < child_size() ? child_handles()[index] : WidgetHandle{};
+    }
+
+    [[nodiscard]] bool has_child(WidgetHandle child) const noexcept
+        requires (ChildCapacity > 0) {
+        return child_index(child) < child_size();
+    }
+
+    [[nodiscard]] std::size_t child_index(WidgetHandle child) const noexcept
+        requires (ChildCapacity > 0) {
+        const auto count = child_size();
+        for (std::size_t i = 0; i < count; ++i) {
+            if (child_handles()[i] == child) return i;
+        }
+        return count;
+    }
+
+private:
+    bool insert_child_at(WidgetHandle child, std::size_t index) noexcept
+        requires (ChildCapacity > 0) {
+        auto& count = child_size();
+        if (count >= ChildCapacity) return false;
+        if (index >= count) return add_child(child);
+        for (std::size_t i = count; i > index; --i) {
+            child_handles()[i] = child_handles()[i - 1];
+        }
+        child_handles()[index] = child;
+        ++count;
+        return true;
+    }
+
+    using ChildStorage = vivid_object_detail::ChildStorage<ChildCapacity>;
+
+    [[nodiscard]] ChildStorage& child_storage() noexcept {
+        return static_cast<ChildStorage&>(*this);
+    }
+
+    [[nodiscard]] const ChildStorage& child_storage() const noexcept {
+        return static_cast<const ChildStorage&>(*this);
+    }
+
+    [[nodiscard]] auto& child_handles() noexcept
+        requires (ChildCapacity > 0) {
+        return child_storage().children;
+    }
+
+    [[nodiscard]] const auto& child_handles() const noexcept
+        requires (ChildCapacity > 0) {
+        return child_storage().children;
+    }
+
+    [[nodiscard]] std::size_t& child_size() noexcept
+        requires (ChildCapacity > 0) {
+        return child_storage().count;
+    }
+
+    [[nodiscard]] const std::size_t& child_size() const noexcept
+        requires (ChildCapacity > 0) {
+        return child_storage().count;
+    }
 };
+
+namespace {
+    struct WidgetBaseLeafLayoutProbe final : WidgetBase<WidgetBaseLeafLayoutProbe> {};
+    static_assert(sizeof(WidgetBaseLeafLayoutProbe) == sizeof(ObjectBase),
+                  "zero-capacity WidgetBase must not add resident child storage");
+}
 
 export
 constexpr ObjectBase::State operator|(ObjectBase::State a, ObjectBase::State b) noexcept {

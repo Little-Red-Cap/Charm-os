@@ -7,53 +7,36 @@ description: 审查或接入已经选择 init.graph 的静态初始化目标。
 
 > status: `supporting`
 
-Use this skill only when the affected target already uses `init::Graph`, or when
-source evidence shows a static dependency graph is required. It does not require
-every board capability, dynamic device or application to adopt init.graph.
+只在目标已经使用 `init::Graph`，或源码证明需要静态依赖图时使用本 skill。动态 discovery、hot-plug、
+runtime lookup 和普通应用对象不应为了统一形式强行进入 init graph。
 
-## Before Editing
+## 接线前
 
-1. Read the target/profile CMake, startup path and current nodes.
-2. Identify the consumer, owner and initialization lifetime.
-3. Read [`init_graph_contract.md`](../../../system/init_graph_contract.md) and
-   the actual `init.node`/`init.graph` source.
-4. Decide whether the dependency is static initialization. Dynamic discovery,
-   hot-plug and runtime lookup need a different owner.
+1. 读取 target/profile CMake、startup path、现有 node 和真实 consumer。
+2. 明确 owner、初始化 lifetime、执行阶段和失败后状态。
+3. 读取 [init graph contract](../../../system/init_graph_contract.md) 与实际 `init.node/init.graph` source。
+4. 判断依赖是否真的是启动期静态关系；不是则回到对应 runtime owner。
 
-## Wiring
+## 接线
 
-- Define the smallest node with explicit `provides` and `requires_caps`.
-- Choose `runlevel_mask` and one real `Phase` (`early`, `core`, `service`,
-  `app`) from target behavior, not a generic platform/HAL/driver hierarchy.
-- Keep each selected capability to one provider; do not add fallback selection
-  to hide duplicate or missing wiring.
-- Bind the node in the owning target/profile rather than an unrelated global
-  entry.
-- Register a channel/block/device endpoint only when the consumer uses the
-  corresponding registry contract. Registry insertion is not an init.graph
-  requirement.
-- Keep board/HAL handles and vendor state in the project/backend adapter.
+- node 只声明实际提供和需要的最小 capability，由 owning target/profile 绑定；
+- phase/runlevel 来自 target 行为，不从目录层级推导；
+- missing 或 duplicate provider 必须显式失败，不能增加 fallback 隐藏装配错误；
+- registry endpoint 只在 consumer 需要对应 registry contract 时发布；
+- board/HAL handle 与 vendor state 留在 project/backend adapter。
 
-CapId strings are hashed identifiers used by the graph. Centralize them with
-their owner and test duplicates/collisions relevant to the target; a string's
-presence does not make it a global Charm capability namespace.
+CapId string 是图内 hashed identifier，不是全局 Charm capability namespace。名称由 owner 维护，并只测试
+目标实际面临的重复、碰撞和容量风险。
 
-## Validation
+## 验证
 
-Cover the applicable paths directly:
+至少覆盖目标正向顺序、受影响的解析负例、首个 init failure 和 phase/runlevel filtering。具体错误集合、
+容量与停止行为由 contract/source 决定，不在 skill 复制。
 
-- selected positive graph order and init calls;
-- missing and duplicate provider;
-- zero capability ID, capacity overflow and phase inversion;
-- dependency cycle or self-dependency;
-- runlevel/max-phase filtering;
-- first init failure stopping later nodes, with no inferred rollback/deinit.
+若结论包含平台启动，还必须运行对应 target；Host graph fixture 不证明 IRQ、clock、peripheral 或 board
+readiness。
 
-Also run the real target when the claim includes platform startup. Host graph
-tests cannot prove IRQ, clock, peripheral or board readiness.
+## 输出
 
-## Review Output
-
-State the node owner, selected target, provides/requires, phase/runlevel,
-failure behavior and validation domain. Do not describe directory layering or a
-successful configure as proof that initialization completed.
+记录 node owner、target、provides/requires、phase/runlevel、失败行为和验证域。configure 成功不能替代
+初始化执行证据。

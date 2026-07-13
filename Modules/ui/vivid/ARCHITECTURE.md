@@ -1,439 +1,151 @@
-﻿# Charm Vivid 架构说明
+# Charm Vivid Source Architecture
 
-本文件用于描述 Vivid 的当前架构、边界与主要模块，便于后续补齐能力与迁移控件。
+## 文档状态
 
-## 0. Roadmap（Next 3）
+- `status`: `supporting`
+- `scope`: Vivid source 分层、渲染、静态内存、catalog、layout/input/style 边界
+- `authority`: `Modules/ui/vivid` source、`vivid.cmake` 与生成证据
 
-1. 行为分支继续 Action 化（收敛输入语义） - 已完成
-   - 验收：`vivid-soa-demo --soa-ci --regress-ui` 为 `ok=1`
-2. 结构性 API 第二阶段 - 已完成
-   - TableView 表头样式细化 + 横向滚动交互策略
-   - 验收：`table_tree_ok=1` 且 `ui_ok=1`
-3. A2 下一批控件迁移（Stepper/NumberList/Roller 完成） - 已完成
-   - 验收：`--soa-ci --regress-ui` 通过，且 `failed_cmds=0`
+本文不维护 roadmap、widget 全量清单、demo 完成度或 C++ API 镜像。产品语义与 evidence 入口见
+[`docs/ui/README.md`](../../../docs/ui/README.md)。
 
-## 1. 分层结构
+## 分层与公共入口
 
-- core：数据结构、主题/样式、诊断/trace、配置等基础设施。
-- gfx：渲染 API 与几何/像素格式抽象。
-- widgets：控件与容器实现，尽量保持薄封装，不重复基础设施。
-- font：字体数据与生成脚本产物（4bpp 为默认）。
+| 层 | 责任 | 依赖边界 |
+|---|---|---|
+| `core` | Scene、SoA kernel、layout、input、style、layer/motion runtime、配置 | 可依赖基础 gfx；不依赖产品或 backend |
+| `gfx` | geometry、pixel/color、canvas、DrawCmd record/execute、host evidence tools | 不拥有 widget/product 状态 |
+| `widgets` | 控件行为和薄 factory/payload 适配 | 复用 core/gfx/font，不复制基础设施 |
+| `font` | 固定字体数据、typography 与 package/provider runtime | provider 生命周期和 IO 不进入热路径 |
 
-### 分层关系图（逻辑视图）
+产品入口与内部入口必须区分：
 
-```mermaid
-flowchart TB
-  subgraph App
-    Demo[Examples / App Loop]
-  end
-  subgraph Vivid["Vivid"]
-    Core[core: layout / style / input / trace]
-    Gfx[gfx: canvas / render / color]
-    Widgets[widgets: controls / containers]
-    Font[font: 4bpp data / builder]
-  end
-  PLATFORM["platform/driver"]
-  Demo --> Core
-  Widgets --> Core
-  Widgets --> Gfx
-  Widgets --> Font
-  Core --> Gfx
-  Gfx --> PLATFORM
+- `charm.ui.vivid`：产品根入口，只暴露已批准的 core style/config、基础 gfx 与 Scene；
+- `charm.ui.scene.motion_runtime`：受 PRODUCT closure 管控的 layer/motion 扩展；
+- `charm.ui.vivid.font_runtime`：字体 package/provider 聚合，不导出 FreeType provider；
+- `charm.gfx.host_tools`：host snapshot/DrawCmd 证据工具，不进入默认 PRODUCT profile；
+- SoA kernel、DrawCmd partitions 与 `charm.ui.vivid_internal`：实现入口，产品不得直接 import。
+
+完整 import 规则见
+[`vivid_import_boundary_contract.md`](../../../docs/ui/vivid_import_boundary_contract.md)。
+
+## Render Model
+
+Vivid 采用固定容量 record/execute 路径：
+
+```text
+widget/scene state
+    -> layout + invalidation
+    -> DrawCmdBuffer record
+    -> optional compaction
+    -> FullFrame or Tile/PFB execute
+    -> backend flush/present
 ```
 
-## 2. 渲染与更新
-
-- 渲染入口由 UI 主循环驱动，控件在更新阶段提交绘制。
-- 使用脏矩形/脏区域机制减少刷新面积，保持与底层驱动解耦。
-- 绘制 API 统一走 gfx 层，避免控件直接绑定平台细节。
-- 子控件裁剪通过 ClipPolicy 统一管理（Rect/LayoutRect/Custom）。
-
-```mermaid
-flowchart LR
-  Loop[Main Loop] --> Render[Gui::render]
-  Render --> Layout[apply_layout]
-  Render --> Draw[Widget::draw]
-  Draw --> Canvas[DefaultCanvas]
-  Draw --> Dirty[Dirty Rects]
-  Render --> Clip[ClipPolicy]
-  Clip --> Draw
-```
-
-```mermaid
-flowchart TB
-  Render[Gui::render] --> Cache{Layer Cache?}
-  Cache -->|No| Draw[Draw Widgets]
-  Cache -->|Yes| Check[Cache Valid?]
-  Check -->|No| Build[Render to Cache]
-  Check -->|Yes| Blit[Blit Cache]
-  Build --> Blit
-```
-
-### 渲染/刷新链路（时序视图）
-
-```mermaid
-sequenceDiagram
-  participant App as App/Scene
-  participant UI as UI Loop
-  participant Tree as Widget Tree
-  participant DR as DirtyRect
-  participant GFX as gfx Renderer
-  participant HW as Driver
-
-  App->>UI: tick()
-  UI->>Tree: update/layout
-  Tree->>DR: mark dirty
-  UI->>DR: merge/split
-  UI->>GFX: draw(dirty regions)
-  GFX->>HW: blit/flush
-```
-
-### 2.1 命令缓冲 + Tile/PFB 执行（R1）
-
-- SoA 渲染改为 **record/execute**：控件只记录命令，不直接绘制。
-- `DrawCmdBuffer` 固定容量、无堆分配；命令使用 `CmdHeader + payload` 的线性 **arena** 存储（变长、顺序遍历），统计以 `cmd_count/cmd_bytes` 为准。
-- 每个 `Scene` 只拥有一套 live DrawCmd runtime：一个 command buffer、一个 compaction workspace 和一个 executor；内部 `SoaGui` 只引用这套状态，不重复持有 command buffer。
-- compaction、executor 以及 render/layout/input/semantic 遍历的 scratch 都是 `Scene` 内可复用的固定容量 workspace，计入静态内存画像，不占用热路径大栈帧。
-- `DrawCmdExecutor` 是唯一“画像素”的入口，支持：
-  - **FullFrame**：直接执行到 `CanvasBase`（全屏缓冲）。
-  - **Tile/PFB**：执行到 `RuntimeCanvas` + `RenderBackend::blit_span`（分块刷新）。
-- `SoaGui::render()` 默认走命令缓冲；`SoaGui::render_tiles()` 用于 MCU PFB/Tile。
-- 命令缓冲溢出与文本缓冲溢出有显式标志（stats 可观测）。
-- traversal workspace 耗尽会置位 sticky `workspace_overflowed`；该证据进入 `DrawCmdStats` 和 `Scene::last_cmd_stats()`，不得静默截断。
-- 业务侧只使用 `Scene`：`Scene` 暴露 `CmdStats/ExecStats/TileStats/TileConfig`，SoA/DrawCmd 作为内部实现不对外直连。
-- `draw_cmd` 内部按 `schema / buffer / executor` 三个 module partitions 组织，公开入口仍只保留 `charm.gfx.draw_cmd`。
-- Evidence Plane 的 DrawCmd 观察边界见 `docs/ui/vivid_draw_cmd_evidence_boundary_v0.md`：产品级证据依赖 scene-level stats / artifact 摘要，不依赖 partition 私有编码。
-- `Scene` 内部进一步按 `builder_support / layer_support / render_detail` 分层，边界见 `docs/ui/vivid_scene_support_boundary_v0.md`：这些是 Scene 内部支撑层，不是新的产品级 runtime surface。
-- Vivid import 边界见 `docs/ui/vivid_import_boundary_contract.md`：产品代码、Vivid 内部实现、Evidence Lab / regression demo 不共享同一 import 权限；`charm.ui.vivid_internal`、SoA kernel 与 DrawCmd partition 默认不是产品入口。
-
-**公共 surface 分层：**
-
-- `charm.ui.vivid` 是产品根入口，只 re-export core style/config、基础 gfx、`Scene`。
-- `charm.ui.scene.motion_runtime` 是 motion / page-transition runtime 扩展，放在 `core/` 下并受 PRODUCT profile closure 管控。
-- `charm.gfx.host_tools` 是 host snapshot / DrawCmd evidence 聚合，放在 `gfx/` 下；默认 PRODUCT profile 不应接入。
-- `charm.ui.vivid.font_runtime` 是 VFS font package / typography runtime 聚合，不 re-export FreeType provider；FreeType 仍属于 host/resource provider gate。
-
-**命令合批（Compaction）：**
-
-- compaction 仅在 record 结束后执行，保证回放与哈希一致性。
-- `DrawCmdBuffer::compact()` 必须显式接收与 buffer 容量匹配的 compaction workspace；command snapshot 只复制 buffer，不复制 workspace。
-- 合批的联合面积阈值可通过运行时参数调节（默认因子 8）。
-- 已覆盖的 batch：
-  - `FillRect/StrokeRect`
-  - `DrawLine`
-  - `DrawPath`
-  - `FocusRing`
-  - `FillRoundRect/StrokeRoundRect`
-  - `FillCircle/StrokeCircle`
-  - `DrawTextBox` -> `GlyphRun`
-  - `DrawImage/DrawImageRoundRect/DrawImageNineSlice`
-- `DrawLine/DrawPath` 使用包围盒联合面积阈值控制合批，超过阈值时会逐步缩小 batch，避免过大 union 拉高 tile 命中成本。
-- `FillRect/StrokeRect/FocusRing/圆角/圆/图像` 同样采用联合面积阈值收敛 batch，降低大 union 导致的 tile 命中抖动。
-- `batch_shrink_*` 可细分统计：line/path/rect/round/image/focus，用于定位具体合批收缩来源。
-
-**执行器状态机化（State Machine Executor）：**
-
-- 执行阶段对相邻同类命令做分组，减少逐条命令的分发与状态切换开销。
-- `--soa-ci` 会输出 `dispatch_groups` 与 `batch_flushes`，用于量化合批/分组的收益。
-
-```mermaid
-flowchart LR
-  A[SoaGui] --> B[DrawCmdBuffer]
-  B --> C[DrawCmdExecutor]
-  C --> D1[FullFrame Canvas]
-  C --> D2[Tile/PFB RuntimeCanvas]
-  D2 --> HW[RenderBackend::blit_span/mark_dirty]
-```
+稳定不变量：
 
-**SoA demo 支持：**
+- widget 只记录绘制意图，不直接绑定平台 canvas/driver；
+- 每个 Scene 只有一套 live DrawCmd runtime、compaction workspace 和 executor；
+- command/text/blob/workspace 容量固定，耗尽必须产生显式 sticky evidence，不静默截断；
+- FullFrame 与 Tile/PFB 消费同一 record 语义；不同 backend 结果需要一致性证据；
+- command snapshot 复制 buffer/payload，不复制临时 workspace；
+- compaction 在 record 完成后执行，不能改变命令可观察顺序或 artifact 语义；
+- tile 命中索引容量不足时必须回退到正确但更慢的扫描路径；
+- 产品 evidence 只消费 Scene stats 和 artifact 摘要，不依赖 CmdHeader/payload 私有布局。
 
-- `vivid-soa-demo --soa-tile`：Tile/PFB 路径（仅刷新脏区）。
-- `vivid-soa-demo --soa-stats`：输出命令数、tile flush、dirty 命中率与 tile hit 率。
-- `vivid-soa-demo --compaction-union-factor=8`：调节合批联合面积阈值因子（>=1）。
-- Vivid 仅保留 **SoA 内核**：legacy 路径不再进入默认构建，统一收敛到单一内核边界。
+DrawCmd、Scene 内部支撑和 state-to-artifact evidence 分别见：
 
-**可移植模板：**
+- [`vivid_draw_cmd_evidence_boundary_v0.md`](../../../docs/ui/vivid_draw_cmd_evidence_boundary_v0.md)；
+- [`vivid_scene_support_boundary_v0.md`](../../../docs/ui/vivid_scene_support_boundary_v0.md)；
+- [`vivid_render_evidence_chain_v0.md`](../../../docs/ui/vivid_render_evidence_chain_v0.md)。
 
-- `Examples/ui/vivid/port_template/tile_backend_template.cppm` 提供 MCU 侧 `RenderBackend` 模板。
-- 显示策略类型：`charm.gfx.display_policy` 提供 `DisplayMode/DisplayConfig/EinkPolicy`，用于统一 BW1/Gray2/E-ink 配置入口。
+## Workspace 与静态内存
 
-### 2.2 命令集扩展与一致性校验（R2）
+SoA traversal、layout、render、input、semantic、compaction 和 raster scratch 使用 Scene/调用方拥有的固定
+workspace。共享 workspace 只允许单 UI execution domain 内串行使用；同一对象上的并发或重入必须被
+拒绝或由调用方隔离。
 
-- 命令集扩展：支持 `DrawLine` / `DrawImage` / `DrawImageNineSlice` / `DrawPath` / `DrawIcon` 等基础原语，保持命令为 POD。
-- 热路径保持 record/execute，不引入 runtime patch/派生。
-- `vivid-soa-demo --soa-compare` 可在无 UI 模式下对 FullFrame 与 Tile/PFB 输出做哈希一致性校验（并要求命令缓冲不溢出、tile 输出非空）。
-- dump/replay 使用 vcmd v2：写入 **arena cmd_bytes**（而非固定 struct 数组），回放按 `CmdHeader` 解码执行。
-- vcmd v4 起支持 `cmd_count` 可选（置 0 并设置标志位），回放以 `cmd_bytes` 为主自动重建命令数量。
+PRODUCT/MCU profile 必须声明：
 
-### 2.3 Tile 命中裁剪（R3）
+- SoA node/payload、TextArena、Style、DrawCmd 和 layer cache 容量；
+- Scene 数量、常驻 RAM 上限、最小 headroom 与 stack frame 上限；
+- screen/pixel format 和 backend envelope；
+- overflow、workspace exhaustion 和 payload generation 的失败行为。
 
-- Tile 执行阶段先基于命令包围盒构建命中表（tile_count <= 1024），避免逐 tile 全量扫描。
-- tile_count 超过上限时回退到逐 tile 命中检测，保持正确性。
+`-fstack-usage` 只能约束单函数 frame，不能证明调用链峰值。产品任务栈仍需入口分析或运行时
+high-water evidence。静态内存准入见
+[`vivid_static_memory_admission.md`](../../../docs/ui/vivid_static_memory_admission.md)。
 
-### 2.3.1 Workspace 与栈准入
+## Payload、Catalog 与 PRODUCT Profile
 
-- `CHARM_VIVID_DRAW_CMD_MAX_COMMANDS`、`CHARM_VIVID_DRAW_CMD_TEXT_BYTES`、`CHARM_VIVID_DRAW_CMD_BLOB_BYTES` 决定 DrawCmd profile；FULL 默认保持 `1024/4096/2048`，PRODUCT 必须由产品 profile 固定。
-- `PRODUCT` 与 `MCU_MIN` 对 Vivid 编译启用 `-fstack-usage`，当前 `CHARM_VIVID_MAX_HOT_STACK_FRAME_BYTES` 默认上限为 `4096`。
-- 栈门读取当前 featureset 实际选中的全部 Vivid module；切换 featureset 时不会把同一构建目录中的旧 `.su` 文件或未选 module 算入当前画像。
-- `SoaKernel`、`SoaLayoutPass`、`SoaGui` 和 `DrawCmdExecutor` 的 workspace 是单 UI 执行域内的串行 scratch，不支持同一对象上的并发或重入调用。
-- SVG path raster 使用调用方持有、不可复制的 `RasterWorkspace`；Vivid 不再把解析点、轮廓和扫描线交点隐式放入任务栈，workspace 耗尽时 raster 调用失败。
-- `-fstack-usage` 门只证明单函数 frame 上限，不证明一条调用链的累计栈峰值；产品任务栈仍需结合真实入口做调用链或运行时 high-water 证据。
+Widget node 只保存 kind 与 generation-checked payload handle。每类 payload 使用固定容量 pool；释放后
+generation 变化，旧 handle 不得重新命中新 owner。
 
-### 2.4 SoA Payload Pools（C1）
+`cmake/widget_catalog.cmake` 是 WidgetKind、module、factory、payload、style/default/input behavior 的
+单一构建入口。稳定 kind ID 由 ABI fixture 固定；PRODUCT profile 只裁剪能力和容量，不生成另一套 enum。
 
-- Node 只保留 `kind + payload_handle`（slot+generation），CommonSoA 不再存 payload 字段。
-- 每个 kind 对应独立 `PayloadPool`，固定容量、无动态分配；默认容量为 `soa_max_nodes`。
-- debug 下校验 slot/generation 与 owner，释放后 generation++，避免悬挂句柄。
+Product Profile Compiler 是 Vivid 工具，不是 Charm Core 或产品 C++ API：
 
-### 2.5 控件目录单一源（Widget Catalog）
+- C++ `module/import/export import` 是依赖边唯一来源；
+- CMake policy 只标记 product root、internal、host-only 和硬件 envelope；
+- profile 固定产品 root、active WidgetKind 和工作集；target envelope 固定设备资源；
+- 一个 target 只能选择一个不可变 profile/envelope；漂移、未知 root、cycle、internal root、catalog/pool
+  不一致必须在 configure 阶段失败；
+- fingerprint 和 generated evidence 证明规范化输入，不证明运行行为或视觉正确。
 
-- `cmake/widget_catalog.cmake` 使用具名 `vivid_catalog_widget()` / `vivid_catalog_payload_pool()` 声明稳定 ID、module、factory、payload、style、defaults 和 input behavior；旧的 30 参数 registry 与派生 `.def` 链已删除。
-- `WidgetKind` 始终生成完整 `uint8_t` 枚举，名称和数值由 `widget_kind_abi.expected` 固定；PRODUCT profile 只决定能力是否可用，不生成 profile-specific enum。
-- catalog 直接生成 enum/name、active feature、factory、payload、style、defaults 和 behavior 代码片段，`widget_registry.cppm` 只消费生成结果。
-- 一个 module 可以承载多个 kind；`Container` 是 runtime-only kind，widget module 则作为 catalog internal root 进入 module closure。
-- 激活带 payload 的 kind 时必须声明对应共享 pool 容量；未激活 pool 固定为零，缺失、未知、无消费者或超过 `uint16_t` 的容量在配置期失败。
-
-### 2.6 构建自治（De-rooting）
-
-- 根 CMake 只负责启用 Vivid 与 featureset 选择，不再直接裁剪 Vivid 内部文件。
-- `Modules/ui/vivid/vivid.cmake` 负责：
-  - 生成 `soa_pool_caps.cppm`
-  - 生成 `config.generated.cppm`，导出 `ScreenConfig / FeatureConfig / SoaConfig / VividConfig`
-  - 生成 `vivid_features.generated.hpp`，仅作为预处理兼容桥接层
-  - 从 C++ `module` / `import` 声明构建 Vivid module inventory 与 PRODUCT closure
-  - 注入 Vivid 编译选项，并把 featureset / widget feature / float widget 选择收敛到生成式配置入口
-
-### 2.7 PRODUCT Profile Compiler
-
-- Product Profile Compiler 属于 Vivid `Implementation / Tool`，不定义 Charm Core 概念，也不新增产品 C++ API。
-- C++ Module 的单行 `module`、`import`、`export import` 是依赖唯一真源；CMake policy 只标记 `PRODUCT_ROOT`、`INTERNAL`、`HOST_ONLY`，不得复制依赖边。
-- `vivid_define_product_profile()` 声明产品 root、active `WidgetKind`、payload capacities 以及 SoA/TextArena/Style/DrawCmd 工作集；`vivid_configure_product_target()` 只提供屏幕、layer cache、Scene 数、RAM/headroom 与栈上限等硬件 envelope。
-- 每个 target 只能选择一个 profile 和一个不可变 envelope；完全相同的重复调用保持幂等，profile 或 envelope 漂移在配置期失败。未知 root、internal/host-only root、module cycle、catalog/payload 不一致和重复 profile 同样直接失败。
-- public root 可以通过真实 import closure 引入 SoA、DrawCmd partition 等实现模块；产品 profile 不能直接把这些 internal module 当 root 选择。
-- PRODUCT 生成证据位于 `generated/vivid/<target>/<profile>/`。`profile_fingerprint` 只覆盖 catalog 与规范化后的产品工作集，不受 profile 名、继承写法或等价数值/布尔拼写影响；`target_fingerprint` 额外覆盖规范化硬件 envelope，不受 CMake target 名影响。
-- `CHARM_VIVID_PRODUCT_CORE_MODULES`、`CHARM_VIVID_PRODUCT_GFX_MODULES`、`CHARM_VIVID_PRODUCT_WIDGETS` 与 `CHARM_VIVID_PAYLOAD_CAP_*` 已硬删除；PRODUCT 配置发现旧变量会直接报告迁移错误。
-
-## 3. 布局与容器
-
-- 基础布局能力为 Anchor/Flex/Flow/Grid，容器负责子节点的布局与裁剪。
-- 布局入口统一通过 layout engine 执行，支持按 LayoutSpec 切换策略（含 Constraint/Custom）。
-- Custom 布局通过注册表挂载（LayoutEngine Registry），便于引入可插拔布局对象。
-- Custom Layout 参数约定：custom_id 为布局引擎编号；custom_param0~3 由对应引擎定义，建议在控件/文档中明确含义，未使用保持 0。
-- ScrollContainer/ScrollBar 负责滚动与可视区域同步。
-- ListView 支持虚拟化与固定行缓存槽位复用，提升滚动性能。
-- FoldablePanel 支持内容区滚动与折叠，子控件布局基于内容区矩形。
-
-### 3.1 布局失效策略矩阵（代码契约）
-
-布局失效采用“三件套”约束：
-
-1. 文档矩阵（本文）
-2. 代码矩阵（`SoaKernel::layout_state_influence_mask`）
-3. 回归矩阵（`soa_demo --soa-regress-layout`）
-
-#### 状态位分类
-
-- **布局影响位**：允许触发布局（极少数状态）
-- **仅重绘位**：只允许触发绘制，不得触发布局
-
-默认契约（SoA 子集）：
-
-| 状态位 | 布局 | 绘制 | 说明 |
-| --- | --- | --- | --- |
-| Enabled | 否 | 是 | 禁止因启用状态重排 |
-| Hovered | 否 | 是 | 交互态只重绘 |
-| Pressed | 否 | 是 | 交互态只重绘 |
-| Focused | 否 | 是 | Focus ring 走绘制叠加 |
-
-> 目前 `layout_state_influence_mask` 对 SoA 子集返回 0，等价于“所有状态仅重绘，不触发布局”。
-
-#### 数据变更的布局触发点
-
-以下属于数据变更，必须触发布局失效：
-
-- 文本内容变化（`set_text`）
-- 约束/尺寸变化（`set_rect` / `set_layout_kind` / `set_list_row_height`）
-- 影响布局的范围/尺寸参数（如 `set_range`）
-
-#### 可执行契约（代码）
-
-- `layout_state_influence_mask(kind)` 决定“哪些状态位可影响布局”。
-- 状态变化时：`delta & mask != 0` → `mark_layout_dirty()`，否则只 `mark_paint_dirty()`。
-- Layout 计算仅使用 mask 中允许的状态位（其余位在 layout 阶段强制忽略）。
-- `layout_state_influence` 为策略开关，关闭时强制按 mask=0 处理（只重绘）。
-
-#### 回归矩阵（trace-only）
-
-`soa_demo --soa-regress-layout` 验证：
-
-- hover/press/drag/scroll **不触发布局**，但 **必须触发绘制失效**。
-- 文本变更 **必须触发布局失效**。
-
-```mermaid
-flowchart LR
-  subgraph WidgetTree[控件树]
-    Root[Root]
-    Header[Header]
-    Content[Content]
-    Button[Button]
-    List[ListView]
-    Root --> Header
-    Root --> Content
-    Content --> Button
-    Content --> List
-  end
-  subgraph RenderTree[渲染树]
-    RRoot[Root]
-    RHeader[Header]
-    RList[ListView (virtual)]
-    RRow1[Row 1]
-    RRow2[Row 2]
-    RRoot --> RHeader
-    RRoot --> RList
-    RList --> RRow1
-    RList --> RRow2
-  end
-```
-
-```mermaid
-flowchart TB
-  LayoutSpec[LayoutSpec] --> Switch{LayoutMode}
-  Switch --> Anchor[Anchor]
-  Switch --> Flex[Flex]
-  Switch --> Flow[Flow]
-  Switch --> Grid[Grid]
-  Switch --> Constraint[Constraint]
-  Switch --> Custom[Custom]
-  Anchor --> Apply[apply_layout]
-  Flex --> Apply
-  Flow --> Apply
-  Grid --> Apply
-  Constraint --> Apply
-  Custom --> Apply
-```
-
-### 布局与容器协作
-
-```mermaid
-flowchart LR
-  LayoutSpec["LayoutSpec"] --> Engine["Layout Engine"]
-  Engine --> Container["Container"]
-  Container --> Clip["Clip/Viewport"]
-  Container --> Child["Children"]
-  Child --> Render["Render"]
-```
-
-## 4. 输入与事件
-
-- 输入链路由 SoaKernel 内核化处理（hit-test/capture/drag/cancel），控件不再自行维护 hover/pressed。
-- SoA 输入采用 **Action 列表**：输入阶段只记录动作，统一在 dispatch 末尾由内核执行（含焦点状态落地），保证状态写入权唯一。
-- 焦点与键盘导航由通用逻辑维护，控件实现自身行为。
-- 手势事件提供 Swipe/Pinch 的接口占位，按需由控件接入。
-
-### 分层关系图（逻辑视图）
-
-```mermaid
-flowchart TB
-  subgraph App
-    Demo[Examples / App Loop]
-  end
-  subgraph Vivid["Vivid"]
-    Core[core: layout / style / input / trace]
-    Gfx[gfx: canvas / render / color]
-    Widgets[widgets: controls / containers]
-    Font[font: 4bpp data / builder]
-  end
-  PLATFORM["platform/driver"]
-  Demo --> Core
-  Widgets --> Core
-  Widgets --> Gfx
-  Widgets --> Font
-  Core --> Gfx
-  Gfx --> PLATFORM
-```
-
-## 5. 文本与字体
-
-- 文本渲染默认 4bpp 字体数据。
-- 支持 UTF-8 解码、测量、换行与截断，渲染与排版逻辑集中在 text 组件。
-- 字体数据由 `font/font_builder.py` 生成，输出模块化字体数据。
-- RichText/CodeBlock 走独立控件，避免复杂样式侵入基础文本。
-- SoA 路径使用 `TextArena + TextId` 存储文本，payload 不再保存指针；溢出时置位 `text_overflowed` 并回退到空文本或占位串。
-- 可选接入 VFS 字体提供器（只做接口，不依赖 FreeType）：
-  - 模块：`Modules/gfx/font/font_provider_vfs.cppm`
-  - 用法：
-    1. 实现 `VfsFontLoaderApi`（`load/reset`），负责从 VFS 读取字体并填充 `Font`。
-    2. 配置 `VfsFontProviderConfig` 的路径（small/normal/large/mono/fallback）。
-    3. `set_font_provider(provider.provider())` 注入字体提供器。
-  - 约束：`Font` 指针在 provider 生命周期内必须稳定；loader 不得在渲染热路径做阻塞 IO。
-- 文本链路强契约（CI 可选开启）：
-  - `--require-font-provider`：必须绑定字体 provider。
-  - `--require-fallback-font`：必须提供 fallback 字体。
-  - `--require-utf8-replace-disabled`：禁止 UTF-8 替换字符路径。
-
-## 6. 主题与样式
-
-- 主题定义在 core/style 中，通过 `Theme::inherit` 与 `StylePatch` 支持局部覆盖。
-- 提供 `ThemePreset` 作为配置入口，便于集中加载主题。
-- 控件以 theme token 作为样式入口，避免散落硬编码。
-- role 派生通过 `ResolvedTheme` 预编译（仅在 tokens 变更时生成），StyleSheet 热路径不再做派生计算。
-- StyleSheet 预编译触发仅依赖 `tokens_version` 与 `stylesheet_version`，热路径只做索引查表。
-- 预编译样式输出 `ResolvedStyleView`：颜色表按 state 维度查表，metrics 走 `metrics_id -> metrics_pool` 去重索引，避免热路径搬运大对象。
-- 主题扩展支持控件局部参数：如 FoldablePanel header/content padding、CloudyGlass 高光与透明度范围。
-- StyleSheet 规则优先级为确定性模型：kind specificity > variant specificity > state mask 位数（更多位更具体），同级按插入顺序稳定排序。
-
-### 6.1 Style 状态掩码矩阵（StyleState mask）
-
-目的：按控件裁剪 style 维度，避免表尺寸爆炸；Focused 不进入 style（只用于 focus ring 绘制）。
-
-- `style_state_mask_for_kind(kind)` 为编译期常量；`state_count = 1 << popcount(mask)`。
-- mask 只包含 `Hovered / Pressed / Disabled` 三类状态位（Focused 不进入 style）。
-
-| 分类 | mask | 说明 | 控件 |
-| --- | --- | --- | --- |
-| readonly | Disabled | 展示类控件，仅允许禁用态影响样式 | Container、ScrollContainer、Dial、Arc、Image、Label、Led、Progress、ModalDialog、ProgressBarSimple、DynamicNebula、CrtScreen、Bar、PopupLayer、MessageBox、RadioGroup、Chart、Waveform、Gauge、PrimitivesCanvas、PerfOverlay、Timeline、RichText、CodeBlock、ProgressWheel、WaveformView、BatteryGauge、HistogramView、RingIndication、TextBox、ProgressFlowing、CloudyGlass、ProgressBarRound、SpinningWheel、ImageBox、MeterPointer、ProgressBarDrill、SpectrumView、BusyWheel、ConsoleBox、BatteryGasGauge、Histogram、List、ListView、IconList、TextTrackingList、TextList、TableView、TreeView、TextInput、TextArea、NumberInput |
-| press_only | Pressed + Disabled | 允许按下态但不跟随 hover | Slider、ScrollBar、Roller、Spinner、NumberList、SpinZoomWidget |
-| interactive | Hovered + Pressed + Disabled | 典型交互控件 | Button、Checkbox、Radio、Switch、SegmentedControl、Dropdown、TabView、Stepper、Menu、MenuItem、ToggleGroup、ListItem、FoldablePanel |
-
-> 备注：TextInput/TextArea/NumberInput 在 SoA-only 路径中按只读处理，当前 mask 仅保留 Disabled。
-
-## 7. 诊断与可观测性
-
-- 统一接入 trace_core 做机器可读事件输出。
-- 日志统一通过 out.logger。
-
-### 分层关系图（逻辑视图）
-
-```mermaid
-flowchart TB
-  subgraph App
-    Demo[Examples / App Loop]
-  end
-  subgraph Vivid["Vivid"]
-    Core[core: layout / style / input / trace]
-    Gfx[gfx: canvas / render / color]
-    Widgets[widgets: controls / containers]
-    Font[font: 4bpp data / builder]
-  end
-  PLATFORM["platform/driver"]
-  Demo --> Core
-  Widgets --> Core
-  Widgets --> Gfx
-  Widgets --> Font
-  Core --> Gfx
-  Gfx --> PLATFORM
-```
-
-## 8. 示例与验证
-
-- 示例工程用于验证控件行为与性能路径，避免独立测试与真实场景脱节。
-- 当前示例含 ListView/ScrollBar/TableView/TreeView、Stepper/Timeline、MenuTree、RichText/CodeBlock、Image 变换等最小配置。
-- 示例入口与回归入口分工：
-  - 示例入口：`fullframe_demo` / `tile_demo` / `theme_demo` / `nav_demo` 仅使用 `charm.ui.scene`（不直连 SoA/DrawCmd）。
-  - 回归入口：`soa_demo` 作为 internal regression 工具，允许直连 SoA/DrawCmd，用于 dump/replay/CI。
-
-## 9. 静态内存准入
-
-- `PRODUCT` 与 `MCU_MIN` 必须声明 Vivid 常驻 RAM 预算、最小余量和 Scene 实例数。
-- CMake 先计算保守上界，`charm.ui.scene` 再用目标 ABI 的 `sizeof` 验证上界与真实余量。
-- 范围、配置项、生成证据和排除项见 `docs/ui/vivid_static_memory_admission.md`。
+## Layout 与 Invalidation
+
+基础 layout 支持 Anchor、Flex、Flow、Grid、Constraint 和显式注册的 Custom engine。container 负责 child
+layout 与 clip/viewport；滚动、虚拟列表等行为不能绕过统一 layout/invalidation 入口。
+
+状态影响由 source 中的 `layout_state_influence_mask(kind)` 决定：
+
+| 变化 | 默认影响 |
+|---|---|
+| enabled/hovered/pressed/focused | paint；只有 source mask 明确允许时才能触发 layout |
+| text/content 或 text metrics | layout + paint |
+| rect、layout kind、row height、影响几何的 range/spec | layout + paint |
+| color/paint-only style | paint，不得伪造 layout invalidation |
+
+状态写入时根据 delta 与 mask 选择 layout/paint dirty；layout pass 也只能读取 mask 允许的状态位。文档表
+不是 widget 全量真相，新增 kind 时必须同步 source policy 和回归矩阵。
+
+## Input 与 Focus
+
+SoA kernel 统一处理 hit-test、capture、drag/cancel 和 focus。dispatch 先记录 action，再在受控提交阶段修改
+状态，避免 widget 分散写入 hover/pressed/focused truth。
+
+控件实现语义行为，不拥有全局 focus/navigation policy。focus truth、scope、semantic request 与 visual
+focus artifact 的边界从 [`vivid_focus_evidence_boundary_v0.md`](../../../docs/ui/vivid_focus_evidence_boundary_v0.md)
+进入。
+
+## Text 与 Font
+
+- TextArena/TextId 保存文本，不把临时指针存入 payload；溢出必须可观察并按契约 fallback；
+- UTF-8 decode、measure、wrap、truncate 和 glyph fallback 集中在 text/font runtime；
+- 固定字体数据由 builder 生成，生成物不反向定义 typography 语义；
+- VFS/package provider 的 Font 指针在 provider 生命周期内保持稳定；
+- loader 不得在 render 热路径执行阻塞 IO；host FreeType 是 provider，不进入 Vivid 产品入口。
+
+字体尺寸、metrics 与生成规则见 [`font/font-metrics.md`](font/font-metrics.md) 和对应 source/config。
+
+## Theme 与 Style
+
+theme token 经 ResolvedTheme/StyleSheet 预编译为可索引 style；热路径不重复派生 role 或搬运大对象。
+规则优先级必须确定，metrics pool 与颜色/state 表保持固定容量。
+
+style state mask 只包含该 WidgetKind 真正消费的状态维度。Focused 默认属于 focus artifact，不自动进入
+普通 style mask。展示、press-only、interactive 等分类由 source catalog/policy 决定，文档不复制全部
+widget 名单。
+
+Style token、state evidence 和 impact 见
+[`vivid_style_token_law_v0.md`](../../../docs/ui/vivid_style_token_law_v0.md)。
+
+## Diagnostics 与验证
+
+- machine-readable runtime event 进入 trace；文本日志走统一 output/logger；
+- Scene 暴露稳定 Cmd/Exec/Tile/overflow 统计，不导出内部 payload；
+- 示例用于局部行为，internal regression 可以访问内部入口，产品示例不得因此获得相同 import 权限；
+- Host fixture、QEMU 和真实板属于不同 evidence domain；build success 不等于 render/input/product success。
+
+推荐示例、evidence manifest 和专题测试从 [`docs/ui/README.md`](../../../docs/ui/README.md) 进入。

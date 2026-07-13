@@ -57,6 +57,7 @@ public:
         count_fn_ = count_fn;
         draw_fn_ = draw_fn;
         data_ctx_ = ctx;
+        draw_ctx_ = ctx;
         clear_cache();
         update_scroll_bounds();
         window_valid_ = false;
@@ -235,8 +236,7 @@ public:
                 }
             }
             if (draw_fn_) {
-                const void* ctx = data_ctx_ ? data_ctx_ : draw_ctx_;
-                draw_fn_(const_cast<void*>(ctx), cvs, DrawInfo{row, i, is_selected, slot});
+                draw_fn_(draw_ctx_, cvs, DrawInfo{row, i, is_selected, slot});
             }
             y += row_h;
         }
@@ -489,13 +489,13 @@ private:
 
     int row_height_for_index(int index) const noexcept {
         if (!row_height_fn_) return row_height_for_render();
-        int h = row_height_fn_(row_height_ctx_ ? row_height_ctx_ : data_ctx_, index);
+        int h = row_height_fn_(row_height_ctx_, index);
         return (h > 4) ? h : 4;
     }
 
     std::uint8_t row_flags_for_index(int index) const noexcept {
         if (!row_flags_fn_ || index < 0) return 0;
-        return row_flags_fn_(row_flags_ctx_ ? row_flags_ctx_ : data_ctx_,
+        return row_flags_fn_(row_flags_ctx_,
                              static_cast<std::uint16_t>(index));
     }
 

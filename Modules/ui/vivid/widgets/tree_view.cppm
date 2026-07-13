@@ -74,7 +74,10 @@ public:
         update_scroll_bounds();
     }
 
-    void set_on_toggle(ToggleFn fn) noexcept { toggle_fn_ = fn; }
+    void set_on_toggle(ToggleFn fn, void* ctx = nullptr) noexcept {
+        toggle_fn_ = fn;
+        toggle_ctx_ = ctx;
+    }
     void set_on_select(SelectFn fn, void* ctx = nullptr) noexcept {
         select_fn_ = fn;
         select_ctx_ = ctx;
@@ -246,7 +249,7 @@ public:
                 const NodeInfo info = node_fn_ ? node_fn_(data_ctx_, index) : NodeInfo{};
                 const int toggle_x = r.x + st.metrics.padding + info.depth * indent_w_;
                 if (info.has_children && e.x >= toggle_x && e.x < toggle_x + indent_w_) {
-                    if (toggle_fn_) toggle_fn_(data_ctx_, index);
+                    if (toggle_fn_) toggle_fn_(toggle_ctx_, index);
                 }
                 auto selection = make_selection_model();
                 selection.set(index);
@@ -372,6 +375,7 @@ private:
     NodeFn node_fn_{nullptr};
     DrawNodeFn draw_fn_{nullptr};
     ToggleFn toggle_fn_{nullptr};
+    void* toggle_ctx_{nullptr};
     SelectFn select_fn_{nullptr};
     PoolCreateFn pool_create_fn_{nullptr};
     PoolBindFn pool_bind_fn_{nullptr};
@@ -397,7 +401,7 @@ private:
 
     int row_height_for_index(int index, const NodeInfo& info) const noexcept {
         if (!row_height_fn_) return row_height_;
-        int h = row_height_fn_(row_height_ctx_ ? row_height_ctx_ : data_ctx_, index, info);
+        int h = row_height_fn_(row_height_ctx_, index, info);
         return (h > 6) ? h : 6;
     }
 };

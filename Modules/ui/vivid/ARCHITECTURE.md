@@ -135,6 +135,9 @@ FoldablePanel、ScrollContainer 等明确的 object-level 容器选择固定容�
 `std::function_ref` 只适合未来同步、非逃逸的函数参数，不得存入 widget、strategy、Scene 或 payload。绑定 owner 自身的控件必须
 禁止复制/移动，或显式实现 callback 重绑；保存成员 strategy 地址的 `InteractionList` 同样不可复制和移动。
 strategy 绑定外部长生命周期 target 时仍可按值复制，不能把该合法场景误收紧为全局禁用 delegate 复制。
+返回型 data-source callback 可以在明确的固定成本 type-erasure 边界使用函数指针与 `void*`，但每个函数必须
+只使用同一 setter 配对保存的 context；draw、row-height、row-flags、selection 等 callback 不得隐式借用
+另一个 data source 的 context。owner 必须覆盖 callback 的完整保存期。
 
 控件实现语义行为，不拥有全局 focus/navigation policy。focus truth、scope、semantic request 与 visual
 focus artifact 的边界从 [`vivid_focus_evidence_boundary_v0.md`](../../../docs/ui/vivid_focus_evidence_boundary_v0.md)

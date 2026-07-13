@@ -10,9 +10,14 @@ import charm.widgets.button;
 import charm.widgets.foldable_panel;
 import charm.widgets.image;
 import charm.widgets.list;
+import charm.widgets.list_view;
 import charm.widgets.menu_item;
 import charm.widgets.scroll_container;
 import charm.widgets.spin_zoom_widget;
+import charm.widgets.table_view;
+import charm.widgets.tree_view;
+import charm.gfx.canvas;
+import charm.gfx.framebuffer;
 
 namespace {
     template<typename T>
@@ -121,6 +126,80 @@ namespace {
 
         void on_long_press() noexcept {
             ++long_presses;
+        }
+    };
+
+    struct StructuredCallbackProbe {
+        int count_calls{0};
+        int draw_calls{0};
+        int row_height_calls{0};
+        int row_flags_calls{0};
+        int column_width_calls{0};
+        int select_calls{0};
+        int scroll_calls{0};
+        int toggle_calls{0};
+
+        static int count(void* ctx) noexcept {
+            ++static_cast<StructuredCallbackProbe*>(ctx)->count_calls;
+            return 1;
+        }
+
+        static void draw_list(void* ctx, CanvasBase&, const ListView::DrawInfo&) noexcept {
+            ++static_cast<StructuredCallbackProbe*>(ctx)->draw_calls;
+        }
+
+        static int list_row_height(void* ctx, int) noexcept {
+            ++static_cast<StructuredCallbackProbe*>(ctx)->row_height_calls;
+            return 16;
+        }
+
+        static std::uint8_t list_row_flags(const void* ctx, std::uint16_t) noexcept {
+            auto* probe = const_cast<StructuredCallbackProbe*>(
+                static_cast<const StructuredCallbackProbe*>(ctx));
+            ++probe->row_flags_calls;
+            return 0;
+        }
+
+        static void list_scroll(void* ctx, int, int, int, int) noexcept {
+            ++static_cast<StructuredCallbackProbe*>(ctx)->scroll_calls;
+        }
+
+        static void list_select(void* ctx, int) noexcept {
+            ++static_cast<StructuredCallbackProbe*>(ctx)->select_calls;
+        }
+
+        static void draw_table(void* ctx, CanvasBase&, const TableView::CellInfo&) noexcept {
+            ++static_cast<StructuredCallbackProbe*>(ctx)->draw_calls;
+        }
+
+        static int table_column_width(void* ctx, int) noexcept {
+            ++static_cast<StructuredCallbackProbe*>(ctx)->column_width_calls;
+            return 32;
+        }
+
+        static void table_select(void* ctx, int, int) noexcept {
+            ++static_cast<StructuredCallbackProbe*>(ctx)->select_calls;
+        }
+
+        static TreeView::NodeInfo tree_node(void*, int) noexcept {
+            return TreeView::NodeInfo{0, false, true, nullptr};
+        }
+
+        static void draw_tree(void* ctx, CanvasBase&, const TreeView::DrawInfo&) noexcept {
+            ++static_cast<StructuredCallbackProbe*>(ctx)->draw_calls;
+        }
+
+        static int tree_row_height(void* ctx, int, const TreeView::NodeInfo&) noexcept {
+            ++static_cast<StructuredCallbackProbe*>(ctx)->row_height_calls;
+            return 16;
+        }
+
+        static void tree_toggle(void* ctx, int) noexcept {
+            ++static_cast<StructuredCallbackProbe*>(ctx)->toggle_calls;
+        }
+
+        static void tree_select(void* ctx, int) noexcept {
+            ++static_cast<StructuredCallbackProbe*>(ctx)->select_calls;
         }
     };
 
@@ -435,6 +514,91 @@ int main() {
     if (!expect(!spin_zoom.on_event(Event::mouse(Event::Type::Click, 4, 4, 0, 300)),
                 "spin zoom disables owned double tap strategy")) return 1;
 
+    using CallbackFrameBuffer = FrameBuffer<PixelFormat::RGB565, 96, 96>;
+    static CallbackFrameBuffer callback_fb{};
+    Canvas<PixelFormat::RGB565, 96, 96> callback_canvas{callback_fb};
+
+    StructuredCallbackProbe list_data{};
+    StructuredCallbackProbe list_draw{};
+    StructuredCallbackProbe list_height{};
+    StructuredCallbackProbe list_flags{};
+    StructuredCallbackProbe list_select{};
+    StructuredCallbackProbe list_scroll{};
+    ListView list_view{};
+    list_view.set_rect({0, 0, 64, 48});
+    list_view.set_show_scrollbar(false);
+    list_view.set_data_source(&StructuredCallbackProbe::count,
+                              &StructuredCallbackProbe::draw_list,
+                              &list_data);
+    list_view.set_row_height_fn(&StructuredCallbackProbe::list_row_height, &list_height);
+    list_view.set_row_flags_fn(&StructuredCallbackProbe::list_row_flags, &list_flags);
+    list_view.set_on_select(&StructuredCallbackProbe::list_select, &list_select);
+    list_view.set_on_scroll(&StructuredCallbackProbe::list_scroll, &list_scroll);
+    list_view.set_on_draw(&StructuredCallbackProbe::draw_list, &list_draw);
+    list_view.draw(callback_canvas);
+    list_view.set_selected(0);
+    if (!expect(list_view.on_event(Event::mouse(Event::Type::Click, 8, 16)),
+                "list view dispatches callback-backed row click")) return 1;
+    if (!expect(list_data.draw_calls == 0
+                    && list_draw.draw_calls > 0
+                    && list_data.row_height_calls == 0
+                    && list_height.row_height_calls > 0
+                    && list_data.row_flags_calls == 0
+                    && list_flags.row_flags_calls > 0
+                    && list_select.select_calls > 0
+                    && list_scroll.scroll_calls > 0,
+                "list view keeps callback contexts isolated")) return 1;
+    const int list_override_draw_calls = list_draw.draw_calls;
+    list_view.set_data_source(&StructuredCallbackProbe::count,
+                              &StructuredCallbackProbe::draw_list,
+                              &list_data);
+    list_view.draw(callback_canvas);
+    if (!expect(list_data.draw_calls > 0 && list_draw.draw_calls == list_override_draw_calls,
+                "list data-source rebind resets the draw context")) return 1;
+
+    StructuredCallbackProbe table_data{};
+    StructuredCallbackProbe table_width{};
+    StructuredCallbackProbe table_select{};
+    TableView table_view{};
+    table_view.set_rect({0, 0, 64, 48});
+    table_view.set_data_source(&StructuredCallbackProbe::count,
+                               &StructuredCallbackProbe::count,
+                               &StructuredCallbackProbe::draw_table,
+                               &table_data);
+    table_view.set_column_width_fn(&StructuredCallbackProbe::table_column_width, &table_width);
+    table_view.set_on_select(&StructuredCallbackProbe::table_select, &table_select);
+    table_view.draw(callback_canvas);
+    table_view.set_selected(0, 0);
+    if (!expect(table_data.draw_calls > 0
+                    && table_data.column_width_calls == 0
+                    && table_width.column_width_calls > 0
+                    && table_select.select_calls == 1,
+                "table view keeps column and selection contexts isolated")) return 1;
+
+    StructuredCallbackProbe tree_data{};
+    StructuredCallbackProbe tree_height{};
+    StructuredCallbackProbe tree_toggle{};
+    StructuredCallbackProbe tree_select{};
+    TreeView tree_view{};
+    tree_view.set_rect({0, 0, 64, 48});
+    tree_view.set_data_source(&StructuredCallbackProbe::count,
+                              &StructuredCallbackProbe::tree_node,
+                              &StructuredCallbackProbe::draw_tree,
+                              &tree_data);
+    tree_view.set_row_height_fn(&StructuredCallbackProbe::tree_row_height, &tree_height);
+    tree_view.set_on_toggle(&StructuredCallbackProbe::tree_toggle, &tree_toggle);
+    tree_view.set_on_select(&StructuredCallbackProbe::tree_select, &tree_select);
+    tree_view.draw(callback_canvas);
+    if (!expect(tree_view.on_event(Event::mouse(Event::Type::Click, 8, 8)),
+                "tree view dispatches callback-backed row click")) return 1;
+    if (!expect(tree_data.draw_calls > 0
+                    && tree_data.row_height_calls == 0
+                    && tree_height.row_height_calls > 0
+                    && tree_data.toggle_calls == 0
+                    && tree_toggle.toggle_calls == 1
+                    && tree_select.select_calls == 1,
+                "tree view keeps row, toggle and selection contexts isolated")) return 1;
+
     if constexpr (sizeof(void*) == 8) {
         if (!expect(sizeof(ObjectBase) <= 32, "ObjectBase retained legacy ownership or dispatch storage")) {
             return 1;
@@ -472,6 +636,11 @@ int main() {
                 sizeof(ObjectBase),
                 ScrollContainer::child_capacity,
                 sizeof(InteractionList<>) + sizeof(DragStrategy) + sizeof(LongPressStrategy));
+    print_widget_signal_case("structured_callback_contexts");
+    std::printf(" list_draw=%d table_width=%d tree_toggle=%d\n",
+                list_draw.draw_calls,
+                table_width.column_width_calls,
+                tree_toggle.toggle_calls);
     print_widget_signal_run_end(true);
     std::puts("[widget_signal_demo] ok");
     return 0;

@@ -54,7 +54,11 @@ public:
         col_widths_[col] = (w > 8) ? w : 8;
     }
 
-    void set_column_width_fn(ColumnWidthFn fn) noexcept { col_width_fn_ = fn; }
+    void set_column_width_fn(ColumnWidthFn fn, void* ctx = nullptr) noexcept {
+        col_width_fn_ = fn;
+        col_width_ctx_ = ctx;
+        update_scroll_bounds();
+    }
 
     void set_on_select(SelectFn fn, void* ctx = nullptr) noexcept {
         select_fn_ = fn;
@@ -185,7 +189,7 @@ private:
     int column_width(int col) const noexcept {
         if (col < 0 || col >= kMaxCols) return 24;
         if (col_width_fn_) {
-            const int v = col_width_fn_(data_ctx_, col);
+            const int v = col_width_fn_(col_width_ctx_, col);
             return (v > 8) ? v : 8;
         }
         const int w = col_widths_[col];
@@ -266,6 +270,7 @@ private:
     DrawCellFn draw_fn_{nullptr};
     ColumnWidthFn col_width_fn_{nullptr};
     void* data_ctx_{nullptr};
+    void* col_width_ctx_{nullptr};
     SelectFn select_fn_{nullptr};
     void* select_ctx_{nullptr};
 

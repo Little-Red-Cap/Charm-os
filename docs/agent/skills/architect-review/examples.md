@@ -54,7 +54,7 @@
 
 ### 推荐方案
 - 将能力注册为 `init.node`
-- 通过 `CoreSystemChain + BoardChain` 装配
+- 通过 `init.graph` 和 target 的 bringup 接线装配
 
 ### 不推荐方案
 - 手写入口顺序：会破坏可裁剪与可验证性

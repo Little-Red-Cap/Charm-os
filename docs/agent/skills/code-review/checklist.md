@@ -20,7 +20,7 @@
 
 ### 1.2 初始化与装配
 - [ ] 是否绕过 `init.graph`
-- [ ] 是否把底座能力放入 `extra nodes`
+- [ ] 是否把底座能力放入未定义的旁路节点
 - [ ] 是否引入散落的临时 Caps
 
 ### 1.3 IO 与协议纪律
@@ -29,7 +29,7 @@
 - [ ] 暂不可用时是否返回 `Errc::would_block`
 - [ ] 协议层是否出现 busy-spin/阻塞/睡眠/自定义超时循环
 - [ ] 是否绕过 `io.reactor` / Kernel / EDA
-- [ ] 是否绕过 `io.registry` 或 RuntimeContext 注入
+- [ ] 是否绕过 `io.registry` 或显式 context 注入
 - [ ] 业务层是否直接轮询硬件
 
 ### 1.4 错误模型

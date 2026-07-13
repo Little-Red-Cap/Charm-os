@@ -54,7 +54,7 @@
 - 能力是否可替换 / 可裁剪 / 可验证
 
 ### 2.2 装配视角
-- 是否通过 `init.graph` / `CoreSystemChain` / `BoardChain` / `extra nodes`
+- 是否通过 `init.graph` 和实际 target wiring 装配
 - 是否引入隐式初始化或顺序依赖
 
 ### 2.3 边界视角

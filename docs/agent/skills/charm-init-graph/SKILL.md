@@ -28,7 +28,7 @@ description: 新增或更新 Charm 的 init.graph 节点、board_caps 与 bringu
    - 保持 phase 顺序：platform -> hal -> driver -> service/app。
 
 4) **Bringup 链**
-   - 把节点加入 `CoreSystemChain` 或 `BoardChain`（优先 BoardChain）。
+   - 按目标的 `init.graph` 和 bringup wiring 接入节点。
    - Bringup 只负责链路组合，避免在 main 写自定义 init。
 
 5) **Registry 接线**

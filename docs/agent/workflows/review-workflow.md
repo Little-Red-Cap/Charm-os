@@ -70,7 +70,7 @@
 
 ### 切换到 architect-review 的条件
 - 能力归属/分层/装配路径问题
-- CoreSystemChain/BoardChain/extra nodes 选择
+- init.graph、target wiring 或装配边界选择
 - 系统级边界判断
 
 ### 补充 collaboration 的条件

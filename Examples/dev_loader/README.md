@@ -1,44 +1,51 @@
-# Charm Dev Loader Prototype
+# Dev Loader 原型
 
-This directory holds the board-free resident dev-loader prototype shared by
-host smokes and H747 monitor wiring.
+## 边界
 
-The first-generation contract is intentionally small:
+本目录提供 board-free resident download 原型。UART、USB、console 或 host frontend 只负责提供
+bytes/commands；receive、verify、packet sequence 与 App handoff 共享同一状态机。
 
-- `Session` owns the image receive state machine.
-- `Storage` is a callback-backed byte sink/source for RAM or future media.
-- `BinaryReceiveRuntime` owns the transport-neutral begin/write/verify path.
-- `CommandRuntime` maps text commands onto the same `Session` transitions.
-- `PacketRuntime` maps transport packet v0 onto the same binary receive path.
-- `Packet stream` helpers build and replay raw packet v0 byte streams before a
-  real USB or serial transport exists.
-- `Packet console` helpers convert raw packetstream bytes into H747 console
-  `dev packet ingest <hex>` command lines for line-mode board smoke.
-- `ByteTransportRuntime` buffers arbitrary incoming bytes and dispatches full
-  packet v0 frames into `PacketRuntime`.
-- `ByteTransportRuntime::reset()` only clears buffered bytes; frontends that
-  start a new packetstream session from sequence 0 must call
-  `reset_session()`.
-- `hex_decode_bytes` provides the console-friendly packet ingest path used by
-  H747 `dev_loader`.
-- `received_image_read` exposes a read-only view of a `launch_ready` received
-  image for AppRuntime handoff experiments.
-- `store_install_received_image` installs a `launch_ready` received
-  `.appstore.bin` into a caller-provided flash-like medium using the same
-  `AppStoreWritableMedia` contract as the App ABI store installer.
-- `store_stage_named_app_image` stages a named store payload as an `AppImage`,
-  keeping QSPI/eMMC store reads and received-image downloads on the same
-  `AppImage -> staged AppImageSource -> AppRuntime` boundary.
-- H747 `dev app stage/probe/prepare/run` consumes that received-image view and
-  the App ABI ELF/ModuleX load plus AppRuntime helper chain.
-- `dev launch dry-run` remains the transport-neutral receive-session marker;
-  App execution is an explicit monitor command, not a raw jump.
-- The current H747 `dev_loader` binding stores large receive/stage scratch
-  buffers in SDRAM2 `.sdram` storage. This changes only the backing arena; the
-  `Session` logical load address, packet v0 stream, Store v1 image, and
-  AppRuntime handoff semantics stay unchanged.
+它不是产品 bootloader，不定义 reset/jump policy、slot、签名、rollback 或 USB class ownership。
+H747 平台行为见 [`h747-lab dev_loader`](../project/h747-lab/apps/dev_loader/README.md)；App image/runtime 见
+[`Examples/app_abi/README.md`](../app_abi/README.md)。
 
-Supported command-layer verbs:
+## 组成
+
+| 文件 | 职责 |
+|---|---|
+| [`charm_dev_loader.hpp`](charm_dev_loader.hpp) | `Session`、storage callback 与 receive state |
+| [`charm_dev_loader_commands.hpp`](charm_dev_loader_commands.hpp) | 文本 command 到 Session transition |
+| [`charm_dev_loader_packets.hpp`](charm_dev_loader_packets.hpp) | packet v0 到 binary receive path |
+| [`charm_dev_loader_byte_transport.hpp`](charm_dev_loader_byte_transport.hpp) | 任意 byte chunk 的 buffering/frame dispatch |
+| [`charm_dev_loader_packet_stream.hpp`](charm_dev_loader_packet_stream.hpp) | packetstream build/replay helper |
+| [`charm_dev_loader_packet_console.hpp`](charm_dev_loader_packet_console.hpp) | packetstream 到 `dev packet ingest <hex>` adapter |
+| [`charm_dev_loader_hex.hpp`](charm_dev_loader_hex.hpp) | console hex decode |
+| [`charm_dev_loader_received_image.hpp`](charm_dev_loader_received_image.hpp) | `launch_ready` image 的 read-only handoff |
+| [`charm_dev_loader_store_handoff.hpp`](charm_dev_loader_store_handoff.hpp) | received Store install 与 named App staging |
+
+storage 是 caller-owned callback backend，可映射 RAM 或 media。Session 不拥有 storage，也不决定
+receive/stage/execute region 的平台地址。
+
+## Receive 与 packetstream
+
+```text
+begin(size, crc) -> write/fill* -> verify -> launch_dry_run
+```
+
+`launch_dry_run` 只把 verified session 标记为 `launch_ready`，不调用 App entry。abort 清理当前 receive
+流程；实际 App stage/probe/run 由上层显式触发。
+
+packetstream 是连续 little-endian `PacketHeader + payload`：
+
+```text
+begin -> data* -> verify -> optional launch_dry_run
+```
+
+packet v0 不定义 USB framing、retry window 或 product launch policy。`ByteTransportRuntime` 可以接收任意
+chunk size，只在完整 frame 可用时 dispatch 到 `PacketRuntime`。`reset()` 只清 byte buffer；新 stream
+从 sequence 0 开始时使用 `reset_session()`。
+
+## Command surface
 
 - `dev status`
 - `dev begin <size> [crc_hex]`
@@ -47,141 +54,33 @@ Supported command-layer verbs:
 - `dev launch dry-run`
 - `dev abort`
 
-The prototype does not implement board reset, a product bootloader jump path,
-or product update policy. H747 frontends should keep console/UART/USB parsing
-thin and reuse this command/session path instead of creating a second download
-model.
+平台 monitor 可以增加 frontend/store/app 命令，但不得复制 begin/data/verify state machine。
 
-Board-free validation entry points:
-
-- `Examples/system/dev_loader_session_smoke`
-- `Examples/system/dev_loader_command_smoke`
-- `Examples/system/dev_loader_binary_receive_smoke`
-- `Examples/system/dev_loader_packet_smoke`
-- `Examples/system/dev_loader_packet_stream_smoke`
-- `Examples/system/dev_loader_packet_console_smoke`
-- `Examples/system/dev_loader_raw_uart_smoke`
-- `Examples/system/dev_loader_byte_transport_smoke`
-- `Examples/system/dev_loader_hex_ingest_smoke`
-- `Examples/system/dev_loader_store_receive_smoke`
-- `Examples/system/dev_loader_store_install_handoff_smoke`
-- `Examples/system/dev_loader_app_handoff_smoke`
-- `Examples/system/dev_loader_received_elf_smoke`
-- `Examples/system/dev_loader_stage_probe_smoke`
-
-`dev_loader_store_receive_smoke` is the current bridge proof between App Store
-v1 install/staging and the transport-neutral receive path. It does not add a
-product manifest, USB transfer, or real jump; it proves that bytes installed to
-a flash-like medium and staged from the same external program-store shape can be
-fed into the RAM receive state machine.
-
-`dev_loader_store_install_handoff_smoke` closes the board-free resident platform
-path before QSPI board validation:
+## Store 与 App handoff
 
 ```text
-packetstream .appstore.bin -> launch_ready received image
-  -> AppStoreWritableMedia install/readback
-  -> AppStoreReader list/find/stage
-  -> staged AppImageSource
-  -> AppRuntime::run()
+packetstream -> launch_ready bytes
+-> optional AppStoreWritableMedia install/readback
+-> received image or AppStoreReader named image
+-> AppImage -> staged AppImageSource -> AppRuntime
 ```
 
-It still uses memory NOR and a fake loader on host. It does not change Store v1,
-packet v0, `CharmAppApi v1`, or add product slot/manifest policy.
+`store_install_received_image()` 复用 App ABI Store installer；`store_stage_named_app_image()` 复用 Store
+reader/staging。QSPI、eMMC、memory NOR 或其它 media 不改变 Store v1、AppImage 或 CharmAppApi。
 
-`dev_loader_packet_smoke` freezes the command-independent packet semantics for
-future USB/serial/host transports. It does not define a USB framing layer,
-retry/window policy, or product launch behavior.
+ELF/ModuleX probe、relocation、entry ABI 与 execute region 由 App ABI loader/runtime 和平台 backend
+负责，不属于 transport/session contract。
 
-`dev_loader_packet_stream_smoke` and `dev-loader-packet-stream` add the sending
-side of that same semantic path. The stream format is repeated little-endian
-`PacketHeader` bytes plus payload bytes:
+## 回归分组
 
-```text
-begin -> data* -> verify -> optional launch_dry_run
-```
+- Session/command：`dev_loader_session_smoke`、`dev_loader_command_smoke`、
+  `dev_loader_binary_receive_smoke`
+- Packet/transport：`dev_loader_packet_smoke`、`dev_loader_packet_stream_smoke`、
+  `dev_loader_byte_transport_smoke`、`dev_loader_raw_uart_smoke`
+- Console adapter：`dev_loader_packet_console_smoke`、`dev_loader_hex_ingest_smoke`
+- Store/handoff：`dev_loader_store_receive_smoke`、`dev_loader_store_install_handoff_smoke`、
+  `dev_loader_app_handoff_smoke`
+- Image：`dev_loader_received_elf_smoke`、`dev_loader_received_modulex_smoke`、
+  `dev_loader_stage_probe_smoke`
 
-This is still transport-neutral. Future USB or serial frontends should move this
-byte stream and feed decoded packets into `PacketRuntime`; they must not invent
-a second begin/data/verify state machine.
-
-`dev_loader_packet_console_smoke` and `dev-loader-packet-console` add the
-line-mode H747 console adapter. The tool converts a `.packetstream` file into
-multiple `dev packet ingest <hex>` lines with a default of 48 packetstream bytes
-per line. It does not add `reset`, `status`, or `abort`; monitor state control
-stays explicit.
-
-`dev_loader_byte_transport_smoke` proves the frontend boundary for real byte
-transports. USB CDC, serial, or a host bridge may deliver arbitrary chunk sizes;
-the adapter buffers bytes, decodes complete packet v0 frames, and dispatches
-them into the same `PacketRuntime`.
-
-`dev_loader_hex_ingest_smoke` proves the H747 console frontend shape. It decodes
-hex text into bytes, feeds the byte transport in small chunks, and reaches the
-same launch-ready dry-run state without raw serial mode.
-
-`dev_loader_raw_uart_smoke` proves the H747 raw UART frontend semantics without
-opening a serial port. It simulates `dev raw begin`, arbitrary raw byte chunks,
-automatic exit at `launch_ready`, packet failure exit, packet v0 `abort`, and a
-second download that restarts from packet sequence 0. USB CDC or USB bulk should
-reuse this same byte-ingest boundary.
-
-The H747 `dev usb begin` frontend is the first USB byte-source adapter for that
-same boundary. It is intentionally mode-exclusive: the resident monitor owns USB
-only while receiving packetstream bytes, stops/disconnects the USB device after
-`launch_ready` or abort, and does not promise to restore a previous USB
-function. Apps that need USB later must initialize their own backend.
-
-`dev_loader_app_handoff_smoke` is the first received-image to AppRuntime bridge.
-It reads a `launch_ready` payload back from storage, stages it as an `AppImage`,
-and runs a fake `charm_app_main` through `AppRuntime`. It still does not execute
-H747 ELF, jump to RAM, or add USB transport.
-
-`dev_loader_received_elf_smoke` pushes the same bridge to real App ELF bytes.
-It receives `hello_app.elf` and `player_min.elf` through packetstream semantics
-and verifies ELF load metadata through the App ABI ELF loader backend. It also
-passes the loaded ELF image through `AppRuntime::prepare()` so the
-`lookup/load/abi/argv/start` chain is covered without executing Arm code on
-host.
-
-`dev_loader_received_modulex_smoke` proves the equivalent received-image bridge
-for ModuleX. It receives ModuleX bytes through the same packetstream and
-`ByteTransportRuntime`, stages them as `AppImage(format=modulex)`, then uses
-the App ABI ModuleX loader plus staged runtime adapter to call
-`charm_app_main(api, argc, argv)` on host. The H747 resident loader uses the
-same image-format boundary and materializes CM7 ModuleX into the runtime-owned
-execute/load region before setting the Thumb callable bit. It does not add a
-second App ABI or packet protocol.
-
-ModuleX stabilization v1 keeps that boundary narrow. ModuleX App images are
-materialized before execution and may use local/global/external symbols plus
-`abs_addr` / `rel32` relocations. Non-zero BSS and XIP flags are rejected by the
-App ABI ModuleX loader. Received-image and Store-backed paths must surface the
-same loader diagnostics (`validate`, `dep`, `entry_off`, `span`, `relocated`)
-through the normal AppRuntime `load` stage rather than adding ModuleX-specific
-commands or a second entry model.
-
-`dev_loader_stage_probe_smoke` matches the H747 `dev app stage/probe` frontend:
-read the `launch_ready` payload, stage it as `AppImage(format=elf)`, call the
-ELF dry load path, and materialize the would-be `LoadedAppImage` entry address
-for diagnostics only. It deliberately stops before `AppRuntime` or
-`charm_app_main`.
-
-The H747 `dev app run` frontend is the board-side closure of the same chain:
-
-```text
-packetstream/raw UART -> launch_ready payload
-  -> received_image_read
-  -> app_received_image_stage(format=elf|modulex)
-  -> App image loader
-  -> AppRuntime::run()
-  -> charm_app_main(api, argc, argv)
-```
-
-The current H747 App ELF samples are linked for `ELF_BASE = 0x24070000`; the
-resident monitor therefore loads executable App ELF bytes into
-`0x24070000..0x24080000`. CM7 ModuleX images use the same execute/load region
-for first-generation board execution. Future USB, QSPI/eMMC, or new image
-formats must preserve the same `AppImage + AppRuntime + CharmAppApi` handoff
-shape. SDRAM is used as receive/stage storage only; it is not the
-first-generation executable App region.
+这些 host smokes 不证明真实 USB/UART、Flash、SDRAM、cache 或目标代码执行。

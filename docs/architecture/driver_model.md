@@ -21,33 +21,23 @@ Core。旧 discovery 讨论见 [`device-model-v0`](../archive/device-model-v0/RE
 
 ## 动态 discovery
 
-`Modules/system/device` 当前提供固定容量、无分配的实验实现：
-
-| module | 职责 |
-|---|---|
-| `device.desc` / `device.types` | descriptor、device、driver、状态与 lifecycle ops |
-| `device.registry` | 注册、匹配、初始化、事件和移除 |
-| `device.bus` / `device.manager` | 枚举及 bus/registry 聚合 |
-| `device.runtime_driver` | typed context 到 `device::Driver` 的适配 |
+`Modules/system/device` 当前提供固定容量、无分配的实验实现：bus 枚举 descriptor，registry
+负责匹配和 lifecycle，runtime-driver adapter 将 typed context 接到 driver hook。具体 module
+拆分以源码为准。
 
 ### 匹配
 
-`Registry` 的当前分数为 class `+4`、vendor `+3`、product `+2`、type `+1`；同分时比较
-`Driver::priority`，仍同分则保留先注册者。全空 descriptor 是 score `0` 的通用 driver。
-这些分值是实现细节，不是稳定 ABI。
+Registry 按 descriptor 匹配具体程度选择 driver，同等匹配时比较 priority，仍相同时保留先注册者；
+全空 descriptor 可作为通用 driver。具体分值是实现细节，不是稳定 ABI。
 
 ### 生命周期与错误
 
-```text
-detected -> probe -> init -> running
-                    +-> suspend -> resume
-                    +-> shutdown -> stopped
-                    +-> remove -> detected
-```
+匹配成功后依次执行 probe、init 和 start。Probe 失败会解绑 driver；init 失败会执行 remove 并回到
+detected。Suspend/resume、shutdown 和 remove 只按当前 hook 与状态推进，不提供事务回滚。
 
-`try_probe/try_init/try_suspend/try_resume` 返回 `util::Result<void>`；兼容 `bool` hook 的失败折叠为
-`util::Errc::bad_state`。`shutdown/remove/on_event` 没有返回值。`BusManager::try_enumerate_all()` 与
-`Registry::try_*` 保留首个错误，不提供事务回滚。
+`try_*` hook 返回 `util::Result<void>`；兼容 `bool` hook 的失败折叠为 `util::Errc::bad_state`。
+`shutdown/remove/on_event` 没有返回值。Bus/registry 聚合操作保留首个错误，但可能已有其它设备完成
+推进。
 
 ## 稳定导出
 
@@ -81,10 +71,8 @@ driver module。
 
 ## 证据入口
 
-- bus/registry：`Examples/system/device_bus_demo`、`device_registry_demo`
-- detach 语义：`device_runtime_block_slot_demo`、`device_runtime_channel_slot_demo`
-- USB Host glue：`Examples/usb/usb_host_runtime_*_smoke`
-
-示例只证明对应 fixture。静态装配见 [`init_graph_contract.md`](../system/init_graph_contract.md)，
+Bus/registry 与 detach fixture 位于 `Examples/system/device_*_demo`，USB Host glue 位于
+`Examples/usb/usb_host_runtime_*_smoke`。示例只证明对应 fixture。静态装配见
+[`init_graph_contract.md`](../system/init_graph_contract.md)，
 IO registry 见 [`io_registry_contract.md`](../io/io_registry_contract.md)，interface 准入见
 [`interface_admission_policy.md`](interface_admission_policy.md)。

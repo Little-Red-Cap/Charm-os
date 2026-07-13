@@ -4,11 +4,7 @@
 
 本文是 `supporting` 任务路由，帮助定位仓库已有实现。它不是 Charm Core 的能力注册表，也不证明某个模块、capability name 或状态已经获准成为公共契约。
 
-涉及 Core 准入时先读：
-
-- [`../CONSTITUTION.md`](../CONSTITUTION.md)
-- [`architecture/charm_core_contract.md`](architecture/charm_core_contract.md)
-- [`agent/routes/capability.md`](agent/routes/capability.md)
+涉及 Core 准入时进入 [`capability route`](agent/routes/capability.md)。
 
 ## 按任务进入
 
@@ -47,30 +43,13 @@
 
 ## 生成结果
 
-`scripts/gen_capability_map.py` 可扫描 `Modules/**/*.cppm` 并生成：
-
-- `docs/generated/capability_map.generated.md`
-- `docs/generated/capability_graph.generated.mmd`
-- `docs/generated/capability_data.generated.json`
-
-执行：
-
-```powershell
-python scripts/gen_capability_map.py
-```
-
-该脚本是启发式 inventory：它通过正则识别 module、普通 `import` 和特定 `provides/requires_caps` 赋值，不能覆盖所有 `export import`、动态装配、CMake 条件和 runtime binding。当前源码形状可能使它扫描到大量 module 却得到 `0` 个 capability；此时输出只能视为不完整 module inventory。生成文件不存在或脚本返回成功，都不能单独证明 Capability Contract 成立。
-
-详细说明见 [`generated/README.md`](generated/README.md)。
+生成命令、输出路径和启发式扫描限制只在 [`generated/README.md`](generated/README.md) 维护。
+生成文件是源码 inventory，不是 Capability Contract、完整依赖图或准入证据。
 
 ## 新增或扩展能力
 
-1. 写明真实消费者和最小行为契约。
-2. 证明现有更小能力不能满足，而不是先发明新名词。
-3. 指定 requirement、provision、binding 与启动前失败方式。
-4. 将平台实现留在 backend/driver/project，不塞入 App ABI 或 Core。
-5. 至少提供 host 语义证据；涉及机器行为时补 QEMU/real-board 证据。
-6. 更新专题契约或目录 README，不把细节堆回本索引。
+按 [`capability route`](agent/routes/capability.md) 完成准入与归属判断；本页只在实现和证据入口已经
+存在后更新索引，不承载候选契约正文。
 
 ## 非目标
 

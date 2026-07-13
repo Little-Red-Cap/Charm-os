@@ -13,7 +13,6 @@
 | 代码生成与模块骨架 | [`codegen/SKILL.md`](codegen/SKILL.md) |
 | 架构评审与能力归属 | [`architect-review/SKILL.md`](architect-review/SKILL.md) |
 | init.graph 与板级装配 | [`charm-init-graph/SKILL.md`](charm-init-graph/SKILL.md) |
-| Channel/Reactor/Registry | [`charm-io-contracts/SKILL.md`](charm-io-contracts/SKILL.md) |
 | Capability 实现索引 | [`charm-capability-map/SKILL.md`](charm-capability-map/SKILL.md) |
 | Block device 与 VFS 挂载 | [`charm-block-device/SKILL.md`](charm-block-device/SKILL.md) |
 | UTF-8 与乱码修复 | [`charm-docs-utf8/SKILL.md`](charm-docs-utf8/SKILL.md) |

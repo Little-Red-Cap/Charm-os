@@ -106,7 +106,6 @@ $expectedStatuses = @{
     'docs/overview.md' = 'supporting'
     'docs/architecture_overview.md' = 'supporting'
     'docs/architecture/resident_image_platform_v1_contract.md' = 'supporting'
-    'docs/architecture/charm_methodology_charter.md' = 'exploration'
     'docs/architecture/charm_spine_v0.md' = 'exploration'
     'docs/architecture/rte_capability_composition_contract_v0.md' = 'exploration'
     'docs/architecture/rte_to_h747_platform_roadmap.md' = 'exploration'
@@ -128,7 +127,6 @@ $linkFiles = $canonical + @(
     'docs/architecture/charm_core_semantic_audit.md',
     'docs/overview.md',
     'docs/architecture_overview.md',
-    'docs/architecture/charm_methodology_charter.md',
     'docs/architecture/charm_spine_v0.md',
     'docs/architecture/resident_image_platform_v1_contract.md',
     'docs/architecture/rte_capability_composition_contract_v0.md',

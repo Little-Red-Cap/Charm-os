@@ -535,4 +535,4 @@
 - 输出面：`docs/system/explain_surface_v0.md`
 - 统一报告对象：`docs/system/artifact_report_v0.md`
 - Session witness：`docs/system/kernel_runtime_session_witness_v0.md`
-- 方法论复盘：`docs/architecture/charm_methodology_charter.md`
+- Core 治理：`CONSTITUTION.md`

@@ -42,7 +42,6 @@ Signal/State 与能力回收历史见对应 archive；归档材料不覆盖现�
 
 ## Exploration
 
-- [`charm_methodology_charter.md`](charm_methodology_charter.md)
 - [`charm_spine_v0.md`](charm_spine_v0.md)
 - [`rte_capability_composition_contract_v0.md`](rte_capability_composition_contract_v0.md)
 - [`system_compiler_roadmap.md`](system_compiler_roadmap.md)

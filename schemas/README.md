@@ -47,4 +47,4 @@ validation、compare 或 CI verdict。
 - 优先复用已有 envelope/definition，避免为每个 route、workspace 或阶段旁白新增 schema。
 
 Schema 准入与缩面规则见
-[`schema_surface_reduction_governance_v0.md`](../docs/system/schema_surface_reduction_governance_v0.md)。
+[`evidence_surface_governance_v0.md`](../docs/system/evidence_surface_governance_v0.md)。

@@ -23,7 +23,7 @@
 | SSU | [`ssu_contract.md`](ssu_contract.md) |
 | Artifact / explain 工具 | [`artifact_report_v0.md`](artifact_report_v0.md)、[`explain_surface_v0.md`](explain_surface_v0.md) |
 | Front-page route 旧字段兼容 | [`front_page_route_provenance_compatibility_contract_v0.md`](front_page_route_provenance_compatibility_contract_v0.md) |
-| Script / schema 面治理 | [`script_surface_reduction_governance_v0.md`](script_surface_reduction_governance_v0.md)、[`schema_surface_reduction_governance_v0.md`](schema_surface_reduction_governance_v0.md) |
+| Script / schema 面治理 | [`evidence_surface_governance_v0.md`](evidence_surface_governance_v0.md) |
 
 POSIX 细分契约从 [`posix_support_overview.md`](posix_support_overview.md) 进入；Minimal-kernel runner、
 schema 和 CI 由总证据链维护，不在本页复制。

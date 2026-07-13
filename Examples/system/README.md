@@ -11,7 +11,7 @@
 | Resident ELF / QEMU | [`resident_elf_qemu_smoke`](resident_elf_qemu_smoke/README.md) |
 | app_lab host 主链 | [`app_lab_mainline_smoke`](app_lab_mainline_smoke/README.md) |
 | AppHost / poster | [`app_host_poster_demo`](app_host_poster_demo/README.md) |
-| Runtime block/channel slot | [`device_runtime_block_slot_demo`](device_runtime_block_slot_demo/README.md)、[`device_runtime_channel_slot_demo`](device_runtime_channel_slot_demo/README.md) |
+| Runtime block/channel slot | `device_runtime_block_slot_demo`、`device_runtime_channel_slot_demo` |
 | Device bus / registry | `device_bus_demo/`、`device_registry_demo/` |
 | Power policy 原型 | `power_demo/` |
 
@@ -28,6 +28,16 @@ QEMU runner、scope token、failure taxonomy 和 evidence bundle 参数只在
 
 这些 smokes 验证局部 requirement/provider/binding 适配，不授予 Backend、Provider 或 adapter
 Charm Core 身份。
+
+## Runtime slot fixtures
+
+| Fixture | 局部证明 |
+|---|---|
+| `device_runtime_block_slot_demo` | runtime MSC attach 到 `block.usb0`；remove 后旧 slot 返回 `noent` |
+| `device_runtime_channel_slot_demo` | runtime CDC attach 到 `io.usb0`；remove 后 read/write/flush 返回 `noent` |
+
+两者只验证 stable slot 与 registry export，不证明真实 USB Host、media 或 controller 行为。构建 target 与
+断言以各目录 CMake/source 为准。
 
 ## 冻结探索
 

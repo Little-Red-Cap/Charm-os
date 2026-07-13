@@ -9,6 +9,9 @@
 公共 ARMv7-A 层可以提供可复用的异常、寄存器、barrier、MMU/cache/TLB 和 trap frame 语义；
 它不能知道具体 SoC 的 MMIO、clock、pinmux、reset 或启动介质。
 
+代码所有权保持三层：leaf target 持有 QEMU/SoC/board 私有常量和启动细节，
+`targets/armv7a/common` 只持有可复用机器语义，`Modules/system/kernel` 持有平台无关策略。
+
 Leaf target 负责：
 
 - reset 入口、CPU mode、栈和异常向量所有权；
@@ -47,4 +50,7 @@ clock、总线、内存时序或外设状态。真实板必须单独提供对应
 
 - QEMU trap 映射：[`armv7a_runtime_trap_mapping_contract.md`](armv7a_runtime_trap_mapping_contract.md)
 - RK3506 handoff：[`../board/rk3506/post_ddr_handoff_contract.md`](../board/rk3506/post_ddr_handoff_contract.md)
-- 历史 staging 摘要：[`armv7a_minimal_kernel_staging_plan.md`](armv7a_minimal_kernel_staging_plan.md)
+- QEMU minimal-kernel 证据：
+  [`minimal_kernel_runtime_evidence_bundle_contract.md`](minimal_kernel_runtime_evidence_bundle_contract.md)
+- 历史 staging 计划：
+  [`../archive/system-evidence-and-staging-v0/armv7a_minimal_kernel_staging_plan.md`](../archive/system-evidence-and-staging-v0/armv7a_minimal_kernel_staging_plan.md)

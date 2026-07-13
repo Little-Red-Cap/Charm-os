@@ -10,9 +10,6 @@ import charm.core.geometry;
 import charm.core.input_interaction;
 import charm.gfx.color;
 import charm.gfx.render_style;
-import charm.gfx.image;
-import charm.gfx.text_box;
-import charm.font.typography;
 import charm.core.style;
 import charm.core.style_sheet;
 import alg_scroll_bounds;
@@ -52,7 +49,6 @@ public:
     void set_pinch_enabled(bool on) noexcept {
         pinch_strategy_.set_enabled(on);
     }
-    void set_scroll_hint_enabled(bool on) noexcept { show_scroll_hint_ = on; }
 
     // Captures the post-layout origin. Scrolling then becomes one common
     // translation instead of a resident base position for every child.
@@ -86,19 +82,13 @@ public:
         rgba border{};
         rgba font{};
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
-        const Style& base = has_local_style_ ? style_ : Theme::instance().get<ScrollContainer>();
+        const Style& base = Theme::instance().get<ScrollContainer>();
         Style st_scratch;
         const Style& st = resolve_style(WidgetKind::ScrollContainer, state, base, st_scratch);
         resolve_colors(st, state, bg, border, font);
 
-        if (has_skin_) {
-            draw_image_nine_slice(cvs, r.x, r.y, r.w, r.h, skin_,
-                                  slice_left_, slice_top_, slice_right_, slice_bottom_);
-            draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
-        } else {
-            draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
-            draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
-        }
+        draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
+        draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
 
         draw_focus_ring(cvs, r, st, has_state(State::Focused));
 
@@ -118,13 +108,6 @@ public:
             }
         }
 
-        if (show_scroll_hint_ && dragging_) {
-            Rect hint{r.x + 8, r.y + 4, r.w - 16, 18};
-            draw_text_box(cvs, hint, "Dragging", {60, 60, 70, 255},
-                          resolve_font(st),
-                          TextAlignH::Right, TextAlignV::Top,
-                          TextWrap::None, TextEllipsis::None);
-        }
     }
 
     bool on_event(const Event& e) {
@@ -229,21 +212,6 @@ public:
         return true;
     }
 
-    void set_style(rgba bg, rgba border) noexcept {
-        style_.colors.bg_color = bg;
-        style_.colors.border_color = border;
-        has_local_style_ = true;
-    }
-
-    void set_skin(const ImageView& img, int left, int top, int right, int bottom) noexcept {
-        skin_ = img;
-        slice_left_ = left;
-        slice_top_ = top;
-        slice_right_ = right;
-        slice_bottom_ = bottom;
-        has_skin_ = true;
-    }
-
 private:
     void on_pinch_begin() noexcept {
         pinch_active_ = true;
@@ -283,18 +251,8 @@ private:
     bool swipe_active_{false};
     bool pinch_active_{false};
     PinchScrollStrategy pinch_strategy_{};
-    bool show_scroll_hint_{true};
     int last_y_{0};
     int velocity_{0};
-
-    Style style_{};
-    bool has_local_style_{false};
-    ImageView skin_{};
-    bool has_skin_{false};
-    int slice_left_{0};
-    int slice_top_{0};
-    int slice_right_{0};
-    int slice_bottom_{0};
 };
 
 

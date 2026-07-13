@@ -9,6 +9,7 @@ import charm.core.config;
 import charm.core.event;
 import charm.core.input_interaction;
 import charm.core.object;
+import charm.core.style;
 import charm.widgets.button;
 import charm.widgets.chart;
 import charm.widgets.console_box;
@@ -47,8 +48,8 @@ namespace {
     static_assert(!std::is_move_constructible_v<Image>);
     static_assert(!std::is_copy_constructible_v<ScrollContainer>);
     static_assert(!std::is_move_constructible_v<ScrollContainer>);
-    static_assert(sizeof(ScrollContainer) <= 920,
-                  "ScrollContainer must not retain per-child layout base arrays");
+    static_assert(sizeof(ScrollContainer) <= 672,
+                  "ScrollContainer must not retain per-child layout or visual override storage");
     static_assert(!std::is_copy_constructible_v<SpinZoomWidget>);
     static_assert(!std::is_move_constructible_v<SpinZoomWidget>);
     static_assert(!std::is_copy_constructible_v<ListView>);
@@ -663,6 +664,20 @@ int main() {
     using CallbackFrameBuffer = FrameBuffer<PixelFormat::RGB565, 96, 96>;
     static CallbackFrameBuffer callback_fb{};
     Canvas<PixelFormat::RGB565, 96, 96> callback_canvas{callback_fb};
+
+    const Style saved_scroll_style = Theme::instance().get<ScrollContainer>();
+    Style themed_scroll_style = saved_scroll_style;
+    themed_scroll_style.colors.bg_color = {248, 8, 8, 255};
+    themed_scroll_style.colors.border_color = {8, 8, 8, 255};
+    Theme::instance().set<ScrollContainer>(themed_scroll_style);
+    callback_fb.clear({0, 0, 0, 255});
+    translated_scroll.draw(callback_canvas);
+    const auto themed_scroll_pixel = callback_fb.get_pixel(40, 50);
+    Theme::instance().set<ScrollContainer>(saved_scroll_style);
+    if (!expect(themed_scroll_pixel.r >= 240
+                    && themed_scroll_pixel.g <= 12
+                    && themed_scroll_pixel.b <= 12,
+                "scroll container resolves visual state from Theme")) return 1;
 
     StructuredCallbackProbe list_data{};
     StructuredCallbackProbe list_draw{};

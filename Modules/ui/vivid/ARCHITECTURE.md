@@ -131,6 +131,10 @@ Object-level widget 不在 `ObjectBase` 常驻通用交互表。需要 gesture/i
 复制或重建 child 布局表。两个操作都在修改前完整解析 child，resolver 缺失时返回 `false` 且不部分移动；
 调用方应在 child layout 或集合变化后重新同步，resolver 必须在一次调用期间保持稳定。
 
+`ScrollContainer` 的背景、边框、focus ring 与 scrollbar 统一从 Theme/StyleSheet 解析，不保存 instance-local
+`Style`、nine-slice skin 或调试型拖动文本。逐实例差异使用既有 style variant/rule；图片化外观应由显式
+装饰控件组合，而不是让每个基础滚动容器常驻未使用的 image/font 状态。
+
 `ObjectBase` 同样不常驻子节点数组。`WidgetBase<Derived, ChildCapacity>` 的默认容量为零；只有 List、
 FoldablePanel、ScrollContainer 等明确的 object-level 容器选择固定容量子表。子表使用
 内联固定数组，容量耗尽由 `add/insert_child()` 的 `false` 显式报告，不分配动态内存。

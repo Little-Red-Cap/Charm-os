@@ -31,8 +31,6 @@
 
 - Host metadata、schema 或 build-only 不能替代 QEMU/real-board 证据；
 - 相同名称或接口只有在行为、错误、生命周期和 consumer 一致时才算同一语义；
-- 没有真实 consumer、失败行为或独立证据时，保持在局部 implementation 或 exploration；
-- 不为 Backend、Driver、Provider、Graph、Compiler 或 Loader 建立全局宇宙模型。
+- 没有真实 consumer、失败行为或独立证据时，保持在局部 implementation 或 exploration。
 
-局部函数或 PR 缺陷切换到 [`code-review skill`](../code-review/SKILL.md)。完整执行顺序见
-[`architect-review workflow`](../../workflows/architect-review-workflow.md)。
+局部函数或 PR 缺陷切换到 [`code-review skill`](../code-review/SKILL.md)。

@@ -89,9 +89,9 @@ Charm 当前定位为一个能力导向的嵌入式应用平台。这个定位�
 - 两个运行环境无法维持同一含义；
 - 更小的关系已经足以表达原语。
 
-## 5. 首批裁决
+## 5. 当前裁决
 
-下表是停线收敛阶段的首批裁决，不是对现有代码结构的追认。每项裁决仍可在新证据下收窄或撤销。
+下表不是对现有代码结构的追认。每项裁决仍可在新证据下收窄或撤销。
 
 | 概念 | 裁决 | 允许的含义与限制 |
 |---|---|---|
@@ -110,7 +110,7 @@ Charm 当前定位为一个能力导向的嵌入式应用平台。这个定位�
 | Driver | `Implementation / Tool` | 工程实现与硬件控制组织，不是世界模型。 |
 | Compiler | `Implementation / Tool` | 可生成或验证组合结果，但不拥有领域语义。 |
 | IR | `Implementation / Tool` | 工具内部表示，不得反向定义应用契约。 |
-| Graph | `Implementation / Tool` | 关系的派生表示；init DAG、runtime topology、ownership 和 hot-plug state 不得合并成一张宇宙图。 |
+| Graph | `Implementation / Tool` | 关系的派生表示；init DAG、runtime topology、ownership 和 hot-plug state 不得合并为单一权威模型。 |
 | Loader | `Implementation / Tool` | 生命周期或部署机制，不属于 Capability Core。 |
 | Runtime | `Rejected / Deferred` | 名词过宽；具体 App runtime、scheduler 或 OS runtime 必须按各自边界命名和裁决。 |
 | RTE | `Rejected / Deferred` | 现有探索可保留为证据，但该名称当前不进入 canonical Core 词汇。 |
@@ -125,5 +125,3 @@ Charm 当前定位为一个能力导向的嵌入式应用平台。这个定位�
 
 `Core Gravity`、`审判庭`、`Composable Unit` 可以帮助讨论，但它们只是比喻或 deferred note，
 不是正式术语。比喻不得出现在公共类型、canonical 模型或裁决等级中。
-
-优秀的 Core 不以拥有多少概念衡量，而以能否长期拒绝不必要概念衡量。

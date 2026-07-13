@@ -20,6 +20,7 @@
 
 | 范围 | 目录 pattern |
 |---|---|
+| descriptor / class skeleton | [`usb_cdc_minimal/main.cpp`](usb_cdc_minimal/main.cpp) |
 | CDC / MSC / composite | `usb_*_mock_smoke`、`usb_*_replay_smoke` |
 | manifest / board log | `usb_*_manifest_smoke`、`usb_*_boardlog_*` |
 | Host adapter | `usb_host_harness_smoke` |

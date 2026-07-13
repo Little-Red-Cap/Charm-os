@@ -18,7 +18,4 @@
 | [`resource_contract_retained_notes.md`](resource_contract_retained_notes.md) | blocking、heap、reactor、clock、IRQ 及声明/事实/审计边界 |
 | [`armv7a_staging_retained_notes.md`](armv7a_staging_retained_notes.md) | bare-metal 到 minimal-kernel 的历史顺序与证据纪律 |
 
-## 已删除范围
-
-旧 DTO/schema 展开、DOT/JSON 样例、fixture catalog、命令矩阵、阶段清单、迁移分工和 roadmap 已由
-当前源码、artifact 工具与 Git 历史替代。归档名称和 producer/stage 术语不证明当前实现状态。
+归档名称和 producer/stage 术语不证明当前实现状态。

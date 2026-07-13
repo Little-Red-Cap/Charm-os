@@ -2,14 +2,14 @@
 
 > **文档状态：`exploration`（冻结）**
 
-完整 v0 推演已删除；退出原因见
+历史推演与退出理由见
 [`architecture-exploration-v0`](../archive/architecture-exploration-v0/README.md)。
 当前 Core 裁决见 [`../../CONSTITUTION.md`](../../CONSTITUTION.md) 和
 [`charm_core_contract.md`](charm_core_contract.md)。
 
-## 原提案保留的判断
+## 保留的判断
 
-Spine v0 曾用下面的链条组织讨论：
+Spine v0 以这条链组织讨论：
 
 ```text
 Capability -> Component -> Profile -> Projection -> Evidence

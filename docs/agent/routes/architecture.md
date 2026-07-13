@@ -12,7 +12,6 @@
 4. 与当前问题直接相关的 supporting contract
 5. [`charm-architecture rule`](../rules/charm-architecture.md)
 6. [`architect-review skill`](../skills/architect-review/SKILL.md)
-7. [`architecture workflow`](../workflows/architect-review-workflow.md)
 
 涉及 signal/state 时补读
 [`signal_state_contract_v0.md`](../../architecture/signal_state_contract_v0.md)；真实板问题补读

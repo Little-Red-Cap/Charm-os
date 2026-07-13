@@ -5,6 +5,8 @@ module;
 #include <cstdint>
 
 #include "vivid_features.generated.hpp"
+#include "widget_catalog_constants.generated.hpp"
+#include "widget_feature_defaults.generated.hpp"
 
 export module charm.core.config.generated;
 
@@ -39,7 +41,7 @@ export namespace charm::vivid::config {
     };
 
     constexpr std::size_t kWidgetFeatureCount =
-        static_cast<std::size_t>(WidgetKind::Histogram) + 1;
+        CHARM_VIVID_WIDGET_KIND_COUNT;
 
     struct WidgetFeatureTable {
         std::array<bool, kWidgetFeatureCount> enabled{};
@@ -111,10 +113,7 @@ export namespace charm::vivid::config {
     inline constexpr DrawCmdConfig kDrawCmd = kConfig.draw_cmd;
     inline constexpr WidgetFeatureTable kWidgetFeatures = []() {
         WidgetFeatureTable table{};
-#define VIVID_WIDGET_REGISTRY(name, module_tag, cpp_type, theme_base_kind, factory_fn, factory_pool, factory_create, payload_on, payload_kind, style_mask, hit_test_false, focusable, clip_children, layout_list, click_on, click_behavior, click_index, group_kind, checkable, scroll_on, wheel_target, drag_behavior, drag_on, drag_behavior_only, wheel_on, wheel_target_only, extra_on, scroll_axis, wheel_axis, capture_on) \
-        table.enabled[static_cast<std::size_t>(WidgetKind::name)] = (CHARM_VIVID_ENABLE_WIDGET_##name != 0);
-#include "widgets.registry.def"
-#undef VIVID_WIDGET_REGISTRY
+#include "widget_feature_table.generated.inc"
         return table;
     }();
 

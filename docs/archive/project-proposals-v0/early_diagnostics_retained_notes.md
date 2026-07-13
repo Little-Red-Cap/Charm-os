@@ -47,5 +47,3 @@ App 或 Scenario 入口不应拥有 startup、clock、UART pinmux、vector table
 
 只有出现至少两个 execution environment 的真实消费者，并能固定调用阶段、最小操作、失败行为、
 交接策略与独立 smoke，才考虑提升为 Stable Boundary。实现应先留在 Project/BSP 或局部 provider 中。
-
-旧提案的四层 Runtime、Player/USB 推演、统一 context 伪 API 和落地排期已删除。

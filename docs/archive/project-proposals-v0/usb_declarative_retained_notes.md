@@ -78,5 +78,3 @@ block device 的 readiness、capacity、block size、read/write failure 和只�
 - descriptor 生成成功等于设备可枚举；
 - trace/replay 等于真实 IRQ、DMA、cache 或主机证据；
 - 旧 `UsbApp`、`assemble()` 伪 API 是必须恢复的公共接口。
-
-旧草案的代码样例、Player/H747 路径、`usb_storage_bundle` 名词、第一轮迁移顺序和愿景总结已删除。

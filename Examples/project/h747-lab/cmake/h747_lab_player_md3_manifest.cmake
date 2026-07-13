@@ -31,7 +31,6 @@ function(h747_lab_collect_player_md3_modules out_modules out_base_dirs)
         "${CHARM_ROOT}/Modules/media/audio/audio_eq.cppm"
         "${CHARM_ROOT}/Modules/media/audio/audio_pump.cppm"
         "${CHARM_ROOT}/Modules/media/audio/audio_player.cppm"
-        "${CHARM_ROOT}/Modules/ui/vivid/widgets/battery_gasgauge.cppm"
         "${CHARM_ROOT}/Modules/io/out/out.ansi.cppm"
         "${CHARM_ROOT}/Modules/io/out/out.api.cppm"
         "${CHARM_ROOT}/Modules/io/out/out.channel.cppm"
@@ -81,8 +80,7 @@ function(h747_lab_collect_player_md3_modules out_modules out_base_dirs)
     if(CHARM_PLAYER_FILE_FONTS)
         list(APPEND _modules
             "${CHARM_ROOT}/Modules/gfx/font/font_provider_vfs.cppm"
-            "${CHARM_ROOT}/Modules/gfx/font/font_provider_freetype.cppm"
-            "${CHARM_ROOT}/Modules/ui/vivid/font/font_package.cppm")
+            "${CHARM_ROOT}/Modules/gfx/font/font_provider_freetype.cppm")
     endif()
 
     if(CHARM_PLAYER_DEBUG_UI)

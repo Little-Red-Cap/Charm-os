@@ -3,7 +3,7 @@ module;
 #include <cstddef>
 #include <cstdint>
 
-export module charm.core.soa_kernel:actions;
+module charm.core.soa_kernel:actions;
 
 import :kernel_class;
 import :input;

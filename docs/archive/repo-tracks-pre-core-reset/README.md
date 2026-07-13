@@ -31,14 +31,12 @@
 - 任何战线都不应建立平行启动模型、平行装配模型或新的全局 facade。
 - 深层脚本、workflow 和示例不是默认阅读入口；应先从对应专题契约进入。
 
-## 不再保留的现状声明
+## 历史状态边界
 
-旧文档把多条线标为 `active`，把 POSIX 标为 `maintained`，并称 System Compiler 是“当前最重要的方法论尝试”。这些都是停线时点判断，缺少持续更新机制，现已退出默认阅读路径。
+`active`、`maintained` 及“当前最重要的方法论尝试”都是停线时点判断，不能作为当前状态。
 
 当前路线以 Constitution、核心契约、源码和最近证据为准：
 
 - [`../../../CONSTITUTION.md`](../../../CONSTITUTION.md)
 - [`../../architecture/charm_core_contract.md`](../../architecture/charm_core_contract.md)
 - [`../../README.md`](../../README.md)
-
-需要更细的旧入口列表时使用 Git 历史，不恢复两份重复快照。

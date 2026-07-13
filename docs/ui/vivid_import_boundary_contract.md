@@ -33,6 +33,18 @@
 - VFS font package / typography runtime：`charm.ui.vivid.font_runtime`
 - host snapshot / DrawCmd evidence tools：`charm.gfx.host_tools`，仅限 host CI、diagnostic 或 internal regression；不属于 MCU 产品入口。
 
+### PRODUCT profile closure
+
+PRODUCT 的 source closure 由 Vivid 自己的 Profile Compiler 生成：
+
+- `.cppm` 中的单行 `module`、`import`、`export import` 是模块依赖唯一真源。
+- module policy 只声明 `PRODUCT_ROOT`、`INTERNAL`、`HOST_ONLY`；不得在 CMake 中再维护一份依赖图。
+- profile 只能显式选择 `PRODUCT_ROOT`。SoA kernel、DrawCmd partitions 和 widget implementation 只能由 public root 或 catalog module 的真实 closure 引入。
+- closure 到达 `HOST_ONLY` 会在配置期失败；非 Vivid module 记录为 external requirement，由上层 target 提供。
+- `WidgetKind` 保持完整、稳定的 `uint8_t` ABI。profile 只裁剪 active capability、module implementation 与 payload pool，不裁枚举项。
+
+Profile Compiler 是 Vivid `Implementation / Tool`，不进入 Charm Core，也不扩大产品 import 权限。PRODUCT 的旧手写白名单与 `CHARM_VIVID_PAYLOAD_CAP_*` 配置已删除，发现旧变量时配置直接失败。
+
 ### Scene support
 
 以下模块是 `Scene` 的支撑层，不是独立产品架构层：
@@ -137,7 +149,7 @@ Player 是真实产品压力线，不等同于普通 demo。当前使用面分�
 审查规则：
 
 - Player 侧新增长期产品代码时，优先使用 `charm.ui.scene` / `charm.ui.vivid`。
-- Player H747 / PRODUCT 路径不得直接 import `charm.gfx.snapshot`、`charm.gfx.host_tools` 或 `charm.font.provider_freetype`；这类能力必须先通过 product profile / host gate 说明。
+- Player PRODUCT / MCU 路径不得直接 import `charm.gfx.snapshot`、`charm.gfx.host_tools` 或 `charm.font.provider_freetype`；这类能力必须先通过 product profile / host gate 说明。
 - 新增 `builder_support` 直接 import 需要说明为什么不能通过 `charm.ui.scene` 获得所需 surface；默认应改走 `charm.ui.scene`。
 - 新增 SoA / DrawCmd 直连只允许出现在 host CI、diagnostic 或 internal regression 中。
 - `player.ui.cppm` 的 widget imports 是迁移债，不是立即阻断项；新增类似扩散应优先进入审查清单。
@@ -172,3 +184,5 @@ Vivid 当前存在 `charm.core.*` 模块名，例如：
 - `scripts/vivid_evidence_lab_manifest_smoke.ps1`。
 - 涉及 semantic / focus / transition 的改动，补跑对应 demo 的 CTest final verdict。
 - 涉及 CMake / Modules 裁剪的改动，分别检查 `FULL`、`MCU_MIN`、`PRODUCT` featureset。
+- `scripts/vivid_product_profile_compiler_smoke.ps1` 的 profile/envelope 正例与配置期负例。
+- `scripts/vivid_static_memory_admission_smoke.ps1` 的 base/debug/base profile 切换与当前 closure/stack source 证据。

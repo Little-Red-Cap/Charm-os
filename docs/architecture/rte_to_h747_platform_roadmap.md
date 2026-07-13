@@ -3,7 +3,7 @@
 > status: `exploration`
 >
 > `RTE -> H747` 与 `Display + Player` 是已停线的压力路线，不是当前 Charm roadmap、
-> Core 定义或 H747 验收要求。完整五阶段原文已删除；退出原因见
+> Core 定义或 H747 验收要求。历史阶段提案与退出理由见
 > [`architecture-exploration-v0`](../archive/architecture-exploration-v0/README.md)。
 
 ## 历史假设
@@ -15,7 +15,7 @@ Capability -> Component -> Profile -> Projection -> Evidence
 ```
 
 其中 RTE 被设想为 capability composition boundary，不接管调度、事件循环或 service
-locator；H747 只作为真实板压力场，不能定义跨平台语义。
+locator；H747 只提供真实板证据，不能定义跨平台语义。
 
 ## 仍可复用的局部约束
 

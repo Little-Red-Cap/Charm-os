@@ -27,5 +27,4 @@
 
 遇到绕过规则的临时路径，检查理由、范围、隔离、标记和退出条件；缺少任一项至少记录为重要问题。
 
-输出格式见 [`review template`](../../templates/review-output.md)，完整顺序见
-[`review workflow`](../../workflows/review-workflow.md)。
+输出格式见 [`review template`](../../templates/review-output.md)。

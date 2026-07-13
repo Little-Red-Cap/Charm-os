@@ -81,5 +81,5 @@ System compiler 探索尝试验证两点：
 - 自动 codegen、完整资源证明和全局确定性时间；
 - 将所有板级、运行时和应用事实合并为单一 canonical graph。
 
-历史路线中的“三个月、一年、传奇路线”等时间叙事已删除。仍有独立价值的取舍见
+历史取舍见
 [`../archive/system-compiler-front-page-v0/README.md`](../archive/system-compiler-front-page-v0/README.md)。

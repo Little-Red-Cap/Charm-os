@@ -3,7 +3,7 @@
 > **文档状态：`supporting`**
 
 早期设计取舍见
-[`net_stack_retained_notes.md`](../archive/net-stack-v0/net_stack_retained_notes.md)。当前 socket 行为以
+[`Network Stack v0`](../archive/net-stack-v0/README.md)。当前 socket 行为以
 [`net_socket_v0_contract.md`](net_socket_v0_contract.md) 和源码为准。
 
 ## 对外边界

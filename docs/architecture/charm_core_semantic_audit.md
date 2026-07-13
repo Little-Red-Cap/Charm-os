@@ -7,7 +7,7 @@
 - `authority`: [`CONSTITUTION.md`](../../CONSTITUTION.md) 与
   [`charm_core_contract.md`](charm_core_contract.md)
 
-本文不复述首批裁决，不记录开发进度，也不为现有代码补发 Core 准入资格。运行状态必须查看当次
+本文不复述当前裁决，不记录开发进度，也不为现有代码补发 Core 准入资格。运行状态必须查看当次
 源码、CMake target 和测试输出。
 
 ## 审计规则
@@ -27,7 +27,7 @@
 | Capability contracts | TextSink、BlockDevice、Clock 在 Backends、Modules 和 fixtures 中存在不同形状 | 同名不能自动合并，也不能任选一份改名为 canonical |
 | `charm.core` | [`charm.core.cppm`](../../Modules/core/charm.core.cppm) 聚合 util、`semantic.core`、init、trace、container 和 algorithm | 聚合便利不等于这些 module 都是 Core Primitive |
 | semantic tooling | [`semantic.core`](../../Modules/core/semantic/semantic.core.cppm) 包含 Verdict、Witness、FailureDomain 和 reflection extraction | 当前有真实 consumer，但语义属于 evidence/tooling；目录位置不构成准入 |
-| overloaded names | Binding、Profile、Graph、Runtime、Evidence 在 init、network、project、kernel 和 tools 中表达不同问题 | 必须保留限定名称，禁止构造统一宇宙类型 |
+| overloaded names | Binding、Profile、Graph、Runtime、Evidence 在 init、network、project、kernel 和 tools 中表达不同问题 | 必须保留限定名称，禁止构造无共同语义的统一类型 |
 | project facts | BSP、board profile、linker、vendor SDK、ELF/ModuleX loader 都有真实实现 | 它们可重要且稳定，但仍是 Project Fact 或 Implementation/Tool |
 
 ## 具体边界

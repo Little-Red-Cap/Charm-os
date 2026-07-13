@@ -72,6 +72,3 @@ Idle/Error，并保持 sink 停止、队列已清理。禁止在半重配状态�
   区域属于 board profile。
 - underrun counter 是观测值，不自动等于 fatal error；持续 underrun 的处置由 player/backend policy
   决定。
-
-旧文档中的接口代码、伪实测日志、推荐毫秒值、Player 状态机、TODO、版本路线和固定 MCU 参数已删除。
-需要追溯原文时使用 Git 历史，不能恢复为当前默认值。

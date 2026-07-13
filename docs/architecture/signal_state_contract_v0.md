@@ -6,8 +6,7 @@
 - `scope`: `util.delegate`、`service.signal/state/deferred_signal`
 - `authority`: 当前 module 源码
 
-这些类型是固定容量、局部连接原语，不是系统事件框架。历史讨论见
-[`signal-state-v0`](../archive/signal-state-v0/README.md)。
+这些类型是固定容量、局部连接原语，不是系统事件框架。
 
 ## 类型语义
 

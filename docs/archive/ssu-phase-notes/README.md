@@ -6,8 +6,7 @@
 - `scope`: 早期 SSU 推进记录、迁移取舍和未决问题
 - `current contract`: [`../../system/ssu_contract.md`](../../system/ssu_contract.md)
 
-本页提炼已删除的状态、vNext、看板、迁移台账和提交纪律文档。原文件把阶段计划、
-当前事实和架构判断混在一起，不再作为默认入口。
+本页保留早期 SSU 推进中的证据、迁移取舍和未决问题；阶段计划与当时状态不作为当前事实。
 
 ## 当时记录的证据
 
@@ -38,17 +37,3 @@
 - submit 来源统计和 hotspots 阈值是否足以支持排障；
 - RunLoop projection 是否值得进入更强的契约；
 - audio 或其它设备时钟数据面是否需要完全不同的执行模型。
-
-## 被收敛的文件
-
-- `ssu_status.md`
-- `ssu_vnext.md`
-- `ssu_phase2_board.md`
-- `ssu_discipline.md`
-- `ssu_migration_priority.md`
-- `ssu_run_loop_audit.md`
-- `ssu_submit_inventory.md`
-- `ssu_submit_discipline.md`
-
-这些文件中的当前接口和评审规则已归入 `ssu_contract.md` 与
-`ssu_review_checklist.md`；独立讨论价值保留在本页。

@@ -2,8 +2,7 @@
 
 > status: exploration
 
-本文只界定 RK3506 物理启动阶段与 Charm 公开运行模型的边界。完整的 SDK
-线索、历史方案和阶段排期已移入
+本文只界定 RK3506 物理启动阶段与 Charm 公开运行模型的边界。SDK 线索、历史方案和阶段排期见
 [`../../archive/architecture-inventory-v0/rk3506_boot_staging_plan.md`](../../archive/architecture-inventory-v0/rk3506_boot_staging_plan.md)。
 
 ## 阶段模型

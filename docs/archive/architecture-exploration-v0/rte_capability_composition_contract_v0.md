@@ -11,7 +11,7 @@ component topology、service locator、DI container、manifest、generator 或�
 
 ## 可保留的关系
 
-实验中真正可复用的是三类已获准关系：
+可复用的已获准关系有三类：
 
 - Requirement：消费方声明依赖某项 Capability Contract；
 - Provision：提供方声明可满足该契约；
@@ -85,6 +85,3 @@ contract 已满足。Host、QEMU 与真实板证据域保持分离。
 先选择一个真实 consumer 和一个无法由现有 binding helper 表达的最小问题。只有在至少两个 execution
 environment 中证明相同关系、失败语义和替换实现后，才评估局部 Stable Boundary；仍不自动恢复
 `RTE` 名称。
-
-旧 descriptor 词汇表、Component/World 源模型、H747/Player 映射、projection 示例清单、reflection
-路线和采用顺序已删除。

@@ -23,5 +23,4 @@
 ## 验证与输出
 
 记录实际命令、结果、未验证项和残余风险；行为变化同步对应文档。需要结构化输出时使用
-[`codegen template`](../../templates/codegen-output.md)，执行阶段见
-[`codegen workflow`](../../workflows/codegen-workflow.md)。
+[`codegen template`](../../templates/codegen-output.md)。

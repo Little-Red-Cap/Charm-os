@@ -82,5 +82,5 @@ Result 返回。assert/contract 只适合调用者违反不可恢复前置条件
 4. 明确 ownership、失败行为与退出条件；
 5. 不污染公共 Core 接口。
 
-当前登记入口见 [`escape_hatches.md`](../../project/escape_hatches.md)。历史“禁止/受限”列表不再保留，
-因为它们会把 target 和执行上下文差异错误地压成一套全仓语言政策。
+当前登记入口见 [`escape_hatches.md`](../../project/escape_hatches.md)。语言与资源约束按 target 和执行
+上下文判断，不使用全仓统一禁用表。

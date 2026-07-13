@@ -25,7 +25,8 @@ driver 负责把真实控制器的端点、完成与错误事件映射进这些�
 
 ## 已有证据
 
-- Device 侧有 CDC、MSC、MSC+CDC 的 native mock/replay；`usb_cdc_minimal` 只是最小枚举骨架。
+- Device 侧有 CDC、MSC、MSC+CDC 的 native mock/replay；`usb_cdc_minimal` 只构建 descriptor tree
+  并调用 class buffer callback，不执行 EP0、DCD 或 host enumeration。
 - Host 侧有 discovery、runtime manager、block/channel export 与 remove/rediscover 的 host smoke。
 - Boardlog importer 验证日志格式到 replay 的工具链，不等于真实板实时执行。
 - UAC 当前只有 module/descriptor 基础面，没有同等级 runtime smoke，不能从文件存在推断音频闭环。
@@ -36,7 +37,7 @@ driver 负责把真实控制器的端点、完成与错误事件映射进这些�
 ./scripts/usb_native_smoke.ps1
 ```
 
-测试目标清单和工具链参数由 [`Examples/usb/README.md`](../../Examples/usb/README.md) 维护，本文不复制。
+测试 target 与工具链参数以各目录 CMake/source 和 runner 为准，本文不复制清单。
 
 ## 未证明
 

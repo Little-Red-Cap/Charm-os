@@ -156,7 +156,11 @@ The `seek` command maps directly to the shared controller seek path:
 
 ## PRODUCT Capacity Profile
 
-`app.cmake` owns the first conservative Player MD3 PRODUCT SoA profile:
+The shared
+`Examples/project/player/cmake/player_md3_vivid_product.cmake` file owns the
+conservative `player_md3` PRODUCT profile. `app.cmake` selects that profile;
+`h747_lab_target.cmake` contributes only the H747 target envelope. The resolved
+workset is:
 
 - `CHARM_VIVID_SOA_MAX_NODES=384`
 - `CHARM_VIVID_SOA_TEXT_ARENA_BYTES=24576`
@@ -170,30 +174,31 @@ The `seek` command maps directly to the shared controller seek path:
 - disabled payload kinds default to `0`; default firmware keeps table/tree
   payload caps at `0` together with the debug UI gate
 
-These are H747 product-firmware profile values, not Windows `FULL` preview
-defaults. The generated evidence is
-`cmake-build-h747-lab-debug/generated/vivid/soa_pool_caps.cppm` and
-`cmake-build-h747-lab-debug/generated/vivid/config.generated.cppm`;
-configure-time gates fail if either artifact stops matching the declared
-profile.
+These are shared Player product-profile values, not Windows `FULL` preview
+defaults. The H747-specific envelope remains `720x1280`, one full-size layer
+cache, one Scene, a 5 MiB Vivid RAM budget, 512 KiB minimum headroom, and a
+4096-byte hot-frame gate. Generated evidence is isolated under
+`<build>/generated/vivid/h747_lab_player_md3/player_md3/`, including
+`profile.json`, `target_envelope.json`, `admission.json`, typed config, and pool
+caps. Configure-time gates fail if structured evidence stops matching the
+selected profile or H747 envelope.
 
 ## PRODUCT Module Evidence
 
-`app.cmake` owns the first conservative Vivid PRODUCT module profile:
+The Vivid Product Profile Compiler treats C++ `module` / `import` declarations
+as the dependency source of truth. `player_md3` declares public roots, active
+`WidgetKind` values, and payload capacities; the compiler derives the complete
+Vivid source closure. The generated module evidence is
+`<build>/generated/vivid/h747_lab_player_md3/player_md3/module_closure.json`.
 
-- `CHARM_VIVID_PRODUCT_CORE_MODULES`
-- `CHARM_VIVID_PRODUCT_GFX_MODULES`
-- `CHARM_VIVID_PRODUCT_WIDGETS`
-
-The first pass is intentionally not a visual or behavior cut. It keeps the
-current shared MD3 firmware module set explicit and auditable, so future
-capacity/performance passes can remove modules with evidence instead of relying
-on a broad `core/*.cppm` / `gfx/*.cppm` glob. The generated module evidence is
-`cmake-build-h747-lab-debug/generated/vivid/player_md3_product_modules.txt`;
-configure-time gates reject undeclared Vivid core/gfx modules, `snapshot`,
-`display_policy`, StaticCut-disabled layered transition modules, file-font
-modules, dynamic cover-theme extraction modules, and debug-only table/tree UI
-paths in the default firmware.
+PRODUCT configuration rejects unknown, INTERNAL, and HOST_ONLY roots, and
+rejects a closure that reaches host-only modules such as `snapshot`. The
+catalog automatically admits dependencies such as `charm.gfx.color` and
+`charm.widgets.battery_gasgauge`; H747 no longer carries source-list exceptions
+for them. The default profile excludes debug-only table/tree modules and their
+payload pools. The removed `CHARM_VIVID_PRODUCT_*` and
+`CHARM_VIVID_PAYLOAD_CAP_*` variables are migration errors, not compatibility
+inputs.
 
 ## Memory Evidence
 

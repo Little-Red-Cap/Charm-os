@@ -5,9 +5,6 @@
 这份文档约束 `scripts/` 的职责，不是脚本实现计划，也不定义 Charm Core。
 系统语义的第一解释位置必须是源码、contract、schema 或 shared library；脚本负责编排、采集、校验和输出证据。
 
-旧的数量盘点、pilot 和阶段验收已移入
-[`../archive/tool-surface-reduction-v0/`](../archive/tool-surface-reduction-v0/)，不作为当前事实。
-
 ## 四层职责
 
 ### Entrypoint

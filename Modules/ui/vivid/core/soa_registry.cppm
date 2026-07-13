@@ -2,6 +2,7 @@ module;
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include "features.hpp"
 
 export module charm.core.soa_registry;
 
@@ -120,7 +121,7 @@ namespace {
             entry.checkable = checkable_value; \
             entry.capture_on_press = true; \
         } while (0);
-#include "widgets.behavior.click.def"
+#include "widget_behavior_click.generated.inc"
 #undef VIVID_WIDGET_BEHAVIOR_CLICK
 #define VIVID_WIDGET_BEHAVIOR_SCROLL(name, wheel_target_value, drag_behavior_value) \
         do { \
@@ -130,7 +131,7 @@ namespace {
             entry.wheel_target = SoaWheelTargetPolicy::wheel_target_value; \
             entry.drag_behavior = SoaDragBehavior::drag_behavior_value; \
         } while (0);
-#include "widgets.behavior.scroll.def"
+#include "widget_behavior_scroll.generated.inc"
 #undef VIVID_WIDGET_BEHAVIOR_SCROLL
 #define VIVID_WIDGET_BEHAVIOR_EXTRA(name, scroll_axis_value, wheel_axis_value) \
         do { \
@@ -138,14 +139,14 @@ namespace {
             entry.scroll_axis = SoaScrollAxis::scroll_axis_value; \
             entry.wheel_axis = SoaWheelAxisPolicy::wheel_axis_value; \
         } while (0);
-#include "widgets.behavior.extra.def"
+#include "widget_behavior_extra.generated.inc"
 #undef VIVID_WIDGET_BEHAVIOR_EXTRA
 #define VIVID_WIDGET_BEHAVIOR_WHEEL(name, wheel_target_value) \
         do { \
             auto& entry = table[static_cast<std::size_t>(WidgetKind::name)]; \
             entry.wheel_target = SoaWheelTargetPolicy::wheel_target_value; \
         } while (0);
-#include "widgets.behavior.wheel.def"
+#include "widget_behavior_wheel.generated.inc"
 #undef VIVID_WIDGET_BEHAVIOR_WHEEL
 #define VIVID_WIDGET_BEHAVIOR_DRAG(name, drag_behavior_value) \
         do { \
@@ -153,14 +154,14 @@ namespace {
             entry.drag_behavior = SoaDragBehavior::drag_behavior_value; \
             entry.capture_on_press = true; \
         } while (0);
-#include "widgets.behavior.drag.def"
+#include "widget_behavior_drag.generated.inc"
 #undef VIVID_WIDGET_BEHAVIOR_DRAG
 #define VIVID_WIDGET_BEHAVIOR_CAPTURE(name) \
         do { \
             auto& entry = table[static_cast<std::size_t>(WidgetKind::name)]; \
             entry.capture_on_press = true; \
         } while (0);
-#include "widgets.behavior.capture.def"
+#include "widget_behavior_capture.generated.inc"
 #undef VIVID_WIDGET_BEHAVIOR_CAPTURE
         return table;
     }
@@ -177,28 +178,28 @@ namespace {
             auto& entry = table[static_cast<std::size_t>(WidgetKind::name)]; \
             entry.hit_test = false; \
         } while (0);
-#include "widgets.defaults.hit_test_false.def"
+#include "widget_default_hit_test_false.generated.inc"
 #undef VIVID_WIDGET_DEFAULT_HIT_TEST_FALSE
 #define VIVID_WIDGET_DEFAULT_FOCUSABLE(name) \
         do { \
             auto& entry = table[static_cast<std::size_t>(WidgetKind::name)]; \
             entry.focusable = true; \
         } while (0);
-#include "widgets.defaults.focusable.def"
+#include "widget_default_focusable.generated.inc"
 #undef VIVID_WIDGET_DEFAULT_FOCUSABLE
 #define VIVID_WIDGET_DEFAULT_CLIP_CHILDREN(name) \
         do { \
             auto& entry = table[static_cast<std::size_t>(WidgetKind::name)]; \
             entry.clip_children = true; \
         } while (0);
-#include "widgets.defaults.clip_children.def"
+#include "widget_default_clip_children.generated.inc"
 #undef VIVID_WIDGET_DEFAULT_CLIP_CHILDREN
 #define VIVID_WIDGET_DEFAULT_LAYOUT_LIST(name) \
         do { \
             auto& entry = table[static_cast<std::size_t>(WidgetKind::name)]; \
             entry.layout_kind = SoaLayoutKind::List; \
         } while (0);
-#include "widgets.defaults.layout_list.def"
+#include "widget_default_layout_list.generated.inc"
 #undef VIVID_WIDGET_DEFAULT_LAYOUT_LIST
         return table;
     }
@@ -214,7 +215,7 @@ namespace {
         do { \
             table[static_cast<std::size_t>(WidgetKind::name)] = soa_detail::PayloadKind::payload; \
         } while (0);
-#include "widgets.payload.def"
+#include "widget_payload_map.generated.inc"
 #undef VIVID_WIDGET_PAYLOAD
         return table;
     }

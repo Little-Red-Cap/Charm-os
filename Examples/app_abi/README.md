@@ -1,5 +1,12 @@
 # Charm App ABI 原型
 
+## 文档状态
+
+- `status`: `supporting`
+- `scope`: resident App C ABI、image loader 与 Store 原型边界
+- `authority`: 本目录 headers 与
+  [`resident_image_platform_v1_contract.md`](../../docs/architecture/resident_image_platform_v1_contract.md)
+
 ## 边界
 
 本目录定义 resident App 的第一代 C ABI 原型：
@@ -64,6 +71,10 @@ Store v1 是 `header + entries + payload`，不是 filesystem、package manager 
 media/read/write，不定义第二套 Store 或 App entry。
 
 received/stage cache 可以位于 SDRAM；execute region 属于 runtime domain。内存放置不进入 App ABI。
+
+Host `.appstore.bin` packer 入口是
+[`app_abi_store_pack_tool/main.cpp`](../system/app_abi_store_pack_tool/main.cpp)；CLI 形状与格式默认值由
+源码定义，推荐制品链仍由下方 artifact 脚本编排。
 
 ## Runtime domain
 

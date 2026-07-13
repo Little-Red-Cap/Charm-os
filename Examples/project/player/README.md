@@ -89,10 +89,9 @@ ctest --preset test-player-md3-host-debug
 运行 `cmake-build-player/charm-player-md3-host.exe` 可打开实际 SDL 窗口。CTest 使用隐藏窗口和固定
 三帧，只验证 Host clock/input/present/run-loop 到 Player Port 的接线，不接管 Player 截图或 UI CI。
 
-旧架构收敛与能力地图保留为历史/探索材料：
-[ARCHITECTURE_CONVERGENCE.md](ARCHITECTURE_CONVERGENCE.md)、
-[PLAYER_SYSTEM_CAPABILITY_MAP.md](PLAYER_SYSTEM_CAPABILITY_MAP.md)。它们不覆盖本 README、
-`PLAYER_FILE_OWNERSHIP.md` 或 `PLAYER_PORT_V2.md` 的当前边界。
+旧架构收敛与能力地图已合并为
+[归档保留笔记](../../../docs/archive/project-guidance-and-tracking-v0/player_architecture_retained_notes.md)，
+不覆盖本 README、`PLAYER_FILE_OWNERSHIP.md` 或 `PLAYER_PORT_V2.md` 的当前边界。
 当前 Port 契约以 `PLAYER_PORT_V2.md` 为准，V1 只保留迁移历史。
 
 ## 当前目录结构

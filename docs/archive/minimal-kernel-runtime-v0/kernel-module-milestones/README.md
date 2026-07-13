@@ -17,6 +17,5 @@
 - blocking thread 在 blocked 状态只接收明确允许的事件；sync、init、terminate 是早期默认放行集合。
 - unblock mask 是任务策略，不应被隐藏成 scheduler 的全局规则。
 
-旧 kernel/util 目录草案、Config 伪代码、M1/M2/M3 里程碑、Windows demo 路径、CSV 字段和 feature
-freeze 已删除。现行行为必须读取 [`docs/system/README.md`](../../../system/README.md) 与
+现行行为必须读取 [`docs/system/README.md`](../../../system/README.md) 与
 [`Modules/system/kernel`](../../../../Modules/system/kernel/) 源码，并以当次测试为准。

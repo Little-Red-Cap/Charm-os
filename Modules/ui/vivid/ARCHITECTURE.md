@@ -109,7 +109,7 @@ sequenceDiagram
 **公共 surface 分层：**
 
 - `charm.ui.vivid` 是产品根入口，只 re-export core style/config、基础 gfx、`Scene`。
-- `charm.ui.scene.motion_runtime` 是 motion / page-transition runtime 扩展，放在 `core/` 下并受 PRODUCT whitelist 管控。
+- `charm.ui.scene.motion_runtime` 是 motion / page-transition runtime 扩展，放在 `core/` 下并受 PRODUCT profile closure 管控。
 - `charm.gfx.host_tools` 是 host snapshot / DrawCmd evidence 聚合，放在 `gfx/` 下；默认 PRODUCT profile 不应接入。
 - `charm.ui.vivid.font_runtime` 是 VFS font package / typography runtime 聚合，不 re-export FreeType provider；FreeType 仍属于 host/resource provider gate。
 
@@ -185,11 +185,13 @@ flowchart LR
 - 每个 kind 对应独立 `PayloadPool`，固定容量、无动态分配；默认容量为 `soa_max_nodes`。
 - debug 下校验 slot/generation 与 owner，释放后 generation++，避免悬挂句柄。
 
-### 2.5 控件注册表单一源（Registry）
+### 2.5 控件目录单一源（Widget Catalog）
 
-- `widgets.registry.def` 是唯一源，包含 enable 条目与行为/style/payload 元数据。
-- `widgets.def` 仅作为薄封装：由 registry 生成 `VIVID_WIDGET` 列表。
-- `widget_registry.cppm` 的 enabled_kinds 构建直接读取 registry，避免手写列表分叉。
+- `cmake/widget_catalog.cmake` 使用具名 `vivid_catalog_widget()` / `vivid_catalog_payload_pool()` 声明稳定 ID、module、factory、payload、style、defaults 和 input behavior；旧的 30 参数 registry 与派生 `.def` 链已删除。
+- `WidgetKind` 始终生成完整 `uint8_t` 枚举，名称和数值由 `widget_kind_abi.expected` 固定；PRODUCT profile 只决定能力是否可用，不生成 profile-specific enum。
+- catalog 直接生成 enum/name、active feature、factory、payload、style、defaults 和 behavior 代码片段，`widget_registry.cppm` 只消费生成结果。
+- 一个 module 可以承载多个 kind；`Container` 是 runtime-only kind，widget module 则作为 catalog internal root 进入 module closure。
+- 激活带 payload 的 kind 时必须声明对应共享 pool 容量；未激活 pool 固定为零，缺失、未知、无消费者或超过 `uint16_t` 的容量在配置期失败。
 
 ### 2.6 构建自治（De-rooting）
 
@@ -198,8 +200,18 @@ flowchart LR
   - 生成 `soa_pool_caps.cppm`
   - 生成 `config.generated.cppm`，导出 `ScreenConfig / FeatureConfig / SoaConfig / VividConfig`
   - 生成 `vivid_features.generated.hpp`，仅作为预处理兼容桥接层
-  - 维护 Vivid 模块清单与裁剪逻辑
+  - 从 C++ `module` / `import` 声明构建 Vivid module inventory 与 PRODUCT closure
   - 注入 Vivid 编译选项，并把 featureset / widget feature / float widget 选择收敛到生成式配置入口
+
+### 2.7 PRODUCT Profile Compiler
+
+- Product Profile Compiler 属于 Vivid `Implementation / Tool`，不定义 Charm Core 概念，也不新增产品 C++ API。
+- C++ Module 的单行 `module`、`import`、`export import` 是依赖唯一真源；CMake policy 只标记 `PRODUCT_ROOT`、`INTERNAL`、`HOST_ONLY`，不得复制依赖边。
+- `vivid_define_product_profile()` 声明产品 root、active `WidgetKind`、payload capacities 以及 SoA/TextArena/Style/DrawCmd 工作集；`vivid_configure_product_target()` 只提供屏幕、layer cache、Scene 数、RAM/headroom 与栈上限等硬件 envelope。
+- 每个 target 只能选择一个 profile 和一个不可变 envelope；完全相同的重复调用保持幂等，profile 或 envelope 漂移在配置期失败。未知 root、internal/host-only root、module cycle、catalog/payload 不一致和重复 profile 同样直接失败。
+- public root 可以通过真实 import closure 引入 SoA、DrawCmd partition 等实现模块；产品 profile 不能直接把这些 internal module 当 root 选择。
+- PRODUCT 生成证据位于 `generated/vivid/<target>/<profile>/`。`profile_fingerprint` 只覆盖 catalog 与规范化后的产品工作集，不受 profile 名、继承写法或等价数值/布尔拼写影响；`target_fingerprint` 额外覆盖规范化硬件 envelope，不受 CMake target 名影响。
+- `CHARM_VIVID_PRODUCT_CORE_MODULES`、`CHARM_VIVID_PRODUCT_GFX_MODULES`、`CHARM_VIVID_PRODUCT_WIDGETS` 与 `CHARM_VIVID_PAYLOAD_CAP_*` 已硬删除；PRODUCT 配置发现旧变量会直接报告迁移错误。
 
 ## 3. 布局与容器
 

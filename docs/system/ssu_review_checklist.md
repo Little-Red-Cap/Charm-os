@@ -5,6 +5,7 @@
 - `status`: `supporting`
 - `scope`: kernel task 元数据、Scheduler submit 与 RunLoop projection 的代码评审
 - `contract`: [`ssu_contract.md`](ssu_contract.md)
+- `PR surface`: [`.github/PULL_REQUEST_TEMPLATE.md`](../../.github/PULL_REQUEST_TEMPLATE.md)
 
 ## 何时执行
 

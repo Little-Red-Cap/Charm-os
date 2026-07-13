@@ -6,8 +6,8 @@
 - `scope`: minimal-kernel 一次运行会话的汇总边界与消费约束
 - `authority`: 受 [`minimal_kernel_runtime_evidence_bundle_contract.md`](minimal_kernel_runtime_evidence_bundle_contract.md) 约束
 
-本文件保留既有路径，因为 workflow、canonical world、schema sample 和 front-page fixture 会引用它。
-它不是 Charm Core 契约，也不以文档、schema 或 report 的存在证明 runtime 已运行。
+本文件定义 workflow、canonical world、schema sample 和 front-page fixture 共同消费的 session summary
+边界。它不是 Charm Core 契约，也不以文档、schema 或 report 的存在证明 runtime 已运行。
 
 ## 对象边界
 
@@ -97,8 +97,3 @@ session/check.txt
 
 CI、compare consumer 和其它 runner 的参数由各自脚本及 workflow 维护，本文件不复制完整命令矩阵。
 检查通过只证明该次输入与当前契约一致；没有当次 artifact 时，不能从本文推断 Host、QEMU 或真实板已通过。
-
-## 历史材料
-
-早期完整设计中的分层与 handoff 取舍已经收敛到本文；重复的字段枚举、world compare 展开、runner
-清单和阶段叙事已删除。历史实现过程由 Git 追溯。

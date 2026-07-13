@@ -12,7 +12,6 @@
 2. [`../../io/io_channel_contract.md`](../../io/io_channel_contract.md)
 3. [`../../io/io_reactor_contract.md`](../../io/io_reactor_contract.md)
 4. [`../../io/io_registry_contract.md`](../../io/io_registry_contract.md)
-5. [`../skills/charm-io-contracts/SKILL.md`](../skills/charm-io-contracts/SKILL.md)
 
 ## 先不要做什么
 

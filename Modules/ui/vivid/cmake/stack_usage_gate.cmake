@@ -94,6 +94,8 @@ get_filename_component(_vivid_stack_usage_out_dir "${VIVID_STACK_USAGE_OUT}" DIR
 file(MAKE_DIRECTORY "${_vivid_stack_usage_out_dir}")
 string(CONCAT _vivid_stack_manifest
     "# Generated Vivid stack usage evidence.\n"
+    "profile_fingerprint=${VIVID_STACK_USAGE_PROFILE_FINGERPRINT}\n"
+    "target_fingerprint=${VIVID_STACK_USAGE_TARGET_FINGERPRINT}\n"
     "entry_count=${_vivid_stack_entry_count}\n"
     "max_allowed_bytes=${VIVID_STACK_USAGE_MAX_BYTES}\n"
     "max_observed_bytes=${_vivid_stack_max_bytes}\n"

@@ -2,6 +2,7 @@ module;
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include "widget_catalog_constants.generated.hpp"
 
 export module charm.core.widget_registry;
 
@@ -10,7 +11,7 @@ import charm.core.config;
 
 namespace {
     constexpr std::size_t kWidgetKindCount =
-        static_cast<std::size_t>(WidgetKind::Histogram) + 1;
+        CHARM_VIVID_WIDGET_KIND_COUNT;
 
     constexpr std::size_t count_enabled_kinds() noexcept {
         std::size_t count = 0;

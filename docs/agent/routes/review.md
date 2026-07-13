@@ -13,8 +13,7 @@
 3. [`../../architecture/signal_state_contract_v0.md`](../../architecture/signal_state_contract_v0.md)（涉及事件连接时）
 4. [`../skills/code-review/SKILL.md`](../skills/code-review/SKILL.md)
 5. [`../skills/code-review/checklist.md`](../skills/code-review/checklist.md)
-6. [`../workflows/review-workflow.md`](../workflows/review-workflow.md)
-7. [`../templates/review-output.md`](../templates/review-output.md)
+6. [`../templates/review-output.md`](../templates/review-output.md)
 
 ## 先不要做什么
 

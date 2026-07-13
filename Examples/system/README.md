@@ -22,12 +22,12 @@ QEMU runner、scope token、failure taxonomy 和 evidence bundle 参数只在
 
 | 边界 | 示例 |
 |---|---|
-| topology bridge | [`capability_topology_bridge_smoke`](capability_topology_bridge_smoke/README.md) |
-| console provider | [`console_output_provider_smoke`](console_output_provider_smoke/README.md) |
-| block storage provider | [`block_storage_provider_smoke`](block_storage_provider_smoke/README.md) |
+| topology bridge | `capability_topology_bridge_smoke`：role/binding/provider instance 与 published endpoint 分离 |
+| console provider | `console_output_provider_smoke`：TextSink/LineSource、accepted bytes 与 provider evidence 分离 |
+| block storage provider | `block_storage_provider_smoke`：app-store role binding 与 BlockEndpoint publication 分离 |
 
 这些 smokes 验证局部 requirement/provider/binding 适配，不授予 Backend、Provider 或 adapter
-Charm Core 身份。
+Charm Core 身份。具体 token、负例和编译器要求以各目录 CMake/source 为准。
 
 ## Runtime slot fixtures
 

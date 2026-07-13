@@ -93,7 +93,7 @@ canonical target 唯一为 `Charm::player-md3`。`player_charm_closure.cmake` �
 2026-07-14 的 Clang 18 干净 Host + SDL evidence：
 
 - 491 Ninja steps，基线为 1221；
-- `cmake-build-player` 为 1,016,225,251 bytes（0.946 GiB）；
+- `cmake-build-player` 为 1,015,996,369 bytes（0.946 GiB）；
 - application object 5,767,168 bytes；
 - ARGB framebuffer 2,749,120 bytes；
 - application + framebuffer 8,516,288 bytes；
@@ -116,7 +116,7 @@ Controller/Scene/App materialization 位于 `player.md3_port.cpp`，render/runti
 这次拆分解除 w64devkit GCC 16.1 与 ARM GCC 17 对累计 module imports 的 compiler ICE：
 
 - GCC 16.1 canonical component 冷构建为 477 Ninja steps，11/11 无 SDL tests 通过；
-- ARM GCC 17 compile-only 为 439 Ninja steps，`libcharm_player_md3.a` 为 8,952,168 bytes；
+- ARM GCC 17 compile-only 为 439 Ninja steps，`libcharm_player_md3.a` 为 8,948,120 bytes；
 - ARM Vivid 最大 stack usage 1,288/4,096 bytes。
 
 普通 smoke 翻译单元固定先 include 标准库头、再 import Player modules，以避开 GCC Modules 对

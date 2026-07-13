@@ -1,107 +1,41 @@
-# Front Page Route Provenance Compatibility Contract v0
+# Front-page route provenance compatibility v0
 
-This contract fixes the current compatibility boundary for
-`system_compiler.front_page_route/v0` route provenance entries.
+## 文档状态
 
-It exists because older consumer-side front-page entry objects can still emit a
-route-root provenance shape with legacy field names:
+- `status`: `supporting`
+- `scope`: `system_compiler.front_page_route/v0` 的旧 provenance 字段读取
+- `source`: [`system_compiler_front_page_route_lib.py`](../../scripts/system_compiler_front_page_route_lib.py)
 
-- `source_root_summary_path`
-- `source_report_markdown_path`
-- `source_check_text_path`
+该兼容层只把旧 producer 字段归一化为现行 consumer 字段，不定义第二套路由模型。
 
-The route consumer now exposes one canonical front-page provenance view:
+## 字段映射
 
-- `source_front_page_summary_path`
-- `source_front_page_report_markdown_path`
-- `source_front_page_check_text_path`
+对 `provenance_route_kind != artifact_report_index` 的 entry，consumer 按下表读取；canonical
+字段非空时优先：
 
-The compatibility boundary is intentionally narrow. It preserves old producer
-outputs while keeping new route summaries and validators focused on one
-consumer-facing field family.
+| canonical | legacy fallback |
+|---|---|
+| `source_front_page_summary_path` | `source_root_summary_path` |
+| `source_front_page_report_markdown_path` | `source_report_markdown_path` |
+| `source_front_page_check_text_path` | `source_check_text_path` |
 
-## Scope
+归一化后，validator 只检查 canonical 字段指向的文件存在。`artifact_report_index` 是 discovery
+provenance，不是 front-page root，因此三个 canonical 字段保持为空。
 
-This contract applies only while building and validating
-`system_compiler.front_page_route/v0` summaries.
+## 边界
 
-The route consumer may normalize legacy route-root provenance fields into the
-canonical `source_front_page_*` fields when all referenced files already exist.
-The route summary remains a read-only consumer artifact.
+consumer 可以保留 visited summary 的 `route_provenance`、执行上述字段映射并报告 owner/count。
+它不得：
 
-## Compatibility Rule
+- 解析 host、QEMU、witness 或 compare 原始日志；
+- 穿透 producer 已声明的 artifact 边界；
+- 合成缺失文件或修改 source summary；
+- 新增 schema、route kind、compare verdict 或 traversal edge。
 
-For provenance entries whose `provenance_route_kind` is not
-`artifact_report_index`:
+新 producer 应写 canonical 字段。legacy fallback 只保证旧 artifact 可读，不是可扩展的第二套字段族。
 
-- `source_front_page_summary_path` is read first.
-- If it is missing, `source_root_summary_path` may be used as the legacy input.
-- `source_front_page_report_markdown_path` is read first.
-- If it is missing, `source_report_markdown_path` may be used as the legacy input.
-- `source_front_page_check_text_path` is read first.
-- If it is missing, `source_check_text_path` may be used as the legacy input.
+## 验证
 
-After normalization, validators should check the canonical
-`source_front_page_*` fields only. They should not require every legacy producer
-to be migrated in the same change.
-
-`artifact_report_index` remains the explicit exception. It is a discovery
-provenance source, not a front-page root, so its `source_front_page_*` fields
-stay empty by design.
-
-## Consumer Boundary
-
-The route consumer must not:
-
-- parse raw host, QEMU, witness, or compare logs
-- reopen producer internals behind a declared artifact boundary
-- synthesize missing source files
-- mutate the source summary that emitted legacy fields
-- create a new schema kind or compare verdict
-- treat provenance as a new traversal edge
-
-The route consumer may:
-
-- preserve `route_provenance` emitted by visited summaries
-- normalize legacy route-root field names into canonical consumer fields
-- validate that canonical source paths exist
-- report provenance counts and route-provenance owners
-
-## Producer Guidance
-
-New producers should prefer the canonical `source_front_page_*` field family
-when they publish front-page route provenance.
-
-Legacy producers that still emit `source_root_summary_path`,
-`source_report_markdown_path`, and `source_check_text_path` remain readable
-through this compatibility boundary, but those names should not be expanded into
-a second long-term route model.
-
-## Current Regression Guard
-
-`scripts/system_compiler_front_page_route_sample_smoke.ps1` includes a small
-legacy route-root provenance fixture.
-
-That fixture asserts that a legacy route-root provenance entry is exported with:
-
-- one `front_page_route_root` provenance entry
-- canonical `source_front_page_*` paths populated
-- a non-empty front-page source summary path
-
-The heavier opening testimony corridor smokes continue to exercise this through
-real nested consumer artifacts, but the sample smoke is the first fast guard for
-this compatibility seam.
-
-## Non-Goals
-
-This contract does not add:
-
-- a new JSON schema
-- a new validator
-- a new compare brain
-- a new route kind
-- a new front-page entry family
-- a new raw-log parser
-
-It only fixes how existing route provenance facts are read by the generic
-front-page route consumer.
+[`system_compiler_front_page_route_sample_smoke.ps1`](../../scripts/system_compiler_front_page_route_sample_smoke.ps1)
+构造 legacy `front_page_route_root` fixture，并验证导出结果包含一个 provenance entry、canonical
+路径已填充且文件存在。

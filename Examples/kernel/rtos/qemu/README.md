@@ -1,58 +1,32 @@
-# QEMU quickstart (MPS2)
+# RTOS QEMU MPS2
 
-This is a CPU-only validation path for the RTOS scheduler on Cortex-M7.
-It does **not** emulate STM32H7 peripherals.
+## 文档状态
 
-## Run template
+- `status`: `supporting`
+- `scope`: Cortex-M7 CPU-only scheduler/IRQ evidence
+- `source`: 本目录 CMake、`main.cpp` 与 [`run_qemu_ci.ps1`](run_qemu_ci.ps1)
 
-```powershell
-& "D:\Toolchains\qemu\qemu-system-arm.exe" `
-  -M mps2-an500 -cpu cortex-m7 -nographic `
-  -kernel path\to\rtos-qemu-demo.elf
-```
+该 target 在 QEMU `mps2-an500` 验证 scheduler、tick、timeout 与 ISR/task 边界，不模拟 STM32H7
+peripheral。
 
-If `-nographic` is used, UART output will go to the console.
+## Build 与运行
 
-## GDB attach (optional)
+复用本目录 `cmake-build-arm3`：
 
 ```powershell
-& "D:\Toolchains\qemu\qemu-system-arm.exe" `
-  -M mps2-an500 -cpu cortex-m7 -nographic `
-  -kernel path\to\rtos-qemu-demo.elf -S -gdb tcp::1234
-```
-
-Then in another terminal:
-
-```text
-arm-none-eabi-gdb path\to\rtos-qemu-demo.elf
-target remote :1234
-continue
-```
-
-Suggested watch points:
-
-```text
-watch demo::task_a_hits
-watch demo::task_b_hits
-```
-
-## CI smoke (PowerShell)
-
-```powershell
-.\run_qemu_ci.ps1 -ElfPath .\cmake-build-arm3\rtos-qemu-demo.elf
-```
-
-## Build (Ninja + ARM toolchain)
-
-```powershell
-cmake -S . -B cmake-build-debug -G Ninja `
+cmake -S . -B cmake-build-arm3 -G Ninja `
   -DCMAKE_BUILD_TYPE=Debug `
   -DCMAKE_TOOLCHAIN_FILE=arm-none-eabi-m7.cmake
-
-cmake --build cmake-build-debug -j 8
+cmake --build cmake-build-arm3 -- -j1
 ```
 
-## Tick output rate
+运行 `run_qemu_ci.ps1 -ElfPath cmake-build-arm3/rtos-qemu-demo.elf`，并通过 `-QemuExe` 传入当前环境的
+QEMU executable。runner 要求 tick、timeout 和 ISR/task violation check 同时通过；具体 token、timeout
+与当前状态由脚本维护。
 
-The demo prints `rtos tick` every `g_tick_mod` milliseconds.
-Adjust `demo::g_tick_mod` in `main.cpp` to control output frequency.
+## 调试与边界
+
+手工 QEMU 可加 `-S -gdb tcp::<port>`，再由 ARM GDB 加载同一 ELF symbols。`demo::g_tick_mod` 只控制
+观测输出频率，不改变 scheduler tick source。
+
+QEMU green 只证明 CPU/scheduler fixture，不证明 STM32H7 NVIC、timer、clock 或真实板时序。

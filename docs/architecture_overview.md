@@ -16,7 +16,7 @@
 | `Modules/core` | util、semantic、init、trace、service 与通用算法 |
 | `Modules/system` | kernel、boot、bring-up、device、ModuleX、power 与 RTOS 适配 |
 | `Modules/io` | channel、reactor、HAL、block、FS、USB、network、POSIX、shell 与 out |
-| `Modules/platform` | platform/board 描述与 host 实现 |
+| [`Modules/platform`](../Modules/platform/README.md) | platform/board 描述与 host 实现 |
 | `Modules/media`、`Modules/gfx`、`Modules/ui` | media、图形与 UI 子系统 |
 | `Modules/control` | 控制领域代码，不属于 Core |
 | `Modules/thirdparty` | vendored 第三方源码 |

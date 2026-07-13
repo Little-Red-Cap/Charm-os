@@ -1,105 +1,68 @@
 # Vivid Focus Transfer Evidence v0
 
-本文定义 Vivid v0 对焦点迁移的最小证据。
+> status: `contract`
 
-## 定位
+本文定义 Vivid v0 在两个 focusable target 之间提交 focus transfer 的最小证据。ordinary style 隔离由
+[`vivid_focus_evidence_boundary_v0.md`](vivid_focus_evidence_boundary_v0.md) 定义；本文只固定 event、truth、
+invalidation 与 artifact 迁移。
 
-`Focus Evidence Boundary v0` 证明单个控件的 `focused` 不进入普通 `style_state_mask`，而是通过 focus ring 改变 render artifact。
+## Event 法律
 
-`Focus Transfer Evidence v0` 继续向前一步：证明焦点可以从一个 focusable target 迁移到另一个 target，并留下可审计的事件、truth、artifact 与 final causal-chain 证据。
-
-## v0 法律
-
-### Law 1：transfer 必须发出 FocusOut + FocusIn
-
-当已有 focus target，新的 focusable target 收到 press 时，输入链应产生：
+已有 focus target 时，新的 focusable target 经 input dispatch 获得 focus，必须产生：
 
 ```text
-FocusOut(old target)
-FocusIn(new target)
+FocusOut(old)
+FocusIn(new)
 ```
 
-v0 允许同一 dispatch 内同时存在原始 pointer event，例如 `MouseDown`；但 `FocusOut / FocusIn` 必须可从 `SceneAccess::input_event()` 读取。
+同一 dispatch 可以保留原始 pointer/key event，但 `FocusOut / FocusIn` 必须从正常 input event surface
+观察，不能由 demo 另造旁路通知。
 
-### Law 2：focus truth 必须提交到 new target
+already-focused no-op 或 rejected transfer 不得产生虚假的 out/in pair。
 
-transfer 后：
+## Truth 法律
+
+成功 transfer 后，kernel truth 必须提交到 destination：
 
 ```text
 input_focused == new target
 ```
 
-这条 evidence 证明焦点迁移不是单纯事件通知，而是 kernel input truth 已提交。
+事件存在但 truth 未提交不算成功。scope/policy 拒绝时，current truth 必须保持；scope admission 与 fallback
+见 [`vivid_focus_scope_evidence_v0.md`](vivid_focus_scope_evidence_v0.md)。
 
-### Law 3：style evidence 保持稳定
+## Style 与 Artifact 法律
 
-focus transfer 不应扩展普通 style mask。
-
-v0 继续要求：
+transfer 不扩展 ordinary style mask：
 
 ```text
 focused_in_style_mask=0
-style_same=1
+resolved_style same
 ```
 
-### Law 4：artifact 迁移由像素证据证明
+artifact 必须从 source 迁移到 destination。两个同构控件可能产生相同 draw command shape，因此不能只看
+`cmd_hash`；证据应结合 target、pixel/dirty artifact 与 focus ring presence。被拒绝路径必须证明 artifact
+不变且没有 ring 泄漏。
 
-当 source 与 destination 是同构控件时，draw command shape 可能相同，`cmd_hash` 不一定变化。
+## Causal Closure
 
-因此 v0 使用 `pixel_hash` / `dirty_hash` / `target` 共同证明：
+final verdict 必须连接：
 
 ```text
-old target focus artifact
-new target focus artifact
-artifact_changed=1
-focus_ring=1
+input request
+FocusOut / FocusIn
+input_focused truth
+bounded invalidation
+destination artifact
+rejected-no-mutation (when applicable)
 ```
 
-### Law 5：final causal_chain 必须闭合
+单独的 event count、最终 `ok=1` 或 style hash 都不足以证明 transfer。资格规则见
+[`vivid_causal_verdict_law_v0.md`](vivid_causal_verdict_law_v0.md)。semantic identity 对齐见
+[`vivid_focus_semantic_evidence_v0.md`](vivid_focus_semantic_evidence_v0.md)。
 
-focus transfer 的最终 verdict 需要同时证明：
+## 证据入口
 
-```text
-request_ok=1
-state_delta_ok=1
-invalidation_ok=1
-artifact_ok=1
-causal_chain ok=1
-```
-
-这条法律把真实 input dispatch、`input_focused` truth、style boundary 与 focus ring artifact 迁移收束成同一张证据账本。
-
-## 首个落点
-
-`Examples/ui/vivid/focus_transfer_demo` 是 Focus Transfer Evidence v0 的第一条运行证据。
-
-它使用两个 `ScrollContainer`，因为它们由 factory 明确设为 focusable，且 press 不会改变 checked/value/selected 等业务 truth，适合验证纯 focus transfer。
-
-stdout 最终约束：
-
-```text
-[ft] run=focus_transfer_demo phase=end result=ok cases=8
-```
-
-核心字段：
-
-```text
-mouse_down=1
-focus_out=1
-focus_in=1
-focus_out_source=1
-focus_in_destination=1
-transfer_committed=1
-style_same=1
-artifact_changed=1
-causal_chain=1
-```
-
-## 后续方向
-
-下一步可以把 transfer evidence 推到更高层：
-
-- keyboard / d-pad navigation source。
-- focus scope：已由 `vivid_focus_scope_evidence_v0.md` 与 `Examples/ui/vivid/focus_scope_demo` 承接第一版 runtime focus admission / inside dispatch allow / outside dispatch reject / no-leak artifact。
-- focus trap：modal / popup 内焦点不泄漏。
-- accessibility focus：semantic focus target 与 visual focus artifact 对齐。
+`Examples/ui/vivid/focus_transfer_demo` 使用无额外业务 state 变化的 focusable targets，验证真实 dispatch、
+truth commit、style stability 与 artifact relocation。具体 fixture、case 数和 stdout token 由 demo、manifest
+与测试定义，不在本文复制。

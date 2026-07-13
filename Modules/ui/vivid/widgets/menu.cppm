@@ -16,7 +16,6 @@ public:
     Menu() {
         set_focusable(false);
         set_size(180, 24);
-        set_flex_layout(1, 0, 0, 0, 0);
     }
 
     void draw(CanvasBase& cvs) {

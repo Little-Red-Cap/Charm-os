@@ -21,8 +21,6 @@ public:
         set_focusable(true);
         set_size(220, 140);
         set_title(title);
-        set_flow_layout(8, 8, 0);
-        set_clip_policy(ClipPolicy::LayoutRect);
     }
 
     void set_title(const char* text) noexcept { assign(title_, title_len_, text); }
@@ -172,17 +170,8 @@ private:
             scroll_y_ = 0;
             return;
         }
-        const auto content = content_rect();
-        int content_h = 0;
-        if (has_children_bounds()) {
-            const auto bounds = children_bounds();
-            const int bottom = bounds.y + bounds.h;
-            content_h = bottom - (content.y - scroll_y_);
-            if (content_h < 0) content_h = 0;
-        }
-        const int view_h = content.h;
-        max_scroll_ = alg::scroll_bounds::compute_max(content_h, view_h);
-        scroll_y_ = alg::scroll_bounds::clamp(scroll_y_, max_scroll_);
+        max_scroll_ = 0;
+        scroll_y_ = 0;
     }
 
     Rect content_rect() const noexcept {

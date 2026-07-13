@@ -104,7 +104,6 @@ class List : public WidgetBase<List, 64> {
 public:
     List() {
         set_size(200, 160);
-        set_flex_layout(1, 0, 0, 6, 6);
     }
 
     void draw(CanvasBase& cvs) {

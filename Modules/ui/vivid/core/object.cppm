@@ -34,26 +34,7 @@ public:
     Rect layout_rect() const noexcept { return vtable_->layout_rect(*this); }
     Rect paint_bounds() const noexcept { return vtable_->paint_bounds(*this); }
 
-    enum class ClipPolicy : unsigned {
-        None,
-        Rect,
-        LayoutRect,
-        Custom
-    };
-
-    enum class CachePolicy : unsigned {
-        None,
-        Subtree
-    };
-
-    void set_clip_policy(ClipPolicy policy) noexcept { clip_policy_ = policy; }
-    ClipPolicy clip_policy() const noexcept { return clip_policy_; }
     Rect children_clip_rect() const noexcept { return vtable_->children_clip_rect(*this); }
-    void set_cache_policy(CachePolicy policy) noexcept { cache_policy_ = policy; }
-    CachePolicy cache_policy() const noexcept { return cache_policy_; }
-    void mark_cache_dirty() noexcept { cache_dirty_ = true; }
-    bool cache_dirty() const noexcept { return cache_dirty_; }
-    void clear_cache_dirty() noexcept { cache_dirty_ = false; }
 
     void set_visible(bool v) noexcept {
         visible_ = v;
@@ -70,35 +51,6 @@ public:
         Pressed   = 1 << 1,
         Focused   = 1 << 2,
         Disabled  = 1 << 3
-    };
-
-    enum class LayoutMode : unsigned {
-        Anchor,
-        Flex,
-        Flow,
-        Grid,
-        Constraint,
-        Custom
-    };
-
-    struct LayoutSpec {
-        LayoutMode kind{LayoutMode::Anchor};
-        int flow{0};
-        int main_align{0};
-        int cross_align{0};
-        int gap{0};
-        int padding{0};
-        int line_gap{0};
-        int columns{1};
-        int cell_w{0};
-        int cell_h{0};
-        int grid_gap{0};
-        int grid_padding{0};
-        int custom_id{0};
-        int custom_param0{0};
-        int custom_param1{0};
-        int custom_param2{0};
-        int custom_param3{0};
     };
 
     void set_state(State s, bool on) noexcept {
@@ -125,135 +77,6 @@ public:
     void set_style_variant(std::uint8_t v) noexcept { style_variant_ = v; }
     std::uint8_t style_variant() const noexcept { return style_variant_; }
 
-    void set_flex_layout(int flow, int main_align, int cross_align, int gap, int padding) noexcept {
-        layout_spec_enabled_ = true;
-        layout_spec_ = {};
-        layout_spec_.kind = LayoutMode::Flex;
-        layout_spec_.flow = flow;
-        layout_spec_.main_align = main_align;
-        layout_spec_.cross_align = cross_align;
-        layout_spec_.gap = gap;
-        layout_spec_.padding = padding;
-    }
-
-    void set_flex_grow(int grow) noexcept { flex_grow_ = (grow > 0) ? grow : 0; }
-    int flex_grow() const noexcept { return flex_grow_; }
-
-    void set_flow_layout(int gap, int line_gap, int padding) noexcept {
-        layout_spec_enabled_ = true;
-        layout_spec_ = {};
-        layout_spec_.kind = LayoutMode::Flow;
-        layout_spec_.gap = gap;
-        layout_spec_.line_gap = line_gap;
-        layout_spec_.padding = padding;
-    }
-
-    int flow_gap() const noexcept { return layout_spec_.gap; }
-    int flow_line_gap() const noexcept { return layout_spec_.line_gap; }
-    int flow_padding() const noexcept { return layout_spec_.padding; }
-
-    void set_grid_layout(int columns, int cell_w, int cell_h, int gap, int padding) noexcept {
-        layout_spec_enabled_ = true;
-        layout_spec_ = {};
-        layout_spec_.kind = LayoutMode::Grid;
-        layout_spec_.columns = (columns > 0) ? columns : 1;
-        layout_spec_.cell_w = cell_w;
-        layout_spec_.cell_h = cell_h;
-        layout_spec_.grid_gap = gap;
-        layout_spec_.grid_padding = padding;
-    }
-
-    int grid_columns() const noexcept { return layout_spec_.columns; }
-    int grid_cell_width() const noexcept { return layout_spec_.cell_w; }
-    int grid_cell_height() const noexcept { return layout_spec_.cell_h; }
-    int grid_gap() const noexcept { return layout_spec_.grid_gap; }
-    int grid_padding() const noexcept { return layout_spec_.grid_padding; }
-
-    void set_constraint_layout(int padding = 0) noexcept {
-        layout_spec_enabled_ = true;
-        layout_spec_ = {};
-        layout_spec_.kind = LayoutMode::Constraint;
-        layout_spec_.padding = padding;
-    }
-
-    void set_custom_layout(int custom_id,
-                           int p0 = 0,
-                           int p1 = 0,
-                           int p2 = 0,
-                           int p3 = 0) noexcept {
-        layout_spec_enabled_ = true;
-        layout_spec_ = {};
-        layout_spec_.kind = LayoutMode::Custom;
-        layout_spec_.custom_id = custom_id;
-        layout_spec_.custom_param0 = p0;
-        layout_spec_.custom_param1 = p1;
-        layout_spec_.custom_param2 = p2;
-        layout_spec_.custom_param3 = p3;
-    }
-
-    void set_layout_spec(const LayoutSpec& spec) noexcept {
-        layout_spec_enabled_ = true;
-        layout_spec_ = spec;
-    }
-
-    void clear_layout_spec() noexcept {
-        layout_spec_enabled_ = false;
-        layout_spec_ = {};
-    }
-    bool has_layout_spec() const noexcept { return layout_spec_enabled_; }
-    const LayoutSpec& layout_spec() const noexcept { return layout_spec_; }
-
-    void set_anchor(int left, int top, int right, int bottom) noexcept {
-        anchor_enabled_ = true;
-        anchor_left_ = left;
-        anchor_top_ = top;
-        anchor_right_ = right;
-        anchor_bottom_ = bottom;
-    }
-
-    void clear_anchor() noexcept { anchor_enabled_ = false; }
-    bool has_anchor() const noexcept { return anchor_enabled_; }
-    int anchor_left() const noexcept { return anchor_left_; }
-    int anchor_top() const noexcept { return anchor_top_; }
-    int anchor_right() const noexcept { return anchor_right_; }
-    int anchor_bottom() const noexcept { return anchor_bottom_; }
-
-    void set_percent_size(int w_percent, int h_percent) noexcept {
-        percent_w_ = w_percent;
-        percent_h_ = h_percent;
-    }
-
-    void clear_percent_size() noexcept { percent_w_ = -1; percent_h_ = -1; }
-    int percent_width() const noexcept { return percent_w_; }
-    int percent_height() const noexcept { return percent_h_; }
-    bool has_percent_size() const noexcept { return percent_w_ >= 0 || percent_h_ >= 0; }
-
-    void set_min_size(int w, int h) noexcept { min_w_ = w; min_h_ = h; }
-    void clear_min_size() noexcept { min_w_ = 0; min_h_ = 0; }
-    int min_width() const noexcept { return min_w_; }
-    int min_height() const noexcept { return min_h_; }
-
-    void set_max_size(int w, int h) noexcept { max_w_ = w; max_h_ = h; }
-    void clear_max_size() noexcept { max_w_ = 0; max_h_ = 0; }
-    int max_width() const noexcept { return max_w_; }
-    int max_height() const noexcept { return max_h_; }
-
-    void set_align(int h, int v) noexcept { align_h_ = h; align_v_ = v; }
-    int align_h() const noexcept { return align_h_; }
-    int align_v() const noexcept { return align_v_; }
-
-    bool has_flex_layout() const noexcept {
-        return layout_spec_enabled_ && layout_spec_.kind == LayoutMode::Flex;
-    }
-    int flex_flow() const noexcept { return layout_spec_.flow; }
-    int flex_main_align() const noexcept { return layout_spec_.main_align; }
-    int flex_cross_align() const noexcept { return layout_spec_.cross_align; }
-    int flex_gap() const noexcept { return layout_spec_.gap; }
-    int flex_padding() const noexcept { return layout_spec_.padding; }
-    LayoutMode layout_mode() const noexcept {
-        return layout_spec_enabled_ ? layout_spec_.kind : LayoutMode::Anchor;
-    }
-
     void set_parent(WidgetHandle parent) noexcept { parent_ = parent; }
     WidgetHandle parent() const noexcept { return parent_; }
 
@@ -264,70 +87,14 @@ public:
     bool should_draw_child(const ObjectBase& ch) const noexcept {
         return vtable_->should_draw_child(*this, ch);
     }
-    void set_children_bounds(const Rect& bounds, bool valid) noexcept {
-        children_bounds_ = rect_normalized(bounds);
-        children_bounds_valid_ = valid;
-    }
-    bool has_children_bounds() const noexcept { return children_bounds_valid_; }
-    Rect children_bounds() const noexcept { return children_bounds_; }
-
-    bool take_dirty_hint(Rect& out) noexcept {
-        if (!dirty_hint_valid_) return false;
-        out = dirty_hint_;
-        dirty_hint_valid_ = false;
-        return true;
-    }
-
 protected:
     Rect rect_{};
-    Rect children_bounds_{};
-    bool children_bounds_valid_{false};
     bool visible_{true};
     State state_{State::None};
     bool focusable_{false};
     std::uint8_t style_variant_{0};
-    int flex_grow_{0};
-    bool anchor_enabled_{false};
-    int anchor_left_{0};
-    int anchor_top_{0};
-    int anchor_right_{0};
-    int anchor_bottom_{0};
-    int percent_w_{-1};
-    int percent_h_{-1};
-    int min_w_{0};
-    int min_h_{0};
-    int max_w_{0};
-    int max_h_{0};
-    int align_h_{0};
-    int align_v_{0};
-    bool layout_spec_enabled_{false};
-    LayoutSpec layout_spec_{};
-    ClipPolicy clip_policy_{ClipPolicy::None};
-    CachePolicy cache_policy_{CachePolicy::None};
-    bool cache_dirty_{false};
     WidgetHandle parent_{};
-    Rect dirty_hint_{};
-    bool dirty_hint_valid_{false};
     const VTable* vtable_{nullptr};
-
-    void mark_dirty_hint(const Rect& r) noexcept {
-        const Rect nr = rect_normalized(r);
-        if (!rect_valid(nr)) return;
-        cache_dirty_ = true;
-        if (!dirty_hint_valid_) {
-            dirty_hint_ = nr;
-            dirty_hint_valid_ = true;
-            return;
-        }
-        const int left = (nr.x < dirty_hint_.x) ? nr.x : dirty_hint_.x;
-        const int top = (nr.y < dirty_hint_.y) ? nr.y : dirty_hint_.y;
-        const int right = ((nr.x + nr.w) > (dirty_hint_.x + dirty_hint_.w)) ? (nr.x + nr.w) : (dirty_hint_.x + dirty_hint_.w);
-        const int bottom = ((nr.y + nr.h) > (dirty_hint_.y + dirty_hint_.h)) ? (nr.y + nr.h) : (dirty_hint_.y + dirty_hint_.h);
-        dirty_hint_.x = left;
-        dirty_hint_.y = top;
-        dirty_hint_.w = right - left;
-        dirty_hint_.h = bottom - top;
-    }
 
     template<typename Derived>
     void init_vtable() noexcept {
@@ -438,8 +205,8 @@ static Rect children_clip_rect_thunk(const ObjectBase& self) noexcept {
     }
 };
 
-static_assert(sizeof(ObjectBase) <= 232,
-              "ObjectBase must not regain mirrored layout or optional runtime storage");
+static_assert(sizeof(ObjectBase) <= 48,
+              "ObjectBase must not regain legacy layout, invalidation, or optional runtime storage");
 
 namespace vivid_object_detail {
     template<std::size_t Capacity>
@@ -604,8 +371,8 @@ private:
 };
 
 namespace {
-    struct WidgetBaseLeafLayoutProbe final : WidgetBase<WidgetBaseLeafLayoutProbe> {};
-    static_assert(sizeof(WidgetBaseLeafLayoutProbe) == sizeof(ObjectBase),
+    struct WidgetBaseLeafStorageProbe final : WidgetBase<WidgetBaseLeafStorageProbe> {};
+    static_assert(sizeof(WidgetBaseLeafStorageProbe) == sizeof(ObjectBase),
                   "zero-capacity WidgetBase must not add resident child storage");
 }
 

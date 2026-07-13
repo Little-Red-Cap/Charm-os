@@ -1,99 +1,42 @@
 # Kernel Runtime Session Witness v0
 
-## 文档状态
+> `status`: `supporting`
 
-- `status`: `supporting`
-- `scope`: minimal-kernel 一次运行会话的汇总边界与消费约束
-- `authority`: 受 [`minimal_kernel_runtime_evidence_bundle_contract.md`](minimal_kernel_runtime_evidence_bundle_contract.md) 约束
-
-本文件定义 workflow、canonical world、schema sample 和 front-page fixture 共同消费的 session summary
-边界。它不是 Charm Core 契约，也不以文档、schema 或 report 的存在证明 runtime 已运行。
-
-## 对象边界
-
-`kernel_runtime_session` 是 host 语义证据与 ARMv7-A QEMU 机器证据的一次汇总对象：
+`kernel_runtime_session` 汇总一次 minimal-kernel 的 Host 语义证据与 ARMv7-A QEMU 机器证据，供
+witness/compare consumer 使用。它避免上层重新解析私有日志，但不替代
+[`minimal_kernel_runtime_evidence_bundle_contract.md`](minimal_kernel_runtime_evidence_bundle_contract.md)，
+也不证明真实板运行。
 
 ```text
 host semantic summary + QEMU machine summary
   -> session exporter
-  -> kernel_runtime_session.summary.json
+  -> kernel_runtime_session.summary.json + runtime_ledger.json
   -> witness / compare consumer
 ```
 
-它允许上层消费稳定的 session facts，而不重新解析 host 日志、QEMU 串口日志或各 smoke 的私有输出。
-它不替代 runtime evidence bundle、witness bundle 或 world compare，也不定义 scheduler trace、进程模型、
-用户态 ABI 或真实板行为。
+## 证据边界
 
-## 权威实现
+- semantic witness 投影 Host cold/warm summary，只证明 runtime glue、trap/syscall、task message 与
+  session API 的语义断言，不证明真实 ARM exception entry 或寄存器 writeback。
+- machine witness 投影 QEMU lower-half summary，覆盖 exception、interrupt、timer、trap、context 与
+  runtime loop；它不证明真机内存、时钟、外设、BootROM 或板级启动。
+- runtime facts 是 exporter 对输入 summary 的投影，不因 schema 或 report 存在而成立。
+- `handoff_continuity` 只是 session continuity fact；只有 handoff 开始承担 image、slot、rollback、
+  boot medium 等契约时才重新划分边界。
+- ledger 记录 exporter 已消费事实的顺序，不重判 session verdict。
 
-- schema：[`minimal_kernel.kernel_runtime_session.v0.schema.json`](../../schemas/minimal_kernel.kernel_runtime_session.v0.schema.json)
-- exporter：[`export_minimal_kernel_runtime_session.py`](../../scripts/export_minimal_kernel_runtime_session.py)
-- sample：[`minimal_kernel.kernel_runtime_session.v0.sample.json`](../../schemas/examples/minimal_kernel.kernel_runtime_session.v0.sample.json)
-- ledger 语义：[`minimal_kernel_runtime_ledger_fact_contract_v0.md`](minimal_kernel_runtime_ledger_fact_contract_v0.md)
+## 事实源与失败
 
-字段、枚举、failure code 和派生规则以 schema 与 exporter 为准。本文件不复制这些机器契约，避免实现变化后
-出现第二份字段真相。
+机器 shape 与派生规则由
+[`minimal_kernel.kernel_runtime_session.v0.schema.json`](../../schemas/minimal_kernel.kernel_runtime_session.v0.schema.json)
+和 [`export_minimal_kernel_runtime_session.py`](../../scripts/export_minimal_kernel_runtime_session.py) 定义；ledger
+语义见 [`minimal_kernel_runtime_ledger_fact_contract_v0.md`](minimal_kernel_runtime_ledger_fact_contract_v0.md)。
 
-## 证据分层
+失败必须保留 code、domain、layer、focus、phase 等结构化来源。consumer 不得从 message、Markdown report、
+text check 或 raw log 发明 verdict；人读投影也不是独立运行证据。
 
-### Semantic Witness
+## 验证
 
-`semantic_witness` 投影 host cold/warm summary，回答 runtime glue、trap/syscall、task message 与 session API
-的 host 语义是否仍成立。它不证明真实 ARM 异常入口、timer IRQ、trap frame capture 或寄存器 writeback。
-
-### Machine Witness
-
-`machine_witness` 投影 ARMv7-A QEMU lower-half summary，回答 exception、interrupt、timer、trap、context
-与 runtime loop 的机器入口是否被观测。`arch_ingress_seam` 是 preferred ingress anchor；旧 summary 的
-兼容推断只由 exporter 持有。
-
-它不证明真机内存、时钟、外设、BootROM 或板级启动约束。
-
-### Runtime Facts
-
-v0 汇总 `tick`、`trap`、`thread`、`task_syscall` 与 `handoff_continuity`。这些布尔值是 exporter
-对输入 summary 的投影，不是仅凭 schema presence 成立的声明。
-
-`handoff_continuity` 当前只是 session continuity fact，不单独构成一个 world。只有 handoff 开始承担
-image format、payload verification、slot/rollback、multi-stage boot chain 或 boot medium 契约时，
-才应重新评估其边界。
-
-### Ledger 与 Verdict
-
-`runtime_ledger.json` 记录 exporter 已消费事实的顺序；session summary 的 `ledger` 字段只定位该侧车
-并记录 event count。最终 standing、drifted 或 collapsed 结论由 session `verdict` 表达，ledger 不重判 verdict。
-
-## 失败与产物
-
-失败项固定携带 code、domain、layer、focus、required、phase 和 message。合法枚举及 session status
-派生规则由 schema/exporter 定义；consumer 不得从 message 文本或 raw log 发明新的判决。
-
-session exporter 的直接产物是：
-
-```text
-session/kernel_runtime_session.summary.json
-session/runtime_ledger.json
-session/report.md
-session/check.txt
-```
-
-`report.md` 与 `check.txt` 是同一 summary 的人读投影，不是独立运行证据。上层应先消费 summary/verdict，
-需要事实顺序时再读取 ledger。
-
-## 验证入口
-
-从仓库根目录运行最小聚合 smoke：
-
-```powershell
-./scripts/minimal_kernel_runtime_session_witness_smoke.ps1
-```
-
-只读检查已有聚合 summary：
-
-```powershell
-./scripts/inspect_minimal_kernel_runtime_session_witness_smoke.ps1 `
-  -Summary out/minimal-kernel-runtime-session-witness-smoke/summary.json
-```
-
-CI、compare consumer 和其它 runner 的参数由各自脚本及 workflow 维护，本文件不复制完整命令矩阵。
-检查通过只证明该次输入与当前契约一致；没有当次 artifact 时，不能从本文推断 Host、QEMU 或真实板已通过。
+聚合入口为
+[`minimal_kernel_runtime_session_witness_smoke.ps1`](../../scripts/minimal_kernel_runtime_session_witness_smoke.ps1)。
+参数与输出路径由脚本维护。没有当次 artifact 时，不能从本文或历史通过记录推断 Host、QEMU 或真实板状态。

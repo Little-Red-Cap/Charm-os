@@ -1,6 +1,5 @@
 module;
 #include <cstddef>
-#include <algorithm>
 #include <cstdlib>
 export module charm.widgets.scroll_container;
 
@@ -15,8 +14,6 @@ import charm.gfx.text_box;
 import charm.font.typography;
 import charm.core.style;
 import charm.core.style_sheet;
-import charm.widgets.scroll_dirty;
-import alg_scroll;
 import alg_scroll_bounds;
 import alg_scroll_thumb;
 
@@ -25,27 +22,19 @@ using namespace ui::render;
 export
 class ScrollContainer : public WidgetBase<ScrollContainer, 64> {
 public:
-    static constexpr int kLayoutId = 1;
-
     ScrollContainer() {
         set_focusable(true);
-        set_clip_policy(ClipPolicy::Custom);
-        set_custom_layout(kLayoutId);
         pinch_strategy_.set_callbacks(PinchScrollStrategy::begin_delegate::bind<&ScrollContainer::on_pinch_begin>(*this),
                                       PinchScrollStrategy::update_delegate::bind<&ScrollContainer::on_pinch_update>(*this),
                                       PinchScrollStrategy::end_delegate::bind<&ScrollContainer::on_pinch_end>(*this));
     }
     void set_scroll_y(int y) noexcept {
-        const int old = scroll_y_;
         scroll_y_ = clamp_scroll(y);
         velocity_ = 0;
-        mark_scroll_dirty(old, scroll_y_);
     }
 
     void add_scroll_y(int dy) noexcept {
-        const int old = scroll_y_;
         scroll_y_ = clamp_scroll(scroll_y_ + dy);
-        mark_scroll_dirty(old, scroll_y_);
     }
 
     int scroll_y() const noexcept { return scroll_y_; }
@@ -53,9 +42,6 @@ public:
     void set_wheel_step(int step) noexcept { wheel_step_ = step; }
     void set_deceleration(float d) noexcept { decel_ = d; }
     void set_drag_threshold(int px) noexcept { drag_threshold_sq_ = px * px; }
-    void set_inertia_fast_ratio(float v) noexcept { inertia_fast_ratio_ = clamp_ratio(v); }
-    void set_inertia_medium_ratio(float v) noexcept { inertia_medium_ratio_ = clamp_ratio(v); }
-    void set_inertia_extra_ratio(float v) noexcept { inertia_extra_ratio_ = clamp_ratio(v); }
     void set_pinch_enabled(bool on) noexcept {
         pinch_strategy_.set_enabled(on);
     }
@@ -97,8 +83,6 @@ public:
         Style st_scratch;
         const Style& st = resolve_style(WidgetKind::ScrollContainer, state, base, st_scratch);
         resolve_colors(st, state, bg, border, font);
-
-        flush_scroll_dirty();
 
         if (has_skin_) {
             draw_image_nine_slice(cvs, r.x, r.y, r.w, r.h, skin_,
@@ -218,12 +202,8 @@ public:
             ch->set_pos(r.x + base_x, r.y + base_y - scroll_y_);
         }
         if (advance && !dragging_ && velocity_ != 0) {
-            const int old = scroll_y_;
             const int next = clamp_scroll(scroll_y_ + velocity_);
-            if (next != old) {
-                mark_scroll_dirty_inertia(old, next, (velocity_ < 0) ? -velocity_ : velocity_);
-                scroll_y_ = next;
-            }
+            scroll_y_ = next;
             velocity_ = static_cast<int>(static_cast<float>(velocity_) * decel_);
             if (std::abs(velocity_) < 1) velocity_ = 0;
         }
@@ -281,51 +261,6 @@ public:
     }
 
 private:
-    static alg::scroll::Rect to_alg_rect(const Rect& r) noexcept {
-        return alg::scroll::Rect{r.x, r.y, r.w, r.h};
-    }
-
-    static Rect from_alg_rect(const alg::scroll::Rect& r) noexcept {
-        return Rect{r.x, r.y, r.w, r.h};
-    }
-
-    void accumulate_scroll_dirty(const Rect& r) noexcept {
-        scroll_dirty_.add(r);
-    }
-
-    void flush_scroll_dirty() noexcept {
-        Rect merged{};
-        if (!scroll_dirty_.take(merged)) return;
-        mark_dirty_hint(merged);
-    }
-
-    void mark_scroll_dirty(int old_scroll, int new_scroll) noexcept {
-        const int dy = new_scroll - old_scroll;
-        if (dy == 0) return;
-        const auto clip = children_clip_rect();
-        const auto band = alg::scroll::dirty_band_simple(to_alg_rect(clip), dy);
-        const auto out = from_alg_rect(band);
-        if (out.w > 0 && out.h > 0) {
-            accumulate_scroll_dirty(out);
-        }
-    }
-
-    void mark_scroll_dirty_inertia(int old_scroll, int new_scroll, int abs_v) noexcept {
-        const int dy = new_scroll - old_scroll;
-        if (dy == 0) return;
-        const auto clip = children_clip_rect();
-        const auto band = alg::scroll::dirty_band_inertia(to_alg_rect(clip),
-                                                          dy,
-                                                          abs_v,
-                                                          inertia_fast_ratio_,
-                                                          inertia_medium_ratio_,
-                                                          inertia_extra_ratio_);
-        const auto out = from_alg_rect(band);
-        if (out.w > 0 && out.h > 0) {
-            accumulate_scroll_dirty(out);
-        }
-    }
-
     void on_pinch_begin() noexcept {
         pinch_active_ = true;
         velocity_ = 0;
@@ -380,11 +315,6 @@ private:
     int clip_inset_top_{1};
     int clip_inset_right_{1};
     int clip_inset_bottom_{1};
-    ScrollDirtyAccumulator scroll_dirty_{};
-    float inertia_fast_ratio_{0.5f};
-    float inertia_medium_ratio_{0.25f};
-    float inertia_extra_ratio_{0.125f};
-
     void update_clip_insets_for_skin() noexcept {
         if (!has_skin_) return;
         const int b = style_.metrics.border_width;
@@ -392,12 +322,6 @@ private:
         clip_inset_top_ = (slice_top_ > b) ? slice_top_ : b;
         clip_inset_right_ = (slice_right_ > b) ? slice_right_ : b;
         clip_inset_bottom_ = (slice_bottom_ > b) ? slice_bottom_ : b;
-    }
-
-    static float clamp_ratio(float v) noexcept {
-        if (v < 0.0f) return 0.0f;
-        if (v > 1.0f) return 1.0f;
-        return v;
     }
 };
 

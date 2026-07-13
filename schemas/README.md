@@ -36,8 +36,7 @@ validator 未注册的 schema 不能因为位于本目录就由它自动校验�
 ```
 
 该 smoke 只检查 JSON 可解析、仓库静态引用存在且使用 forward slash；它不执行 JSON Schema
-validation。完整边界见
-[`schema_examples_hygiene_v0.md`](../docs/system/schema_examples_hygiene_v0.md)。
+validation、compare 或 CI verdict。
 
 ## 增改规则
 

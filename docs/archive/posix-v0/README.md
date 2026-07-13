@@ -26,6 +26,7 @@
 - [`posix_spawn_minimal_design.md`](posix_spawn_minimal_design.md)
 - [`posix_subsystem_principles.md`](posix_subsystem_principles.md)
 - [`posix_three_layer_contract.md`](posix_three_layer_contract.md)
+- [`posix_user_runtime_minimal_design.md`](posix_user_runtime_minimal_design.md)
 
 当前源码边界和验证入口见：
 

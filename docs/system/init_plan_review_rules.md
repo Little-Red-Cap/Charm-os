@@ -27,6 +27,6 @@ Recipe/Plan 是当前装配实现，不是 Charm Core 或跨运行环境的统�
 - 遗留 `node_span()` / raw `Node*` span 需要先收敛成 `plan()` 或单节点 binding，再接入新装配表面
 - 需要导出阶段完成能力时，用 `ready_as(...)` 或显式 barrier，不让 `Plan` 继承产出
 
-早期对象模型、合并规则和迁移讨论见
-[`../archive/system-evidence-and-staging-v0/init_plan_recipe_draft.md`](../archive/system-evidence-and-staging-v0/init_plan_recipe_draft.md)。
-其中项目路径和迁移完成度只作历史记录。
+早期分层与合并规则见
+[`../archive/system-evidence-and-staging-v0/init_plan_retained_notes.md`](../archive/system-evidence-and-staging-v0/init_plan_retained_notes.md)。
+它只保留设计取舍，不说明迁移完成度。

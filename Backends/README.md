@@ -1,106 +1,46 @@
 # Charm Backends
 
-`Backends/` is the home for Charm backend contracts and backend-oriented
-integration material.
+## 文档状态
 
-This directory exists to keep the backend boundary separate from
-`Modules/platform/`, which currently contains early platform experiments and
-legacy adapters. New backend work should start here unless a narrower document
-explicitly says otherwise.
+- `status`: `supporting`
+- `scope`: backend contract 与 Host/QEMU/real-board 实现路由
+- `authority`: [`contract/backend_contract.md`](contract/backend_contract.md)
 
-## Terms
+`Backends/` 是执行资源域、provider/adapters 和环境证据的归属入口。`Modules/platform/` 中的历史 prototype
+可以被临时包装，但不是新 backend 架构真源。
 
-- `backend`: the execution resource domain for Charm, such as host, QEMU, or a
-  real board. A backend owns provider instances, adapters, and downstream
-  HAL/OS/simulator/file/syscall dependencies.
-- `capability`: an app/domain-consumable semantic contract, such as `TextSink`,
-  `LineSource`, or `BlockDevice`.
-- `requirement`: an app/component declaration that it needs a capability role.
-- `binding`: a profile result that maps a requirement to a provider instance.
-- `provider instance`: the concrete provider selected by a profile binding.
-- `provider type`: a provider implementation family. It is metadata, not a
-  binding target.
-- `adapter`: provider-internal mechanism translation. It is not the architecture
-  boundary.
-- `BSP`: the board support package for a real board. It owns board facts such as
-  clocks, pinmux, memory regions, UART routes, IRQ wiring, and vendor SDK
-  bindings.
-- `target`: a build leaf that selects toolchain, architecture, backend, and
-  optional board/profile details.
-- `platform`: a historical Charm area. It may contain useful prototypes, but it
-  is not the backend architecture root.
+## 目录
 
-## Layout
+| 目录 | ownership |
+|---|---|
+| [`contract/`](contract/README.md) | topology、binding、capability slices 与 common evidence |
+| [`host/`](host/README.md) | Host OS/provider integration |
+| [`qemu/`](qemu/README.md) | QEMU machine/runtime evidence |
+| [`board/`](board/README.md) | real-board BSP/provider evidence |
 
-```text
-Backends/
-|- contract/   # backend identity, capability export, evidence, and facts
-|- host/       # PC host backend notes and reference providers
-|- qemu/       # QEMU backend notes and reference evidence
-`- board/      # real-board BSP notes and reference evidence
-```
+具体 build leaf 仍位于 `targets/` 或 project target；backend 目录不取代 target/BSP。
 
-## Rules
+## 依赖规则
 
-- Backend contract work belongs in `Backends/contract/`.
-- Applications declare capability requirements.
-- Profiles bind requirements to provider instances.
-- Providers adapt backend resources into stable capability contracts.
-- Host, QEMU, and real-board implementations must depend on the contract, not on
-  each other.
-- New `Modules/system` code must not import concrete backend implementations.
-  It may depend only on backend contracts, capability registry surfaces, or
-  existing compatibility layers during migration.
-- Bindings must not target provider types, adapters, transports, HAL handles, or
-  endpoint names.
-- `Endpoint` is not the provider-instance identity. Endpoint-like objects may be
-  provider-published consumption surfaces for narrower domains such as block or
-  stream.
-- `targets/` remains the place for concrete build leaves such as `rk3506`.
+- app/domain 声明 capability requirement，不依赖具体 backend；
+- profile binding 只选择 provider instance；
+- concrete backend 依赖 contract 和自己的 OS/simulator/BSP/HAL adapter；
+- Host、QEMU、board implementation 不互相依赖；
+- `Modules/system` 不 import concrete backend implementation；
+- endpoint、transport、HAL handle 和 provider type 不是 binding target。
 
-## Current status
+术语、evidence、capability slice 和失败边界见 backend contract，不在 README 复制。
 
-The current [`backend contract`](contract/backend_contract.md) contains the topology/evidence boundary plus
-`console/output`, `block/storage`, and `raster/display` candidate slices. It does not promote these candidates to
-`Modules/` or make a concrete backend part of Charm core.
+## 当前入口
 
-`Backends/host/sdl3` is the first real Host execution provider. It owns SDL
-lifecycle, one event pump, the monotonic clock adapter, and raster presentation.
-Applications consume its neutral projections; SDL window and event types remain
-inside the backend.
+[`host/sdl3`](host/sdl3/README.md) 是当前 SDL-backed Host execution provider，负责 SDL lifecycle、单 event
+pump、monotonic clock adapter 和 raster presentation。应用只消费中性 projection，SDL 类型不得泄漏。
 
-## Contract smoke gate
+验证：
 
-Run the current backend contract candidate smokes with:
+- contract/reference/system provider：[`run-backends-v1-smoke.ps1`](run-backends-v1-smoke.ps1)
+- Host SDL vertical smoke：[`host/run-host-sdl3-smoke.ps1`](host/run-host-sdl3-smoke.ps1)
+- Host lifecycle/frame/input pressure：[`host/run-host-sdl3-stability-gate.ps1`](host/run-host-sdl3-stability-gate.ps1)
 
-```powershell
-.\Backends\run-backends-v1-smoke.ps1
-```
-
-The gate builds and runs:
-
-- `Backends/contract/topology_header_smoke`
-- `Backends/contract/evidence_header_smoke`
-- `Backends/contract/console_output_header_smoke`
-- `Backends/contract/block_storage_header_smoke`
-- `Backends/contract/raster_display_header_smoke`
-- `Backends/host/reference_smoke`
-- `Backends/qemu/reference_smoke`
-- `Backends/board/reference_smoke`
-- `Examples/system/capability_topology_bridge_smoke`
-- `Examples/system/console_output_provider_smoke`
-- `Examples/system/block_storage_provider_smoke`
-
-The SDL-backed vertical smoke has a separate gate because it requires SDL3 and
-a usable Host video environment:
-
-```powershell
-.\Backends\host\run-host-sdl3-smoke.ps1
-```
-
-Longer Host lifecycle, frame, and input pressure is kept out of the portable
-contract gate and runs through:
-
-```powershell
-.\Backends\host\run-host-sdl3-stability-gate.ps1 -NoFetch
-```
+contract gate 当前会为多个独立 fixture 创建 build tree；磁盘受限环境必须先制定 build root/清理策略。
+Host、QEMU 与真实板是不同证据域，任一 smoke 不能替代其它环境。

@@ -1,103 +1,43 @@
-# USB MSC Trace Vocabulary v1
+# USB MSC Trace Vocabulary
 
-本文档冻结当前 `usb.class_msc` 在 replay / regression 中可依赖的一组 trace 事件与字段语义。
+## 文档状态
 
-## 目标
+- `status`: `supporting`
+- `scope`: `usb.class_msc` 内部 trace 的字段解释
+- `source`: [`usb.msc.cppm`](../../Modules/io/usb/class/usb.msc.cppm)
 
-- 给 replay suite 提供稳定的强断言词汇
-- 明确每个事件哪些字段有效
-- 在 helper 抽象前先固定语义字典
+`MscTraceEvent` 用于 native fixture 和诊断，不是 USB wire format、稳定 ABI 或产品 telemetry。
+事件种类、字段和写入位置以源码为准。
 
-## 通用字段
+## 事件族
 
-- `command`：当前 CBW 的 SCSI opcode
-- `transfer_length`：当前事件关联的主机传输长度或设备数据阶段长度
-- `lba`：当前命令涉及的起始逻辑块地址
-- `blocks`：当前命令涉及的块数
-- `residue`：当前事件对应的 CSW residue 或预计 residue
-- `flag`：事件相关的布尔语义，具体含义由事件定义
+| 事件族 | kinds | 主要字段 |
+|---|---|---|
+| CBW | `cbw_received`、`cbw_invalid` | `command`、host `transfer_length`、方向 `flag`；invalid 还记录 `residue` |
+| command | `read_capacity`、`read10_started`、`write10_started` | `command`、`transfer_length`、`lba`、`blocks` |
+| data | `data_in_started`、`data_out_started` | 实际 data-stage `transfer_length`、`lba`、`blocks`、预计 `residue` |
+| recovery | `stall_in_requested`、`stall_out_requested`、`wait_csw`、`clear_stall_seen`、`phase_error` | host length、residue、stall 方向 |
+| sense | `sense_set` | `sense_key`、`sense_asc`、`sense_ascq` 与来源 command |
+| CSW | `csw_ready`、`csw_sent` | `command`、`residue`、是否 phase error 的 `flag` |
 
-## 事件语义
+`read_capacity.lba` 表示最后可访问 LBA，`blocks` 表示总块数。`read10_started` 与
+`write10_started` 的 `transfer_length` 来自 CBW；对应 `data_*_started` 记录设备实际准备处理的长度。
 
-- `cbw_received`
-  - 有效字段：`command` `transfer_length` `flag`
-  - `flag=true` 表示 CBW 声明方向为 IN
+## 解释规则
 
-- `cbw_invalid`
-  - 有效字段：`command` `transfer_length` `residue` `flag`
-  - `residue` 等于无效 CBW 进入 phase error 时的 CSW residue
-  - `flag=true` 表示无效 CBW 声明方向为 IN
+- 结构没有字段 presence mask；未用于当前 kind 的字段保持默认值，不能按统一 schema 解读。
+- `flag` 是重载字段：CBW 表示 IN 方向，clear-stall 表示 IN endpoint，CSW 表示 phase error。
+- `csw_ready` 表示 CSW 已形成，`csw_sent` 表示它已由 data path 取出；二者不能互换。
+- `wait_csw` 只表示 class 已等待 clear-stall，不证明主机一定会完成恢复。
+- `sense_set` 记录 sense 来源，不等于 REQUEST SENSE 已被主机读取。
 
-- `read_capacity`
-  - 有效字段：`command` `transfer_length` `lba` `blocks`
-  - `lba` 表示最后一个可访问 LBA
-  - `blocks` 表示设备总块数
+## 记录边界
 
-- `read10_started`
-  - 有效字段：`command` `transfer_length` `lba` `blocks`
-  - `transfer_length` 是主机在 CBW 中声明的 data transfer length
+- `MscBot` 只保留 64 个事件；追加失败被忽略，没有 overflow counter。
+- event 没有时间戳、全局 sequence、endpoint identity 或跨 reset correlation。
+- `clear_trace()` 只清空记录，不重置 BOT 状态。
+- trace 适合单个 fixture 内按 kind 和字段断言，不适合作为长期日志协议。
 
-- `write10_started`
-  - 有效字段：`command` `transfer_length` `lba` `blocks`
-  - `transfer_length` 是主机在 CBW 中声明的 data transfer length
-
-- `data_in_started`
-  - 有效字段：`command` `transfer_length` `lba` `blocks` `residue`
-  - `transfer_length` 是设备实际准备进入的数据阶段长度
-  - `residue` 在 overrun / short-transfer 场景下表示当前已知的预计 CSW residue
-
-- `data_out_started`
-  - 有效字段：`command` `transfer_length` `lba` `blocks` `residue`
-  - `transfer_length` 是设备实际接受的数据阶段长度
-  - `residue` 在 overrun / short-transfer 场景下表示当前已知的预计 CSW residue
-
-- `stall_in_requested`
-  - 有效字段：`command` `transfer_length` `residue` `flag`
-  - `residue` 等于请求 stall 时计划进入 CSW 的 residue
-  - `flag` 固定表示 IN 方向
-
-- `stall_out_requested`
-  - 有效字段：`command` `transfer_length` `residue` `flag`
-  - `residue` 等于请求 stall 时计划进入 CSW 的 residue
-  - `flag=false` 表示 OUT 方向
-
-- `wait_csw`
-  - 有效字段：`command` `transfer_length`
-  - 表示 class 逻辑已经进入“等待 clear-stall 后再放行 CSW”的门控状态
-
-- `clear_stall_seen`
-  - 有效字段：`command` `flag`
-  - `flag=true` 表示清的是 IN endpoint stall
-  - `flag=false` 表示清的是 OUT endpoint stall
-
-- `phase_error`
-  - 有效字段：`command` `transfer_length` `residue`
-  - 表示当前命令已经被判定为 phase error
-
-- `sense_set`
-  - 有效字段：`command` `sense_key` `sense_asc` `sense_ascq` `transfer_length`
-  - 用于校验 REQUEST SENSE 前的语义来源是否正确
-
-- `csw_ready`
-  - 有效字段：`command` `residue` `flag`
-  - `residue` 等于即将发出的 CSW residue
-  - `flag=true` 表示即将发出的 CSW 状态是 `phase_error`
-
-- `csw_sent`
-  - 有效字段：`command` `residue` `flag`
-  - `residue` 等于实际发出的 CSW residue
-  - `flag=true` 表示实际发出的 CSW 状态是 `phase_error`
-
-## 强断言建议
-
-- 枚举后标准 MSC happy path：至少断言 `read_capacity` / `csw_sent`
-- short-transfer：至少断言 `data_in_started` 或 `data_out_started` 与 `csw_sent.residue`
-- overrun / bad-direction / invalid-CBW：至少断言 `stall_*_requested` `wait_csw` `clear_stall_seen` `csw_sent`
-- REQUEST SENSE 路径：至少断言 `sense_set`
-
-## 当前回归覆盖
-
-- `READ CAPACITY(10)` residue
-- `READ10` short / overrun / zero-length / bad-direction
-- `WRITE10` short / overrun
-- `invalid CBW` clear-stall recovery
+当前 boardlog fixture 场景见
+[`usb_boardlog_coverage_matrix.md`](usb_boardlog_coverage_matrix.md)。通过这些 fixture 不证明真实控制器
+时序、并发、DMA、cache 或主机兼容性。

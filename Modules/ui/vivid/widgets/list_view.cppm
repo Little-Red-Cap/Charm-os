@@ -1,5 +1,6 @@
 module;
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 export module charm.widgets.list_view;
 
@@ -38,10 +39,88 @@ public:
     using RowFlagsFn = StructuredListRowFlagsFn;
     using ScrollFn = void(*)(void* ctx, int scroll_y, int max_scroll, int view_h, int content_h) noexcept;
 
+    class ItemPoolWorkspace {
+    public:
+        static constexpr std::size_t capacity = 32;
+
+        ItemPoolWorkspace() = default;
+        ~ItemPoolWorkspace() noexcept;
+        ItemPoolWorkspace(const ItemPoolWorkspace&) = delete;
+        ItemPoolWorkspace& operator=(const ItemPoolWorkspace&) = delete;
+        ItemPoolWorkspace(ItemPoolWorkspace&&) = delete;
+        ItemPoolWorkspace& operator=(ItemPoolWorkspace&&) = delete;
+
+        void set_cache_handler(CacheFn fn, void* ctx = nullptr) noexcept {
+            recycle_cache();
+            cache_fn_ = fn;
+            cache_ctx_ = ctx;
+            pool_create_fn_ = nullptr;
+            pool_bind_fn_ = nullptr;
+            pool_recycle_fn_ = nullptr;
+            pool_ctx_ = nullptr;
+        }
+
+        void set_item_pool(PoolCreateFn create_fn,
+                           PoolBindFn bind_fn,
+                           PoolRecycleFn recycle_fn,
+                           void* ctx = nullptr) noexcept {
+            recycle_cache();
+            cache_fn_ = nullptr;
+            cache_ctx_ = nullptr;
+            pool_create_fn_ = create_fn;
+            pool_bind_fn_ = bind_fn;
+            pool_recycle_fn_ = recycle_fn;
+            pool_ctx_ = ctx;
+        }
+
+        void set_prefetch_rows(int rows) noexcept {
+            prefetch_rows_ = (rows > 0) ? rows : 0;
+        }
+
+        void reset() noexcept {
+            recycle_cache();
+            cache_fn_ = nullptr;
+            cache_ctx_ = nullptr;
+            pool_create_fn_ = nullptr;
+            pool_bind_fn_ = nullptr;
+            pool_recycle_fn_ = nullptr;
+            pool_ctx_ = nullptr;
+            prefetch_rows_ = 1;
+        }
+
+    private:
+        friend class ListView;
+
+        void recycle_cache() noexcept {
+            cache_.clear([&](int slot, int index) {
+                if (pool_recycle_fn_) pool_recycle_fn_(pool_ctx_, slot, index);
+            });
+        }
+
+        VirtualListCache<capacity> cache_{};
+        CacheFn cache_fn_{nullptr};
+        void* cache_ctx_{nullptr};
+        PoolCreateFn pool_create_fn_{nullptr};
+        PoolBindFn pool_bind_fn_{nullptr};
+        PoolRecycleFn pool_recycle_fn_{nullptr};
+        void* pool_ctx_{nullptr};
+        int prefetch_rows_{1};
+        ListView* owner_{nullptr};
+    };
+
     ListView() {
         set_size(240, 180);
         set_focusable(true);
     }
+
+    ~ListView() noexcept {
+        detach_item_pool_workspace();
+    }
+
+    ListView(const ListView&) = delete;
+    ListView& operator=(const ListView&) = delete;
+    ListView(ListView&&) = delete;
+    ListView& operator=(ListView&&) = delete;
 
     void set_item_count(int count) noexcept {
         item_count_ = (count > 0) ? count : 0;
@@ -92,23 +171,6 @@ public:
         draw_ctx_ = ctx;
     }
 
-    void set_cache_handler(CacheFn fn, void* ctx = nullptr) noexcept {
-        cache_fn_ = fn;
-        cache_ctx_ = ctx;
-        clear_cache();
-    }
-
-    void set_item_pool(PoolCreateFn create_fn,
-                       PoolBindFn bind_fn,
-                       PoolRecycleFn recycle_fn,
-                       void* ctx = nullptr) noexcept {
-        pool_create_fn_ = create_fn;
-        pool_bind_fn_ = bind_fn;
-        pool_recycle_fn_ = recycle_fn;
-        pool_ctx_ = ctx;
-        clear_cache();
-    }
-
     void set_on_scroll(ScrollFn fn, void* ctx = nullptr) noexcept {
         scroll_fn_ = fn;
         scroll_ctx_ = ctx;
@@ -120,10 +182,26 @@ public:
         select_ctx_ = ctx;
     }
 
-    void set_prefetch_rows(int rows) noexcept {
-        prefetch_rows_ = (rows > 0) ? rows : 0;
-        clear_cache();
+    [[nodiscard]] bool attach_item_pool_workspace(ItemPoolWorkspace& workspace) noexcept {
+        if (workspace.owner_ != nullptr && workspace.owner_ != this) return false;
+        if (item_pool_workspace_ == &workspace) return true;
+        detach_item_pool_workspace();
+        item_pool_workspace_ = &workspace;
+        workspace.owner_ = this;
         window_valid_ = false;
+        return true;
+    }
+
+    void detach_item_pool_workspace() noexcept {
+        if (!item_pool_workspace_) return;
+        clear_cache();
+        if (item_pool_workspace_->owner_ == this) item_pool_workspace_->owner_ = nullptr;
+        item_pool_workspace_ = nullptr;
+        window_valid_ = false;
+    }
+
+    [[nodiscard]] bool has_item_pool_workspace() const noexcept {
+        return item_pool_workspace_ != nullptr;
     }
 
     void notify_rows_changed(int start, int count) noexcept {
@@ -203,22 +281,14 @@ public:
         const int content_x = r.x + pad;
         const int content_w = r.w - pad * 2;
         const int count = item_count_for_render();
-        if (!window_valid_) update_visible_window();
+        const int prefetch_rows = item_pool_workspace_ ? item_pool_workspace_->prefetch_rows_ : 0;
+        if (!window_valid_ || window_prefetch_rows_ != prefetch_rows) update_visible_window();
         int start = window_start_;
         int visible = window_visible_;
         int y = window_offset_y_;
         const bool variable_height = (row_height_fn_ != nullptr);
-        auto on_create = [&](int slot) {
-            if (pool_create_fn_) pool_create_fn_(pool_ctx_, slot);
-        };
-        auto on_recycle = [&](int slot, int index) {
-            if (pool_recycle_fn_) pool_recycle_fn_(pool_ctx_, slot, index);
-        };
-        auto on_bind = [&](int slot, int index) {
-            if (pool_bind_fn_) pool_bind_fn_(pool_ctx_, slot, index);
-            else if (cache_fn_) cache_fn_(cache_ctx_, slot, index);
-        };
-        cache_.begin_frame();
+        auto* item_pool = item_pool_workspace_;
+        if (item_pool) item_pool->cache_.begin_frame();
         for (int i = start; i < count && y < r.y + r.h; ++i) {
             const int row_h = variable_height ? row_height_for_index(i) : row_height_for_render();
             Rect row{content_x, y, content_w, row_h};
@@ -227,10 +297,29 @@ public:
                 draw_rect(cvs, row.x, row.y, row.w, row.h, accent, true);
             }
             int slot = -1;
-            if (visible > 0 && visible <= kMaxCache) {
+            if (item_pool && visible > 0 && visible <= static_cast<int>(ItemPoolWorkspace::capacity)) {
                 slot = i - start;
-                if (slot >= 0 && slot < kMaxCache) {
-                    cache_.bind_slot(slot, i, on_create, on_recycle, on_bind);
+                if (slot >= 0 && slot < static_cast<int>(ItemPoolWorkspace::capacity)) {
+                    item_pool->cache_.bind_slot(
+                        slot,
+                        i,
+                        [&](int create_slot) {
+                            if (item_pool->pool_create_fn_) {
+                                item_pool->pool_create_fn_(item_pool->pool_ctx_, create_slot);
+                            }
+                        },
+                        [&](int recycle_slot, int index) {
+                            if (item_pool->pool_recycle_fn_) {
+                                item_pool->pool_recycle_fn_(item_pool->pool_ctx_, recycle_slot, index);
+                            }
+                        },
+                        [&](int bind_slot, int index) {
+                            if (item_pool->pool_bind_fn_) {
+                                item_pool->pool_bind_fn_(item_pool->pool_ctx_, bind_slot, index);
+                            } else if (item_pool->cache_fn_) {
+                                item_pool->cache_fn_(item_pool->cache_ctx_, bind_slot, index);
+                            }
+                        });
                 } else {
                     slot = -1;
                 }
@@ -241,7 +330,13 @@ public:
             y += row_h;
         }
 
-        cache_.recycle_inactive(on_recycle);
+        if (item_pool) {
+            item_pool->cache_.recycle_inactive([&](int slot, int index) {
+                if (item_pool->pool_recycle_fn_) {
+                    item_pool->pool_recycle_fn_(item_pool->pool_ctx_, slot, index);
+                }
+            });
+        }
 
         cvs.restore_clip(clip_state);
 
@@ -271,6 +366,8 @@ public:
         update_scroll_bounds();
         const int pad = st.metrics.padding;
         const int count = item_count_for_render();
+        const int prefetch_rows = item_pool_workspace_ ? item_pool_workspace_->prefetch_rows_ : 0;
+        window_prefetch_rows_ = prefetch_rows;
         const bool variable_height = (row_height_fn_ != nullptr);
         int start = 0;
         int visible = 0;
@@ -286,8 +383,8 @@ public:
             visible = (range.last >= range.first) ? (range.last - range.first + 1) : 0;
             const int row_offset = scroll_.scroll_y - start * row_h;
             y = r.y + pad - row_offset;
-            if (prefetch_rows_ > 0 && count > 0) {
-                int pref = prefetch_rows_;
+            if (prefetch_rows > 0 && count > 0) {
+                int pref = prefetch_rows;
                 int pref_start = start - pref;
                 if (pref_start < 0) pref_start = 0;
                 const int actual_pref = start - pref_start;
@@ -313,8 +410,8 @@ public:
                 acc += h;
                 start = i + 1;
             }
-            if (prefetch_rows_ > 0) {
-                for (int p = 0; p < prefetch_rows_ && start > 0; ++p) {
+            if (prefetch_rows > 0) {
+                for (int p = 0; p < prefetch_rows && start > 0; ++p) {
                     --start;
                     acc -= row_height_for_index(start);
                 }
@@ -564,22 +661,24 @@ private:
     }
 
     void clear_cache() noexcept {
-        cache_.clear([&](int slot, int index) {
-            if (pool_recycle_fn_) pool_recycle_fn_(pool_ctx_, slot, index);
-        });
+        if (item_pool_workspace_) item_pool_workspace_->recycle_cache();
     }
 
     void invalidate_cache_range(int start, int end) noexcept {
-        cache_.recycle_if([&](int slot, int index) {
-            if (pool_recycle_fn_) pool_recycle_fn_(pool_ctx_, slot, index);
+        if (!item_pool_workspace_) return;
+        auto& workspace = *item_pool_workspace_;
+        workspace.cache_.recycle_if([&](int slot, int index) {
+            if (workspace.pool_recycle_fn_) workspace.pool_recycle_fn_(workspace.pool_ctx_, slot, index);
         }, [&](int index) {
             return index >= start && index < end;
         });
     }
 
     void invalidate_cache_from(int start) noexcept {
-        cache_.recycle_if([&](int slot, int index) {
-            if (pool_recycle_fn_) pool_recycle_fn_(pool_ctx_, slot, index);
+        if (!item_pool_workspace_) return;
+        auto& workspace = *item_pool_workspace_;
+        workspace.cache_.recycle_if([&](int slot, int index) {
+            if (workspace.pool_recycle_fn_) workspace.pool_recycle_fn_(workspace.pool_ctx_, slot, index);
         }, [&](int index) {
             return index >= start;
         });
@@ -591,12 +690,7 @@ private:
     void* data_ctx_{nullptr};
     SelectFn select_fn_{nullptr};
     void* select_ctx_{nullptr};
-    CacheFn cache_fn_{nullptr};
-    void* cache_ctx_{nullptr};
-    PoolCreateFn pool_create_fn_{nullptr};
-    PoolBindFn pool_bind_fn_{nullptr};
-    PoolRecycleFn pool_recycle_fn_{nullptr};
-    void* pool_ctx_{nullptr};
+    ItemPoolWorkspace* item_pool_workspace_{nullptr};
     RowHeightFn row_height_fn_{nullptr};
     void* row_height_ctx_{nullptr};
     RowFlagsFn row_flags_fn_{nullptr};
@@ -611,15 +705,17 @@ private:
     bool dragging_{false};
     int last_y_{0};
     bool show_scrollbar_{true};
-    int prefetch_rows_{1};
     bool swipe_active_{false};
     int window_start_{0};
     int window_visible_{0};
     int window_offset_y_{0};
+    int window_prefetch_rows_{-1};
     bool window_valid_{false};
-    static constexpr int kMaxCache = 32;
-    VirtualListCache<kMaxCache> cache_{};
 };
+
+inline ListView::ItemPoolWorkspace::~ItemPoolWorkspace() noexcept {
+    if (owner_) owner_->detach_item_pool_workspace();
+}
 
 
 

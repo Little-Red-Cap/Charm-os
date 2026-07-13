@@ -40,6 +40,16 @@ namespace {
     static_assert(!std::is_move_constructible_v<ScrollContainer>);
     static_assert(!std::is_copy_constructible_v<SpinZoomWidget>);
     static_assert(!std::is_move_constructible_v<SpinZoomWidget>);
+    static_assert(!std::is_copy_constructible_v<ListView>);
+    static_assert(!std::is_move_constructible_v<ListView>);
+    static_assert(!std::is_copy_constructible_v<ListView::ItemPoolWorkspace>);
+    static_assert(!std::is_move_constructible_v<ListView::ItemPoolWorkspace>);
+    static_assert(!std::is_copy_constructible_v<TreeView>);
+    static_assert(!std::is_move_constructible_v<TreeView>);
+    static_assert(!std::is_copy_constructible_v<TreeView::ItemPoolWorkspace>);
+    static_assert(!std::is_move_constructible_v<TreeView::ItemPoolWorkspace>);
+    static_assert(sizeof(ListView) <= 256);
+    static_assert(sizeof(TreeView) <= 224);
     static_assert(std::is_same_v<Callback, util::delegate<>>);
     static_assert(sizeof(Callback) == sizeof(void*) + sizeof(Callback::stub_t));
 
@@ -138,14 +148,21 @@ namespace {
         int select_calls{0};
         int scroll_calls{0};
         int toggle_calls{0};
+        int pool_create_calls{0};
+        int pool_bind_calls{0};
+        int pool_recycle_calls{0};
+        int last_slot{-2};
+        int last_index{-1};
 
         static int count(void* ctx) noexcept {
             ++static_cast<StructuredCallbackProbe*>(ctx)->count_calls;
             return 1;
         }
 
-        static void draw_list(void* ctx, CanvasBase&, const ListView::DrawInfo&) noexcept {
-            ++static_cast<StructuredCallbackProbe*>(ctx)->draw_calls;
+        static void draw_list(void* ctx, CanvasBase&, const ListView::DrawInfo& info) noexcept {
+            auto& probe = *static_cast<StructuredCallbackProbe*>(ctx);
+            ++probe.draw_calls;
+            probe.last_slot = info.slot;
         }
 
         static int list_row_height(void* ctx, int) noexcept {
@@ -185,8 +202,10 @@ namespace {
             return TreeView::NodeInfo{0, false, true, nullptr};
         }
 
-        static void draw_tree(void* ctx, CanvasBase&, const TreeView::DrawInfo&) noexcept {
-            ++static_cast<StructuredCallbackProbe*>(ctx)->draw_calls;
+        static void draw_tree(void* ctx, CanvasBase&, const TreeView::DrawInfo& info) noexcept {
+            auto& probe = *static_cast<StructuredCallbackProbe*>(ctx);
+            ++probe.draw_calls;
+            probe.last_slot = info.slot;
         }
 
         static int tree_row_height(void* ctx, int, const TreeView::NodeInfo&) noexcept {
@@ -200,6 +219,33 @@ namespace {
 
         static void tree_select(void* ctx, int) noexcept {
             ++static_cast<StructuredCallbackProbe*>(ctx)->select_calls;
+        }
+
+        static void pool_create(void* ctx, int slot) noexcept {
+            auto& probe = *static_cast<StructuredCallbackProbe*>(ctx);
+            ++probe.pool_create_calls;
+            probe.last_slot = slot;
+        }
+
+        static void list_pool_bind(void* ctx, int slot, int index) noexcept {
+            auto& probe = *static_cast<StructuredCallbackProbe*>(ctx);
+            ++probe.pool_bind_calls;
+            probe.last_slot = slot;
+            probe.last_index = index;
+        }
+
+        static void tree_pool_bind(void* ctx,
+                                   int slot,
+                                   int index,
+                                   const TreeView::NodeInfo&) noexcept {
+            list_pool_bind(ctx, slot, index);
+        }
+
+        static void pool_recycle(void* ctx, int slot, int index) noexcept {
+            auto& probe = *static_cast<StructuredCallbackProbe*>(ctx);
+            ++probe.pool_recycle_calls;
+            probe.last_slot = slot;
+            probe.last_index = index;
         }
     };
 
@@ -555,6 +601,41 @@ int main() {
     list_view.draw(callback_canvas);
     if (!expect(list_data.draw_calls > 0 && list_draw.draw_calls == list_override_draw_calls,
                 "list data-source rebind resets the draw context")) return 1;
+    if (!expect(list_data.last_slot == -1,
+                "list view skips item-pool slots without an attached workspace")) return 1;
+
+    StructuredCallbackProbe list_pool{};
+    ListView::ItemPoolWorkspace list_workspace{};
+    list_workspace.set_item_pool(&StructuredCallbackProbe::pool_create,
+                                 &StructuredCallbackProbe::list_pool_bind,
+                                 &StructuredCallbackProbe::pool_recycle,
+                                 &list_pool);
+    if (!expect(list_view.attach_item_pool_workspace(list_workspace)
+                    && list_view.has_item_pool_workspace(),
+                "list view attaches an explicit item-pool workspace")) return 1;
+    list_view.draw(callback_canvas);
+    if (!expect(list_pool.pool_create_calls == 1
+                    && list_pool.pool_bind_calls == 1
+                    && list_data.last_slot == 0,
+                "list view creates and binds item-pool slots on demand")) return 1;
+    ListView competing_list_view{};
+    if (!expect(!competing_list_view.attach_item_pool_workspace(list_workspace),
+                "list item-pool workspace rejects concurrent attachment")) return 1;
+    list_workspace.set_item_pool(&StructuredCallbackProbe::pool_create,
+                                 &StructuredCallbackProbe::list_pool_bind,
+                                 &StructuredCallbackProbe::pool_recycle,
+                                 &list_pool);
+    list_view.draw(callback_canvas);
+    if (!expect(list_pool.pool_recycle_calls == 1
+                    && list_pool.pool_create_calls == 2
+                    && list_pool.pool_bind_calls == 2,
+                "list item-pool reconfiguration recycles and rebinds live slots")) return 1;
+    list_view.detach_item_pool_workspace();
+    list_view.draw(callback_canvas);
+    if (!expect(!list_view.has_item_pool_workspace()
+                    && list_pool.pool_recycle_calls == 2
+                    && list_data.last_slot == -1,
+                "list item-pool detach recycles slots and restores zero-cache drawing")) return 1;
 
     StructuredCallbackProbe table_data{};
     StructuredCallbackProbe table_width{};
@@ -598,6 +679,41 @@ int main() {
                     && tree_toggle.toggle_calls == 1
                     && tree_select.select_calls == 1,
                 "tree view keeps row, toggle and selection contexts isolated")) return 1;
+    if (!expect(tree_data.last_slot == -1,
+                "tree view skips item-pool slots without an attached workspace")) return 1;
+
+    StructuredCallbackProbe tree_pool{};
+    TreeView::ItemPoolWorkspace tree_workspace{};
+    tree_workspace.set_item_pool(&StructuredCallbackProbe::pool_create,
+                                 &StructuredCallbackProbe::tree_pool_bind,
+                                 &StructuredCallbackProbe::pool_recycle,
+                                 &tree_pool);
+    if (!expect(tree_view.attach_item_pool_workspace(tree_workspace)
+                    && tree_view.has_item_pool_workspace(),
+                "tree view attaches an explicit item-pool workspace")) return 1;
+    tree_view.draw(callback_canvas);
+    if (!expect(tree_pool.pool_create_calls == 1
+                    && tree_pool.pool_bind_calls == 1
+                    && tree_data.last_slot == 0,
+                "tree view creates and binds item-pool slots on demand")) return 1;
+    TreeView competing_tree_view{};
+    if (!expect(!competing_tree_view.attach_item_pool_workspace(tree_workspace),
+                "tree item-pool workspace rejects concurrent attachment")) return 1;
+    tree_workspace.set_item_pool(&StructuredCallbackProbe::pool_create,
+                                 &StructuredCallbackProbe::tree_pool_bind,
+                                 &StructuredCallbackProbe::pool_recycle,
+                                 &tree_pool);
+    tree_view.draw(callback_canvas);
+    if (!expect(tree_pool.pool_recycle_calls == 1
+                    && tree_pool.pool_create_calls == 2
+                    && tree_pool.pool_bind_calls == 2,
+                "tree item-pool reconfiguration recycles and rebinds live slots")) return 1;
+    tree_view.detach_item_pool_workspace();
+    tree_view.draw(callback_canvas);
+    if (!expect(!tree_view.has_item_pool_workspace()
+                    && tree_pool.pool_recycle_calls == 2
+                    && tree_data.last_slot == -1,
+                "tree item-pool detach recycles slots and restores zero-cache drawing")) return 1;
 
     if constexpr (sizeof(void*) == 8) {
         if (!expect(sizeof(ObjectBase) <= 32, "ObjectBase retained legacy ownership or dispatch storage")) {
@@ -637,10 +753,18 @@ int main() {
                 ScrollContainer::child_capacity,
                 sizeof(InteractionList<>) + sizeof(DragStrategy) + sizeof(LongPressStrategy));
     print_widget_signal_case("structured_callback_contexts");
-    std::printf(" list_draw=%d table_width=%d tree_toggle=%d\n",
+    std::printf(" list_draw=%d table_width=%d tree_toggle=%d list_pool=%d/%d/%d tree_pool=%d/%d/%d list_size=%zu tree_size=%zu\n",
                 list_draw.draw_calls,
                 table_width.column_width_calls,
-                tree_toggle.toggle_calls);
+                tree_toggle.toggle_calls,
+                list_pool.pool_create_calls,
+                list_pool.pool_bind_calls,
+                list_pool.pool_recycle_calls,
+                tree_pool.pool_create_calls,
+                tree_pool.pool_bind_calls,
+                tree_pool.pool_recycle_calls,
+                sizeof(ListView),
+                sizeof(TreeView));
     print_widget_signal_run_end(true);
     std::puts("[widget_signal_demo] ok");
     return 0;

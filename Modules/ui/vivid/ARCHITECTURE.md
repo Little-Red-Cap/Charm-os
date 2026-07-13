@@ -139,6 +139,11 @@ strategy 绑定外部长生命周期 target 时仍可按值复制，不能把该
 只使用同一 setter 配对保存的 context；draw、row-height、row-flags、selection 等 callback 不得隐式借用
 另一个 data source 的 context。owner 必须覆盖 callback 的完整保存期。
 
+ListView/TreeView 的虚拟 item pool 同样按需付费。控件本体只保存 non-owning workspace 指针；未 attach
+`ItemPoolWorkspace` 时，`DrawInfo::slot` 保持 `-1`，不遍历 cache，也不常驻槽表。workspace 同一时刻只能
+attach 到一个同类型控件，控件与 workspace 均不可复制或移动；任一方销毁或显式 detach 时先回收 live slot
+并解除绑定。workspace 内保存的 pool/cache callback target 必须覆盖其配置与回收周期。
+
 控件实现语义行为，不拥有全局 focus/navigation policy。focus truth、scope、semantic request 与 visual
 focus artifact 的边界从 [`vivid_focus_evidence_boundary_v0.md`](../../../docs/ui/vivid_focus_evidence_boundary_v0.md)
 进入。

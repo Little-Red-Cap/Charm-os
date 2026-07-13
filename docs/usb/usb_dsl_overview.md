@@ -1,79 +1,51 @@
-# USB DSL overview (DescriptorTable + ConfigTree)
+# USB Descriptor 与 Plan 流程
 
-This note documents the minimal DSL skeleton and a concrete assembly example
-for DescriptorTable and ConfigTree.
+## 文档状态
 
-## DSL scope
+- `status`: `supporting`
+- `scope`: USB descriptor builder 与 device planning 的当前边界
+- `source`: `Modules/io/usb/common/usb.{dsl,spec,model,plan,runtime}.cppm`
 
-The DSL is a thin, strongly-typed builder that emits raw descriptor bytes:
+仓库有两层相关接口。它们不是两套 USB runtime：plan/runtime 最终仍使用底层 DSL 生成 descriptor
+并建立 device binding。
 
-- Device/Config/Interface/Endpoint descriptors are assembled with `ConfigBuilder`.
-- Class descriptors are passed as raw byte spans (validated by length fields).
-- Output is compatible with `device::DescriptorTable` + `device::ConfigTree`.
+## Direct DSL
 
-## Minimal assembly example (CDC ACM)
+`usb.dsl` 提供 `ConfigBuilder`、`DeviceBuildContext` 与 `build_*_device()`：
 
-```cpp
-using namespace usb;
+- 支持 CDC ACM、MSC、MSC+CDC 和 UAC descriptor；
+- 写入调用方提供的 device/config byte buffer；
+- 填充 `device::DescriptorTable` 与 `device::ConfigTree`；
+- 检查 descriptor stream、EP0 占用和 endpoint address 冲突。
 
-std::array<u8, sizeof(DeviceDescriptor)> dev_desc{};
-std::array<u8, 256> cfg_desc{};
-device::DescriptorTable table{};
-device::ConfigTree tree{};
+这些函数返回 `bool`，不会指出具体失败字段。buffer、class descriptor span、string table 及其引用对象
+均由调用方管理生命周期。
 
-usb::dsl::DeviceBuildContext ctx{
-    std::span<u8>(dev_desc.data(), dev_desc.size()),
-    std::span<u8>(cfg_desc.data(), cfg_desc.size()),
-    &table,
-    &tree,
-};
+## Spec 到 Runtime
 
-usb::dsl::DeviceInfo dev_info{};
-dev_info.vendor_id = 0xCafe;
-dev_info.product_id = 0x4000;
-dev_info.i_manufacturer = 1;
-dev_info.i_product = 2;
-dev_info.i_serial = 3;
+当前 native examples 主要使用：
 
-usb::dsl::ConfigInfo cfg_info{};
-cfg_info.configuration_value = 1;
-cfg_info.max_power = 50;
-
-class_driver::CdcConfig cdc_cfg{};
-cdc_cfg.ctrl_ifc = 0;
-cdc_cfg.data_ifc = 1;
-cdc_cfg.ep_notify = 0x81;
-cdc_cfg.ep_out = 0x02;
-cdc_cfg.ep_in = 0x83;
-cdc_cfg.ep_mps = 64;
-
-auto cdc_desc = usb::dsl::make_cdc_acm_class_descriptors(cdc_cfg);
-bool ok = usb::dsl::build_cdc_acm_device(
-    ctx,
-    dev_info,
-    cfg_info,
-    cdc_cfg,
-    cdc_desc.view(),
-    nullptr,
-    0);
+```text
+usb.spec -> usb::build(model) -> usb::plan::build(plan) -> usb::runtime::make(binding)
 ```
 
-## DescriptorTree/DescriptorTable usage
+| 层 | 责任 |
+|---|---|
+| `usb.spec` | 描述 Device、CDC、MSC 或 MSC+CDC 的输入值和 capability name |
+| `usb.model` | 生成 interface/endpoint intent 与 class config |
+| `usb.plan` | 分配 interface/endpoint，检查冲突和 target constraints |
+| `usb.runtime` | 将 plan、DCD/runtime config 和可选 block registry 组成 init binding |
 
-`build_*_device()` fills both:
+`usb.plan` 默认使用 `stm32_fs_constraints()`：EP0 MPS、bulk MPS、interface number 和 endpoint number
+都有上限。失败使用 `invalid_arg`、`exist` 或 `buffer_overflow`，没有逐字段诊断。
 
-- `DescriptorTable` (device/config/string descriptors)
-- `ConfigTree` (config bytes + view span)
+## 边界
 
-These can be plugged into `usb.device` via:
+- Spec/plan 当前覆盖 CDC、MSC 和 MSC+CDC；UAC 只有 direct DSL 路径。
+- `DeviceSpec::strings`、capability name 和 MSC identity 使用借用的 span/pointer，使用期间必须有效。
+- plan 成功只说明当前模型满足分配约束，不证明 DCD 可用、descriptor 能枚举或 data path 正常。
+- Direct DSL 成功只说明固定 buffer 中生成了结构可接受的 descriptor/tree。
+- 默认 FS constraints 不是 USB HS 或任意控制器的通用限制；平台若不同必须显式提供 constraints。
 
-```cpp
-dev.set_descriptor_provider(device::make_descriptor_provider(table));
-dev.set_config_tree(tree);
-```
-
-## Validation rules
-
-- Endpoint address `0x00` is reserved (EP0).
-- Endpoint direction conflicts are rejected in `ConfigBuilder`.
-- Class descriptor streams must be length-valid (`validate_descriptor_stream`).
+当前组合用法和 smoke 入口见 [`Examples/usb/README.md`](../../Examples/usb/README.md)。String/lang
+装配见 [`usb_strings_overview.md`](usb_strings_overview.md)。

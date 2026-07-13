@@ -39,6 +39,22 @@ Charm Core 身份。具体 token、负例和编译器要求以各目录 CMake/so
 两者只验证 stable slot 与 registry export，不证明真实 USB Host、media 或 controller 行为。构建 target 与
 断言以各目录 CMake/source 为准。
 
+## Dev Loader receive fixtures
+
+| Fixture | 局部证明 |
+|---|---|
+| `dev_loader_session_smoke` | ordered write、CRC、`launch_ready` 与稳定错误码 |
+| `dev_loader_binary_receive_smoke` | transport-neutral begin/write/verify/launch-dry-run 状态机 |
+| `dev_loader_packet_smoke` | packet v0 到 `BinaryReceiveRuntime` 的映射 |
+| `dev_loader_byte_transport_smoke` | 任意 byte chunk 缓冲、packet 解码与 dispatch |
+| `dev_loader_hex_ingest_smoke` | console hex chunk 到共享 byte transport 链 |
+| `dev_loader_packet_console_smoke` | packetstream 与 `dev packet ingest <hex>` 命令互转 |
+| `dev_loader_command_smoke` | session 之上的共享命令层与诊断结果 |
+| `dev_loader_stage_probe_smoke` | `launch_ready` payload 的 received read、ELF stage 与 probe |
+
+这些 fixture 分别冻结下载链的局部语义，不证明 USB/UART、板级内存、重传或真实 App 执行。构建
+target、负例和断言以各目录 CMake/source 为准。
+
 ## 冻结探索
 
 以下 Host fixture 保留 RTE/Spine/static-reflection 的历史局部断言：

@@ -5,23 +5,10 @@
 本文件描述 `SpawnConfig`、`ProcService::spawn()` 与子 fd 视图的当前行为，不承诺 `fork()`、
 并行进程调度或完整 `posix_spawn` 兼容。
 
-源码入口：
-
-- `Modules/io/posix/posix.proc_types.cppm`
-- `Modules/io/posix/posix.proc.cppm`
-- `Modules/io/posix/posix.spawn_fds.cppm`
-- `Modules/io/posix/posix.image_resolver.cppm`
-
 ## 输入
 
-`SpawnConfig` 当前包含：
-
-- `path`、`argv`、`envp` 与 `cwd`
-- 固定上限为 16 的 `FileActions`
-- `stdio_in`、`stdio_out`、`stdio_err`
-- `PathMode::exact` 或 `PathMode::search_path`
-
-`FileAction` 只支持 `open`、`close` 和 `dup2`。配置既没有 path 又没有 argv 时，spawn 返回
+`SpawnConfig` 携带程序选择、argv/envp/cwd、exact/PATH 模式、stdio override，以及最多 16 个
+file actions。Action 只支持 `open`、`close` 和 `dup2`；配置既没有 path 又没有 argv 时返回
 `invalid_arg`。
 
 ## 子 fd 视图

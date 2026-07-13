@@ -5,25 +5,11 @@
 本页只说明当前源码边界和验证入口。POSIX 是可选兼容执行面，不定义 Charm Core，
 也不承诺完整 Linux 进程或 ABI 兼容。
 
-## 代码入口
+## 实现入口
 
-构建开关：
-
-- 根 `CMakeLists.txt` 的 `CHARM_ENABLE_POSIX`
-- `cmake/sources/CharmIoSources.cmake` 中的 POSIX source filter
-
-实现位于 `Modules/io/posix/`，当前主要分为：
-
-- 描述符与 IO：`posix.fd_table`、`posix.file`、`posix.pipe`、`posix.term`
-- 程序执行：`posix.proc`、`posix.exec_loader`、`posix.exec_source`
-- image：`posix.program_image`、`posix.program_image_elf`、
-  `posix.program_image_modulex`
-- 用户态桥接：`posix.user_runtime`、`posix.user_context`、`posix.user_crt`、
-  `posix.user_crt_c`
-- 兼容表面：`posix.api`、`posix.errno`、`posix.env`
-
-公共 C 头文件位于同一目录，包括 `charm_posix_user_crt.h`、
-`charm_posix_user_fs.h` 和本地 `dirent.h`。
+根 `CMakeLists.txt` 的 `CHARM_ENABLE_POSIX` 控制该执行面，source collection 由
+`cmake/sources/CharmIoSources.cmake` 维护。实现与公开 C 头文件位于 `Modules/io/posix/`；具体
+module/file 清单以源码和 CMake 为准，不在本文复制。
 
 ## 当前模型
 
@@ -56,12 +42,8 @@ POSIX façade 不得反向规定 kernel、runtime 或 Charm Core 的公共语义
 - 静态 ELF 样本：[`../../Examples/posix/elf_samples/README.md`](../../Examples/posix/elf_samples/README.md)
 - Cortex-M7 QEMU 系统入口：
   [`../../Examples/kernel/posix/qemu/README.md`](../../Examples/kernel/posix/qemu/README.md)
-- 主 QEMU runner：
-  `Examples/kernel/posix/qemu/run_qemu_ci.ps1`
-- 专项 runner：
-  `Examples/kernel/posix/qemu/run_qemu_stage1_ci.ps1`
 
-runner 的 token 和参数是当前验收事实；是否通过必须以当次构建与运行结果判断。
+QEMU runner、token 和参数由该入口维护；是否通过必须以当次构建与运行结果判断。
 
 ## 继续阅读
 

@@ -5,24 +5,11 @@
 `ProgramImage` 是 POSIX 执行面内部的已解析程序描述。它统一入口 ABI 与启动路径，
 但不统一文件格式、存储位置或 loader 实现。
 
-源码入口：
+## Entry 契约
 
-- `Modules/io/posix/posix.program_image.cppm`
-- `Modules/io/posix/posix.program_catalog.cppm`
-- `Modules/io/posix/posix.image_resolver.cppm`
-- `Modules/io/posix/posix.exec_loader.cppm`
-- `Modules/io/posix/posix.program_image_elf.cppm`
-- `Modules/io/posix/posix.program_image_modulex.cppm`
-
-## 数据契约
-
-`ProgramImage` 当前包含：
-
-- `ImageKind`：`registered`、`flat`、`elf` 或 `modulex`
-- name
-- 显式 `ImageEntryAbi`
-- 与 ABI 对应的唯一 entry 指针
-- `stack_size` 与 `flags` 提示字段
+`ProgramImage` 保存 image kind、name、显式 entry ABI、与 ABI 对应的唯一 entry，以及可选
+stack/flags 提示。Kind 只用于分类；枚举中存在某种 kind，不表示 resolver 已提供自动发现或
+加载路径。
 
 当前入口 ABI：
 
@@ -34,8 +21,6 @@ int main(int argc, char** argv, char** envp);  // main_argv_envp_v1
 `validate_program_image()` 拒绝空入口、`none` ABI，以及同时设置两种 entry 的对象。
 `invoke_program_main()` 只按显式 ABI 分发，不猜测函数签名。
 
-`ImageKind` 只是分类。枚举中存在某种 kind，不等于 resolver 已经为它提供自动发现或加载路径。
-
 ## Catalog 与解析
 
 `ProgramCatalog<MaxExecs>` 是固定容量注册表：
@@ -45,21 +30,21 @@ int main(int argc, char** argv, char** envp);  // main_argv_envp_v1
 - 容量耗尽返回 `buffer_overflow`
 - 查找允许完整名称或路径末段匹配
 
-`ElfMemRegistry<MaxEntries>` 保存不拥有的 name/data/size 视图，调用方负责 image bytes 生命周期。
+ELF memory registry 保存不拥有的 name/bytes 视图，调用方负责 image bytes 生命周期。
 
-`resolve_program_image()` 当前按以下路径解析：
+Resolver 当前按以下顺序解析：
 
 1. `elfmem:<name>`：从 `ElfMemRegistry` 取 bytes 并调用 ELF loader。
 2. `elf:<path>`：按 cwd 解析文件并调用 ELF loader。
 3. registered name：按 exact/PATH 规则查询 catalog。
 4. 普通文件候选：在允许 ELF 执行且存在文件服务时尝试加载 ELF。
 
-ModuleX loader 当前直接产出 `ProgramImage(kind=modulex)`。它不是 resolver 的独立文件协议；
-典型路径是调用方 materialize 后通过 `register_image()` 放入 catalog，再由 name 解析。
+ModuleX 不是 resolver 的独立文件协议；调用方先 materialize `ProgramImage(kind=modulex)`，再注册到
+catalog 供 name 解析。
 
 ## ELF loader
 
-`load_elf_image(ElfLoadConfig)` 接收 image bytes 与调用方提供的 load buffer。当前实现：
+ELF loader 接收 image bytes 与调用方提供的 load buffer。当前实现：
 
 - 识别 ELF32/ELF64 与 little-endian header
 - 校验 program-header 范围和大小
@@ -74,14 +59,8 @@ loader 不拥有输入或输出 buffer，不分配执行区，也不实现动态
 
 ## ModuleX loader
 
-`load_modulex_image()`：
-
-- 校验 ModuleX image
-- 按配置验证 dependency、绑定 external 并执行 relocation
-- 从 override、指定 symbol 或 image entry 得到入口
-- 产出 `main_argv_envp_v1` 的 `ProgramImage`
-
-`entry_override` 是测试逃生口，不应当作真实 image 入口协议。
+ModuleX loader 校验 image，解析 dependency/external，执行 relocation，并从指定 symbol 或 image
+entry 取得 `main_argv_envp_v1` 入口。`entry_override` 只用于测试，不是 image 入口协议。
 
 基础 ModuleX image/layout 语义见
 [`ModuleX_格式草案.md`](../../Modules/system/modulex/ModuleX_格式草案.md)。该实现的原生 `Symbol`
@@ -101,5 +80,5 @@ POSIX `ProgramImage` 的 entry 是 `main(argc, argv[, envp])`。Resident App 原
 进入 `CharmAppMainFn` 并消费 `CharmAppApi`。二者共享 ELF/ModuleX 格式时仍必须使用各自 loader
 和 entry ABI，不能直接交换 loaded image。
 
-验证入口位于 `Examples/posix/tests/posix.programs.exec.tests.cppm`。早期 ProgramImage、ELF 与
-ModuleX 设计稿保留在 [`../archive/posix-v0/`](../archive/posix-v0/README.md)。
+验证入口位于 `Examples/posix/tests/posix.programs.exec.tests.cppm`。早期设计稿保留在
+[`../archive/posix-v0/`](../archive/posix-v0/README.md)。

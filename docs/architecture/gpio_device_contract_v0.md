@@ -10,7 +10,7 @@
 本文是 GPIO implementation interface 的当前状态卡，不是 Charm Core、Stable Boundary 或公共 ABI。
 
 早期 input/output/edge 未决语义见
-[`device_interface_retained_notes.md`](../archive/device-interface-drafts-v0/device_interface_retained_notes.md#gpio)。
+[`Device Interface v0`](../archive/device-interface-drafts-v0/README.md#gpio)。
 准入规则见 [`interface_admission_policy.md`](interface_admission_policy.md)。
 
 ## 代码事实

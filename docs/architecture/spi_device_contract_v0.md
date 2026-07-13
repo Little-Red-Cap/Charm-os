@@ -10,7 +10,7 @@
 本文是 SPI implementation interface 的当前状态卡。它约束讨论范围，但不是 Charm Core、Stable Boundary 或公共 ABI。
 
 早期未决 transaction/CS 语义见
-[`device_interface_retained_notes.md`](../archive/device-interface-drafts-v0/device_interface_retained_notes.md#spi)。
+[`Device Interface v0`](../archive/device-interface-drafts-v0/README.md#spi)。
 准入规则见 [`interface_admission_policy.md`](interface_admission_policy.md)。
 
 ## 代码事实

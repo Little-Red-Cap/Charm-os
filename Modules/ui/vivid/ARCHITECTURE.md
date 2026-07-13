@@ -149,6 +149,11 @@ ConsoleBox 的 object surface 只负责视图行为，不在每个控件实例�
 被多个只读视图观察，但其写入与视图 draw 必须位于同一串行 UI execution domain，且 Buffer/行存储必须覆盖
 所有 attach view 的使用期。SoA ConsoleBox 继续使用 kernel payload/TextArena，不与 object Buffer 混用。
 
+Chart、Histogram、HistogramView 与 WaveformView 是 caller-owned data view，不复制样本数组。直接数据使用
+有界 `std::span<const int>`；需要惰性来源时，Chart/Histogram 的 callback 每次 draw 只返回一次 span，随后整帧
+使用同一 view。span、callback context 及其底层数据必须覆盖 draw 周期，且更新与 draw 位于同一串行 UI
+execution domain。各控件仍保留原最大点数作为单帧工作上限；SoA 同名 kind 的 payload/record 语义不受影响。
+
 控件实现语义行为，不拥有全局 focus/navigation policy。focus truth、scope、semantic request 与 visual
 focus artifact 的边界从 [`vivid_focus_evidence_boundary_v0.md`](../../../docs/ui/vivid_focus_evidence_boundary_v0.md)
 进入。

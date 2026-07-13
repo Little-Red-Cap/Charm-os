@@ -1,5 +1,6 @@
 module;
 #include <cstddef>
+#include <span>
 export module charm.widgets.chart;
 
 import charm.core.object;
@@ -7,55 +8,31 @@ import charm.core.style;
 import charm.core.style_sheet;
 import charm.gfx.color;
 import charm.gfx.render_style;
-import charm.core.event;
 
 using namespace ui::render;
 
-// Simple line chart (fixed buffer, no dynamic allocation)
+// Simple line chart over caller-owned data.
 export
 class Chart : public WidgetBase<Chart> {
 public:
     static constexpr std::size_t kMax = 32;
-    using GetPointFn = int (*)(void* ctx, int index) noexcept;
+    using GetPointsFn = std::span<const int> (*)(void* ctx) noexcept;
 
     Chart() {
         set_size(200, 120);
     }
 
-    void set_points(const int* values, int count) {
+    void set_points(std::span<const int> values) noexcept {
         ctx_ = nullptr;
         fn_ = nullptr;
-        if (!values || count <= 0) {
-            count_ = 0;
-            return;
-        }
-        const int cap = (count < static_cast<int>(kMax)) ? count : static_cast<int>(kMax);
-        for (int i = 0; i < cap; ++i) points_[i] = values[i];
-        count_ = cap;
+        const auto count = (values.size() < kMax) ? values.size() : kMax;
+        points_ = values.first(count);
     }
 
-    void set_data_source(void* ctx, GetPointFn fn, int count) noexcept {
+    void set_data_source(void* ctx, GetPointsFn fn) noexcept {
+        points_ = {};
         ctx_ = ctx;
         fn_ = fn;
-        count_ = (count < 0) ? 0 : ((count > static_cast<int>(kMax)) ? static_cast<int>(kMax) : count);
-        if (!fn_ || count_ <= 0) return;
-        for (int i = 0; i < count_; ++i) {
-            points_[i] = fn_(ctx_, i);
-        }
-    }
-
-    void notify_points_changed(int start, int count) noexcept {
-        if (count_ <= 0) return;
-        int range_start = start;
-        int range_end = start + count;
-        if (range_start < 0) range_start = 0;
-        if (range_end > count_) range_end = count_;
-        if (range_start >= range_end) return;
-        if (fn_) {
-            for (int i = range_start; i < range_end; ++i) {
-                points_[i] = fn_(ctx_, i);
-            }
-        }
     }
 
     void draw(CanvasBase& cvs) {
@@ -69,32 +46,43 @@ public:
         resolve_colors(st, state, bg, border, font);
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
-        if (count_ < 2) return;
-        int min_v = points_[0];
-        int max_v = points_[0];
-        for (int i = 1; i < count_; ++i) {
-            if (points_[i] < min_v) min_v = points_[i];
-            if (points_[i] > max_v) max_v = points_[i];
+        const auto points = current_points();
+        const int count = static_cast<int>(points.size());
+        if (count < 2) return;
+        int min_v = points[0];
+        int max_v = min_v;
+        for (int i = 1; i < count; ++i) {
+            const int value = points[static_cast<std::size_t>(i)];
+            if (value < min_v) min_v = value;
+            if (value > max_v) max_v = value;
         }
         const int range = (max_v - min_v) == 0 ? 1 : (max_v - min_v);
         const int left = r.x + 4;
         const int right = r.x + r.w - 4;
         const int top = r.y + 4;
         const int bottom = r.y + r.h - 4;
-        for (int i = 1; i < count_; ++i) {
-            const int x0 = left + (right - left) * (i - 1) / (count_ - 1);
-            const int x1 = left + (right - left) * i / (count_ - 1);
-            const int y0 = bottom - (bottom - top) * (points_[i - 1] - min_v) / range;
-            const int y1 = bottom - (bottom - top) * (points_[i] - min_v) / range;
+        int previous = points[0];
+        for (int i = 1; i < count; ++i) {
+            const int value = points[static_cast<std::size_t>(i)];
+            const int x0 = left + (right - left) * (i - 1) / (count - 1);
+            const int x1 = left + (right - left) * i / (count - 1);
+            const int y0 = bottom - (bottom - top) * (previous - min_v) / range;
+            const int y1 = bottom - (bottom - top) * (value - min_v) / range;
             draw_line(cvs, x0, y0, x1, y1, font);
+            previous = value;
         }
     }
 
 private:
-    int points_[kMax]{};
-    int count_{0};
+    std::span<const int> points_{};
     void* ctx_{nullptr};
-    GetPointFn fn_{nullptr};
+    GetPointsFn fn_{nullptr};
+
+    [[nodiscard]] std::span<const int> current_points() const noexcept {
+        const auto values = fn_ ? fn_(ctx_) : points_;
+        const auto count = (values.size() < kMax) ? values.size() : kMax;
+        return values.first(count);
+    }
 };
 
 

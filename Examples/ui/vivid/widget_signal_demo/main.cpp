@@ -1,6 +1,7 @@
 #include <array>
 #include <cstdint>
 #include <cstdio>
+#include <span>
 #include <type_traits>
 
 import charm.core;
@@ -8,9 +9,12 @@ import charm.core.event;
 import charm.core.input_interaction;
 import charm.core.object;
 import charm.widgets.button;
+import charm.widgets.chart;
 import charm.widgets.console_box;
 import charm.widgets.foldable_panel;
 import charm.widgets.image;
+import charm.widgets.histogram;
+import charm.widgets.histogram_view;
 import charm.widgets.list;
 import charm.widgets.list_view;
 import charm.widgets.menu_item;
@@ -18,6 +22,7 @@ import charm.widgets.scroll_container;
 import charm.widgets.spin_zoom_widget;
 import charm.widgets.table_view;
 import charm.widgets.tree_view;
+import charm.widgets.waveform_view;
 import charm.gfx.canvas;
 import charm.gfx.framebuffer;
 
@@ -57,6 +62,19 @@ namespace {
     static_assert(sizeof(ConsoleBox::Buffer::Line) <= ConsoleBox::Buffer::line_length + 2);
     static_assert(sizeof(ConsoleBox)
                   <= sizeof(ObjectBase) + sizeof(void*) + alignof(void*) - 1);
+    static_assert(sizeof(Chart)
+                  <= sizeof(ObjectBase) + sizeof(std::span<const int>)
+                      + sizeof(void*) * 2 + alignof(void*) * 2);
+    static_assert(sizeof(Histogram)
+                  <= sizeof(ObjectBase) + sizeof(std::span<const int>)
+                      + sizeof(void*) * 2 + sizeof(int) * 2 + sizeof(bool) * 2
+                      + alignof(void*) * 2);
+    static_assert(sizeof(HistogramView)
+                  <= sizeof(ObjectBase) + sizeof(std::span<const int>)
+                      + sizeof(int) * 2 + sizeof(bool) + alignof(void*) * 2);
+    static_assert(sizeof(WaveformView)
+                  <= sizeof(ObjectBase) + sizeof(std::span<const int>)
+                      + sizeof(int) * 2 + sizeof(bool) + alignof(void*) * 2);
     static_assert(std::is_same_v<Callback, util::delegate<>>);
     static_assert(sizeof(Callback) == sizeof(void*) + sizeof(Callback::stub_t));
 
@@ -253,6 +271,17 @@ namespace {
             ++probe.pool_recycle_calls;
             probe.last_slot = slot;
             probe.last_index = index;
+        }
+    };
+
+    struct DataViewProbe {
+        std::array<int, 4> values{-4, 2, 8, 0};
+        int calls{0};
+
+        static std::span<const int> read(void* ctx) noexcept {
+            auto& probe = *static_cast<DataViewProbe*>(ctx);
+            ++probe.calls;
+            return probe.values;
         }
     };
 
@@ -750,6 +779,36 @@ int main() {
                     && console_buffer.line_at(1) == "gamma",
                 "console box detach preserves caller-owned data")) return 1;
 
+    std::array<int, 4> data_view_values{-3, 1, 7, 0};
+    Chart chart{};
+    chart.set_points(data_view_values);
+    chart.draw(callback_canvas);
+    DataViewProbe chart_source{};
+    chart.set_data_source(&chart_source, &DataViewProbe::read);
+    if (!expect(chart_source.calls == 0,
+                "chart data source stays lazy until draw")) return 1;
+    chart.draw(callback_canvas);
+    if (!expect(chart_source.calls == 1,
+                "chart reads one stable span per draw")) return 1;
+
+    Histogram histogram{};
+    histogram.set_values(data_view_values);
+    histogram.draw(callback_canvas);
+    DataViewProbe histogram_source{};
+    histogram.set_data_source(&histogram_source, &DataViewProbe::read);
+    if (!expect(histogram_source.calls == 0,
+                "histogram data source stays lazy until draw")) return 1;
+    histogram.draw(callback_canvas);
+    if (!expect(histogram_source.calls == 1,
+                "histogram reads one stable span per draw")) return 1;
+
+    HistogramView histogram_view{};
+    histogram_view.set_values(data_view_values);
+    histogram_view.draw(callback_canvas);
+    WaveformView waveform_view{};
+    waveform_view.set_samples(data_view_values);
+    waveform_view.draw(callback_canvas);
+
     print_widget_signal_case("button_click_edge");
     std::printf(" primary=%d secondary=%d legacy=%d\n",
                 probe.primary_clicks,
@@ -777,13 +836,19 @@ int main() {
     print_widget_signal_case("owned_interaction_dispatch");
     std::printf(" image=direct scroll=direct spin_zoom=direct\n");
     print_widget_signal_case("object_runtime_footprint");
-    std::printf(" object_base=%zu child_capacity=%zu opt_in_components=%zu console_box=%zu console_line=%zu console_buffer=%zu\n",
+    std::printf(" object_base=%zu child_capacity=%zu opt_in_components=%zu console_box=%zu console_line=%zu console_buffer=%zu chart=%zu histogram=%zu histogram_view=%zu waveform_view=%zu data_source_calls=%d/%d\n",
                 sizeof(ObjectBase),
                 ScrollContainer::child_capacity,
                 sizeof(InteractionList<>) + sizeof(DragStrategy) + sizeof(LongPressStrategy),
                 sizeof(ConsoleBox),
                 sizeof(ConsoleBox::Buffer::Line),
-                sizeof(ConsoleBox::Buffer));
+                sizeof(ConsoleBox::Buffer),
+                sizeof(Chart),
+                sizeof(Histogram),
+                sizeof(HistogramView),
+                sizeof(WaveformView),
+                chart_source.calls,
+                histogram_source.calls);
     print_widget_signal_case("structured_callback_contexts");
     std::printf(" list_draw=%d table_width=%d tree_toggle=%d list_pool=%d/%d/%d tree_pool=%d/%d/%d list_size=%zu tree_size=%zu\n",
                 list_draw.draw_calls,

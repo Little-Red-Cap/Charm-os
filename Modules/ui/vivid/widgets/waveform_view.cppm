@@ -1,5 +1,6 @@
 module;
 #include <cstddef>
+#include <span>
 export module charm.widgets.waveform_view;
 
 import charm.core.object;
@@ -10,7 +11,7 @@ import charm.gfx.render_style;
 
 using namespace ui::render;
 
-// Simple waveform view (fixed buffer)
+// Simple waveform view over caller-owned samples.
 export
 class WaveformView : public WidgetBase<WaveformView> {
 public:
@@ -20,11 +21,9 @@ public:
         set_size(220, 120);
     }
 
-    void set_samples(const int* values, int count) {
-        if (!values || count <= 0) { count_ = 0; return; }
-        const int cap = (count < static_cast<int>(kMax)) ? count : static_cast<int>(kMax);
-        for (int i = 0; i < cap; ++i) samples_[i] = values[i];
-        count_ = cap;
+    void set_samples(std::span<const int> values) noexcept {
+        const auto count = (values.size() < kMax) ? values.size() : kMax;
+        samples_ = values.first(count);
     }
 
     void set_range(int min_v, int max_v) noexcept {
@@ -46,12 +45,13 @@ public:
         resolve_colors(st, state, bg, border, font);
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
-        if (count_ < 2) return;
+        const int count = static_cast<int>(samples_.size());
+        if (count < 2) return;
 
         int min_v = has_range_ ? min_v_ : samples_[0];
         int max_v = has_range_ ? max_v_ : samples_[0];
         if (!has_range_) {
-            for (int i = 1; i < count_; ++i) {
+            for (int i = 1; i < count; ++i) {
                 if (samples_[i] < min_v) min_v = samples_[i];
                 if (samples_[i] > max_v) max_v = samples_[i];
             }
@@ -70,8 +70,8 @@ public:
         int last_x = left;
         int last_y = mid - (samples_[0] * (mid - top)) / amp;
         draw_line(cvs, left, mid, left, last_y, font);
-        for (int i = 1; i < count_; ++i) {
-            const int x = left + (right - left) * i / (count_ - 1);
+        for (int i = 1; i < count; ++i) {
+            const int x = left + (right - left) * i / (count - 1);
             const int y = mid - (samples_[i] * (mid - top)) / amp;
             draw_line(cvs, x, mid, x, y, font);
             draw_line(cvs, last_x, last_y, x, y, font);
@@ -81,8 +81,7 @@ public:
     }
 
 private:
-    int samples_[kMax]{};
-    int count_{0};
+    std::span<const int> samples_{};
     int min_v_{0};
     int max_v_{0};
     bool has_range_{false};

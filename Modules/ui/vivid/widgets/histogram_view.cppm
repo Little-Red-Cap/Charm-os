@@ -1,5 +1,6 @@
 module;
 #include <cstddef>
+#include <span>
 export module charm.widgets.histogram_view;
 
 import charm.core.object;
@@ -10,7 +11,7 @@ import charm.gfx.render_style;
 
 using namespace ui::render;
 
-// Simple histogram view (fixed buffer)
+// Simple histogram view over caller-owned samples.
 export
 class HistogramView : public WidgetBase<HistogramView> {
 public:
@@ -20,11 +21,9 @@ public:
         set_size(220, 120);
     }
 
-    void set_values(const int* values, int count) {
-        if (!values || count <= 0) { count_ = 0; return; }
-        const int cap = (count < static_cast<int>(kMax)) ? count : static_cast<int>(kMax);
-        for (int i = 0; i < cap; ++i) values_[i] = values[i];
-        count_ = cap;
+    void set_values(std::span<const int> values) noexcept {
+        const auto count = (values.size() < kMax) ? values.size() : kMax;
+        values_ = values.first(count);
     }
 
     void set_range(int min_v, int max_v) noexcept {
@@ -51,12 +50,13 @@ public:
         const rgba accent = resolve_accent(st, state);
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
-        if (count_ <= 0) return;
+        const int count = static_cast<int>(values_.size());
+        if (count <= 0) return;
 
         int min_v = has_range_ ? min_v_ : values_[0];
         int max_v = has_range_ ? max_v_ : values_[0];
         if (!has_range_) {
-            for (int i = 1; i < count_; ++i) {
+            for (int i = 1; i < count; ++i) {
                 if (values_[i] < min_v) min_v = values_[i];
                 if (values_[i] > max_v) max_v = values_[i];
             }
@@ -71,9 +71,9 @@ public:
         const int inner_h = bottom - top;
         if (inner_w <= 0 || inner_h <= 0) return;
 
-        for (int i = 0; i < count_; ++i) {
-            const int x0 = left + inner_w * i / count_;
-            const int x1 = left + inner_w * (i + 1) / count_;
+        for (int i = 0; i < count; ++i) {
+            const int x0 = left + inner_w * i / count;
+            const int x1 = left + inner_w * (i + 1) / count;
             int w = x1 - x0 - 1;
             if (w < 1) w = 1;
             const int h = inner_h * (values_[i] - min_v) / range;
@@ -83,8 +83,7 @@ public:
     }
 
 private:
-    int values_[kMax]{};
-    int count_{0};
+    std::span<const int> values_{};
     int min_v_{0};
     int max_v_{0};
     bool has_range_{false};

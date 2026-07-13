@@ -1,43 +1,31 @@
-# USB MSC Trace Vocabulary
+# USB MSC Trace 解释边界
 
 ## 文档状态
 
 - `status`: `supporting`
-- `scope`: `usb.class_msc` 内部 trace 的字段解释
+- `scope`: `usb.class_msc` 内部 trace 的解释规则
 - `source`: [`usb.msc.cppm`](../../Modules/io/usb/class/usb.msc.cppm)
 
-`MscTraceEvent` 用于 native fixture 和诊断，不是 USB wire format、稳定 ABI 或产品 telemetry。
-事件种类、字段和写入位置以源码为准。
-
-## 事件族
-
-| 事件族 | kinds | 主要字段 |
-|---|---|---|
-| CBW | `cbw_received`、`cbw_invalid` | `command`、host `transfer_length`、方向 `flag`；invalid 还记录 `residue` |
-| command | `read_capacity`、`read10_started`、`write10_started` | `command`、`transfer_length`、`lba`、`blocks` |
-| data | `data_in_started`、`data_out_started` | 实际 data-stage `transfer_length`、`lba`、`blocks`、预计 `residue` |
-| recovery | `stall_in_requested`、`stall_out_requested`、`wait_csw`、`clear_stall_seen`、`phase_error` | host length、residue、stall 方向 |
-| sense | `sense_set` | `sense_key`、`sense_asc`、`sense_ascq` 与来源 command |
-| CSW | `csw_ready`、`csw_sent` | `command`、`residue`、是否 phase error 的 `flag` |
-
-`read_capacity.lba` 表示最后可访问 LBA，`blocks` 表示总块数。`read10_started` 与
-`write10_started` 的 `transfer_length` 来自 CBW；对应 `data_*_started` 记录设备实际准备处理的长度。
+`MscTraceEvent` 只服务 native fixture 与诊断，不是 USB wire format、稳定 ABI 或产品 telemetry。event
+kind、字段和写入位置以源码为准，本文不复制枚举或字段清单。
 
 ## 解释规则
 
-- 结构没有字段 presence mask；未用于当前 kind 的字段保持默认值，不能按统一 schema 解读。
-- `flag` 是重载字段：CBW 表示 IN 方向，clear-stall 表示 IN endpoint，CSW 表示 phase error。
-- `csw_ready` 表示 CSW 已形成，`csw_sent` 表示它已由 data path 取出；二者不能互换。
-- `wait_csw` 只表示 class 已等待 clear-stall，不证明主机一定会完成恢复。
-- `sense_set` 记录 sense 来源，不等于 REQUEST SENSE 已被主机读取。
+- event 没有 presence mask；未用于当前 kind 的字段保持默认值，不能按统一 schema 解读。
+- `flag` 是复用字段：CBW、clear-stall 和 CSW 的含义不同，必须先按 kind 解释。
+- command-start event 的 transfer length 来自主机 CBW；data-start event 表示设备实际准备处理的长度。
+- READ CAPACITY 的 LBA 是最后可访问块，block count 是总块数，二者不能互换。
+- CSW ready 表示响应已形成，CSW sent 表示 data path 已取出；ready 不等于主机已接收。
+- wait-CSW 只表示 class 等待 clear-stall，不能证明 host 会完成恢复。
+- sense-set 记录失败来源，不代表主机已执行 REQUEST SENSE。
 
-## 记录边界
+## 记录限制
 
-- `MscBot` 只保留 64 个事件；追加失败被忽略，没有 overflow counter。
-- event 没有时间戳、全局 sequence、endpoint identity 或跨 reset correlation。
-- `clear_trace()` 只清空记录，不重置 BOT 状态。
-- trace 适合单个 fixture 内按 kind 和字段断言，不适合作为长期日志协议。
+- trace 是固定容量；追加失败当前没有 overflow counter，因此缺少尾部事件不能自动解释为状态机未执行。
+- event 没有 timestamp、全局 sequence、endpoint identity 或跨 reset correlation。
+- `clear_trace()` 只清记录，不重置 BOT 状态。
+- trace 适合单个 fixture 内按 kind 断言，不适合作为长期日志协议。
 
-当前 boardlog fixture 场景见
-[`usb_boardlog_coverage_matrix.md`](usb_boardlog_coverage_matrix.md)。通过这些 fixture 不证明真实控制器
-时序、并发、DMA、cache 或主机兼容性。
+当前场景与断言由
+[`usb_msc_boardlog_import_smoke`](../../Examples/usb/usb_msc_boardlog_import_smoke/main.cpp) 及 fixtures
+维护。replay 通过不证明真实控制器时序、并发、DMA、cache 或主机兼容性。

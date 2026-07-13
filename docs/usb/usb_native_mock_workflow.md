@@ -42,6 +42,6 @@ Runner 当前为每个 case 创建独立的 `cmake-build-usb-*-clang`，不会�
 - configure 成功只证明 CMake/toolchain 可生成目标；
 - executable exit `0` 只证明对应 fixture 的断言通过；
 - replay 通过不证明输入来自真实板，也不证明未覆盖分支；
-- boardlog format 与场景范围分别见
-  [`usb_boardlog_format.md`](usb_boardlog_format.md) 和
-  [`usb_boardlog_coverage_matrix.md`](usb_boardlog_coverage_matrix.md)。
+- boardlog grammar 见 [`usb_boardlog_format.md`](usb_boardlog_format.md)；当前场景与断言以
+  [`usb_msc_boardlog_import_smoke`](../../Examples/usb/usb_msc_boardlog_import_smoke/main.cpp) 和其
+  `fixtures/` 为准，不在文档复制 case inventory。

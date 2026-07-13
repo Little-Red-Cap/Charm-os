@@ -43,7 +43,7 @@ Charm Core，仍以 Constitution 的逐项裁决为准。
 3) 需要缓存就接 `block.cache`
 
 ## 接入 USB 的最短路径
-1) 读 `docs/usb/usb_arch_plan.md`
+1) 读 `docs/usb/usb_architecture_overview.md`
 2) 看 `docs/usb/usb_dsl_overview.md`
 3) CDC/MSC 通过 device_driver 统一入口
 

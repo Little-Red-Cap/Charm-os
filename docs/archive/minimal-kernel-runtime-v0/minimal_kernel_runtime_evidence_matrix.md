@@ -1,10 +1,9 @@
 # 最小内核运行时证据矩阵
 
-> status: `supporting`
+> status: `archived`
 >
-> 本页是 verifier 与证据边界索引，不定义 runtime 语义。聚合规则以上位的
-> [`minimal_kernel_runtime_evidence_bundle_contract.md`](minimal_kernel_runtime_evidence_bundle_contract.md)
-> 为准。
+> 本页保留早期 seam 到 verifier 的逐项映射，不定义当前 runtime 或回归要求。现行聚合规则见
+> [`../../system/minimal_kernel_runtime_evidence_bundle_contract.md`](../../system/minimal_kernel_runtime_evidence_bundle_contract.md)。
 
 这页不是新契约，也不是重写现有语义，而是把“哪条 seam 由哪个 verifier 证明”对齐到一张表里。
 
@@ -72,4 +71,4 @@ QEMU 叶子和板级落地仍然是单独的证据线，不属于这页的编辑
 
 - 上半层证据优先由 `Examples/kernel/runtime_*_host` 系列承载
 - 下半层 ARMv7-A / leaf 证据只在这里做路由引用
-- 新增 seam 时，先补这张矩阵，再补对应 verifier
+- 表中的 verifier、handoff 和未证明范围只反映归档时状态；当前范围必须核对源码、runner 和聚合 summary

@@ -24,6 +24,8 @@ kernel module 的早期结构、M1 sync、M2 thread 与 M3 observability 阶段�
   保留 Host/QEMU 总证据链的完整产物树、session 旁路 smoke、inspect 命令矩阵与早期 CI 验收口径。
   现行默认入口仍是
   [`../../system/minimal_kernel_runtime_evidence_bundle_contract.md`](../../system/minimal_kernel_runtime_evidence_bundle_contract.md)。
+- [`minimal_kernel_runtime_evidence_matrix.md`](minimal_kernel_runtime_evidence_matrix.md)：保留早期 runtime seam、
+  verifier、handoff 与“不证明”边界的逐项映射。该表不再作为新增 seam 的维护门禁。
 
 ## 保留的设计判断
 

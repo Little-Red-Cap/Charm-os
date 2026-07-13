@@ -10,65 +10,28 @@
 Runtime trap 是 minimal-kernel 的架构无关服务桥，不是 Linux syscall compatibility 或稳定
 用户态 ABI。
 
-## 当前服务
+## 服务与请求
 
-| `TrapService` | 数值 | 参数 | 结果名 |
-|---|---:|---|---|
-| `invalid` | 0 | 无 | `value` |
-| `yield_current` | 1 | 无 | `accepted` |
-| `sleep_until` | 2 | `arg0=due` | `due` |
-| `debug_write` | 3 | `arg0=value` | `bytes-written` |
-| `capability_call` | 4 | `arg0=id, arg1=operation, arg2=payload` | `result` |
+当前服务覆盖 current-task yield/sleep、debug write 和 capability call。Catalog 拥有具体编号、
+参数投影和结果名称；未知服务保持 opaque/unsupported，不得回退到其它服务。Typed view 只解释
+参数，不改变 request/frame wire 字段或 service 编号。
 
-Catalog 还记录 view kind、参数名称和 supported。未知服务保持 opaque/unsupported。
-
-## Request 与 frame view
-
-`TrapRequest` 和 `TrapFrameView` 共同携带：
-
-```text
-service / arg0..arg3 / return_pc / stack_pointer / status /
-origin / task / task_valid
-```
-
-`TrapOrigin` 当前包括 `kernel_thread`、`user_task`、`supervisor`、`isr`。Runtime bridge 拒绝
-ISR origin；如果没有 current task，也返回明确错误。
-
-Typed views 只解释参数：
-
-- `TrapYieldCurrentView`
-- `TrapSleepUntilView<Tick>`
-- `TrapDebugWriteView`
-- `TrapCapabilityCallView`
-
-它们不改变 wire 字段或 service 编号。
+Request 保存服务、参数、origin 和可选 current task；frame view 还携带平台 capture 得到的执行
+现场。Runtime bridge 拒绝 ISR origin，并在需要 current task 时明确报告缺失，不能借用全局或
+默认 task。
 
 ## Dispatch
 
-`RuntimeTrapBridge` 使用 `RuntimeTrapPolicy`：
-
-- yield/sleep resume event；
-- 可选 sleep event factory；
-- 可选 debug write callback；
-- 可选 capability call callback。
-
-Dispatch 先验证 origin/current task，再按 service 调用 runtime 或 policy callback。Unsupported
-service、未绑定 callback 和 invalid argument 不得映射为成功。
+Dispatch 先验证 origin/current task，再调用 scheduler-facing runtime 或 policy callback。
+Sleep event factory、debug write 和 capability call 可以由 policy 提供；callback 缺失、未知
+service 与 runtime 拒绝都不得映射为成功。
 
 ## Result
 
-`TrapResult` 固定包含：
-
-```text
-TrapDisposition disposition
-TrapError error
-u64 value
-```
-
-只有 `handled + none` 使 `ok()` 为 true。
-
-当前 error 包括：`no_current_task`、`invalid_origin`、`invalid_argument`、`decode_failed`、
-`writeback_failed`、`unsupported_service`、`unbound_bridge`、`unbound_adapter`。
+`TrapResult` 统一携带 disposition、error 和 value；只有 `handled + none` 使 `ok()` 为 true。
+Runtime bridge 必须区分 `invalid_origin`、`no_current_task`、`invalid_argument` 和
+`unsupported_service`。Port/ingress 产生的 unbound、decode 和 writeback 错误不得在 bridge
+中被改写。
 
 ## 分层
 
@@ -87,14 +50,10 @@ arch frame
 - task syscall 可以复用编号和结果，但不拥有 arch ingress；
 - 平台 mapping 不得把 synthetic host frame 冒充真实异常现场。
 
-## 证据
+## 验证入口
 
-- `Examples/kernel/runtime_trap_armv7a_host`
-- `Examples/kernel/runtime_task_syscall_*`
-- `Examples/kernel/armv7a/qemu/run_qemu_runtime_trap_ci.ps1`
-- `Examples/kernel/armv7a/qemu/run_qemu_task_syscall_ci.ps1`
-
-这些证据覆盖各自 fixture，不证明完整用户态隔离或 POSIX ABI。
+Host 与 QEMU 入口由 [`Examples/kernel/README.md`](../../Examples/kernel/README.md) 路由。各入口
+只证明自身 fixture，不证明完整用户态隔离或 POSIX ABI。
 
 ## 非目标
 

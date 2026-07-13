@@ -1,54 +1,39 @@
 # SDL3 WAV Demo
 
-This example links through the shared `Charm-audio` module graph.
-It supports both SDL3 audio playback and a pull-simulator mode that does not
-require an audio device.
+## 文档状态
 
-## Build
+- `status`: `supporting`
+- `scope`: `Charm-audio` 的 SDL3 playback 与 pull-simulator fixture
+- `source`: [`CMakeLists.txt`](CMakeLists.txt)、[`main.cpp`](main.cpp)
 
-```powershell
-cmake -S Examples/audio/sdl3_wav_demo -B cmake-build-sdl3_wav_demo -G Ninja
-cmake --build cmake-build-sdl3_wav_demo
-```
+该示例通过共享 `Charm-audio` module graph 构建，不维护私有 module source list。SDL playback 需要
+audio device；`--pull-sim` 使用相同 fill semantics，不输出真实音频。
 
-## Run
+## Build 与运行
 
-```powershell
-# Normal playback (SDL audio)
-.\cmake-build-sdl3_wav_demo\sdl3-wav-demo.exe .\Examples\audio\sdl3_wav_demo\sample.flac
-```
+手工构建与 smoke 统一复用仓库根 `cmake-build-audio-sdl3-smoke`：
 
 ```powershell
-# Pull simulator (no SDL audio output).
-.\cmake-build-sdl3_wav_demo\sdl3-wav-demo.exe --pull-sim --pull-jitter-ms=5 --pull-jitter-seed=1 --pull-jitter-pattern=burst --tone=440 --seconds=10
+$build = 'cmake-build-audio-sdl3-smoke'
+cmake -S Examples/audio/sdl3_wav_demo -B $build -G Ninja
+cmake --build $build -- -j1
+
+& "$build/sdl3-wav-demo.exe" Examples/audio/sdl3_wav_demo/sample.flac
+& "$build/sdl3-wav-demo.exe" --pull-sim --tone=440 --seconds=10
 ```
+
+Pull jitter 由 `--pull-jitter-ms`、`--pull-jitter-seed` 和
+`--pull-jitter-pattern=uniform|burst` 控制；参数定义以 `main.cpp` 为准。
 
 ## Smoke
 
-From the repository root:
-
 ```powershell
-.\scripts\audio_sdl3_wav_demo_smoke.ps1 -Clean -SummaryPath out\audio-sdl3-smoke\summary.json
+./scripts/audio_sdl3_wav_demo_smoke.ps1
+./scripts/ci_audio_sdl3_wav_demo_smoke.ps1
 ```
 
-The smoke script configures and builds `cmake-build-audio-sdl3-smoke`, then
-runs both `--tone --seconds 1` and `sample.flac --seconds 1` with
-`SDL_AUDIODRIVER=dummy`. Its target boundary check requires the Ninja target
-list to contain `Charm-audio` and `sdl3-wav-demo`, and to exclude
-`Charm-runtime` and `Charm-media`.
+两个入口默认复用同一 build directory。只有需要丢弃缓存时显式传 `-Clean`；summary、jobs 与自定义
+build path 通过脚本参数设置。
 
-For CI or local gates, use the wrapper with the same default build directory:
-
-```powershell
-.\scripts\ci_audio_sdl3_wav_demo_smoke.ps1 -Clean
-```
-
-## Notes
-
-- The demo does not maintain its own module source list; CMake routes through
-  the shared `Charm-audio` target instead.
-- `--pull-sim` forces tone mode and runs `AudioPullSimulator` to exercise
-  pull timing, underrun, and water-level behavior without hardware.
-- `--pull-jitter-ms` injects random callback jitter (0..N ms) for stress testing.
-- `--pull-jitter-seed` makes the jitter sequence repeatable.
-- `--pull-jitter-pattern` selects `uniform` or `burst`.
+Smoke 使用 dummy SDL driver 验证 tone 与 sample fixture，并检查 target boundary。它证明 Host/pull
+语义和 `Charm-audio` 接线，不证明真实 audio device、DMA/I2S 或板级时序。

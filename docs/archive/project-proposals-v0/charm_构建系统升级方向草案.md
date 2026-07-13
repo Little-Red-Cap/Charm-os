@@ -298,5 +298,5 @@ Examples/project/player/stn32h747_HQZY/CM7/
 
 相关工程抽象模型见：[`charm_工程对象模型草案.md`](charm_工程对象模型草案.md)
 
-运行时层面的补充方向见：
-[`charm_foundation_runtime_与统一应用入口模型草案.md`](charm_foundation_runtime_与统一应用入口模型草案.md)
+复杂装配前的早期诊断取舍见：
+[`early_diagnostics_retained_notes.md`](early_diagnostics_retained_notes.md)

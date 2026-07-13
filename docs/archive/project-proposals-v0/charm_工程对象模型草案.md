@@ -76,18 +76,19 @@ Windows / Linux / MCU 不应被视为完全割裂的世界，而应统一在同�
 
 上述对象定义的是工程对象视角。
 
-在运行时层面，`Charm` 还需要一个更早、更稳定的基础运行时层，以承接：
+复杂装配前可能需要一个局部 early-diagnostics 边界，以承接：
 
 - 最小日志输出
 - 最小 panic / fault 输出
 - 最小时间基准
-- 最小 identity 访问
+- 最小启动身份或版本信息（仅在具体项目需要时）
 
-这层建议正式定义为 `Foundation Runtime`。
+这不自动构成新的全局 Runtime 或 Charm Core 概念。具体 Platform/BSP 可以提供早期 sink；只有形成
+跨环境稳定消费者、失败语义和独立证据后，才应评估公共边界。
 
-关于它与统一应用入口模型的详细说明，见：
+保留的取舍见：
 
-- [`charm_foundation_runtime_与统一应用入口模型草案.md`](charm_foundation_runtime_与统一应用入口模型草案.md)
+- [`early_diagnostics_retained_notes.md`](early_diagnostics_retained_notes.md)
 
 ## 5. `Product`
 

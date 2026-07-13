@@ -24,5 +24,5 @@ AGENTS.md -> route -> relevant rules/contract -> skill/workflow -> optional temp
 - 源码、CMake、真实 target 和当次验证仍是实现事实来源。
 - 文件移动或删除后同步更新直接入口和相对链接。
 
-早期完整说明见
-[`../archive/agent-guidance-v0/agent_readme_legacy.md`](../archive/agent-guidance-v0/agent_readme_legacy.md)。
+早期指导体系的退出原因见
+[`../archive/agent-guidance-v0/README.md`](../archive/agent-guidance-v0/README.md)。

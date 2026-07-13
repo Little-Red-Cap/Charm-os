@@ -41,5 +41,4 @@
 - 遇到失败先保留日志和现场，说明失败阶段，不用模糊措辞掩盖。
 
 技术取舍见 [`embedded-modern-cpp.md`](embedded-modern-cpp.md)，架构审查见
-[`charm-architecture.md`](charm-architecture.md)。旧协作宣言归档于
-[`../../archive/agent-guidance-v0/collaboration_rules_legacy.md`](../../archive/agent-guidance-v0/collaboration_rules_legacy.md)。
+[`charm-architecture.md`](charm-architecture.md)。

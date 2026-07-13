@@ -55,6 +55,3 @@
 - 抽象成本是否有 map、size、benchmark 或生成代码证据；
 - C/HAL/第三方边界是否被限制在适配层；
 - 是否存在更简单、同样可验证且更符合现有代码的方案。
-
-旧技术宣言归档于
-[`../../archive/agent-guidance-v0/embedded_modern_cpp_legacy.md`](../../archive/agent-guidance-v0/embedded_modern_cpp_legacy.md)。

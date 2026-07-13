@@ -59,6 +59,3 @@ exploration 或局部 contract。
 - source/CMake/test 是否与文档声明一致；
 - 验证是否覆盖实际环境，还是只检查了 metadata/build/schema；
 - 是否可以用更小的局部实现解决，而不增加全仓词汇和例外。
-
-旧的 16 节全仓规则归档于
-[`../../archive/agent-guidance-v0/charm_architecture_rules_legacy.md`](../../archive/agent-guidance-v0/charm_architecture_rules_legacy.md)。

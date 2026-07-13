@@ -46,7 +46,7 @@ artifact 必须从 source 迁移到 destination。两个同构控件可能产生
 
 ## Causal Closure
 
-final verdict 必须连接：
+final `causal_chain` verdict 必须连接：
 
 ```text
 input request

@@ -76,8 +76,9 @@ impact=paint_only
 render artifact changed within claimed bounds
 ```
 
-单独的 version increment、hash difference 或 screenshot 都不足以证明这条链。final verdict 必须由 required
-segments 推导，并遵守 [`vivid_causal_verdict_law_v0.md`](vivid_causal_verdict_law_v0.md)。
+单独的 version increment、hash difference 或 screenshot 都不足以证明这条链。final `causal_chain`
+必须由 required segments 推导，并遵守
+[`vivid_causal_verdict_law_v0.md`](vivid_causal_verdict_law_v0.md)。
 
 ## 证据入口
 

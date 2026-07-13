@@ -51,7 +51,9 @@ primary law documents point back to their demos
 AxisCausal entries remain tied to causal verdict law or primary-doc causal evidence
 ```
 
-`semantic_action_state_transition_demo` is the broader composite anchor because it connects semantic request, emitted click, state delta, invalidation, render artifact, page transaction, layer snapshot lifecycle, and causal verdict; its primary law is `vivid_semantic_action_state_transition_law_v0.md`, while `vivid_semantic_action_state_transition_evidence_v0.md` records the concrete sample stdout.
+`semantic_transition_demo` and `semantic_action_state_transition_demo` share
+`vivid_semantic_transition_law_v0.md`; the latter adds the state/invalidation/artifact bridge before transaction
+admission. Concrete stdout remains in the demos and their CTest gates.
 
 CTest guards the final line:
 
@@ -107,8 +109,8 @@ Rules:
 - `causal` coverage is governed by `vivid_causal_verdict_law_v0.md`; `AxisCausal` requires a connected evidence chain and final verdict, not just a decorative `causal_chain` field.
 - Manifest smoke verifies `AxisCausal` rows have primary docs with causal evidence wording, and verifies the causal verdict law remains discoverable.
 - `intent_artifact_demo` is the vertical causal anchor because it connects semantic request, state delta, invalidation, render artifact, rejection, and causal verdict.
-- `semantic_transition_demo` is the first semantic-to-transaction anchor because it connects semantic request, emitted click, admission, page transaction, layer snapshot lifecycle, render sample, and causal verdict; its primary law is `vivid_semantic_transition_law_v0.md`, while `vivid_semantic_transition_evidence_v0.md` records the concrete sample stdout.
-- `semantic_action_state_transition_demo` is the broader semantic-action-state-transaction anchor because it connects semantic request, emitted click, state delta, invalidation, render artifact, page transaction, layer snapshot lifecycle, and causal verdict; its primary law is `vivid_semantic_action_state_transition_law_v0.md`, while `vivid_semantic_action_state_transition_evidence_v0.md` records the concrete sample stdout.
+- `semantic_transition_demo` is the first semantic-to-transaction anchor; its primary law is `vivid_semantic_transition_law_v0.md`.
+- `semantic_action_state_transition_demo` adds state, invalidation and render artifact evidence before transaction admission under the same primary law.
 - `evidence_vocabulary_demo` is the field-law anchor because it verifies helper-derived vocabulary verdicts without claiming runtime behavior.
 - `evidence_lab_manifest_demo` verifies the manifest shape and drift guards, not the runtime behavior of every listed demo.
 

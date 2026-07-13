@@ -125,16 +125,17 @@ action request 可以在 action admission 后调用 focus request，再进入 cl
 
 | 入口 | 证明内容 |
 |---|---|
-| `focus_semantic_demo` | stable identity、focus truth 与 ring alignment |
-| `semantic_tree_demo` | root policy、preorder、overflow、hash |
-| `semantic_default_demo` | opt-in defaults 与 explicit override |
-| `semantic_action_demo` | role-derived/overridden action artifacts |
-| `semantic_intent_demo` | root-bound lookup 与 no-execute failures |
-| `semantic_action_admission_demo` | action planning without side effects |
-| `semantic_focus_query_demo` | focus addressability 与 scope rejection |
-| `semantic_focus_admission_demo` | transfer planning 与 already-focused no-op |
-| `semantic_focus_request_demo` | controlled transfer 与 rejection stability |
-| `semantic_action_request_demo` | focus preparation、click execution 与 reject ledger |
+| `Examples/ui/vivid/focus_semantic_demo` | stable identity、focus truth 与 ring alignment |
+| `Examples/ui/vivid/semantic_tree_demo` | root policy、preorder、overflow、hash |
+| `Examples/ui/vivid/semantic_default_demo` | opt-in defaults 与 explicit override |
+| `Examples/ui/vivid/semantic_action_demo` | role-derived/overridden action artifacts |
+| `Examples/ui/vivid/semantic_intent_demo` | root-bound lookup 与 no-execute failures |
+| `Examples/ui/vivid/semantic_action_admission_demo` | action planning without side effects |
+| `Examples/ui/vivid/semantic_focus_query_demo` | focus addressability 与 scope rejection |
+| `Examples/ui/vivid/semantic_focus_admission_demo` | transfer planning 与 already-focused no-op |
+| `Examples/ui/vivid/semantic_focus_request_demo` | controlled transfer 与 rejection stability |
+| `Examples/ui/vivid/semantic_action_request_demo` | focus preparation、click execution 与 reject ledger |
 
-这些 demo 位于 `Examples/ui/vivid/`。具体 case 数、stdout token、API 名称与当前字段枚举由源码、manifest
-和测试定义；本文只固定 identity、artifact、query/admission/request 和拒绝无副作用边界。
+具体 case 数、stdout token、API 名称与当前字段枚举由源码、manifest 和测试定义；本文只固定 identity、
+artifact、query/admission/request 和拒绝无副作用边界。每个 AxisCausal profile 的 `causal_chain` 都必须
+由对应 required evidence 推导。

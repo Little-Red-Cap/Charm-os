@@ -75,8 +75,7 @@ Focus 的 state truth、visual artifact、scope、transfer 和 semantic identity
 input/focus 路径提交副作用。请求 ledger 与 transition 边界见：
 
 - [`vivid_semantic_request_ledger_law_v0.md`](vivid_semantic_request_ledger_law_v0.md)；
-- [`vivid_semantic_transition_law_v0.md`](vivid_semantic_transition_law_v0.md)；
-- [`vivid_semantic_action_state_transition_law_v0.md`](vivid_semantic_action_state_transition_law_v0.md)。
+- [`vivid_semantic_transition_law_v0.md`](vivid_semantic_transition_law_v0.md)。
 
 ## Evidence 与验证
 

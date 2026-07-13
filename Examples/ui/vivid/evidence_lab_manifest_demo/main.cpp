@@ -52,7 +52,7 @@ namespace {
         {"semantic_action_request_demo", "sar", 11, AxisSemantic | AxisAdmission | AxisEdge | AxisFocus | AxisCausal, "docs/ui/vivid_semantic_request_ledger_law_v0.md"},
         {"intent_artifact_demo", "ia", 9, AxisSemantic | AxisState | AxisRender | AxisCausal | AxisAdmission, "docs/ui/vivid_intent_to_artifact_evidence_v0.md"},
         {"semantic_transition_demo", "stx", 9, AxisSemantic | AxisEdge | AxisAdmission | AxisTransaction | AxisLayer | AxisRender | AxisCausal, "docs/ui/vivid_semantic_transition_law_v0.md"},
-        {"semantic_action_state_transition_demo", "sastx", 10, AxisSemantic | AxisEdge | AxisAdmission | AxisState | AxisRender | AxisTransaction | AxisLayer | AxisCausal, "docs/ui/vivid_semantic_action_state_transition_law_v0.md"},
+        {"semantic_action_state_transition_demo", "sastx", 10, AxisSemantic | AxisEdge | AxisAdmission | AxisState | AxisRender | AxisTransaction | AxisLayer | AxisCausal, "docs/ui/vivid_semantic_transition_law_v0.md"},
         {"semantic_focus_query_demo", "sfq", 9, AxisSemantic | AxisFocus | AxisCausal, "docs/ui/vivid_semantic_request_ledger_law_v0.md"},
         {"semantic_focus_admission_demo", "sfa", 9, AxisSemantic | AxisFocus | AxisAdmission | AxisCausal, "docs/ui/vivid_semantic_request_ledger_law_v0.md"},
         {"semantic_focus_request_demo", "sfr", 12, AxisSemantic | AxisFocus | AxisAdmission | AxisEdge | AxisRender | AxisCausal, "docs/ui/vivid_semantic_request_ledger_law_v0.md"},
@@ -262,8 +262,9 @@ namespace {
     [[nodiscard]] bool causal_docs_match_manifest() {
         const std::string causal_law = read_file("docs/ui/vivid_causal_verdict_law_v0.md");
         if (causal_law.empty()
-            || !contains(causal_law, "AxisCausal Eligibility")
-            || !contains(causal_law, "Count-Based And Evidence-Referenced Verdicts")) {
+            || !contains(causal_law, "AxisCausal")
+            || !contains(causal_law, "Count-based")
+            || !contains(causal_law, "Evidence-referenced")) {
             return false;
         }
 

@@ -88,7 +88,7 @@ Semantic tree、action/focus query、admission 和 request 不能合并为一个
 请求 ledger 与跨 state/render/transition 规则见：
 
 - [`vivid_semantic_request_ledger_law_v0.md`](vivid_semantic_request_ledger_law_v0.md)；
-- [`vivid_semantic_action_state_transition_law_v0.md`](vivid_semantic_action_state_transition_law_v0.md)；
+- [`vivid_semantic_transition_law_v0.md`](vivid_semantic_transition_law_v0.md)；
 - [`vivid_intent_to_artifact_evidence_v0.md`](vivid_intent_to_artifact_evidence_v0.md)。
 
 ## Support 与 Promotion
@@ -115,6 +115,10 @@ collector、comparison 和 stdout helper。它们用于减少 fixture 漂移，�
 推荐 fixture 与 stdout 规则从 [`vivid_evidence_lab_manifest_v0.md`](vivid_evidence_lab_manifest_v0.md) 和
 [`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md) 进入。fixture 通过不等于产品视觉、性能或
 真实板行为已通过。
+
+component state/render 的 primary evidence routes 包括
+`Examples/ui/vivid/component_card_state_demo` 与
+`Examples/ui/vivid/component_settings_row_demo`；其 `causal_chain` 必须引用本页 required segments。
 
 ## 非目标
 

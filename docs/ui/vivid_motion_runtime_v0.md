@@ -133,6 +133,9 @@ Motion/PageTransition evidence 至少覆盖：
 遵守 [`vivid_causal_verdict_law_v0.md`](vivid_causal_verdict_law_v0.md)。demo 成功只证明其 case，不能
 替代产品性能、视觉结果或实板 display/cache 证据。
 
+primary evidence routes 是 `Examples/ui/vivid/page_transition_demo` 与
+`Examples/ui/vivid/motion_time_demo`；两者的 final `causal_chain` 必须由上述 segment 推导。
+
 ## 非目标
 
 - 不提供任意动画 DSL、shared-element、mask 或通用 compositor。

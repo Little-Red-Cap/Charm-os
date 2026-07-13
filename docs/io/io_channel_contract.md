@@ -1,66 +1,30 @@
-# io.channel Contract (Hard Rules)
+# io.channel 契约
 
-This document defines the non-negotiable contract for io.channel.
-All protocol layers must follow these rules.
+## 文档状态
 
-## 1) Non-blocking only
+- `status`: `canonical`
+- `scope`: `io::Channel` 的同步调用与错误边界
+- `source`: [`io.channel.cppm`](../../Modules/io/channel/io.channel.cppm)
 
-Channel read/write must be fully non-blocking.
-No sleep, no spin, no internal retries, no timing loops.
+## 调用结果
 
-### read(out)
+`Channel` 是一组不拥有调度器的同步函数指针。`read()`、`write()` 和 `flush()` 不得在内部等待、
+sleep、spin 或重试。
 
-- Success: `Ok(n)` where `0 < n <= out.size()`
-- No data: `Err(Errc::would_block)` (never `Ok(0)`)
-- Closed/EOF: `Err(Errc::closed)` or `Err(Errc::end_of_stream)` (pick one and use consistently)
+| 操作 | 成功 | 暂不可用 | 缺少实现 |
+|---|---|---|---|
+| `read(out)` | `Ok(n)`，`0 < n <= out.size()` | `would_block` | `invalid` |
+| `write(in)` | `Ok(n)`，`0 < n <= in.size()`，允许 partial write | `would_block` | `invalid` |
+| `flush()` | backend 定义的结果 | `would_block` | `not_supported` |
 
-### write(in)
+`read()` 或 `write()` 返回 `Ok(0)` 时，wrapper 调用 `util::halt()`。EOF、关闭和传输失败分别使用
+`end_of_stream` / `closed` 与 `io_error`；同一实现不得混用 EOF 分类。
 
-- Success: `Ok(n)` where `0 < n <= in.size()` (partial write allowed)
-- Not writable now: `Err(Errc::would_block)`
-- Closed/EOF: `Err(Errc::closed)` or `Err(Errc::end_of_stream)`
+## Buffer 与并发
 
-### flush()
+- buffer 由调用方拥有；函数返回后不得保留其指针。
+- `Channel` 不包含锁、等待队列或 reentrancy 元数据。
+- ISR 可用性由注册时的 `EndpointCaps::isr_safe` 或更窄的 driver 契约声明。
+- 未声明并发保证时，由上层串行化 reader/writer。
 
-- Non-blocking
-- If unsupported: `Err(Errc::not_supported)`
-- If busy: `Err(Errc::would_block)`
-
-## 2) Errc minimum set
-
-Required:
-
-- `Errc::would_block` : non-blocking resource unavailable
-- `Errc::closed` / `Errc::end_of_stream` : peer closed / EOF
-- `Errc::not_supported` : op not implemented
-- `Errc::io_error` : hardware/transport failure
-
-## 3) ISR safety and reentrancy
-
-Channels must declare their capabilities:
-
-- ISR-safe: read/write are safe in ISR (memory-only operations).
-- Thread-only: read/write only allowed in task context.
-
-Reentrancy rules (default):
-
-- Not reentrant by default.
-- One reader, one writer.
-- Multi-producer/multi-consumer must be serialized by upper layers.
-
-## 4) Buffer lifetime
-
-- read writes into caller-owned buffer.
-- write reads from caller-owned buffer.
-- Channel must not store external buffer pointers beyond the call.
-
-## 5) Waiting strategy
-
-Protocol layers must not implement wait loops.
-Waiting and timeout are handled by the kernel (Reactor/EDA).
-
-## 6) Contract violations
-
-- Any `Ok(0)` from read/write is treated as a hard fault.
-- Protocol-layer busy-spin/sleep is forbidden and should fail CI checks.
-- Protocol modules must not import platform/hal directly (enforced by import checks).
+等待、timeout 和事件派发属于 Reactor、scheduler 或协议状态机，不属于 `Channel`。

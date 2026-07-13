@@ -1,93 +1,72 @@
-# 网络 socket v0 契约
+# 网络 Socket v0 契约
 
-> **文档状态：`supporting`**
+## 文档状态
 
-这份文档只定义当前阶段已经准备锁定的最小 socket 契约，用来约束：
+- `status`: `supporting`
+- `scope`: IPv4 socket、backend 可观察行为与 POSIX fd 投影
+- `source`: [`net.socket`](../../Modules/io/net/net.socket.cppm)、
+  [`net.backend.stub`](../../Modules/io/net/net.backend.stub.cppm)、
+  [`net.backend.win`](../../Modules/io/net/net.backend.win.cppm)、
+  [`net.posix`](../../Modules/io/net/net.posix.cppm)
 
-- `net.socket`
-- `net.backend.stub`
-- `net.backend.win`
-- 以及建立在它们之上的 `net.api` / POSIX bridge / reactor 承载面
+本契约不承诺完整 Linux socket 兼容。
 
-它不是完整 Linux socket 兼容说明，也不是未来 TCP/IP roadmap。
+## 地址与端点
 
-## 1. 地址与端点边界
+v0 只支持 IPv4。
 
-当前 v0 只承诺 **IPv4**。
+| 输入 | 结果 |
+|---|---|
+| `AddressFamily::unspecified` | `invalid_arg` |
+| `AddressFamily::ipv6` | `not_supported` |
+| `bind(ipv4_any(), 0)` | 允许，由 backend 分配临时端口 |
+| `connect()` / `send_to()` 的 unspecified、IPv6、零端口或 any 地址 | 拒绝 |
 
-- `AddressFamily::unspecified`：视为调用参数非法，返回 `invalid_arg`
-- `AddressFamily::ipv6`：明确视为当前未支持，返回 `not_supported`
-- `bind()`：接受 IPv4 端点；地址可以是 `ipv4_any()`；端口可以是 `0`
-- `connect()` / `send_to()`：要求目标端点是“具体 IPv4 对端”，也就是：
-  - 不是 `unspecified`
-  - 不是 IPv6
-  - 端口不为 `0`
-  - 地址不是 `any`
+`connect()` 和 `send_to()` 的目标必须是具体 IPv4 对端。
 
-## 2. 状态机边界
+## 状态与操作
 
-当前 v0 锁定下面这组最小状态迁移：
+| 操作 | 前置状态或类型 |
+|---|---|
+| `bind()` | `opened` |
+| `connect()` | `opened` 或 `bound` |
+| `listen()` | `bound` TCP socket |
+| `accept()` | TCP listener |
+| `send()` / `recv()` | `connected` |
+| `send_to()` / `recv_from()` | UDP socket |
 
-- `open -> bind`
-- `open|bind -> connect`
-- `bind -> listen`
-- `listen -> accept`
-- `connected -> send/recv`
+UDP `send()` 使用 `connect()` 设置的默认对端；未连接时返回 `bad_state`。状态或 socket 类型不满足
+操作前置条件时返回 `bad_state` 或 `not_supported`，具体分类由对应操作契约固定。
 
-额外约束：
+## Backend 对齐
 
-- `bind()` 只允许在 `opened` 状态调用
-- `listen()` 只允许 TCP 且只允许在 `bound` 状态调用
-- `accept()` 只允许 TCP listener 调用
-- `send_to()` / `recv_from()` 只允许 UDP socket 调用
-- UDP 的 `send()` 语义收口为“已 connect 的默认对端发送”；未 connect 时返回 `bad_state`
+stub 与 Windows backend 对相同输入必须给出同类可观察结果：
 
-## 3. backend 对齐口径
+- 非法端点返回同类参数错误；
+- 状态违例返回 `bad_state`；
+- UDP/TCP 能力缺失返回 `not_supported` 或 `bad_state`；
+- `bind(ipv4_xxx(0))` 成功并物化临时端口。
 
-`net.backend.stub` 与 `net.backend.win` 在 v0 需要对齐到同一组外部可观察语义：
+平台句柄、系统调用和临时端口分配机制不进入 socket 调用面。
 
-- 同样的非法端点输入，返回同类错误
-- 同样的状态机违例，返回 `bad_state`
-- 同样的 UDP/TCP 能力边界，返回 `not_supported` 或 `bad_state`
-- backend 差异尽量留在实现细节，不泄漏到 `Socket` / `TcpClient` / `UdpSocket` 调用面
+## POSIX fd 投影
 
-其中一个具体收口是：
+- `dup()` / `dup2()` 创建同一底层 socket 的另一个 fd；最后一个 fd 关闭时才释放 socket。
+- `fstat(socket_fd)` 返回 `S_IFSOCK`；无效或已关闭 fd 返回 `EBADF`。
+- TCP 对端正常关闭后，`read()` / `recv()` 返回 `0`。
+- `spawn()` 的 stdio/file actions 可复制带 `FD_CLOEXEC` 的 socket fd；目标 fd 保留，原 source fd
+  在子执行面关闭。
 
-- `bind(ipv4_xxx(0))` 在 v0 允许成功
-- Windows backend 通过系统分配临时端口
-- stub backend 现在也会在 bind 阶段物化一个临时端口，避免 host/stub 语义漂移
+## 不支持
 
-## 4. POSIX fd bridge 最小语义
+- IPv6；
+- 完整 socket option、flag 和 nonblocking 语义；
+- 完整 `getsockname()` / `getpeername()` 查询；
+- 完整 errno 兼容。
 
-当 socket 被投影进 POSIX fd 世界后，当前阶段锁定下面这组最小行为：
+## 验证
 
-- `dup()` / `dup2()` 复制的是“同一底层 socket 句柄”的另一个 fd 观察面
-- 关闭其中一个 duplicate fd，不应提前关掉底层 socket
-- 只有最后一个 fd 关闭时，底层 socket 才真正释放
-- `fstat(socket_fd)` 返回 `S_IFSOCK`
-- `fstat(invalid_fd)` / `fstat(closed_fd)` 返回 `EBADF`
-- TCP 对端正常关闭后，`read()` / `recv()` 走 EOF 语义，返回 `0`
-- `spawn()` / `stdio` / `file_actions` 可以把带 `FD_CLOEXEC` 的 socket fd 作为复制源；复制出来的目标 fd 保留，原 cloexec 源 fd 在子进程执行面被裁掉
-
-## 5. 当前不承诺的内容
-
-下面这些内容当前仍然故意不进入 v0 承诺面：
-
-- 完整 Linux socket 行为兼容
-- IPv6
-- `getsockname()` / `getpeername()` 风格的完整查询面
-- nonblocking / flag / socket option 的完整可观察语义
-- 更细的 errno 级兼容
-
-## 6. 回归面
-
-这份契约当前主要由下面几条回归路径承载：
-
-- `Examples/io/net/socket_contract_smoke`
-- `Examples/io/net/win_loopback_smoke`
-- `Examples/io/net/posix_socket_bridge_smoke`
-- `Examples/io/net/reactor_loopback_smoke`
-
-执行口径很简单：
-
-> 先把 `socket/backend` 这一层的最小共同语义钉牢，再让 POSIX bridge、reactor、typed session 持续建立在同一块稳定地板上。
+基础 socket 与 fd 投影分别由
+[`socket_contract_smoke`](../../Examples/io/net/socket_contract_smoke/main.cpp) 和
+[`posix_socket_bridge_smoke`](../../Examples/io/net/posix_socket_bridge_smoke/main.cpp) 验证；
+loopback 与 reactor 证据从 [`Examples/io/net`](../../Examples/io/net/README.md) 进入。

@@ -18,6 +18,7 @@
 | Syscall / trap | [`minimal_kernel_task_syscall_table_contract.md`](minimal_kernel_task_syscall_table_contract.md)、[`minimal_kernel_trap_syscall_contract.md`](minimal_kernel_trap_syscall_contract.md) |
 | POSIX 用户态兼容 | [`posix_support_overview.md`](posix_support_overview.md) |
 | RTOS runtime / ISR | [`rtos_runtime_contract.md`](rtos_runtime_contract.md) |
+| Power 原型 | [`power_lowpower_overview.md`](power_lowpower_overview.md) |
 | SSU | [`ssu_contract.md`](ssu_contract.md) |
 | Artifact / explain 工具 | [`artifact_report_v0.md`](artifact_report_v0.md)、[`explain_surface_v0.md`](explain_surface_v0.md) |
 | Script / schema 面治理 | [`script_surface_reduction_governance_v0.md`](script_surface_reduction_governance_v0.md)、[`schema_surface_reduction_governance_v0.md`](schema_surface_reduction_governance_v0.md) |

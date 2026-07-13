@@ -1,34 +1,22 @@
-﻿# charm-docs-utf8
+# charm-docs-utf8
 
-用途：
-- 用于文档编辑与审阅时的编码一致性保障。
-- 避免中文文档因 PowerShell 编码导致乱码。
+> status: `supporting`
 
-适用场景：
-- 修改/新增中文文档
-- review 文档内容时出现乱码
-- 需要在 PowerShell 中正确读写 UTF-8
+Use this skill when Markdown displays mojibake, strict decoding fails or a task
+changes Chinese text.
 
-不适用场景：
-- 代码实现或构建相关问题
+## Procedure
 
-依赖规则：
-- `../../rules/collaboration.md`
+1. Read the file with explicit UTF-8 and compare bytes/Git content before
+   deciding that the file is corrupt.
+2. Distinguish terminal decoding, valid-but-mojibake text and invalid UTF-8.
+3. Recover damaged text only from a trustworthy source, source code or Git
+   history. Do not infer missing Chinese prose from context.
+4. Keep an unrecoverable file out of recommended routes and mark it damaged.
+5. Validate strict UTF-8, Markdown links, `git diff --check` and the affected
+   document route after editing.
 
-参考：
-- `docs/project/tooling/Powershell设置utf8.md`
-
----
-
-## 工作约定
-
-- 读写中文文档时使用 UTF-8 编码
-- PowerShell 读取文件时显式指定 `-Encoding utf8`
-- 写入文件时显式指定 `-Encoding utf8`
-
----
-
-## 输出要求
-
-- 说明已采用 UTF-8 读取/写入
-- 若发现乱码，提示按 `Powershell设置utf8.md` 修复环境
+PowerShell session and decoder commands are documented in
+[`Powershell设置utf8.md`](../../../project/tooling/Powershell设置utf8.md). Repository
+document roles and deletion rules are in
+[`documentation_maintenance.md`](../../../documentation_maintenance.md).

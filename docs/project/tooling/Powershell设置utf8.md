@@ -1,33 +1,45 @@
-要让 Windows PowerShell 默认使用 UTF-8（避免乱码），可以从以下几个方向配置：
+# PowerShell UTF-8 操作说明
 
-✅ 1. 永久让 PowerShell 默认使用 UTF-8
+> status: `supporting`
+>
+> scope: 当前 shell 会话中的 UTF-8 显示、读写与严格验证
 
-PowerShell 有一个启动时会加载的配置文件 $PROFILE。把 UTF-8 编码设置写进去后，每次打开 PowerShell 都自动带上：
+优先使用 PowerShell 7。不要仅因终端显示乱码就重写文件；先用 Git diff、原始 bytes 或严格 decoder
+确认文件是否损坏。
 
-设置步骤
+## 当前会话
 
-打开 PowerShell
+需要与 native process 交换 UTF-8 时，可在当前会话设置：
 
-创建 profile文件（如果还没有）：
+```powershell
+$utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+[Console]::InputEncoding = $utf8NoBom
+[Console]::OutputEncoding = $utf8NoBom
+$OutputEncoding = $utf8NoBom
+```
 
-New-Item -ItemType File -Path $PROFILE -Force
+旧 Windows PowerShell 与部分 native 工具还依赖 console code page；只在确认需要时对当前会话执行：
 
-
-编辑配置文件：
-
-notepad $PROFILE
-
-
-在打开的文件末尾加入以下内容：
-
-# 控制台编码设为 UTF-8
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-# 当前控制台的代码页切换为 65001（UTF-8）
+```powershell
 chcp 65001 | Out-Null
-# PowerShell 输出编码
-$OutputEncoding = [System.Text.Encoding]::UTF8
+```
 
+不要默认修改用户 `$PROFILE`。全局 profile 会影响其它仓库、脚本和工具，只有用户明确希望永久配置时才
+单独处理。
 
-保存 & 重新打开 PowerShell
+## 文件读取与写入
 
-这样新开的 PowerShell 窗口默认就是 UTF-8 了。
+PowerShell 命令显式使用 `-Encoding UTF8`。需要确保 BOM-free UTF-8 时使用 PowerShell 7，或使用
+`UTF8Encoding($false)` 的结构化写入方式。代码 Agent 的手工文件修改继续使用 `apply_patch`，不通过
+shell 拼接正文。
+
+严格验证 bytes 是否为 UTF-8：
+
+```powershell
+$strictUtf8 = [System.Text.UTF8Encoding]::new($false, $true)
+$bytes = [System.IO.File]::ReadAllBytes($path)
+[void]$strictUtf8.GetString($bytes)
+```
+
+该检查只证明编码合法，不证明中文语义正确。修复 mojibake 前还必须找到可信原文或更高权威事实；无法
+恢复时标记 damaged 并移出推荐入口，不能猜写正文。

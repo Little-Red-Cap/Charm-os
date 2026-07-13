@@ -110,7 +110,7 @@ Charm 当前定位为一个能力导向的嵌入式应用平台。这个定位�
 | Driver | `Implementation / Tool` | 工程实现与硬件控制组织，不是世界模型。 |
 | Compiler | `Implementation / Tool` | 可生成或验证组合结果，但不拥有领域语义。 |
 | IR | `Implementation / Tool` | 工具内部表示，不得反向定义应用契约。 |
-| Graph | `Implementation / Tool` | 关系的派生表示；init DAG、runtime topology、ownership 和 hot-plug state 不得合并成一张宇宙图。 |
+| Graph | `Implementation / Tool` | 关系的派生表示；init DAG、runtime topology、ownership 和 hot-plug state 不得合并为单一权威模型。 |
 | Loader | `Implementation / Tool` | 生命周期或部署机制，不属于 Capability Core。 |
 | Runtime | `Rejected / Deferred` | 名词过宽；具体 App runtime、scheduler 或 OS runtime 必须按各自边界命名和裁决。 |
 | RTE | `Rejected / Deferred` | 现有探索可保留为证据，但该名称当前不进入 canonical Core 词汇。 |

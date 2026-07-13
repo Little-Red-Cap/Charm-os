@@ -88,7 +88,7 @@ Binding 是在一次组合中选择某个 Provision 满足某个 Requirement 的
 ### 4.1 Component
 
 MVP 中的 Component 只是静态装配单位，用于承载 Application、Requirement 或 Provision 的归属。
-它不是所有对象的宇宙基类，也不要求动态生命周期、继承体系、反射或注册中心。
+它不是所有对象的通用基类，也不要求动态生命周期、继承体系、反射或注册中心。
 
 ### 4.2 Profile
 
@@ -98,7 +98,7 @@ Profile 是一次运行或产品组合的显式选择集合。它可以选择 Bi
 ### 4.3 Graph
 
 Graph 只允许作为已知关系的派生表示。init DAG、runtime topology、ownership、resource conflict
-和 hot-plug state 是不同问题，不得因为都能画成节点和边而合并成一张权威宇宙图。
+和 hot-plug state 是不同问题，不得因为都能画成节点和边而合并为单一权威模型。
 
 ### 4.4 Backend、Driver、Compiler 与 Loader
 

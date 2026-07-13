@@ -2,7 +2,7 @@
 
 > **文档状态：`supporting`**
 
-这份规则只做红绿灯，不做百科全书。
+本文列出装配代码评审的允许项、拒绝项与迁移例外。
 
 它受 [`init_graph_contract.md`](init_graph_contract.md) 约束，并对应
 `Modules/init/init.recipe.cppm`、`init.plan.cppm`、`init.barrier.cppm` 与 `init.materialize.cppm`。

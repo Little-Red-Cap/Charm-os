@@ -15,7 +15,7 @@ Capability -> Component -> Profile -> Projection -> Evidence
 ```
 
 其中 RTE 被设想为 capability composition boundary，不接管调度、事件循环或 service
-locator；H747 只作为真实板压力场，不能定义跨平台语义。
+locator；H747 只提供真实板证据，不能定义跨平台语义。
 
 ## 仍可复用的局部约束
 

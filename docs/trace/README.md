@@ -8,18 +8,8 @@
 
 ## Core vocabulary
 
-`trace_core` 当前只定义共享 vocabulary 和统计辅助，不提供全局 sink、router 或 buffer：
-
-| `TraceKind` | 语义 |
-|---|---|
-| `event` | 离散事件 |
-| `counter` | counter 当前值 |
-| `counter_delta` | counter 增量 |
-| `span_begin` / `span_end` | 分离的区间边界 |
-| `span_pair` | payload 直接携带区间时长 |
-
-`TraceStats` 保存各 kind 数量以及 span total/max；`observe_totals()` 只更新该结构，不记录 timestamp、
-producer 或 ID。
+`trace_core` 只定义 event/counter/span 的共享 kind 和 totals 统计辅助，不提供全局 sink、router 或
+buffer。Totals 只累计各 kind 数量和 span total/max，不记录 timestamp、producer 或 ID。
 
 ## Buffer 与聚合
 
@@ -35,10 +25,9 @@ counter。consumer 需要结合 `head()` 与 `size()` 还原顺序，`data()` �
 
 ## Producer 边界
 
-- `input.trace` 与 `gui.trace` 各自持有静态 circular buffer、局部 ID enum 和进程内 sequence；
-- `power.trace` 持有一个全局 non-owning callback sink，未设置时静默丢弃；
-- `service_trace_bus` 将 record 指针包装成 `BusMessage`，不转移 record ownership；
-- 其它 kernel/runtime trace 类型可以定义自己的 kind、record 和 buffer，不自动汇入上述结构。
+Input/GUI 使用各自的静态 circular buffer、局部 ID 和进程内 sequence；power 使用全局 non-owning
+callback，未设置时静默丢弃；service trace bus 只包装 record 指针，不转移 ownership。其它
+kernel/runtime trace 也不会自动汇入这些结构。
 
 仓库没有全局 trace ID registry、编号范围或 collision 检查。ID 只在 producer/domain 上下文中有意义；
 跨 producer 合并时必须额外保留来源，不能仅按裸整数 ID 聚合。

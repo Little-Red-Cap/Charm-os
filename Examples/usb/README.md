@@ -1,53 +1,45 @@
 # USB 示例入口
 
-USB 行为契约先从 [`docs/usb/README.md`](../../docs/usb/README.md) 进入。本目录只保存 mock、replay、
-host runtime 与板级日志 fixture。
+## 文档状态
+
+- `status`: `supporting`
+- `scope`: USB mock、replay、Host runtime 与 board-log fixture 路由
+- `authority`: 各目录 CMake/source 与 [`USB contracts`](../../docs/usb/README.md)
 
 ## 证据域
 
 | 域 | 证明范围 |
 |---|---|
-| PC mock/replay | descriptor、EP0、class state、composite 装配与 trace replay |
-| real board | DCD glue、IRQ/callback、endpoint timing 与真实 host enumeration |
-| QEMU | kernel/system 配合；不作为 USB device 行为主证据 |
+| Host mock/replay | descriptor、EP0、class state、composite 与 trace replay |
+| real board | DCD glue、IRQ/callback、endpoint timing 与 host enumeration |
+| QEMU | kernel/system 配合，不作为 USB device 主证据 |
 
-这些证据不能互相替代。
+三类证据不能互相替代。
 
-## 示例分组
+## 按范围定位
 
-| 目标 | 示例 |
+| 范围 | 目录 pattern |
 |---|---|
-| CDC / MSC / composite mock | `usb_cdc_mock_smoke`、`usb_msc_mock_smoke`、`usb_msc_cdc_mock_smoke` |
-| trace replay / suite | `usb_*_replay_smoke`、`usb_replay_suite_smoke` |
-| manifest / board log | `usb_cdc_manifest_smoke`、`usb_msc_boardlog_import_smoke` |
-| host harness | `usb_host_harness_smoke` |
-| runtime capability | `usb_host_runtime_block_smoke`、`usb_host_runtime_channel_smoke`、`usb_host_runtime_multi_smoke` |
+| CDC / MSC / composite | `usb_*_mock_smoke`、`usb_*_replay_smoke` |
+| manifest / board log | `usb_*_manifest_smoke`、`usb_*_boardlog_*` |
+| Host adapter | `usb_host_harness_smoke` |
+| runtime capability | `usb_host_runtime_*` |
+| block-device integration | [`usb_msc_block_demo`](usb_msc_block_demo/README.md) |
 
-## Host runtime
+target、case 与 token 由各目录 CMake/source 定义，本页不维护完整清单。
 
-- `usb.host.core` 将 host adapter 包装为 `device::Bus`。
-- `usb.host.runtime` 提供 single/list runtime bus。
-- `usb.host.runtime_block/channel` 将 discovered MSC/CDC device 导出到稳定 slot。
-- `usb.host.runtime_manager` 编排 bus、registry、binding 与 scan/remove/rediscover/reset。
+## Host Runtime
 
-| Fixture | 局部证明 |
-|---|---|
-| `usb_host_runtime_block_smoke` | MSC attach 到 `block.usb0`；remove 后旧 slot 返回 `noent` |
-| `usb_host_runtime_channel_smoke` | CDC attach 到 `io.usb0`；remove 后 read/write/flush 返回 `noent` |
-| `usb_host_runtime_multi_smoke` | MSC/CDC 增量扫描、单设备 remove/rediscover 与 runtime sidecar |
+`usb.host.core` 把 Host adapter 投影为 `device::Bus`；`usb.host.runtime` 提供 runtime bus；
+`runtime_block/channel` 通过 stable slot 导出 MSC/CDC；`runtime_manager` 编排 scan、remove、rediscover
+与 reset。共享 fixture 位于 `support/`。
 
-共享 fixture 位于 `Examples/usb/support/`。runtime smoke 通过 `RuntimeManager` 验证增量扫描、detach、
-remove、rediscover 与 block/channel export；不手工复制 `device::Registry + BusManager` 装配。
-
-Multi smoke 的 sidecar 保留 `recent_transitions`，摘要反映场景结束状态。由于 fixture 最后执行
-`remove + forget + unexport`，`published_capabilities=[]` 以及 publish/export `missing=2` 是预期终态，
-不表示导出失败。字段与导出 target 以该目录 CMake/source 为准。
+Runtime sidecar 是场景结束快照。multi fixture 在最后执行 remove/forget/unexport，因此空
+`published_capabilities` 或 publish/export `missing` 可以是预期终态；必须结合 transition 与源码断言，
+不能单凭最终计数判定失败。
 
 ## Runner
 
-```powershell
-./scripts/usb_native_smoke.ps1
-```
-
-`-ConfigureOnly` 只配置，`-Clean` 清理后重跑。Host 基线使用 clang + Ninja；MCU 工程使用自己的
-Arm toolchain。实际 target 与 pass/fail 以脚本当前输出为准。
+[`usb_native_smoke.ps1`](../../scripts/usb_native_smoke.ps1) 是 Host 聚合入口。默认复用既有 build
+directory；`-ConfigureOnly` 只配置，`-Clean` 仅在明确需要丢弃缓存时使用。MCU/real-board 使用各自
+toolchain 与 evidence runner。

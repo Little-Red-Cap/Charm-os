@@ -87,7 +87,7 @@ state / invalidation / dirty / cmd stats / exec stats / artifact hash / causal v
 
 `vivid_evidence_vocabulary_law_v0.md` defines the field meaning for `RenderEvidence` and `RenderArtifactDeltaEvidence`.
 
-`vivid_evidence_artifact_promotion_v0.md` keeps current render evidence helpers demo-side until a backend-neutral core shape exists.
+`vivid_evidence_vocabulary_law_v0.md` keeps current render evidence helpers demo-side until a backend-neutral core shape exists.
 
 This law adds the DrawCmd-specific boundary: Evidence Plane can rely on scene-level stats and artifact summaries, but not on partition-private encoding.
 

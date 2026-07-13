@@ -98,7 +98,7 @@ collector、comparison 和 stdout helper。它们用于减少 fixture 漂移，�
 
 名称从 demo helper 提升为稳定 law/runtime artifact 前，必须有重复 consumer、字段语义、失败行为和迁移
 证据。promotion 规则见
-[`vivid_evidence_artifact_promotion_v0.md`](vivid_evidence_artifact_promotion_v0.md)。
+[`vivid_evidence_vocabulary_law_v0.md`](vivid_evidence_vocabulary_law_v0.md)。
 
 ## 验收要求
 

@@ -106,7 +106,7 @@ ledger=action_request ...
 
 Only `SemanticFocusRequestLedger` and `SemanticActionRequestLedger` are runtime ledger artifacts in this v0 law. Query, intent resolution, and admission helpers are demo-lab evidence vocabulary: they keep stdout stable and remove duplicated field assembly from demos, but they do not promote those intermediate results into a new core contract surface.
 
-Promotion boundaries for demo-only helpers, candidate vocabulary, and core-facing runtime ledgers are tracked in `vivid_evidence_artifact_promotion_v0.md`.
+Promotion boundaries for demo-only helpers, candidate vocabulary, and core-facing runtime ledgers are tracked in `vivid_evidence_vocabulary_law_v0.md`.
 
 ## Non-Goals
 

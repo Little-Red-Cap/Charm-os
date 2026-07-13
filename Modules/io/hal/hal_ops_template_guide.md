@@ -12,46 +12,17 @@ HAL interface 保存非 owning context 和 ops table。clock、reset、IRQ、pin
 ## SPI 示例
 
 ```cpp
-module;
-
-#include <span>
-
-export module platform.example.spi;
-
-import hal_core;
-import hal_spi;
-import util.core;
-
 namespace platform::example {
     struct SpiContext {
         // Register base, vendor handle, DMA state, etc.
     };
 
-    hal::Result init(void* raw, const hal::SpiConfig& config) noexcept {
-        auto& context = *static_cast<SpiContext*>(raw);
-        (void)context;
-        (void)config;
-        return hal::ok();
-    }
-
-    hal::Result enable(void* raw) noexcept {
-        (void)raw;
-        return hal::ok();
-    }
-
-    hal::Result disable(void* raw) noexcept {
-        (void)raw;
-        return hal::ok();
-    }
-
-    hal::Result transfer(void* raw,
-                         std::span<const util::u8> tx,
-                         std::span<util::u8> rx) noexcept {
-        (void)raw;
-        (void)tx;
-        (void)rx;
-        return hal::ok();
-    }
+    hal::Result init(void*, const hal::SpiConfig&) noexcept;
+    hal::Result enable(void*) noexcept;
+    hal::Result disable(void*) noexcept;
+    hal::Result transfer(void*,
+                         std::span<const util::u8>,
+                         std::span<util::u8>) noexcept;
 
     inline constexpr hal::SpiOps spi_ops{
         .init = &init,
@@ -60,14 +31,14 @@ namespace platform::example {
         .transfer = &transfer,
     };
 
-    hal::SpiIoHandle bind(SpiContext& context) noexcept {
+    inline hal::SpiIoHandle bind(SpiContext& context) noexcept {
         return {&context, &spi_ops};
     }
 }
 ```
 
-GPIO、UART、I2C 和 timer backend 使用相同模式，但必须以各自 interface module 的当前 ops 字段
-为准，不复制本示例的 SPI 操作集。
+该片段只展示绑定形状；函数签名以 `hal_spi.cppm` 为准。GPIO、UART、I2C 和 timer backend 使用
+相同模式，但必须读取各自 interface module 的当前 ops 字段。
 
 ## 规则
 

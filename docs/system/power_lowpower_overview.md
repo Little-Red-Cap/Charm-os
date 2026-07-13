@@ -8,29 +8,15 @@
 
 该子系统是局部 power policy 原型，不是跨平台低功耗契约，也不定义 Charm Core。
 
-## 类型与职责
+## 当前模型
 
-| module | 当前内容 |
-|---|---|
-| `power.types` | `State`、`WakeSource`、`ClockDomain` 与 request 结构 |
-| `power.policy` | `Constraints`、`PolicySnapshot` 与虚接口 `Policy` |
-| `power.core` | 聚合请求、选择状态并调用 port 的 `Manager` |
-| `power.port` | `enter(State) -> bool`、`exit(State)` 函数表 |
-| `power.trace` | request/enter/exit/source/domain 事件 sink |
+Manager 保存单个目标状态，并将 wake source 与 clock domain 的枚举类别聚合为 bit mask。可选
+policy 根据 snapshot 选择状态并应用最低状态/deep-state 约束；可选 port 执行平台动作，trace
+只记录请求和转换。
 
-`State` 枚举为 `active`、`idle`、`sleep`、`deep_sleep`、`stop`、`standby`。枚举顺序被当前
-policy clamp 使用，但不证明所有平台具有这些状态或相同保留语义。
-
-## `Manager` 行为
-
-1. `request()` 保存单个目标状态并记录 trace。
-2. wake source 与 clock domain 按枚举类别写入 32-bit mask。
-3. `decide_target()` 调用 policy；没有 policy 时直接返回请求值。
-4. `Constraints::min_state` 限制枚举下界；`allow_deep=false` 将 deep/stop/standby 收敛到 sleep。
-5. `enter_state()` 调用可选 port hook、更新 `current` 并记录 trace；`exit_state()` 恢复 active。
-
-`Policy` 只选择目标，硬件动作由 `PortOps` 提供。当前 host 样本位于
-`Examples/system/power_demo`，Win port 只返回成功并不执行硬件操作。
+状态枚举顺序参与当前 policy clamp，但不证明各平台具有相同电源状态或保留语义。Policy 只做
+选择，不拥有硬件动作。当前 host 样本位于 `Examples/system/power_demo`，Win port 只返回成功，
+不执行硬件操作。
 
 ## 当前缺口
 

@@ -1,64 +1,34 @@
 # Bring-up Evidence 早期取舍保留笔记
 
-> status: `archived`
->
-> scope: bring-up 解释状态、证据来源与静态/动态平面边界
+> `status`: `archived`
 
-现行 artifact report 的 schema、exporter、inspector 和失败边界见
-[`artifact_report_v0.md`](../../system/artifact_report_v0.md)。本文不复制字段和命令。
+现行状态 shape、exporter、inspector 和失败边界见
+[`artifact_report_v0.md`](../../system/artifact_report_v0.md)。本文只保留 bring-up 状态解释与证据分层，
+不复制字段或命令。
 
-## 状态解释
+## 状态不可折叠
 
-早期讨论使用六个报告状态定位 bring-up 卡点：
+- `declared/materialized` 只表示输入声明或静态装配，不证明 capability 已发布或硬件已运行。
+- `published` 表示进入可消费表面，不等于 backend 仍 attached/live，也不证明行为正确。
+- `observed` 表示观察面产生记录，不证明记录完整或通过验收。
+- `blocked` 必须指出缺失前置条件；`failed` 必须保留尝试阶段与原始错误。
 
-| 状态 | 最小含义 |
-|---|---|
-| `declared` | 输入侧声明了 capability、fact、node 或关系 |
-| `materialized` | 声明已被规范化为当前静态装配结果 |
-| `published` | capability 已进入某个可消费 registry/export surface |
-| `observed` | 稳定观察面记录了状态或 transition |
-| `blocked` | 动作尚未推进，因为前置条件缺失或不合法 |
-| `failed` | 动作已经尝试并返回明确失败 |
+Report 需要分别保留 publish、attach/export、runtime transition 和 operation error，不能压成单个 success
+位或全局 runtime enum。
 
-这些词是 report/explain 语言，不替换模块局部状态机，也不构成全局 runtime enum。`blocked` 必须指出
-缺失前置条件；`failed` 必须保留原始阶段与错误。没有原因的状态标签不能诊断问题。
+## Provenance 与证据域
 
-## 不可折叠的状态
+结论必须追溯到 producer、execution environment、artifact 和时间/版本上下文。Project/board fact、
+materialized graph、runtime sidecar、Host fixture、QEMU run 与真实板 capture 属于不同证据域，不能互相
+替代。日志 token 只证明采集器看到了文本。
 
-`published` 只表达系统可见性，不等于设备仍 attached/live，也不等于 capability 行为正确。
-`observed` 只表达某观察面产生了记录，不等于记录真实、完整或通过验收。
+## Static 与 Dynamic Plane
 
-因此报告需要按来源分别保留 publish state、attach/export state、runtime transition 和操作错误，不能
-为了统一表格把它们压成单个 success 位。
+固定板级资源和项目装配可以由 facts、profile 与 init/materialize 描述；runtime discovery、hotplug、
+stable-slot attach/detach 通过 runtime observation 表达，不伪装成静态 graph node。两条平面可共享
+capability name 和 evidence vocabulary，但 ownership、lifecycle 与失败语义独立。
 
-## 证据来源
+结构 unchanged 时，runtime sidecar、publish state 或 provenance 仍可能漂移；compare 应保留这类变化，
+不能伪造 node/edge diff，也不能因没有结构变化而丢弃。
 
-每条结论至少要能追溯到 producer、execution environment、artifact 和时间/版本上下文。来源包括：
-
-- project/board 声明或 fact input；
-- materialized static graph；
-- registry/export runtime sidecar；
-- host fixture、QEMU run 或真实板 capture。
-
-Host fixture、QEMU 与真实板证明不同环境，不能互相替代。声明和 graph 只证明输入/装配，不证明硬件
-执行；日志 token 只证明采集器看到了文本，不自动证明状态机正确。
-
-## 静态与动态平面
-
-片上资源和固定项目装配可以由 BoardFacts、profile、init/materialize 描述。运行期 discovery、hotplug、
-stable slot attach/detach 不应被伪装成静态 graph node；它们通过 runtime observe sidecar 接入同一报告。
-
-两条平面可以共享 capability name 和 evidence vocabulary，但 ownership、lifecycle 与失败语义保持独立。
-
-## Compare 边界
-
-结构未变化时，runtime sidecar、publish state 或 evidence provenance 仍可能漂移。这类变化应进入专用
-comparison payload，不应伪造 node/edge diff，也不能因结构 unchanged 被丢弃。
-
-## 不构成的承诺
-
-- report 生成成功不证明 bring-up 成功；
-- declared/materialized 不证明 published/live；
-- published/observed 不证明消费者行为正确；
-- 横向 case matrix 不定义统一 system model；
-- evidence 工具不拥有 Capability Contract 或硬件事实。
+Report 生成成功只证明输入可读取和投影，不证明 bring-up、消费者行为或硬件事实成立。

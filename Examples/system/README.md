@@ -72,6 +72,7 @@ Charm Core 身份。具体 token、负例和编译器要求以各目录 CMake/so
 | `dev_loader_byte_transport_smoke` | 任意 byte chunk 缓冲、packet 解码与 dispatch |
 | `dev_loader_hex_ingest_smoke` | console hex chunk 到共享 byte transport 链 |
 | `dev_loader_packet_console_smoke` | packetstream 与 `dev packet ingest <hex>` 命令互转 |
+| `dev_loader_raw_uart_smoke` | raw begin reset、partial chunk、重复 receive、malformed packet 与 packet abort |
 | `dev_loader_command_smoke` | session 之上的共享命令层与诊断结果 |
 | `dev_loader_stage_probe_smoke` | `launch_ready` payload 的 received read、ELF stage 与 probe |
 | `dev_loader_app_handoff_smoke` | received image 经 fake function loader 进入 `AppRuntime::run()` |

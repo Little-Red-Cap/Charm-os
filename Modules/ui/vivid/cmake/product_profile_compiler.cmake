@@ -9,13 +9,18 @@ function(_vivid_profile_key out_var value)
     set(${out_var} "${_key}" PARENT_SCOPE)
 endfunction()
 
-function(_vivid_require_uint name value max_value)
+function(_vivid_normalize_uint out_var name value max_value)
     if(NOT "${value}" MATCHES "^[0-9]+$")
         message(FATAL_ERROR "${name} must be an unsigned integer, got '${value}'")
     endif()
-    if("${value}" GREATER "${max_value}")
+    string(REGEX REPLACE "^0+" "" _normalized "${value}")
+    if(_normalized STREQUAL "")
+        set(_normalized 0)
+    endif()
+    if("${_normalized}" GREATER "${max_value}")
         message(FATAL_ERROR "${name} must be <= ${max_value}, got '${value}'")
     endif()
+    set(${out_var} "${_normalized}" PARENT_SCOPE)
 endfunction()
 
 function(_vivid_profile_get profile field out_var)
@@ -39,8 +44,8 @@ function(_vivid_merge_payload_capacities out_var)
                 "Vivid payload capacity must use Pool=Value, got '${_entry}'")
         endif()
         set(_pool "${CMAKE_MATCH_1}")
-        set(_capacity "${CMAKE_MATCH_2}")
-        _vivid_require_uint("Vivid payload capacity ${_pool}" "${_capacity}" 65535)
+        _vivid_normalize_uint(
+            _capacity "Vivid payload capacity ${_pool}" "${CMAKE_MATCH_2}" 65535)
         list(FIND _pools "${_pool}" _existing_index)
         if(NOT _existing_index EQUAL -1)
             list(REMOVE_AT _result ${_existing_index})
@@ -134,14 +139,18 @@ function(vivid_define_product_profile)
     foreach(_field IN ITEMS
             SOA_MAX_NODES SOA_TEXT_ARENA_BYTES STYLE_CLASS_MAX STYLE_RULE_CAP
             DRAW_CMD_MAX_COMMANDS DRAW_CMD_TEXT_BYTES DRAW_CMD_BLOB_BYTES)
-        _vivid_require_uint(
-            "Vivid profile ${PROFILE_NAME} ${_field}" "${PROFILE_${_field}}" 4294967295)
+        _vivid_normalize_uint(
+            _normalized_value
+            "Vivid profile ${PROFILE_NAME} ${_field}"
+            "${PROFILE_${_field}}" 4294967295)
+        set(PROFILE_${_field} "${_normalized_value}")
         if("${PROFILE_${_field}}" LESS 1)
             message(FATAL_ERROR
                 "Vivid profile ${PROFILE_NAME} ${_field} must be > 0")
         endif()
     endforeach()
-    _vivid_require_uint(
+    _vivid_normalize_uint(
+        PROFILE_STYLE_METRICS_POOL_CAP
         "Vivid profile ${PROFILE_NAME} STYLE_METRICS_POOL_CAP"
         "${PROFILE_STYLE_METRICS_POOL_CAP}" 255)
     if("${PROFILE_STYLE_METRICS_POOL_CAP}" LESS 1)
@@ -152,13 +161,18 @@ function(vivid_define_product_profile)
         message(FATAL_ERROR
             "Vivid profile ${PROFILE_NAME} FLOAT_WIDGETS must be ON or OFF")
     endif()
+    if(PROFILE_FLOAT_WIDGETS)
+        set(PROFILE_FLOAT_WIDGETS ON)
+    else()
+        set(PROFILE_FLOAT_WIDGETS OFF)
+    endif()
 
     list(SORT _roots)
     list(SORT _kinds)
     list(SORT _payload_caps)
     vivid_widget_catalog_fingerprint(_catalog_fingerprint)
     set(_canonical
-        "catalog=${_catalog_fingerprint}\nname=${PROFILE_NAME}\nextends=${PROFILE_EXTENDS}\nroots=${_roots}\n"
+        "schema=1\ncatalog=${_catalog_fingerprint}\nroots=${_roots}\n"
         "kinds=${_kinds}\npayloads=${_payload_caps}\n"
         "soa_max_nodes=${PROFILE_SOA_MAX_NODES}\n"
         "soa_text_arena_bytes=${PROFILE_SOA_TEXT_ARENA_BYTES}\n"
@@ -239,9 +253,11 @@ function(vivid_configure_product_target)
             SCREEN_WIDTH SCREEN_HEIGHT LAYER_CACHE_SLOTS LAYER_CACHE_WIDTH
             LAYER_CACHE_HEIGHT RUNTIME_SCENE_INSTANCES STATIC_MEMORY_BUDGET_BYTES
             STATIC_MEMORY_MIN_HEADROOM_BYTES MAX_HOT_STACK_FRAME_BYTES)
-        _vivid_require_uint(
+        _vivid_normalize_uint(
+            _normalized_value
             "Vivid target ${TARGET_PROFILE_TARGET} ${_field}"
             "${TARGET_PROFILE_${_field}}" 4294967295)
+        set(TARGET_PROFILE_${_field} "${_normalized_value}")
         if("${TARGET_PROFILE_${_field}}" LESS 1)
             message(FATAL_ERROR
                 "Vivid target ${TARGET_PROFILE_TARGET} ${_field} must be > 0")
@@ -257,15 +273,28 @@ function(vivid_configure_product_target)
     endif()
 
     _vivid_profile_get("${TARGET_PROFILE_PROFILE}" FINGERPRINT _profile_fingerprint)
+    if(TARGET_PROFILE_DRAW_DETAIL_EVIDENCE)
+        set(_draw_detail_evidence ON)
+    else()
+        set(_draw_detail_evidence OFF)
+    endif()
     set(_envelope
-        "target=${TARGET_PROFILE_TARGET}\nprofile=${TARGET_PROFILE_PROFILE}\n"
-        "screen=${TARGET_PROFILE_SCREEN_WIDTH}x${TARGET_PROFILE_SCREEN_HEIGHT}:${TARGET_PROFILE_PIXEL_FORMAT}\n"
+        "schema=1\nscreen=${TARGET_PROFILE_SCREEN_WIDTH}x${TARGET_PROFILE_SCREEN_HEIGHT}:${TARGET_PROFILE_PIXEL_FORMAT}\n"
         "layer_cache=${TARGET_PROFILE_LAYER_CACHE_SLOTS},${TARGET_PROFILE_LAYER_CACHE_WIDTH}x${TARGET_PROFILE_LAYER_CACHE_HEIGHT}\n"
         "scene_instances=${TARGET_PROFILE_RUNTIME_SCENE_INSTANCES}\n"
         "memory=${TARGET_PROFILE_STATIC_MEMORY_BUDGET_BYTES},${TARGET_PROFILE_STATIC_MEMORY_MIN_HEADROOM_BYTES}\n"
         "stack=${TARGET_PROFILE_MAX_HOT_STACK_FRAME_BYTES}\n"
-        "draw_detail_evidence=${TARGET_PROFILE_DRAW_DETAIL_EVIDENCE}\n")
+        "draw_detail_evidence=${_draw_detail_evidence}\n")
     string(SHA256 _target_fingerprint "${_profile_fingerprint}\n${_envelope}")
+    if(_configured)
+        _vivid_target_get(
+            "${TARGET_PROFILE_TARGET}" TARGET_FINGERPRINT _configured_target_fingerprint)
+        if(NOT _configured_target_fingerprint STREQUAL _target_fingerprint)
+            message(FATAL_ERROR
+                "Vivid target '${TARGET_PROFILE_TARGET}' is already configured with a different envelope")
+        endif()
+        return()
+    endif()
 
     _vivid_target_set("${TARGET_PROFILE_TARGET}" CONFIGURED TRUE)
     _vivid_target_set("${TARGET_PROFILE_TARGET}" PROFILE "${TARGET_PROFILE_PROFILE}")
@@ -280,11 +309,8 @@ function(vivid_configure_product_target)
         _vivid_target_set(
             "${TARGET_PROFILE_TARGET}" "${_field}" "${TARGET_PROFILE_${_field}}")
     endforeach()
-    if(TARGET_PROFILE_DRAW_DETAIL_EVIDENCE)
-        _vivid_target_set("${TARGET_PROFILE_TARGET}" DRAW_DETAIL_EVIDENCE ON)
-    else()
-        _vivid_target_set("${TARGET_PROFILE_TARGET}" DRAW_DETAIL_EVIDENCE OFF)
-    endif()
+    _vivid_target_set(
+        "${TARGET_PROFILE_TARGET}" DRAW_DETAIL_EVIDENCE "${_draw_detail_evidence}")
 endfunction()
 
 function(vivid_module_policy)
@@ -297,6 +323,16 @@ function(vivid_module_policy)
             "vivid_module_policy requires NAME and ACCESS=PRODUCT_ROOT|INTERNAL|HOST_ONLY")
     endif()
     _vivid_profile_key(_module_key "${POLICY_NAME}")
+    _vivid_module_property("${POLICY_NAME}" SOURCE _module_source)
+    if(NOT _module_source)
+        message(FATAL_ERROR
+            "Vivid module policy references unknown module '${POLICY_NAME}'")
+    endif()
+    get_property(_existing_policy GLOBAL PROPERTY "VIVID_MODULE_POLICY_${_module_key}")
+    if(_existing_policy AND NOT _existing_policy STREQUAL POLICY_ACCESS)
+        message(FATAL_ERROR
+            "Vivid module '${POLICY_NAME}' has conflicting policies '${_existing_policy}' and '${POLICY_ACCESS}'")
+    endif()
     set_property(GLOBAL PROPERTY "VIVID_MODULE_POLICY_${_module_key}" "${POLICY_ACCESS}")
 endfunction()
 
@@ -450,6 +486,9 @@ function(vivid_compute_product_module_closure out_sources out_modules out_extern
             message(FATAL_ERROR "Unknown Vivid PRODUCT root module '${_root}'")
         endif()
         get_property(_root_policy GLOBAL PROPERTY "VIVID_MODULE_POLICY_${_root_key}")
+        if(NOT _root_policy)
+            set(_root_policy INTERNAL)
+        endif()
         if(NOT _root_policy STREQUAL "PRODUCT_ROOT")
             message(FATAL_ERROR
                 "Vivid module '${_root}' is ${_root_policy}; PRODUCT profiles may select only PRODUCT_ROOT modules")

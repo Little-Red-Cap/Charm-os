@@ -39,7 +39,7 @@
 - `vivid_define_product_profile()`：SoA nodes、TextArena、Style、DrawCmd、float widget、active kinds 与 payload capacities；
 - `vivid_configure_product_target()`：Scene 数、屏幕/像素格式、layer cache、RAM budget/headroom 与热函数栈上限。
 
-一个 `Charm-ui` target 只能选择一个 profile。PRODUCT 下以下旧变量会触发迁移错误，不存在兼容双轨：
+一个 `Charm-ui` target 只能选择一个 profile 和一个不可变 envelope；重复配置只有在两者完全相同时才是幂等操作。PRODUCT 下以下旧变量会触发迁移错误，不存在兼容双轨：
 
 - `CHARM_VIVID_PRODUCT_CORE_MODULES`
 - `CHARM_VIVID_PRODUCT_GFX_MODULES`
@@ -75,7 +75,7 @@ PRODUCT 目录额外生成：
 - `admission.json`：结构化静态内存准入结果；
 - typed config、pool caps、active feature 代码和 stack source manifest。
 
-`profile_fingerprint` 不包含屏幕和 RAM envelope，同一产品 profile 的 Host/MCU 消费者必须一致；`target_fingerprint` 包含 envelope，目标差异必须可见。
+`profile_fingerprint` 不包含 profile 名、继承写法、屏幕和 RAM envelope，只包含 catalog 与规范化后的产品工作集；同一产品 profile 的 Host/MCU 消费者必须一致。`target_fingerprint` 在 profile fingerprint 上增加规范化 envelope，不包含 CMake target 名；等价 envelope 必须同值，硬件差异必须可见。
 
 配置期上界必须满足：
 
@@ -125,5 +125,5 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/vivid_static_memory_
 
 两条脚本始终复用 `Examples/ui/vivid/soa_demo/cmake-build-soa-ci`：
 
-- compiler smoke 以真实 `player_md3` profile 对比 Host/H747 envelope fingerprint，但不配置或构建 H747 固件；同时覆盖 duplicate kind/ID/module/profile、未知/internal/host-only root、closure cycle、payload、继承、旧变量与同 target 多 profile 负例；
+- compiler smoke 以真实 `player_md3` profile 对比 Host/H747 envelope fingerprint，但不配置或构建 H747 固件；同时证明等价 profile/envelope 的内容寻址稳定性，并覆盖 duplicate kind/ID/module/profile、未知/internal/host-only root、host-only closure、closure cycle、payload、policy、继承、旧变量与同 target profile/envelope 漂移负例；
 - static-memory smoke 依次验证 FULL profile-only、MCU_MIN 正负例、Player PRODUCT base/debug/base 切换、预算不足和 closure/stack source 无污染，最后恢复 FULL 配置。

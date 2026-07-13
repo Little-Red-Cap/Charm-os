@@ -89,7 +89,7 @@ set(CHARM_PLAYER_DEBUG_UI OFF)
 include("${REPO_ROOT}/Examples/project/player/cmake/player_md3_vivid_product.cmake")
 
 vivid_configure_product_target(
-    TARGET Charm-ui
+    TARGET Charm-ui-host
     PROFILE player_md3
     SCREEN_WIDTH 568
     SCREEN_HEIGHT 1210
@@ -101,11 +101,24 @@ vivid_configure_product_target(
     STATIC_MEMORY_BUDGET_BYTES 6291456
     STATIC_MEMORY_MIN_HEADROOM_BYTES 524288
     MAX_HOT_STACK_FRAME_BYTES 4096)
-_vivid_target_get(Charm-ui PROFILE_FINGERPRINT _host_profile_fingerprint)
-_vivid_target_get(Charm-ui TARGET_FINGERPRINT _host_target_fingerprint)
+vivid_configure_product_target(
+    TARGET Charm-ui-host
+    PROFILE player_md3
+    SCREEN_WIDTH 568
+    SCREEN_HEIGHT 1210
+    PIXEL_FORMAT RGB888
+    LAYER_CACHE_SLOTS 2
+    LAYER_CACHE_WIDTH 568
+    LAYER_CACHE_HEIGHT 1210
+    RUNTIME_SCENE_INSTANCES 1
+    STATIC_MEMORY_BUDGET_BYTES 6291456
+    STATIC_MEMORY_MIN_HEADROOM_BYTES 524288
+    MAX_HOT_STACK_FRAME_BYTES 4096)
+_vivid_target_get(Charm-ui-host PROFILE_FINGERPRINT _host_profile_fingerprint)
+_vivid_target_get(Charm-ui-host TARGET_FINGERPRINT _host_target_fingerprint)
 
 vivid_configure_product_target(
-    TARGET Charm-ui
+    TARGET h747_lab_player_md3
     PROFILE player_md3
     SCREEN_WIDTH 720
     SCREEN_HEIGHT 1280
@@ -117,8 +130,45 @@ vivid_configure_product_target(
     STATIC_MEMORY_BUDGET_BYTES 5242880
     STATIC_MEMORY_MIN_HEADROOM_BYTES 524288
     MAX_HOT_STACK_FRAME_BYTES 4096)
-_vivid_target_get(Charm-ui PROFILE_FINGERPRINT _h747_profile_fingerprint)
-_vivid_target_get(Charm-ui TARGET_FINGERPRINT _h747_target_fingerprint)
+_vivid_target_get(h747_lab_player_md3 PROFILE_FINGERPRINT _h747_profile_fingerprint)
+_vivid_target_get(h747_lab_player_md3 TARGET_FINGERPRINT _h747_target_fingerprint)
+
+vivid_define_product_profile(
+    NAME player_md3_equivalent
+    EXTENDS player_md3
+    PAYLOAD_CAPACITIES Label=096
+    SOA_MAX_NODES 0384
+    SOA_TEXT_ARENA_BYTES 024576
+    STYLE_CLASS_MAX 016
+    STYLE_RULE_CAP 08
+    STYLE_METRICS_POOL_CAP 016
+    DRAW_CMD_MAX_COMMANDS 01024
+    DRAW_CMD_TEXT_BYTES 04096
+    DRAW_CMD_BLOB_BYTES 02048
+    FLOAT_WIDGETS TRUE)
+_vivid_profile_get(player_md3_equivalent FINGERPRINT _equivalent_profile_fingerprint)
+if(NOT _equivalent_profile_fingerprint STREQUAL _host_profile_fingerprint)
+    message(FATAL_ERROR "Equivalent resolved profiles must have the same fingerprint")
+endif()
+
+vivid_configure_product_target(
+    TARGET Charm-ui-host-equivalent
+    PROFILE player_md3_equivalent
+    SCREEN_WIDTH 0568
+    SCREEN_HEIGHT 01210
+    PIXEL_FORMAT RGB888
+    LAYER_CACHE_SLOTS 02
+    LAYER_CACHE_WIDTH 0568
+    LAYER_CACHE_HEIGHT 01210
+    RUNTIME_SCENE_INSTANCES 01
+    STATIC_MEMORY_BUDGET_BYTES 06291456
+    STATIC_MEMORY_MIN_HEADROOM_BYTES 0524288
+    MAX_HOT_STACK_FRAME_BYTES 04096)
+_vivid_target_get(
+    Charm-ui-host-equivalent TARGET_FINGERPRINT _equivalent_target_fingerprint)
+if(NOT _equivalent_target_fingerprint STREQUAL _host_target_fingerprint)
+    message(FATAL_ERROR "Equivalent target envelopes must have the same fingerprint")
+endif()
 
 if(NOT _host_profile_fingerprint STREQUAL _h747_profile_fingerprint)
     message(FATAL_ERROR "Host and H747 profile fingerprints differ")
@@ -185,6 +235,8 @@ file(WRITE "${CASE_OUTPUT}"
     "profile_fingerprint=${_host_profile_fingerprint}\n"
     "host_target_fingerprint=${_host_target_fingerprint}\n"
     "h747_target_fingerprint=${_h747_target_fingerprint}\n"
+    "equivalent_profile_fingerprint=${_equivalent_profile_fingerprint}\n"
+    "equivalent_target_fingerprint=${_equivalent_target_fingerprint}\n"
     "widget_kinds=${_kind_count}\n"
     "payload_pools=${_pool_count}\n"
     "modules=${_module_count}\n"
@@ -281,12 +333,29 @@ vivid_compute_product_module_closure(
     ROOT_MODULES charm.core.soa_kernel)
 '@ -ExpectSuccess $false -ExpectedPattern "charm\.core\.soa_kernel.*INTERNAL"
 
+    Invoke-CMakeCase -Name "default-internal-root" -Body @'
+vivid_compute_product_module_closure(
+    _sources _modules _external
+    KEY default-internal-root
+    ROOT_MODULES charm.core.object)
+'@ -ExpectSuccess $false -ExpectedPattern "charm\.core\.object.*INTERNAL"
+
     Invoke-CMakeCase -Name "host-only-root" -Body @'
 vivid_compute_product_module_closure(
     _sources _modules _external
     KEY host-only-root
     ROOT_MODULES charm.gfx.snapshot)
 '@ -ExpectSuccess $false -ExpectedPattern "charm\.gfx\.snapshot.*HOST_ONLY"
+
+    Invoke-CMakeCase -Name "host-only-closure" -Body @'
+vivid_build_module_inventory()
+_vivid_register_module(charm.test.product_root "/product_root.cppm" "charm.gfx.snapshot")
+vivid_module_policy(NAME charm.test.product_root ACCESS PRODUCT_ROOT)
+vivid_compute_product_module_closure(
+    _sources _modules _external
+    KEY host-only-closure
+    ROOT_MODULES charm.test.product_root)
+'@ -ExpectSuccess $false -ExpectedPattern "closure reaches host-only module 'charm\.gfx\.snapshot'"
 
     Invoke-CMakeCase -Name "module-cycle" -Body @'
 vivid_build_module_inventory()
@@ -298,6 +367,11 @@ vivid_compute_product_module_closure(
     KEY module-cycle
     ROOT_MODULES charm.test.cycle_a)
 '@ -ExpectSuccess $false -ExpectedPattern "Vivid module dependency cycle"
+
+    Invoke-CMakeCase -Name "unknown-policy-module" -Body @'
+vivid_build_module_inventory()
+vivid_module_policy(NAME charm.test.does_not_exist ACCESS INTERNAL)
+'@ -ExpectSuccess $false -ExpectedPattern "policy references unknown module 'charm\.test\.does_not_exist'"
 
     Invoke-CMakeCase -Name "payload-missing" -Body @'
 vivid_widget_profile_resolve(
@@ -314,6 +388,29 @@ vivid_widget_profile_resolve(
     PAYLOAD_CAPACITIES Label=1)
 '@ -ExpectSuccess $false -ExpectedPattern "payload pool 'Label'[\s\S]*active consumer"
 
+    Invoke-CMakeCase -Name "payload-unknown" -Body @'
+vivid_widget_profile_resolve(
+    _modules _pools _defines
+    PROFILE payload-unknown
+    KINDS Container
+    PAYLOAD_CAPACITIES DoesNotExist=1)
+'@ -ExpectSuccess $false -ExpectedPattern "unknown payload pool 'DoesNotExist'"
+
+    Invoke-CMakeCase -Name "payload-overflow" -Body @'
+vivid_widget_profile_resolve(
+    _modules _pools _defines
+    PROFILE payload-overflow
+    KINDS Label
+    PAYLOAD_CAPACITIES Label=65536)
+'@ -ExpectSuccess $false -ExpectedPattern "payload pool 'Label' must be in \[1, 65535\]"
+
+    Invoke-CMakeCase -Name "unknown-widget-kind" -Body @'
+vivid_widget_profile_resolve(
+    _modules _pools _defines
+    PROFILE unknown-widget-kind
+    KINDS DoesNotExist)
+'@ -ExpectSuccess $false -ExpectedPattern "unknown WidgetKind[\s\S]*'DoesNotExist'"
+
     Invoke-CMakeCase -Name "second-target-profile" -Body ($MinimalProfiles + "`n" + @'
 vivid_configure_product_target(
     TARGET Charm-ui PROFILE first
@@ -329,23 +426,48 @@ vivid_configure_product_target(
     STATIC_MEMORY_MIN_HEADROOM_BYTES 4096 MAX_HOT_STACK_FRAME_BYTES 1024)
 '@) -ExpectSuccess $false -ExpectedPattern "already uses profile 'first'"
 
+    Invoke-CMakeCase -Name "second-target-envelope" -Body ($MinimalProfiles + "`n" + @'
+vivid_configure_product_target(
+    TARGET Charm-ui PROFILE first
+    SCREEN_WIDTH 32 SCREEN_HEIGHT 32 PIXEL_FORMAT RGB565
+    LAYER_CACHE_SLOTS 1 LAYER_CACHE_WIDTH 32 LAYER_CACHE_HEIGHT 32
+    RUNTIME_SCENE_INSTANCES 1 STATIC_MEMORY_BUDGET_BYTES 65536
+    STATIC_MEMORY_MIN_HEADROOM_BYTES 4096 MAX_HOT_STACK_FRAME_BYTES 1024)
+vivid_configure_product_target(
+    TARGET Charm-ui PROFILE first
+    SCREEN_WIDTH 32 SCREEN_HEIGHT 33 PIXEL_FORMAT RGB565
+    LAYER_CACHE_SLOTS 1 LAYER_CACHE_WIDTH 32 LAYER_CACHE_HEIGHT 32
+    RUNTIME_SCENE_INSTANCES 1 STATIC_MEMORY_BUDGET_BYTES 65536
+    STATIC_MEMORY_MIN_HEADROOM_BYTES 4096 MAX_HOT_STACK_FRAME_BYTES 1024)
+'@) -ExpectSuccess $false -ExpectedPattern "already configured with a different envelope"
+
     Invoke-CMakeCase -Name "duplicate-profile" -Body ($MinimalProfiles + "`n" + @'
 vivid_define_product_profile(NAME first)
 '@) -ExpectSuccess $false -ExpectedPattern "product profile 'first' is already defined"
 
     Invoke-CMakeCase -Name "legacy-variable" -Body @'
 include("${REPO_ROOT}/Modules/ui/vivid/vivid.cmake")
+set(CHARM_VIVID_PRODUCT_CORE_MODULES charm.ui.scene)
+set(CHARM_VIVID_PRODUCT_GFX_MODULES charm.gfx.canvas)
 set(CHARM_VIVID_PRODUCT_WIDGETS button)
 set(CHARM_VIVID_PAYLOAD_CAP_LABEL 1)
 vivid_reject_legacy_product_configuration()
-'@ -ExpectSuccess $false -ExpectedPattern "CHARM_VIVID_PRODUCT_WIDGETS[\s\S]*CHARM_VIVID_PAYLOAD_CAP_LABEL"
+'@ -ExpectSuccess $false -ExpectedPattern "CHARM_VIVID_PRODUCT_CORE_MODULES[\s\S]*CHARM_VIVID_PRODUCT_GFX_MODULES[\s\S]*CHARM_VIVID_PRODUCT_WIDGETS[\s\S]*CHARM_VIVID_PAYLOAD_CAP_LABEL"
 
     Invoke-CMakeCase -Name "self-inheritance" -Body @'
 vivid_define_product_profile(NAME recursive EXTENDS recursive)
 '@ -ExpectSuccess $false -ExpectedPattern "inheritance cycle"
 
+    Invoke-CMakeCase -Name "unknown-base-profile" -Body @'
+vivid_define_product_profile(NAME child EXTENDS does-not-exist)
+'@ -ExpectSuccess $false -ExpectedPattern "extends unknown profile 'does-not-exist'"
+
     Invoke-CMakeCase -Name "unknown-field" -Body @'
 vivid_define_product_profile(NAME unknown-field UNKNOWN_FIELD value)
+'@ -ExpectSuccess $false -ExpectedPattern "unknown arguments: UNKNOWN_FIELD"
+
+    Invoke-CMakeCase -Name "unknown-target-field" -Body @'
+vivid_configure_product_target(TARGET Charm-ui PROFILE missing UNKNOWN_FIELD value)
 '@ -ExpectSuccess $false -ExpectedPattern "unknown arguments: UNKNOWN_FIELD"
 } finally {
     if (Test-Path -LiteralPath $FixtureRoot) {

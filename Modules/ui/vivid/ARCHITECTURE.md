@@ -208,9 +208,9 @@ flowchart LR
 - Product Profile Compiler 属于 Vivid `Implementation / Tool`，不定义 Charm Core 概念，也不新增产品 C++ API。
 - C++ Module 的单行 `module`、`import`、`export import` 是依赖唯一真源；CMake policy 只标记 `PRODUCT_ROOT`、`INTERNAL`、`HOST_ONLY`，不得复制依赖边。
 - `vivid_define_product_profile()` 声明产品 root、active `WidgetKind`、payload capacities 以及 SoA/TextArena/Style/DrawCmd 工作集；`vivid_configure_product_target()` 只提供屏幕、layer cache、Scene 数、RAM/headroom 与栈上限等硬件 envelope。
-- 每个 target 只能选择一个 profile。未知 root、internal/host-only root、module cycle、catalog/payload 不一致、重复 profile 或同 target 多 profile 都在配置期失败。
+- 每个 target 只能选择一个 profile 和一个不可变 envelope；完全相同的重复调用保持幂等，profile 或 envelope 漂移在配置期失败。未知 root、internal/host-only root、module cycle、catalog/payload 不一致和重复 profile 同样直接失败。
 - public root 可以通过真实 import closure 引入 SoA、DrawCmd partition 等实现模块；产品 profile 不能直接把这些 internal module 当 root 选择。
-- PRODUCT 生成证据位于 `generated/vivid/<target>/<profile>/`。`profile_fingerprint` 只覆盖 catalog 与产品工作集；`target_fingerprint` 额外覆盖硬件 envelope。
+- PRODUCT 生成证据位于 `generated/vivid/<target>/<profile>/`。`profile_fingerprint` 只覆盖 catalog 与规范化后的产品工作集，不受 profile 名、继承写法或等价数值/布尔拼写影响；`target_fingerprint` 额外覆盖规范化硬件 envelope，不受 CMake target 名影响。
 - `CHARM_VIVID_PRODUCT_CORE_MODULES`、`CHARM_VIVID_PRODUCT_GFX_MODULES`、`CHARM_VIVID_PRODUCT_WIDGETS` 与 `CHARM_VIVID_PAYLOAD_CAP_*` 已硬删除；PRODUCT 配置发现旧变量会直接报告迁移错误。
 
 ## 3. 布局与容器

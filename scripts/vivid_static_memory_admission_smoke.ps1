@@ -198,6 +198,21 @@ function Assert-ProductEvidence {
             throw "PRODUCT closure '$Profile' contains forbidden module '$forbidden'"
         }
     }
+    $expectedExternalRequirements = @(
+        "charm.core.event",
+        "charm.font",
+        "charm.font.provider_vfs",
+        "charm.font.typography"
+    )
+    $actualExternalRequirements = @($closureEvidence.external_requirements)
+    if ($actualExternalRequirements.Count -ne $expectedExternalRequirements.Count) {
+        throw "PRODUCT closure '$Profile' external requirement count drifted: $($actualExternalRequirements.Count)"
+    }
+    foreach ($expected in $expectedExternalRequirements) {
+        if ($actualExternalRequirements -notcontains $expected) {
+            throw "PRODUCT closure '$Profile' is missing external requirement '$expected'"
+        }
+    }
 
     $stackSourcesPath = Join-Path $generatedDir "stack_usage_sources.txt"
     if (-not (Test-Path -LiteralPath $stackSourcesPath)) {

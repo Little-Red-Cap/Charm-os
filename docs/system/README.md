@@ -30,5 +30,5 @@ schema 和 CI 由总证据链维护，不在本页复制。
 
 历史讨论位于 [`minimal-kernel-runtime-v0`](../archive/minimal-kernel-runtime-v0/README.md)、
 [`posix-v0`](../archive/posix-v0/README.md)、[`system-evidence-and-staging-v0`](../archive/system-evidence-and-staging-v0/README.md)、
-[`system-compiler-front-page-v0`](../archive/system-compiler-front-page-v0/README.md) 和
-[`ssu-phase-notes`](../archive/ssu-phase-notes/README.md)。归档结论与 smoke 名称不证明当前实现状态。
+[`system-compiler-front-page-v0`](../archive/system-compiler-front-page-v0/README.md)。归档结论与 smoke 名称
+不证明当前实现状态。

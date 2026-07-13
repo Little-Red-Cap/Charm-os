@@ -88,6 +88,3 @@ Scheduler 当前提供三类显式提交入口：
 - RunLoop projection 是否应与 SSU 元数据建立正式映射；
 - 设备时钟主导的数据面是否适合采用相同抽象；
 - 当前热点阈值能否产生稳定、可操作的诊断结论。
-
-历史样板、迁移取舍与阶段结论见
-[`../archive/ssu-phase-notes/README.md`](../archive/ssu-phase-notes/README.md)。

@@ -1,88 +1,54 @@
-﻿# MAL（Memory Abstraction Layer）概览
+# MAL 实现状态
 
-目标：统一 block/flash/file 三类后端的访问形状，让 FS/VFS 只面对一种“块设备能力”。
+## 文档状态
 
-## 1. 设计目标
+- `status`: `supporting`
+- `scope`: `fs_mal*` 当前 implementation interface
+- `source`: `Modules/io/fs/fs_mal*.cppm`
 
-- 上层只关心 LBA + block_size + block_count
-- 后端可替换（文件、虚拟盘、SPI Flash、网络盘）
-- 与现有 `fs_block` 兼容，逐步迁移
+MAL 将 block/flash/file backend 投影为 LBA + geometry 接口。它是 FS implementation layer，
+不是 Charm Core 或跨系统稳定 ABI。
 
-## 2. 核心接口
+## 接口
 
-入口模块：`fs_mal`
+`MalDevice` 保存非 owning `ctx`、`MalOps`、`block_size`、`block_count` 和 `MalKind`。
 
-```cpp
-enum class MalKind { block, flash, file };
+| op | 语义 |
+|---|---|
+| `read(ctx, lba, bytes)` | 读取一个或多个完整 block |
+| `write(ctx, lba, bytes)` | 写入完整 block |
+| `erase(ctx, lba, count)` | 可选 erase |
+| `flush(ctx)` | 可选 flush |
 
-struct MalOps {
-  Status (*read)(void* ctx, u64 lba, span<u8>) noexcept;
-  Status (*write)(void* ctx, u64 lba, span<const u8>) noexcept;
-  Status (*erase)(void* ctx, u64 lba, u64 count) noexcept;
-  Status (*flush)(void* ctx) noexcept;
-};
+缺少 callback 时 wrapper 返回 `Errc::nosys`。基础 `mal_read/write` 不检查 buffer 是否为 block size
+整数倍或 LBA 范围；backend 必须执行自己的校验。`MalKind` 只是 metadata，不改变 wrapper 行为。
 
-struct MalDevice {
-  void* ctx{};
-  MalOps ops{};
-  u64 block_size{};
-  u64 block_count{};
-  MalKind kind{MalKind::block};
-};
-```
+## Adapter
 
-## 3. 与 fs_block 的关系
+| module | 行为 |
+|---|---|
+| `fs_mal_block` | 通过 `make_mal_from_block()` 包装现有 `BlockDevice` |
+| `fs_mal_file` | 打开 file-backed `BlockFile` 并暴露 `MalDevice` |
+| `fs_mal_cache` | caller-owned cache buffer、固定 entry metadata、read-through/write-through cache |
 
-- `fs_block` 仍是当前最小块设备抽象
-- `fs_mal` 作为统一层，提供双向适配
+`mal_to_block()` 可将 MAL 投影回 `BlockDevice`。转换不增加 ownership、locking、transaction 或
+media discovery。
 
-```cpp
-MalDevice mal = make_mal_from_block(block_dev);
-BlockDevice block{};
-mal_to_block(mal, block);
-```
+`CachedMal::bind()` 要求有效 geometry 和 read/write callback；cache buffer 至少容纳一个 block。
+读写检查 block 对齐和 LBA 范围，write 成功后更新 cache，erase 成功后使范围失效，flush 直接转发。
 
-这使得 FatFs / BlockFs 等现有实现可无缝迁移到 MAL。
+## FatFs
 
-## 4. 驱动接口模型（单入口规范）
+`FatFsMount` 可以接收 `BlockDevice` 或 `MalDevice`，后者先通过 `mal_to_block()` 进入相同 diskio
+路径。可选 cache buffer 由 caller 提供。mount、format-if-needed、file slot 和 UTF path 行为由
+[`fs_fatfs_demo.md`](fs_fatfs_demo.md) 与源码约束。
 
-借鉴 FileX 的“单入口驱动”模型，建议在 MAL 驱动侧提供可选规范：
+## 未提供
 
-```cpp
-enum class MalRequest {
-  read,
-  write,
-  flush,
-  init,
-  uninit,
-  boot_read,
-  boot_write,
-  release,
-};
+- `MalDriverEntry` 单入口 request ABI；
+- 自动 device registry/discovery；
+- transaction、journaling、wear leveling 或 power-fail guarantee；
+- thread safety、async IO、cancel 或 timeout；
+- 对 block/flash/file kind 的统一 erase/flush policy。
 
-struct MalDriverIo {
-  void* driver_info{};  // 对应 MalDevice::ctx
-  u64 lba{};
-  u32 count{};
-  span<u8> buffer{};
-  bool system_write{};  // FAT/目录等系统扇区写
-};
-
-using MalDriverEntry = Status (*)(MalRequest, MalDriverIo&) noexcept;
-```
-
-说明：
-- `driver_info` 对应 `MalDevice::ctx`，承载具体设备上下文（文件句柄、VHD、SPI 句柄等）。
-- 单入口驱动适合统一设备栈（RAM/Flash/USB/远端）。
-- `MalOps` 仍保留为高层稳定接口，可由 `MalDriverEntry` 生成或反向封装。
-
-## 5. 适用场景
-
-- File-backed block device（VHD/镜像文件）
-- Flash-backed block device（SPI Flash）
-- Remote block device（网络盘/USB MSC）
-
-## 6. 下一步计划
-
-- 引入 `mal_block` / `mal_file` 示例适配
-- FatFs 挂载接口已支持 MAL 入口（保留 BlockDevice 入口）
+验证入口：`Examples/fs/fs_fatfs_demo`、`Examples/fs/fs_block_vfs_demo` 及相关 FS tests。

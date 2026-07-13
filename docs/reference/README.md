@@ -28,6 +28,10 @@
 
 - [`Charm Audio Design.md`](Charm Audio Design.md)
 
+### 我想看 FileX / MAL 对照
+
+- [`filex_charm_map.md`](filex_charm_map.md)
+
 ## 使用提醒
 
 - 这里的材料默认是“参考 / 对照 / 讨论”，不是“现行入口 / 稳定契约”。

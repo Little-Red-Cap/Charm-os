@@ -154,6 +154,11 @@ Chart、Histogram、HistogramView 与 WaveformView 是 caller-owned data view，
 使用同一 view。span、callback context 及其底层数据必须覆盖 draw 周期，且更新与 draw 位于同一串行 UI
 execution domain。各控件仍保留原最大点数作为单帧工作上限；SoA 同名 kind 的 payload/record 语义不受影响。
 
+SpectrumView 的 values 同样是最多 32 项的 caller-owned span；跨帧 peak history 则由可选、独占 attach 的
+`PeakWorkspace` 保存。未 attach 时控件仍绘制当前值，但不支付 peak 数组 RAM，也不保留历史峰值。每次 draw
+将 peak 更新为 `max(current, peak - decay)`，并清零超出当前 values 长度的槽位；workspace 及其 float 存储
+必须覆盖 attach 周期。关闭 float widgets 的 profile 不执行数值推进或频谱绘制。
+
 控件实现语义行为，不拥有全局 focus/navigation policy。focus truth、scope、semantic request 与 visual
 focus artifact 的边界从 [`vivid_focus_evidence_boundary_v0.md`](../../../docs/ui/vivid_focus_evidence_boundary_v0.md)
 进入。

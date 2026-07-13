@@ -5,6 +5,7 @@
 #include <type_traits>
 
 import charm.core;
+import charm.core.config;
 import charm.core.event;
 import charm.core.input_interaction;
 import charm.core.object;
@@ -20,6 +21,7 @@ import charm.widgets.list_view;
 import charm.widgets.menu_item;
 import charm.widgets.scroll_container;
 import charm.widgets.spin_zoom_widget;
+import charm.widgets.spectrum_view;
 import charm.widgets.table_view;
 import charm.widgets.tree_view;
 import charm.widgets.waveform_view;
@@ -75,6 +77,16 @@ namespace {
     static_assert(sizeof(WaveformView)
                   <= sizeof(ObjectBase) + sizeof(std::span<const int>)
                       + sizeof(int) * 2 + sizeof(bool) + alignof(void*) * 2);
+    static_assert(!std::is_copy_constructible_v<SpectrumView>);
+    static_assert(!std::is_move_constructible_v<SpectrumView>);
+    static_assert(!std::is_copy_constructible_v<SpectrumView::PeakWorkspace>);
+    static_assert(!std::is_move_constructible_v<SpectrumView::PeakWorkspace>);
+    static_assert(sizeof(SpectrumView)
+                  <= sizeof(ObjectBase) + sizeof(std::span<const float>)
+                      + sizeof(void*) + sizeof(SpectrumView::Mode)
+                      + sizeof(float) + sizeof(std::uint32_t) + alignof(void*) * 2);
+    static_assert(sizeof(SpectrumView::PeakWorkspace)
+                  <= sizeof(std::span<float>) + sizeof(void*) + alignof(void*) - 1);
     static_assert(std::is_same_v<Callback, util::delegate<>>);
     static_assert(sizeof(Callback) == sizeof(void*) + sizeof(Callback::stub_t));
 
@@ -809,6 +821,55 @@ int main() {
     waveform_view.set_samples(data_view_values);
     waveform_view.draw(callback_canvas);
 
+    std::array<float, 3> spectrum_values{0.2f, 0.8f, 0.4f};
+    std::array<float, 3> spectrum_peaks{1.0f, 1.0f, 1.0f};
+    SpectrumView::PeakWorkspace spectrum_workspace{std::span<float>{spectrum_peaks}};
+    SpectrumView spectrum_view{};
+    spectrum_view.set_values(spectrum_values);
+    if constexpr (enable_float_widgets) {
+        spectrum_view.draw(callback_canvas);
+        if (!expect(spectrum_workspace.peak_at(0) == 0.0f
+                        && spectrum_workspace.peak_at(1) == 0.0f
+                        && spectrum_workspace.peak_at(2) == 0.0f,
+                    "spectrum view does not retain peaks without a workspace")) return 1;
+        if (!expect(spectrum_view.attach_peak_workspace(spectrum_workspace)
+                        && spectrum_view.has_peak_workspace()
+                        && spectrum_workspace.capacity() == spectrum_values.size(),
+                    "spectrum view attaches an explicit peak workspace")) return 1;
+        spectrum_view.draw(callback_canvas);
+        if (!expect(spectrum_workspace.peak_at(0) == 0.2f
+                        && spectrum_workspace.peak_at(1) == 0.8f
+                        && spectrum_workspace.peak_at(2) == 0.4f,
+                    "spectrum workspace captures current peaks")) return 1;
+        SpectrumView competing_spectrum{};
+        if (!expect(!competing_spectrum.attach_peak_workspace(spectrum_workspace),
+                    "spectrum peak workspace rejects concurrent attachment")) return 1;
+        spectrum_view.set_peak_decay(0.1f);
+        spectrum_values = {0.1f, 0.3f, 0.2f};
+        spectrum_view.draw(callback_canvas);
+        if (!expect(spectrum_workspace.peak_at(0) >= 0.099f
+                        && spectrum_workspace.peak_at(0) <= 0.101f
+                        && spectrum_workspace.peak_at(1) >= 0.699f
+                        && spectrum_workspace.peak_at(1) <= 0.701f
+                        && spectrum_workspace.peak_at(2) >= 0.299f
+                        && spectrum_workspace.peak_at(2) <= 0.301f,
+                    "spectrum peaks decay without crossing current values")) return 1;
+        spectrum_view.set_values(std::span<const float>{spectrum_values.data(), 1});
+        spectrum_view.draw(callback_canvas);
+        if (!expect(spectrum_workspace.peak_at(0) >= 0.099f
+                        && spectrum_workspace.peak_at(0) <= 0.101f
+                        && spectrum_workspace.peak_at(1) == 0.0f
+                        && spectrum_workspace.peak_at(2) == 0.0f,
+                    "spectrum workspace clears inactive peak slots")) return 1;
+        spectrum_view.detach_peak_workspace();
+        spectrum_values[0] = 0.9f;
+        spectrum_view.draw(callback_canvas);
+        if (!expect(!spectrum_view.has_peak_workspace()
+                        && spectrum_workspace.peak_at(0) >= 0.099f
+                        && spectrum_workspace.peak_at(0) <= 0.101f,
+                    "spectrum detach preserves caller-owned peak state")) return 1;
+    }
+
     print_widget_signal_case("button_click_edge");
     std::printf(" primary=%d secondary=%d legacy=%d\n",
                 probe.primary_clicks,
@@ -836,7 +897,7 @@ int main() {
     print_widget_signal_case("owned_interaction_dispatch");
     std::printf(" image=direct scroll=direct spin_zoom=direct\n");
     print_widget_signal_case("object_runtime_footprint");
-    std::printf(" object_base=%zu child_capacity=%zu opt_in_components=%zu console_box=%zu console_line=%zu console_buffer=%zu chart=%zu histogram=%zu histogram_view=%zu waveform_view=%zu data_source_calls=%d/%d\n",
+    std::printf(" object_base=%zu child_capacity=%zu opt_in_components=%zu console_box=%zu console_line=%zu console_buffer=%zu chart=%zu histogram=%zu histogram_view=%zu waveform_view=%zu spectrum_view=%zu spectrum_workspace=%zu data_source_calls=%d/%d\n",
                 sizeof(ObjectBase),
                 ScrollContainer::child_capacity,
                 sizeof(InteractionList<>) + sizeof(DragStrategy) + sizeof(LongPressStrategy),
@@ -847,6 +908,8 @@ int main() {
                 sizeof(Histogram),
                 sizeof(HistogramView),
                 sizeof(WaveformView),
+                sizeof(SpectrumView),
+                sizeof(SpectrumView::PeakWorkspace),
                 chart_source.calls,
                 histogram_source.calls);
     print_widget_signal_case("structured_callback_contexts");

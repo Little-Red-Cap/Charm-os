@@ -14,10 +14,10 @@
 - `resume()` allows all events.
 - `UnblockMask` 默认放行 `sync/init/terminate`，可按任务自定义。
 
-## 3. Recommended Usage
-- Use ThreadTask for cooperative step-driven logic.
-- Use ThreadBlockingTask when a task must wait on sync/IPC.
+## 3. 历史使用意图
 
-## 4. Demo
-- See `Draft/Examples/windows/main_m2.cpp`
+- `ThreadTask` 用于 cooperative step-driven logic；
+- `ThreadBlockingTask` 用于等待 sync/IPC，并由 `UnblockMask` 保留必要事件。
+
+原 `Draft/Examples/windows/main_m2.cpp` 已不存在，不能作为当前行为证据。
 

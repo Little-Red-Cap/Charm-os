@@ -1,13 +1,10 @@
 # SPI Device Interface v0
 
-> status: `supporting`
+> status: `exploration`
 >
-> 本文是当前 SPI implementation interface 的状态卡，不定义 Charm Core、Stable Boundary
-> 或公共 ABI。
+> scope: 尚未统一的 SPI implementation interface
 
-## 文档角色
-
-本文是 SPI implementation interface 的当前状态卡。它约束讨论范围，但不是 Charm Core、Stable Boundary 或公共 ABI。
+本文不定义 Charm Core、Stable Boundary 或公共 ABI。
 
 早期未决 transaction/CS 语义见
 [`Device Interface v0`](../archive/device-interface-drafts-v0/README.md#spi)。
@@ -15,14 +12,9 @@
 
 ## 代码事实
 
-当前可核对的接口是 `Modules/io/hal/hal_spi.cppm`：
-
-- `SpiConfig` 描述频率、模式、位序和 bits；
-- `SpiIoHandle` 通过 `SpiOps` 提供 `init/enable/disable/transfer`；
-- 缺失操作返回 `hal::Status::unsupported`；
-- `SpiDriver` concept 描述另一个静态 driver 形状，但没有证明已接入统一装配或真实硬件。
-
-这属于 HAL/implementation 代码，不等于一个面向 device consumer 的 SPI 契约。当前仓库没有可作为本契约证据的统一 SPI transaction mock、准真实 SPI device consumer 或 real-board 记录。
+`hal_spi` 提供配置、non-owning ops handle 和静态 driver concept，但没有证明统一装配、transaction
+语义或真实硬件行为。当前也没有统一 transaction mock、准真实 device consumer 或 real-board
+记录，因此不能将 HAL 形状解释为 device contract。
 
 ## 当前边界
 
@@ -30,8 +22,6 @@
 - `transfer` 的 TX/RX 长度关系、半双工语义、全双工语义和错误分类没有统一约定。
 - 平台配置不应泄漏到上层，但当前 `SpiConfig` 仍是 HAL 配置类型，不应被误写成应用级 device ABI。
 
-## 状态与下一证据
-
-状态：`proposed`（历史本地标签，不是 Constitution 裁决）。
+## 重新推进条件
 
 若继续推进，先实现一个独立 transaction mock 和一个小型 SPI consumer，再决定是否需要 device-facing contract；证据应明确区分 Host、QEMU、准真实和 real board。未完成前，不将 `SpiDevice`、bus lock、CS 或 error taxonomy 加入 Charm Core。

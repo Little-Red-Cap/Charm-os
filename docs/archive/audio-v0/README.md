@@ -12,6 +12,5 @@ Actor 事件和 v1/v2/v3 路线均已删除，不代表当前跨平台契约。
 
 现行入口：
 
-- [`../../system/charm_audio_architecture.md`](../../system/charm_audio_architecture.md)
 - [`../../audio/audio_design_v1.md`](../../audio/audio_design_v1.md)
 - [`../../../Modules/media/charm.media.audio.cppm`](../../../Modules/media/charm.media.audio.cppm)

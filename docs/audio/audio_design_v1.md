@@ -1,8 +1,22 @@
-# Audio 实时路径契约
+# Audio 模块与实时路径契约
 
 > **文档状态：`supporting`**
 
-本文只记录当前源码已经表达的实时路径不变量。具体类型、默认值和错误返回以 [`Modules/media/audio`](../../Modules/media/audio/) 下的模块源码为准。
+本文记录音频模块 ownership 与实时路径不变量。具体类型、默认值和错误返回以
+[`Modules/media/audio`](../../Modules/media/audio/) 下的源码为准。
+
+## 模块边界
+
+| 模块 | 责任 |
+|---|---|
+| [`charm.media.audio`](../../Modules/media/charm.media.audio.cppm) | 格式、FIFO、decoder、resampler、pull simulator、spectrum 与 file source 聚合入口 |
+| [`audio.data_plane`](../../Modules/media/audio/audio_data_plane.cppm) | decode、frame queue、DSP、量化、FIFO 与 pump |
+| [`audio.player`](../../Modules/media/audio/audio_player.cppm) | 播放状态、source/sink 生命周期与 refill |
+| [`audio.pump`](../../Modules/media/audio/audio_pump.cppm) | 实时侧 FIFO 消费与 underrun 统计 |
+| [`audio.sink.common`](../../Modules/media/audio/audio_sink_common.cppm) | fill 与补零规则 |
+
+`audio.player` 与 SDL sink 只在对应构建开关启用时由聚合入口导出。I2S sink 属于 project/board
+backend，不在公共聚合模块中声明为跨平台能力。UI 与产品播放器策略不进入 AudioDataPlane。
 
 ## 数据格式
 

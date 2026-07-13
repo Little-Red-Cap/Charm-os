@@ -3,8 +3,7 @@
 > **状态：`archived`**
 >
 > 本文从早期 Pull Engine、Audio v1 和 L1/L2/L3 草案中保留尚有独立价值的技术取舍。
-> 当前行为见 [`charm_audio_architecture.md`](../../system/charm_audio_architecture.md)、
-> [`audio_design_v1.md`](../../audio/audio_design_v1.md) 与源码。
+> 当前行为见 [`audio_design_v1.md`](../../audio/audio_design_v1.md) 与源码。
 
 ## 原始目标
 

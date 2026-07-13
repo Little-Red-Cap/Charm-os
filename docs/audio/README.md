@@ -6,8 +6,7 @@
 
 | 问题 | 入口 |
 |---|---|
-| 当前模块与 backend 边界 | [`../system/charm_audio_architecture.md`](../system/charm_audio_architecture.md) |
-| 实时 callback/FIFO/DSP 约束 | [`audio_design_v1.md`](audio_design_v1.md) |
+| 模块、实时路径与 backend 边界 | [`audio_design_v1.md`](audio_design_v1.md) |
 | Host 可运行示例 | [`../../Examples/audio/README.md`](../../Examples/audio/README.md) |
 | 公开 C++ module 聚合入口 | [`../../Modules/media/charm.media.audio.cppm`](../../Modules/media/charm.media.audio.cppm) |
 | 早期设计与参数讨论 | [`../archive/audio-v0/`](../archive/audio-v0/) |

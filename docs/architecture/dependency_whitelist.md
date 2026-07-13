@@ -54,8 +54,8 @@ first-party source 不得 import：
 ### Stable entry hygiene
 
 稳定入口文件必须存在，不得 re-export 历史入口，也不得 re-export 名称包含 `internal`、`bridge`、
-`compat` 或 `alias` 的过渡表面。稳定入口可以很宽；宽度和聚合边界另见
-[`stable_entry_aggregate_contract.md`](stable_entry_aggregate_contract.md)。
+`compat` 或 `alias` 的过渡表面。稳定入口的分类与聚合边界见
+[`entry_surface_contract.md`](entry_surface_contract.md)。
 
 ## 不负责的事
 

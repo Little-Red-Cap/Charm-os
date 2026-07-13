@@ -1,110 +1,73 @@
-# 入口面契约：稳定 / 兼容 / 退役
+# 入口面契约
 
-## Summary
+## 文档状态
 
-Charm 的导入入口是架构边界的一部分，不是“哪个名字能编译就用哪个名字”。
-新代码应优先使用稳定入口或明确的叶子模块；兼容入口只保留迁移语义；
-退役入口只保留 tombstone，避免旧依赖静默继续工作。
+- `status`: `supporting`
+- `scope`: `charm.*` module 入口分类与聚合卫生
+- `source`: [`DependencyWhitelist.cmake`](../../cmake/DependencyWhitelist.cmake)
 
-本契约的目标是封住历史 facade：
-
-- 不再让 `charm.runtime` 被误认为 Charm Runtime、RTE 或系统总入口。
-- 不再让 `charm.domain` 被误认为领域层总入口。
-- 不再让 `charm.foundation` 成为 first-party 新代码的默认入口。
-- 不新增一个新的“大 facade” 替代 `charm.runtime`。
+导入入口是依赖边界，不因名称可用就成为稳定 API。新代码应优先导入能准确表达意图的
+叶子 module；确实需要一组子系统公共能力时，才使用稳定聚合入口。
 
 ## 入口分类
 
 ### 稳定入口
 
-这些是新代码优先使用的公共入口：
+当前由 CMake 台账检查的稳定入口是：
 
-- `charm.core`
-- `charm.system`
-- `charm.io`
-- `charm.net`
-- `charm.media`
-- `charm.ui.ink`
-- `charm.ui.vivid`
+- 基座入口：`charm.core`
+- 子系统入口：`charm.system`、`charm.io`、`charm.net`、`charm.media`
+- media 子聚合：`charm.media.audio`
+- UI 子系统入口：`charm.ui.ink`、`charm.ui.vivid`
 
-如果叶子模块比聚合入口更能表达依赖意图，应直接导入叶子模块。例如：
-
-```cpp
-import fs_vfs;
-import hal_uart;
-import shell_cmd;
-import power.core;
-```
+稳定只表示入口受台账和导出卫生约束，不表示其内容自动获得 Charm Core 身份。
+`charm.media.audio` 是公开子聚合，也受相同检查，但不是新的顶层总入口。
 
 ### 兼容入口
 
-- `charm.foundation`
+- `charm.foundation`：迁移 facade，当前转发到 `charm.core`。
 
-`charm.foundation` 当前仅作为迁移 facade 保留，并转发到 `charm.core`。
-它不是新代码的默认主入口，也不是“基础层的永久总门面”。
-
-当前仓库 first-party 源码不保留 `charm.foundation` 导入。未来如果确实需要
-显式兼容样例，必须同步更新白名单契约并写明理由。
+它不供 first-party 新代码导入，也不是永久基础层总门面。保留文件只维持明确的兼容边界。
 
 ### 退役入口
 
-- `charm.runtime`
-- `charm.domain`
+- `charm.runtime`：tombstone module，不 re-export module，也不进入正常 runtime source collection。
+- `charm.domain`：历史入口名，当前没有对应 module 文件。
 
-`charm.runtime` 已退役为 tombstone 模块，不 re-export 任何模块，并从正常
-runtime source collection 中排除。它只负责让旧导入尽早、明确地失败。
+领域能力应通过 `charm.media`、`charm.ui.ink`、`charm.ui.vivid` 或更窄的叶子 module 表达；
+不得创建新的大 facade 来替代这些退役入口。
 
-`charm.domain` 是历史入口名。领域能力应使用 `charm.media`、`charm.ui.ink`、
-`charm.ui.vivid` 或更窄的叶子模块表达。
+### 内部入口
 
-## 规则
+- `charm.core.event`
+- `charm.ui.vivid_internal`
 
-- `Modules/*`、`Examples/*`、`Draft/*` 不得新增对 `charm.foundation`、
-  `charm.runtime` 或 `charm.domain` 的依赖。
-- `CHARM_ENABLE_DEPENDENCY_WHITELIST=ON` 会在 CMake 配置阶段检查上述
-  first-party source tree 中的历史入口导入。
-- 白名单检查是 opt-in，不默认强制，避免干扰 H7-lab 与并行实验。
-- `charm.runtime` 不得重新加入 `charm_collect_system_sources()` 的正常
-  source collection。
-- 任何入口门面都不应被当成 runtime framework、调度器、service locator
-  或 dependency injection container。
-- 本轮不进一步拆 `charm.system` / `charm.io` 聚合入口；只封住历史入口。
-- 稳定聚合入口的宽度解释与后续治理见
-  [`stable_entry_aggregate_contract.md`](stable_entry_aggregate_contract.md)。
+它们位于 CMake 非稳定台账中，不得因 `charm.*` 命名而被推荐为公共聚合入口。
 
-## 迁移规则
+## 聚合卫生
 
-旧导入应迁移到稳定入口或叶子模块：
+- 稳定入口不得 re-export `charm.foundation`、`charm.runtime` 或 `charm.domain`。
+- 稳定入口不得 re-export 名称包含 `internal`、`bridge`、`compat` 或 `alias` 的过渡表面。
+- 单一示例、board、backend 或产品 profile 的能力不得进入稳定聚合入口。
+- 叶子 module 能更清楚表达依赖时，优先导入叶子 module。
+- 聚合入口扩宽时，必须说明新增内容为何属于基座或该子系统的公共能力。
 
-```cpp
-// 旧：不要继续使用
-import charm.runtime;
-import charm.foundation;
-import charm.domain;
+这些规则约束导出表面，不证明完整 module DAG，也不把聚合入口解释为 runtime framework、
+service locator 或 dependency injection container。
 
-// 新：按真实边界选择
-import charm.core;
-import charm.system;
-import charm.io;
-import charm.net;
-import charm.media;
-import charm.ui.vivid;
-```
+## 自动检查边界
 
-如果只依赖单个能力，优先使用更窄的叶子模块，而不是制造新的聚合 facade。
+启用 `CHARM_ENABLE_DEPENDENCY_WHITELIST=ON` 后，CMake 会：
 
-## 非目标
+- 检查 `Modules`、`Examples`、`Draft` 中的 first-party source 不导入兼容或退役入口；
+- 要求 `Modules/**/charm.*.cppm` 进入稳定或非稳定台账；
+- 检查稳定入口文件存在，并执行上述 re-export 卫生规则。
 
-- 不删除 `charm.foundation` 文件。
-- 不新增 manifest、YAML、DSL、generator 或 graph compiler。
-- 不新增 CI 强制规则。
-- 不修改 H747-lab 底座。
-- 不把 RTE 做成 runtime framework。
+检查默认关闭，且不验证完整依赖图、runtime 行为或某个概念的 Core 准入资格。具体实现与启用方式见
+[`dependency_whitelist.md`](dependency_whitelist.md)。
 
 ## 相关契约
 
-- 入口白名单与检查规则：[`dependency_whitelist.md`](dependency_whitelist.md)
-- 稳定聚合入口契约：[`stable_entry_aggregate_contract.md`](stable_entry_aggregate_contract.md)
-- `charm.runtime` 退役细则：[`legacy_runtime_facade_retirement_contract.md`](legacy_runtime_facade_retirement_contract.md)
-- Charm 主脊梁与入口语义：[`charm_spine_v0.md`](charm_spine_v0.md)
-- RTE 能力装配边界：[`rte_capability_composition_contract_v0.md`](rte_capability_composition_contract_v0.md)
+- 依赖边界：[`dependency_contract.md`](dependency_contract.md)
+- 历史 facade：[`legacy_runtime_facade_retirement_contract.md`](legacy_runtime_facade_retirement_contract.md)
+- Charm Core 准入：[`../../CONSTITUTION.md`](../../CONSTITUTION.md)

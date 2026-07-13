@@ -1,96 +1,53 @@
-# KernelConfig 推荐组合与行为说明
+# KernelConfig 与事件队列
 
-本页用于补齐 KernelConfig 的“推荐组合”和关键行为约束，避免默认全关导致误用。
+## 文档状态
 
-## 推荐配置组合
+- `status`: `supporting`
+- `scope`: `kernel.config` 与两种 event queue backend 的当前行为
+- `source`: `config.cppm`、`event_queue.cppm`、`event_queue_list.cppm`
 
-### 1) 最小可运行（Minimal）
+仓库当前没有名为 Minimal、LowPower 或 Throughput 的稳定 kernel profile。本页只记录源码默认值
+和编译期约束；具体 target 通过自己的 Config 类型选择功能。
 
-适合最小内核验证与单元测试。
+## 默认配置
 
-```
-enable_timer = false
-enable_trace = false
-enable_dynamic_priority = false
-enable_event_queue_list = false
-priority_levels = 1..2
-evtq_capacity = 16..64
-```
+| 类别 | 默认值 |
+|---|---|
+| timer / dynamic priority / list queue | disabled |
+| priority levels / event capacity / timer capacity | `4 / 64 / 16` |
+| dispatch budget | `0` |
+| boost/filter/coalesce/rate-limit/task-boost | disabled |
+| trace / alert | disabled，capacity/threshold 为 `0` |
+| wakeup batch | `1` |
+| SSU demand warn/error | `50 / 10` permille |
 
-说明：
-- 只保留 ring queue，时延最小、实现最简单。
-- 适合 bring-up 与最小回归测试。
+`validate_config<Config>()` 当前强制：
 
-### 2) 低功耗/低抖动（LowPower）
+- priority levels 至少 `1`，event capacity 至少 `8`；
+- timer 启用时 capacity 至少 `1`；timer merge 依赖 timer；
+- event boost 需要非零 mask；debounce 需要非零 window；
+- coalesce 需要 dedup、debounce 或 timer merge 之一；
+- trace 需要非零 capacity；alert 至少有一个非零 warn/error threshold；
+- wakeup batch 至少 `1`；SSU threshold 不超过 `1000`，且 error 不大于 warn。
 
-适合 MCU 端，强调 idle 等待与较少 wakeup。
+配置字段存在不表示对应行为已在所有 scheduler/backend 路径验证。
 
-```
-enable_timer = true
-enable_trace = false
-enable_dynamic_priority = false
-enable_event_queue_list = false
-priority_levels = 2..4
-evtq_capacity = 64..256
-```
+## Queue backend
 
-说明：
-- 配合 `IdlePolicy`，`run_budget()` 空转时调用 `Caps::Wakeup::wait()`。
-- 仍使用 ring queue，保证可预测性。
-
-### 3) 高吞吐/可观测（Throughput/Trace）
-
-适合 PC 验证与调优场景。
-
-```
-enable_timer = true
-enable_trace = true
-enable_dynamic_priority = true  // 或 enable_event_queue_list = true
-priority_levels = 4..8
-evtq_capacity = 128..512
-trace_capacity = 256..1024
+```cpp
+use_list_queue = enable_dynamic_priority || enable_event_queue_list;
 ```
 
-说明：
-- 动态优先级模式使用 ListQueue 后端。
-- `queue_depth()` 与 `max_queue` 来自统一计数，不会被置零。
+| backend | 存储 | 主要行为 |
+|---|---|---|
+| `EventQueue<Capacity>` | 单个固定 ring array | FIFO push/pop、coalesce、cancel、按 task/tag 删除 |
+| `EventQueueList<Capacity, TaskCount, PriorityLevels>` | 固定 node/free/ready arrays | 每 task event list、每 priority ready list、运行期调整 ready priority |
 
-## 关键行为/约束
+两者均不动态分配。容量满时支持 `drop_newest`；`drop_oldest` 的具体淘汰范围由各 backend 实现决定。
+List backend 的 `size()` 是总 node 数，ring backend 的 `size()` 是该 queue 的元素数。
 
-### 队列告警阈值策略
+## 边界
 
-- 动态优先级（ListQueue）模式下，`queue_depth()`/`max_queue` 表示**总队列深度**。  
-  推荐阈值（基于 `evtq_capacity`）：  
-  - `alert_queue_warn = evtq_capacity * 0.7`  
-  - `alert_queue_err  = evtq_capacity * 0.9`
-- RingQueue 模式下，`max_queue` 是**单优先级队列深度**，阈值应按单队列容量设置。
-
-### 事件抑制链顺序
-
-调度器的抑制/合并顺序为：
-1) dedup
-2) debounce
-3) rate_limit
-4) coalesce（队列内替换）
-
-该顺序影响统计含义与观测解读，建议保持固定并在调参时同步考虑。
-
-### 定时器失败策略
-
-- `schedule()` 失败会被视作一次投递失败（计入 `dropped`）。
-- 若启用告警钩子，将触发 `AlertType::timer` 的 error 级别。
-
-### EventId 扩展
-
-- `EventId` 的“最后一个枚举值”建议显式命名为 `count` 或 `max`，用于数组长度。
-- 若继续使用 `user0/user1` 方案，应在文档中明确“新增 event 需同步调整计数”。
-
-### ThreadBlockingTask 放行事件
-
-- 目前 `ThreadBlockingTask` 在 blocked 状态仅放行少数事件（sync/init/terminate）。
-- 建议把放行策略文档化，并预留“自定义放行 mask”的扩展点（便于 Audio/AT 等子系统）。
-
-### 动态优先级 queue_depth
-
-- 动态优先级（ListQueue）模式下，`queue_depth()` 仍返回真实深度。
-- 若使用非统计型队列实现，应在此处明确返回不可用值并记录到诊断输出。
+- Config 选择是编译期行为，不是运行期 policy service。
+- backend 名称和建议容量不构成跨 target 性能保证。
+- alert、trace、filter 顺序和 scheduler 统计以当前 scheduler 源码与当次测试为准，不在本页复制。

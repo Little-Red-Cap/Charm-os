@@ -130,10 +130,6 @@ public:
         return inner;
     }
 
-    bool should_draw_child(const ObjectBase&) const noexcept {
-        return expanded_;
-    }
-
 private:
     static constexpr int kMax = 256;
     char title_[kMax + 1]{};

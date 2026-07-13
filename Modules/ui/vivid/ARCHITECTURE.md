@@ -100,9 +100,10 @@ layout 与 clip/viewport；滚动、虚拟列表等行为不能绕过统一 layo
 
 Object-level widget 不再暴露通用 layout spec、anchor、cache policy 或 dirty hint。这些状态原本只服务于已删除的
 legacy Gui/layout 执行器；继续保留会让每个对象支付 RAM，并让调用方误以为写入能够影响产品布局或重绘。
-Object widget 只保留显式 `Rect` 与控件确实覆写的 geometry/clip vtable 行为；产品 layout 与 invalidation truth
-属于 SoA Scene/kernel。未来若增加 object-level layout 扩展，必须同时拥有明确执行器、固定预算和 evidence，
-不能只向 `ObjectBase` 增加被动配置字段。
+Object widget 只保留显式 `Rect`、视觉状态和控件自身的具体方法；`ObjectBase` 不保存 parent graph，也不提供
+draw/event/geometry 手写动态派发。固定容量容器拥有 child handle，通用 resolver 只借用基类几何与状态面；
+产品 layout 与 invalidation truth 属于 SoA Scene/kernel。未来若增加 object-level layout 或动态派发扩展，必须
+同时拥有明确执行器、固定预算和 evidence，不能只向 `ObjectBase` 增加被动配置字段或函数表。
 
 状态影响由 source 中的 `layout_state_influence_mask(kind)` 决定：
 
@@ -130,7 +131,9 @@ FoldablePanel、ScrollContainer 等明确的 object-level 容器选择固定容�
 内联固定数组，容量耗尽由 `add/insert_child()` 的 `false` 显式报告，不分配动态内存。
 
 跨帧保存的 UI callback 使用 `util::delegate` 并由 owner 保证 target 生命周期。`std::function_ref` 只适合
-未来同步、非逃逸的函数参数，不得存入 widget、strategy、Scene 或 payload。
+未来同步、非逃逸的函数参数，不得存入 widget、strategy、Scene 或 payload。绑定 owner 自身的控件必须
+禁止复制/移动，或显式实现 callback 重绑；保存成员 strategy 地址的 `InteractionList` 同样不可复制和移动。
+strategy 绑定外部长生命周期 target 时仍可按值复制，不能把该合法场景误收紧为全局禁用 delegate 复制。
 
 控件实现语义行为，不拥有全局 focus/navigation policy。focus truth、scope、semantic request 与 visual
 focus artifact 的边界从 [`vivid_focus_evidence_boundary_v0.md`](../../../docs/ui/vivid_focus_evidence_boundary_v0.md)

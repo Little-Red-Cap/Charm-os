@@ -1,5 +1,6 @@
 #include <cstdint>
 #include <cstdio>
+#include <type_traits>
 
 import charm.core;
 import charm.core.event;
@@ -26,6 +27,14 @@ namespace {
     static_assert(OwnsObjectChildren<List>);
     static_assert(OwnsObjectChildren<FoldablePanel>);
     static_assert(OwnsObjectChildren<ScrollContainer>);
+    static_assert(!std::is_copy_constructible_v<InteractionList<>>);
+    static_assert(!std::is_move_constructible_v<InteractionList<>>);
+    static_assert(!std::is_copy_constructible_v<Image>);
+    static_assert(!std::is_move_constructible_v<Image>);
+    static_assert(!std::is_copy_constructible_v<ScrollContainer>);
+    static_assert(!std::is_move_constructible_v<ScrollContainer>);
+    static_assert(!std::is_copy_constructible_v<SpinZoomWidget>);
+    static_assert(!std::is_move_constructible_v<SpinZoomWidget>);
 
     struct Probe {
         int primary_clicks{0};
@@ -424,7 +433,7 @@ int main() {
                 "spin zoom disables owned double tap strategy")) return 1;
 
     if constexpr (sizeof(void*) == 8) {
-        if (!expect(sizeof(ObjectBase) <= 48, "ObjectBase retained legacy layout or invalidation storage")) {
+        if (!expect(sizeof(ObjectBase) <= 32, "ObjectBase retained legacy ownership or dispatch storage")) {
             return 1;
         }
     }

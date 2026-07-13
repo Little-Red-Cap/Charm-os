@@ -2,26 +2,16 @@ module;
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <type_traits>
 export module charm.core.object;
 
 export import charm.core.geometry;
 export import charm.core.handle;
-export import charm.gfx.canvas;
-export import charm.core.event;
 
 export
 class ObjectBase {
 public:
-    struct VTable {
-        void (*draw)(ObjectBase&, CanvasBase&) noexcept;
-        bool (*on_event)(ObjectBase&, const Event&) noexcept;
-        Rect (*layout_rect)(const ObjectBase&) noexcept;
-        Rect (*paint_bounds)(const ObjectBase&) noexcept;
-        Rect (*children_clip_rect)(const ObjectBase&) noexcept;
-        bool (*should_draw_child)(const ObjectBase&, const ObjectBase&) noexcept;
-    };
-
-    ObjectBase() noexcept { vtable_ = &default_vtable(); }
+    ObjectBase() = default;
     ~ObjectBase() = default;
 
     Rect get_rect() const noexcept { return rect_; }
@@ -31,10 +21,6 @@ public:
         rect_.h = (h < 0) ? 0 : h;
     }
     void set_rect(Rect r) noexcept { rect_ = rect_normalized(r); }
-    Rect layout_rect() const noexcept { return vtable_->layout_rect(*this); }
-    Rect paint_bounds() const noexcept { return vtable_->paint_bounds(*this); }
-
-    Rect children_clip_rect() const noexcept { return vtable_->children_clip_rect(*this); }
 
     void set_visible(bool v) noexcept {
         visible_ = v;
@@ -77,136 +63,20 @@ public:
     void set_style_variant(std::uint8_t v) noexcept { style_variant_ = v; }
     std::uint8_t style_variant() const noexcept { return style_variant_; }
 
-    void set_parent(WidgetHandle parent) noexcept { parent_ = parent; }
-    WidgetHandle parent() const noexcept { return parent_; }
-
-    void draw(CanvasBase& cvs) { vtable_->draw(*this, cvs); }
-
-    bool on_event(const Event& e) { return vtable_->on_event(*this, e); }
-
-    bool should_draw_child(const ObjectBase& ch) const noexcept {
-        return vtable_->should_draw_child(*this, ch);
-    }
 protected:
     Rect rect_{};
     bool visible_{true};
     State state_{State::None};
     bool focusable_{false};
     std::uint8_t style_variant_{0};
-    WidgetHandle parent_{};
-    const VTable* vtable_{nullptr};
-
-    template<typename Derived>
-    void init_vtable() noexcept {
-        vtable_ = &vtable_for<Derived>();
-    }
-
-private:
-    static Rect default_layout_rect(const ObjectBase& self) noexcept { return self.rect_; }
-    static Rect default_paint_bounds(const ObjectBase& self) noexcept { return self.rect_; }
-    static Rect default_children_clip_rect(const ObjectBase& self) noexcept { return self.rect_; }
-    static bool default_on_event(ObjectBase&, const Event&) noexcept { return false; }
-    static bool default_should_draw_child(const ObjectBase&, const ObjectBase&) noexcept { return true; }
-    static void default_draw(ObjectBase&, CanvasBase&) noexcept {}
-
-    static const VTable& default_vtable() noexcept {
-        static const VTable table{
-            &default_draw,
-            &default_on_event,
-            &default_layout_rect,
-            &default_paint_bounds,
-            &default_children_clip_rect,
-            &default_should_draw_child
-        };
-        return table;
-    }
-
-template<typename Derived>
-static constexpr bool overrides_layout_rect() noexcept {
-    return &Derived::layout_rect != &ObjectBase::layout_rect;
-}
-
-template<typename Derived>
-static constexpr bool overrides_paint_bounds() noexcept {
-    return &Derived::paint_bounds != &ObjectBase::paint_bounds;
-}
-
-template<typename Derived>
-static constexpr bool overrides_children_clip_rect() noexcept {
-    return &Derived::children_clip_rect != &ObjectBase::children_clip_rect;
-}
-
-    template<typename Derived>
-    static constexpr bool overrides_should_draw_child() noexcept {
-        return &Derived::should_draw_child != &ObjectBase::should_draw_child;
-    }
-
-    template<typename Derived>
-    static constexpr bool overrides_on_event() noexcept {
-        return &Derived::on_event != &ObjectBase::on_event;
-    }
-
-template<typename Derived>
-static Rect layout_rect_thunk(const ObjectBase& self) noexcept {
-    if constexpr (overrides_layout_rect<Derived>()) {
-        return static_cast<const Derived&>(self).layout_rect();
-    }
-    return default_layout_rect(self);
-}
-
-template<typename Derived>
-static Rect paint_bounds_thunk(const ObjectBase& self) noexcept {
-    if constexpr (overrides_paint_bounds<Derived>()) {
-        return static_cast<const Derived&>(self).paint_bounds();
-    }
-    return default_paint_bounds(self);
-}
-
-template<typename Derived>
-static Rect children_clip_rect_thunk(const ObjectBase& self) noexcept {
-    if constexpr (overrides_children_clip_rect<Derived>()) {
-        return static_cast<const Derived&>(self).children_clip_rect();
-    }
-    return default_children_clip_rect(self);
-}
-
-    template<typename Derived>
-    static bool should_draw_child_thunk(const ObjectBase& self, const ObjectBase& child) noexcept {
-        if constexpr (overrides_should_draw_child<Derived>()) {
-            return static_cast<const Derived&>(self).should_draw_child(child);
-        }
-        return default_should_draw_child(self, child);
-    }
-
-    template<typename Derived>
-    static bool on_event_thunk(ObjectBase& self, const Event& e) noexcept {
-        if constexpr (overrides_on_event<Derived>()) {
-            return static_cast<Derived&>(self).on_event(e);
-        }
-        return default_on_event(self, e);
-    }
-
-    template<typename Derived>
-    static void draw_thunk(ObjectBase& self, CanvasBase& cvs) noexcept {
-        static_cast<Derived&>(self).draw(cvs);
-    }
-
-    template<typename Derived>
-    static const VTable& vtable_for() noexcept {
-        static const VTable table{
-            &draw_thunk<Derived>,
-            &on_event_thunk<Derived>,
-            &layout_rect_thunk<Derived>,
-            &paint_bounds_thunk<Derived>,
-            &children_clip_rect_thunk<Derived>,
-            &should_draw_child_thunk<Derived>
-        };
-        return table;
-    }
 };
 
-static_assert(sizeof(ObjectBase) <= 48,
-              "ObjectBase must not regain legacy layout, invalidation, or optional runtime storage");
+static_assert(sizeof(ObjectBase) <= 32,
+              "ObjectBase must remain a non-owning geometry and state base");
+static_assert(!std::is_polymorphic_v<ObjectBase>,
+              "ObjectBase must not regain implicit or manual dynamic dispatch");
+static_assert(std::is_trivially_copyable_v<ObjectBase>,
+              "ObjectBase must remain a zero-overhead state value");
 
 namespace vivid_object_detail {
     template<std::size_t Capacity>
@@ -226,9 +96,7 @@ class WidgetBase : public ObjectBase,
 public:
     static constexpr std::size_t child_capacity = ChildCapacity;
 
-    WidgetBase() {
-        init_vtable<Derived>();
-    }
+    WidgetBase() = default;
 
     bool add_child(WidgetHandle child) noexcept
         requires (ChildCapacity > 0) {

@@ -112,7 +112,7 @@ state and render unchanged when composite bridge was not admitted
 [`vivid_evidence_lab_manifest_v0.md`](vivid_evidence_lab_manifest_v0.md) 与
 `Examples/ui/vivid/evidence_lab_manifest_demo` 定义。request ledger 见
 [`vivid_semantic_request_ledger_law_v0.md`](vivid_semantic_request_ledger_law_v0.md)；vertical intent-to-artifact
-边界见 [`vivid_intent_to_artifact_evidence_v0.md`](vivid_intent_to_artifact_evidence_v0.md)。本文不复制 stdout。
+边界见 [`vivid_render_evidence_chain_v0.md`](vivid_render_evidence_chain_v0.md)。本文不复制 stdout。
 
 ## 非目标
 

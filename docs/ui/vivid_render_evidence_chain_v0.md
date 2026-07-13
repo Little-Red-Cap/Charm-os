@@ -89,7 +89,18 @@ Semantic tree、action/focus query、admission 和 request 不能合并为一个
 
 - [`vivid_semantic_request_ledger_law_v0.md`](vivid_semantic_request_ledger_law_v0.md)；
 - [`vivid_semantic_transition_law_v0.md`](vivid_semantic_transition_law_v0.md)；
-- [`vivid_intent_to_artifact_evidence_v0.md`](vivid_intent_to_artifact_evidence_v0.md)。
+- [`vivid_evidence_vocabulary_law_v0.md`](vivid_evidence_vocabulary_law_v0.md)。
+
+semantic intent-to-artifact profile 还必须满足：
+
+- semantic action 经正常 request ledger 和 input/action edge 执行，不能由 demo 直接 set widget state；
+- committed action 对应一个 stable-id state delta；
+- rejected action 证明无 edge、无 state delta、无 dirty/artifact mutation；
+- invalidation impact 与实际 dirty containment 一致；
+- DrawCmd/pixel hash 只作摘要，不作视觉审批。
+
+该 profile 的 primary evidence route 是 `Examples/ui/vivid/intent_artifact_demo`，final `causal_chain`
+必须连接 request、state、invalidation、artifact 与 rejected-no-mutation。
 
 ## Support 与 Promotion
 

@@ -50,7 +50,7 @@ namespace {
         {"semantic_intent_demo", "sint", 9, AxisSemantic | AxisAdmission | AxisCausal, "docs/ui/vivid_semantic_request_ledger_law_v0.md"},
         {"semantic_action_admission_demo", "saa", 9, AxisSemantic | AxisAdmission | AxisCausal, "docs/ui/vivid_semantic_request_ledger_law_v0.md"},
         {"semantic_action_request_demo", "sar", 11, AxisSemantic | AxisAdmission | AxisEdge | AxisFocus | AxisCausal, "docs/ui/vivid_semantic_request_ledger_law_v0.md"},
-        {"intent_artifact_demo", "ia", 9, AxisSemantic | AxisState | AxisRender | AxisCausal | AxisAdmission, "docs/ui/vivid_intent_to_artifact_evidence_v0.md"},
+        {"intent_artifact_demo", "ia", 9, AxisSemantic | AxisState | AxisRender | AxisCausal | AxisAdmission, "docs/ui/vivid_render_evidence_chain_v0.md"},
         {"semantic_transition_demo", "stx", 9, AxisSemantic | AxisEdge | AxisAdmission | AxisTransaction | AxisLayer | AxisRender | AxisCausal, "docs/ui/vivid_semantic_transition_law_v0.md"},
         {"semantic_action_state_transition_demo", "sastx", 10, AxisSemantic | AxisEdge | AxisAdmission | AxisState | AxisRender | AxisTransaction | AxisLayer | AxisCausal, "docs/ui/vivid_semantic_transition_law_v0.md"},
         {"semantic_focus_query_demo", "sfq", 9, AxisSemantic | AxisFocus | AxisCausal, "docs/ui/vivid_semantic_request_ledger_law_v0.md"},

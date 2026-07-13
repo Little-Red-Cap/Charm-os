@@ -6,9 +6,14 @@
 
 | 示例 | 覆盖 |
 |---|---|
-| [`materialize_observe_demo`](materialize_observe_demo/README.md) | Plan -> materialized graph -> DOT/JSON |
-| [`bringup_minimal_observe_demo`](bringup_minimal_observe_demo/README.md) | bring-up helper 的观察导出 |
-| `bringup_block_observe_demo/` | block + bring-up 组合 |
-| [`connection_observe_demo`](connection_observe_demo/README.md) | connection materialize/observe |
+| `materialize_observe_demo/` | 最小 Plan -> materialized graph -> DOT/JSON |
+| `connection_observe_demo/` | static source/sink/mode wiring 的 materialize/observe |
+| `bringup_block_observe_demo/` | `BringupBlock + FileInitChain` 组合导出 |
+| `bringup_minimal_observe_demo/` | `BringupMinimal + BoardCaps` 系统入口导出 |
 
 这些示例验证导出和观察 fixture，不替代 init graph 行为契约或真实平台 bring-up。
+
+case、target 与默认输出由
+[`materialized_graph.export_case_manifest.v1.json`](../../scripts/materialized_graph.export_case_manifest.v1.json)
+维护。使用 `scripts/export_materialized_graph.ps1 -ListCases` 查询，或通过 `-Case <name>`、
+`-AllCases -OutputRoot <path>` 导出；不要在各示例 README 复制同一清单。

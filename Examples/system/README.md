@@ -39,6 +39,18 @@ Charm Core 身份。具体 token、负例和编译器要求以各目录 CMake/so
 两者只验证 stable slot 与 registry export，不证明真实 USB Host、media 或 controller 行为。构建 target 与
 断言以各目录 CMake/source 为准。
 
+## App Store fixtures
+
+| Fixture | 局部证明 |
+|---|---|
+| `app_abi_store_smoke` | Store v1 header/entry、name lookup 与 byte-range 语义 |
+| `app_abi_store_pack_smoke` | 多 named payload 的 pack、readback、lookup 与 stage |
+| `app_abi_store_file_smoke` | `.appstore.bin` 文件读回与 named `AppImage` staging |
+| `app_abi_store_install_smoke` | memory NOR 的 erase/write/readback verify 与 `1 -> 0` 约束 |
+
+这些 fixture 不证明 QSPI/eMMC 硬件、filesystem、签名或 update slot。Store v1 当前边界见
+[`app_abi/README.md`](../app_abi/README.md)，断言以各目录 CMake/source 为准。
+
 ## Dev Loader receive fixtures
 
 | Fixture | 局部证明 |

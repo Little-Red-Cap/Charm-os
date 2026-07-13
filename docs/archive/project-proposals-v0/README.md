@@ -17,7 +17,8 @@ USB storage bundle 的独立草案。
 保留文件：
 
 - [`charm_工程对象模型草案.md`](charm_工程对象模型草案.md)
-- [`charm_构建系统升级方向草案.md`](charm_构建系统升级方向草案.md)
+- [`build_model_retained_notes.md`](build_model_retained_notes.md)：从早期构建升级草案保留显式 target、
+  BSP source ownership、preset/workflow 和迁移失败边界。
 - [`early_diagnostics_retained_notes.md`](early_diagnostics_retained_notes.md)：从 Foundation Runtime 草案
   中保留复杂装配前诊断、应用入口与平台 startup 分离、early/full sink 交接问题。
 - [`usb_declarative_retained_notes.md`](usb_declarative_retained_notes.md)：从早期声明式 USB 草案保留
@@ -34,3 +35,5 @@ overview 与 Git 历史替代。
 旧 profile/runtime 文件映射不再保留。
 
 Foundation Runtime 全文已删除；该宽泛名词未通过 Core 准入，早期诊断问题已收窄为局部平台边界。
+
+构建升级全文已压缩；候选 Package 名词、Player 场景清单、旧目录布局和阶段路线不再保留。

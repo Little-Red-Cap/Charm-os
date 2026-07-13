@@ -1,81 +1,40 @@
 # Minimal Kernel Host Smoke Bundle Contract
 
-## 目的
+> status: `supporting`
+>
+> 本文约束 minimal-kernel Host semantic smoke 的 cold/warm 证据，不证明 ARM 异常、IRQ、timer
+> 或真实上下文切换。Host + QEMU 总入口见
+> [`minimal_kernel_runtime_evidence_bundle_contract.md`](minimal_kernel_runtime_evidence_bundle_contract.md)。
 
-这份文档是当前最小内核 host smoke 证据链的干净入口。
+## 入口
 
-如果你现在要看的不是 host 上半层本身，而是“host + ARMv7-A QEMU lower-half”合起来的总证据入口，改读：
+| 层 | 实现 |
+|---|---|
+| example configure/build/run engine | [`minimal_kernel_runtime_host_smoke.ps1`](../../scripts/minimal_kernel_runtime_host_smoke.ps1) |
+| summary/report/check bundle | [`minimal_kernel_runtime_host_smoke_bundle.ps1`](../../scripts/minimal_kernel_runtime_host_smoke_bundle.ps1) |
+| cold/warm wrappers | `ci_*` / `daily_*` host smoke scripts |
+| 推荐双态入口 | [`minimal_kernel_runtime_host_smoke_dual_bundle.ps1`](../../scripts/minimal_kernel_runtime_host_smoke_dual_bundle.ps1) |
+| CI | [`minimal-kernel-host-smoke.yml`](../../.github/workflows/minimal-kernel-host-smoke.yml) |
 
-- `docs/system/minimal_kernel_runtime_evidence_bundle_contract.md`
+## Cold 与 Warm
 
-当你想快速回答下面这些问题时，先读这里：
+- Cold profile 必须执行 configure，并保留构建目录供同一次 dual run 复用。
+- Warm profile 必须使用 cold summary 作为 baseline，并复用已有 configure/build 状态。
+- 两者运行同一组选定 examples；差异必须出现在 summary/comparison 中，不能只写日志。
 
-- 哪个脚本是底座，哪个只是薄包装
-- 冷启动证据和热复用证据是怎么分层的
-- GitHub workflow 这一条链到底要证明什么
-- 即使最终 gate 失败，哪些工件也必须保留下来
+Cold 证明干净入口仍可配置、构建和运行；warm 证明预热后的同一入口可复用。任一结果都不证明
+其它工具链、QEMU 或真实板。
 
-## 入口分层
+## 产物与失败
 
-- `scripts/minimal_kernel_runtime_host_smoke.ps1`
-  - 原始 smoke 引擎
-  - 面向选定的 `runtime_*_host` example 批量执行 `configure / build / run`
-- `scripts/minimal_kernel_runtime_host_smoke_ci.ps1`
-  - 冷启动 profile
-  - 固定使用 `-Fresh`
-  - 在 bundle 场景下可以额外保留 build 目录
-- `scripts/minimal_kernel_runtime_host_smoke_daily.ps1`
-  - 热复用 profile
-  - 固定使用 `-KeepBuildDirs -SkipConfigureIfPresent`
-- `scripts/minimal_kernel_runtime_host_smoke_bundle.ps1`
-  - bundle 引擎
-  - 统一产出 `summary.json`、`smoke.log`、`inspect.txt`、`inspect.json`、`report.md`、`check.txt`
-- `scripts/ci_minimal_kernel_runtime_host_smoke_bundle.ps1`
-  - 冷启动 bundle 的薄包装
-- `scripts/daily_minimal_kernel_runtime_host_smoke_bundle.ps1`
-  - 热复用 bundle 的薄包装
-- `scripts/minimal_kernel_runtime_host_smoke_dual_bundle.ps1`
-  - 冷启动 + 热复用的双态入口
-  - 先跑 `ci bundle`，再把 cold `summary.json` 作为 baseline 传给 `daily bundle`
-- `.github/workflows/minimal-kernel-host-smoke.yml`
-  - 直接复用 dual bundle，在同一 runner 上完成 cold + warm 证据链
+Bundle 以 `summary.json` 为机器事实源，并生成 log、inspect、report 和 check 投影。只要 summary
+已经产生，后续 inspect/report/check 应继续执行，即使 smoke 或最终 gate 失败。保留失败工件用于
+诊断，不表示失败被接受。
 
-## Bundle 契约
+CI 应始终发布可用 report，并上传 cold/warm 输出目录。自动化判断应读取 summary/check，不从
+Markdown 文本反推 verdict。
 
-### Cold Bundle
-
-- profile 固定为 `ci`
-- `configure` 应当真实执行
-- bundle 必须保留 `cmake-build-verify-*`，供同一 job 里的 warm run 直接复用
-- 默认报告标题为 `Minimal Kernel Host Smoke CI Report`
-
-### Warm Bundle
-
-- profile 固定为 `daily`
-- `configure` 应当命中复用，而不是重新执行
-- 在 CI 中，warm bundle 应当接收 cold 的 `summary.json` 作为 `-BaselineSummary`
-- 默认报告标题为 `Minimal Kernel Host Smoke Daily Report`
-
-### 报告与保活
-
-- `report.md` 必须在最终 summary gate 之前生成
-- 即使 smoke 过程返回非零，只要已经产出 `summary.json`，bundle 仍应继续完成 inspect / report / check，避免证据丢失
-- 当传入 `BaselineSummary` 时，Markdown 报告应包含 `Comparison` 段，展示 regressions 与 improvements
-
-## Workflow 契约
-
-GitHub workflow 在一次运行里要同时证明两种状态：
-
-1. 冷启动证据
-   - 干净 configure 路径仍然可用
-2. 热复用证据
-   - 同一批 example 在 runner 被预热后可以复用 configure 状态
-
-workflow 应当把两份 Markdown 报告都写入 `GITHUB_STEP_SUMMARY`，并把两套输出目录一起上传为同一个 artifact。
-
-## 本地验证
-
-在一台机器上复现 CI 的 cold -> warm 证据链，优先直接跑：
+## 本地入口
 
 ```powershell
 ./scripts/minimal_kernel_runtime_host_smoke_dual_bundle.ps1 `
@@ -84,9 +43,5 @@ workflow 应当把两份 Markdown 报告都写入 `GITHUB_STEP_SUMMARY`，并把
   -Jobs 8
 ```
 
-期望信号：
-
-- `out/minimal-kernel-runtime-host-smoke/ci/report.md` 显示 `Profile: ci`
-- `out/minimal-kernel-runtime-host-smoke/daily/report.md` 显示 `Profile: daily`
-- warm 报告显示 `configure: total=0ms, executed=0, reused=...`
-- warm 报告包含相对 cold baseline 的 `Comparison` 段
+该命令会创建多个 `cmake-build-verify-*` 目录；磁盘受限时不要运行全量 examples，且应在取证后
+按调用方策略清理输出。

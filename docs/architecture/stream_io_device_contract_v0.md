@@ -9,7 +9,9 @@
 
 本文是 stream/channel implementation interface 的当前状态卡，不是 `io_channel_contract` 的替代品，也不是 Charm Core 或公共 ABI。
 
-完整的早期讨论已保留在 [`../archive/device-interface-drafts-v0/stream_io_device_contract_v0.md`](../archive/device-interface-drafts-v0/stream_io_device_contract_v0.md)。准入规则见 [`interface_admission_policy.md`](interface_admission_policy.md)。
+早期 short IO、detach 与 flush 未决语义见
+[`device_interface_retained_notes.md`](../archive/device-interface-drafts-v0/device_interface_retained_notes.md#stream-io)。
+准入规则见 [`interface_admission_policy.md`](interface_admission_policy.md)。
 
 ## 代码事实
 

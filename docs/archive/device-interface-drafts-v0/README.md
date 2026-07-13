@@ -2,7 +2,9 @@
 
 ## 归档原因
 
-本目录保存 SPI、GPIO、Block、Stream IO 和 Timebase 五份早期 device interface 提案的完整正文。它们包含接口取舍、候选错误语义、职责边界和未来 evidence 方向，具有讨论和追溯价值；但它们没有被源码、统一装配和独立证据共同证明为稳定公共契约。
+本目录保留 SPI、GPIO、Block、Stream IO 和 Timebase 早期提案中仍有独立价值的职责、错误和
+执行语义。五份重复的 Contract Shape/Facts/Evidence/Next Steps 模板已收敛到
+[`device_interface_retained_notes.md`](device_interface_retained_notes.md)。
 
 ## 当前入口
 

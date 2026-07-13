@@ -10,7 +10,7 @@
 
 上位入口：
 
-- [`../device-interface-drafts-v0/block_device_contract_v0.md`](../device-interface-drafts-v0/block_device_contract_v0.md)
+- [`device_interface_retained_notes.md`](../device-interface-drafts-v0/device_interface_retained_notes.md#block)
 - [`../../architecture/interface_admission_policy.md`](../../architecture/interface_admission_policy.md)
 
 ## 1. 当前定位

@@ -1,28 +1,19 @@
-# Escape Hatches 记录
+# Escape Hatch 审查规则
 
-本页用于记录项目内**有意保留**的 escape hatch：
+## 文档状态
 
-- 为了性能绕开常规抽象
-- 为了平台约束使用更低层实现
-- 为了 ABI / 中断 / MMIO 等边界接受更弱的类型安全
+- `status`: `supporting`
+- `scope`: 有意绕过常规抽象或类型边界的局部实现
+- `authority`: source marker、benchmark 与平台/ABI 证据
 
-它的目标不是鼓励使用 escape hatch，而是让这类决策**可见、可解释、可复审**。
+Escape hatch 必须在目标代码附近使用 `ESCAPE_HATCH` 标记，并说明原因。当前实例从源码枚举，
+不在本文维护容易漂移的登记表：
 
-## 使用规则
+```powershell
+git grep -n ESCAPE_HATCH -- Modules Examples targets
+```
 
-当代码中引入 `ESCAPE_HATCH` 标记时，建议至少补齐：
+Review 时至少核对：替代方案为何不足、性能/平台/ABI 证据、影响范围、失败风险和移除条件。
+没有 benchmark 或硬件约束证据时，不能用“性能关键”作为长期例外理由。
 
-1. 目标文件与位置
-2. 使用原因
-3. 替代方案为何不可用
-4. 证据来源（benchmark / 平台限制 / ABI 要求）
-5. 后续复审条件
-
-## 当前登记表
-
-| ID | 文件 | 原因 | 证据 | 状态 |
-|---|---|---|---|---|
-| EH-001 | 待补 | 待补 | 待补 | OPEN |
-
-> 说明：当前仓库尚未完成统一登记；本页先作为稳定入口，后续可逐条补实。
-
+该标记不授予跨模块 API、Core 身份或永久兼容承诺；证据失效后应删除例外。

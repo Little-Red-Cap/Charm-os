@@ -15,6 +15,7 @@
 | 修改或审查代码 | [`standards/README.md`](standards/README.md)、[`codegen route`](../agent/routes/codegen.md)、[`review route`](../agent/routes/review.md) |
 | 协作约定 | [`collaboration.md`](../agent/rules/collaboration.md)、[`Agent README`](../agent/README.md) |
 | 当前认领与 backlog | [`tracking/README.md`](tracking/README.md) |
+| 低层实现例外 | [`escape_hatches.md`](escape_hatches.md) |
 | PowerShell / UTF-8 | [`Powershell设置utf8.md`](tooling/Powershell设置utf8.md) |
 | CMake / preset / 构建目录 | [`build route`](../agent/routes/build.md)、[根 README](../../README.md) |
 
@@ -23,7 +24,7 @@
 
 ## 提案与历史
 
-根目录下的 `*草案`、`*提案`、`player_design.md`、`escape_hatches.md` 和 `other.md` 是项目级
+根目录下的 `*草案`、`*提案` 和 `player_design.md` 是项目级
 讨论，不是现行契约。短摘要保留结论、未实施状态和重新推进条件；完整早期正文见：
 
 - Bundle、工程对象/变体、构建升级和 USB 装配：

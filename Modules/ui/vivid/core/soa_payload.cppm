@@ -420,7 +420,7 @@ export namespace soa_detail {
     enum class PayloadKind : std::uint8_t {
         None,
 #define VIVID_PAYLOAD_KIND(name, member, stats_field, cap_kind) name,
-#include "widgets.payload.kinds.def"
+#include "payload_kinds.generated.inc"
 #undef VIVID_PAYLOAD_KIND
     };
 
@@ -587,7 +587,7 @@ export namespace soa_detail {
     struct PayloadManager {
         void reset() noexcept {
             #define VIVID_PAYLOAD_KIND(name, member, stats_field, cap_kind) member.reset();
-            #include "widgets.payload.kinds.def"
+            #include "payload_kinds.generated.inc"
             #undef VIVID_PAYLOAD_KIND
             text_arena_.reset();
             for (auto& slot : text_slots_) {
@@ -612,7 +612,7 @@ export namespace soa_detail {
 #define VIVID_PAYLOAD_KIND(name, member, stats_field, cap_kind) \
                 case PayloadKind::name: \
                     return handle_or_overflow(member.alloc(owner_idx, kind), payload, kind, owner_idx);
-#include "widgets.payload.kinds.def"
+#include "payload_kinds.generated.inc"
 #undef VIVID_PAYLOAD_KIND
             }
             return invalid_payload_handle();
@@ -629,7 +629,7 @@ export namespace soa_detail {
                 case PayloadKind::name: \
                     member.free(handle, owner_idx, kind); \
                     break;
-#include "widgets.payload.kinds.def"
+#include "payload_kinds.generated.inc"
 #undef VIVID_PAYLOAD_KIND
             }
         }
@@ -777,7 +777,7 @@ export namespace soa_detail {
             PayloadStats out{};
 #define VIVID_PAYLOAD_KIND(name, member, stats_field, cap_kind) \
             out.stats_field = member.stats();
-#include "widgets.payload.kinds.def"
+#include "payload_kinds.generated.inc"
 #undef VIVID_PAYLOAD_KIND
             out.overflowed = overflowed_;
             out.text_overflowed = text_arena_.overflowed;
@@ -795,7 +795,7 @@ export namespace soa_detail {
 #define VIVID_PAYLOAD_KIND(name, member, stats_field, cap_kind) \
                 case PayloadKind::name: \
                     return #name;
-#include "widgets.payload.kinds.def"
+#include "payload_kinds.generated.inc"
 #undef VIVID_PAYLOAD_KIND
             }
             return "Unknown";
@@ -808,7 +808,7 @@ export namespace soa_detail {
 #define VIVID_PAYLOAD_KIND(name, member, stats_field, cap_kind) \
                 case PayloadKind::name: \
                     return member.stats();
-#include "widgets.payload.kinds.def"
+#include "payload_kinds.generated.inc"
 #undef VIVID_PAYLOAD_KIND
             }
             return {};
@@ -822,7 +822,7 @@ export namespace soa_detail {
 #define VIVID_PAYLOAD_KIND(name, member, stats_field, cap_kind) \
                 case PayloadKind::name: \
                     return member.debug_live_count();
-#include "widgets.payload.kinds.def"
+#include "payload_kinds.generated.inc"
 #undef VIVID_PAYLOAD_KIND
             }
             return 0;
@@ -854,7 +854,7 @@ export namespace soa_detail {
 
 #define VIVID_PAYLOAD_KIND(name, member, stats_field, cap_kind) \
         using name##Pool = PayloadPool<name##Payload, pool_cap(WidgetKind::cap_kind)>;
-#include "widgets.payload.kinds.def"
+#include "payload_kinds.generated.inc"
 #undef VIVID_PAYLOAD_KIND
 
         template <typename T>
@@ -863,7 +863,7 @@ export namespace soa_detail {
             if constexpr (std::is_same_v<T, name##Payload>) { \
                 return member; \
             } else
-#include "widgets.payload.kinds.def"
+#include "payload_kinds.generated.inc"
 #undef VIVID_PAYLOAD_KIND
             {
                 static_assert(always_false_v<T>, "Unknown payload type");
@@ -876,7 +876,7 @@ export namespace soa_detail {
             if constexpr (std::is_same_v<T, name##Payload>) { \
                 return member; \
             } else
-#include "widgets.payload.kinds.def"
+#include "payload_kinds.generated.inc"
 #undef VIVID_PAYLOAD_KIND
             {
                 static_assert(always_false_v<T>, "Unknown payload type");
@@ -885,7 +885,7 @@ export namespace soa_detail {
 
 #define VIVID_PAYLOAD_KIND(name, member, stats_field, cap_kind) \
         name##Pool member{};
-#include "widgets.payload.kinds.def"
+#include "payload_kinds.generated.inc"
 #undef VIVID_PAYLOAD_KIND
         TextArena text_arena_{};
         std::array<TextSlot, kTextSlotCount> text_slots_{};

@@ -5,6 +5,7 @@ module;
 #include <cstdint>
 #include <limits>
 #include <type_traits>
+#include "features.hpp"
 
 #ifndef CHARM_VIVID_MEMORY_PROFILE_SYMBOLS
 #define CHARM_VIVID_MEMORY_PROFILE_SYMBOLS 0
@@ -190,11 +191,11 @@ constexpr std::array<std::uint8_t, kWidgetKindCount> build_kind_state_masks() no
     }
 #define VIVID_WIDGET_STYLE_INTERACTIVE(name) \
     set_kind_mask(masks, WidgetKind::name, interactive);
-#include "widgets.style.interactive.def"
+#include "widget_style_interactive.generated.inc"
 #undef VIVID_WIDGET_STYLE_INTERACTIVE
 #define VIVID_WIDGET_STYLE_PRESS_ONLY(name) \
     set_kind_mask(masks, WidgetKind::name, press_only);
-#include "widgets.style.press_only.def"
+#include "widget_style_press_only.generated.inc"
 #undef VIVID_WIDGET_STYLE_PRESS_ONLY
     return masks;
 }

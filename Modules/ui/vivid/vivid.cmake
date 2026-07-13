@@ -1,5 +1,7 @@
 set(_VIVID_CMAKE_DIR "${CMAKE_CURRENT_LIST_DIR}")
 
+include("${CMAKE_CURRENT_LIST_DIR}/cmake/widget_catalog_compiler.cmake")
+
 macro(vivid_cache_default name type default_value doc)
     if (NOT DEFINED ${name})
         set(${name} "${default_value}" CACHE ${type} "${doc}")
@@ -625,6 +627,7 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
 
     set(vivid_pool_caps_output_dir "${CMAKE_CURRENT_BINARY_DIR}/generated/vivid")
     file(MAKE_DIRECTORY "${vivid_pool_caps_output_dir}")
+    vivid_generate_widget_catalog("${vivid_pool_caps_output_dir}")
     set(vivid_features_header "${vivid_pool_caps_output_dir}/vivid_features.generated.hpp")
     set(vivid_config_cppm "${vivid_pool_caps_output_dir}/config.generated.cppm")
     set(vivid_pool_caps_cppm "${vivid_pool_caps_output_dir}/soa_pool_caps.cppm")

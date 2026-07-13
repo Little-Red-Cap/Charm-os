@@ -4,7 +4,8 @@
 USB storage bundle 的独立草案。
 
 这些材料保留了真实项目压力、候选对象和未决取舍，但没有共同的实现、CMake 入口或跨环境证据。
-现行目录只保留被 Player 落地稿引用的 `charm_工程对象模型草案.md` 状态桥接；其它提案不再维护重复摘要。
+Player 落地稿引用的工程对象状态桥接保留在
+[`../../project/charm_工程对象模型草案.md`](../../project/charm_工程对象模型草案.md)；其它提案不再维护重复摘要。
 
 默认入口：
 
@@ -16,7 +17,6 @@ USB storage bundle 的独立草案。
 
 保留文件：
 
-- [`charm_工程对象模型草案.md`](charm_工程对象模型草案.md)
 - [`build_model_retained_notes.md`](build_model_retained_notes.md)：从早期构建升级草案保留显式 target、
   BSP source ownership、preset/workflow 和迁移失败边界。
 - [`early_diagnostics_retained_notes.md`](early_diagnostics_retained_notes.md)：从 Foundation Runtime 草案
@@ -37,3 +37,6 @@ overview 与 Git 历史替代。
 Foundation Runtime 全文已删除；该宽泛名词未通过 Core 准入，早期诊断问题已收窄为局部平台边界。
 
 构建升级全文已压缩；候选 Package 名词、Player 场景清单、旧目录布局和阶段路线不再保留。
+
+工程对象模型全文已删除；Product/Board/Profile/Execution Environment 等候选的当前裁决只保留在
+项目层状态桥接，不再维护九对象总模型和伪 CMake API。

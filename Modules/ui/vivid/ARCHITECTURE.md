@@ -98,6 +98,9 @@ Product Profile Compiler 是 Vivid 工具，不是 Charm Core 或产品 C++ API�
 基础 layout 支持 Anchor、Flex、Flow、Grid、Constraint 和显式注册的 Custom engine。container 负责 child
 layout 与 clip/viewport；滚动、虚拟列表等行为不能绕过统一 layout/invalidation 入口。
 
+Object-level widget 的 layout 以 `ObjectBase::LayoutSpec` 为唯一状态源。Flex/Flow/Grid/Custom 便捷 setter
+只构造该 spec；compatibility getter 也从同一 spec 读取，不保存第二套模式镜像。
+
 状态影响由 source 中的 `layout_state_influence_mask(kind)` 决定：
 
 | 变化 | 默认影响 |

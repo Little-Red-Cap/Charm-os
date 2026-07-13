@@ -126,13 +126,6 @@ public:
     std::uint8_t style_variant() const noexcept { return style_variant_; }
 
     void set_flex_layout(int flow, int main_align, int cross_align, int gap, int padding) noexcept {
-        flex_enabled_ = true;
-        layout_mode_ = LayoutMode::Flex;
-        flex_flow_ = flow;
-        flex_main_align_ = main_align;
-        flex_cross_align_ = cross_align;
-        flex_gap_ = gap;
-        flex_padding_ = padding;
         layout_spec_enabled_ = true;
         layout_spec_ = {};
         layout_spec_.kind = LayoutMode::Flex;
@@ -147,10 +140,6 @@ public:
     int flex_grow() const noexcept { return flex_grow_; }
 
     void set_flow_layout(int gap, int line_gap, int padding) noexcept {
-        layout_mode_ = LayoutMode::Flow;
-        flow_gap_ = gap;
-        flow_line_gap_ = line_gap;
-        flow_padding_ = padding;
         layout_spec_enabled_ = true;
         layout_spec_ = {};
         layout_spec_.kind = LayoutMode::Flow;
@@ -159,35 +148,28 @@ public:
         layout_spec_.padding = padding;
     }
 
-    int flow_gap() const noexcept { return flow_gap_; }
-    int flow_line_gap() const noexcept { return flow_line_gap_; }
-    int flow_padding() const noexcept { return flow_padding_; }
+    int flow_gap() const noexcept { return layout_spec_.gap; }
+    int flow_line_gap() const noexcept { return layout_spec_.line_gap; }
+    int flow_padding() const noexcept { return layout_spec_.padding; }
 
     void set_grid_layout(int columns, int cell_w, int cell_h, int gap, int padding) noexcept {
-        layout_mode_ = LayoutMode::Grid;
-        grid_cols_ = (columns > 0) ? columns : 1;
-        grid_cell_w_ = cell_w;
-        grid_cell_h_ = cell_h;
-        grid_gap_ = gap;
-        grid_padding_ = padding;
         layout_spec_enabled_ = true;
         layout_spec_ = {};
         layout_spec_.kind = LayoutMode::Grid;
-        layout_spec_.columns = grid_cols_;
+        layout_spec_.columns = (columns > 0) ? columns : 1;
         layout_spec_.cell_w = cell_w;
         layout_spec_.cell_h = cell_h;
         layout_spec_.grid_gap = gap;
         layout_spec_.grid_padding = padding;
     }
 
-    int grid_columns() const noexcept { return grid_cols_; }
-    int grid_cell_width() const noexcept { return grid_cell_w_; }
-    int grid_cell_height() const noexcept { return grid_cell_h_; }
-    int grid_gap() const noexcept { return grid_gap_; }
-    int grid_padding() const noexcept { return grid_padding_; }
+    int grid_columns() const noexcept { return layout_spec_.columns; }
+    int grid_cell_width() const noexcept { return layout_spec_.cell_w; }
+    int grid_cell_height() const noexcept { return layout_spec_.cell_h; }
+    int grid_gap() const noexcept { return layout_spec_.grid_gap; }
+    int grid_padding() const noexcept { return layout_spec_.grid_padding; }
 
     void set_constraint_layout(int padding = 0) noexcept {
-        layout_mode_ = LayoutMode::Constraint;
         layout_spec_enabled_ = true;
         layout_spec_ = {};
         layout_spec_.kind = LayoutMode::Constraint;
@@ -199,7 +181,6 @@ public:
                            int p1 = 0,
                            int p2 = 0,
                            int p3 = 0) noexcept {
-        layout_mode_ = LayoutMode::Custom;
         layout_spec_enabled_ = true;
         layout_spec_ = {};
         layout_spec_.kind = LayoutMode::Custom;
@@ -213,13 +194,11 @@ public:
     void set_layout_spec(const LayoutSpec& spec) noexcept {
         layout_spec_enabled_ = true;
         layout_spec_ = spec;
-        layout_mode_ = spec.kind;
     }
 
     void clear_layout_spec() noexcept {
         layout_spec_enabled_ = false;
         layout_spec_ = {};
-        layout_mode_ = LayoutMode::Anchor;
     }
     bool has_layout_spec() const noexcept { return layout_spec_enabled_; }
     const LayoutSpec& layout_spec() const noexcept { return layout_spec_; }
@@ -263,13 +242,17 @@ public:
     int align_h() const noexcept { return align_h_; }
     int align_v() const noexcept { return align_v_; }
 
-    bool has_flex_layout() const noexcept { return flex_enabled_; }
-    int flex_flow() const noexcept { return flex_flow_; }
-    int flex_main_align() const noexcept { return flex_main_align_; }
-    int flex_cross_align() const noexcept { return flex_cross_align_; }
-    int flex_gap() const noexcept { return flex_gap_; }
-    int flex_padding() const noexcept { return flex_padding_; }
-    LayoutMode layout_mode() const noexcept { return layout_mode_; }
+    bool has_flex_layout() const noexcept {
+        return layout_spec_enabled_ && layout_spec_.kind == LayoutMode::Flex;
+    }
+    int flex_flow() const noexcept { return layout_spec_.flow; }
+    int flex_main_align() const noexcept { return layout_spec_.main_align; }
+    int flex_cross_align() const noexcept { return layout_spec_.cross_align; }
+    int flex_gap() const noexcept { return layout_spec_.gap; }
+    int flex_padding() const noexcept { return layout_spec_.padding; }
+    LayoutMode layout_mode() const noexcept {
+        return layout_spec_enabled_ ? layout_spec_.kind : LayoutMode::Anchor;
+    }
 
     void set_parent(WidgetHandle parent) noexcept { parent_ = parent; }
     WidgetHandle parent() const noexcept { return parent_; }
@@ -303,22 +286,7 @@ protected:
     State state_{State::None};
     bool focusable_{false};
     std::uint8_t style_variant_{0};
-    bool flex_enabled_{false};
-    int flex_flow_{0};
-    int flex_main_align_{0};
-    int flex_cross_align_{0};
-    int flex_gap_{0};
-    int flex_padding_{0};
     int flex_grow_{0};
-    LayoutMode layout_mode_{LayoutMode::Anchor};
-    int flow_gap_{0};
-    int flow_line_gap_{0};
-    int flow_padding_{0};
-    int grid_cols_{1};
-    int grid_cell_w_{0};
-    int grid_cell_h_{0};
-    int grid_gap_{0};
-    int grid_padding_{0};
     bool anchor_enabled_{false};
     int anchor_left_{0};
     int anchor_top_{0};
@@ -470,8 +438,8 @@ static Rect children_clip_rect_thunk(const ObjectBase& self) noexcept {
     }
 };
 
-static_assert(sizeof(ObjectBase) <= 288,
-              "ObjectBase must not regain resident child or interaction storage");
+static_assert(sizeof(ObjectBase) <= 232,
+              "ObjectBase must not regain mirrored layout or optional runtime storage");
 
 namespace vivid_object_detail {
     template<std::size_t Capacity>

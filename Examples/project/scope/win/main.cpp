@@ -478,15 +478,13 @@ namespace {
     }
 
     UiHandles build_ui(UiFactory& factory, ScopeUiContext& ctx) {
-        auto anchor_pos = [](auto* obj, int x, int y) {
+        auto place_pos = [](auto* obj, int x, int y) {
             if (!obj) return;
             obj->set_pos(x, y);
-            obj->set_anchor(x, y, -1, -1);
         };
-        auto anchor_rect = [](auto* obj, const Rect& r) {
+        auto place_rect = [](auto* obj, const Rect& r) {
             if (!obj) return;
             obj->set_rect(r);
-            obj->set_anchor(r.x, r.y, -1, -1);
         };
 
         UiHandles h{};
@@ -498,20 +496,20 @@ namespace {
 
         h.top_left = factory.create_container();
         if (auto* bar = factory.get_container(h.top_left)) {
-            anchor_rect(bar, {kPadding, kPadding, 170, kTopBar - 4});
+            place_rect(bar, {kPadding, kPadding, 170, kTopBar - 4});
             bar->set_background({14, 20, 34, 255});
         }
 
         h.top_mid = factory.create_container();
         if (auto* bar = factory.get_container(h.top_mid)) {
-            anchor_rect(bar, {kPadding + 180, kPadding, 240, kTopBar - 4});
+            place_rect(bar, {kPadding + 180, kPadding, 240, kTopBar - 4});
             bar->set_background({14, 20, 34, 255});
         }
 
         h.top_right = factory.create_container();
         if (auto* bar = factory.get_container(h.top_right)) {
             const int right_w = screen_width - (kPadding * 2 + 430);
-            anchor_rect(bar, {kPadding + 430, kPadding, right_w, kTopBar - 4});
+            place_rect(bar, {kPadding + 430, kPadding, right_w, kTopBar - 4});
             bar->set_background({14, 20, 34, 255});
         }
 
@@ -521,7 +519,7 @@ namespace {
             const int chart_y = kPadding + kTopBar;
             const int chart_w = screen_width - kPadding * 2;
             const int chart_h = screen_height - (kPadding * 2 + kTopBar + kBottomBar);
-            anchor_rect(waveform, {chart_x, chart_y, chart_w, chart_h});
+            place_rect(waveform, {chart_x, chart_y, chart_w, chart_h});
             waveform->set_grid_div(10, 8);
             waveform->set_grid_color({22, 38, 54, 255});
             waveform->set_trace_color({90, 220, 255, 255});
@@ -536,48 +534,48 @@ namespace {
         h.title = factory.create_label("Scope / Sim");
         if (auto* title = factory.get_label(h.title)) {
             title->set_color({226, 240, 255, 255});
-            anchor_pos(title, kPadding + 10, kPadding + 10);
+            place_pos(title, kPadding + 10, kPadding + 10);
         }
 
         h.time_div = factory.create_label("TIME/DIV 10.00 us");
         if (auto* time_div = factory.get_label(h.time_div)) {
             time_div->set_color({150, 180, 210, 255});
-            anchor_pos(time_div, kPadding + 190, kPadding + 10);
+            place_pos(time_div, kPadding + 190, kPadding + 10);
         }
 
         h.volt_div = factory.create_label("V/DIV 0.50 V");
         if (auto* volt_div = factory.get_label(h.volt_div)) {
             volt_div->set_color({150, 180, 210, 255});
-            anchor_pos(volt_div, kPadding + 190, kPadding + 24);
+            place_pos(volt_div, kPadding + 190, kPadding + 24);
         }
 
         h.trigger = factory.create_label("EDGE RISE  L=0.00V");
         if (auto* trigger = factory.get_label(h.trigger)) {
             trigger->set_color({150, 180, 210, 255});
-            anchor_pos(trigger, kPadding + 440, kPadding + 10);
+            place_pos(trigger, kPadding + 440, kPadding + 10);
         }
 
         h.mode = factory.create_label("MODE ROLL");
         if (auto* mode = factory.get_label(h.mode)) {
             mode->set_color({150, 180, 210, 255});
-            anchor_pos(mode, kPadding + 440, kPadding + 24);
+            place_pos(mode, kPadding + 440, kPadding + 24);
         }
 
         h.trig_mode = factory.create_label("MODE AUTO  WIN 0.10V");
         if (auto* trig_mode = factory.get_label(h.trig_mode)) {
             trig_mode->set_color({150, 180, 210, 255});
-            anchor_pos(trig_mode, kPadding + 610, kPadding + 10);
+            place_pos(trig_mode, kPadding + 610, kPadding + 10);
         }
 
         h.trig_state = factory.create_label("STATE ARMED");
         if (auto* trig_state = factory.get_label(h.trig_state)) {
             trig_state->set_color({150, 180, 210, 255});
-            anchor_pos(trig_state, kPadding + 610, kPadding + 24);
+            place_pos(trig_state, kPadding + 610, kPadding + 24);
         }
 
         h.trig_light = factory.create_container();
         if (auto* light = factory.get_container(h.trig_light)) {
-            anchor_rect(light, {kPadding + 578, kPadding + 14, 12, 12});
+            place_rect(light, {kPadding + 578, kPadding + 14, 12, 12});
             light->set_background({120, 200, 170, 255});
         }
 
@@ -591,13 +589,13 @@ namespace {
         h.measure = factory.create_label("Vpp: 0.00  F: 0.0");
         if (auto* measure = factory.get_label(h.measure)) {
             measure->set_color({200, 228, 255, 255});
-            anchor_pos(measure, kPadding, screen_height - kBottomBar + 6);
+            place_pos(measure, kPadding, screen_height - kBottomBar + 6);
         }
 
         h.hint = factory.create_label("LMB drag=Trig  Alt+Drag=Win  RMB=Mode  Wheel=Time  Shift+Wheel=V  Alt+Wheel=Win  T=TrigMode  E=Edge");
         if (auto* hint = factory.get_label(h.hint)) {
             hint->set_color({110, 140, 170, 255});
-            anchor_pos(hint, kPadding, screen_height - kBottomBar + 46);
+            place_pos(hint, kPadding, screen_height - kBottomBar + 46);
         }
 
         h.controls = factory.create_container();
@@ -606,8 +604,7 @@ namespace {
             const int hgt = 60;
             const int x = screen_width - kPadding - w;
             const int y = screen_height - kBottomBar + 6;
-            anchor_rect(controls, {x, y, w, hgt});
-            controls->set_grid_layout(5, 56, 24, 6, 6);
+            place_rect(controls, {x, y, w, hgt});
         }
 
         h.btn_time_dec = factory.create_button("T-");

@@ -22,53 +22,36 @@ public:
 
     void set_samples(std::span<const float> samples) noexcept {
         samples_ = samples;
-        mark_dirty_hint(get_rect());
-    }
-
-    void set_samples_dirty_range(std::span<const float> samples,
-                                 std::size_t start,
-                                 std::size_t count) noexcept {
-        samples_ = samples;
-        if (samples_.size() < 2 || count == 0 || start >= samples_.size()) {
-            mark_dirty_hint(get_rect());
-            return;
-        }
-        mark_samples_dirty(start, count);
     }
 
     void set_range(float y_min, float y_max) noexcept {
         y_min_ = y_min;
         y_max_ = y_max;
-        mark_dirty_hint(get_rect());
     }
 
     void set_trigger_level(float level) noexcept {
         trigger_level_ = level;
-        mark_dirty_trigger();
     }
     void set_trigger_window(float width) noexcept {
         trigger_window_ = width;
-        mark_dirty_trigger();
     }
     void set_show_trigger(bool on) noexcept {
         show_trigger_ = on;
-        mark_dirty_trigger();
     }
 
     void set_grid_div(int x, int y) noexcept {
         grid_x_ = x;
         grid_y_ = y;
-        mark_dirty_hint(get_rect());
     }
 
-    void set_grid_color(const rgba& c) noexcept { grid_color_ = c; mark_dirty_hint(get_rect()); }
-    void set_trace_color(const rgba& c) noexcept { trace_color_ = c; has_trace_color_ = true; mark_dirty_hint(get_rect()); }
-    void set_glow(bool on) noexcept { glow_ = on; mark_dirty_hint(get_rect()); }
-    void set_glow_color(const rgba& c) noexcept { glow_color_ = c; has_glow_color_ = true; mark_dirty_hint(get_rect()); }
-    void set_trigger_fill(bool on) noexcept { trigger_fill_ = on; mark_dirty_trigger(); }
-    void set_trigger_fill_color(const rgba& c) noexcept { trigger_fill_color_ = c; has_trigger_fill_color_ = true; mark_dirty_trigger(); }
-    void set_trigger_color(const rgba& c) noexcept { trigger_color_ = c; mark_dirty_trigger(); }
-    void set_center_color(const rgba& c) noexcept { center_color_ = c; mark_dirty_hint(get_rect()); }
+    void set_grid_color(const rgba& c) noexcept { grid_color_ = c; }
+    void set_trace_color(const rgba& c) noexcept { trace_color_ = c; has_trace_color_ = true; }
+    void set_glow(bool on) noexcept { glow_ = on; }
+    void set_glow_color(const rgba& c) noexcept { glow_color_ = c; has_glow_color_ = true; }
+    void set_trigger_fill(bool on) noexcept { trigger_fill_ = on; }
+    void set_trigger_fill_color(const rgba& c) noexcept { trigger_fill_color_ = c; has_trigger_fill_color_ = true; }
+    void set_trigger_color(const rgba& c) noexcept { trigger_color_ = c; }
+    void set_center_color(const rgba& c) noexcept { center_color_ = c; }
 
     Rect paint_bounds() const noexcept {
         const auto r = get_rect();
@@ -165,73 +148,6 @@ private:
         const float t = (y_max_ - v) / range;
         const int y = r.y + static_cast<int>(t * static_cast<float>(r.h));
         return clamp_int(y, r.y, r.y + r.h - 1);
-    }
-
-    void mark_samples_dirty(std::size_t start, std::size_t count) noexcept {
-        const auto r = get_rect();
-        if (r.w <= 2 || r.h <= 2) {
-            mark_dirty_hint(r);
-            return;
-        }
-        const std::size_t last = samples_.size() - 1;
-        std::size_t end = start + count;
-        if (end > samples_.size()) end = samples_.size();
-        if (start > last) {
-            mark_dirty_hint(r);
-            return;
-        }
-        if (end == 0) {
-            mark_dirty_hint(r);
-            return;
-        }
-        if (end > 0) --end;
-        if (end < start) {
-            mark_dirty_hint(r);
-            return;
-        }
-        float min_v = samples_[start];
-        float max_v = samples_[start];
-        for (std::size_t i = start + 1; i <= end; ++i) {
-            const float v = samples_[i];
-            if (v < min_v) min_v = v;
-            if (v > max_v) max_v = v;
-        }
-        const float range = (y_max_ - y_min_) == 0.0f ? 1.0f : (y_max_ - y_min_);
-        const int x0 = r.x + static_cast<int>((r.w - 1) * start / last);
-        const int x1 = r.x + static_cast<int>((r.w - 1) * end / last);
-        const int y0 = map_to_y(max_v, r, range);
-        const int y1 = map_to_y(min_v, r, range);
-        const int pad = glow_ ? 3 : 2;
-        const int left = (x0 < x1) ? x0 : x1;
-        const int right = (x0 > x1) ? x0 : x1;
-        const int top = (y0 < y1) ? y0 : y1;
-        const int bottom = (y0 > y1) ? y0 : y1;
-        Rect dirty{left - pad, top - pad, (right - left) + pad * 2 + 1, (bottom - top) + pad * 2 + 1};
-        mark_dirty_hint(dirty);
-    }
-
-    void mark_dirty_trigger() noexcept {
-        const auto r = get_rect();
-        if (!show_trigger_ || r.w <= 0 || r.h <= 0) {
-            mark_dirty_hint(r);
-            return;
-        }
-        const float range = (y_max_ - y_min_) == 0.0f ? 1.0f : (y_max_ - y_min_);
-        int y0 = 0;
-        int y1 = 0;
-        if (trigger_window_ > 0.0f) {
-            const float half = trigger_window_ * 0.5f;
-            y0 = map_to_y(trigger_level_ - half, r, range);
-            y1 = map_to_y(trigger_level_ + half, r, range);
-        } else {
-            y0 = map_to_y(trigger_level_, r, range);
-            y1 = y0;
-        }
-        const int top = (y0 < y1) ? y0 : y1;
-        const int bottom = (y0 > y1) ? y0 : y1;
-        const int pad = trigger_fill_ ? 2 : 1;
-        Rect dirty{r.x, top - pad, r.w, (bottom - top) + pad * 2 + 1};
-        mark_dirty_hint(dirty);
     }
 
     std::span<const float> samples_{};

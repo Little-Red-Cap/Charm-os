@@ -158,9 +158,8 @@ namespace {
 int main() {
     print_widget_signal_run_begin();
 
-    std::printf("[ws-abi] object_base=%zu layout_spec=%zu scroll_container=%zu list=%zu foldable_panel=%zu interaction_list=%zu double_tap=%zu pinch=%zu drag=%zu long_press=%zu\n",
+    std::printf("[ws-abi] object_base=%zu scroll_container=%zu list=%zu foldable_panel=%zu interaction_list=%zu double_tap=%zu pinch=%zu drag=%zu long_press=%zu\n",
                 sizeof(ObjectBase),
-                sizeof(ObjectBase::LayoutSpec),
                 sizeof(ScrollContainer),
                 sizeof(List),
                 sizeof(FoldablePanel),
@@ -424,49 +423,8 @@ int main() {
     if (!expect(!spin_zoom.on_event(Event::mouse(Event::Type::Click, 4, 4, 0, 300)),
                 "spin zoom disables owned double tap strategy")) return 1;
 
-    ObjectBase layout_probe{};
-    layout_probe.set_flex_layout(1, 2, 3, 4, 5);
-    if (!expect(layout_probe.has_layout_spec()
-                    && layout_probe.has_flex_layout()
-                    && layout_probe.layout_mode() == ObjectBase::LayoutMode::Flex
-                    && layout_probe.flex_flow() == 1
-                    && layout_probe.flex_main_align() == 2
-                    && layout_probe.flex_cross_align() == 3
-                    && layout_probe.flex_gap() == 4
-                    && layout_probe.flex_padding() == 5,
-                "flex layout getters read the canonical layout spec")) return 1;
-
-    ObjectBase::LayoutSpec grid_spec{};
-    grid_spec.kind = ObjectBase::LayoutMode::Grid;
-    grid_spec.columns = 3;
-    grid_spec.cell_w = 40;
-    grid_spec.cell_h = 24;
-    grid_spec.grid_gap = 6;
-    grid_spec.grid_padding = 8;
-    layout_probe.set_layout_spec(grid_spec);
-    if (!expect(!layout_probe.has_flex_layout()
-                    && layout_probe.layout_mode() == ObjectBase::LayoutMode::Grid
-                    && layout_probe.grid_columns() == 3
-                    && layout_probe.grid_cell_width() == 40
-                    && layout_probe.grid_cell_height() == 24
-                    && layout_probe.grid_gap() == 6
-                    && layout_probe.grid_padding() == 8,
-                "direct layout spec updates all compatibility getters")) return 1;
-
-    layout_probe.set_flow_layout(7, 9, 11);
-    if (!expect(layout_probe.layout_mode() == ObjectBase::LayoutMode::Flow
-                    && layout_probe.flow_gap() == 7
-                    && layout_probe.flow_line_gap() == 9
-                    && layout_probe.flow_padding() == 11,
-                "layout mode changes replace the canonical layout spec")) return 1;
-    layout_probe.clear_layout_spec();
-    if (!expect(!layout_probe.has_layout_spec()
-                    && !layout_probe.has_flex_layout()
-                    && layout_probe.layout_mode() == ObjectBase::LayoutMode::Anchor,
-                "clearing layout spec resets compatibility state")) return 1;
-
     if constexpr (sizeof(void*) == 8) {
-        if (!expect(sizeof(ObjectBase) <= 232, "ObjectBase host footprint retained mirrored layout storage")) {
+        if (!expect(sizeof(ObjectBase) <= 48, "ObjectBase retained legacy layout or invalidation storage")) {
             return 1;
         }
     }
@@ -497,10 +455,9 @@ int main() {
                 interaction_probe.long_presses);
     print_widget_signal_case("owned_interaction_dispatch");
     std::printf(" image=direct scroll=direct spin_zoom=direct\n");
-    print_widget_signal_case("object_interaction_footprint");
-    std::printf(" object_base=%zu layout_spec=%zu child_capacity=%zu opt_in_components=%zu\n",
+    print_widget_signal_case("object_runtime_footprint");
+    std::printf(" object_base=%zu child_capacity=%zu opt_in_components=%zu\n",
                 sizeof(ObjectBase),
-                sizeof(ObjectBase::LayoutSpec),
                 ScrollContainer::child_capacity,
                 sizeof(InteractionList<>) + sizeof(DragStrategy) + sizeof(LongPressStrategy));
     print_widget_signal_run_end(true);

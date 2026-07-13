@@ -8,22 +8,18 @@ import charm.core.event;
 import charm.core.geometry;
 import charm.core.structured_view;
 import charm.core.virtual_list;
-import alg_scroll;
 import alg_scroll_bounds;
 import alg_scroll_thumb;
 import charm.gfx.color;
 import charm.gfx.render_style;
 import charm.core.style;
 import charm.core.style_sheet;
-import charm.widgets.scroll_dirty;
 
 using namespace ui::render;
 
 export
 class ListView : public WidgetBase<ListView> {
 public:
-    static constexpr int kLayoutId = 2;
-
     struct DrawInfo {
         Rect rect{};
         int index{0};
@@ -45,7 +41,6 @@ public:
     ListView() {
         set_size(240, 180);
         set_focusable(true);
-        set_custom_layout(kLayoutId);
     }
 
     void set_item_count(int count) noexcept {
@@ -54,7 +49,6 @@ public:
         clear_cache();
         update_scroll_bounds();
         window_valid_ = false;
-        mark_dirty_hint(get_rect());
     }
 
     int item_count() const noexcept { return item_count_; }
@@ -66,7 +60,6 @@ public:
         clear_cache();
         update_scroll_bounds();
         window_valid_ = false;
-        mark_dirty_hint(get_rect());
     }
 
     void set_row_height(int h) noexcept {
@@ -76,7 +69,6 @@ public:
         invalidate_cache_from(0);
         update_scroll_bounds();
         window_valid_ = false;
-        mark_dirty_hint(get_rect());
     }
 
     int row_height() const noexcept { return row_height_; }
@@ -87,7 +79,6 @@ public:
         invalidate_cache_from(0);
         update_scroll_bounds();
         window_valid_ = false;
-        mark_dirty_hint(get_rect());
     }
 
     void set_row_flags_fn(RowFlagsFn fn, void* ctx = nullptr) noexcept {
@@ -132,7 +123,6 @@ public:
         prefetch_rows_ = (rows > 0) ? rows : 0;
         clear_cache();
         window_valid_ = false;
-        mark_dirty_hint(get_rect());
     }
 
     void notify_rows_changed(int start, int count) noexcept {
@@ -144,7 +134,6 @@ public:
         if (range_end > total) range_end = total;
         if (range_start >= range_end) return;
         invalidate_cache_range(range_start, range_end);
-        mark_dirty_rows_range(range_start, range_end);
     }
 
     void notify_row_height_changed(int start, int count) noexcept {
@@ -158,36 +147,28 @@ public:
         invalidate_cache_from(range_start);
         update_scroll_bounds();
         window_valid_ = false;
-        mark_dirty_from_row(range_start);
     }
 
     void set_selected(int index) noexcept {
         const int count = item_count_for_render();
         if (index < 0 || index >= count) return;
-        const int prev = selected_;
         selected_ = index;
         ensure_visible(index);
-        mark_dirty_row(prev);
-        mark_dirty_row(index);
         if (select_fn_) select_fn_(select_ctx_, index);
     }
 
     int selected() const noexcept { return selected_; }
 
     void set_scroll_y(int y) noexcept {
-        const int old = scroll_.scroll_y;
         scroll_.set_scroll(y);
         notify_scroll();
         window_valid_ = false;
-        mark_scroll_dirty(old, scroll_.scroll_y);
     }
 
     void add_scroll_y(int dy) noexcept {
-        const int old = scroll_.scroll_y;
         scroll_.add_scroll(dy);
         notify_scroll();
         window_valid_ = false;
-        mark_scroll_dirty(old, scroll_.scroll_y);
     }
 
     void set_wheel_step(int step) noexcept { scroll_.wheel_step = step; }
@@ -210,8 +191,6 @@ public:
 
         resolve_colors(st, state, bg, border, font);
         const rgba accent = resolve_accent(st, state);
-
-        flush_scroll_dirty();
 
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
@@ -428,111 +407,6 @@ private:
         return resolve_style(WidgetKind::ListView, current_style_state(), base, scratch);
     }
 
-    static bool intersect_rect(const Rect& a, const Rect& b, Rect& out) noexcept {
-        return rect_intersect(a, b, out);
-    }
-
-    static alg::scroll::Rect to_alg_rect(const Rect& r) noexcept {
-        return alg::scroll::Rect{r.x, r.y, r.w, r.h};
-    }
-
-    static Rect from_alg_rect(const alg::scroll::Rect& r) noexcept {
-        return Rect{r.x, r.y, r.w, r.h};
-    }
-
-    void accumulate_scroll_dirty(const Rect& r) noexcept {
-        scroll_dirty_.add(r);
-    }
-
-    void flush_scroll_dirty() noexcept {
-        Rect merged{};
-        if (!scroll_dirty_.take(merged)) return;
-        mark_dirty_hint(merged);
-    }
-
-    void mark_scroll_dirty(int old_scroll, int new_scroll) noexcept {
-        const int dy = new_scroll - old_scroll;
-        if (dy == 0) return;
-        const auto clip = get_rect();
-        const auto band = alg::scroll::dirty_band_simple(to_alg_rect(clip), dy);
-        const auto out = from_alg_rect(band);
-        if (rect_valid(out)) {
-            accumulate_scroll_dirty(out);
-        }
-    }
-
-    void mark_dirty_row(int index) noexcept {
-        if (index < 0) return;
-        const auto row = row_rect_for_index(index);
-        if (!rect_valid(row)) return;
-        Rect clipped{};
-        if (!intersect_rect(row, get_rect(), clipped)) return;
-        mark_dirty_hint(clipped);
-    }
-
-    void mark_dirty_rows_range(int start, int end) noexcept {
-        const auto range = row_range_rect(start, end);
-        if (!rect_valid(range)) return;
-        Rect clipped{};
-        if (!intersect_rect(range, get_rect(), clipped)) return;
-        mark_dirty_hint(clipped);
-    }
-
-    void mark_dirty_from_row(int start) noexcept {
-        const int end = item_count_for_render();
-        mark_dirty_rows_range(start, end);
-    }
-
-    Rect row_rect_for_index(int index) const noexcept {
-        Style st_scratch;
-        const Style& st = resolve_style_for_state(st_scratch);
-        const auto r = get_rect();
-        const int pad = st.metrics.padding;
-        int row_top = 0;
-        int row_h = row_height_for_index(index);
-        if (row_height_fn_) {
-            row_top = offset_for_index(index);
-        } else {
-            row_top = index * row_height_for_render();
-        }
-        return Rect{
-            r.x + pad,
-            r.y + pad + row_top - scroll_.scroll_y,
-            r.w - pad * 2,
-            row_h
-        };
-    }
-
-    Rect row_range_rect(int start, int end) const noexcept {
-        Style st_scratch;
-        const Style& st = resolve_style_for_state(st_scratch);
-        const auto r = get_rect();
-        if (start < 0) start = 0;
-        if (end < start) end = start;
-        const int count = item_count_for_render();
-        if (end > count) end = count;
-        if (start >= end) return {};
-        const int pad = st.metrics.padding;
-        int row_top = 0;
-        int range_h = 0;
-        if (row_height_fn_) {
-            row_top = offset_for_index(start);
-            for (int i = start; i < end; ++i) {
-                range_h += row_height_for_index(i);
-            }
-        } else {
-            const int row_h = row_height_for_render();
-            row_top = start * row_h;
-            range_h = (end - start) * row_h;
-        }
-        return Rect{
-            r.x + pad,
-            r.y + pad + row_top - scroll_.scroll_y,
-            r.w - pad * 2,
-            range_h
-        };
-    }
-
     void update_scroll_bounds() noexcept {
         const auto r = get_rect();
         Style st_scratch;
@@ -686,9 +560,7 @@ private:
     static void selection_clear(const void* ctx) noexcept {
         auto* self = static_cast<ListView*>(const_cast<void*>(ctx));
         if (!self) return;
-        const int prev = self->selected_;
         self->selected_ = -1;
-        self->mark_dirty_row(prev);
     }
 
     void clear_cache() noexcept {
@@ -745,8 +617,6 @@ private:
     int window_visible_{0};
     int window_offset_y_{0};
     bool window_valid_{false};
-    ScrollDirtyAccumulator scroll_dirty_{};
-
     static constexpr int kMaxCache = 32;
     VirtualListCache<kMaxCache> cache_{};
 };

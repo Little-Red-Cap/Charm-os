@@ -16,7 +16,7 @@
 | UI ownership、状态提交、布局与渲染硬规则 | [`ui_kernel_contract.md`](ui_kernel_contract.md) |
 | Vivid source 分层、渲染、catalog 与静态内存 | [`Modules/ui/vivid/ARCHITECTURE.md`](../../Modules/ui/vivid/ARCHITECTURE.md) |
 | 结构化视图与 widget 状态观察 | [`structured_view_model_v1.md`](structured_view_model_v1.md)、[`vivid_widget_state_observe.md`](vivid_widget_state_observe.md) |
-| Vivid runtime 范围与 backend 边界 | [`vivid_runtime_charter.md`](vivid_runtime_charter.md)、[`vivid_import_boundary_contract.md`](vivid_import_boundary_contract.md)、[`vivid_multibackend_plan.md`](vivid_multibackend_plan.md) |
+| Vivid runtime 范围与 backend 边界 | [`vivid_runtime_charter.md`](vivid_runtime_charter.md)、[`vivid_import_boundary_contract.md`](vivid_import_boundary_contract.md)、[`vivid_backend_contract.md`](vivid_backend_contract.md) |
 | replay 与 evidence 总入口 | [`vivid_replay_workflow.md`](vivid_replay_workflow.md)、[`vivid_evidence_lab_manifest_v0.md`](vivid_evidence_lab_manifest_v0.md)、[`vivid_evidence_stdout_law.md`](vivid_evidence_stdout_law.md) |
 | render/draw/scene evidence | [`vivid_render_evidence_chain_v0.md`](vivid_render_evidence_chain_v0.md)、[`vivid_draw_cmd_evidence_boundary_v0.md`](vivid_draw_cmd_evidence_boundary_v0.md) |
 | verdict、artifact 与 evidence vocabulary | [`vivid_causal_verdict_law_v0.md`](vivid_causal_verdict_law_v0.md)、[`vivid_evidence_vocabulary_law_v0.md`](vivid_evidence_vocabulary_law_v0.md) |

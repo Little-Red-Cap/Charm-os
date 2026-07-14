@@ -1,6 +1,6 @@
 # 项目指导与 Tracking 历史归档
 
-状态：archive。
+> status: `archived`
 
 本目录保留早期嵌入式 C++ 取舍笔记和仓库 review。它们包含可复用的 buffer/DMA、模板约束、
 escape hatch 和具体审查发现，但也存在以下问题：

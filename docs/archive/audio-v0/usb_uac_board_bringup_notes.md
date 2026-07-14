@@ -1,6 +1,6 @@
 # USB UAC 板级 Bring-up 历史笔记
 
-状态：archive。
+> status: `archived`
 
 本文保留一次 UAC 播放链调试中的检查点，不定义当前 USB/Audio 契约。当前
 [`usb.class_uac`](../../../Modules/io/usb/class/usb.uac.cppm) 只有 UAC2 descriptor 与

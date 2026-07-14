@@ -1,6 +1,6 @@
 # POSIX v0 阶段材料归档
 
-状态：archive。
+> status: `archived`
 
 本目录只保存 POSIX v0 中仍可独立消费的 ELF 基线、工具链故障记录和架构取舍。
 这些材料不作为现行能力说明。

@@ -476,3 +476,4 @@ vivid_configure_product_target(TARGET Charm-ui PROFILE missing UNKNOWN_FIELD val
 }
 
 Write-Host "[OK] Vivid product profile compiler smoke passed"
+exit 0

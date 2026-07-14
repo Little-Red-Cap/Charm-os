@@ -232,14 +232,22 @@ int main() {
         || !expect(render_failure_runtime.state() == player::PlayerPortRuntimeState::Failed,
                    "render failure state")
         || !expect(!render_failure_runtime.frame(3000, 1000),
-                   "frame rejected after render failure")) {
+                    "frame rejected after render failure")
+        || !expect(render_failure_runtime.last_failure().stage
+                            == player::PlayerPortStage::render
+                        && render_failure_runtime.last_failure().code
+                            == player::PlayerPortErrc::present_failed,
+                    "render failure remains sticky")) {
         return 1;
     }
     render_failure_runtime.shutdown();
     render_failure_runtime.shutdown();
     if (!expect(render_failure_player.update_count == 1, "render failure update once")
         || !expect(render_failure_player.render_count == 1, "render failure render once")
-        || !expect(render_failure_player.shutdown_count == 1, "render failure shutdown once")) {
+        || !expect(render_failure_player.shutdown_count == 1, "render failure shutdown once")
+        || !expect(render_failure_runtime.last_failure().code
+                            == player::PlayerPortErrc::present_failed,
+                    "shutdown preserves render failure")) {
         return 1;
     }
 
@@ -279,12 +287,18 @@ int main() {
         || !expect(regressing_player.update_count == 1,
                    "regressing clock rejected before update")
         || !expect(regressing_runtime.last_failure().stage == player::PlayerPortStage::update
-                       && regressing_runtime.last_failure().code
-                           == player::PlayerPortErrc::clock_regressed,
-                   "clock regression diagnostics")) {
+                        && regressing_runtime.last_failure().code
+                            == player::PlayerPortErrc::clock_regressed,
+                    "clock regression diagnostics")) {
         return 1;
     }
+    (void)regressing_runtime.update_frame(101, 1);
     regressing_runtime.shutdown();
+    if (!expect(regressing_runtime.last_failure().code
+                    == player::PlayerPortErrc::clock_regressed,
+                "clock failure remains sticky")) {
+        return 1;
+    }
 
     FakePlayer split_phase_player{};
     auto split_phase_endpoint = endpoint;
@@ -300,6 +314,16 @@ int main() {
         || !expect(split_phase_runtime.render_frame(), "split phase render")
         || !expect(split_phase_player.render_count == 1, "render phase isolated")
         || !expect(!split_phase_runtime.render_frame(), "duplicate render rejected")) {
+        return 1;
+    }
+    split_phase_player.update_result = player::PlayerPortErrc::endpoint_failed;
+    if (!expect(!split_phase_runtime.update_frame(7000, 1000),
+                "terminal failure follows recoverable phase error")
+        || !expect(split_phase_runtime.last_failure().stage
+                       == player::PlayerPortStage::update
+                   && split_phase_runtime.last_failure().code
+                       == player::PlayerPortErrc::endpoint_failed,
+                   "terminal failure replaces recoverable phase error")) {
         return 1;
     }
     split_phase_runtime.shutdown();
@@ -318,10 +342,17 @@ int main() {
                            == player::PlayerPortErrc::input_failed,
                    "input failure diagnostics")
         || !expect(input_failure_player.update_count == 0,
-                   "input failure prevents update")) {
+                    "input failure prevents update")) {
         return 1;
     }
+    (void)input_failure_runtime.render_frame();
     input_failure_runtime.shutdown();
+    if (!expect(input_failure_runtime.last_failure().stage == player::PlayerPortStage::input
+                    && input_failure_runtime.last_failure().code
+                        == player::PlayerPortErrc::input_failed,
+                "input failure remains sticky")) {
+        return 1;
+    }
 
     FakeInput empty_input{.next = 2};
     FakePlayer update_failure_player{

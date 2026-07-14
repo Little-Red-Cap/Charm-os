@@ -746,7 +746,7 @@ export namespace audio {
                         stress_delay_ms(static_cast<std::uint32_t>(stress_dist_(rng_)));
                     }
 #endif
-                    (void)bindings_.sink.stop();
+                    stop_sink_if_started();
                     state_ = PlayerState::buffering;
                     buffer_until_high();
                     return;
@@ -967,9 +967,10 @@ export namespace audio {
                     (void)out::print<"\n">();
                 }
 #endif
-                set_error(Errc::io_error, PlayerErrorStage::open_source);
+                set_error(source.error(), PlayerErrorStage::open_source);
                 return;
             }
+            source_open_ = true;
             src_iface_ = *source;
             data_plane_.close_source();
 
@@ -1062,10 +1063,12 @@ export namespace audio {
             SinkConfig cfg{};
             cfg.format = to_stream_format(output_fmt_);
             cfg.period_frames = config_.preferred_period_frames;
-            if (!bindings_.sink.open(cfg)) {
-                set_error(Errc::io_error, PlayerErrorStage::sink_open);
+            const auto sink_open = bindings_.sink.open(cfg);
+            if (!sink_open) {
+                set_error(sink_open.error(), PlayerErrorStage::sink_open);
                 return;
             }
+            sink_open_ = true;
             std::uint32_t period_frames = bindings_.sink.actual_period_frames();
             if (period_frames == 0) {
                 period_frames = output_fmt_.rate / 100;
@@ -1096,7 +1099,7 @@ export namespace audio {
         void handle_seek(std::uint64_t ms) {
             if (state_ == PlayerState::idle) return;
             const bool was_paused = state_ == PlayerState::paused;
-            (void)bindings_.sink.stop();
+            stop_sink_if_started();
             if (data_plane_.fifo_capacity()) data_plane_.clear_fifo();
             const std::uint64_t frames = (static_cast<std::uint64_t>(input_fmt_.rate) * ms) / 1000;
             const std::uint64_t total = data_plane_.total_frames();
@@ -1119,7 +1122,7 @@ export namespace audio {
 
         void handle_pause() {
             if (state_ == PlayerState::playing || state_ == PlayerState::buffering) {
-                (void)bindings_.sink.stop();
+                stop_sink_if_started();
                 running_ = false;
                 state_ = PlayerState::paused;
             }
@@ -1131,10 +1134,12 @@ export namespace audio {
             state_ = PlayerState::buffering;
             if (data_plane_.fifo_capacity() &&
                 data_plane_.fifo().size_bytes() >= data_plane_.high_water()) {
-                if (!bindings_.sink.start()) {
-                    set_error(Errc::io_error, PlayerErrorStage::resume);
+                const auto started = bindings_.sink.start();
+                if (!started) {
+                    set_error(started.error(), PlayerErrorStage::resume);
                     return;
                 }
+                sink_started_ = true;
                 state_ = PlayerState::playing;
             }
         }
@@ -1144,9 +1149,9 @@ export namespace audio {
                 set_error(Errc::bad_state, PlayerErrorStage::reconfigure);
                 return;
             }
-            (void)bindings_.sink.stop();
+            stop_sink_if_started();
             bindings_.sink.clear_underrun_flag();
-            bindings_.sink.close();
+            close_sink_if_open();
             if (data_plane_.fifo_capacity()) data_plane_.clear_fifo();
 
             input_fmt_ = input_fmt;
@@ -1173,10 +1178,12 @@ export namespace audio {
             SinkConfig cfg{};
             cfg.format = to_stream_format(output_fmt_);
             cfg.period_frames = config_.preferred_period_frames;
-            if (!bindings_.sink.open(cfg)) {
-                set_error(Errc::io_error, PlayerErrorStage::sink_open);
+            const auto sink_open = bindings_.sink.open(cfg);
+            if (!sink_open) {
+                set_error(sink_open.error(), PlayerErrorStage::sink_open);
                 return;
             }
+            sink_open_ = true;
             std::uint32_t period_frames = bindings_.sink.actual_period_frames();
             if (period_frames == 0) {
                 period_frames = output_fmt_.rate / 100;
@@ -1202,15 +1209,10 @@ export namespace audio {
         }
 
         void stop_internal() {
-            if (state_ == PlayerState::idle) return;
+            if (state_ == PlayerState::idle && !source_open_ && !sink_open_) return;
             state_ = PlayerState::stopping;
-            (void)bindings_.sink.stop();
-            bindings_.sink.close();
-            data_plane_.close_source();
-            bindings_.source.close();
-            src_iface_ = {};
+            release_active_resources();
             if (data_plane_.fifo_capacity()) data_plane_.clear_fifo();
-            running_ = false;
             is_flac_ = false;
             is_wav_ = false;
             is_mp3_ = false;
@@ -1222,6 +1224,7 @@ export namespace audio {
         }
 
         void set_error(Errc code, PlayerErrorStage stage) noexcept {
+            release_active_resources();
             last_err_ = code;
             last_err_stage_ = stage;
             state_ = PlayerState::error;
@@ -1262,12 +1265,42 @@ export namespace audio {
             if (data_plane_.fifo_capacity() &&
                 (data_plane_.fifo().size_bytes() >= data_plane_.high_water() ||
                  (!data_plane_.has_more_data() && data_plane_.fifo().size_bytes() > 0))) {
-                if (!bindings_.sink.start()) {
-                    set_error(Errc::io_error, PlayerErrorStage::sink_start);
+                const auto started = bindings_.sink.start();
+                if (!started) {
+                    set_error(started.error(), PlayerErrorStage::sink_start);
                     return;
                 }
+                sink_started_ = true;
                 state_ = PlayerState::playing;
             }
+        }
+
+        void stop_sink_if_started() noexcept {
+            if (!sink_started_) {
+                return;
+            }
+            (void)bindings_.sink.stop();
+            sink_started_ = false;
+        }
+
+        void close_sink_if_open() noexcept {
+            if (!sink_open_) {
+                return;
+            }
+            stop_sink_if_started();
+            bindings_.sink.close();
+            sink_open_ = false;
+        }
+
+        void release_active_resources() noexcept {
+            close_sink_if_open();
+            if (source_open_) {
+                data_plane_.close_source();
+                bindings_.source.close();
+                source_open_ = false;
+            }
+            src_iface_ = {};
+            running_ = false;
         }
 
         bool configure_buffers() {
@@ -1480,6 +1513,9 @@ export namespace audio {
         bool is_wav_{false};
         bool is_mp3_{false};
         bool running_{false};
+        bool source_open_{false};
+        bool sink_open_{false};
+        bool sink_started_{false};
         std::uint64_t last_underrun_seen_{0};
 
         std::uint32_t stress_ms_{0};

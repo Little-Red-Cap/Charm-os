@@ -49,6 +49,7 @@ namespace {
         std::size_t open_count{0};
         std::size_t close_count{0};
         bool allow_open{true};
+        audio::Errc open_error{audio::Errc::io_error};
 
         bool open(const char*) noexcept {
             ++open_count;
@@ -82,6 +83,23 @@ namespace {
         }
     };
 
+    audio::AudioSourceBinding make_source_binding(MemorySource& source) noexcept {
+        return audio::AudioSourceBinding{
+            .ctx = &source,
+            .open_fn = [](void* ctx, const char* path) noexcept
+                -> audio::Result<media::StreamSourceRef> {
+                auto& value = *static_cast<MemorySource*>(ctx);
+                if (!value.open(path)) {
+                    return audio::unexpected(value.open_error);
+                }
+                return media::make_stream_source_ref(value);
+            },
+            .close_fn = [](void* ctx) noexcept {
+                static_cast<MemorySource*>(ctx)->close();
+            },
+        };
+    }
+
     struct CaptureSink {
         media::FillCallback callback{nullptr};
         void* callback_user{nullptr};
@@ -92,14 +110,26 @@ namespace {
         std::size_t close_count{0};
         std::size_t fill_count{0};
         bool running{false};
+        audio::Errc open_error{audio::Errc::ok};
+        audio::Errc start_error{audio::Errc::ok};
 
         void set_clock(charm::system::Clock&) noexcept {}
         audio::Result<void> open(const media::SinkConfig& config) noexcept {
             ++open_count;
+            if (open_error != audio::Errc::ok) {
+                return audio::unexpected(open_error);
+            }
             stream_format = config.format;
             return {};
         }
-        audio::Result<void> start() noexcept { ++start_count; running = true; return {}; }
+        audio::Result<void> start() noexcept {
+            ++start_count;
+            if (start_error != audio::Errc::ok) {
+                return audio::unexpected(start_error);
+            }
+            running = true;
+            return {};
+        }
         audio::Result<void> stop() noexcept { ++stop_count; running = false; return {}; }
         void close() noexcept { ++close_count; running = false; }
         void set_fill_callback(media::FillCallback value, void* user) noexcept {
@@ -136,6 +166,16 @@ namespace {
         }
         return false;
     }
+
+    bool fail(audio::AudioPlayer& player, const char* path) {
+        if (!player.play(path)) return false;
+        for (int i = 0; i < 32; ++i) {
+            player.tick();
+            if (player.state() == audio::PlayerState::error) return true;
+            if (player.state() == audio::PlayerState::playing) return false;
+        }
+        return false;
+    }
 }
 
 int main() {
@@ -167,25 +207,144 @@ int main() {
     first->shutdown();
     second->shutdown();
     if (!expect(first_source.close_count == 1 && second_source.close_count == 1,
-                "provider-owned sources close")
+                 "provider-owned sources close")
+        || !expect(first_sink.stop_count == 1 && second_sink.stop_count == 1
+                       && first_sink.close_count == 1 && second_sink.close_count == 1,
+                   "started sinks stop and close once")
         || !expect(first_sink.fill_count != 0 && second_sink.fill_count != 0,
-                   "fill callbacks execute")) {
+                    "fill callbacks execute")) {
         return 1;
     }
 
-    static MemorySource failing_source{.allow_open = false};
-    static CaptureSink failing_sink{};
-    auto failing = std::make_unique<audio::AudioPlayer>(
-        config,
-        audio::PlayerBindings{audio::make_audio_source_binding(failing_source),
-                              audio::make_audio_sink_binding(failing_sink)},
-        clock);
-    (void)failing->play("missing.wav");
-    failing->tick();
-    if (!expect(failing->state() == audio::PlayerState::error
-                    && failing->last_error_stage() == audio::PlayerErrorStage::open_source,
-                "provider failure is diagnosed")) {
-        return 1;
+    {
+        static MemorySource failing_source{};
+        static CaptureSink failing_sink{};
+        failing_source.allow_open = false;
+        failing_source.open_error = audio::Errc::timeout;
+        auto failing = std::make_unique<audio::AudioPlayer>(
+            config,
+            audio::PlayerBindings{make_source_binding(failing_source),
+                                  audio::make_audio_sink_binding(failing_sink)},
+            clock);
+        if (!expect(fail(*failing, "missing.wav"), "source open failure reached")
+            || !expect(failing->last_error_stage() == audio::PlayerErrorStage::open_source
+                           && failing->last_error() == audio::Errc::timeout,
+                       "source error is preserved")
+            || !expect(failing_source.close_count == 0,
+                       "failed source open is not closed")
+            || !expect(failing_sink.stop_count == 0 && failing_sink.close_count == 0,
+                       "unopened sink is untouched")) {
+            return 1;
+        }
+    }
+
+    {
+        static MemorySource unsupported_source{};
+        static CaptureSink unsupported_sink{};
+        unsupported_source.bytes.fill(std::byte{});
+        auto unsupported = std::make_unique<audio::AudioPlayer>(
+            config,
+            audio::PlayerBindings{make_source_binding(unsupported_source),
+                                  audio::make_audio_sink_binding(unsupported_sink)},
+            clock);
+        if (!expect(fail(*unsupported, "unknown.bin"), "unsupported format reached")
+            || !expect(unsupported->last_error_stage()
+                           == audio::PlayerErrorStage::unsupported_format,
+                       "unsupported format diagnosed")
+            || !expect(unsupported_source.close_count == 1,
+                       "unsupported source closes immediately")
+            || !expect(unsupported_sink.open_count == 0
+                           && unsupported_sink.close_count == 0,
+                       "unsupported format never acquires sink")) {
+            return 1;
+        }
+    }
+
+    {
+        static MemorySource malformed_source{};
+        static CaptureSink malformed_sink{};
+        malformed_source.bytes.fill(std::byte{});
+        auto malformed = std::make_unique<audio::AudioPlayer>(
+            config,
+            audio::PlayerBindings{make_source_binding(malformed_source),
+                                  audio::make_audio_sink_binding(malformed_sink)},
+            clock);
+        if (!expect(fail(*malformed, "broken.wav"), "decoder failure reached")
+            || !expect(malformed->last_error_stage() == audio::PlayerErrorStage::wav_parse,
+                       "decoder failure diagnosed")
+            || !expect(malformed_source.close_count == 1,
+                       "decoder failure closes source immediately")) {
+            return 1;
+        }
+    }
+
+    {
+        static MemorySource buffer_source{};
+        static CaptureSink buffer_sink{};
+        auto buffer_config = config;
+        buffer_config.output_mode = audio::OutputMode::fixed_rate;
+        buffer_config.fixed_rate = 96000;
+        auto buffer_failure = std::make_unique<audio::AudioPlayer>(
+            buffer_config,
+            audio::PlayerBindings{make_source_binding(buffer_source),
+                                  audio::make_audio_sink_binding(buffer_sink)},
+            clock);
+        if (!expect(fail(*buffer_failure, "buffer.wav"), "buffer failure reached")
+            || !expect(buffer_failure->last_error_stage()
+                           == audio::PlayerErrorStage::buffer_config,
+                       "buffer failure diagnosed")
+            || !expect(buffer_source.close_count == 1 && buffer_sink.open_count == 0,
+                       "buffer failure releases source before sink open")) {
+            return 1;
+        }
+    }
+
+    {
+        static MemorySource sink_open_source{};
+        static CaptureSink sink_open_failure{};
+        sink_open_failure.open_error = audio::Errc::timeout;
+        auto open_failure = std::make_unique<audio::AudioPlayer>(
+            config,
+            audio::PlayerBindings{make_source_binding(sink_open_source),
+                                  audio::make_audio_sink_binding(sink_open_failure)},
+            clock);
+        if (!expect(fail(*open_failure, "sink-open.wav"), "sink open failure reached")
+            || !expect(open_failure->last_error_stage() == audio::PlayerErrorStage::sink_open
+                           && open_failure->last_error() == audio::Errc::timeout,
+                       "sink open error is preserved")
+            || !expect(sink_open_source.close_count == 1,
+                       "sink open failure closes source immediately")
+            || !expect(sink_open_failure.open_count == 1
+                           && sink_open_failure.stop_count == 0
+                           && sink_open_failure.close_count == 0,
+                       "failed sink open is not stopped or closed")) {
+            return 1;
+        }
+    }
+
+    {
+        static MemorySource sink_start_source{};
+        static CaptureSink sink_start_failure{};
+        sink_start_failure.start_error = audio::Errc::timeout;
+        auto start_failure = std::make_unique<audio::AudioPlayer>(
+            config,
+            audio::PlayerBindings{make_source_binding(sink_start_source),
+                                  audio::make_audio_sink_binding(sink_start_failure)},
+            clock);
+        if (!expect(fail(*start_failure, "sink-start.wav"), "sink start failure reached")
+            || !expect(start_failure->last_error_stage()
+                           == audio::PlayerErrorStage::sink_start
+                           && start_failure->last_error() == audio::Errc::timeout,
+                       "sink start error is preserved")
+            || !expect(sink_start_source.close_count == 1,
+                       "sink start failure closes source immediately")
+            || !expect(sink_start_failure.open_count == 1
+                           && sink_start_failure.start_count == 1
+                           && sink_start_failure.stop_count == 0
+                           && sink_start_failure.close_count == 1,
+                       "failed sink start closes without stop")) {
+            return 1;
+        }
     }
 
     auto legacy = std::make_unique<audio::AudioPlayer>(config, clock);

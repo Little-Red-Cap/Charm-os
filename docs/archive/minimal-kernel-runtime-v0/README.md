@@ -1,5 +1,7 @@
 # Minimal-kernel Runtime v0 讨论归档
 
+> `status`: `archived`
+
 ## 归档原因
 
 早期 runtime 文档按 `bridge`、`mailbox`、`runtime_service`、`task_runtime_api` 分开推进，累计了大量重复的 API 枚举、证据清单和未来叙事。现行源码边界已经可以由一份聚合契约准确说明，因此默认入口收敛到：

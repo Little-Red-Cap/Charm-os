@@ -1,5 +1,7 @@
 # Architecture Inventory v0 归档摘要
 
+> `status`: `archived`
+
 ## 归档原因
 
 旧 `architecture_overview.md` 长期累积目录清单、模块广告、UI 能力回收待办、第三方依赖、POSIX/ModuleX/FS 图、测试状态和当前 focus，已经无法作为稳定实现地图。现行入口改为：

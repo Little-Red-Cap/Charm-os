@@ -1,6 +1,6 @@
 # Device Model v0 讨论归档
 
-## 状态
+> `status`: `archived`
 
 早期 `device_model_overview.md` 试图为 USB、FS、Audio、IO、Kernel/ModuleX 建立统一 `Device/Driver/Bus/Registry` 生命周期。当前源码只证明了运行期 discovery 子系统和少量 USB/stable-slot 样本，不能支持该范围的统一化主张。
 

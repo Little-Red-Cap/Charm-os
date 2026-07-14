@@ -1,6 +1,6 @@
 # Device Contract Admission v0 归档摘要
 
-## 状态
+> `status`: `archived`
 
 本目录记录 Constitution 建立前的设备接口准入实验。旧 interface policy、narrow waist、admission
 matrix、evidence ladder 和 promotion queue 已退出默认阅读路径。

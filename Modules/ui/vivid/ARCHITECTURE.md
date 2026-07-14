@@ -151,9 +151,11 @@ handle，容器析构也会清空仍 active 的 handle。容量耗尽显式返�
 文本 owner 必须覆盖控件的完整绘制周期；传入 `nullptr` 等价于空字符串。需要独立文本所有权时，由上层状态或
 专用文本存储承担，不能把最大内容容量重新乘到每个折叠面板实例上。
 
-`Label` 及组合它的 object widget 借用调用方文本，并在 setter 时记录最多 64 字节的 admitted range；测量与
-绘制都使用该显式长度，不重新做无界 NUL 扫描。owner 必须覆盖控件使用期；原地修改文本后必须再次调用 setter
-刷新长度和几何。需要更长或自有文本时，应使用 SoA TextArena 或显式的上层文本存储，而不是恢复逐实例缓冲。
+`Label` 及组合它的 object widget 借用调用方文本，并在 setter 时记录最多 64 字节的 admitted range；只读
+`TextBox` 使用相同所有权模型，admitted range 为 256 字节。测量与绘制都使用显式长度，不重新做无界 NUL
+扫描。owner 必须覆盖控件使用期；原地修改文本后必须再次调用 setter 刷新长度和几何。需要更长或自有文本时，
+应使用 SoA TextArena 或显式的上层文本存储，而不是恢复逐实例缓冲。可编辑 `TextInput`/`TextArea` 必须保存
+编辑状态及内容，不能套用只读 view 的借用契约。
 
 跨帧保存的 UI callback 使用 `util::delegate` 并由 owner 保证 target 生命周期。历史名称 `Callback` 只是
 `util::delegate<>` 的单轨别名，不得重新增加独立的 `fn + void*` fallback 或第二份 callback 存储。

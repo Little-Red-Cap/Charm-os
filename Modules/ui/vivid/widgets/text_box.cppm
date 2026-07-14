@@ -1,5 +1,7 @@
 module;
 #include <cstddef>
+#include <cstdint>
+#include <string_view>
 export module charm.widgets.text_box;
 
 import charm.core.object;
@@ -17,14 +19,14 @@ class TextBox : public WidgetBase<TextBox> {
 public:
     explicit TextBox(const char* text = "") {
         set_size(200, 80);
-        set_text(text);
+        assign_text(text);
     }
 
     void set_text(const char* text) noexcept {
-        assign(text);
+        assign_text(text);
     }
 
-    const char* text() const noexcept { return buf_; }
+    const char* text() const noexcept { return text_; }
 
     void set_wrap(TextWrap wrap) noexcept { wrap_ = wrap; }
     void set_align(TextAlignH h, TextAlignV v) noexcept { align_h_ = h; align_v_ = v; }
@@ -45,28 +47,31 @@ public:
 
         const Rect inner{r.x + st.metrics.padding, r.y + st.metrics.padding,
                          r.w - st.metrics.padding * 2, r.h - st.metrics.padding * 2};
-        draw_text_box(cvs, inner, buf_, font, resolve_font(st),
+        draw_text_box(cvs, inner, std::string_view{text_, text_size_}, font, resolve_font(st),
                       align_h_, align_v_, wrap_, ellipsis_);
     }
 
 private:
-    static constexpr int kMax = 256;
-    char buf_[kMax + 1]{};
-    int len_{0};
+    static constexpr std::uint16_t kMaxTextBytes = 256;
+
+    static std::uint16_t bounded_text_size(const char* text) noexcept {
+        if (!text) return 0;
+        std::uint16_t size = 0;
+        while (size < kMaxTextBytes && text[size] != '\0') ++size;
+        return size;
+    }
+
+    void assign_text(const char* text) noexcept {
+        text_ = text ? text : "";
+        text_size_ = bounded_text_size(text_);
+    }
+
+    const char* text_{""};
+    std::uint16_t text_size_{0};
     TextAlignH align_h_{TextAlignH::Left};
     TextAlignV align_v_{TextAlignV::Top};
     TextWrap wrap_{TextWrap::Word};
     TextEllipsis ellipsis_{TextEllipsis::None};
-
-    void assign(const char* s) noexcept {
-        len_ = 0;
-        if (!s) { buf_[0] = '\0'; return; }
-        while (s[len_] != '\0' && len_ < kMax) {
-            buf_[len_] = s[len_];
-            ++len_;
-        }
-        buf_[len_] = '\0';
-    }
 };
 
 

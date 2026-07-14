@@ -25,6 +25,7 @@ import charm.widgets.scroll_container;
 import charm.widgets.spin_zoom_widget;
 import charm.widgets.spectrum_view;
 import charm.widgets.table_view;
+import charm.widgets.text_box;
 import charm.widgets.tree_view;
 import charm.widgets.waveform_view;
 import charm.gfx.canvas;
@@ -43,6 +44,8 @@ namespace {
     static_assert(!SupportsObjectChildren<Button>);
     static_assert(sizeof(Label) <= 72,
                   "Label must retain a bounded text view instead of inline text storage");
+    static_assert(sizeof(TextBox) <= 56,
+                  "read-only TextBox must retain a bounded text view instead of inline text storage");
     static_assert(sizeof(Button) <= 112,
                   "text Button must not retain icon, style, or observer storage");
     static_assert(sizeof(ListItem) <= 120,
@@ -335,10 +338,11 @@ namespace {
 int main() {
     print_widget_signal_run_begin();
 
-    std::printf("[ws-abi] object_base=%zu callback=%zu label=%zu button=%zu list_item=%zu menu_item=%zu scroll_container=%zu list=%zu foldable_panel=%zu interaction_list=%zu double_tap=%zu pinch=%zu drag=%zu long_press=%zu\n",
+    std::printf("[ws-abi] object_base=%zu callback=%zu label=%zu text_box=%zu button=%zu list_item=%zu menu_item=%zu scroll_container=%zu list=%zu foldable_panel=%zu interaction_list=%zu double_tap=%zu pinch=%zu drag=%zu long_press=%zu\n",
                 sizeof(ObjectBase),
                 sizeof(Callback),
                 sizeof(Label),
+                sizeof(TextBox),
                 sizeof(Button),
                 sizeof(ListItem),
                 sizeof(MenuItem),
@@ -718,6 +722,17 @@ int main() {
     if (!expect(borrowed_label.get_rect().w == 0,
                 "label normalizes null text to an empty bounded view")) return 1;
 
+    char borrowed_text_box_text[]{"Mutable text box"};
+    TextBox borrowed_text_box{borrowed_text_box_text};
+    if (!expect(borrowed_text_box.text() == borrowed_text_box_text,
+                "text box borrows caller text instead of copying inline storage")) return 1;
+    borrowed_text_box_text[0] = 'm';
+    if (!expect(borrowed_text_box.text()[0] == 'm',
+                "text box observes caller-owned text mutations")) return 1;
+    borrowed_text_box.set_text(nullptr);
+    if (!expect(borrowed_text_box.text() != nullptr && borrowed_text_box.text()[0] == '\0',
+                "text box normalizes null text to an empty bounded view")) return 1;
+
     const Style saved_scroll_style = Theme::instance().get<ScrollContainer>();
     Style themed_scroll_style = saved_scroll_style;
     themed_scroll_style.colors.bg_color = {248, 8, 8, 255};
@@ -1026,10 +1041,11 @@ int main() {
     print_widget_signal_case("owned_interaction_dispatch");
     std::printf(" image=direct scroll=direct spin_zoom=direct\n");
     print_widget_signal_case("object_runtime_footprint");
-    std::printf(" object_base=%zu child_capacity=%zu opt_in_components=%zu console_box=%zu console_line=%zu console_buffer=%zu chart=%zu histogram=%zu histogram_view=%zu waveform_view=%zu spectrum_view=%zu spectrum_workspace=%zu data_source_calls=%d/%d\n",
+    std::printf(" object_base=%zu child_capacity=%zu opt_in_components=%zu text_box=%zu console_box=%zu console_line=%zu console_buffer=%zu chart=%zu histogram=%zu histogram_view=%zu waveform_view=%zu spectrum_view=%zu spectrum_workspace=%zu data_source_calls=%d/%d\n",
                 sizeof(ObjectBase),
                 scroll.child_storage_capacity(),
                 sizeof(InteractionList<>) + sizeof(DragStrategy) + sizeof(LongPressStrategy),
+                sizeof(TextBox),
                 sizeof(ConsoleBox),
                 sizeof(ConsoleBox::Buffer::Line),
                 sizeof(ConsoleBox::Buffer),

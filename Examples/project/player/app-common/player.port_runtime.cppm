@@ -145,8 +145,12 @@ export namespace player {
         void record_failure(PlayerPortStage stage,
                             PlayerPortErrc code,
                             bool terminal = true) noexcept {
+            if (terminal_failure_recorded_) {
+                return;
+            }
             last_failure_ = PlayerPortFailure{stage, code};
             if (terminal) {
+                terminal_failure_recorded_ = true;
                 state_ = PlayerPortRuntimeState::Failed;
                 frame_pending_render_ = false;
             }
@@ -164,5 +168,6 @@ export namespace player {
         std::size_t frame_count_{0};
         std::size_t present_count_{0};
         PlayerPortFailure last_failure_{};
+        bool terminal_failure_recorded_{false};
     };
 }

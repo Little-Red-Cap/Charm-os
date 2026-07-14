@@ -28,6 +28,7 @@ export namespace player::host_sdl3 {
     enum class OpenCode : std::uint8_t {
         ok,
         invalid_surface,
+        invalid_endpoint,
         host_open_failed,
         runtime_bootstrap_failed,
         run_loop_failed,
@@ -47,8 +48,12 @@ export namespace player::host_sdl3 {
                                     PlayerRasterSurface surface,
                                     PlayerRuntimeEndpoint endpoint) {
             close();
-            if (!surface.valid() || !endpoint.valid()) {
+            last_player_failure_ = {};
+            if (!surface.valid()) {
                 return OpenCode::invalid_surface;
+            }
+            if (!endpoint.valid()) {
+                return OpenCode::invalid_endpoint;
             }
             if (!host_.open(config).is_ok()) {
                 return OpenCode::host_open_failed;
@@ -64,6 +69,7 @@ export namespace player::host_sdl3 {
             };
             runtime_.emplace(port_, endpoint);
             if (!runtime_->bootstrap()) {
+                last_player_failure_ = runtime_->last_failure();
                 close();
                 return OpenCode::runtime_bootstrap_failed;
             }
@@ -131,6 +137,9 @@ export namespace player::host_sdl3 {
         }
         [[nodiscard]] std::size_t dispatched_input_count() const noexcept {
             return runtime_ ? runtime_->dispatched_input_count() : 0;
+        }
+        [[nodiscard]] PlayerPortFailure last_player_failure() const noexcept {
+            return last_player_failure_;
         }
         [[nodiscard]] const char* last_error() const noexcept { return host_.last_error(); }
 
@@ -281,8 +290,10 @@ export namespace player::host_sdl3 {
             if (!self || self->failed_ || self->quit_requested_ || !self->runtime_) {
                 return;
             }
-            self->failed_ = !self->runtime_->update_frame(
-                now_us, dt_us, kInputDrainBudget);
+            if (!self->runtime_->update_frame(now_us, dt_us, kInputDrainBudget)) {
+                self->last_player_failure_ = self->runtime_->last_failure();
+                self->failed_ = true;
+            }
         }
 
         static void run_render(void* ctx,
@@ -292,7 +303,10 @@ export namespace player::host_sdl3 {
             if (!self || self->failed_ || self->quit_requested_ || !self->runtime_) {
                 return;
             }
-            self->failed_ = !self->runtime_->render_frame();
+            if (!self->runtime_->render_frame()) {
+                self->last_player_failure_ = self->runtime_->last_failure();
+                self->failed_ = true;
+            }
         }
 
         backend::Host host_{};
@@ -301,6 +315,7 @@ export namespace player::host_sdl3 {
         PlayerPort port_{};
         std::optional<PlayerPortRuntime> runtime_{};
         std::optional<charm::system::RunLoop<3>> loop_{};
+        PlayerPortFailure last_player_failure_{};
         bool quit_requested_{false};
         bool failed_{false};
     };

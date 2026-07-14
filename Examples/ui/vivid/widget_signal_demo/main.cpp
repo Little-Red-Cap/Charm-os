@@ -26,6 +26,7 @@ import charm.widgets.scroll_container;
 import charm.widgets.spin_zoom_widget;
 import charm.widgets.spectrum_view;
 import charm.widgets.table_view;
+import charm.widgets.tabview;
 import charm.widgets.text_box;
 import charm.widgets.tree_view;
 import charm.widgets.waveform_view;
@@ -51,6 +52,8 @@ namespace {
                   "text Button must not retain icon, style, or observer storage");
     static_assert(sizeof(Dropdown) <= 256,
                   "Dropdown must borrow option labels instead of copying inline text storage");
+    static_assert(sizeof(TabView) <= 160,
+                  "TabView must borrow tab titles instead of copying inline text storage");
     static_assert(sizeof(ListItem) <= 120,
                   "ListItem must not retain an implicit observer slot table");
     static_assert(sizeof(MenuItem) <= 128,
@@ -172,6 +175,19 @@ namespace {
 
         void on_long_press() noexcept {
             ++long_presses;
+        }
+    };
+
+    struct TabViewPageProbe {
+        WidgetHandle first_handle{WidgetKind::Button, 90, 1};
+        WidgetHandle second_handle{WidgetKind::Button, 91, 1};
+        ObjectBase first{};
+        ObjectBase second{};
+
+        ObjectBase* resolve(WidgetHandle handle) noexcept {
+            if (handle == first_handle) return &first;
+            if (handle == second_handle) return &second;
+            return nullptr;
         }
     };
 
@@ -341,13 +357,14 @@ namespace {
 int main() {
     print_widget_signal_run_begin();
 
-    std::printf("[ws-abi] object_base=%zu callback=%zu label=%zu text_box=%zu button=%zu dropdown=%zu list_item=%zu menu_item=%zu scroll_container=%zu list=%zu foldable_panel=%zu interaction_list=%zu double_tap=%zu pinch=%zu drag=%zu long_press=%zu\n",
+    std::printf("[ws-abi] object_base=%zu callback=%zu label=%zu text_box=%zu button=%zu dropdown=%zu tabview=%zu list_item=%zu menu_item=%zu scroll_container=%zu list=%zu foldable_panel=%zu interaction_list=%zu double_tap=%zu pinch=%zu drag=%zu long_press=%zu\n",
                 sizeof(ObjectBase),
                 sizeof(Callback),
                 sizeof(Label),
                 sizeof(TextBox),
                 sizeof(Button),
                 sizeof(Dropdown),
+                sizeof(TabView),
                 sizeof(ListItem),
                 sizeof(MenuItem),
                 sizeof(ScrollContainer),
@@ -736,6 +753,42 @@ int main() {
     borrowed_text_box.set_text(nullptr);
     if (!expect(borrowed_text_box.text() != nullptr && borrowed_text_box.text()[0] == '\0',
                 "text box normalizes null text to an empty bounded view")) return 1;
+
+    const Style saved_tabview_style = Theme::instance().get<TabView>();
+    Style tabview_probe_style = saved_tabview_style;
+    tabview_probe_style.font = &label_probe_font;
+    tabview_probe_style.metrics.padding = 2;
+    Theme::instance().set<TabView>(tabview_probe_style);
+
+    TabViewPageProbe tab_pages{};
+    TabView tabview{};
+    tabview.set_rect({0, 0, 96, 96});
+    tabview.set_resolver<&TabViewPageProbe::resolve>(tab_pages);
+    char borrowed_tab_title[]{"A"};
+    tabview.add_tab(borrowed_tab_title, tab_pages.first_handle);
+    if (!expect(tab_pages.first.is_visible(),
+                "first tab stays visible when added after resolver binding")) return 1;
+    tabview.add_tab("A", tab_pages.second_handle);
+    if (!expect(tab_pages.first.is_visible() && !tab_pages.second.is_visible(),
+                "new inactive tab is hidden immediately")) return 1;
+    tabview.set_active(1);
+    if (!expect(!tab_pages.first.is_visible() && tab_pages.second.is_visible(),
+                "tab activation synchronizes page visibility")) return 1;
+    borrowed_tab_title[0] = 'B';
+    if (!expect(tabview.on_event(Event::mouse(Event::Type::Click, 16, 10))
+                    && tabview.active() == 0
+                    && tab_pages.first.is_visible()
+                    && !tab_pages.second.is_visible(),
+                "tab hit testing observes caller-owned title updates")) return 1;
+
+    TabViewPageProbe late_tab_pages{};
+    TabView late_bound_tabview{};
+    late_bound_tabview.add_tab("A", late_tab_pages.first_handle);
+    late_bound_tabview.add_tab("A", late_tab_pages.second_handle);
+    late_bound_tabview.set_resolver<&TabViewPageProbe::resolve>(late_tab_pages);
+    if (!expect(late_tab_pages.first.is_visible() && !late_tab_pages.second.is_visible(),
+                "late resolver binding synchronizes existing tab pages")) return 1;
+    Theme::instance().set<TabView>(saved_tabview_style);
 
     const Style saved_scroll_style = Theme::instance().get<ScrollContainer>();
     Style themed_scroll_style = saved_scroll_style;

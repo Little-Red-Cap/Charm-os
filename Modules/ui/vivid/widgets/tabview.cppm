@@ -9,7 +9,6 @@ import charm.core.event;
 import charm.core.style;
 import charm.core.style_sheet;
 import charm.widgets.label;
-import charm.core.string;
 import charm.font.typography;
 
 using namespace ui::render;
@@ -67,22 +66,17 @@ public:
     // parent should link children pages manually; we store handles
     void add_tab(const char* title, WidgetHandle page) noexcept {
         if (tab_count_ >= max_tabs) return;
-        titles_[tab_count_].assign(title ? title : "");
+        titles_[tab_count_] = title ? title : "";
         pages_[tab_count_] = page;
-        if (tab_count_ == 0) {
-            set_active(0);
-        }
         ++tab_count_;
+        if (tab_count_ == 1) active_ = 0;
+        sync_page_visibility();
     }
 
     void set_active(int idx) noexcept {
         if (idx < 0 || idx >= tab_count_) return;
         active_ = idx;
-        for (int i = 0; i < tab_count_; ++i) {
-            if (auto* p = resolver_(pages_[i])) {
-                p->set_visible(i == active_);
-            }
-        }
+        sync_page_visibility();
     }
 
     int active() const noexcept { return active_; }
@@ -110,7 +104,7 @@ public:
         int x = r.x + st.metrics.padding;
         for (int i = 0; i < tab_count_; ++i) {
             const bool on = (i == active_);
-            const auto txt = titles_[i].c_str();
+            const auto txt = titles_[i] ? titles_[i] : "";
             Label lbl{txt};
             lbl.set_color(on ? font : st.colors.font_color_disabled);
             lbl.set_font(resolve_font(st));
@@ -141,7 +135,7 @@ public:
             if (e.y < r.y || e.y > r.y + tab_h) return false;
             int x = r.x + st.metrics.padding;
             for (int i = 0; i < tab_count_; ++i) {
-                Label lbl{titles_[i].c_str()};
+                Label lbl{titles_[i] ? titles_[i] : ""};
                 lbl.set_font(resolve_font(st));
                 const int btn_w = lbl.get_rect().w + st.metrics.padding * 2;
                 const int btn_h = tab_h - 4;
@@ -159,21 +153,31 @@ public:
 
     void set_resolver(ResolverCallback resolver) noexcept {
         resolver_ = resolver;
+        sync_page_visibility();
     }
 
     template <auto Method, class T>
     void set_resolver(T& obj) noexcept {
-        resolver_ = ResolverCallback::bind<Method>(obj);
+        set_resolver(ResolverCallback::bind<Method>(obj));
     }
 
     template <auto Fn>
     void set_resolver() noexcept {
-        resolver_ = ResolverCallback::bind<Fn>();
+        set_resolver(ResolverCallback::bind<Fn>());
     }
 
 private:
+    void sync_page_visibility() noexcept {
+        if (!resolver_) return;
+        for (int i = 0; i < tab_count_; ++i) {
+            if (auto* page = resolver_(pages_[i])) {
+                page->set_visible(i == active_);
+            }
+        }
+    }
+
     static constexpr int max_tabs = 6;
-    StaticString<32> titles_[max_tabs]{};
+    const char* titles_[max_tabs]{};
     WidgetHandle pages_[max_tabs]{};
     int tab_count_{0};
     int active_{0};

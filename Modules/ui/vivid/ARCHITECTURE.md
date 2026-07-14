@@ -161,6 +161,10 @@ Object `Dropdown` 的最多 8 个 option label 同样只保存借用指针，不
 覆盖 Dropdown 使用期，`nullptr` 归一化为空字符串。当前 SoA `WidgetKind::Dropdown` 仍是 catalog 中的稳定 kind
 占位，record pipeline 明确报告 unsupported，不能把 object ownership 收敛误报为 SoA Dropdown 已实现。
 
+Object `TabView` 的最多 6 个标题借用调用方文本，page 继续只保存 handle；resolver 无论在 tab 前还是 tab 后
+绑定，都必须立即把 active page 设为 visible、其余 page 设为 hidden。SoA `WidgetKind::TabView` 使用独立的
+segmented payload/input 路径，不与 object 标题指针或 resolver 生命周期混用。
+
 跨帧保存的 UI callback 使用 `util::delegate` 并由 owner 保证 target 生命周期。历史名称 `Callback` 只是
 `util::delegate<>` 的单轨别名，不得重新增加独立的 `fn + void*` fallback 或第二份 callback 存储。
 Button、ListItem、MenuItem 这类单一 command edge 每个实例只保存一个 delegate；需要同步多播时，由调用方

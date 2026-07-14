@@ -59,12 +59,8 @@ wire layout，不能按 host `sizeof(modulex::Symbol)` 打包。格式细节见
 
 ## Image source 与 Store
 
-| 文件 | 职责 |
-|---|---|
-| [`charm_app_received_image.hpp`](charm_app_received_image.hpp) | 将 verified received bytes stage 为 `AppImage` |
-| [`charm_app_fat_catalog.hpp`](charm_app_fat_catalog.hpp) | 从只读 FAT32 `/CHARM/APPS/*.ELF` 读取 named image |
-| [`charm_app_store.hpp`](charm_app_store.hpp) | Store v1 header/entry、reader、builder 与 staging |
-| [`charm_app_store_install.hpp`](charm_app_store_install.hpp) | erase/write/readback verify 的 flash-like install 语义 |
+received image、只读 FAT catalog 和 Store reader 最终都产出 `AppImage`。Store installer 负责
+erase/write/readback verify；具体 helper 与文件拆分以本目录 headers 为准，不在 README 复制清单。
 
 Store v1 是 `header + entries + payload`，不是 filesystem、package manager 或 update slot。entry
 `flags & 0xF` 中 `0=ELF`、`1=ModuleX`；旧 zero flags 仍解释为 ELF。QSPI/eMMC backend 只提供
@@ -72,9 +68,9 @@ media/read/write，不定义第二套 Store 或 App entry。
 
 received/stage cache 可以位于 SDRAM；execute region 属于 runtime domain。内存放置不进入 App ABI。
 
-Host `.appstore.bin` packer 入口是
-[`app_abi_store_pack_tool/main.cpp`](../system/app_abi_store_pack_tool/main.cpp)；CLI 形状与格式默认值由
-源码定义，推荐制品链仍由下方 artifact 脚本编排。
+Host `.appstore.bin` packer 位于
+[`app_abi_store_pack_tool`](../system/app_abi_store_pack_tool/main.cpp)；CLI 与格式默认值由源码定义，
+推荐制品链由下方 artifact 脚本编排。
 
 ## Runtime domain
 

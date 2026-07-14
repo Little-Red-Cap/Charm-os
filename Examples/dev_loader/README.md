@@ -17,17 +17,9 @@ H747 平台行为见 [`h747-lab dev_loader`](../project/h747-lab/apps/dev_loader
 
 ## 组成
 
-| 文件 | 职责 |
-|---|---|
-| [`charm_dev_loader.hpp`](charm_dev_loader.hpp) | `Session`、storage callback 与 receive state |
-| [`charm_dev_loader_commands.hpp`](charm_dev_loader_commands.hpp) | 文本 command 到 Session transition |
-| [`charm_dev_loader_packets.hpp`](charm_dev_loader_packets.hpp) | packet v0 到 binary receive path |
-| [`charm_dev_loader_byte_transport.hpp`](charm_dev_loader_byte_transport.hpp) | 任意 byte chunk 的 buffering/frame dispatch |
-| [`charm_dev_loader_packet_stream.hpp`](charm_dev_loader_packet_stream.hpp) | packetstream build/replay helper |
-| [`charm_dev_loader_packet_console.hpp`](charm_dev_loader_packet_console.hpp) | packetstream 到 `dev packet ingest <hex>` adapter |
-| [`charm_dev_loader_hex.hpp`](charm_dev_loader_hex.hpp) | console hex decode |
-| [`charm_dev_loader_received_image.hpp`](charm_dev_loader_received_image.hpp) | `launch_ready` image 的 read-only handoff |
-| [`charm_dev_loader_store_handoff.hpp`](charm_dev_loader_store_handoff.hpp) | received Store install 与 named App staging |
+`charm_dev_loader.hpp` 拥有 Session/storage 状态；commands、packets 与 byte transport 分别负责文本命令、
+packet v0 和任意 byte chunk；received/store handoff 只把 `launch_ready` bytes 交给 App/Store 层。具体
+helper 与文件拆分以本目录 headers 为准，不在 README 复制清单。
 
 storage 是 caller-owned callback backend，可映射 RAM 或 media。Session 不拥有 storage，也不决定
 receive/stage/execute region 的平台地址。
@@ -79,10 +71,9 @@ ELF/ModuleX probe、relocation、entry ABI 与 execute region 由 App ABI loader
 
 ## Host 工具
 
-- [`dev-loader-packet-stream`](../system/dev_loader_packet_stream_tool/main.cpp) 将 payload 编码为 packet v0
-  byte stream；
-- [`dev-loader-packet-console`](../system/dev_loader_packet_console_tool/main.cpp) 将 packetstream 转成
-  `dev packet ingest <hex>` 文本命令。
+[`dev-loader-packet-stream`](../system/dev_loader_packet_stream_tool/main.cpp) 将 payload 编码为 packet v0；
+[`dev-loader-packet-console`](../system/dev_loader_packet_console_tool/main.cpp) 再将 packetstream 转成
+`dev packet ingest <hex>` 文本命令。
 
 CLI 参数与默认值由各自 `main.cpp` 定义；工具不扩展 packet/session 语义。
 

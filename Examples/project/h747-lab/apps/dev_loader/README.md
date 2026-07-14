@@ -75,9 +75,9 @@ filesystem、产品 partition、slot manager 或 manifest service。
 `AppStoreReader -> app_store_stage_named_image -> staged AppImageSource`。monitor 不复制 erase/write/
 verify 或 lookup 语义。
 
-`AppStoreEntry.flags & 0xF` 表示 image format：`0=ELF`、`1=ModuleX`。ELF 是主线格式；ModuleX 仍使用
-`charm_app_main(api, argc, argv)`，不是第二套 App model。ModuleX v1 只支持 materialized image，允许
-local/global/external symbol 与 `abs_addr`/`rel32` relocation，拒绝 non-zero BSS 和 XIP。
+`AppStoreEntry.flags & 0xF` 表示 image format：`0=ELF`、`1=ModuleX`。两者进入同一 AppRuntime 与
+`charm_app_main(api, argc, argv)`；ModuleX 的 relocation、BSS/XIP 边界由
+[`Examples/app_abi`](../../../../app_abi/README.md) 定义，本 monitor 不复制。
 
 ## App 执行
 

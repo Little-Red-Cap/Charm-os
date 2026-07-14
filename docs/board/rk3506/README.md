@@ -12,7 +12,7 @@
 
 ## 资料来源
 
-以下路径相对于该 SDK 根目录：
+以下路径均相对于 SDK 根目录：
 
 - `u-boot/arch/arm/dts/rk3506*.dts*`
 - `u-boot/include/configs/rk3506_common.h`
@@ -74,9 +74,8 @@
 | GPIO3 | `0xff1d0000` | `12` |
 | GPIO4 | `0xff1e0000` | `16` |
 
-ARM generic timer 的 DTS PPI 为 `13/14/11/10`，频率为 `24 MHz`。这些是
-device-tree interrupt specifier，不应直接当作 GIC INTID；target 当前使用的 INTID
-约定见 handoff 契约。
+ARM generic timer 的 DTS PPI 为 `13/14/11/10`，频率为 `24 MHz`。PPI 是 device-tree
+specifier，不应直接当作 GIC INTID；target 使用的 INTID 约定见 handoff 契约。
 
 ## Boot 与下载线索
 
@@ -85,9 +84,9 @@ SDK 配置体现的启动顺序是板级选择：
 - `rk3506-u-boot.dtsi`：`mmc -> spi_nand -> spi_nor`
 - `rk3506-evb-tb.dts`：`spi_nand -> spi_nor -> mmc`
 
-`grf_pmu.reboot_mode` 提供 normal、recovery、fastboot、UMS、panic、watchdog、
-charge 和 bootloader/loader mode；后两者映射 `BOOT_BL_DOWNLOAD`，其头文件注释为
-进入 RockUSB bootloader mode。该观察不能替代 BootROM 下载协议说明。
+`grf_pmu.reboot_mode` 提供 normal、recovery、fastboot、UMS、panic、watchdog、charge
+和 bootloader/loader mode；后两者映射 `BOOT_BL_DOWNLOAD`，头文件注释指向 RockUSB
+bootloader mode。这不能替代 BootROM 下载协议说明。
 
 SPL DTS 还包含：
 
@@ -96,24 +95,24 @@ SPL DTS 还包含：
 - `cru_rst_addr = <0xff9a8080>`
 - `mask_addr = <0xff528000>`
 
-这些值仅证明 vendor SPL 涉及 secure OTP/reset gating，不证明当前仓库已支持
-secure boot、熔丝或量产下载。
+这些值只证明 vendor SPL 涉及 secure OTP/reset gating，不证明当前仓库支持 secure boot、
+熔丝或量产下载。
 
 ## UART0 线索
 
 - Linux EVB bootargs 使用 `earlycon=uart8250,mmio32,0xff0a0000`。
 - pinmux `uart0_xfer_pins`：TX=`GPIO0_C6`，RX=`GPIO0_C7`，`func1`。
-- Rockchip `fiq-debugger` 使用 serial-id `0`、`1500000` baud 和 IRQ `115`；
-  `ttyFIQ0` 是 Linux/vendor 包装，不是 bare-metal UART0 的必要条件。
+- Rockchip `fiq-debugger` 使用 serial-id `0`、`1500000` baud 和 IRQ `115`；`ttyFIQ0`
+  是 Linux/vendor 包装，不是 bare-metal UART0 的必要条件。
 
 当前 target 的 UART0 初始化、readback 字段和其它 UART 的前级责任由
 [`../../../targets/rk3506/README.md`](../../../targets/rk3506/README.md) 定义。
 
 ## 时钟与 DDR
 
-CRU 资料显示 `GPLL/V0PLL/V1PLL`、`clksel_con[62]`、`softrst_con[23]`，PMU
-域另有 clksel/softrst bank。与早期 bring-up 直接相关的 clock ID 包括 UART、
-timer、watchdog、DDRC 和 DDRPHY 各组 PCLK/HCLK/SCLK。
+CRU 资料显示 `GPLL/V0PLL/V1PLL`、`clksel_con[62]`、`softrst_con[23]`，PMU 域另有
+clksel/softrst bank。早期 bring-up 相关 clock ID 包括 UART、timer、watchdog、DDRC
+和 DDRPHY 各组 PCLK/HCLK/SCLK。
 
 SDK 内存配置观察值：
 
@@ -140,9 +139,9 @@ HAL 交叉确认了 GIC、UART、CRU/SCRU、GRF/GRF_PMU 地址以及三核 Corte
 - FIT 描述包含 `linux on cpu0`；
 - 示例 GIC 路由和 UART4 配置服务于 AMP demo。
 
-因此 HAL 可用于核对寄存器和启动操作顺序，不能把其 AMP 内存布局、CPU 分工或
-UART4 选择提升为 Charm 平台契约。vendor startup/MMU 模板提供的 cache/TLB、
-页表和 device-memory 顺序也只作为实现参考。
+因此 HAL 可用于核对寄存器和启动顺序，但其 AMP 内存布局、CPU 分工和 UART4 选择不能
+提升为 Charm 平台契约。vendor startup/MMU 模板的 cache/TLB、页表和 device-memory
+顺序也只作实现参考。
 
 ## 未确认事实
 

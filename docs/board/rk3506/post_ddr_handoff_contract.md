@@ -6,7 +6,7 @@
 > 以 [`../../../targets/rk3506/CharmTargetConfig.cmake`](../../../targets/rk3506/CharmTargetConfig.cmake)
 > 为准。
 
-## 公开入口模型
+## 入口状态
 
 `targets/rk3506` 是 post-DDR bare-metal payload，不是 BootROM、DDR loader、SPL
 或 U-Boot 的替代品。支持的入口状态为：

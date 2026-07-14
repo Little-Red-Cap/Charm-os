@@ -17,47 +17,12 @@ resident app_lab -> embedded/QSPI App ELF -> AppRuntime -> charm_app_main
 - fixtures: `hello_app`, `player_min`
 - entry: `charm_app_main(const CharmAppApi*, int, char**)`
 
-## Automated Flow
+## Capture Entry
 
-Run from `Examples/project/h747-lab` and reuse the configured H747 build tree:
-
-```powershell
-cmake --build --preset build-h747-lab-app-lab-debug -- -j1
-powershell -ExecutionPolicy Bypass -File tools/flash-app-lab-pyocd.ps1
-powershell -ExecutionPolicy Bypass -File tools/capture-app-lab-smoke.ps1
-```
-
-The capture script resets the target, sends `app smoke` followed by `app
-status`, writes the board log and validates the required tokens. The script is
-the authority for token spelling and default log/port parameters.
-
-Validate an existing log without opening serial or touching reset:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File tools/capture-app-lab-smoke.ps1 -ValidateLog <path>
-```
-
-Validate only script parsing with synthetic input:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File tools/capture-app-lab-smoke.ps1 -SelfTest
-```
-
-## Manual Flow
-
-```text
-app list
-app run hello_app demo
-app run player_min
-app store install
-app store status
-app store list
-app run-path qspi:hello_app demo
-app run-path qspi:@<offset>:<size> demo
-app run-path /not-supported
-app smoke
-app status
-```
+[`capture-app-lab-smoke.ps1`](../tools/capture-app-lab-smoke.ps1) owns token spelling, ports and log defaults. It can
+self-test its parser, validate an existing log without serial/reset, or capture a board after the existing build/flash
+helpers have prepared the target. Live capture sends `app smoke` and `app status`; monitor syntax remains in the App
+README and source rather than being copied here.
 
 Acceptance requires:
 
@@ -90,5 +55,4 @@ eMMC and ModuleX evidence belong to `dev_loader`.
 - build-only, host log validation and real-board capture are distinct evidence
   domains and must not be substituted for one another.
 
-Implementation entry: [`app_lab README`](../apps/app_lab/README.md). Capture
-logic: [`capture-app-lab-smoke.ps1`](../tools/capture-app-lab-smoke.ps1).
+Implementation entry: [`app_lab README`](../apps/app_lab/README.md).

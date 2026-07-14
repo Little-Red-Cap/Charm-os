@@ -216,6 +216,10 @@ focus artifact 的边界从 [`vivid_focus_evidence_boundary_v0.md`](../../../doc
 theme token 经 ResolvedTheme/StyleSheet 预编译为可索引 style；热路径不重复派生 role 或搬运大对象。
 规则优先级必须确定，metrics pool 与颜色/state 表保持固定容量。
 
+SoA 与产品配置以 `StyleSheet` 的 `WidgetKind` base style 为真源；`set_base_style` 与 `patch_base_style` 自行标记
+compiled table dirty，调用方不得依赖额外 notify 才让写入生效。`Theme::get<T>/patch<T>` 的 type slot 只服务
+object widget 兼容面，不能作为 SoA style 写入或要求产品仅为类型标签 import object widget module。
+
 style state mask 只包含该 WidgetKind 真正消费的状态维度。Focused 默认属于 focus artifact，不自动进入
 普通 style mask。展示、press-only、interactive 等分类由 source catalog/policy 决定，文档不复制全部
 widget 名单。

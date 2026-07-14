@@ -1,3 +1,5 @@
+#include <array>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 
@@ -100,6 +102,34 @@ int main() {
 
     auto& sheet = StyleSheet::instance();
     const auto token_version_before = Theme::instance().get_tokens().version;
+    const Style* initial_button_base = sheet.base_style(WidgetKind::Button);
+    if (!vivid::evidence::expect(initial_button_base != nullptr,
+                                 "button base style is queryable by WidgetKind")) return 1;
+    if (!vivid::evidence::expect(sheet.base_style(WidgetKind::None) == nullptr,
+                                 "invalid WidgetKind has no base style")) return 1;
+
+    Style button_base = *initial_button_base;
+    button_base.metrics.padding = 7;
+    const auto version_before_base_set = sheet.stylesheet_version();
+    sheet.set_base_style(WidgetKind::Button, button_base);
+    if (!vivid::evidence::expect(sheet.stylesheet_version() > version_before_base_set,
+                                 "base style set marks stylesheet dirty without explicit notify")) return 1;
+
+    StylePatch base_patch{};
+    base_patch.has_padding = true;
+    base_patch.padding = 9;
+    const auto version_before_base_patch = sheet.stylesheet_version();
+    if (!vivid::evidence::expect(sheet.patch_base_style(WidgetKind::Button, base_patch),
+                                 "WidgetKind base style patch is accepted")) return 1;
+    if (!vivid::evidence::expect(!sheet.patch_base_style(WidgetKind::None, base_patch),
+                                 "invalid WidgetKind base style patch is rejected")) return 1;
+    if (!vivid::evidence::expect(sheet.stylesheet_version() > version_before_base_patch,
+                                 "base style patch marks stylesheet dirty")) return 1;
+    const Style* patched_button_base = sheet.base_style(WidgetKind::Button);
+    if (!vivid::evidence::expect(patched_button_base != nullptr
+                                     && patched_button_base->metrics.padding == 9,
+                                 "WidgetKind base style query observes patch")) return 1;
+    sheet.rebuild_if_needed();
     const auto stylesheet_version = sheet.stylesheet_version();
 
     static DefaultFrameBuffer fb{};
@@ -121,6 +151,8 @@ int main() {
     const auto normal_before = sheet.lookup(WidgetKind::Button, normal_state);
     if (!vivid::evidence::expect(normal_before.colors != nullptr, "resolved style has colors")) return 1;
     if (!vivid::evidence::expect(normal_before.metrics != nullptr, "resolved style has metrics")) return 1;
+    if (!vivid::evidence::expect(normal_before.metrics->padding == 9,
+                                 "base style patch reaches resolved style table")) return 1;
     if (!vivid::evidence::expect(color_eq(normal_before.colors->bg, Theme::instance().get_tokens().accent),
                                  "button bg resolves semantic accent token")) {
         return 1;

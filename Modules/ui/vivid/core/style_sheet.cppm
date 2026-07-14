@@ -789,6 +789,25 @@ public:
         if (idx == kInvalidKindIndex) return;
         base_styles_[idx] = style;
         base_style_set_[idx] = 1;
+        mark_stylesheet_dirty();
+    }
+
+    [[nodiscard]] const Style* base_style(WidgetKind kind) const noexcept {
+        const auto idx = widget_kind_index[static_cast<std::size_t>(kind)];
+        if (idx == kInvalidKindIndex || base_style_set_[idx] == 0) return nullptr;
+        return &base_styles_[idx];
+    }
+
+    [[nodiscard]] bool patch_base_style(WidgetKind kind, const StylePatch& patch) noexcept {
+        const auto idx = widget_kind_index[static_cast<std::size_t>(kind)];
+        if (idx == kInvalidKindIndex) return false;
+        if (base_style_set_[idx] == 0) {
+            base_styles_[idx] = Style{};
+            base_style_set_[idx] = 1;
+        }
+        patch.apply_to(base_styles_[idx]);
+        mark_stylesheet_dirty();
+        return true;
     }
 
     void notify_base_style_changed() noexcept {

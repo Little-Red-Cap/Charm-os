@@ -9,7 +9,6 @@ export import charm.font.typography;
 
 inline void sync_style_sheet_bases() noexcept {
     auto& sheet = StyleSheet::instance();
-    sheet.notify_base_style_changed();
     sheet.rebuild_if_needed();
 }
 

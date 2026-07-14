@@ -9,7 +9,6 @@ import charm.widgets.label;
 import charm.core.style;
 import charm.core.style_sheet;
 import charm.core.handle;
-import charm.gfx.image;
 
 using namespace ui::render;
 
@@ -28,13 +27,6 @@ public:
     void set_text(const char* text) noexcept {
         label_.set_text(text);
         update_size();
-    }
-
-    void set_icon(const ImageView& img, int w = 0, int h = 0) noexcept {
-        icon_ = img;
-        icon_w_ = w;
-        icon_h_ = h;
-        has_icon_ = static_cast<bool>(icon_);
     }
 
     void draw(CanvasBase& cvs) {
@@ -68,20 +60,6 @@ public:
         label_.set_color(font);
         label_.set_baseline_pos(lx, baseline_y);
         label_.draw(cvs);
-
-        if (has_icon_) {
-            const int iw = icon_w_ > 0 ? icon_w_ : icon_.w;
-            const int ih = icon_h_ > 0 ? icon_h_ : icon_.h;
-            if (iw > 0 && ih > 0) {
-                const int ix = r.x + (r.w - iw) / 2;
-                const int iy = r.y + (r.h - ih) / 2;
-                if (iw == icon_.w && ih == icon_.h) {
-                    draw_image(cvs, ix, iy, icon_);
-                } else {
-                    draw_image_scaled(cvs, ix, iy, iw, ih, icon_);
-                }
-            }
-        }
     }
 
     bool on_event(const Event& e) {
@@ -105,10 +83,6 @@ private:
 
     Label label_;
     Callback callback_{};
-    ImageView icon_{};
-    bool has_icon_{false};
-    int icon_w_{0};
-    int icon_h_{0};
 };
 
 

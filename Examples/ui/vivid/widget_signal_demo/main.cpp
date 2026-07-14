@@ -43,8 +43,8 @@ namespace {
     static_assert(!SupportsObjectChildren<Button>);
     static_assert(sizeof(Label) <= 72,
                   "Label must retain a bounded text view instead of inline text storage");
-    static_assert(sizeof(Button) <= 168,
-                  "Button must not retain per-instance style or nine-slice skin storage");
+    static_assert(sizeof(Button) <= 112,
+                  "text Button must not retain icon, style, or observer storage");
     static_assert(sizeof(ListItem) <= 120,
                   "ListItem must not retain an implicit observer slot table");
     static_assert(sizeof(MenuItem) <= 128,

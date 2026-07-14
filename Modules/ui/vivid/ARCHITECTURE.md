@@ -136,8 +136,9 @@ Object-level widget 不在 `ObjectBase` 常驻通用交互表。需要 gesture/i
 装饰控件组合，而不是让每个基础滚动容器常驻未使用的 image/font 状态。
 
 高频 `Button` 同样不保存 instance-local `Style` 或 nine-slice skin；背景、边框、字体和 focus ring 统一从
-Theme/StyleSheet 解析。icon 是按钮的显式内容能力，仍由选择该能力的实例持有；逐实例视觉差异使用既有
-style variant/rule，图片化背景通过显式装饰组合实现。
+Theme/StyleSheet 解析。object `Button` 是纯文本 command 控件，不为无人使用的 image 能力预付 `ImageView`；
+SoA `WidgetKind::IconButton` 是由 Button payload、image registry 与 record pipeline 实现的独立 kind，不等同于
+object `Button` 的类布局。逐实例视觉差异使用既有 style variant/rule，图片化背景通过显式装饰组合实现。
 
 `ObjectBase` 同样不常驻子节点数组。`WidgetBase<Derived, ChildCapacity>` 的默认容量为零；固定 inline 模式
 只供明确选择编译期容量的自定义控件。内置 List、FoldablePanel、ScrollContainer 使用

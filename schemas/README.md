@@ -9,20 +9,16 @@
 本页不复制字段定义。Schema 文件定义 wire shape；producer 定义字段来源；validator 定义当前
 可执行校验。三者缺一时，文件存在不能证明协议已闭环或运行事实成立。
 
-## 分组
+## 内容与入口
 
-| 文件前缀 | 范围 | 主要入口 |
-|---|---|---|
-| `materialized_graph.*` | case manifest、graph export bundle、diff、CI 与 report manifest | `scripts/validate_materialized_graph_artifacts.py` |
-| `minimal_kernel.*` | runtime evidence、session witness 与 inspect/compare artifact | `docs/system/minimal_kernel_runtime_evidence_bundle_contract.md` |
-| `system_compiler.artifact_report*` | case report 与 root index | `docs/system/artifact_report_v0.md` |
-| `system_compiler.fact_evidence*`、`runtime_observe*` | fact/runtime sidecar | artifact exporter 与 validator |
-| `system_compiler.front_page*`、`biography*` | 已停线工具链的局部 artifact | 同名 exporter/validator/smoke |
-| `system_compiler.canonical_world*`、`witness_bundle*`、`world_compare*`、`world_shelf_review*` | witness/compare 工具 artifact | 对应 `scripts/validate_system_compiler_*.py` |
-| `*_summary*`、`system_compiler_result_map*` | report/inspector 的 summary 与 comparison 投影 | producer script 与注册 validator |
+- Artifact contract schema 定义机器产物的 identity 与 shape；对应 contract 解释语义和 ownership。
+- Projection、summary 与 compare schema 只承载既有事实和 verdict，不重新判定上游结果。
+- Shared definition 提供可复用的 envelope、reference 与 status shape；`examples/` 保存测试 fixture。
 
-准确支持范围以 validator 内的 schema registry 或 dedicated validator 为准。通用 materialized-graph
-validator 未注册的 schema 不能因为位于本目录就由它自动校验。
+准确文件集合以本目录为准，可执行支持范围以 validator 内的 schema registry 或 dedicated validator
+为准。通用 materialized-graph validator 只支持其
+[`SCHEMA_FILES`](../scripts/validate_materialized_graph_artifacts.py) 注册项；minimal-kernel 与其他专题产物
+应从对应 supporting contract 进入。文件位于本目录不代表任意 validator 会自动接受它。
 
 ## Samples
 

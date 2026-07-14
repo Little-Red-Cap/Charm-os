@@ -10,6 +10,7 @@ import charm.core.event;
 import charm.core.input_interaction;
 import charm.core.object;
 import charm.core.style;
+import charm.core.style_sheet;
 import charm.widgets.button;
 import charm.widgets.chart;
 import charm.widgets.console_box;
@@ -356,6 +357,7 @@ namespace {
 
 int main() {
     print_widget_signal_run_begin();
+    StyleSheet::instance().rebuild_if_needed();
 
     std::printf("[ws-abi] object_base=%zu callback=%zu label=%zu text_box=%zu button=%zu dropdown=%zu tabview=%zu list_item=%zu menu_item=%zu scroll_container=%zu list=%zu foldable_panel=%zu interaction_list=%zu double_tap=%zu pinch=%zu drag=%zu long_press=%zu\n",
                 sizeof(ObjectBase),

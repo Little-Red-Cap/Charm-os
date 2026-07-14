@@ -1,19 +1,13 @@
 # Input 文档入口
 
-输入平台边界见 [`input_layering_decision.md`](input_layering_decision.md)。IO primitive
-规则见 [`../io/README.md`](../io/README.md)。
+> `status`: `supporting`
+>
+> `scope`: raw input、sampling、pump 与 domain adapter 的文档路由
 
-当前实现入口：
+当前分层、生命周期、背压、已知限制和验证入口见
+[`input_layering_decision.md`](input_layering_decision.md)。实现以
+[`Modules/io/input`](../../Modules/io/input/) 和 [`hal_input.cppm`](../../Modules/io/hal/hal_input.cppm)
+为准。
 
-- [`../../Modules/io/hal/hal_input.cppm`](../../Modules/io/hal/hal_input.cppm)：raw driver；
-- [`../../Modules/io/input/input.raw_event.cppm`](../../Modules/io/input/input.raw_event.cppm)：
-  跨 backend 的 raw event；
-- [`../../Modules/io/input/input.service.cppm`](../../Modules/io/input/input.service.cppm)：
-  clock + sampler；
-- [`../../Modules/io/input/input.pump.cppm`](../../Modules/io/input/input.pump.cppm)：
-  有预算的 EDA pump；
-- [`../../Modules/io/input/input.router.cppm`](../../Modules/io/input/input.router.cppm)：
-  raw event 分发。
-
-旧 VSF 位段映射未被当前 `RawInputEvent` 采用，已从默认文档移除；需要追溯时使用
-Git 历史或 [`../reference/vsf/README.md`](../reference/vsf/README.md)。
+IO primitive 与 backend/adapter ownership 从 [`../io/README.md`](../io/README.md) 进入；UI intent、
+gesture、focus 和控件行为不由本目录定义。

@@ -10,14 +10,8 @@ are not Charm Core, an ELF ABI or proof that the same contract is portable.
 
 ## Current Surface
 
-| Header | Project-local surface |
-|---|---|
-| `status.hpp` | `StatusCode`, `Status`, `Transfer` |
-| `stream.hpp` | `ByteSink`, `TextSink`, `LineSource` |
-| `time.hpp` | `Milliseconds`, `Clock` |
-| `display.hpp` | display value types, `SolidFillDisplay`, `RasterDisplaySink` |
-| `input.hpp` | input snapshots/edges, `InputFrameTracker`, `InputSource` |
-| `world.hpp` | local composition concepts for log/clock/display/input |
+The project-local headers cover status/transfer, stream, time, display, input and small composition helpers. Exact
+types and file splits come from `capabilities/`; this contract records only their ownership and cross-layer meaning.
 
 The headers are intentionally free of STM32 HAL dependencies, exceptions,
 RTTI, dynamic allocation and required virtual dispatch. Concrete services may
@@ -28,24 +22,20 @@ peripheral initialization or lifetime.
 
 ### Stream and time
 
-- `ByteSink`/`TextSink` report both status and transferred byte count.
-- `LineSource::poll_line()` is a non-blocking project surface; empty means no
-  complete line, not transport success with fabricated data.
-- `Clock` exposes project tick/delay behavior. It does not establish a global
-  Charm time service.
+- Stream sinks report status and transferred byte count; line polling is non-blocking, and empty means no complete
+  line rather than fabricated transport success.
+- The local clock exposes project tick/delay behavior; it does not establish a global Charm time service.
 
 ### Display
 
-- `SolidFillDisplay` models the minimal fill baseline.
-- `RasterDisplaySink` accepts an explicit `SurfaceView` and dirty rectangles.
+- The display surface covers a solid-fill baseline and raster presentation with explicit surface/dirty-region input.
 - framebuffer ownership, SDRAM section, cache maintenance, LTDC/DSI and DMA2D
   stay in the concrete service/backend.
 - presentation does not grant UI or rendering code access to HAL state.
 
 ### Input
 
-- `InputFrame` is a snapshot of encoder and pointer facts.
-- `InputFrameTracker` derives pointer/button edges from successive snapshots.
+- Input frames hold encoder/pointer facts; the tracker derives edges from successive snapshots.
 - touch probe failure may be represented independently from encoder evidence by
   the concrete service.
 - gesture, focus, routing and product commands do not belong in this project

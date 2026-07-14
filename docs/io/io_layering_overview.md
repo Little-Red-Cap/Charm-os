@@ -13,8 +13,8 @@
 | `io::Reactor` | 事件入队、waker、task-context callback dispatch | 在 ISR 执行 callback、阻塞调度 |
 | `io::Registry` | 固定容量 endpoint 发布与查找 | 对象所有权、热插拔生命周期、动态分配 |
 
-协议和 service 在这些 primitive 上构建，不能绕过 `would_block`、callback budget、
-name backing lifetime 或 registry ownership 规则。
+协议和 service 在这些 primitive 上构建。调用结果、callback budget、name backing lifetime 与
+registry ownership 由对应契约定义，本页不重复。
 
 ## 实现层次
 
@@ -53,14 +53,14 @@ Bus -> DeviceDesc -> RuntimeDriver -> stable slot -> registry -> consumer
 给长期消费者。detach 后仍需保留入口时，使用 channel/block stable slot，使已有
 handle 返回 `noent`，再由明确的 unexport 移除名称。
 
-## 依赖红线
+## 依赖边界
 
-- Channel read/write 成功必须返回正长度；无进展返回 `would_block`，禁止 `Ok(0)`。
-- Reactor `notify()` 只入队；`drain()` 和 callback 在 task context、固定 budget 下运行。
-- Registry 不拥有 Channel/Reactor，也不延长它们的生命周期。
-- HAL、backend 和 protocol 不依赖 domain 语义。
-- 输入采样产生 raw event；UI intent、gesture 和控件策略不进入 HAL。
-- filesystem、USB、network 和 input 可复用 IO primitive，但不能反向改变其契约。
+- Channel、Reactor 与 Registry 的调用、容量、错误和生命周期分别由
+  [`io_channel_contract.md`](io_channel_contract.md)、[`io_reactor_contract.md`](io_reactor_contract.md)
+  和 [`io_registry_contract.md`](io_registry_contract.md) 定义。
+- HAL、backend 和 protocol 不依赖 domain 语义；输入采样只产生 raw event，UI intent、gesture 和控件
+  策略不进入 HAL。
+- filesystem、USB、network 和 input 可以复用 IO primitive，但不能反向改变其契约。
 
 Driver/discovery 的完整边界见
 [`../architecture/driver_model.md`](../architecture/driver_model.md)。历史 VSF 对照只从

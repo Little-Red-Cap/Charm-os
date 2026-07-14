@@ -1,21 +1,24 @@
 # 网络示例入口
 
+> `status`: `supporting`
+>
+> `scope`: network、reactor 与 socket fixture 的语义路由
+
 网络契约与分层见 [`docs/io/README.md`](../../../docs/io/README.md)、
 [`net_socket_v0_contract.md`](../../../docs/io/net_socket_v0_contract.md)。
 
-## 分组
+## 覆盖范围
 
-| 目标 | 目录 |
+| 范围 | 证据重点 |
 |---|---|
-| facade、netif、driver、pump、ingress | `api_facade_smoke/`、`netif_smoke/`、`net_driver_smoke/`、`net_pump_smoke/`、`net_stack_ingress_smoke/` |
-| ARP / IPv4 / ICMP | `net_arp_smoke/`、`net_ipv4_smoke/`、`net_icmp*_smoke/` |
-| forwarding / route | `net_lab_forward_*_smoke/`、`net_lab_route_*_smoke/` |
-| UDP 与 diagnostics | `net_udp*_smoke/`、`net_lab_udp_diag_forward*_smoke/` |
-| reactor / service / socket | `reactor_*_smoke/`、`socket_contract_smoke/`、`posix_socket_bridge_smoke/`、`win_loopback_smoke/` |
-| packet pool / codec | `packet_pool_smoke/`、`schema_codec_smoke/` |
+| facade、netif、driver、pump、ingress | ownership、packet 流向与 backpressure |
+| ARP、IPv4、ICMP、UDP | 协议输入、状态与错误路径 |
+| forwarding 与 route | precedence、metric、mutation、delete 与 churn |
+| reactor、service 与 socket | ready dispatch、fd 投影与 loopback |
+| packet pool 与 codec | 容量、layout 与边界检查 |
+| diagnostics | failure、late reply、proxy ARP 与可观察字段 |
 
-route/UDP 变体通过后缀表达 default precedence、metric、mutation、delete、introspection、failure、
-late reply、route churn 和 proxy ARP 等场景。具体输入与断言由各目录源码维护，不在总入口复制。
+准确 fixture/target 集合、输入和断言由各子目录 CMake/source 维护，README 不复制目录 inventory。
 
 ## 使用规则
 

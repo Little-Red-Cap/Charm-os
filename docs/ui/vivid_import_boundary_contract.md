@@ -90,9 +90,10 @@ DrawCmd evidence 边界见 [`vivid_draw_cmd_evidence_boundary_v0.md`](vivid_draw
 
 规则：
 
-- `Button::observe_click()`、`Checkbox::observe_checked()` 等遵守 object-level signal/state 契约。
-- 这些接口适合局部 widget 组合、对象级 smoke、非 SoA 小系统。
-- 不能因为 object-level widget 有 `observe_*`，就要求 `SceneAccess` 镜像暴露同名 observe 面。
+- Button、ListItem、MenuItem 的 command edge 只保存一个 `util::delegate` callback，不内嵌 observer 槽表。
+- `Checkbox::observe_checked()` 等 truth/value observer 遵守 object-level signal/state 契约，适合局部 widget
+  组合、对象级 smoke 和非 SoA 小系统。
+- 不能因为部分 object-level truth/value widget 有 `observe_*`，就要求 `SceneAccess` 镜像暴露同名 observe 面。
 
 object-level widget 与 SoA `SceneAccess` 的区别见 [`../architecture/signal_state_contract_v0.md`](../architecture/signal_state_contract_v0.md)。
 

@@ -8,7 +8,6 @@ import charm.core.style_sheet;
 import charm.gfx.color;
 import charm.gfx.render_style;
 import charm.core.event;
-import service.signal;
 import charm.widgets.label;
 
 using namespace ui::render;
@@ -16,10 +15,6 @@ using namespace ui::render;
 export
 class MenuItem : public WidgetBase<MenuItem> {
 public:
-    using click_signal_type = service::signal<void(), 4>;
-    using click_slot_type = typename click_signal_type::slot_type;
-    using click_connection = typename click_signal_type::connection;
-
     explicit MenuItem(const char* text = "") : label_(text) {
         const Style& st = Theme::instance().get<MenuItem>();
         label_.set_font(resolve_font(st));
@@ -29,16 +24,6 @@ public:
 
     void set_text(const char* t) { label_.set_text(t); update_size(); }
     void set_on_click(Callback cb) noexcept { on_click_ = cb; }
-
-    // observe_click() is a same-domain synchronous edge surface.
-    // It does not create a truth cell and only fires for accepted click events.
-    [[nodiscard]] auto observe_click(click_slot_type slot) noexcept {
-        return clicked_.connect(slot);
-    }
-
-    [[nodiscard]] bool unobserve_click(click_connection c) noexcept {
-        return clicked_.disconnect(c);
-    }
     void set_indent(int px) noexcept { indent_ = (px > 0) ? px : 0; }
     void set_has_children(bool on) noexcept { has_children_ = on; }
     void set_expanded(bool on) noexcept { expanded_ = on; }
@@ -86,7 +71,6 @@ public:
         if (!is_enabled()) return false;
         if (e.type == Event::Type::Click) {
             if (get_rect().contains(e.x, e.y) || has_state(State::Focused)) {
-                (void)clicked_.emit();
                 if (on_click_) on_click_();
                 return true;
             }
@@ -104,7 +88,6 @@ private:
         set_size(lr.w + st.metrics.padding * 2, lr.h + st.metrics.padding * 2);
     }
 
-    click_signal_type clicked_{};
     Label label_;
     Callback on_click_{};
     int indent_{0};

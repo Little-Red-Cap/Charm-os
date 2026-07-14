@@ -8,7 +8,6 @@ import charm.gfx.render_style;
 import charm.core.event;
 import charm.core.style;
 import charm.core.style_sheet;
-import service.signal;
 import charm.widgets.label;
 
 using namespace ui::render;
@@ -16,10 +15,6 @@ using namespace ui::render;
 export
 class ListItem : public WidgetBase<ListItem> {
 public:
-    using click_signal_type = service::signal<void(), 4>;
-    using click_slot_type = typename click_signal_type::slot_type;
-    using click_connection = typename click_signal_type::connection;
-
     explicit ListItem(const char* text = "") : label_(text) {
         const Style& st = Theme::instance().get<ListItem>();
         label_.set_font(resolve_font(st));
@@ -33,16 +28,6 @@ public:
     }
 
     void set_on_click(Callback cb) noexcept { callback_ = cb; }
-
-    // observe_click() is a same-domain synchronous edge surface.
-    // It does not create a truth cell and only fires for accepted click events.
-    [[nodiscard]] auto observe_click(click_slot_type slot) noexcept {
-        return clicked_.connect(slot);
-    }
-
-    [[nodiscard]] bool unobserve_click(click_connection c) noexcept {
-        return clicked_.disconnect(c);
-    }
 
     void draw(CanvasBase& cvs) {
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
@@ -72,7 +57,6 @@ public:
         if (!is_enabled()) return false;
         if (e.type == Event::Type::Click) {
             if (get_rect().contains(e.x, e.y) || has_state(State::Focused)) {
-                (void)clicked_.emit();
                 if (callback_) callback_();
                 return true;
             }
@@ -95,7 +79,6 @@ private:
         set_size(lr.w + st.metrics.padding * 2, lr.h + st.metrics.padding * 2);
     }
 
-    click_signal_type clicked_{};
     Label label_;
     Callback callback_{};
 };

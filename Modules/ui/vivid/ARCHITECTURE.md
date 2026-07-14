@@ -156,6 +156,9 @@ handle，容器析构也会清空仍 active 的 handle。容量耗尽显式返�
 
 跨帧保存的 UI callback 使用 `util::delegate` 并由 owner 保证 target 生命周期。历史名称 `Callback` 只是
 `util::delegate<>` 的单轨别名，不得重新增加独立的 `fn + void*` fallback 或第二份 callback 存储。
+Button、ListItem、MenuItem 这类单一 command edge 每个实例只保存一个 delegate；需要同步多播时，由调用方
+显式拥有 `service::signal` 并从该 delegate 转发，不能让所有控件预付固定槽表。truth/value widget 是否保留
+`service::state` 由其可读状态与真实 observer 消费证据单独裁决，不能与 command edge 混为一谈。
 `std::function_ref` 只适合未来同步、非逃逸的函数参数，不得存入 widget、strategy、Scene 或 payload。绑定 owner 自身的控件必须
 禁止复制/移动，或显式实现 callback 重绑；保存成员 strategy 地址的 `InteractionList` 同样不可复制和移动。
 strategy 绑定外部长生命周期 target 时仍可按值复制，不能把该合法场景误收紧为全局禁用 delegate 复制。

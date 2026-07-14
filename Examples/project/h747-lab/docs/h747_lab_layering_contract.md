@@ -10,12 +10,8 @@ keeps build output under `cmake-build-*`.
 
 ## Build Contract
 
-- `CMakeLists.txt` selects one or more named profiles.
-- `profiles/<name>/profile.cmake` declares target, board, runtime, app and
-  services.
-- `apps/<name>/app.cmake` owns app source selection.
-- `cmake/h747_lab_sources.cmake` owns shared board/service source inventories.
-- `cmake/h747_lab_target.cmake` materializes explicit firmware targets.
+- A profile selects target, board, runtime, app and services; each app owns its source selection; shared board/service
+  inventories remain in project CMake and are materialized as explicit firmware targets.
 - in-source builds are rejected.
 - CubeMX/HAL and linker inputs are explicit cache paths; missing required input
   is a configure/build prerequisite failure, not an App or runtime failure.
@@ -42,19 +38,8 @@ boundary for HAL integration while exposing a typed C++ facade to consumers.
 
 ## Profile Boundary
 
-Each profile provides the variables consumed by the H747 profile helper:
-
-```text
-H747_LAB_PROFILE_TARGET
-H747_LAB_PROFILE_BOARD
-H747_LAB_PROFILE_RUNTIME
-H747_LAB_PROFILE_APP
-H747_LAB_PROFILE_SERVICES
-```
-
-Profiles select composition; they do not create a global runtime `Profile`
-object or enter the App ABI. Service source lists remain owned by CMake/source,
-not duplicated in README tables.
+Profiles select composition through the variables defined by the H747 profile helper; they do not create a global
+runtime `Profile` object or enter the App ABI. Service source lists remain owned by CMake/source, not README tables.
 
 ## Dynamic Images
 

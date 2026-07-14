@@ -11,7 +11,6 @@ preset、board package、service、profile、app 与 firmware target。
 | source、profile 与 target ownership | [`h747_lab_layering_contract.md`](docs/h747_lab_layering_contract.md) |
 | project-local capability shape | [`h747_lab_capability_contract.md`](docs/h747_lab_capability_contract.md) |
 | `dev_loader/app_lab/posix_lab` 分工 | [`h747_lab_dynamic_boundary_roadmap.md`](docs/h747_lab_dynamic_boundary_roadmap.md) |
-| Host/QEMU 原型进入 H747 的边界 | [`h747_lab_spine_migration_boundary.md`](docs/h747_lab_spine_migration_boundary.md) |
 
 Profile 与 target 的完整集合以 [`CMakePresets.json`](CMakePresets.json)、`profiles/*/profile.cmake` 和
 CMake configure 输出为准，不在 README 复制清单。

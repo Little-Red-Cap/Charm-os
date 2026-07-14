@@ -46,5 +46,5 @@ lists, monitor commands or smoke tokens.
 
 Current dynamic-image roles are defined once in
 [`h747_lab_dynamic_boundary_roadmap.md`](../docs/h747_lab_dynamic_boundary_roadmap.md).
-Source/ABI/evidence migration rules are in
-[`h747_lab_spine_migration_boundary.md`](../docs/h747_lab_spine_migration_boundary.md).
+Source ownership and prototype admission are defined in
+[`h747_lab_layering_contract.md`](../docs/h747_lab_layering_contract.md).

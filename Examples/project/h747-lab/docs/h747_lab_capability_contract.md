@@ -84,5 +84,5 @@ a real consumer, stable failure semantics, evidence from more than one runtime
 environment, platform-independent meaning and a smaller exception budget than
 keeping the type project-local.
 
-Host-to-H747 migration rules are summarized in
-[`h747_lab_spine_migration_boundary.md`](h747_lab_spine_migration_boundary.md).
+Host/QEMU prototype admission follows the project ownership and migration rules in
+[`h747_lab_layering_contract.md`](h747_lab_layering_contract.md).

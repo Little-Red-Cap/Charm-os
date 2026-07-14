@@ -89,5 +89,13 @@ A successful profile configure does not prove peripheral or App behavior.
   into Charm Core without the constitutional admission evidence;
 - update source/CMake paths and their diagnostics in the same migration change.
 
-Host-proof admission rules are documented in
-[`h747_lab_spine_migration_boundary.md`](h747_lab_spine_migration_boundary.md).
+## Prototype Admission
+
+Host or QEMU success proves one evidence domain; it does not admit prototype types, vocabulary or helpers into H747
+or Charm Core. Transfer observable behavior, failure semantics and resource limits only when the same consumer and
+lifecycle exist on the target.
+
+Before moving a prototype, classify it as App-visible behavior, project/backend implementation, ABI data or evidence
+presentation; identify its owner and recovery path; decide whether binding is compile-time or runtime; record which
+Host/QEMU/board evidence exists. C++ templates, concept identity, name mangling, exceptions, RTTI and reflection tokens
+never cross the resident App ABI.

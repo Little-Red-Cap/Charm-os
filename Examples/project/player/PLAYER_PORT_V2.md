@@ -46,6 +46,8 @@ construct
 - input 的 `empty` 正常结束本帧排空；`failed` 进入 terminal failure。
 - present 拒绝返回 `present_failed`；endpoint 错误保持它返回的具体 code。
 - endpoint bootstrap 一旦被调用，后续 shutdown 最多调用一次 endpoint shutdown。
+- terminal failure 一旦记录，后续非法阶段调用和 shutdown 不得用 `invalid_state` 覆盖原始根因；
+  可恢复的阶段顺序错误仍可被后续 terminal failure 替换。
 
 ## 实例状态
 
@@ -60,6 +62,10 @@ canonical Player 不依赖进程级 storage 或 cover 全局配置：
   独立的 `probe_source_binding`，避免探测时重开正在播放的有状态 source。两者应来自同一种
   provider 语义，但必须是不同实例。H747 未迁移前仍可落到 legacy probe bridge。
 
+storage binding 的 `ctx/path`、cover binding 的 provider/table/span，以及 audio binding 的
+source/sink 对象都由调用方拥有，并且必须从 App 构造开始保持有效，直到 App shutdown 或析构完成。
+binding 不延长这些对象的生命周期，shutdown 返回后 Player 不再保留异步访问。
+
 legacy storage/cover 全局 API 和 `AudioPlayer(config, clock)` 暂时保留给 H747/旧 Win。CMake source
 gate 限制兼容桥数量，并禁止 canonical 新调用；H747 迁移解除冻结后再删除。
 
@@ -72,6 +78,8 @@ gate 限制兼容桥数量，并禁止 canonical 新调用；H747 迁移解除�
 - 连续 pointer move、axis、encoder 可合并。
 - 队列压力只增加 `coalesced/dropped`，不终止 Player。
 - 每帧最多 dispatch 64 项；真实 Host pump error 才进入 terminal failure。
+- invalid surface 与 invalid endpoint 分别返回对应 `OpenCode`；Player bootstrap/update/render failure
+  由 `last_player_failure()` 保留到下一次 `open()`，显式 `close()` 不清除该快照。
 - 512 pointer events 加离散 key 的 smoke 固定验证 `received=514/coalesced=511/dropped=0`。
 
 ## Media bindings
@@ -81,7 +89,10 @@ Charm Core。provider 拥有 source/sink 对象和存储；binding 只携带 con
 
 source 提供 open/close 和现有 `StreamSourceRef`。sink 提供 clock、open/start/stop/close、fill
 callback、format、period 与 underrun 观察。SDL、I2S、file、VFS、null 和 pumped-null 都只是
-adapter。实例隔离 smoke 使用两个独立 provider 验证无状态串扰。
+adapter。失败的 open 必须自行回滚且不要求 close；成功的 source/sink open 各自只配对一次 close，
+成功的 sink start 才配对 stop。terminal audio failure 当场按 sink、decoder/source 的顺序归还资源，
+并保留 provider 返回的具体 `Errc`。实例隔离 smoke 使用两个完整 MD3 App 和独立 provider，交错
+运行并验证关闭一个实例不会影响另一个实例。
 
 ## 构建与预算
 
@@ -92,14 +103,14 @@ canonical target 唯一为 `Charm::player-md3`。`player_charm_closure.cmake` �
 
 2026-07-14 的 Clang 18 干净 Host + SDL evidence：
 
-- 491 Ninja steps，基线为 1221；
-- `cmake-build-player` 为 1,015,996,369 bytes（0.946 GiB）；
+- 489 Ninja steps，基线为 1221；
+- `cmake-build-player` 为 1,069,264,748 bytes（0.995830 GiB）；
 - application object 5,767,168 bytes；
 - ARGB framebuffer 2,749,120 bytes；
 - application + framebuffer 8,516,288 bytes；
 - Vivid resident upper bound 5,453,856 bytes；
 - audio workspace 423,944 bytes；
-- Host canonical/SDL tests 13/13，Vivid 最大 stack usage 3,624/4,096 bytes。
+- Host canonical/SDL tests 13/13，Vivid 最大 stack usage 3,320/4,096 bytes。
 
 ARM preset 只编译 static component，不链接 firmware。它要求 Cortex-M7/Thumb/hard-float，
 保持无 exceptions、RTTI 和 thread-safe statics；由于 Player/Vivid 需要 `<cmath>` 和容器，编译时
@@ -115,9 +126,9 @@ Controller/Scene/App materialization 位于 `player.md3_port.cpp`，render/runti
 
 这次拆分解除 w64devkit GCC 16.1 与 ARM GCC 17 对累计 module imports 的 compiler ICE：
 
-- GCC 16.1 canonical component 冷构建为 477 Ninja steps，11/11 无 SDL tests 通过；
-- ARM GCC 17 compile-only 为 439 Ninja steps，`libcharm_player_md3.a` 为 8,948,120 bytes；
-- ARM Vivid 最大 stack usage 1,288/4,096 bytes。
+- GCC 16.1 canonical component 冷构建为 473 Ninja steps，11/11 无 SDL tests 通过；
+- ARM GCC 17 compile-only 为 437 Ninja steps，`libcharm_player_md3.a` 为 9,041,652 bytes；
+- ARM Vivid 最大 stack usage 1,264/4,096 bytes。
 
 普通 smoke 翻译单元固定先 include 标准库头、再 import Player modules，以避开 GCC Modules 对
 重复 libstdc++ 声明的工具链缺陷；该顺序要求不改变 Player 契约。

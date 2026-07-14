@@ -32,7 +32,8 @@ Player MD3 canonical 应用与平台接缝的当前入口：
 
 - `Examples/system/player_port_runtime_smoke`：最小 Port 生命周期与失败状态。
 - `Examples/system/player_md3_runtime_smoke`：真实 MD3 controller/scene/raster runtime。
-- `Examples/system/player_instance_isolation_smoke`：storage/cover 实例隔离与单次扫描。
+- `Examples/system/player_instance_isolation_smoke`：两个完整 MD3 App 的 storage/cover/audio/raster
+  实例隔离、交错运行与单次扫描。
 - `Examples/system/player_audio_binding_smoke`：source/sink 注入、失败和 legacy constructor。
 - `Examples/system/player_host_input_burst_smoke`：Host 输入突发、合并和丢弃统计。
 - `Examples/system/player_memory_report`：Player/Vivid/audio 静态内存账本。

@@ -13,6 +13,7 @@ import charm.core.style;
 import charm.widgets.button;
 import charm.widgets.chart;
 import charm.widgets.console_box;
+import charm.widgets.dropdown;
 import charm.widgets.foldable_panel;
 import charm.widgets.image;
 import charm.widgets.histogram;
@@ -48,6 +49,8 @@ namespace {
                   "read-only TextBox must retain a bounded text view instead of inline text storage");
     static_assert(sizeof(Button) <= 112,
                   "text Button must not retain icon, style, or observer storage");
+    static_assert(sizeof(Dropdown) <= 256,
+                  "Dropdown must borrow option labels instead of copying inline text storage");
     static_assert(sizeof(ListItem) <= 120,
                   "ListItem must not retain an implicit observer slot table");
     static_assert(sizeof(MenuItem) <= 128,
@@ -338,12 +341,13 @@ namespace {
 int main() {
     print_widget_signal_run_begin();
 
-    std::printf("[ws-abi] object_base=%zu callback=%zu label=%zu text_box=%zu button=%zu list_item=%zu menu_item=%zu scroll_container=%zu list=%zu foldable_panel=%zu interaction_list=%zu double_tap=%zu pinch=%zu drag=%zu long_press=%zu\n",
+    std::printf("[ws-abi] object_base=%zu callback=%zu label=%zu text_box=%zu button=%zu dropdown=%zu list_item=%zu menu_item=%zu scroll_container=%zu list=%zu foldable_panel=%zu interaction_list=%zu double_tap=%zu pinch=%zu drag=%zu long_press=%zu\n",
                 sizeof(ObjectBase),
                 sizeof(Callback),
                 sizeof(Label),
                 sizeof(TextBox),
                 sizeof(Button),
+                sizeof(Dropdown),
                 sizeof(ListItem),
                 sizeof(MenuItem),
                 sizeof(ScrollContainer),

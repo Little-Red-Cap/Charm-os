@@ -138,8 +138,20 @@ int main() {
     if (!expect(probe.checkbox_changes == 2, "checkbox observe sees interactive change")) return 1;
     if (!expect(g_checkbox_callbacks == 1, "checkbox click triggers legacy callback")) return 1;
 
+    char borrowed_dropdown_option[]{"Option 2"};
     Dropdown dropdown{};
-    dropdown.add_option("Option 2");
+    dropdown.add_option(borrowed_dropdown_option);
+    if (!expect(dropdown.option_count() == 2
+                    && dropdown.option_text(1) == borrowed_dropdown_option,
+                "dropdown borrows caller option labels")) return 1;
+    borrowed_dropdown_option[0] = 'o';
+    if (!expect(dropdown.option_text(1)[0] == 'o',
+                "dropdown observes caller-owned option mutations")) return 1;
+    dropdown.add_option(nullptr);
+    if (!expect(dropdown.option_count() == 3
+                    && dropdown.option_text(2) != nullptr
+                    && dropdown.option_text(2)[0] == '\0',
+                "dropdown normalizes null options to empty strings")) return 1;
     dropdown.set_on_change(Callback::bind<&on_dropdown_command>());
     const auto dropdown_conn =
         dropdown.observe_selected(util::delegate<const int&, const int&>::bind<&Probe::on_dropdown_changed>(probe));

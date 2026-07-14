@@ -157,6 +157,10 @@ handle，容器析构也会清空仍 active 的 handle。容量耗尽显式返�
 应使用 SoA TextArena 或显式的上层文本存储，而不是恢复逐实例缓冲。可编辑 `TextInput`/`TextArea` 必须保存
 编辑状态及内容，不能套用只读 view 的借用契约。
 
+Object `Dropdown` 的最多 8 个 option label 同样只保存借用指针，不为每项复制固定文本缓冲；label owner 必须
+覆盖 Dropdown 使用期，`nullptr` 归一化为空字符串。当前 SoA `WidgetKind::Dropdown` 仍是 catalog 中的稳定 kind
+占位，record pipeline 明确报告 unsupported，不能把 object ownership 收敛误报为 SoA Dropdown 已实现。
+
 跨帧保存的 UI callback 使用 `util::delegate` 并由 owner 保证 target 生命周期。历史名称 `Callback` 只是
 `util::delegate<>` 的单轨别名，不得重新增加独立的 `fn + void*` fallback 或第二份 callback 存储。
 Button、ListItem、MenuItem 这类单一 command edge 每个实例只保存一个 delegate；需要同步多播时，由调用方

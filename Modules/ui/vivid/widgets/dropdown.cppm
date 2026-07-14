@@ -1,9 +1,7 @@
 module;
-#include <array>
 export module charm.widgets.dropdown;
 
 import charm.core.object;
-import charm.core.string;
 import charm.gfx.color;
 import charm.gfx.render_style;
 import charm.core.event;
@@ -25,13 +23,13 @@ public:
     Dropdown() {
         set_focusable(true);
         set_size(160, 28);
-        options_[0].assign("Option 1");
+        options_[0] = "Option 1";
         option_count_ = 1;
     }
 
     void add_option(const char* txt) noexcept {
         if (option_count_ >= max_options) return;
-        options_[option_count_++].assign(txt ? txt : "");
+        options_[option_count_++] = txt ? txt : "";
     }
 
     void set_selected(int idx) noexcept {
@@ -46,7 +44,7 @@ public:
     [[nodiscard]] int option_count() const noexcept { return option_count_; }
     const char* option_text(int idx) const noexcept {
         if (idx < 0 || idx >= option_count_) return nullptr;
-        return options_[idx].c_str();
+        return options_[idx];
     }
 
     void set_on_change(Callback cb) noexcept { on_change_ = cb; }
@@ -78,7 +76,7 @@ public:
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
 
         const int current = selected();
-        const char* text = (current >= 0 && current < option_count_) ? options_[current].c_str() : "";
+        const char* text = (current >= 0 && current < option_count_) ? options_[current] : "";
         Label lbl{text};
         lbl.set_color(font);
         lbl.set_font(resolve_font(st));
@@ -124,7 +122,7 @@ private:
     }
 
     static constexpr int max_options = 8;
-    StaticString<32> options_[max_options]{};
+    const char* options_[max_options]{};
     int option_count_{0};
     selected_state_type selected_{0};
     Callback on_change_{};

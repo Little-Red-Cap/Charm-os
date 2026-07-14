@@ -2,6 +2,7 @@ module;
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <string_view>
 
 export module alg_text_layout;
 
@@ -90,16 +91,16 @@ export namespace alg::text_layout {
         return width;
     }
 
-    inline int layout_lines(const char* text,
+    inline int layout_lines(std::string_view text,
                             const Font& font,
                             int max_width,
                             Wrap wrap,
                             Line* lines,
                             int max_lines) noexcept {
-        if (!text || !lines || max_lines <= 0) return 0;
+        if (text.empty() || !lines || max_lines <= 0) return 0;
         int line_count = 0;
-        const char* p = text;
-        const char* end = text + std::strlen(text);
+        const char* p = text.data();
+        const char* end = text.data() + text.size();
         while (p < end && line_count < max_lines) {
             const char* line_start = p;
             int line_len = 0;
@@ -155,11 +156,11 @@ export namespace alg::text_layout {
                 line_len = len_at_space;
                 line_width = width_at_space;
                 p = last_space + 1;
-                while (*p == ' ') ++p;
+                while (p < end && *p == ' ') ++p;
             }
 
             lines[line_count++] = Line{line_start, line_len, line_width};
-            if (*p == '\n') ++p;
+            if (p < end && *p == '\n') ++p;
             if (wrap == Wrap::None) break;
             if (line_len == 0 && p < end) {
                 const char* next = p;
@@ -176,6 +177,16 @@ export namespace alg::text_layout {
             }
         }
         return line_count;
+    }
+
+    inline int layout_lines(const char* text,
+                            const Font& font,
+                            int max_width,
+                            Wrap wrap,
+                            Line* lines,
+                            int max_lines) noexcept {
+        if (!text) return 0;
+        return layout_lines(std::string_view{text}, font, max_width, wrap, lines, max_lines);
     }
 
     inline int glyph_advance(const Font& font,

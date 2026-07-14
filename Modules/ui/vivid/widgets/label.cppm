@@ -1,4 +1,7 @@
 module;
+#include <cstddef>
+#include <cstdint>
+#include <string_view>
 
 export module charm.widgets.label;
 
@@ -10,7 +13,6 @@ import charm.gfx.color;
 import charm.gfx.canvas;
 import charm.font.typography;
 import charm.gfx.text_box;
-import charm.core.string;
 import charm.core.style;
 import charm.core.style_sheet;
 
@@ -21,7 +23,7 @@ class Label : public WidgetBase<Label> {
 
 public:
 
-    enum class VerticalAlign {
+    enum class VerticalAlign : std::uint8_t {
 
         Top,
 
@@ -36,7 +38,7 @@ public:
 
 
     explicit Label(const char* txt = "") {
-        text_.assign(txt);
+        assign_text(txt);
         const Style& st = Theme::instance().get<Label>();
         font_ = &resolve_font(st);
         color_ = {};
@@ -49,9 +51,9 @@ public:
     }
 
 
-    void set_text(const char* txt) {
+    void set_text(const char* txt) noexcept {
 
-        text_.assign(txt);
+        assign_text(txt);
 
         resize();
 
@@ -160,21 +162,36 @@ public:
 
         if (v_align_ == VerticalAlign::Baseline) {
             const int baseline_y = r.y + font_->baseline;
-            draw_text_baseline(cvs, r.x, baseline_y, text_.c_str(), use_color, *font_);
+            draw_text_baseline_range(cvs, r.x, baseline_y, text_, text_size_, use_color, *font_);
             return;
         }
 
-        draw_text_box(cvs, r, text_.c_str(), use_color, *font_, align_h_, align_v_, wrap_, ellipsis_);
+        draw_text_box(cvs, r, std::string_view{text_, text_size_},
+                      use_color, *font_, align_h_, align_v_, wrap_, ellipsis_);
     }
 
 
 private:
 
+    static constexpr std::uint8_t kMaxTextBytes = 64;
+
+    static std::uint8_t bounded_text_size(const char* text) noexcept {
+        if (!text) return 0;
+        std::uint8_t size = 0;
+        while (size < kMaxTextBytes && text[size] != '\0') ++size;
+        return size;
+    }
+
+    void assign_text(const char* text) noexcept {
+        text_ = text ? text : "";
+        text_size_ = bounded_text_size(text_);
+    }
+
     void resize() {
 
         if (!font_) return;
 
-        const int width = measure_text_width(text_.c_str(), *font_);
+        const int width = measure_text_width(text_, text_size_, *font_);
 
         const int height = font_->line_height;
 
@@ -184,9 +201,10 @@ private:
 
 
 
-    StaticString<64> text_;
+    const char* text_{""};
     const Font* font_{nullptr};
     rgba color_{};
+    std::uint8_t text_size_{0};
     bool has_color_{false};
     bool has_font_{false};
     VerticalAlign v_align_{VerticalAlign::Center};

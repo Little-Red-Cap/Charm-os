@@ -3,6 +3,7 @@ module;
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <string_view>
 
 export module charm.gfx.text_box;
 
@@ -295,43 +296,48 @@ void draw_text_baseline(CanvasBase& cvs,
 }
 
 export
-enum class TextAlignH {
+enum class TextAlignH : std::uint8_t {
     Left,
     Center,
     Right
 };
 
 export
-enum class TextAlignV {
+enum class TextAlignV : std::uint8_t {
     Top,
     Center,
     Bottom
 };
 
 export
-enum class TextWrap {
+enum class TextWrap : std::uint8_t {
     None,
     Word,
     Char
 };
 
 export
-enum class TextEllipsis {
+enum class TextEllipsis : std::uint8_t {
     None,
     End
 };
 
+static_assert(sizeof(TextAlignH) == 1);
+static_assert(sizeof(TextAlignV) == 1);
+static_assert(sizeof(TextWrap) == 1);
+static_assert(sizeof(TextEllipsis) == 1);
+
 export
 void draw_text_box(CanvasBase& cvs,
                    const Rect& rect,
-                   const char* text,
+                   std::string_view text,
                    const rgba& color,
                    const Font& font,
                    TextAlignH align_h = TextAlignH::Left,
                    TextAlignV align_v = TextAlignV::Top,
                    TextWrap wrap = TextWrap::None,
                    TextEllipsis ellipsis = TextEllipsis::None) noexcept {
-    if (!text) return;
+    if (text.empty()) return;
     const int line_height = font.line_height;
     if (line_height <= 0 || rect.w <= 0 || rect.h <= 0) return;
 
@@ -341,6 +347,7 @@ void draw_text_box(CanvasBase& cvs,
         : (wrap == TextWrap::Char ? alg::text_layout::Wrap::Char : alg::text_layout::Wrap::None);
     int line_count = alg::text_layout::layout_lines(text, font, rect.w, wrap_mode,
                                                     lines.data(), static_cast<int>(lines.size()));
+    const char* text_end = text.data() + text.size();
 
     int max_lines = rect.h / line_height;
     if (max_lines <= 0) max_lines = 1;
@@ -365,7 +372,7 @@ void draw_text_box(CanvasBase& cvs,
         bool add_ellipsis = false;
         if (ellipsis == TextEllipsis::End && (i == line_count - 1)) {
             const char* rest = line.start + line.len;
-            if (*rest != '\0') {
+            if (rest < text_end) {
                 add_ellipsis = true;
             }
             if (draw_width > rect.w) {
@@ -393,4 +400,19 @@ void draw_text_box(CanvasBase& cvs,
             draw_text_baseline_range(cvs, x + draw_width, baseline_y, "...", 3, color, font);
         }
     }
+}
+
+export
+void draw_text_box(CanvasBase& cvs,
+                   const Rect& rect,
+                   const char* text,
+                   const rgba& color,
+                   const Font& font,
+                   TextAlignH align_h = TextAlignH::Left,
+                   TextAlignV align_v = TextAlignV::Top,
+                   TextWrap wrap = TextWrap::None,
+                   TextEllipsis ellipsis = TextEllipsis::None) noexcept {
+    if (!text) return;
+    draw_text_box(cvs, rect, std::string_view{text}, color, font,
+                  align_h, align_v, wrap, ellipsis);
 }

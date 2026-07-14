@@ -17,6 +17,7 @@ import charm.widgets.foldable_panel;
 import charm.widgets.image;
 import charm.widgets.histogram;
 import charm.widgets.histogram_view;
+import charm.widgets.label;
 import charm.widgets.list;
 import charm.widgets.list_view;
 import charm.widgets.menu_item;
@@ -40,7 +41,9 @@ namespace {
     };
 
     static_assert(!SupportsObjectChildren<Button>);
-    static_assert(sizeof(Button) <= 360,
+    static_assert(sizeof(Label) <= 72,
+                  "Label must retain a bounded text view instead of inline text storage");
+    static_assert(sizeof(Button) <= 272,
                   "Button must not retain per-instance style or nine-slice skin storage");
     static_assert(SupportsObjectChildren<List>);
     static_assert(SupportsObjectChildren<FoldablePanel>);
@@ -356,9 +359,10 @@ namespace {
 int main() {
     print_widget_signal_run_begin();
 
-    std::printf("[ws-abi] object_base=%zu callback=%zu button=%zu scroll_container=%zu list=%zu foldable_panel=%zu interaction_list=%zu double_tap=%zu pinch=%zu drag=%zu long_press=%zu\n",
+    std::printf("[ws-abi] object_base=%zu callback=%zu label=%zu button=%zu scroll_container=%zu list=%zu foldable_panel=%zu interaction_list=%zu double_tap=%zu pinch=%zu drag=%zu long_press=%zu\n",
                 sizeof(ObjectBase),
                 sizeof(Callback),
+                sizeof(Label),
                 sizeof(Button),
                 sizeof(ScrollContainer),
                 sizeof(List),
@@ -729,6 +733,33 @@ int main() {
                     && foldable_panel.is_expanded(),
                 "foldable panel header click expands the panel")) return 1;
 
+    std::array<Glyph, 2> label_probe_glyphs{};
+    label_probe_glyphs[0].x_advance = 4;
+    label_probe_glyphs[1].x_advance = 12;
+    const std::array<GlyphRange, 1> label_probe_ranges{{
+        GlyphRange{static_cast<std::uint32_t>('A'), 2, 0}
+    }};
+    Font label_probe_font{};
+    label_probe_font.table = std::span<const Glyph>{label_probe_glyphs};
+    label_probe_font.ranges = std::span<const GlyphRange>{label_probe_ranges};
+    label_probe_font.line_height = 12;
+    label_probe_font.baseline = 10;
+    char borrowed_label_text[]{"A"};
+    Label borrowed_label{borrowed_label_text};
+    borrowed_label.set_font(label_probe_font);
+    if (!expect(borrowed_label.get_rect().w == 4,
+                "label measures its initial borrowed text")) return 1;
+    borrowed_label_text[0] = 'B';
+    borrowed_label.set_font(label_probe_font);
+    if (!expect(borrowed_label.get_rect().w == 12,
+                "label remeasures updated caller-owned text without an inline copy")) return 1;
+    std::array<char, 81> long_label_text{};
+    long_label_text.fill('A');
+    long_label_text.back() = '\0';
+    borrowed_label.set_text(long_label_text.data());
+    if (!expect(borrowed_label.get_rect().w == 64 * 4,
+                "label preserves the 64-byte text admission bound")) return 1;
+
     using CallbackFrameBuffer = FrameBuffer<PixelFormat::RGB565, 96, 96>;
     static CallbackFrameBuffer callback_fb{};
     Canvas<PixelFormat::RGB565, 96, 96> callback_canvas{callback_fb};
@@ -751,6 +782,16 @@ int main() {
     if (!expect(foldable_panel.title() != nullptr && foldable_panel.title()[0] == '\0'
                     && foldable_panel.body() != nullptr && foldable_panel.body()[0] == '\0',
                 "foldable panel normalizes null text to empty strings")) return 1;
+
+    text_profile_reset();
+    borrowed_label.draw(callback_canvas);
+    const auto bounded_label_profile = text_profile_sample();
+    if (!expect(bounded_label_profile.draw_calls == 1
+                    && bounded_label_profile.glyphs == 64,
+                "label drawing consumes only its admitted text range")) return 1;
+    borrowed_label.set_text(nullptr);
+    if (!expect(borrowed_label.get_rect().w == 0,
+                "label normalizes null text to an empty bounded view")) return 1;
 
     const Style saved_scroll_style = Theme::instance().get<ScrollContainer>();
     Style themed_scroll_style = saved_scroll_style;

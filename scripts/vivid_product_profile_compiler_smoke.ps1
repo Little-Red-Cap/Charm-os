@@ -25,6 +25,15 @@ if (-not $FixtureRoot.StartsWith($fixturePrefix, [System.StringComparison]::Ordi
 
 $catalogPath = Join-Path $RepoRoot "Modules/ui/vivid/cmake/widget_catalog.cmake"
 $soaGuiPath = Join-Path $RepoRoot "Modules/ui/vivid/core/soa_gui.cppm"
+$playerClosurePath = Join-Path $RepoRoot "Examples/project/player/cmake/player_charm_closure.cmake"
+$playerClosureText = Get-Content -LiteralPath $playerClosurePath -Raw -Encoding UTF8
+$manualVividSources = [regex]::Matches(
+    $playerClosureText,
+    '"[^"\r\n]*Modules/ui/vivid/[^"\r\n]*\.cppm"')
+if ($manualVividSources.Count -ne 0) {
+    throw "Canonical Player closure must not manually enumerate Vivid .cppm sources"
+}
+Write-Host "[vivid-profile-compiler] player_closure_vivid_sources=0"
 $catalogText = Get-Content -LiteralPath $catalogPath -Raw -Encoding UTF8
 $catalogBlocks = [regex]::Matches(
     $catalogText,

@@ -1,6 +1,9 @@
 module;
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
+#include <span>
+#include <type_traits>
 export module charm.widgets.table_view;
 
 import charm.core.object;
@@ -30,11 +33,21 @@ public:
     using CountFn = int(*)(void* ctx) noexcept;
     using ColumnWidthFn = int(*)(void* ctx, int col) noexcept;
     using SelectFn = void(*)(void* ctx, int row, int col) noexcept;
+    static constexpr std::size_t max_columns = 16;
 
     TableView() {
         set_focusable(true);
         set_size(320, 180);
     }
+
+    ~TableView() noexcept {
+        detach_column_width_storage();
+    }
+
+    TableView(const TableView&) = delete;
+    TableView& operator=(const TableView&) = delete;
+    TableView(TableView&&) = delete;
+    TableView& operator=(TableView&&) = delete;
 
     void set_data_source(CountFn rows, CountFn cols, DrawCellFn draw, void* ctx = nullptr) noexcept {
         row_count_fn_ = rows;
@@ -49,9 +62,28 @@ public:
         update_scroll_bounds();
     }
 
-    void set_column_width(int col, int w) noexcept {
-        if (col < 0 || col >= kMaxCols) return;
-        col_widths_[col] = (w > 8) ? w : 8;
+    [[nodiscard]] bool attach_column_width_storage(std::span<int> widths) noexcept {
+        if (widths.size() > max_columns) return false;
+        detach_column_width_storage();
+        for (auto& width : widths) width = 0;
+        col_widths_ = widths;
+        return true;
+    }
+
+    void detach_column_width_storage() noexcept {
+        for (auto& width : col_widths_) width = 0;
+        col_widths_ = {};
+    }
+
+    [[nodiscard]] std::size_t column_width_storage_capacity() const noexcept {
+        return col_widths_.size();
+    }
+
+    [[nodiscard]] bool set_column_width(int col, int w) noexcept {
+        if (col < 0 || static_cast<std::size_t>(col) >= col_widths_.size()) return false;
+        col_widths_[static_cast<std::size_t>(col)] = (w > 8) ? w : 8;
+        update_scroll_bounds();
+        return true;
     }
 
     void set_column_width_fn(ColumnWidthFn fn, void* ctx = nullptr) noexcept {
@@ -168,8 +200,6 @@ public:
     }
 
 private:
-    static constexpr int kMaxCols = 16;
-
     int row_count() const noexcept {
         const StructuredDataProvider provider = make_provider();
         if (provider.count) {
@@ -179,20 +209,22 @@ private:
     }
 
     int col_count() const noexcept {
+        int count = col_count_;
         if (col_count_fn_) {
-            const int v = col_count_fn_(data_ctx_);
-            return (v > 0) ? v : 0;
+            count = col_count_fn_(data_ctx_);
         }
-        return col_count_;
+        if (count <= 0) return 0;
+        return std::min(count, static_cast<int>(max_columns));
     }
 
     int column_width(int col) const noexcept {
-        if (col < 0 || col >= kMaxCols) return 24;
+        if (col < 0 || col >= static_cast<int>(max_columns)) return 24;
         if (col_width_fn_) {
             const int v = col_width_fn_(col_width_ctx_, col);
             return (v > 8) ? v : 8;
         }
-        const int w = col_widths_[col];
+        if (static_cast<std::size_t>(col) >= col_widths_.size()) return 24;
+        const int w = col_widths_[static_cast<std::size_t>(col)];
         return (w > 8) ? w : 8;
     }
 
@@ -277,13 +309,21 @@ private:
     int row_count_{0};
     int col_count_{0};
     int row_height_{20};
-    int col_widths_[kMaxCols]{};
+    std::span<int> col_widths_{};
     int scroll_x_{0};
     StructuredScrollModel scroll_{};
     int max_scroll_x_{0};
     int selected_row_{-1};
     int selected_col_{-1};
 };
+
+static_assert(sizeof(TableView)
+              <= sizeof(ObjectBase) + sizeof(void*) * 8 + sizeof(std::span<int>)
+                  + sizeof(int) * 8 + sizeof(StructuredScrollModel)
+                  + alignof(TableView) * 3,
+              "TableView must not regain a fixed column width table");
+static_assert(!std::is_copy_constructible_v<TableView>);
+static_assert(!std::is_move_constructible_v<TableView>);
 
 
 

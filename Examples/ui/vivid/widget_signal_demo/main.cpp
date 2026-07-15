@@ -68,6 +68,10 @@ namespace {
                   "TabView must borrow its bounded tab storage");
     static_assert(!std::is_copy_constructible_v<TabView>);
     static_assert(!std::is_move_constructible_v<TabView>);
+    static_assert(sizeof(TableView) <= 168,
+                  "TableView must borrow its bounded column width storage");
+    static_assert(!std::is_copy_constructible_v<TableView>);
+    static_assert(!std::is_move_constructible_v<TableView>);
     static_assert(sizeof(ListItem) <= 120,
                   "ListItem must not retain an implicit observer slot table");
     static_assert(sizeof(MenuItem) <= 128,
@@ -243,6 +247,11 @@ namespace {
             return 1;
         }
 
+        static int wide_count(void* ctx) noexcept {
+            ++static_cast<StructuredCallbackProbe*>(ctx)->count_calls;
+            return static_cast<int>(TableView::max_columns) + 8;
+        }
+
         static void draw_list(void* ctx, CanvasBase&, const ListView::DrawInfo& info) noexcept {
             auto& probe = *static_cast<StructuredCallbackProbe*>(ctx);
             ++probe.draw_calls;
@@ -400,7 +409,7 @@ int main() {
     print_widget_signal_run_begin();
     StyleSheet::instance().rebuild_if_needed();
 
-    std::printf("[ws-abi] object_base=%zu callback=%zu label=%zu text_box=%zu button=%zu dropdown=%zu tabview=%zu list_item=%zu menu_item=%zu radio_group=%zu scroll_container=%zu list=%zu foldable_panel=%zu interaction_list=%zu double_tap=%zu pinch=%zu drag=%zu long_press=%zu\n",
+    std::printf("[ws-abi] object_base=%zu callback=%zu label=%zu text_box=%zu button=%zu dropdown=%zu tabview=%zu table_view=%zu list_item=%zu menu_item=%zu radio_group=%zu scroll_container=%zu list=%zu foldable_panel=%zu interaction_list=%zu double_tap=%zu pinch=%zu drag=%zu long_press=%zu\n",
                 sizeof(ObjectBase),
                 sizeof(Callback),
                 sizeof(Label),
@@ -408,6 +417,7 @@ int main() {
                 sizeof(Button),
                 sizeof(Dropdown),
                 sizeof(TabView),
+                sizeof(TableView),
                 sizeof(ListItem),
                 sizeof(MenuItem),
                 sizeof(RadioGroup),
@@ -1210,6 +1220,9 @@ int main() {
     StructuredCallbackProbe table_width{};
     StructuredCallbackProbe table_select{};
     TableView table_view{};
+    if (!expect(!table_view.set_column_width(0, 40)
+                    && table_view.column_width_storage_capacity() == 0,
+                "table view requires explicit storage for per-column widths")) return 1;
     table_view.set_rect({0, 0, 64, 48});
     table_view.set_data_source(&StructuredCallbackProbe::count,
                                &StructuredCallbackProbe::count,
@@ -1222,8 +1235,47 @@ int main() {
     if (!expect(table_data.draw_calls > 0
                     && table_data.column_width_calls == 0
                     && table_width.column_width_calls > 0
+                    && table_view.column_width_storage_capacity() == 0
                     && table_select.select_calls == 1,
-                "table view keeps column and selection contexts isolated")) return 1;
+                "table view callback widths need no attached storage")) return 1;
+
+    std::array<int, 2> table_width_storage{};
+    StructuredCallbackProbe stored_table_select{};
+    TableView stored_table{};
+    stored_table.set_rect({0, 0, 160, 48});
+    stored_table.set_data_source(
+        +[](void*) noexcept { return 1; },
+        +[](void*) noexcept { return 2; },
+        nullptr);
+    stored_table.set_on_select(&StructuredCallbackProbe::table_select,
+                               &stored_table_select);
+    if (!expect(stored_table.attach_column_width_storage(table_width_storage)
+                    && stored_table.set_column_width(0, 40)
+                    && stored_table.set_column_width(1, 50)
+                    && !stored_table.set_column_width(2, 60)
+                    && stored_table.column_width_storage_capacity() == 2,
+                "table view fills caller-provided column width storage")) return 1;
+    if (!expect(stored_table.on_event(Event::mouse(Event::Type::Click, 44, 12, 1))
+                    && stored_table_select.select_calls == 1,
+                "table view hit testing observes attached column widths")) return 1;
+    stored_table.detach_column_width_storage();
+    if (!expect(stored_table.column_width_storage_capacity() == 0
+                    && table_width_storage[0] == 0
+                    && table_width_storage[1] == 0,
+                "table view detach clears caller-owned active widths")) return 1;
+
+    StructuredCallbackProbe wide_table_data{};
+    StructuredCallbackProbe wide_table_width{};
+    TableView wide_table{};
+    wide_table.set_column_width_fn(&StructuredCallbackProbe::table_column_width,
+                                   &wide_table_width);
+    wide_table.set_data_source(&StructuredCallbackProbe::wide_count,
+                               &StructuredCallbackProbe::wide_count,
+                               nullptr,
+                               &wide_table_data);
+    if (!expect(wide_table_width.column_width_calls
+                    == static_cast<int>(TableView::max_columns),
+                "table view caps callback-backed columns at its object budget")) return 1;
 
     StructuredCallbackProbe tree_data{};
     StructuredCallbackProbe tree_height{};

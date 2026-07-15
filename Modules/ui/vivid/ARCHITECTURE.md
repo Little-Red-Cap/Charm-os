@@ -206,6 +206,12 @@ detach 与析构清空 active entry。标题继续借用调用方文本，page �
 绑定，都必须立即把 active page 设为 visible、其余 page 设为 hidden。SoA `WidgetKind::TabView` 使用独立的
 segmented payload/input 路径，不与 object storage、标题指针或 resolver 生命周期混用。
 
+Object `TableView` 不再为每个实例常驻 16 项列宽表。需要逐列覆盖宽度时，调用方按实际列数提供独占
+`std::span<int>`；未 attach 或越过 storage 容量时 `set_column_width()` 返回 `false`，detach 与析构清空 active
+width。只读 `ColumnWidthFn` 路径不需要 storage。object 绘制、滚动边界与 hit-test 最多处理 16 列，回调返回更大
+列数也会被裁剪；storage 与 callback context 必须覆盖控件使用期。SoA `WidgetKind::TableView` 使用独立 payload、
+record 与 input 路径，不借用 object storage 或 callback。
+
 跨帧保存的 UI callback 使用 `util::delegate` 并由 owner 保证 target 生命周期。历史名称 `Callback` 只是
 `util::delegate<>` 的单轨别名，不得重新增加独立的 `fn + void*` fallback 或第二份 callback 存储。
 Button、ListItem、MenuItem 这类单一 command edge 每个实例只保存一个 delegate；需要同步多播时，由调用方

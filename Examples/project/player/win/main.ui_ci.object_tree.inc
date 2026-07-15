@@ -442,12 +442,16 @@
             }
         };
 
+        std::array<int, 2> table_column_widths{};
         TableView table{};
         table.set_rect({0, 0, 160, 96});
         table.set_row_height(24);
         table.set_data_source(&TableSource::row_count, &TableSource::col_count, nullptr, nullptr);
-        table.set_column_width(0, 40);
-        table.set_column_width(1, 50);
+        if (!table.attach_column_width_storage(table_column_widths)
+            || !table.set_column_width(0, 40)
+            || !table.set_column_width(1, 50)) {
+            return false;
+        }
 
         SelectionProbe probe{};
         table.set_on_select(&SelectionProbe::on_select, &probe);

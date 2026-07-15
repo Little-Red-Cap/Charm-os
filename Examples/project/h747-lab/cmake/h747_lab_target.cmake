@@ -282,7 +282,9 @@ function(h747_lab_collect_vivid_mcu_modules target_name out_modules out_base_dir
         set(_h747_vivid_featureset "MCU_MIN")
     endif()
     set(CHARM_VIVID_FEATURESET "${_h747_vivid_featureset}" CACHE STRING "" FORCE)
-    if(NOT CHARM_VIVID_FEATURESET STREQUAL "PRODUCT")
+    # MCU_MIN keeps an explicit Vivid allowlist; FULL uses the GLOB below and
+    # PRODUCT uses the profile compiler's import closure.
+    if(CHARM_VIVID_FEATURESET STREQUAL "MCU_MIN")
         set(CHARM_VIVID_SCREEN_WIDTH "720" CACHE STRING "" FORCE)
         set(CHARM_VIVID_SCREEN_HEIGHT "1280" CACHE STRING "" FORCE)
         set(CHARM_VIVID_SCREEN_PIXEL_FORMAT "RGB888" CACHE STRING "" FORCE)

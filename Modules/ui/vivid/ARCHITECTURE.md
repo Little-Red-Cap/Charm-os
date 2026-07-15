@@ -198,7 +198,10 @@ label/checked 模型，单选和点击结果因此无需复制回上层。两个
 
 `DropdownPopup` 作为 object/SoA 混合 helper 同样借用调用方提供的 option 指针数组和文本；二者都必须覆盖
 popup 的完整配置与绘制周期。修改文本内容或数组项会被后续 list source 读取观察到，`nullptr` 项继续归一化为
-空字符串；helper 不再为 16 个选项常驻字符串副本或二次指针表。
+空字符串；helper 不再为 16 个选项常驻字符串副本或二次指针表。committed selection 仍由 helper 的
+`service::state` 持有并通过 `observe_selected()` 同步观察；confirm edge 只保存一个带 committed index 的 typed
+delegate，即使重复确认当前 selection 也会调用。需要多播时由调用方显式转发，helper 不常驻第二张 signal 表或
+无参 legacy callback。DropdownPopup 关联 SoA handles、state connections 与外部 callback target，禁止复制和移动。
 
 `MenuTree` 的 highlight truth 属于调用方提供的 selection model；confirm edge 只保存一个带完整
 `menu_item_ref` 参数的 `util::delegate`。需要同步多播时由调用方显式拥有 `service::signal` 并从该 callback 转发，

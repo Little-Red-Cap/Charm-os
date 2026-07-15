@@ -58,7 +58,9 @@ committed truth -> observe_selected()
 confirm edge    -> typed callback or explicit observer surface
 ```
 
-这不意味着 scene/runtime 自动广播 helper edge。`DropdownPopup` 可以自己持有 committed selection；
+这不意味着 scene/runtime 自动广播 helper edge。`DropdownPopup` 自己持有 committed selection，并通过
+`observe_selected()` 暴露 truth change；confirm 只使用一个带 committed index 的 typed callback。需要多播时由
+caller 显式转发到自己的 signal。
 `MenuTree` 把 highlight truth 交给 caller-owned selection model，只保留一个带 `menu_item_ref` 的 confirm callback；
 需要多播时由 caller 显式转发到自己的 signal。disabled item 是否能 highlight、open 或 confirm 由 helper contract
 明确定义，不能从 SceneAccess 推导。

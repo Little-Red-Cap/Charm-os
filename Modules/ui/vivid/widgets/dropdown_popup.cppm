@@ -1,14 +1,15 @@
 module;
 #include <cstddef>
 #include <cstdint>
+#include <type_traits>
 export module charm.widgets.dropdown_popup;
 
 import charm.core.handle;
 import charm.core.soa_factory;
 import charm.core.event;
 import charm.core.geometry;
-import service.signal;
 import service.state;
+import util.delegate;
 
 // Object/SoA helper that projects a borrowed option list into a popup ListView.
 export
@@ -20,9 +21,7 @@ public:
     using selected_state_type = service::state<int, 4>;
     using selected_slot_type = typename selected_state_type::slot_type;
     using selected_connection = typename selected_state_type::connection;
-    using select_signal_type = service::signal<void(const int&), 4>;
-    using select_slot_type = typename select_signal_type::slot_type;
-    using select_connection = typename select_signal_type::connection;
+    using select_callback = util::delegate<const int&>;
 
     DropdownPopup(SoaFactory& factory, WidgetHandle host, WidgetHandle root)
         : factory_(factory), host_(host), root_(root) {
@@ -34,6 +33,11 @@ public:
         factory_.link(popup_container_, popup_list_);
         factory_.link(root_, popup_container_);
     }
+
+    DropdownPopup(const DropdownPopup&) = delete;
+    DropdownPopup& operator=(const DropdownPopup&) = delete;
+    DropdownPopup(DropdownPopup&&) = delete;
+    DropdownPopup& operator=(DropdownPopup&&) = delete;
 
     void set_options(const char* const* opts, int count) {
         options_ = nullptr;
@@ -79,7 +83,7 @@ public:
         return is_open_;
     }
 
-    void set_on_select(Callback cb) { on_select_ = cb; }
+    void set_on_select(select_callback callback) noexcept { on_select_ = callback; }
     void set_selection(int idx) {
         if (idx < 0 || idx >= option_count_) return;
         (void)selected_.set(idx);
@@ -97,16 +101,6 @@ public:
 
     [[nodiscard]] bool unobserve_selected(selected_connection c) noexcept {
         return selected_.disconnect(c);
-    }
-
-    // observe_select() is a same-domain synchronous edge surface for accepted confirms.
-    // It fires even when the user confirms the currently committed selection again.
-    [[nodiscard]] auto observe_select(select_slot_type slot) noexcept {
-        return selected_edge_.connect(slot);
-    }
-
-    [[nodiscard]] bool unobserve_select(select_connection c) noexcept {
-        return selected_edge_.disconnect(c);
     }
 
     bool handle_event(const Event& e) {
@@ -205,8 +199,7 @@ private:
         (void)selected_.set(idx);
         sync_list_selection();
         const int committed = selected_.get();
-        (void)selected_edge_.emit(committed);
-        if (on_select_) on_select_();
+        if (on_select_) on_select_(committed);
     }
 
     int index_from_pos(int y) const noexcept {
@@ -238,8 +231,7 @@ private:
     selected_state_type selected_{0};
     int highlighted_{0};
     bool is_open_{false};
-    select_signal_type selected_edge_{};
-    Callback on_select_{};
+    select_callback on_select_{};
 };
 
 static_assert(sizeof(DropdownPopup)
@@ -249,7 +241,9 @@ static_assert(sizeof(DropdownPopup)
                    + sizeof(int) * 2
                    + sizeof(bool)
                    + sizeof(DropdownPopup::selected_state_type)
-                   + sizeof(DropdownPopup::select_signal_type)
-                   + sizeof(Callback)
+                   + sizeof(DropdownPopup::select_callback)
                    + alignof(DropdownPopup) * 3,
               "DropdownPopup must not regain per-option text or pointer storage");
+static_assert(sizeof(DropdownPopup::select_callback) == sizeof(void*) * 2);
+static_assert(!std::is_copy_constructible_v<DropdownPopup>);
+static_assert(!std::is_move_constructible_v<DropdownPopup>);

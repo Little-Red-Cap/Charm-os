@@ -222,20 +222,15 @@
         kernel.set_rect(host, {8, 8, 100, 28});
 
         struct PopupProbe {
-            int callback_calls{0};
-            int edge_calls{0};
+            int select_calls{0};
             int selected_calls{0};
-            int last_edge{-1};
+            int last_confirmed{-1};
             int last_selected{-1};
             int last_selected_prev{-1};
 
-            void on_select() noexcept {
-                callback_calls += 1;
-            }
-
-            void on_edge(const int& value) noexcept {
-                edge_calls += 1;
-                last_edge = value;
+            void on_select(const int& value) noexcept {
+                select_calls += 1;
+                last_confirmed = value;
             }
 
             void on_selected(const int& value, const int& previous) noexcept {
@@ -250,10 +245,9 @@
         DropdownPopup popup{factory, host, root};
         popup.set_options(options, 3);
         popup.set_selection(1);
-        popup.set_on_select(Callback::bind<&PopupProbe::on_select>(probe));
-        const auto select_conn = popup.observe_select(DropdownPopup::select_slot_type::bind<&PopupProbe::on_edge>(probe));
+        popup.set_on_select(DropdownPopup::select_callback::bind<&PopupProbe::on_select>(probe));
         const auto selected_conn = popup.observe_selected(DropdownPopup::selected_slot_type::bind<&PopupProbe::on_selected>(probe));
-        if (!select_conn || !selected_conn) {
+        if (!selected_conn) {
             return false;
         }
 
@@ -265,7 +259,7 @@
         const bool blank_click =
             popup.handle_event(Event::mouse(Event::Type::Click, 28, 120, 1));
         if (!blank_click || popup.is_open() || popup.selected() != 1
-            || probe.callback_calls != 0 || probe.edge_calls != 0 || probe.last_edge != -1) {
+            || probe.select_calls != 0 || probe.last_confirmed != -1) {
             return false;
         }
 
@@ -275,9 +269,8 @@
         return item_click
             && !popup.is_open()
             && popup.selected() == 2
-            && probe.callback_calls == 1
-            && probe.edge_calls == 1
-            && probe.last_edge == 2
+            && probe.select_calls == 1
+            && probe.last_confirmed == 2
             && probe.selected_calls >= 1
             && probe.last_selected == 2
             && probe.last_selected_prev == 1;

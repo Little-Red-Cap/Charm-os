@@ -2,6 +2,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdio>
+#include <span>
 
 import charm.core;
 import charm.core.event;
@@ -9,10 +10,16 @@ import charm.widgets.arc;
 import charm.widgets.checkbox;
 import charm.widgets.dropdown;
 import charm.widgets.progress_bar_simple;
+import charm.widgets.segmented_control;
 import charm.widgets.slider;
+import charm.widgets.toggle_group;
 
 namespace {
     constexpr float kFloatEpsilon = 0.0001f;
+    static_assert(sizeof(SegmentedControl) <= 192,
+                  "SegmentedControl must borrow its bounded label view");
+    static_assert(sizeof(ToggleGroup) <= 80,
+                  "ToggleGroup must borrow its bounded item model");
 
     struct Probe {
         int checkbox_changes{0};
@@ -22,6 +29,10 @@ namespace {
         int dropdown_changes{0};
         int dropdown_old{0};
         int dropdown_new{0};
+
+        int segmented_changes{0};
+        int segmented_old{0};
+        int segmented_new{0};
 
         int slider_changes{0};
         int slider_old{0};
@@ -47,6 +58,12 @@ namespace {
             dropdown_new = now;
         }
 
+        void on_segmented_changed(const int& now, const int& old) noexcept {
+            ++segmented_changes;
+            segmented_old = old;
+            segmented_new = now;
+        }
+
         void on_slider_changed(const int& now, const int& old) noexcept {
             ++slider_changes;
             slider_old = old;
@@ -69,6 +86,8 @@ namespace {
     int g_checkbox_callbacks = 0;
     int g_dropdown_callbacks = 0;
     int g_slider_callbacks = 0;
+    int g_segmented_callbacks = 0;
+    int g_toggle_callbacks = 0;
 
     void on_checkbox_command() noexcept {
         ++g_checkbox_callbacks;
@@ -80,6 +99,14 @@ namespace {
 
     void on_slider_command() noexcept {
         ++g_slider_callbacks;
+    }
+
+    void on_segmented_command() noexcept {
+        ++g_segmented_callbacks;
+    }
+
+    void on_toggle_command() noexcept {
+        ++g_toggle_callbacks;
     }
 
     [[nodiscard]] bool nearly_equal(float lhs, float rhs) noexcept {
@@ -114,6 +141,9 @@ namespace {
 
 int main() {
     print_widget_state_run_begin();
+    std::printf("[wst-abi] segmented_control=%zu toggle_group=%zu\n",
+                sizeof(SegmentedControl),
+                sizeof(ToggleGroup));
 
     Probe probe{};
 
@@ -214,6 +244,67 @@ int main() {
     if (!expect(scoped_dropdown_storage[0] == nullptr,
                 "dropdown destruction clears caller-owned active options")) return 1;
 
+    std::array<const char*, 9> oversized_segmented_labels{};
+    std::array<const char*, 2> segmented_labels{"One", "Two"};
+    SegmentedControl segmented{};
+    if (!expect(!segmented.set_items(oversized_segmented_labels)
+                    && segmented.item_count() == 0
+                    && !segmented.on_event(Event::mouse(Event::Type::Click, 1, 1, 1)),
+                "segmented control rejects oversized and empty input")) return 1;
+    if (!expect(segmented.set_items(segmented_labels) && segmented.item_count() == 2,
+                "segmented control borrows bounded labels")) return 1;
+    segmented.set_on_change(Callback::bind<&on_segmented_command>());
+    const auto segmented_conn = segmented.observe_selected(
+        util::delegate<const int&, const int&>::bind<&Probe::on_segmented_changed>(probe));
+    if (!expect(static_cast<bool>(segmented_conn),
+                "connect segmented observe_selected")) return 1;
+    segmented.set_selected(1);
+    if (!expect(segmented.selected() == 1
+                    && probe.segmented_changes == 1
+                    && probe.segmented_old == 0
+                    && probe.segmented_new == 1
+                    && g_segmented_callbacks == 1,
+                "segmented selection updates truth and command edge")) return 1;
+    if (!expect(segmented.set_items(
+                        std::span<const char* const>{segmented_labels.data(), 1})
+                    && segmented.selected() == 0
+                    && probe.segmented_changes == 2
+                    && probe.segmented_old == 1
+                    && probe.segmented_new == 0
+                    && g_segmented_callbacks == 1,
+                "segmented shrink clamps truth without command callback")) return 1;
+    if (!expect(segmented.unobserve_selected(segmented_conn.value()),
+                "segmented disconnects observe token")) return 1;
+
+    std::array<ToggleGroup::Item, 9> oversized_toggle_items{};
+    std::array<ToggleGroup::Item, 2> toggle_items{{
+        {"One", false},
+        {"Two", true},
+    }};
+    ToggleGroup toggle_group{};
+    if (!expect(!toggle_group.set_items(oversized_toggle_items)
+                    && toggle_group.item_count() == 0
+                    && !toggle_group.on_event(Event::mouse(Event::Type::Click, 1, 1, 1))
+                    && !toggle_group.on_event(Event::key(Event::Type::KeyDown, Event::Key::Enter)),
+                "toggle group rejects oversized and empty input")) return 1;
+    if (!expect(toggle_group.set_items(toggle_items)
+                    && toggle_group.item_count() == 2
+                    && toggle_group.is_checked(1)
+                    && toggle_group.set_item(1, "Renamed")
+                    && !toggle_group.set_item(2, "overflow"),
+                "toggle group borrows caller-owned item truth")) return 1;
+    toggle_group.set_on_change(Callback::bind<&on_toggle_command>());
+    toggle_group.set_single_select(true);
+    toggle_group.set_checked(0, true);
+    if (!expect(toggle_items[0].checked && !toggle_items[1].checked
+                    && g_toggle_callbacks == 1,
+                "toggle single-select writes caller-owned truth")) return 1;
+    if (!expect(toggle_group.on_event(Event::mouse(Event::Type::Click, 180, 1, 1))
+                    && !toggle_items[0].checked && toggle_items[1].checked
+                    && toggle_items[1].label[0] == 'R'
+                    && g_toggle_callbacks == 2,
+                "toggle click updates caller-owned item model")) return 1;
+
     Slider slider{};
     slider.set_range(0, 100);
     slider.set_on_change(Callback::bind<&on_slider_command>());
@@ -280,6 +371,18 @@ int main() {
                 probe.dropdown_changes,
                 g_dropdown_callbacks,
                 dropdown.selected());
+    print_widget_state_case("segmented_state");
+    std::printf(" changes=%d callbacks=%d selected=%d items=%d\n",
+                probe.segmented_changes,
+                g_segmented_callbacks,
+                segmented.selected(),
+                segmented.item_count());
+    print_widget_state_case("toggle_group_state");
+    std::printf(" callbacks=%d checked=%d/%d items=%d\n",
+                g_toggle_callbacks,
+                toggle_group.is_checked(0) ? 1 : 0,
+                toggle_group.is_checked(1) ? 1 : 0,
+                toggle_group.item_count());
     print_widget_state_case("slider_state");
     std::printf(" changes=%d callbacks=%d value=%d\n",
                 probe.slider_changes,

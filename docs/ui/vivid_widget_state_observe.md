@@ -9,13 +9,15 @@
 
 | 表面 | truth owner / 更新入口 | observe 语义 | 典型用途 |
 |---|---|---|---|
-| object-level widget | widget 内的 `service::state<T, N>` | 同执行域、同步观察单个 widget truth | 小系统、object smoke、局部组合 |
+| object-level widget | widget 内的 `service::state<T, N>`，或显式绑定的 caller-owned model | state surface 同执行域同步观察；caller model 由 owner 直接读取 | 小系统、object smoke、局部组合 |
 | SoA scene | kernel/scene graph；`SceneBuilder`、`SceneAccess` 按 handle 更新 | 不提供 object observe 镜像 | page/controller、布局、input、record/execute |
 | SoA-backed helper | helper 或 caller-owned model | helper-local committed truth / confirm edge | popup、menu、picker 等局部交互 |
 
-object-level 例子包括 `Checkbox::observe_checked()`、`Dropdown::observe_selected()` 和
-`Slider::observe_value()`。SoA scene 例子包括 `set_value(handle, ...)`、`set_checked(handle, ...)`、
-`set_text(handle, ...)` 与 `set_style_patch(handle, ...)`。
+object-level state 例子包括 `Checkbox::observe_checked()`、`Dropdown::observe_selected()`、
+`SegmentedControl::observe_selected()` 和 `Slider::observe_value()`。`ToggleGroup::Item::checked` 则由调用方拥有，
+object widget 直接写入同一模型并用 callback 表达命令边沿，不再复制一份隐式 truth。SoA scene 例子包括
+`set_value(handle, ...)`、`set_checked(handle, ...)`、`set_text(handle, ...)` 与
+`set_style_patch(handle, ...)`。
 
 ## 硬边界
 

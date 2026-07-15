@@ -1,5 +1,8 @@
 module;
 #include <algorithm>
+#include <cstddef>
+#include <span>
+#include <type_traits>
 export module charm.widgets.toggle_group;
 
 import charm.core.object;
@@ -15,38 +18,56 @@ using namespace ui::render;
 export
 class ToggleGroup : public WidgetBase<ToggleGroup> {
 public:
+    struct Item {
+        const char* label{nullptr};
+        bool checked{false};
+    };
+
+    static constexpr std::size_t max_items = 8;
+
     ToggleGroup() {
         set_focusable(true);
         set_size(220, 28);
     }
 
-    void set_items(const char* const* items, int count) noexcept {
-        count_ = (count > kMax) ? kMax : (count < 0 ? 0 : count);
-        for (int i = 0; i < count_; ++i) labels_[i] = items[i];
-        for (int i = count_; i < kMax; ++i) labels_[i] = nullptr;
-        if (focus_idx_ >= count_) focus_idx_ = (count_ > 0) ? (count_ - 1) : 0;
+    ToggleGroup(const ToggleGroup&) = delete;
+    ToggleGroup& operator=(const ToggleGroup&) = delete;
+    ToggleGroup(ToggleGroup&&) = delete;
+    ToggleGroup& operator=(ToggleGroup&&) = delete;
+
+    [[nodiscard]] bool set_items(std::span<Item> items) noexcept {
+        if (items.size() > max_items) return false;
+        items_ = items;
+        const int count = item_count();
+        if (focus_idx_ >= count) focus_idx_ = count > 0 ? count - 1 : 0;
+        return true;
     }
 
-    void set_item(int index, const char* label) noexcept {
-        if (index < 0 || index >= kMax) return;
-        if (index >= count_) count_ = index + 1;
-        labels_[index] = label;
+    [[nodiscard]] bool set_item(int index, const char* label) noexcept {
+        if (index < 0 || index >= item_count()) return false;
+        items_[static_cast<std::size_t>(index)].label = label;
+        return true;
     }
 
     void set_single_select(bool on) noexcept { single_select_ = on; }
 
     void set_checked(int index, bool on) noexcept {
-        if (index < 0 || index >= count_) return;
+        const int count = item_count();
+        if (index < 0 || index >= count) return;
         if (single_select_ && on) {
-            for (int i = 0; i < count_; ++i) checked_[i] = false;
+            for (auto& item : items_) item.checked = false;
         }
-        checked_[index] = on;
+        items_[static_cast<std::size_t>(index)].checked = on;
         if (on_change_) on_change_();
     }
 
     bool is_checked(int index) const noexcept {
-        if (index < 0 || index >= count_) return false;
-        return checked_[index];
+        if (index < 0 || index >= item_count()) return false;
+        return items_[static_cast<std::size_t>(index)].checked;
+    }
+
+    [[nodiscard]] int item_count() const noexcept {
+        return static_cast<int>(items_.size());
     }
 
     void set_on_change(Callback cb) noexcept { on_change_ = cb; }
@@ -68,24 +89,26 @@ public:
         draw_rect(cvs, r.x, r.y, r.w, r.h, bg, true);
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
 
-        if (count_ <= 0) return;
+        const int count = item_count();
+        if (count <= 0) return;
 
-        const int seg_w = (count_ > 0) ? (r.w / count_) : r.w;
-        for (int i = 0; i < count_; ++i) {
+        const int seg_w = r.w / count;
+        for (int i = 0; i < count; ++i) {
             Rect seg{r.x + i * seg_w, r.y, seg_w, r.h};
-            if (i == count_ - 1) {
+            if (i == count - 1) {
                 seg.w = r.x + r.w - seg.x;
             }
 
-            rgba seg_bg = checked_[i] ? accent : bg;
-            rgba seg_border = checked_[i] ? accent : border;
+            const auto& item = items_[static_cast<std::size_t>(i)];
+            rgba seg_bg = item.checked ? accent : bg;
+            rgba seg_border = item.checked ? accent : border;
             draw_rect(cvs, seg.x, seg.y, seg.w, seg.h, seg_bg, true);
             draw_rect(cvs, seg.x, seg.y, seg.w, seg.h, seg_border, false);
             if (i > 0) {
                 draw_line(cvs, seg.x, seg.y + 2, seg.x, seg.y + seg.h - 3, border);
             }
 
-            const char* label = labels_[i] ? labels_[i] : "";
+            const char* label = item.label ? item.label : "";
             draw_text_box(cvs, seg, label, font, resolve_font(st),
                           TextAlignH::Center, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
 
@@ -99,13 +122,14 @@ public:
         if (!is_enabled()) return false;
         const auto r = get_rect();
         if (e.type == Event::Type::Click) {
-            if (!r.contains(e.x, e.y) || count_ <= 0) return false;
-            const int idx = (e.x - r.x) * count_ / std::max(1, static_cast<int>(r.w));
+            const int count = item_count();
+            if (!r.contains(e.x, e.y) || count <= 0) return false;
+            const int idx = (e.x - r.x) * count / std::max(1, static_cast<int>(r.w));
             focus_idx_ = idx;
             if (single_select_) {
                 set_checked(idx, true);
             } else {
-                set_checked(idx, !checked_[idx]);
+                set_checked(idx, !is_checked(idx));
             }
             return true;
         } else if (e.type == Event::Type::KeyDown) {
@@ -113,17 +137,16 @@ public:
                 --focus_idx_;
                 return true;
             }
-            if (e.key_code == Event::Key::Right && focus_idx_ + 1 < count_) {
+            if (e.key_code == Event::Key::Right && focus_idx_ + 1 < item_count()) {
                 ++focus_idx_;
                 return true;
             }
             if (e.key_code == Event::Key::Enter || e.key_code == Event::Key::Space) {
-                if (focus_idx_ >= 0 && focus_idx_ < count_) {
-                    if (single_select_) {
-                        set_checked(focus_idx_, true);
-                    } else {
-                        set_checked(focus_idx_, !checked_[focus_idx_]);
-                    }
+                if (focus_idx_ < 0 || focus_idx_ >= item_count()) return false;
+                if (single_select_) {
+                    set_checked(focus_idx_, true);
+                } else {
+                    set_checked(focus_idx_, !is_checked(focus_idx_));
                 }
                 return true;
             }
@@ -132,14 +155,23 @@ public:
     }
 
 private:
-    static constexpr int kMax = 8;
-    const char* labels_[kMax]{};
-    bool checked_[kMax]{};
-    int count_{0};
+    std::span<Item> items_{};
     int focus_idx_{0};
     bool single_select_{false};
     Callback on_change_{};
 };
+
+static_assert(std::is_trivially_copyable_v<ToggleGroup::Item>);
+static_assert(sizeof(ToggleGroup::Item)
+              <= sizeof(const char*) + sizeof(bool) + alignof(const char*),
+              "ToggleGroup item must remain a label pointer and checked bit");
+static_assert(sizeof(ToggleGroup)
+              <= sizeof(ObjectBase) + sizeof(std::span<ToggleGroup::Item>)
+                  + sizeof(int) + sizeof(bool) + sizeof(Callback)
+                  + alignof(std::span<ToggleGroup::Item>),
+              "ToggleGroup must not regain fixed label or checked tables");
+static_assert(!std::is_copy_constructible_v<ToggleGroup>);
+static_assert(!std::is_move_constructible_v<ToggleGroup>);
 
 
 

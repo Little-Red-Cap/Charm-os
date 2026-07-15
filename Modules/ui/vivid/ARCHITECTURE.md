@@ -184,6 +184,14 @@ Object `Dropdown` 不注入默认展示文本，也不常驻 8 槽 option 指针
 selected truth 复位为 0 并通知 state observer；析构不发通知。当前 SoA
 `WidgetKind::Dropdown` 仍是 catalog 中的稳定 kind 占位，record pipeline 明确报告 unsupported，不能把 object
 ownership 收敛误报为 SoA Dropdown 已实现。
+
+Object `SegmentedControl` 与 `ToggleGroup` 同样不常驻 8 槽 item 表。SegmentedControl 以最多 8 项的
+`std::span<const char* const>` 借用只读 label 列表；列表缩短会通过 selected state observer 报告 truth clamp，
+但不触发 command callback。ToggleGroup 以最多 8 项的 `std::span<ToggleGroup::Item>` 直接读写调用方拥有的
+label/checked 模型，单选和点击结果因此无需复制回上层。两个 span 及其文本都必须覆盖控件使用期，超限配置整次
+返回 `false` 且不部分替换；读写与 draw/input 必须位于同一串行 UI execution domain。SoA 同名 kind 继续使用
+独立 payload/input 路径，不借用 object span。
+
 `DropdownPopup` 作为 object/SoA 混合 helper 同样借用调用方提供的 option 指针数组和文本；二者都必须覆盖
 popup 的完整配置与绘制周期。修改文本内容或数组项会被后续 list source 读取观察到，`nullptr` 项继续归一化为
 空字符串；helper 不再为 16 个选项常驻字符串副本或二次指针表。

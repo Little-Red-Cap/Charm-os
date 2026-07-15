@@ -113,7 +113,7 @@ set_tests_properties(${target_name} PROPERTIES
 | `semantic_focus_admission_demo` | `sfa` | `[sfa] run=semantic_focus_admission_demo phase=end result=ok cases=9` |
 | `semantic_focus_request_demo` | `sfr` | `[sfr] run=semantic_focus_request_demo phase=end result=ok cases=12` |
 | `widget_signal_demo` | `ws` | `[ws] run=widget_signal_demo phase=end result=ok cases=7` |
-| `widget_state_demo` | `wst` | `[wst] run=widget_state_demo phase=end result=ok cases=5` |
+| `widget_state_demo` | `wst` | `[wst] run=widget_state_demo phase=end result=ok cases=7` |
 | `evidence_vocabulary_demo` | `evl` | `[evl] run=evidence_vocabulary_demo phase=end result=ok cases=5` |
 | `evidence_lab_manifest_demo` | `elm` | `[elm] run=evidence_lab_manifest_demo phase=end result=ok cases=10` |
 

@@ -1,5 +1,8 @@
 module;
 #include <algorithm>
+#include <cstddef>
+#include <span>
+#include <type_traits>
 export module charm.widgets.segmented_control;
 
 import charm.core.object;
@@ -19,33 +22,37 @@ public:
     using selected_state_type = service::state<int, 4>;
     using selected_slot_type = typename selected_state_type::slot_type;
     using selected_connection = typename selected_state_type::connection;
+    static constexpr std::size_t max_items = 8;
 
     SegmentedControl() {
         set_focusable(true);
         set_size(220, 28);
     }
 
-    void set_items(const char* const* items, int count) noexcept {
-        count_ = (count > kMax) ? kMax : (count < 0 ? 0 : count);
-        for (int i = 0; i < count_; ++i) labels_[i] = items[i];
-        for (int i = count_; i < kMax; ++i) labels_[i] = nullptr;
-        if (selected() >= count_) {
-            apply_selected((count_ > 0) ? (count_ - 1) : 0, false);
-        }
-    }
+    SegmentedControl(const SegmentedControl&) = delete;
+    SegmentedControl& operator=(const SegmentedControl&) = delete;
+    SegmentedControl(SegmentedControl&&) = delete;
+    SegmentedControl& operator=(SegmentedControl&&) = delete;
 
-    void set_item(int index, const char* label) noexcept {
-        if (index < 0 || index >= kMax) return;
-        if (index >= count_) count_ = index + 1;
-        labels_[index] = label;
+    [[nodiscard]] bool set_items(std::span<const char* const> items) noexcept {
+        if (items.size() > max_items) return false;
+        labels_ = items;
+        const int count = item_count();
+        if (selected_.get() >= count) {
+            apply_selected(count > 0 ? count - 1 : 0, false);
+        }
+        return true;
     }
 
     void set_selected(int index) noexcept {
-        if (index < 0 || index >= count_) return;
+        if (index < 0 || index >= item_count()) return;
         apply_selected(index, true);
     }
 
     [[nodiscard]] int selected() const noexcept { return selected_.get(); }
+    [[nodiscard]] int item_count() const noexcept {
+        return static_cast<int>(labels_.size());
+    }
 
     void set_on_change(Callback cb) noexcept { on_change_ = cb; }
 
@@ -75,17 +82,18 @@ public:
         draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.metrics.corner_radius, bg, true);
         draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.metrics.corner_radius, border, false);
 
-        if (count_ <= 0) return;
+        const int count = item_count();
+        if (count <= 0) return;
 
-        const int seg_w = (count_ > 0) ? (r.w / count_) : r.w;
-        for (int i = 0; i < count_; ++i) {
+        const int seg_w = r.w / count;
+        for (int i = 0; i < count; ++i) {
             Rect seg{r.x + i * seg_w, r.y, seg_w, r.h};
-            if (i == count_ - 1) {
+            if (i == count - 1) {
                 seg.w = r.x + r.w - seg.x;
             }
 
             if (i == selected()) {
-                const int radius = (i == 0 || i == count_ - 1) ? st.metrics.corner_radius : 0;
+                const int radius = (i == 0 || i == count - 1) ? st.metrics.corner_radius : 0;
                 if (radius > 0) {
                     draw_round_rect(cvs, seg.x, seg.y, seg.w, seg.h, radius, accent, true);
                 } else {
@@ -96,7 +104,8 @@ public:
                 draw_line(cvs, seg.x, seg.y + 2, seg.x, seg.y + seg.h - 3, border);
             }
 
-            const char* label = labels_[i] ? labels_[i] : "";
+            const char* label = labels_[static_cast<std::size_t>(i)]
+                ? labels_[static_cast<std::size_t>(i)] : "";
             draw_text_box(cvs, seg, label, font, resolve_font(st),
                           TextAlignH::Center, TextAlignV::Center, TextWrap::None, TextEllipsis::End);
         }
@@ -108,8 +117,9 @@ public:
         if (!is_enabled()) return false;
         const auto r = get_rect();
         if (e.type == Event::Type::Click) {
-            if (!r.contains(e.x, e.y) || count_ <= 0) return false;
-            const int idx = (e.x - r.x) * count_ / std::max(1, static_cast<int>(r.w));
+            const int count = item_count();
+            if (!r.contains(e.x, e.y) || count <= 0) return false;
+            const int idx = (e.x - r.x) * count / std::max(1, static_cast<int>(r.w));
             set_selected(idx);
             return true;
         } else if (e.type == Event::Type::KeyDown) {
@@ -117,7 +127,7 @@ public:
                 set_selected(selected() - 1);
                 return true;
             }
-            if (e.key_code == Event::Key::Right && selected() + 1 < count_) {
+            if (e.key_code == Event::Key::Right && selected() + 1 < item_count()) {
                 set_selected(selected() + 1);
                 return true;
             }
@@ -132,12 +142,18 @@ private:
         }
     }
 
-    static constexpr int kMax = 8;
-    const char* labels_[kMax]{};
-    int count_{0};
+    std::span<const char* const> labels_{};
     selected_state_type selected_{0};
     Callback on_change_{};
 };
+
+static_assert(sizeof(SegmentedControl)
+              <= sizeof(ObjectBase) + sizeof(std::span<const char* const>)
+                  + sizeof(SegmentedControl::selected_state_type) + sizeof(Callback)
+                  + alignof(std::span<const char* const>),
+              "SegmentedControl must not regain a fixed label pointer table");
+static_assert(!std::is_copy_constructible_v<SegmentedControl>);
+static_assert(!std::is_move_constructible_v<SegmentedControl>);
 
 
 

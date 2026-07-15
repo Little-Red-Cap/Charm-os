@@ -154,11 +154,14 @@ SoA `WidgetKind::IconButton` 是由 Button payload、image registry 与 record p
 object `Button` 的类布局。逐实例视觉差异使用既有 style variant/rule，图片化背景通过显式装饰组合实现。
 
 `ObjectBase` 同样不常驻子节点数组。`WidgetBase<Derived, ChildCapacity>` 的默认容量为零；固定 inline 模式
-只供明确选择编译期容量的自定义控件。内置 List、FoldablePanel、ScrollContainer 使用
+只供明确选择编译期容量的自定义控件。内置 List、FoldablePanel、ScrollContainer、RadioGroup 使用
 `std::dynamic_extent` 外部模式，由调用方通过 `attach_child_storage(std::span<WidgetHandle>)` 提供实际容量；
 未 attach 时容量为零且 add/insert 返回 `false`。storage 必须独占并覆盖容器使用期，detach 会清空 active
 handle，容器析构也会清空仍 active 的 handle。容量耗尽显式返回 `false`，不分配动态内存；ScrollContainer
 的 resolver 在一次调用内必须稳定。
+
+`RadioGroup` 是无视觉的 object 互斥策略，不为历史 16 项上限常驻句柄表。调用方按实际 radio 数量提供独占
+storage；未 attach 或容量耗尽时 `add()` 返回 `false`，detach 与析构遵循相同的 active handle 清理规则。
 
 `FoldablePanel` 的标题和正文同样按需借用调用方提供的 NUL 结尾文本，不在每个实例中预留固定文本缓冲。
 文本 owner 必须覆盖控件的完整绘制周期；传入 `nullptr` 等价于空字符串。需要独立文本所有权时，由上层状态或

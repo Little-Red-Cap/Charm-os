@@ -1,5 +1,7 @@
 module;
 #include <cstddef>
+#include <span>
+#include <type_traits>
 export module charm.widgets.radio_group;
 
 import charm.core.object;
@@ -9,27 +11,25 @@ import charm.widgets.radio;
 // Simple mutual-exclusion group. Use resolver to avoid factory dependency.
 // Logic-only: no style/visual rendering.
 export
-class RadioGroup : public WidgetBase<RadioGroup> {
+class RadioGroup : public WidgetBase<RadioGroup, std::dynamic_extent> {
 public:
-    static constexpr std::size_t kMax = 16;
-
     RadioGroup() {
         set_focusable(false);
         set_size(0, 0);
     }
 
     bool add(WidgetHandle h) noexcept {
-        if (count_ >= kMax) return false;
-        radios_[count_++] = h;
-        return true;
+        return add_child(h);
     }
 
     template<typename Resolver>
     void set_checked(Resolver&& res, WidgetHandle h) noexcept {
-        for (std::size_t i = 0; i < count_; ++i) {
-            auto* r = res(radios_[i]);
+        const auto count = child_count();
+        for (std::size_t i = 0; i < count; ++i) {
+            const auto radio = child_at(i);
+            auto* r = res(radio);
             if (!r) continue;
-            const bool on = (radios_[i] == h);
+            const bool on = (radio == h);
             if (r->checked() != on) r->set_checked(on);
         }
     }
@@ -41,10 +41,13 @@ public:
     }
 
     void draw(CanvasBase&) {}
-
-private:
-    WidgetHandle radios_[kMax]{};
-    std::size_t count_{0};
 };
+
+static_assert(sizeof(RadioGroup)
+              <= sizeof(ObjectBase) + sizeof(std::span<WidgetHandle>)
+                  + sizeof(std::size_t) + alignof(std::span<WidgetHandle>),
+              "RadioGroup must not regain a fixed radio handle table");
+static_assert(!std::is_copy_constructible_v<RadioGroup>);
+static_assert(!std::is_move_constructible_v<RadioGroup>);
 
 

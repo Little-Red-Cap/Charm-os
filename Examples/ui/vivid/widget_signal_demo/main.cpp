@@ -26,6 +26,8 @@ import charm.widgets.label;
 import charm.widgets.list;
 import charm.widgets.list_view;
 import charm.widgets.menu_item;
+import charm.widgets.radio;
+import charm.widgets.radio_group;
 import charm.widgets.rich_text;
 import charm.widgets.roller;
 import charm.widgets.scroll_container;
@@ -66,6 +68,11 @@ namespace {
                   "ListItem must not retain an implicit observer slot table");
     static_assert(sizeof(MenuItem) <= 128,
                   "MenuItem must not retain an implicit observer slot table");
+    static_assert(SupportsObjectChildren<RadioGroup>);
+    static_assert(!std::is_copy_constructible_v<RadioGroup>);
+    static_assert(!std::is_move_constructible_v<RadioGroup>);
+    static_assert(sizeof(RadioGroup) <= 64,
+                  "RadioGroup must borrow its radio handle storage");
     static_assert(SupportsObjectChildren<List>);
     static_assert(SupportsObjectChildren<FoldablePanel>);
     static_assert(SupportsObjectChildren<ScrollContainer>);
@@ -380,7 +387,7 @@ int main() {
     print_widget_signal_run_begin();
     StyleSheet::instance().rebuild_if_needed();
 
-    std::printf("[ws-abi] object_base=%zu callback=%zu label=%zu text_box=%zu button=%zu dropdown=%zu tabview=%zu list_item=%zu menu_item=%zu scroll_container=%zu list=%zu foldable_panel=%zu interaction_list=%zu double_tap=%zu pinch=%zu drag=%zu long_press=%zu\n",
+    std::printf("[ws-abi] object_base=%zu callback=%zu label=%zu text_box=%zu button=%zu dropdown=%zu tabview=%zu list_item=%zu menu_item=%zu radio_group=%zu scroll_container=%zu list=%zu foldable_panel=%zu interaction_list=%zu double_tap=%zu pinch=%zu drag=%zu long_press=%zu\n",
                 sizeof(ObjectBase),
                 sizeof(Callback),
                 sizeof(Label),
@@ -390,6 +397,7 @@ int main() {
                 sizeof(TabView),
                 sizeof(ListItem),
                 sizeof(MenuItem),
+                sizeof(RadioGroup),
                 sizeof(ScrollContainer),
                 sizeof(List),
                 sizeof(FoldablePanel),
@@ -987,6 +995,36 @@ int main() {
                 "late resolver binding synchronizes existing tab pages")) return 1;
     Theme::instance().set<TabView>(saved_tabview_style);
 
+    RadioGroup radio_group{};
+    const WidgetHandle first_radio_handle{WidgetKind::Radio, 0, 1};
+    const WidgetHandle second_radio_handle{WidgetKind::Radio, 1, 1};
+    Radio first_radio{"First"};
+    Radio second_radio{"Second"};
+    if (!expect(radio_group.child_storage_capacity() == 0
+                    && !radio_group.add(first_radio_handle),
+                "radio group requires explicit handle storage")) return 1;
+    std::array<WidgetHandle, 2> radio_storage{};
+    radio_group.attach_child_storage(radio_storage);
+    if (!expect(radio_group.add(first_radio_handle)
+                    && radio_group.add(second_radio_handle)
+                    && !radio_group.add(WidgetHandle{WidgetKind::Radio, 2, 1}),
+                "radio group admits only caller-provided handle capacity")) return 1;
+    second_radio.set_checked(true);
+    radio_group.set_checked(
+        [&](WidgetHandle handle) noexcept -> Radio* {
+            if (handle == first_radio_handle) return &first_radio;
+            if (handle == second_radio_handle) return &second_radio;
+            return nullptr;
+        },
+        first_radio_handle);
+    if (!expect(first_radio.checked() && !second_radio.checked(),
+                "radio group preserves mutual exclusion with external storage")) return 1;
+    radio_group.detach_child_storage();
+    if (!expect(radio_group.child_storage_capacity() == 0
+                    && radio_group.child_count() == 0
+                    && !radio_storage[0] && !radio_storage[1],
+                "radio group detach clears caller-owned active handles")) return 1;
+
     const Style saved_scroll_style = Theme::instance().get<ScrollContainer>();
     Style themed_scroll_style = saved_scroll_style;
     themed_scroll_style.colors.bg_color = {248, 8, 8, 255};
@@ -1295,9 +1333,10 @@ int main() {
     print_widget_signal_case("owned_interaction_dispatch");
     std::printf(" image=direct scroll=direct spin_zoom=direct\n");
     print_widget_signal_case("object_runtime_footprint");
-    std::printf(" object_base=%zu child_capacity=%zu opt_in_components=%zu text_box=%zu console_box=%zu console_line=%zu console_buffer=%zu chart=%zu histogram=%zu histogram_view=%zu waveform_view=%zu spectrum_view=%zu spectrum_workspace=%zu dynamic_nebula=%zu nebula_workspace=%zu data_source_calls=%d/%d borrowed_text_hash=0x%08X\n",
+    std::printf(" object_base=%zu child_capacity=%zu radio_group=%zu opt_in_components=%zu text_box=%zu console_box=%zu console_line=%zu console_buffer=%zu chart=%zu histogram=%zu histogram_view=%zu waveform_view=%zu spectrum_view=%zu spectrum_workspace=%zu dynamic_nebula=%zu nebula_workspace=%zu data_source_calls=%d/%d borrowed_text_hash=0x%08X\n",
                 sizeof(ObjectBase),
                 scroll.child_storage_capacity(),
+                sizeof(RadioGroup),
                 sizeof(InteractionList<>) + sizeof(DragStrategy) + sizeof(LongPressStrategy),
                 sizeof(TextBox),
                 sizeof(ConsoleBox),

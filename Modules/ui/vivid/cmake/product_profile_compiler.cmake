@@ -64,7 +64,8 @@ function(vivid_define_product_profile)
         STYLE_CLASS_MAX STYLE_RULE_CAP STYLE_METRICS_POOL_CAP
         DRAW_CMD_MAX_COMMANDS DRAW_CMD_TEXT_BYTES DRAW_CMD_BLOB_BYTES
         FLOAT_WIDGETS)
-    set(_multi_value ROOT_MODULES WIDGET_KINDS PAYLOAD_CAPACITIES)
+    set(_multi_value
+        ROOT_MODULES WIDGET_KINDS OBJECT_WIDGET_KINDS PAYLOAD_CAPACITIES)
     cmake_parse_arguments(PARSE_ARGV 0 PROFILE
         "${_options}" "${_one_value}" "${_multi_value}")
 
@@ -91,6 +92,7 @@ function(vivid_define_product_profile)
 
     set(_roots "")
     set(_kinds "")
+    set(_object_kinds "")
     set(_payload_caps "")
     if(PROFILE_EXTENDS)
         _vivid_profile_get("${PROFILE_EXTENDS}" DEFINED _base_defined)
@@ -100,6 +102,8 @@ function(vivid_define_product_profile)
         endif()
         _vivid_profile_get("${PROFILE_EXTENDS}" ROOT_MODULES _roots)
         _vivid_profile_get("${PROFILE_EXTENDS}" WIDGET_KINDS _kinds)
+        _vivid_profile_get(
+            "${PROFILE_EXTENDS}" OBJECT_WIDGET_KINDS _object_kinds)
         _vivid_profile_get("${PROFILE_EXTENDS}" PAYLOAD_CAPACITIES _payload_caps)
         foreach(_field IN LISTS _one_value)
             if(_field STREQUAL "NAME" OR _field STREQUAL "EXTENDS")
@@ -114,8 +118,10 @@ function(vivid_define_product_profile)
 
     list(APPEND _roots ${PROFILE_ROOT_MODULES})
     list(APPEND _kinds ${PROFILE_WIDGET_KINDS})
+    list(APPEND _object_kinds ${PROFILE_OBJECT_WIDGET_KINDS})
     list(REMOVE_DUPLICATES _roots)
     list(REMOVE_DUPLICATES _kinds)
+    list(REMOVE_DUPLICATES _object_kinds)
     _vivid_merge_payload_capacities(
         _payload_caps ${_payload_caps} ${PROFILE_PAYLOAD_CAPACITIES})
 
@@ -169,11 +175,13 @@ function(vivid_define_product_profile)
 
     list(SORT _roots)
     list(SORT _kinds)
+    list(SORT _object_kinds)
     list(SORT _payload_caps)
     vivid_widget_catalog_fingerprint(_catalog_fingerprint)
     set(_canonical
-        "schema=1\ncatalog=${_catalog_fingerprint}\nroots=${_roots}\n"
-        "kinds=${_kinds}\npayloads=${_payload_caps}\n"
+        "schema=2\ncatalog=${_catalog_fingerprint}\nroots=${_roots}\n"
+        "kinds=${_kinds}\nobject_kinds=${_object_kinds}\n"
+        "payloads=${_payload_caps}\n"
         "soa_max_nodes=${PROFILE_SOA_MAX_NODES}\n"
         "soa_text_arena_bytes=${PROFILE_SOA_TEXT_ARENA_BYTES}\n"
         "style=${PROFILE_STYLE_CLASS_MAX},${PROFILE_STYLE_RULE_CAP},${PROFILE_STYLE_METRICS_POOL_CAP}\n"
@@ -186,6 +194,8 @@ function(vivid_define_product_profile)
     _vivid_profile_set("${PROFILE_NAME}" EXTENDS "${PROFILE_EXTENDS}")
     _vivid_profile_set("${PROFILE_NAME}" ROOT_MODULES "${_roots}")
     _vivid_profile_set("${PROFILE_NAME}" WIDGET_KINDS "${_kinds}")
+    _vivid_profile_set(
+        "${PROFILE_NAME}" OBJECT_WIDGET_KINDS "${_object_kinds}")
     _vivid_profile_set("${PROFILE_NAME}" PAYLOAD_CAPACITIES "${_payload_caps}")
     foreach(_field IN ITEMS
             SOA_MAX_NODES SOA_TEXT_ARENA_BYTES STYLE_CLASS_MAX STYLE_RULE_CAP

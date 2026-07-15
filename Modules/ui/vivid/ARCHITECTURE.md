@@ -23,6 +23,7 @@
 - `charm.ui.vivid`：产品根入口，只暴露已批准的 core style/config、基础 gfx 与 Scene；
 - `charm.ui.scene.motion_runtime`：受 PRODUCT closure 管控的 layer/motion 扩展；
 - `charm.ui.vivid.font_runtime`：字体 package/provider 聚合，不导出 FreeType provider；
+- `charm.ui.vivid.perf_overlay_runtime`：固定容量诊断通道与统计快照，不携带 object widget；
 - `charm.gfx.host_tools`：host snapshot/DrawCmd 证据工具，不进入默认 PRODUCT profile；
 - SoA kernel、DrawCmd partitions 与 `charm.ui.vivid_internal`：实现入口，产品不得直接 import。
 
@@ -85,12 +86,15 @@ generation 变化，旧 handle 不得重新命中新 owner。
 单一构建入口。稳定 kind ID 由 ABI fixture 固定；PRODUCT profile 只裁剪能力和容量，不生成另一套 enum。
 每个 catalog kind 必须显式声明 Scene runtime 是否已支持；object widget 存在或 module 可进入 closure 都不等于
 Scene 能创建、派发并记录该 kind。PRODUCT profile 选择未支持 kind 必须在配置期失败。
+`WIDGET_KINDS` 只声明 Scene/SoA 能力并驱动 payload 容量；`OBJECT_WIDGET_KINDS` 只按需引入 catalog 的
+`OBJECT_MODULE`。object-only 控件不得因此启用同名 SoA kind 或预留 payload，Scene kind 也不得自动携带
+object module。两套表面可以使用同一稳定 `WidgetKind` 身份，但其实现准入和 RAM 成本必须独立证明。
 
 Product Profile Compiler 是 Vivid 工具，不是 Charm Core 或产品 C++ API：
 
 - C++ `module/import/export import` 是依赖边唯一来源；
 - CMake policy 只标记 product root、internal、host-only 和硬件 envelope；
-- profile 固定产品 root、active WidgetKind 和工作集；target envelope 固定设备资源；
+- profile 固定产品 root、active Scene WidgetKind、按需 object widget module 和工作集；target envelope 固定设备资源；
 - 一个 target 只能选择一个不可变 profile/envelope；漂移、未知 root、cycle、internal root、catalog/pool
   不一致必须在 configure 阶段失败；
 - fingerprint 和 generated evidence 证明规范化输入，不证明运行行为或视觉正确。

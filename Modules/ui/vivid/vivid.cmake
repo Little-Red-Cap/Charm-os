@@ -150,6 +150,8 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
         _vivid_profile_get("${_vivid_profile_name}" CATALOG_FINGERPRINT _vivid_catalog_fingerprint)
         _vivid_profile_get("${_vivid_profile_name}" ROOT_MODULES _vivid_profile_roots)
         _vivid_profile_get("${_vivid_profile_name}" WIDGET_KINDS _vivid_profile_widget_kinds)
+        _vivid_profile_get(
+            "${_vivid_profile_name}" OBJECT_WIDGET_KINDS _vivid_profile_object_widget_kinds)
         _vivid_profile_get("${_vivid_profile_name}" PAYLOAD_CAPACITIES _vivid_profile_payload_capacities)
 
         foreach(_field IN ITEMS
@@ -195,6 +197,7 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
             VIVID_PRODUCT_WIDGET_DEFINES
             PROFILE "${_vivid_profile_name}"
             KINDS ${_vivid_profile_widget_kinds}
+            OBJECT_KINDS ${_vivid_profile_object_widget_kinds}
             PAYLOAD_CAPACITIES ${_vivid_profile_payload_capacities})
         vivid_compute_product_module_closure(
             _vivid_product_sources
@@ -625,16 +628,20 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
 
         set(_profile_roots_json_values ${_vivid_profile_roots})
         set(_profile_kinds_json_values ${_vivid_profile_widget_kinds})
+        set(_profile_object_kinds_json_values ${_vivid_profile_object_widget_kinds})
         vivid_json_string_array(_profile_roots_json ${_profile_roots_json_values})
         vivid_json_string_array(_profile_kinds_json ${_profile_kinds_json_values})
+        vivid_json_string_array(
+            _profile_object_kinds_json ${_profile_object_kinds_json_values})
         file(WRITE "${_vivid_generated_dir}/profile.json"
             "{\n"
-            "  \"schema\": 1,\n"
+            "  \"schema\": 2,\n"
             "  \"name\": \"${_vivid_profile_name}\",\n"
             "  \"catalog_fingerprint\": \"${_vivid_catalog_fingerprint}\",\n"
             "  \"profile_fingerprint\": \"${_vivid_profile_fingerprint}\",\n"
             "  \"root_modules\": ${_profile_roots_json},\n"
             "  \"widget_kinds\": ${_profile_kinds_json},\n"
+            "  \"object_widget_kinds\": ${_profile_object_kinds_json},\n"
             "  \"payload_capacities\": ${_payload_json},\n"
             "  \"workset\": {\n"
             "    \"soa_max_nodes\": ${VIVID_SOA_MAX_NODES},\n"

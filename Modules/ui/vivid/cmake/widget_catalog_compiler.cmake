@@ -58,7 +58,7 @@ function(vivid_catalog_widget)
         CLICK_ENABLED CHECKABLE SCROLL_ENABLED DRAG_ENABLED WHEEL_ENABLED
         EXTRA_ENABLED CAPTURE_ENABLED)
     set(_one_value
-        ID KIND SCENE_SUPPORT MODULE CPP_TYPE THEME_BASE FACTORY FACTORY_POOL FACTORY_CREATE
+        ID KIND SCENE_SUPPORT OBJECT_MODULE CPP_TYPE THEME_BASE FACTORY FACTORY_POOL FACTORY_CREATE
         PAYLOAD_POOL STYLE CLICK CLICK_INDEX GROUP_KIND WHEEL_TARGET
         DRAG_BEHAVIOR DRAG_BEHAVIOR_ONLY WHEEL_TARGET_ONLY SCROLL_AXIS WHEEL_AXIS)
     cmake_parse_arguments(PARSE_ARGV 0 WIDGET
@@ -75,13 +75,13 @@ function(vivid_catalog_widget)
             message(FATAL_ERROR "vivid_catalog_widget requires ${_field}")
         endif()
     endforeach()
-    if(NOT WIDGET_RUNTIME_ONLY AND NOT WIDGET_MODULE MATCHES "^charm\\.")
+    if(NOT WIDGET_RUNTIME_ONLY AND NOT WIDGET_OBJECT_MODULE MATCHES "^charm\\.")
         message(FATAL_ERROR
-            "Vivid widget '${WIDGET_KIND}' requires MODULE or RUNTIME_ONLY")
+            "Vivid widget '${WIDGET_KIND}' requires OBJECT_MODULE or RUNTIME_ONLY")
     endif()
-    if(WIDGET_RUNTIME_ONLY AND WIDGET_MODULE)
+    if(WIDGET_RUNTIME_ONLY AND WIDGET_OBJECT_MODULE)
         message(FATAL_ERROR
-            "Vivid widget '${WIDGET_KIND}' cannot use MODULE and RUNTIME_ONLY together")
+            "Vivid widget '${WIDGET_KIND}' cannot use OBJECT_MODULE and RUNTIME_ONLY together")
     endif()
     if(NOT WIDGET_ID MATCHES "^[0-9]+$" OR WIDGET_ID LESS 1 OR WIDGET_ID GREATER 255)
         message(FATAL_ERROR
@@ -178,7 +178,7 @@ function(vivid_widget_catalog_fingerprint out_var)
     get_property(_kinds GLOBAL PROPERTY VIVID_WIDGET_KINDS)
     get_property(_pools GLOBAL PROPERTY VIVID_PAYLOAD_POOLS)
 
-    set(_canonical "schema=2\n")
+    set(_canonical "schema=3\n")
     foreach(_pool IN LISTS _pools)
         string(APPEND _canonical "pool=${_pool}")
         foreach(_field IN ITEMS MEMBER STATS_FIELD CAP_KIND)
@@ -191,7 +191,7 @@ function(vivid_widget_catalog_fingerprint out_var)
     foreach(_kind IN LISTS _kinds)
         string(APPEND _canonical "widget=${_kind}")
         foreach(_field IN ITEMS
-                ID SCENE_SUPPORT MODULE CPP_TYPE THEME_BASE FACTORY FACTORY_POOL FACTORY_CREATE
+                ID SCENE_SUPPORT OBJECT_MODULE CPP_TYPE THEME_BASE FACTORY FACTORY_POOL FACTORY_CREATE
                 PAYLOAD_POOL STYLE CLICK CLICK_INDEX GROUP_KIND WHEEL_TARGET
                 DRAG_BEHAVIOR DRAG_BEHAVIOR_ONLY WHEEL_TARGET_ONLY
                 SCROLL_AXIS WHEEL_AXIS RUNTIME_ONLY HIT_TEST_FALSE FOCUSABLE
@@ -210,7 +210,7 @@ endfunction()
 function(vivid_widget_profile_resolve out_modules out_pools out_defines)
     set(_options)
     set(_one_value PROFILE)
-    set(_multi_value KINDS PAYLOAD_CAPACITIES)
+    set(_multi_value KINDS OBJECT_KINDS PAYLOAD_CAPACITIES)
     cmake_parse_arguments(PARSE_ARGV 3 ACTIVE
         "${_options}" "${_one_value}" "${_multi_value}")
     vivid_load_widget_catalog()
@@ -230,15 +230,24 @@ function(vivid_widget_profile_resolve out_modules out_pools out_defines)
                 "Vivid profile '${ACTIVE_PROFILE}' selects WidgetKind '${_kind}' "
                 "without Scene runtime support")
         endif()
-        _vivid_widget_get("${_kind}" MODULE _module)
         _vivid_widget_get("${_kind}" PAYLOAD_POOL _payload_pool)
-        if(_module)
-            list(APPEND _modules "${_module}")
-        endif()
         if(NOT _payload_pool STREQUAL "None")
             list(APPEND _pools "${_payload_pool}")
         endif()
         string(APPEND _defines "#define CHARM_VIVID_ENABLE_WIDGET_${_kind} 1\n")
+    endforeach()
+    foreach(_kind IN LISTS ACTIVE_OBJECT_KINDS)
+        if(NOT _kind IN_LIST _catalog_kinds)
+            message(FATAL_ERROR
+                "Vivid profile '${ACTIVE_PROFILE}' selects unknown object WidgetKind '${_kind}'")
+        endif()
+        _vivid_widget_get("${_kind}" OBJECT_MODULE _object_module)
+        if(NOT _object_module)
+            message(FATAL_ERROR
+                "Vivid profile '${ACTIVE_PROFILE}' selects WidgetKind '${_kind}' as an object widget, "
+                "but the catalog has no OBJECT_MODULE")
+        endif()
+        list(APPEND _modules "${_object_module}")
     endforeach()
     list(REMOVE_DUPLICATES _modules)
     list(REMOVE_DUPLICATES _pools)

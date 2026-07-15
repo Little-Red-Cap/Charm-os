@@ -48,19 +48,6 @@ import fs_stream;
 import fs_vfs;
 #endif
 import player.font_cache;
-import charm.widgets.button;
-import charm.widgets.console_box;
-import charm.widgets.image;
-import charm.widgets.label;
-import charm.widgets.list_view;
-import charm.widgets.progress;
-import charm.widgets.progress_bar_simple;
-import charm.widgets.scrollbar;
-import charm.widgets.scroll_container;
-import charm.widgets.segmented_control;
-import charm.widgets.perf_overlay;
-import charm.widgets.switcher;
-import charm.widgets.slider;
 import charm.gfx.svg;
 
 export namespace player::ui {
@@ -1290,66 +1277,67 @@ export namespace player::ui {
                                                           kUiBottomPlayFg,
                                                           22));
         }
-        Style baseline = theme.get<Button>();
+        auto& sheet = StyleSheet::instance();
+        Style baseline{};
         baseline.font = &player_default_font();
         baseline.colors.border_color = kUiButtonBorder;
         baseline.colors.border_focus = kUiOk;
         baseline.metrics.padding = 8;
         baseline.metrics.corner_radius = 14;
-        apply_baseline_theme_preset(baseline);
+        for (const auto kind : enabled_widget_kinds) {
+            sheet.set_base_style(kind, baseline);
+        }
 
-        ThemePreset preset{};
-        preset.has_label = true;
-        preset.label = theme.get<Label>();
-        preset.label.colors.font_color = kUiTitle;
-        preset.has_button = true;
-        preset.button = theme.get<Button>();
-        preset.button.colors.bg_color = kUiButtonBg;
-        preset.button.colors.border_color = kUiButtonBorder;
-        preset.button.metrics.padding = 8;
-        preset.button.metrics.corner_radius = 14;
-        preset.button.colors.font_color = kUiListFont;
-        preset.has_list_view = true;
-        preset.list_view = theme.get<ListView>();
-        preset.list_view.colors.bg_color = kUiListBg;
-        preset.list_view.colors.border_color = kUiListBorder;
-        preset.list_view.colors.accent_color = kUiLibraryListAccent;
-        preset.list_view.colors.on_accent = kUiLibraryListOnAccent;
-        preset.list_view.colors.border_focus = kUiLibraryPathBorderActive;
-        preset.list_view.font_weight = FontWeight::Medium;
-        preset.list_view.metrics.corner_radius = 18;
-        preset.list_view.metrics.padding = 14;
-        preset.list_view.colors.font_color = kUiListFont;
-        preset.has_progress = true;
-        preset.progress = theme.get<Progress>();
-        preset.progress.colors.bg_color = kUiProgressBg;
-        preset.progress.colors.border_color = kUiProgressBorder;
-        preset.has_scroll_bar = true;
-        preset.scroll_bar = theme.get<ScrollBar>();
-        preset.scroll_bar.colors.bg_color = kUiScrollBg;
-        preset.scroll_bar.colors.border_color = kUiScrollBorder;
-        preset.scroll_bar.metrics.corner_radius = 10;
-        apply_theme_preset(preset);
+        Style label{};
+        label.colors.font_color = kUiTitle;
+        sheet.set_base_style(WidgetKind::Label, label);
 
-        auto& sheet = StyleSheet::instance();
-        auto set_base = [&](WidgetKind kind, Style s) {
-            if (!s.font) {
-                s.font = &player_default_font();
-            }
-            sheet.set_base_style(kind, s);
-        };
+        Style button{};
+        button.colors.bg_color = kUiButtonBg;
+        button.colors.border_color = kUiButtonBorder;
+        button.metrics.padding = 8;
+        button.metrics.corner_radius = 14;
+        button.colors.font_color = kUiListFont;
+        sheet.set_base_style(WidgetKind::Button, button);
+        sheet.set_base_style(WidgetKind::IconButton, button);
 
-        Style scroll_container = theme.get<ScrollContainer>();
+        Style list_view{};
+        list_view.colors.bg_color = kUiListBg;
+        list_view.colors.border_color = kUiListBorder;
+        list_view.colors.accent_color = kUiLibraryListAccent;
+        list_view.colors.on_accent = kUiLibraryListOnAccent;
+        list_view.colors.border_focus = kUiLibraryPathBorderActive;
+        list_view.font_weight = FontWeight::Medium;
+        list_view.metrics.corner_radius = 18;
+        list_view.metrics.padding = 14;
+        list_view.colors.font_color = kUiListFont;
+        sheet.set_base_style(WidgetKind::ListView, list_view);
+
+        Style progress{};
+        progress.colors.bg_color = kUiProgressBg;
+        progress.colors.border_color = kUiProgressBorder;
+        sheet.set_base_style(WidgetKind::Progress, progress);
+
+        Style scroll_bar{};
+        scroll_bar.colors.bg_color = kUiScrollBg;
+        scroll_bar.colors.border_color = kUiScrollBorder;
+        scroll_bar.metrics.corner_radius = 10;
+        sheet.set_base_style(WidgetKind::ScrollBar, scroll_bar);
+
+        Style scroll_container{};
+        scroll_container.font = &player_default_font();
         scroll_container.colors.bg_color = kUiBackground;
         scroll_container.colors.border_color = kUiBackground;
-        set_base(WidgetKind::ScrollContainer, scroll_container);
+        sheet.set_base_style(WidgetKind::ScrollContainer, scroll_container);
 
-        Style progress_bar_simple = theme.get<ProgressBarSimple>();
+        Style progress_bar_simple{};
+        progress_bar_simple.font = &player_default_font();
         progress_bar_simple.colors.bg_color = kUiProgressBg;
         progress_bar_simple.colors.border_color = kUiProgressBorder;
-        set_base(WidgetKind::ProgressBarSimple, progress_bar_simple);
+        sheet.set_base_style(WidgetKind::ProgressBarSimple, progress_bar_simple);
 
-        Style segmented_control = theme.get<SegmentedControl>();
+        Style segmented_control{};
+        segmented_control.font = &player_default_font();
         segmented_control.colors.bg_color = kUiButtonBg;
         segmented_control.colors.border_color = kUiButtonBorder;
         segmented_control.colors.bg_pressed = kUiButtonHover;
@@ -1357,20 +1345,22 @@ export namespace player::ui {
         segmented_control.colors.font_color = kUiListFont;
         segmented_control.metrics.corner_radius = 14;
         segmented_control.metrics.padding = 6;
-        set_base(WidgetKind::SegmentedControl, segmented_control);
+        sheet.set_base_style(WidgetKind::SegmentedControl, segmented_control);
 
-        Style perf_overlay = theme.get<PerfOverlay>();
+        Style perf_overlay{};
+        perf_overlay.font = &player_default_font();
         perf_overlay.colors.bg_color = kUiPerfBg;
         perf_overlay.colors.border_color = kUiPerfBorder;
         perf_overlay.colors.font_color = kUiPerfFont;
         perf_overlay.metrics.padding = 6;
-        set_base(WidgetKind::PerfOverlay, perf_overlay);
+        sheet.set_base_style(WidgetKind::PerfOverlay, perf_overlay);
 
-        Style console_box = theme.get<ConsoleBox>();
+        Style console_box{};
+        console_box.font = &player_default_font();
         console_box.colors.bg_color = kUiListBg;
         console_box.colors.border_color = kUiListBorder;
         console_box.metrics.padding = 6;
-        set_base(WidgetKind::ConsoleBox, console_box);
+        sheet.set_base_style(WidgetKind::ConsoleBox, console_box);
 
         sheet.clear();
         StylePatch btn_base{};
@@ -1401,14 +1391,14 @@ export namespace player::ui {
         switch_patch.bg_pressed = kUiSwitchOn;
         switch_patch.has_border_pressed = true;
         switch_patch.border_pressed = kUiSwitchOn;
-        theme.patch<Switch>(switch_patch);
+        (void)sheet.patch_base_style(WidgetKind::Switch, switch_patch);
 
         StylePatch slider_patch{};
         slider_patch.has_bg_color = true;
         slider_patch.bg_color = kUiButtonBg;
         slider_patch.has_border_color = true;
         slider_patch.border_color = kUiButtonBorder;
-        theme.patch<Slider>(slider_patch);
+        (void)sheet.patch_base_style(WidgetKind::Slider, slider_patch);
 
         StylePatch image_patch{};
         image_patch.has_corner_radius = true;
@@ -1421,7 +1411,7 @@ export namespace player::ui {
         image_patch.outline_enabled = false;
         image_patch.has_shadow_enabled = true;
         image_patch.shadow_enabled = false;
-        theme.patch<Image>(image_patch);
+        (void)sheet.patch_base_style(WidgetKind::Image, image_patch);
 
         sheet.rebuild_if_needed();
     }

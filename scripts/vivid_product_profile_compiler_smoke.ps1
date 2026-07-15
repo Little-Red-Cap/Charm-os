@@ -226,38 +226,56 @@ endif()
 
 _vivid_profile_get(player_md3 ROOT_MODULES _roots)
 _vivid_profile_get(player_md3 WIDGET_KINDS _kinds)
+_vivid_profile_get(player_md3 OBJECT_WIDGET_KINDS _object_kinds)
 _vivid_profile_get(player_md3 PAYLOAD_CAPACITIES _capacities)
+_vivid_profile_get(player_md3_debug ROOT_MODULES _debug_roots)
 _vivid_profile_get(player_md3_debug WIDGET_KINDS _debug_kinds)
+_vivid_profile_get(player_md3_debug OBJECT_WIDGET_KINDS _debug_object_kinds)
 _vivid_profile_get(player_md3_debug PAYLOAD_CAPACITIES _debug_capacities)
 vivid_widget_profile_resolve(
     _widget_modules _active_pools _defines
     PROFILE player_md3
     KINDS ${_kinds}
+    OBJECT_KINDS ${_object_kinds}
     PAYLOAD_CAPACITIES ${_capacities})
 vivid_widget_profile_resolve(
     _debug_widget_modules _debug_active_pools _debug_defines
     PROFILE player_md3_debug
     KINDS ${_debug_kinds}
+    OBJECT_KINDS ${_debug_object_kinds}
     PAYLOAD_CAPACITIES ${_debug_capacities})
 vivid_compute_product_module_closure(
     _sources _modules _external
     KEY positive-player-md3
     ROOT_MODULES ${_roots}
     INTERNAL_ROOT_MODULES ${_widget_modules})
+vivid_compute_product_module_closure(
+    _debug_sources _debug_modules _debug_external
+    KEY positive-player-md3-debug
+    ROOT_MODULES ${_debug_roots}
+    INTERNAL_ROOT_MODULES ${_debug_widget_modules})
 
 list(LENGTH _kinds _kind_count)
+list(LENGTH _object_kinds _object_kind_count)
 list(LENGTH _active_pools _pool_count)
 list(LENGTH _debug_kinds _debug_kind_count)
+list(LENGTH _debug_object_kinds _debug_object_kind_count)
 list(LENGTH _debug_active_pools _debug_pool_count)
-if(NOT _kind_count EQUAL 15 OR NOT _pool_count EQUAL 11)
-    message(FATAL_ERROR "Unexpected player_md3 catalog shape: kinds=${_kind_count} pools=${_pool_count}")
-endif()
-if(NOT _debug_kind_count EQUAL 17 OR NOT _debug_pool_count EQUAL 13)
+if(NOT _kind_count EQUAL 15 OR NOT _object_kind_count EQUAL 0 OR
+   NOT _pool_count EQUAL 11)
     message(FATAL_ERROR
-        "Unexpected player_md3_debug catalog shape: kinds=${_debug_kind_count} pools=${_debug_pool_count}")
+        "Unexpected player_md3 catalog shape: kinds=${_kind_count} "
+        "object_kinds=${_object_kind_count} pools=${_pool_count}")
+endif()
+if(NOT _debug_kind_count EQUAL 15 OR NOT _debug_object_kind_count EQUAL 2 OR
+   NOT _debug_pool_count EQUAL 11)
+    message(FATAL_ERROR
+        "Unexpected player_md3_debug catalog shape: kinds=${_debug_kind_count} "
+        "object_kinds=${_debug_object_kind_count} pools=${_debug_pool_count}")
 endif()
 foreach(_expected IN ITEMS
         charm.gfx.color
+        charm.ui.vivid.perf_overlay_runtime
         charm.core.soa_kernel:actions
         charm.core.soa_kernel:behavior
         charm.core.soa_kernel:input_core
@@ -269,6 +287,26 @@ foreach(_expected IN ITEMS
         charm.core.soa_kernel:storage)
     if(NOT _expected IN_LIST _modules)
         message(FATAL_ERROR "Product closure is missing '${_expected}'")
+    endif()
+endforeach()
+foreach(_module IN LISTS _modules)
+    if(_module MATCHES "^charm\\.widgets\\.")
+        message(FATAL_ERROR
+            "Base Player Scene closure contains object widget module '${_module}'")
+    endif()
+endforeach()
+foreach(_expected IN ITEMS charm.widgets.table_view charm.widgets.tree_view)
+    if(NOT _expected IN_LIST _debug_modules)
+        message(FATAL_ERROR
+            "Player debug object closure is missing '${_expected}'")
+    endif()
+endforeach()
+foreach(_module IN LISTS _debug_modules)
+    if(_module MATCHES "^charm\\.widgets\\." AND
+       NOT _module STREQUAL "charm.widgets.table_view" AND
+       NOT _module STREQUAL "charm.widgets.tree_view")
+        message(FATAL_ERROR
+            "Player debug closure contains undeclared object widget module '${_module}'")
     endif()
 endforeach()
 foreach(_forbidden IN ITEMS
@@ -285,6 +323,8 @@ file(TO_CMAKE_PATH "${CASE_OUTPUT}" CASE_OUTPUT)
 list(LENGTH _modules _module_count)
 list(LENGTH _sources _source_count)
 list(LENGTH _external _external_count)
+list(LENGTH _debug_modules _debug_module_count)
+list(LENGTH _debug_sources _debug_source_count)
 file(WRITE "${CASE_OUTPUT}"
     "profile_fingerprint=${_host_profile_fingerprint}\n"
     "host_target_fingerprint=${_host_target_fingerprint}\n"
@@ -292,11 +332,15 @@ file(WRITE "${CASE_OUTPUT}"
     "equivalent_profile_fingerprint=${_equivalent_profile_fingerprint}\n"
     "equivalent_target_fingerprint=${_equivalent_target_fingerprint}\n"
     "widget_kinds=${_kind_count}\n"
+    "object_widget_kinds=${_object_kind_count}\n"
     "payload_pools=${_pool_count}\n"
     "debug_widget_kinds=${_debug_kind_count}\n"
+    "debug_object_widget_kinds=${_debug_object_kind_count}\n"
     "debug_payload_pools=${_debug_pool_count}\n"
     "modules=${_module_count}\n"
     "sources=${_source_count}\n"
+    "debug_modules=${_debug_module_count}\n"
+    "debug_sources=${_debug_source_count}\n"
     "external_requirements=${_external_count}\n")
 '@
 
@@ -487,6 +531,33 @@ vivid_widget_profile_resolve(
     PROFILE unsupported-widget-kind
     KINDS Dropdown)
 '@ -ExpectSuccess $false -ExpectedPattern "Dropdown[\s\S]*without Scene runtime support"
+
+    Invoke-CMakeCase -Name "object-only-widget-kind" -Body @'
+vivid_widget_profile_resolve(
+    _modules _pools _defines
+    PROFILE object-only-widget-kind
+    KINDS Container
+    OBJECT_KINDS Dropdown)
+if(NOT _modules STREQUAL "charm.widgets.dropdown")
+    message(FATAL_ERROR "Object-only widget module was not selected: '${_modules}'")
+endif()
+'@ -ExpectSuccess $true
+
+    Invoke-CMakeCase -Name "unknown-object-widget-kind" -Body @'
+vivid_widget_profile_resolve(
+    _modules _pools _defines
+    PROFILE unknown-object-widget-kind
+    KINDS Container
+    OBJECT_KINDS DoesNotExist)
+'@ -ExpectSuccess $false -ExpectedPattern "unknown object[\s\S]*WidgetKind[\s\S]*'DoesNotExist'"
+
+    Invoke-CMakeCase -Name "runtime-only-object-widget-kind" -Body @'
+vivid_widget_profile_resolve(
+    _modules _pools _defines
+    PROFILE runtime-only-object-widget-kind
+    KINDS Container
+    OBJECT_KINDS Container)
+'@ -ExpectSuccess $false -ExpectedPattern "Container[\s\S]*catalog has no OBJECT_MODULE"
 
     Invoke-CMakeCase -Name "second-target-profile" -Body ($MinimalProfiles + "`n" + @'
 vivid_configure_product_target(

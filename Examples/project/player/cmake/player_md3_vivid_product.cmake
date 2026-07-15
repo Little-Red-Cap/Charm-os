@@ -65,8 +65,7 @@ vivid_define_product_profile(
     NAME player_md3_debug
     EXTENDS player_md3
     ROOT_MODULES ${_player_md3_vivid_roots}
-    WIDGET_KINDS TableView TreeView
-    PAYLOAD_CAPACITIES TableView=4 TreeView=4)
+    OBJECT_WIDGET_KINDS TableView TreeView)
 
 if(CHARM_PLAYER_DEBUG_UI)
     set(CHARM_PLAYER_VIVID_PROFILE player_md3_debug)

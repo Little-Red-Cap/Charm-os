@@ -1,7 +1,7 @@
 module;
-#include <array>
 #include <cstddef>
 #include <cstdint>
+#include <span>
 #include "vivid_features.generated.hpp"
 #if CHARM_VIVID_ENABLE_FLOAT_WIDGETS
 #include <cmath>
@@ -20,9 +20,67 @@ using namespace ui::render;
 export
 class DynamicNebula : public WidgetBase<DynamicNebula> {
 public:
+    static constexpr std::size_t kMaxParticles = 64;
+
+    class ParticleWorkspace {
+    public:
+        ParticleWorkspace(std::span<float> angles, std::span<float> offsets) noexcept {
+            std::size_t capacity = angles.size();
+            if (offsets.size() < capacity) capacity = offsets.size();
+            if (kMaxParticles < capacity) capacity = kMaxParticles;
+            angles_ = angles.first(capacity);
+            offsets_ = offsets.first(capacity);
+        }
+
+        ~ParticleWorkspace() noexcept;
+        ParticleWorkspace(const ParticleWorkspace&) = delete;
+        ParticleWorkspace& operator=(const ParticleWorkspace&) = delete;
+        ParticleWorkspace(ParticleWorkspace&&) = delete;
+        ParticleWorkspace& operator=(ParticleWorkspace&&) = delete;
+
+        [[nodiscard]] std::size_t capacity() const noexcept {
+            return angles_.size();
+        }
+
+    private:
+        friend class DynamicNebula;
+
+        std::span<float> angles_{};
+        std::span<float> offsets_{};
+        DynamicNebula* owner_{nullptr};
+    };
+
     DynamicNebula() {
         set_size(160, 160);
+    }
+
+    ~DynamicNebula() noexcept {
+        detach_particle_workspace();
+    }
+
+    DynamicNebula(const DynamicNebula&) = delete;
+    DynamicNebula& operator=(const DynamicNebula&) = delete;
+    DynamicNebula(DynamicNebula&&) = delete;
+    DynamicNebula& operator=(DynamicNebula&&) = delete;
+
+    [[nodiscard]] bool attach_particle_workspace(ParticleWorkspace& workspace) noexcept {
+        if (workspace.owner_ != nullptr && workspace.owner_ != this) return false;
+        if (particle_workspace_ == &workspace) return true;
+        detach_particle_workspace();
+        particle_workspace_ = &workspace;
+        workspace.owner_ = this;
         reset_particles();
+        return true;
+    }
+
+    void detach_particle_workspace() noexcept {
+        if (!particle_workspace_) return;
+        if (particle_workspace_->owner_ == this) particle_workspace_->owner_ = nullptr;
+        particle_workspace_ = nullptr;
+    }
+
+    [[nodiscard]] bool has_particle_workspace() const noexcept {
+        return particle_workspace_ != nullptr;
     }
 
     void set_radius(int r) noexcept {
@@ -42,7 +100,8 @@ public:
     }
 
     void set_particle_count(int count) noexcept {
-        particle_count_ = (count < 1) ? 1 : (count > kMaxParticles ? kMaxParticles : count);
+        const int max_particles = static_cast<int>(kMaxParticles);
+        particle_count_ = (count < 1) ? 1 : (count > max_particles ? max_particles : count);
         reset_particles();
     }
 
@@ -56,6 +115,8 @@ public:
         (void)cvs;
         return;
 #else
+        const int active_count = active_particle_count();
+        if (active_count <= 0) return;
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
         const Style& base = Theme::instance().get<DynamicNebula>();
         Style st_scratch;
@@ -73,29 +134,29 @@ public:
         const float invisible = static_cast<float>(radius_ - vis);
         const rgba col = color_.a ? color_ : accent;
 
-        for (int i = 0; i < particle_count_; ++i) {
-            auto& p = particles_[i];
+        for (int i = 0; i < active_count; ++i) {
+            float& angle = particle_workspace_->angles_[static_cast<std::size_t>(i)];
+            float& offset = particle_workspace_->offsets_[static_cast<std::size_t>(i)];
             if (outward_) {
-                p.offset += speed_;
-                if (p.offset >= static_cast<float>(vis)) {
-                    p.offset = 0.0f;
-                    p.angle = random_angle();
+                offset += speed_;
+                if (offset >= static_cast<float>(vis)) {
+                    offset = 0.0f;
+                    angle = random_angle();
                 }
             } else {
-                p.offset -= speed_;
-                if (p.offset <= 0.0f) {
-                    p.offset = static_cast<float>(vis);
-                    p.angle = random_angle();
+                offset -= speed_;
+                if (offset <= 0.0f) {
+                    offset = static_cast<float>(vis);
+                    angle = random_angle();
                 }
             }
 
-            const float radius = p.offset + invisible;
-            const float sx = std::cos(p.angle) * radius;
-            const float sy = std::sin(p.angle) * radius;
+            const float radius = offset + invisible;
+            const float sx = std::cos(angle) * radius;
+            const float sy = std::sin(angle) * radius;
             const int px = cx + static_cast<int>(std::lround(sx));
             const int py = cy + static_cast<int>(std::lround(sy));
 
-            const float offset = p.offset;
             std::uint8_t alpha = 255;
             const float fade_in_end = static_cast<float>(vis - fade_edge - solid);
             if (offset < fade_in_end && fade_in_end > 0.0f) {
@@ -116,15 +177,17 @@ public:
     }
 
 private:
-    struct Particle {
-        float angle{};
-        float offset{};
-    };
+    [[nodiscard]] int active_particle_count() const noexcept {
+        if (!particle_workspace_) return 0;
+        const auto capacity = static_cast<int>(particle_workspace_->capacity());
+        return (particle_count_ < capacity) ? particle_count_ : capacity;
+    }
 
     void reset_particles() noexcept {
-        for (int i = 0; i < particle_count_; ++i) {
-            particles_[i].angle = random_angle();
-            particles_[i].offset = random_offset();
+        const int active_count = active_particle_count();
+        for (int i = 0; i < active_count; ++i) {
+            particle_workspace_->angles_[static_cast<std::size_t>(i)] = random_angle();
+            particle_workspace_->offsets_[static_cast<std::size_t>(i)] = random_offset();
         }
     }
 
@@ -142,8 +205,7 @@ private:
         return static_cast<float>(rng_ & 0xFFFF) / 65535.0f;
     }
 
-    static constexpr int kMaxParticles = 64;
-    std::array<Particle, kMaxParticles> particles_{};
+    ParticleWorkspace* particle_workspace_{nullptr};
     int particle_count_{24};
     int radius_{60};
     int visible_ring_{24};
@@ -156,4 +218,17 @@ private:
     std::uint32_t rng_{0x12345678u};
 };
 
+inline DynamicNebula::ParticleWorkspace::~ParticleWorkspace() noexcept {
+    if (owner_) owner_->detach_particle_workspace();
+}
+
+static_assert(sizeof(DynamicNebula)
+              <= sizeof(ObjectBase) + sizeof(DynamicNebula::ParticleWorkspace*)
+                   + sizeof(int) * 6 + sizeof(float) + sizeof(bool) + sizeof(rgba)
+                   + sizeof(std::uint32_t) + alignof(DynamicNebula) * 3,
+              "DynamicNebula must not regain inline particle storage");
+static_assert(sizeof(DynamicNebula::ParticleWorkspace)
+              <= sizeof(std::span<float>) * 2 + sizeof(DynamicNebula*)
+                   + alignof(DynamicNebula::ParticleWorkspace),
+              "DynamicNebula workspace must remain a non-owning bounded view");
 

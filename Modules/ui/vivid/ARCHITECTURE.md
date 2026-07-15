@@ -218,6 +218,11 @@ SpectrumView 的 values 同样是最多 32 项的 caller-owned span；跨帧 pea
 将 peak 更新为 `max(current, peak - decay)`，并清零超出当前 values 长度的槽位；workspace 及其 float 存储
 必须覆盖 attach 周期。关闭 float widgets 的 profile 不执行数值推进或频谱绘制。
 
+DynamicNebula 的粒子状态同样不常驻控件本体。调用方以 angle/offset 两个 `std::span<float>` 构造独占
+`ParticleWorkspace`，有效容量取两个 span、请求粒子数与 64 上限的最小值，因此 RAM 成本为 8B/粒子而不是
+固定 64 槽。未 attach 时不推进或绘制粒子；workspace 同一时刻只能绑定一个控件，显式 detach 或任一方析构
+都会解除双向引用。workspace 与底层 float 数组必须覆盖 attach 周期，关闭 float widgets 时仍不执行粒子绘制。
+
 控件实现语义行为，不拥有全局 focus/navigation policy。focus truth、scope、semantic request 与 visual
 focus artifact 的边界从 [`vivid_focus_evidence_boundary_v0.md`](../../../docs/ui/vivid_focus_evidence_boundary_v0.md)
 进入。

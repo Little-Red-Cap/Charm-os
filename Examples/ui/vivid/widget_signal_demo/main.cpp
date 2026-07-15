@@ -17,6 +17,7 @@ import charm.widgets.chart;
 import charm.widgets.code_block;
 import charm.widgets.console_box;
 import charm.widgets.dropdown;
+import charm.widgets.dynamic_nebula;
 import charm.widgets.foldable_panel;
 import charm.widgets.image;
 import charm.widgets.histogram;
@@ -124,6 +125,10 @@ namespace {
                       + sizeof(float) + sizeof(std::uint32_t) + alignof(void*) * 2);
     static_assert(sizeof(SpectrumView::PeakWorkspace)
                   <= sizeof(std::span<float>) + sizeof(void*) + alignof(void*) - 1);
+    static_assert(!std::is_copy_constructible_v<DynamicNebula>);
+    static_assert(!std::is_move_constructible_v<DynamicNebula>);
+    static_assert(!std::is_copy_constructible_v<DynamicNebula::ParticleWorkspace>);
+    static_assert(!std::is_move_constructible_v<DynamicNebula::ParticleWorkspace>);
     static_assert(std::is_same_v<Callback, util::delegate<>>);
     static_assert(sizeof(Callback) == sizeof(void*) + sizeof(Callback::stub_t));
 
@@ -399,6 +404,9 @@ int main() {
                 sizeof(Roller),
                 sizeof(Stepper),
                 sizeof(Timeline));
+    std::printf("[ws-visual-abi] dynamic_nebula=%zu nebula_workspace=%zu\n",
+                sizeof(DynamicNebula),
+                sizeof(DynamicNebula::ParticleWorkspace));
 
     Button button{"Apply"};
     button.set_on_click(Callback::bind<&on_button_click>());
@@ -846,6 +854,63 @@ int main() {
                     && timeline_hash_before != timeline_hash_after,
                 "read-only text widgets observe caller-owned content updates")) return 1;
 
+    std::array<float, 4> nebula_angles{};
+    std::array<float, 4> nebula_offsets{};
+    DynamicNebula::ParticleWorkspace nebula_workspace{nebula_angles, nebula_offsets};
+    DynamicNebula nebula{};
+    nebula.set_rect({0, 0, 96, 96});
+    nebula.set_radius(20);
+    nebula.set_visible_ring_width(20);
+    nebula.set_fully_visible_width(20);
+    nebula.set_fade_edge_width(0);
+    nebula.set_particle_count(8);
+    nebula.set_speed(0.0f);
+    nebula.set_color({255, 255, 255, 255});
+    const auto nebula_hash_without_workspace = draw_text_widget_hash(nebula);
+    if (!expect(nebula_workspace.capacity() == nebula_angles.size()
+                    && nebula.attach_particle_workspace(nebula_workspace)
+                    && nebula.has_particle_workspace(),
+                "dynamic nebula attaches caller-sized particle workspace")) return 1;
+    const auto nebula_hash_with_workspace = draw_text_widget_hash(nebula);
+    if constexpr (enable_float_widgets) {
+        if (!expect(nebula_hash_without_workspace != nebula_hash_with_workspace,
+                    "dynamic nebula renders only with an attached workspace")) return 1;
+    }
+
+    DynamicNebula competing_nebula{};
+    if (!expect(!competing_nebula.attach_particle_workspace(nebula_workspace),
+                "particle workspace rejects concurrent attachment")) return 1;
+    nebula.detach_particle_workspace();
+    if (!expect(!nebula.has_particle_workspace()
+                    && competing_nebula.attach_particle_workspace(nebula_workspace),
+                "particle workspace can transfer after explicit detach")) return 1;
+    competing_nebula.detach_particle_workspace();
+
+    {
+        std::array<float, 2> scoped_angles{};
+        std::array<float, 2> scoped_offsets{};
+        DynamicNebula::ParticleWorkspace scoped_workspace{scoped_angles, scoped_offsets};
+        if (!expect(nebula.attach_particle_workspace(scoped_workspace),
+                    "dynamic nebula accepts scoped particle workspace")) return 1;
+    }
+    if (!expect(!nebula.has_particle_workspace(),
+                "particle workspace destruction detaches its owner")) return 1;
+
+    {
+        DynamicNebula scoped_nebula{};
+        if (!expect(scoped_nebula.attach_particle_workspace(nebula_workspace),
+                    "scoped dynamic nebula attaches reusable workspace")) return 1;
+    }
+    if (!expect(competing_nebula.attach_particle_workspace(nebula_workspace),
+                "dynamic nebula destruction releases its workspace")) return 1;
+    competing_nebula.detach_particle_workspace();
+    std::printf("[ws-nebula] object=%zu workspace=%zu capacity=%zu hash=0x%08X/0x%08X\n",
+                sizeof(DynamicNebula),
+                sizeof(DynamicNebula::ParticleWorkspace),
+                nebula_workspace.capacity(),
+                nebula_hash_without_workspace,
+                nebula_hash_with_workspace);
+
     const Style saved_foldable_style = Theme::instance().get<FoldablePanel>();
     Style profiled_foldable_style = saved_foldable_style;
     Font foldable_probe_font{};
@@ -1230,7 +1295,7 @@ int main() {
     print_widget_signal_case("owned_interaction_dispatch");
     std::printf(" image=direct scroll=direct spin_zoom=direct\n");
     print_widget_signal_case("object_runtime_footprint");
-    std::printf(" object_base=%zu child_capacity=%zu opt_in_components=%zu text_box=%zu console_box=%zu console_line=%zu console_buffer=%zu chart=%zu histogram=%zu histogram_view=%zu waveform_view=%zu spectrum_view=%zu spectrum_workspace=%zu data_source_calls=%d/%d borrowed_text_hash=0x%08X\n",
+    std::printf(" object_base=%zu child_capacity=%zu opt_in_components=%zu text_box=%zu console_box=%zu console_line=%zu console_buffer=%zu chart=%zu histogram=%zu histogram_view=%zu waveform_view=%zu spectrum_view=%zu spectrum_workspace=%zu dynamic_nebula=%zu nebula_workspace=%zu data_source_calls=%d/%d borrowed_text_hash=0x%08X\n",
                 sizeof(ObjectBase),
                 scroll.child_storage_capacity(),
                 sizeof(InteractionList<>) + sizeof(DragStrategy) + sizeof(LongPressStrategy),
@@ -1244,6 +1309,8 @@ int main() {
                 sizeof(WaveformView),
                 sizeof(SpectrumView),
                 sizeof(SpectrumView::PeakWorkspace),
+                sizeof(DynamicNebula),
+                sizeof(DynamicNebula::ParticleWorkspace),
                 chart_source.calls,
                 histogram_source.calls,
                 code_hash_after ^ rich_hash_after ^ roller_hash_after

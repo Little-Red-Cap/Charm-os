@@ -173,6 +173,9 @@ handle，容器析构也会清空仍 active 的 handle。容量耗尽显式返�
 Object `Dropdown` 的最多 8 个 option label 同样只保存借用指针，不为每项复制固定文本缓冲；label owner 必须
 覆盖 Dropdown 使用期，`nullptr` 归一化为空字符串。当前 SoA `WidgetKind::Dropdown` 仍是 catalog 中的稳定 kind
 占位，record pipeline 明确报告 unsupported，不能把 object ownership 收敛误报为 SoA Dropdown 已实现。
+`DropdownPopup` 作为 object/SoA 混合 helper 同样借用调用方提供的 option 指针数组和文本；二者都必须覆盖
+popup 的完整配置与绘制周期。修改文本内容或数组项会被后续 list source 读取观察到，`nullptr` 项继续归一化为
+空字符串；helper 不再为 16 个选项常驻字符串副本或二次指针表。
 
 Object `TabView` 的最多 6 个标题借用调用方文本，page 继续只保存 handle；resolver 无论在 tab 前还是 tab 后
 绑定，都必须立即把 active page 设为 visible、其余 page 设为 hidden。SoA `WidgetKind::TabView` 使用独立的

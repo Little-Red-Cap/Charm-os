@@ -7,11 +7,10 @@ import charm.core.handle;
 import charm.core.soa_factory;
 import charm.core.event;
 import charm.core.geometry;
-import charm.core.string;
 import service.signal;
 import service.state;
 
-// Dropdown + Popup + ListItem ???????????
+// Object/SoA helper that projects a borrowed option list into a popup ListView.
 export
 class DropdownPopup {
 public:
@@ -37,11 +36,11 @@ public:
     }
 
     void set_options(const char* const* opts, int count) {
+        options_ = nullptr;
         option_count_ = 0;
-        const int cap = (count < kMaxOptions) ? count : kMaxOptions;
-        for (int i = 0; i < cap; ++i) {
-            options_[i].assign(opts[i] ? opts[i] : "");
-            ++option_count_;
+        if (opts && count > 0) {
+            options_ = opts;
+            option_count_ = (count < kMaxOptions) ? count : kMaxOptions;
         }
         int selected = selected_.get();
         if (selected >= option_count_) {
@@ -175,7 +174,7 @@ public:
 
 private:
     void sync_list_source() {
-        factory_.set_list_view_items(popup_list_, items_ptrs(), static_cast<std::uint16_t>(option_count_));
+        factory_.set_list_view_items(popup_list_, options_, static_cast<std::uint16_t>(option_count_));
         sync_list_selection();
     }
 
@@ -219,13 +218,6 @@ private:
         return local_y / row_h;
     }
 
-    const char* const* items_ptrs() noexcept {
-        for (int i = 0; i < option_count_; ++i) {
-            item_ptrs_[i] = options_[i].c_str();
-        }
-        return item_ptrs_;
-    }
-
     bool owns_input_state() const noexcept {
         const auto& kernel = factory_.kernel();
         const WidgetHandle captured = kernel.input_captured();
@@ -241,8 +233,7 @@ private:
     WidgetHandle root_{};
     WidgetHandle popup_container_{};
     WidgetHandle popup_list_{};
-    StaticString<32> options_[kMaxOptions]{};
-    const char* item_ptrs_[kMaxOptions]{};
+    const char* const* options_{nullptr};
     int option_count_{0};
     selected_state_type selected_{0};
     int highlighted_{0};
@@ -250,3 +241,15 @@ private:
     select_signal_type selected_edge_{};
     Callback on_select_{};
 };
+
+static_assert(sizeof(DropdownPopup)
+              <= sizeof(SoaFactory*)
+                   + sizeof(WidgetHandle) * 4
+                   + sizeof(const char* const*)
+                   + sizeof(int) * 2
+                   + sizeof(bool)
+                   + sizeof(DropdownPopup::selected_state_type)
+                   + sizeof(DropdownPopup::select_signal_type)
+                   + sizeof(Callback)
+                   + alignof(DropdownPopup) * 3,
+              "DropdownPopup must not regain per-option text or pointer storage");

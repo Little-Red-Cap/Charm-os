@@ -1,4 +1,5 @@
 #include <cstdio>
+#include <string_view>
 
 import charm.core;
 import charm.core.event;
@@ -45,6 +46,8 @@ namespace {
 }
 
 int main() {
+    std::printf("[dropdown-popup-abi] bytes=%zu\n", sizeof(DropdownPopup));
+
     constexpr int popup_x = 20;
     constexpr int popup_y = 40;
     constexpr int popup_w = 120;
@@ -58,12 +61,27 @@ int main() {
     kernel.set_rect(host, {8, 8, 100, 28});
 
     DropdownPopup popup{factory, host, root};
-    const char* const options[] = {
+    char middle_option[] = "Mid";
+    const char* options[] = {
         "Low",
-        "Mid",
-        "High",
+        middle_option,
+        nullptr,
     };
     popup.set_options(options, 3);
+
+    const auto popup_container = kernel.next_sibling(host);
+    const auto popup_list = kernel.first_child(popup_container);
+    if (!expect(popup_container && popup_list,
+                "popup exposes its generated list through the SoA hierarchy")) return 1;
+    if (!expect(std::string_view{kernel.list_view_item_text(popup_list, 0)} == "Low"
+                    && std::string_view{kernel.list_view_item_text(popup_list, 1)} == "Mid"
+                    && std::string_view{kernel.list_view_item_text(popup_list, 2)}.empty(),
+                "popup list borrows option text and normalizes null labels")) return 1;
+    middle_option[0] = 'm';
+    options[0] = "Minimum";
+    if (!expect(std::string_view{kernel.list_view_item_text(popup_list, 0)} == "Minimum"
+                    && std::string_view{kernel.list_view_item_text(popup_list, 1)} == "mid",
+                "popup list observes caller-owned text and pointer updates")) return 1;
 
     Probe probe{};
     popup.set_on_select(Callback::bind<&on_legacy_select>());
@@ -175,7 +193,7 @@ int main() {
     if (!expect(probe.select_edges == 3, "disconnected edge observer stays silent")) return 1;
     if (!expect(g_legacy_selects == 4, "legacy callback still works after observer disconnect")) return 1;
 
-    std::printf("[dropdown_popup] selected=%d truth_changes=%d confirm_edges=%d legacy=%d\n",
+    std::printf("[dropdown_popup] selected=%d truth_changes=%d confirm_edges=%d legacy=%d borrowed=1\n",
                 popup.selected(),
                 probe.selected_changes,
                 probe.select_edges,

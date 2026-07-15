@@ -1,6 +1,7 @@
 module;
 #include <cstddef>
 #include <cstdint>
+#include <type_traits>
 export module charm.widgets.menu_tree;
 
 import charm.core.soa_factory;
@@ -8,7 +9,7 @@ import charm.core.handle;
 import charm.core.geometry;
 import charm.core.event;
 import charm.core.structured_view;
-import service.signal;
+import util.delegate;
 
 export
 class MenuTree {
@@ -19,11 +20,13 @@ public:
         int menu_id{-1};
         int index{-1};
     };
-    using select_signal_type = service::signal<void(const menu_item_ref&), 4>;
-    using select_slot_type = typename select_signal_type::slot_type;
-    using select_connection = typename select_signal_type::connection;
+    using select_callback = util::delegate<const menu_item_ref&>;
 
     MenuTree() = default;
+    MenuTree(const MenuTree&) = delete;
+    MenuTree& operator=(const MenuTree&) = delete;
+    MenuTree(MenuTree&&) = delete;
+    MenuTree& operator=(MenuTree&&) = delete;
 
     void init(SoaFactory& factory, WidgetHandle parent) {
         factory_ = &factory;
@@ -56,19 +59,7 @@ public:
 
     void set_provider(MenuProvider provider) noexcept { provider_ = provider; }
     void set_selection_model(MenuSelectionModel model) noexcept { selection_ = model; }
-    void set_on_select(Callback cb) noexcept { on_select_ = cb; }
-
-    // observe_select() is a same-domain synchronous confirm edge surface.
-    // MenuTree highlight truth remains owned by the external StructuredMenuSelectionModel.
-    // Disabled items may still become highlight truth, but they never open submenus
-    // and never emit confirm edges.
-    [[nodiscard]] auto observe_select(select_slot_type slot) noexcept {
-        return selected_edge_.connect(slot);
-    }
-
-    [[nodiscard]] bool unobserve_select(select_connection c) noexcept {
-        return selected_edge_.disconnect(c);
-    }
+    void set_on_select(select_callback callback) noexcept { on_select_ = callback; }
 
     void set_root_menu(int menu_id) noexcept { root_menu_id_ = menu_id; }
 
@@ -444,8 +435,7 @@ private:
             .menu_id = menu_id,
             .index = index,
         };
-        (void)selected_edge_.emit(ref);
-        if (on_select_) on_select_();
+        if (on_select_) on_select_(ref);
     }
 
     bool owns_input_state() const noexcept {
@@ -503,8 +493,11 @@ private:
     int fallback_selected_{-1};
     int item_h_{24};
     bool is_open_{false};
-    select_signal_type selected_edge_{};
-    Callback on_select_{};
+    select_callback on_select_{};
     StructuredScrollModel menu_scroll_{};
     StructuredScrollModel submenu_scroll_{};
 };
+
+static_assert(sizeof(MenuTree::select_callback) == sizeof(void*) * 2);
+static_assert(!std::is_copy_constructible_v<MenuTree>);
+static_assert(!std::is_move_constructible_v<MenuTree>);

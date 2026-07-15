@@ -49,18 +49,19 @@ dispatch_event
 
 不得把跨控件联动隐藏在 kernel、SceneAccess side effect 或“设置一个 handle 顺便广播”的魔法接口中。
 
-### Helper observe 只说明 helper contract
+### Helper edge 只说明 helper contract
 
 SoA-backed helper 可以区分：
 
 ```text
 committed truth -> observe_selected()
-confirm edge    -> observe_select()
+confirm edge    -> typed callback or explicit observer surface
 ```
 
 这不意味着 scene/runtime 自动广播 helper edge。`DropdownPopup` 可以自己持有 committed selection；
-`MenuTree` 可以把 highlight truth 交给 caller-owned selection model，只保留 confirm edge。disabled item 是否
-能 highlight、open 或 confirm 由 helper contract 明确定义，不能从 SceneAccess 推导。
+`MenuTree` 把 highlight truth 交给 caller-owned selection model，只保留一个带 `menu_item_ref` 的 confirm callback；
+需要多播时由 caller 显式转发到自己的 signal。disabled item 是否能 highlight、open 或 confirm 由 helper contract
+明确定义，不能从 SceneAccess 推导。
 
 ## 证据入口
 

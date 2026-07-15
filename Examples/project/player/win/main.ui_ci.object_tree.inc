@@ -346,16 +346,11 @@
         };
 
         struct MenuSelectProbe {
-            int callback_calls{0};
-            int edge_calls{0};
+            int select_calls{0};
             MenuTree::menu_item_ref last_ref{};
 
-            void on_select() noexcept {
-                callback_calls += 1;
-            }
-
-            void on_edge(const MenuTree::menu_item_ref& ref) noexcept {
-                edge_calls += 1;
+            void on_select(const MenuTree::menu_item_ref& ref) noexcept {
+                select_calls += 1;
                 last_ref = ref;
             }
         };
@@ -380,11 +375,7 @@
             &MenuSelection::set_selected,
             &MenuSelection::clear_selected,
         });
-        menu.set_on_select(Callback::bind<&MenuSelectProbe::on_select>(probe));
-        const auto edge_conn = menu.observe_select(MenuTree::select_slot_type::bind<&MenuSelectProbe::on_edge>(probe));
-        if (!edge_conn) {
-            return false;
-        }
+        menu.set_on_select(MenuTree::select_callback::bind<&MenuSelectProbe::on_select>(probe));
 
         menu.open_at(20, 80, 120);
         if (!menu.is_open() || selection.root_selected != 0) {
@@ -393,21 +384,21 @@
 
         const bool disabled_move =
             menu.handle_event(Event::mouse(Event::Type::MouseMove, 28, 92, 0));
-        if (!disabled_move || selection.root_selected != 0 || probe.callback_calls != 0 || probe.edge_calls != 0) {
+        if (!disabled_move || selection.root_selected != 0 || probe.select_calls != 0) {
             return false;
         }
 
         const bool disabled_click =
             menu.handle_event(Event::mouse(Event::Type::Click, 28, 92, 1));
         if (!disabled_click || !menu.is_open() || selection.root_selected != 0
-            || probe.callback_calls != 0 || probe.edge_calls != 0) {
+            || probe.select_calls != 0) {
             return false;
         }
 
         // If the disabled group had opened a submenu, this click would stay inside the menu system and keep it open.
         const bool submenu_area_click =
             menu.handle_event(Event::mouse(Event::Type::Click, 148, 92, 1));
-        if (!submenu_area_click || menu.is_open() || probe.callback_calls != 0 || probe.edge_calls != 0) {
+        if (!submenu_area_click || menu.is_open() || probe.select_calls != 0) {
             return false;
         }
 
@@ -417,8 +408,7 @@
         return enabled_click
             && !menu.is_open()
             && selection.root_selected == 1
-            && probe.callback_calls == 1
-            && probe.edge_calls == 1
+            && probe.select_calls == 1
             && probe.last_ref.menu_id == 0
             && probe.last_ref.index == 1;
     }

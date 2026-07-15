@@ -200,6 +200,11 @@ label/checked 模型，单选和点击结果因此无需复制回上层。两个
 popup 的完整配置与绘制周期。修改文本内容或数组项会被后续 list source 读取观察到，`nullptr` 项继续归一化为
 空字符串；helper 不再为 16 个选项常驻字符串副本或二次指针表。
 
+`MenuTree` 的 highlight truth 属于调用方提供的 selection model；confirm edge 只保存一个带完整
+`menu_item_ref` 参数的 `util::delegate`。需要同步多播时由调用方显式拥有 `service::signal` 并从该 callback 转发，
+helper 本体不常驻固定槽表，也不并存无参 legacy callback。MenuTree 关联 SoA handles 与外部 callback target，禁止
+复制和移动。
+
 Object `TabView` 不再常驻 6 组标题与 page handle。调用方按实际 tab 数量提供独占
 `std::span<TabView::Tab>`；storage 必须覆盖控件使用期，未 attach 或容量耗尽时 `add_tab()` 返回 `false`，
 detach 与析构清空 active entry。标题继续借用调用方文本，page 只保存 handle；resolver 无论在 tab 前还是 tab 后

@@ -1,4 +1,7 @@
 module;
+#include <cstddef>
+#include <span>
+#include <type_traits>
 export module charm.widgets.dropdown;
 
 import charm.core.object;
@@ -23,13 +26,37 @@ public:
     Dropdown() {
         set_focusable(true);
         set_size(160, 28);
-        options_[0] = "Option 1";
-        option_count_ = 1;
     }
 
-    void add_option(const char* txt) noexcept {
-        if (option_count_ >= max_options) return;
-        options_[option_count_++] = txt ? txt : "";
+    ~Dropdown() noexcept {
+        release_option_storage();
+    }
+
+    Dropdown(const Dropdown&) = delete;
+    Dropdown& operator=(const Dropdown&) = delete;
+    Dropdown(Dropdown&&) = delete;
+    Dropdown& operator=(Dropdown&&) = delete;
+
+    void attach_option_storage(std::span<const char*> storage) noexcept {
+        detach_option_storage();
+        for (auto& option : storage) option = nullptr;
+        options_ = storage;
+    }
+
+    void detach_option_storage() noexcept {
+        release_option_storage();
+        (void)selected_.set(0);
+    }
+
+    [[nodiscard]] std::size_t option_storage_capacity() const noexcept {
+        return options_.size();
+    }
+
+    [[nodiscard]] bool add_option(const char* txt) noexcept {
+        if (static_cast<std::size_t>(option_count_) >= options_.size()) return false;
+        options_[static_cast<std::size_t>(option_count_)] = txt ? txt : "";
+        ++option_count_;
+        return true;
     }
 
     void set_selected(int idx) noexcept {
@@ -40,11 +67,14 @@ public:
         if (on_change_) on_change_();
     }
 
-    [[nodiscard]] int selected() const noexcept { return selected_.get(); }
+    [[nodiscard]] int selected() const noexcept {
+        const int value = selected_.get();
+        return option_count_ > 0 && value >= 0 && value < option_count_ ? value : 0;
+    }
     [[nodiscard]] int option_count() const noexcept { return option_count_; }
     const char* option_text(int idx) const noexcept {
         if (idx < 0 || idx >= option_count_) return nullptr;
-        return options_[idx];
+        return options_[static_cast<std::size_t>(idx)];
     }
 
     void set_on_change(Callback cb) noexcept { on_change_ = cb; }
@@ -76,7 +106,7 @@ public:
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
 
         const int current = selected();
-        const char* text = (current >= 0 && current < option_count_) ? options_[current] : "";
+        const char* text = option_count_ > 0 ? options_[static_cast<std::size_t>(current)] : "";
         Label lbl{text};
         lbl.set_color(font);
         lbl.set_font(resolve_font(st));
@@ -96,38 +126,54 @@ public:
         if (e.type == Event::Type::Click) {
             if (get_rect().contains(e.x, e.y) || has_state(State::Focused)) {
                 if (on_open_) { on_open_(); return true; }
-                cycle(1);
-                return true;
+                return cycle(1);
             }
         } else if (e.type == Event::Type::KeyDown) {
             if (e.key_code == Event::Key::Enter || e.key_code == Event::Key::Space) {
                 if (on_open_) { on_open_(); return true; }
-                cycle(1);
-                return true;
+                return cycle(1);
             } else if (e.key_code == Event::Key::Down) {
-                cycle(1);
-                return true;
+                return cycle(1);
             } else if (e.key_code == Event::Key::Up) {
-                cycle(-1);
-                return true;
+                return cycle(-1);
             }
         }
         return false;
     }
 
 private:
-    void cycle(int delta) {
-        if (option_count_ == 0) return;
-        set_selected((selected() + delta + option_count_) % option_count_);
+    void release_option_storage() noexcept {
+        clear_options();
+        options_ = {};
     }
 
-    static constexpr int max_options = 8;
-    const char* options_[max_options]{};
+    void clear_options() noexcept {
+        for (int i = 0; i < option_count_; ++i) {
+            options_[static_cast<std::size_t>(i)] = nullptr;
+        }
+        option_count_ = 0;
+    }
+
+    [[nodiscard]] bool cycle(int delta) noexcept {
+        if (option_count_ == 0) return false;
+        set_selected((selected() + delta + option_count_) % option_count_);
+        return true;
+    }
+
+    std::span<const char*> options_{};
     int option_count_{0};
     selected_state_type selected_{0};
     Callback on_change_{};
     Callback on_open_{};
 };
+
+static_assert(sizeof(Dropdown)
+              <= sizeof(ObjectBase) + sizeof(std::span<const char*>) + sizeof(int)
+                  + sizeof(Dropdown::selected_state_type) + sizeof(Callback) * 2
+                  + alignof(std::span<const char*>),
+              "Dropdown must not regain a fixed option pointer table");
+static_assert(!std::is_copy_constructible_v<Dropdown>);
+static_assert(!std::is_move_constructible_v<Dropdown>);
 
 
 

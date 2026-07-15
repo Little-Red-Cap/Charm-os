@@ -178,9 +178,12 @@ storage；未 attach 或容量耗尽时 `add()` 返回 `false`，detach 与析�
 使用显式 range；文本 owner 必须覆盖控件使用期。原地修改 admitted range 内的字节会被后续绘制观察到，若
 指针或文本长度变化则必须重新调用对应 setter。编辑型控件继续拥有自己的内容缓冲，不能借此规则外置编辑状态。
 
-Object `Dropdown` 的最多 8 个 option label 同样只保存借用指针，不为每项复制固定文本缓冲；label owner 必须
-覆盖 Dropdown 使用期，`nullptr` 归一化为空字符串。当前 SoA `WidgetKind::Dropdown` 仍是 catalog 中的稳定 kind
-占位，record pipeline 明确报告 unsupported，不能把 object ownership 收敛误报为 SoA Dropdown 已实现。
+Object `Dropdown` 不注入默认展示文本，也不常驻 8 槽 option 指针表。调用方按实际 option 数量提供独占
+`std::span<const char*>`；storage 与 label owner 都必须覆盖控件使用期，未 attach 或容量耗尽时 `add_option()`
+返回 `false`，detach 与析构清空 active pointer，`nullptr` label 归一化为空字符串。显式 detach/reattach 将
+selected truth 复位为 0 并通知 state observer；析构不发通知。当前 SoA
+`WidgetKind::Dropdown` 仍是 catalog 中的稳定 kind 占位，record pipeline 明确报告 unsupported，不能把 object
+ownership 收敛误报为 SoA Dropdown 已实现。
 `DropdownPopup` 作为 object/SoA 混合 helper 同样借用调用方提供的 option 指针数组和文本；二者都必须覆盖
 popup 的完整配置与绘制周期。修改文本内容或数组项会被后续 list source 读取观察到，`nullptr` 项继续归一化为
 空字符串；helper 不再为 16 个选项常驻字符串副本或二次指针表。

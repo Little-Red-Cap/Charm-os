@@ -1,3 +1,4 @@
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdio>
@@ -139,19 +140,29 @@ int main() {
     if (!expect(g_checkbox_callbacks == 1, "checkbox click triggers legacy callback")) return 1;
 
     char borrowed_dropdown_option[]{"Option 2"};
+    std::array<const char*, 3> dropdown_option_storage{};
     Dropdown dropdown{};
-    dropdown.add_option(borrowed_dropdown_option);
-    if (!expect(dropdown.option_count() == 2
+    if (!expect(dropdown.option_storage_capacity() == 0
+                    && dropdown.option_count() == 0
+                    && !dropdown.add_option("implicit default removed")
+                    && !dropdown.on_event(Event::mouse(Event::Type::Click, 1, 1, 1))
+                    && !dropdown.on_event(Event::key(Event::Type::KeyDown, Event::Key::Down)),
+                "dropdown requires explicit option storage")) return 1;
+    dropdown.attach_option_storage(dropdown_option_storage);
+    if (!expect(dropdown.add_option("Option 1")
+                    && dropdown.add_option(borrowed_dropdown_option)
+                    && dropdown.option_count() == 2
                     && dropdown.option_text(1) == borrowed_dropdown_option,
                 "dropdown borrows caller option labels")) return 1;
     borrowed_dropdown_option[0] = 'o';
     if (!expect(dropdown.option_text(1)[0] == 'o',
                 "dropdown observes caller-owned option mutations")) return 1;
-    dropdown.add_option(nullptr);
-    if (!expect(dropdown.option_count() == 3
+    if (!expect(dropdown.add_option(nullptr)
+                    && !dropdown.add_option("overflow")
+                    && dropdown.option_count() == 3
                     && dropdown.option_text(2) != nullptr
                     && dropdown.option_text(2)[0] == '\0',
-                "dropdown normalizes null options to empty strings")) return 1;
+                "dropdown normalizes null options and reports storage exhaustion")) return 1;
     dropdown.set_on_change(Callback::bind<&on_dropdown_command>());
     const auto dropdown_conn =
         dropdown.observe_selected(util::delegate<const int&, const int&>::bind<&Probe::on_dropdown_changed>(probe));
@@ -168,6 +179,40 @@ int main() {
     if (!expect(probe.dropdown_changes == 1, "dropdown observe sees real selected change")) return 1;
     if (!expect(probe.dropdown_old == 0 && probe.dropdown_new == 1, "dropdown observe reports old/new")) return 1;
     if (!expect(g_dropdown_callbacks == 2, "dropdown legacy callback also fires for real change")) return 1;
+
+    Probe detached_dropdown_probe{};
+    std::array<const char*, 2> detached_dropdown_storage{};
+    Dropdown detached_dropdown{};
+    detached_dropdown.attach_option_storage(detached_dropdown_storage);
+    if (!expect(detached_dropdown.add_option("A") && detached_dropdown.add_option("B"),
+                "detached dropdown fills explicit storage")) return 1;
+    const auto detached_dropdown_conn = detached_dropdown.observe_selected(
+        util::delegate<const int&, const int&>::bind<&Probe::on_dropdown_changed>(detached_dropdown_probe));
+    if (!expect(static_cast<bool>(detached_dropdown_conn),
+                "connect detached dropdown observe_selected")) return 1;
+    detached_dropdown.set_selected(1);
+    detached_dropdown.detach_option_storage();
+    if (!expect(detached_dropdown.selected() == 0
+                    && detached_dropdown.option_count() == 0
+                    && detached_dropdown.option_storage_capacity() == 0
+                    && detached_dropdown_probe.dropdown_changes == 2
+                    && detached_dropdown_probe.dropdown_old == 1
+                    && detached_dropdown_probe.dropdown_new == 0
+                    && detached_dropdown_storage[0] == nullptr
+                    && detached_dropdown_storage[1] == nullptr,
+                "dropdown detach resets truth and clears active options")) return 1;
+    if (!expect(detached_dropdown.unobserve_selected(detached_dropdown_conn.value()),
+                "detached dropdown disconnects observe token")) return 1;
+
+    std::array<const char*, 1> scoped_dropdown_storage{};
+    {
+        Dropdown scoped_dropdown{};
+        scoped_dropdown.attach_option_storage(scoped_dropdown_storage);
+        if (!expect(scoped_dropdown.add_option("scoped"),
+                    "scoped dropdown accepts caller storage")) return 1;
+    }
+    if (!expect(scoped_dropdown_storage[0] == nullptr,
+                "dropdown destruction clears caller-owned active options")) return 1;
 
     Slider slider{};
     slider.set_range(0, 100);

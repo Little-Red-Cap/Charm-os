@@ -60,8 +60,10 @@ namespace {
                   "read-only TextBox must retain a bounded text view instead of inline text storage");
     static_assert(sizeof(Button) <= 112,
                   "text Button must not retain icon, style, or observer storage");
-    static_assert(sizeof(Dropdown) <= 256,
-                  "Dropdown must borrow option labels instead of copying inline text storage");
+    static_assert(sizeof(Dropdown) <= 208,
+                  "Dropdown must borrow its bounded option storage");
+    static_assert(!std::is_copy_constructible_v<Dropdown>);
+    static_assert(!std::is_move_constructible_v<Dropdown>);
     static_assert(sizeof(TabView) <= 80,
                   "TabView must borrow its bounded tab storage");
     static_assert(!std::is_copy_constructible_v<TabView>);

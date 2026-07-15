@@ -19,7 +19,7 @@ import charm.core.soa_gui.style_support;
 import charm.gfx.draw_cmd;
 import charm.gfx.text_box;
 #if !defined(CHARM_VIVID_FEATURESET_MCU_MIN)
-import charm.widgets.perf_overlay;
+import charm.ui.vivid.perf_overlay_runtime;
 #endif
 import out.core;
 import out.format;
@@ -51,6 +51,14 @@ export namespace ui::soa_gui_detail {
 
     inline PerfOverlayStatsSnapshot perf_overlay_stats() noexcept {
         return {};
+    }
+#else
+    inline bool perf_overlay_stats_valid() noexcept {
+        return ui::perf_overlay_runtime::valid();
+    }
+
+    inline const ui::perf_overlay_runtime::Snapshot& perf_overlay_stats() noexcept {
+        return ui::perf_overlay_runtime::get();
     }
 #endif
 

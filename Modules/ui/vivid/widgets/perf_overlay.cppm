@@ -1,5 +1,4 @@
 module;
-#include <array>
 #include <cstdint>
 #include <cstring>
 #include <expected>
@@ -15,6 +14,7 @@ import charm.gfx.text_box;
 import charm.font.typography;
 import charm.core.style;
 import charm.core.style_sheet;
+export import charm.ui.vivid.perf_overlay_runtime;
 import out.core;
 import out.format;
 import out.sink;
@@ -49,78 +49,6 @@ namespace {
         return {buf, sink.pos};
     }
 
-}
-
-namespace perf_overlay_detail {
-    inline constexpr std::size_t kDebugLineCount = 6;
-    inline constexpr std::size_t kDebugLineSize = 96;
-    inline constexpr std::size_t kDebugNameSize = 24;
-
-    struct DebugLines {
-        std::array<std::array<char, kDebugLineSize>, kDebugLineCount> text{};
-        std::array<std::uint8_t, kDebugLineCount> len{};
-    };
-
-    struct DebugChannels {
-        std::array<std::array<char, kDebugNameSize>, kDebugLineCount> name{};
-        std::array<std::uint8_t, kDebugLineCount> len{};
-    };
-
-    struct OverlayStatsState {
-        std::uint32_t dispatch_groups{0};
-        std::uint32_t batch_flushes{0};
-        std::uint32_t failed_cmds{0};
-        std::uint32_t batch_shrink{0};
-        std::uint32_t batch_shrink_rect{0};
-        std::uint32_t batch_shrink_round{0};
-        std::uint32_t group_rect{0};
-        std::uint32_t group_text{0};
-        std::uint32_t group_image{0};
-        std::uint32_t group_line{0};
-        std::uint32_t group_path{0};
-        std::uint32_t group_other{0};
-        std::uint32_t cmd_rect{0};
-        std::uint32_t cmd_text{0};
-        std::uint32_t cmd_image{0};
-        std::uint32_t cmd_line{0};
-        std::uint32_t cmd_path{0};
-        std::uint32_t cmd_other{0};
-        bool valid{false};
-    };
-
-    inline OverlayStatsState g_overlay_stats{};
-    inline DebugLines g_debug_lines{};
-    inline DebugChannels g_debug_channels{};
-
-    inline bool channel_name_equals(std::size_t idx, std::string_view name) noexcept {
-        const auto& slot = g_debug_channels.name[idx];
-        const std::uint8_t len = g_debug_channels.len[idx];
-        return len == name.size() && std::memcmp(slot.data(), name.data(), len) == 0;
-    }
-
-    inline std::size_t find_channel(std::string_view name) noexcept {
-        for (std::size_t i = 0; i < kDebugLineCount; ++i) {
-            if (g_debug_channels.len[i] == 0) continue;
-            if (channel_name_equals(i, name)) return i;
-        }
-        return kDebugLineCount;
-    }
-
-    inline std::size_t alloc_channel(std::string_view name) noexcept {
-        for (std::size_t i = 0; i < kDebugLineCount; ++i) {
-            if (g_debug_channels.len[i] != 0) continue;
-            auto& slot = g_debug_channels.name[i];
-            const std::size_t cap = slot.size();
-            const std::size_t len = (name.size() < (cap - 1u)) ? name.size() : (cap - 1u);
-            if (len > 0) {
-                std::memcpy(slot.data(), name.data(), len);
-            }
-            slot[len] = '\0';
-            g_debug_channels.len[i] = static_cast<std::uint8_t>(len);
-            return i;
-        }
-        return kDebugLineCount;
-    }
 }
 
 export
@@ -186,6 +114,7 @@ public:
         utf8_replaces = utf8_replacement_count();
 #endif
         const auto text_profile = text_profile_sample();
+        const auto& overlay_stats = ui::perf_overlay_runtime::get();
 
         rgba bg{};
         rgba border{};
@@ -205,11 +134,10 @@ public:
 
         char buf[96]{};
         auto draw_debug_lines = [&](int& y_pos) {
-            for (std::size_t i = 0; i < perf_overlay_detail::kDebugLineCount; ++i) {
-                const std::uint8_t len = perf_overlay_detail::g_debug_lines.len[i];
-                if (len == 0) continue;
-                const char* line = perf_overlay_detail::g_debug_lines.text[i].data();
-                draw_text_baseline(cvs, start_x, y_pos + ft.baseline, line, font, ft);
+            for (std::size_t i = 0; i < ui::perf_overlay_runtime::debug_line_count; ++i) {
+                const std::string_view line = ui::perf_overlay_runtime::debug_line(i);
+                if (line.empty()) continue;
+                draw_text_baseline(cvs, start_x, y_pos + ft.baseline, line.data(), font, ft);
                 y_pos += line_h;
             }
         };
@@ -247,9 +175,9 @@ public:
                                                                             sample_.nodes,
                                                                             sample_.depth_hits,
                                                                             sample_.cycle_hits,
-                                                                            perf_overlay_detail::g_overlay_stats.batch_shrink,
-                                                                            perf_overlay_detail::g_overlay_stats.batch_shrink_rect,
-                                                                            perf_overlay_detail::g_overlay_stats.batch_shrink_round);
+                                                                            overlay_stats.batch_shrink,
+                                                                            overlay_stats.batch_shrink_rect,
+                                                                            overlay_stats.batch_shrink_round);
         draw_text_baseline(cvs, start_x, y + ft.baseline, buf, font, ft);
         y += line_h;
 
@@ -267,31 +195,31 @@ public:
         draw_text_baseline(cvs, start_x, y + ft.baseline, buf, font, ft);
         y += line_h;
 
-        if (perf_overlay_detail::g_overlay_stats.valid) {
+        if (ui::perf_overlay_runtime::valid()) {
             (void)format_to<"dispatch/batch/failed: {}/{}/{}">(buf, sizeof(buf),
-                                                              perf_overlay_detail::g_overlay_stats.dispatch_groups,
-                                                              perf_overlay_detail::g_overlay_stats.batch_flushes,
-                                                              perf_overlay_detail::g_overlay_stats.failed_cmds);
+                                                              overlay_stats.dispatch_groups,
+                                                              overlay_stats.batch_flushes,
+                                                              overlay_stats.failed_cmds);
             draw_text_baseline(cvs, start_x, y + ft.baseline, buf, font, ft);
             y += line_h;
 
             (void)format_to<"grp r/t/i/l/p/o: {}/{}/{}/{}/{}/{}">(buf, sizeof(buf),
-                                                                 perf_overlay_detail::g_overlay_stats.group_rect,
-                                                                 perf_overlay_detail::g_overlay_stats.group_text,
-                                                                 perf_overlay_detail::g_overlay_stats.group_image,
-                                                                 perf_overlay_detail::g_overlay_stats.group_line,
-                                                                 perf_overlay_detail::g_overlay_stats.group_path,
-                                                                 perf_overlay_detail::g_overlay_stats.group_other);
+                                                                 overlay_stats.group_rect,
+                                                                 overlay_stats.group_text,
+                                                                 overlay_stats.group_image,
+                                                                 overlay_stats.group_line,
+                                                                 overlay_stats.group_path,
+                                                                 overlay_stats.group_other);
             draw_text_baseline(cvs, start_x, y + ft.baseline, buf, font, ft);
             y += line_h;
 
             (void)format_to<"cmd r/t/i/l/p/o: {}/{}/{}/{}/{}/{}">(buf, sizeof(buf),
-                                                                 perf_overlay_detail::g_overlay_stats.cmd_rect,
-                                                                 perf_overlay_detail::g_overlay_stats.cmd_text,
-                                                                 perf_overlay_detail::g_overlay_stats.cmd_image,
-                                                                 perf_overlay_detail::g_overlay_stats.cmd_line,
-                                                                 perf_overlay_detail::g_overlay_stats.cmd_path,
-                                                                 perf_overlay_detail::g_overlay_stats.cmd_other);
+                                                                 overlay_stats.cmd_rect,
+                                                                 overlay_stats.cmd_text,
+                                                                 overlay_stats.cmd_image,
+                                                                 overlay_stats.cmd_line,
+                                                                 overlay_stats.cmd_path,
+                                                                 overlay_stats.cmd_other);
             draw_text_baseline(cvs, start_x, y + ft.baseline, buf, font, ft);
             y += line_h;
         }
@@ -305,108 +233,57 @@ private:
 };
 
 export inline void set_perf_overlay_stats(const PerfOverlay::OverlayStats& stats) noexcept {
-    perf_overlay_detail::g_overlay_stats.dispatch_groups = stats.dispatch_groups;
-    perf_overlay_detail::g_overlay_stats.batch_flushes = stats.batch_flushes;
-    perf_overlay_detail::g_overlay_stats.failed_cmds = stats.failed_cmds;
-    perf_overlay_detail::g_overlay_stats.batch_shrink = stats.batch_shrink;
-    perf_overlay_detail::g_overlay_stats.batch_shrink_rect = stats.batch_shrink_rect;
-    perf_overlay_detail::g_overlay_stats.batch_shrink_round = stats.batch_shrink_round;
-    perf_overlay_detail::g_overlay_stats.group_rect = stats.group_rect;
-    perf_overlay_detail::g_overlay_stats.group_text = stats.group_text;
-    perf_overlay_detail::g_overlay_stats.group_image = stats.group_image;
-    perf_overlay_detail::g_overlay_stats.group_line = stats.group_line;
-    perf_overlay_detail::g_overlay_stats.group_path = stats.group_path;
-    perf_overlay_detail::g_overlay_stats.group_other = stats.group_other;
-    perf_overlay_detail::g_overlay_stats.cmd_rect = stats.cmd_rect;
-    perf_overlay_detail::g_overlay_stats.cmd_text = stats.cmd_text;
-    perf_overlay_detail::g_overlay_stats.cmd_image = stats.cmd_image;
-    perf_overlay_detail::g_overlay_stats.cmd_line = stats.cmd_line;
-    perf_overlay_detail::g_overlay_stats.cmd_path = stats.cmd_path;
-    perf_overlay_detail::g_overlay_stats.cmd_other = stats.cmd_other;
-    perf_overlay_detail::g_overlay_stats.valid = true;
+    ui::perf_overlay_runtime::set({
+        .dispatch_groups = stats.dispatch_groups,
+        .batch_flushes = stats.batch_flushes,
+        .failed_cmds = stats.failed_cmds,
+        .batch_shrink = stats.batch_shrink,
+        .batch_shrink_rect = stats.batch_shrink_rect,
+        .batch_shrink_round = stats.batch_shrink_round,
+        .group_rect = stats.group_rect,
+        .group_text = stats.group_text,
+        .group_image = stats.group_image,
+        .group_line = stats.group_line,
+        .group_path = stats.group_path,
+        .group_other = stats.group_other,
+        .cmd_rect = stats.cmd_rect,
+        .cmd_text = stats.cmd_text,
+        .cmd_image = stats.cmd_image,
+        .cmd_line = stats.cmd_line,
+        .cmd_path = stats.cmd_path,
+        .cmd_other = stats.cmd_other,
+    });
 }
 
 export inline void clear_perf_overlay_stats() noexcept {
-    perf_overlay_detail::g_overlay_stats = perf_overlay_detail::OverlayStatsState{};
+    ui::perf_overlay_runtime::clear();
 }
 
 export inline bool perf_overlay_stats_valid() noexcept {
-    return perf_overlay_detail::g_overlay_stats.valid;
+    return ui::perf_overlay_runtime::valid();
 }
 
 export inline PerfOverlay::OverlayStats perf_overlay_stats() noexcept {
+    const auto& stats = ui::perf_overlay_runtime::get();
     PerfOverlay::OverlayStats out{};
-    out.dispatch_groups = perf_overlay_detail::g_overlay_stats.dispatch_groups;
-    out.batch_flushes = perf_overlay_detail::g_overlay_stats.batch_flushes;
-    out.failed_cmds = perf_overlay_detail::g_overlay_stats.failed_cmds;
-    out.batch_shrink = perf_overlay_detail::g_overlay_stats.batch_shrink;
-    out.batch_shrink_rect = perf_overlay_detail::g_overlay_stats.batch_shrink_rect;
-    out.batch_shrink_round = perf_overlay_detail::g_overlay_stats.batch_shrink_round;
-    out.group_rect = perf_overlay_detail::g_overlay_stats.group_rect;
-    out.group_text = perf_overlay_detail::g_overlay_stats.group_text;
-    out.group_image = perf_overlay_detail::g_overlay_stats.group_image;
-    out.group_line = perf_overlay_detail::g_overlay_stats.group_line;
-    out.group_path = perf_overlay_detail::g_overlay_stats.group_path;
-    out.group_other = perf_overlay_detail::g_overlay_stats.group_other;
-    out.cmd_rect = perf_overlay_detail::g_overlay_stats.cmd_rect;
-    out.cmd_text = perf_overlay_detail::g_overlay_stats.cmd_text;
-    out.cmd_image = perf_overlay_detail::g_overlay_stats.cmd_image;
-    out.cmd_line = perf_overlay_detail::g_overlay_stats.cmd_line;
-    out.cmd_path = perf_overlay_detail::g_overlay_stats.cmd_path;
-    out.cmd_other = perf_overlay_detail::g_overlay_stats.cmd_other;
+    out.dispatch_groups = stats.dispatch_groups;
+    out.batch_flushes = stats.batch_flushes;
+    out.failed_cmds = stats.failed_cmds;
+    out.batch_shrink = stats.batch_shrink;
+    out.batch_shrink_rect = stats.batch_shrink_rect;
+    out.batch_shrink_round = stats.batch_shrink_round;
+    out.group_rect = stats.group_rect;
+    out.group_text = stats.group_text;
+    out.group_image = stats.group_image;
+    out.group_line = stats.group_line;
+    out.group_path = stats.group_path;
+    out.group_other = stats.group_other;
+    out.cmd_rect = stats.cmd_rect;
+    out.cmd_text = stats.cmd_text;
+    out.cmd_image = stats.cmd_image;
+    out.cmd_line = stats.cmd_line;
+    out.cmd_path = stats.cmd_path;
+    out.cmd_other = stats.cmd_other;
     return out;
 }
-
-export inline void set_perf_overlay_debug_line(std::size_t idx, std::string_view text) noexcept {
-    if (idx >= perf_overlay_detail::kDebugLineCount) return;
-    auto& slot = perf_overlay_detail::g_debug_lines.text[idx];
-    const std::size_t cap = slot.size();
-    const std::size_t len = (text.size() < (cap - 1u)) ? text.size() : (cap - 1u);
-    if (len > 0) {
-        std::memcpy(slot.data(), text.data(), len);
-    }
-    slot[len] = '\0';
-    perf_overlay_detail::g_debug_lines.len[idx] = static_cast<std::uint8_t>(len);
-}
-
-export inline void clear_perf_overlay_debug_line(std::size_t idx) noexcept {
-    if (idx >= perf_overlay_detail::kDebugLineCount) return;
-    perf_overlay_detail::g_debug_lines.text[idx][0] = '\0';
-    perf_overlay_detail::g_debug_lines.len[idx] = 0;
-}
-
-export inline void clear_perf_overlay_debug_lines() noexcept {
-    for (std::size_t i = 0; i < perf_overlay_detail::kDebugLineCount; ++i) {
-        perf_overlay_detail::g_debug_lines.text[i][0] = '\0';
-        perf_overlay_detail::g_debug_lines.len[i] = 0;
-    }
-}
-
-export inline std::size_t perf_overlay_debug_channel(std::string_view name) noexcept {
-    if (name.empty()) return perf_overlay_detail::kDebugLineCount;
-    const auto existing = perf_overlay_detail::find_channel(name);
-    if (existing < perf_overlay_detail::kDebugLineCount) return existing;
-    return perf_overlay_detail::alloc_channel(name);
-}
-
-export inline void set_perf_overlay_debug_channel(std::size_t idx, std::string_view text) noexcept {
-    set_perf_overlay_debug_line(idx, text);
-}
-
-export inline std::string_view perf_overlay_debug_channel_name(std::size_t idx) noexcept {
-    if (idx >= perf_overlay_detail::kDebugLineCount) return {};
-    const auto len = perf_overlay_detail::g_debug_channels.len[idx];
-    if (len == 0) return {};
-    return {perf_overlay_detail::g_debug_channels.name[idx].data(), len};
-}
-
-export inline void clear_perf_overlay_debug_channels() noexcept {
-    for (std::size_t i = 0; i < perf_overlay_detail::kDebugLineCount; ++i) {
-        perf_overlay_detail::g_debug_channels.name[i][0] = '\0';
-        perf_overlay_detail::g_debug_channels.len[i] = 0;
-    }
-}
-
-
-
 

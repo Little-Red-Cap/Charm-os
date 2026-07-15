@@ -28,7 +28,8 @@ foreach(_module IN ITEMS
         charm.gfx.svg
         charm.gfx.text_box
         charm.ui.vivid.font_package
-        charm.ui.vivid.font_runtime)
+        charm.ui.vivid.font_runtime
+        charm.ui.vivid.perf_overlay_runtime)
     vivid_module_policy(NAME "${_module}" ACCESS PRODUCT_ROOT)
 endforeach()
 

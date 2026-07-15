@@ -51,7 +51,7 @@ import player.font_cache;
 #if CHARM_PLAYER_LYRICS
 import player.lyrics;
 #endif
-import charm.widgets.perf_overlay;
+import charm.ui.vivid.perf_overlay_runtime;
 import charm.core.style_sheet;
 import service.fixed_vector;
 #if defined(CHARM_AUDIO_USE_VFS)

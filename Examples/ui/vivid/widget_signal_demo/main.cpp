@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <span>
+#include <string_view>
 #include <type_traits>
 
 import charm.core;
@@ -991,15 +992,15 @@ int main() {
     if (!expect(console_box.has_buffer()
                     && console_buffer.capacity() == 2
                     && console_buffer.line_count() == 2
-                    && console_buffer.line_at(0) == "beta"
-                    && console_buffer.line_at(1) == "gamma",
+                    && console_buffer.line_at(0) == std::string_view{"beta"}
+                    && console_buffer.line_at(1) == std::string_view{"gamma"},
                 "console buffer preserves bounded ring order")) return 1;
     console_box.draw(callback_canvas);
     console_box.detach_buffer();
     console_box.append("ignored-after-detach");
     if (!expect(!console_box.has_buffer()
-                    && console_buffer.line_at(0) == "beta"
-                    && console_buffer.line_at(1) == "gamma",
+                    && console_buffer.line_at(0) == std::string_view{"beta"}
+                    && console_buffer.line_at(1) == std::string_view{"gamma"},
                 "console box detach preserves caller-owned data")) return 1;
 
     std::array<int, 4> data_view_values{-3, 1, 7, 0};

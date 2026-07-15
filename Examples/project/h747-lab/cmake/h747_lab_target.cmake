@@ -311,24 +311,30 @@ function(h747_lab_collect_vivid_mcu_modules target_name out_modules out_base_dir
         "${CHARM_ROOT}/Modules/gfx/font/font_noto_ascii_12.cppm"
         "${CHARM_ROOT}/Modules/gfx/font/font_noto_ascii_16.cppm"
         "${CHARM_ROOT}/Modules/gfx/font/font_noto_sc_12.cppm"
-        "${CHARM_ROOT}/Modules/gfx/font/font_noto_sc_16.cppm"
-        "${CHARM_ROOT}/Modules/ui/vivid/core/config.cppm"
-        "${CHARM_ROOT}/Modules/ui/vivid/core/geometry.cppm"
-        "${CHARM_ROOT}/Modules/ui/vivid/core/handle.cppm"
-        "${CHARM_ROOT}/Modules/ui/vivid/gfx/canvas.cppm"
-        "${CHARM_ROOT}/Modules/ui/vivid/gfx/color.cppm"
-        "${CHARM_ROOT}/Modules/ui/vivid/gfx/draw_cmd.cppm"
-        "${CHARM_ROOT}/Modules/ui/vivid/gfx/draw_cmd_buffer.cppm"
-        "${CHARM_ROOT}/Modules/ui/vivid/gfx/draw_cmd_executor.cppm"
-        "${CHARM_ROOT}/Modules/ui/vivid/gfx/draw_cmd_schema.cppm"
-        "${CHARM_ROOT}/Modules/ui/vivid/gfx/framebuffer.cppm"
-        "${CHARM_ROOT}/Modules/ui/vivid/gfx/framebuffer_core.cppm"
-        "${CHARM_ROOT}/Modules/ui/vivid/gfx/image.cppm"
-        "${CHARM_ROOT}/Modules/ui/vivid/gfx/path.cppm"
-        "${CHARM_ROOT}/Modules/ui/vivid/gfx/pixel_format.cppm"
-        "${CHARM_ROOT}/Modules/ui/vivid/gfx/pixel_ops.cppm"
-        "${CHARM_ROOT}/Modules/ui/vivid/gfx/render_core.cppm"
-        "${CHARM_ROOT}/Modules/ui/vivid/gfx/text_box.cppm"
+        "${CHARM_ROOT}/Modules/gfx/font/font_noto_sc_16.cppm")
+
+    if(NOT CHARM_VIVID_FEATURESET STREQUAL "PRODUCT")
+        list(APPEND _modules
+            "${CHARM_ROOT}/Modules/ui/vivid/core/config.cppm"
+            "${CHARM_ROOT}/Modules/ui/vivid/core/geometry.cppm"
+            "${CHARM_ROOT}/Modules/ui/vivid/core/handle.cppm"
+            "${CHARM_ROOT}/Modules/ui/vivid/gfx/canvas.cppm"
+            "${CHARM_ROOT}/Modules/ui/vivid/gfx/color.cppm"
+            "${CHARM_ROOT}/Modules/ui/vivid/gfx/draw_cmd.cppm"
+            "${CHARM_ROOT}/Modules/ui/vivid/gfx/draw_cmd_buffer.cppm"
+            "${CHARM_ROOT}/Modules/ui/vivid/gfx/draw_cmd_executor.cppm"
+            "${CHARM_ROOT}/Modules/ui/vivid/gfx/draw_cmd_schema.cppm"
+            "${CHARM_ROOT}/Modules/ui/vivid/gfx/framebuffer.cppm"
+            "${CHARM_ROOT}/Modules/ui/vivid/gfx/framebuffer_core.cppm"
+            "${CHARM_ROOT}/Modules/ui/vivid/gfx/image.cppm"
+            "${CHARM_ROOT}/Modules/ui/vivid/gfx/path.cppm"
+            "${CHARM_ROOT}/Modules/ui/vivid/gfx/pixel_format.cppm"
+            "${CHARM_ROOT}/Modules/ui/vivid/gfx/pixel_ops.cppm"
+            "${CHARM_ROOT}/Modules/ui/vivid/gfx/render_core.cppm"
+            "${CHARM_ROOT}/Modules/ui/vivid/gfx/text_box.cppm")
+    endif()
+
+    list(APPEND _modules
         "${CHARM_ROOT}/Modules/core/alg/alg_arc.cppm"
         "${CHARM_ROOT}/Modules/core/alg/alg_circle.cppm"
         "${CHARM_ROOT}/Modules/core/alg/alg_list_scroll.cppm"

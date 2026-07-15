@@ -6,6 +6,7 @@ module;
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <type_traits>
 
 #if defined(CHARM_VIVID_UNSUPPORTED_WIDGET_DIAG)
 extern "C" void charm_vivid_soa_unsupported_widget_kind(unsigned kind, unsigned caller) noexcept;
@@ -76,6 +77,11 @@ public:
     static constexpr std::size_t kMaxNodes = soa_max_nodes;
 
     SoaKernel() noexcept;
+
+    SoaKernel(const SoaKernel&) = delete;
+    SoaKernel& operator=(const SoaKernel&) = delete;
+    SoaKernel(SoaKernel&&) = delete;
+    SoaKernel& operator=(SoaKernel&&) = delete;
 
     WidgetHandle create(WidgetKind kind) noexcept;
 
@@ -1071,3 +1077,9 @@ private:
     void set_state_flag(WidgetHandle h, SoaStateFlag flag, bool on) noexcept ;
 
 };
+
+static_assert(!std::is_copy_constructible_v<SoaKernel>
+              && !std::is_copy_assignable_v<SoaKernel>
+              && !std::is_move_constructible_v<SoaKernel>
+              && !std::is_move_assignable_v<SoaKernel>,
+              "SoaKernel must retain one stable handle and workspace identity");

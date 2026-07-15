@@ -47,6 +47,8 @@ widget/scene state
 
 - widget 只记录绘制意图，不直接绑定平台 canvas/driver；
 - 每个 Scene 只有一套 live DrawCmd runtime、compaction workspace 和 executor；
+- Scene、SoaGui 与 SoaKernel 是具有稳定 identity 的 runtime owner，禁止复制或移动；多个场景必须显式
+  构造独立 Scene，不能复制 runtime state；
 - command/text/blob/workspace 容量固定，耗尽必须产生显式 sticky evidence，不静默截断；
 - FullFrame 与 Tile/PFB 消费同一 record 语义；不同 backend 结果需要一致性证据；
 - command snapshot 复制 buffer/payload，不复制临时 workspace；

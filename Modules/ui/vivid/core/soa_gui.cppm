@@ -8,6 +8,7 @@ module;
 #include <cstdint>
 #include <cstring>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 
 export module charm.core.soa_gui;
@@ -66,6 +67,11 @@ public:
            DrawCmdBuffer& cmd_buffer,
            CompactionWorkspace& compaction_workspace,
            ui::draw_cmd::DrawCmdExecutor& cmd_exec) noexcept;
+
+    SoaGui(const SoaGui&) = delete;
+    SoaGui& operator=(const SoaGui&) = delete;
+    SoaGui(SoaGui&&) = delete;
+    SoaGui& operator=(SoaGui&&) = delete;
 
     void set_root(WidgetHandle root) noexcept;
     WidgetHandle root() const noexcept;
@@ -132,6 +138,12 @@ private:
     void record_tree(ui::draw_cmd::DefaultDrawCmdBuffer& out);
     void record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::DefaultDrawCmdBuffer& out);
 };
+
+static_assert(!std::is_copy_constructible_v<SoaGui>
+              && !std::is_copy_assignable_v<SoaGui>
+              && !std::is_move_constructible_v<SoaGui>
+              && !std::is_move_assignable_v<SoaGui>,
+              "SoaGui must not outlive or detach from its injected runtime storage");
 
 SoaGui::SoaGui(CanvasBase& canvas,
                SoaKernel& kernel,

@@ -7,6 +7,7 @@ module;
 #include <cstddef>
 #include <cstdint>
 #include <new>
+#include <type_traits>
 
 #ifndef CHARM_VIVID_MEMORY_PROFILE_SYMBOLS
 #define CHARM_VIVID_MEMORY_PROFILE_SYMBOLS 0
@@ -146,6 +147,11 @@ export namespace ui::scene {
             : canvas_(canvas),
               factory_(kernel_),
               gui_(canvas_, kernel_, {}, cmd_buf_, compaction_workspace_, cmd_exec_) {}
+
+        Scene(const Scene&) = delete;
+        Scene& operator=(const Scene&) = delete;
+        Scene(Scene&&) = delete;
+        Scene& operator=(Scene&&) = delete;
 
         SceneBuilder begin() noexcept { return SceneBuilder(kernel_, factory_); }
         void end(const SceneBuilder& builder) noexcept { set_root(builder.root()); }
@@ -560,6 +566,12 @@ export namespace ui::scene {
         OverlayFn overlay_fn_{nullptr};
         void* overlay_ctx_{nullptr};
     };
+
+    static_assert(!std::is_copy_constructible_v<Scene>
+                  && !std::is_copy_assignable_v<Scene>
+                  && !std::is_move_constructible_v<Scene>
+                  && !std::is_move_assignable_v<Scene>,
+                  "Scene must keep its runtime references bound to its own storage");
 
     class PageLayer {
     public:

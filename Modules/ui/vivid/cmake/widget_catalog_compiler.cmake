@@ -58,7 +58,7 @@ function(vivid_catalog_widget)
         CLICK_ENABLED CHECKABLE SCROLL_ENABLED DRAG_ENABLED WHEEL_ENABLED
         EXTRA_ENABLED CAPTURE_ENABLED)
     set(_one_value
-        ID KIND MODULE CPP_TYPE THEME_BASE FACTORY FACTORY_POOL FACTORY_CREATE
+        ID KIND SCENE_SUPPORT MODULE CPP_TYPE THEME_BASE FACTORY FACTORY_POOL FACTORY_CREATE
         PAYLOAD_POOL STYLE CLICK CLICK_INDEX GROUP_KIND WHEEL_TARGET
         DRAG_BEHAVIOR DRAG_BEHAVIOR_ONLY WHEEL_TARGET_ONLY SCROLL_AXIS WHEEL_AXIS)
     cmake_parse_arguments(PARSE_ARGV 0 WIDGET
@@ -68,7 +68,7 @@ function(vivid_catalog_widget)
             "vivid_catalog_widget(${WIDGET_KIND}): unknown arguments: ${WIDGET_UNPARSED_ARGUMENTS}")
     endif()
     foreach(_field IN ITEMS
-            ID KIND CPP_TYPE THEME_BASE FACTORY FACTORY_POOL FACTORY_CREATE
+            ID KIND SCENE_SUPPORT CPP_TYPE THEME_BASE FACTORY FACTORY_POOL FACTORY_CREATE
             PAYLOAD_POOL STYLE CLICK CLICK_INDEX GROUP_KIND WHEEL_TARGET
             DRAG_BEHAVIOR DRAG_BEHAVIOR_ONLY WHEEL_TARGET_ONLY SCROLL_AXIS WHEEL_AXIS)
         if(NOT DEFINED WIDGET_${_field} OR "${WIDGET_${_field}}" STREQUAL "")
@@ -89,6 +89,11 @@ function(vivid_catalog_widget)
     endif()
     if(NOT WIDGET_KIND MATCHES "^[A-Za-z][A-Za-z0-9_]*$")
         message(FATAL_ERROR "Invalid Vivid WidgetKind '${WIDGET_KIND}'")
+    endif()
+    if(NOT WIDGET_SCENE_SUPPORT STREQUAL "Supported" AND
+       NOT WIDGET_SCENE_SUPPORT STREQUAL "Unsupported")
+        message(FATAL_ERROR
+            "Vivid widget '${WIDGET_KIND}' SCENE_SUPPORT must be Supported or Unsupported")
     endif()
 
     get_property(_kinds GLOBAL PROPERTY VIVID_WIDGET_KINDS)
@@ -173,7 +178,7 @@ function(vivid_widget_catalog_fingerprint out_var)
     get_property(_kinds GLOBAL PROPERTY VIVID_WIDGET_KINDS)
     get_property(_pools GLOBAL PROPERTY VIVID_PAYLOAD_POOLS)
 
-    set(_canonical "schema=1\n")
+    set(_canonical "schema=2\n")
     foreach(_pool IN LISTS _pools)
         string(APPEND _canonical "pool=${_pool}")
         foreach(_field IN ITEMS MEMBER STATS_FIELD CAP_KIND)
@@ -186,7 +191,7 @@ function(vivid_widget_catalog_fingerprint out_var)
     foreach(_kind IN LISTS _kinds)
         string(APPEND _canonical "widget=${_kind}")
         foreach(_field IN ITEMS
-                ID MODULE CPP_TYPE THEME_BASE FACTORY FACTORY_POOL FACTORY_CREATE
+                ID SCENE_SUPPORT MODULE CPP_TYPE THEME_BASE FACTORY FACTORY_POOL FACTORY_CREATE
                 PAYLOAD_POOL STYLE CLICK CLICK_INDEX GROUP_KIND WHEEL_TARGET
                 DRAG_BEHAVIOR DRAG_BEHAVIOR_ONLY WHEEL_TARGET_ONLY
                 SCROLL_AXIS WHEEL_AXIS RUNTIME_ONLY HIT_TEST_FALSE FOCUSABLE
@@ -218,6 +223,12 @@ function(vivid_widget_profile_resolve out_modules out_pools out_defines)
         if(NOT _kind IN_LIST _catalog_kinds)
             message(FATAL_ERROR
                 "Vivid profile '${ACTIVE_PROFILE}' selects unknown WidgetKind '${_kind}'")
+        endif()
+        _vivid_widget_get("${_kind}" SCENE_SUPPORT _scene_support)
+        if(NOT _scene_support STREQUAL "Supported")
+            message(FATAL_ERROR
+                "Vivid profile '${ACTIVE_PROFILE}' selects WidgetKind '${_kind}' "
+                "without Scene runtime support")
         endif()
         _vivid_widget_get("${_kind}" MODULE _module)
         _vivid_widget_get("${_kind}" PAYLOAD_POOL _payload_pool)

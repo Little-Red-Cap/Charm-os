@@ -129,6 +129,7 @@ vivid_catalog_payload_pool(
 vivid_catalog_widget(
     ID 1
     KIND Container
+    SCENE_SUPPORT Supported
     RUNTIME_ONLY
     CPP_TYPE Container
     THEME_BASE None
@@ -150,6 +151,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 2
     KIND ScrollContainer
+    SCENE_SUPPORT Supported
     MODULE charm.widgets.scroll_container
     CPP_TYPE ScrollContainer
     THEME_BASE ScrollContainer
@@ -173,6 +175,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 3
     KIND Dial
+    SCENE_SUPPORT Unsupported
     MODULE charm.widgets.dial
     CPP_TYPE Dial
     THEME_BASE Dial
@@ -194,6 +197,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 4
     KIND Arc
+    SCENE_SUPPORT Unsupported
     MODULE charm.widgets.arc
     CPP_TYPE Arc
     THEME_BASE Arc
@@ -215,6 +219,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 5
     KIND Image
+    SCENE_SUPPORT Supported
     MODULE charm.widgets.image
     CPP_TYPE Image
     THEME_BASE Image
@@ -236,6 +241,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 6
     KIND Label
+    SCENE_SUPPORT Supported
     MODULE charm.widgets.label
     CPP_TYPE Label
     THEME_BASE Label
@@ -257,6 +263,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 7
     KIND Button
+    SCENE_SUPPORT Supported
     MODULE charm.widgets.button
     CPP_TYPE Button
     THEME_BASE Button
@@ -278,6 +285,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 8
     KIND IconButton
+    SCENE_SUPPORT Supported
     MODULE charm.widgets.button
     CPP_TYPE Button
     THEME_BASE IconButton
@@ -299,6 +307,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 9
     KIND Checkbox
+    SCENE_SUPPORT Supported
     MODULE charm.widgets.checkbox
     CPP_TYPE Checkbox
     THEME_BASE Checkbox
@@ -322,6 +331,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 10
     KIND Led
+    SCENE_SUPPORT Unsupported
     MODULE charm.widgets.led
     CPP_TYPE Led
     THEME_BASE Led
@@ -343,6 +353,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 11
     KIND Slider
+    SCENE_SUPPORT Supported
     MODULE charm.widgets.slider
     CPP_TYPE Slider
     THEME_BASE Slider
@@ -365,6 +376,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 12
     KIND Switch
+    SCENE_SUPPORT Supported
     MODULE charm.widgets.switcher
     CPP_TYPE Switch
     THEME_BASE Switch
@@ -387,6 +399,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 13
     KIND Progress
+    SCENE_SUPPORT Supported
     MODULE charm.widgets.progress
     CPP_TYPE Progress
     THEME_BASE Progress
@@ -408,6 +421,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 14
     KIND List
+    SCENE_SUPPORT Supported
     MODULE charm.widgets.list
     CPP_TYPE List
     THEME_BASE List
@@ -431,6 +445,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 15
     KIND ListItem
+    SCENE_SUPPORT Supported
     MODULE charm.widgets.list
     CPP_TYPE ListItem
     THEME_BASE ListItem
@@ -453,6 +468,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 16
     KIND ListView
+    SCENE_SUPPORT Supported
     MODULE charm.widgets.list_view
     CPP_TYPE ListView
     THEME_BASE ListView
@@ -477,6 +493,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 17
     KIND IconList
+    SCENE_SUPPORT Supported
     MODULE charm.widgets.icon_list
     CPP_TYPE IconList
     THEME_BASE IconList
@@ -501,6 +518,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 18
     KIND TextTrackingList
+    SCENE_SUPPORT Unsupported
     MODULE charm.widgets.text_tracking_list
     CPP_TYPE TextTrackingList
     THEME_BASE TextTrackingList
@@ -522,6 +540,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 19
     KIND TextList
+    SCENE_SUPPORT Supported
     MODULE charm.widgets.text_list
     CPP_TYPE TextList
     THEME_BASE TextList
@@ -544,6 +563,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 20
     KIND ModalDialog
+    SCENE_SUPPORT Unsupported
     MODULE charm.widgets.modal_dialog
     CPP_TYPE ModalDialog
     THEME_BASE ModalDialog
@@ -565,6 +585,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 21
     KIND ProgressBarSimple
+    SCENE_SUPPORT Supported
     MODULE charm.widgets.progress_bar_simple
     CPP_TYPE ProgressBarSimple
     THEME_BASE ProgressBarSimple
@@ -586,6 +607,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 22
     KIND DynamicNebula
+    SCENE_SUPPORT Unsupported
     MODULE charm.widgets.dynamic_nebula
     CPP_TYPE DynamicNebula
     THEME_BASE DynamicNebula
@@ -607,6 +629,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 23
     KIND CrtScreen
+    SCENE_SUPPORT Unsupported
     MODULE charm.widgets.crt_screen
     CPP_TYPE CrtScreen
     THEME_BASE CrtScreen
@@ -628,6 +651,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 24
     KIND ScrollBar
+    SCENE_SUPPORT Supported
     MODULE charm.widgets.scrollbar
     CPP_TYPE ScrollBar
     THEME_BASE ScrollBar
@@ -651,6 +675,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 25
     KIND SegmentedControl
+    SCENE_SUPPORT Supported
     MODULE charm.widgets.segmented_control
     CPP_TYPE SegmentedControl
     THEME_BASE SegmentedControl
@@ -674,6 +699,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 26
     KIND TextArea
+    SCENE_SUPPORT Supported
     MODULE charm.widgets.text_area
     CPP_TYPE TextArea
     THEME_BASE TextArea
@@ -695,6 +721,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 27
     KIND TextInput
+    SCENE_SUPPORT Supported
     MODULE charm.widgets.text_input
     CPP_TYPE TextInput
     THEME_BASE TextInput
@@ -716,6 +743,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 28
     KIND NumberInput
+    SCENE_SUPPORT Supported
     MODULE charm.widgets.number_input
     CPP_TYPE NumberInput
     THEME_BASE NumberInput
@@ -737,6 +765,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 29
     KIND ToggleGroup
+    SCENE_SUPPORT Supported
     MODULE charm.widgets.toggle_group
     CPP_TYPE ToggleGroup
     THEME_BASE ToggleGroup
@@ -758,6 +787,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 30
     KIND TableView
+    SCENE_SUPPORT Supported
     MODULE charm.widgets.table_view
     CPP_TYPE TableView
     THEME_BASE TableView
@@ -781,6 +811,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 31
     KIND TreeView
+    SCENE_SUPPORT Supported
     MODULE charm.widgets.tree_view
     CPP_TYPE TreeView
     THEME_BASE TreeView
@@ -804,6 +835,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 32
     KIND Dropdown
+    SCENE_SUPPORT Unsupported
     MODULE charm.widgets.dropdown
     CPP_TYPE Dropdown
     THEME_BASE Dropdown
@@ -825,6 +857,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 33
     KIND TabView
+    SCENE_SUPPORT Supported
     MODULE charm.widgets.tabview
     CPP_TYPE TabView
     THEME_BASE TabView
@@ -848,6 +881,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 34
     KIND Roller
+    SCENE_SUPPORT Supported
     MODULE charm.widgets.roller
     CPP_TYPE Roller
     THEME_BASE Roller
@@ -870,6 +904,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 35
     KIND Spinner
+    SCENE_SUPPORT Supported
     MODULE charm.widgets.spinner
     CPP_TYPE Spinner
     THEME_BASE Spinner
@@ -891,6 +926,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 36
     KIND Bar
+    SCENE_SUPPORT Unsupported
     MODULE charm.widgets.bar
     CPP_TYPE Bar
     THEME_BASE Bar
@@ -912,6 +948,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 37
     KIND PopupLayer
+    SCENE_SUPPORT Unsupported
     MODULE charm.widgets.popup_layer
     CPP_TYPE PopupLayer
     THEME_BASE PopupLayer
@@ -933,6 +970,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 38
     KIND MessageBox
+    SCENE_SUPPORT Unsupported
     MODULE charm.widgets.message_box
     CPP_TYPE MessageBox
     THEME_BASE MessageBox
@@ -954,6 +992,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 39
     KIND Menu
+    SCENE_SUPPORT Supported
     MODULE charm.widgets.menu
     CPP_TYPE Menu
     THEME_BASE Menu
@@ -975,6 +1014,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 40
     KIND MenuItem
+    SCENE_SUPPORT Supported
     MODULE charm.widgets.menu_item
     CPP_TYPE MenuItem
     THEME_BASE MenuItem
@@ -997,6 +1037,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 41
     KIND Radio
+    SCENE_SUPPORT Supported
     MODULE charm.widgets.radio
     CPP_TYPE Radio
     THEME_BASE Radio
@@ -1020,6 +1061,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 42
     KIND RadioGroup
+    SCENE_SUPPORT Unsupported
     MODULE charm.widgets.radio_group
     CPP_TYPE RadioGroup
     THEME_BASE RadioGroup
@@ -1041,6 +1083,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 43
     KIND Chart
+    SCENE_SUPPORT Unsupported
     MODULE charm.widgets.chart
     CPP_TYPE Chart
     THEME_BASE Chart
@@ -1062,6 +1105,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 44
     KIND Waveform
+    SCENE_SUPPORT Unsupported
     MODULE charm.widgets.waveform
     CPP_TYPE Waveform
     THEME_BASE Waveform
@@ -1083,6 +1127,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 45
     KIND Gauge
+    SCENE_SUPPORT Unsupported
     MODULE charm.widgets.gauge
     CPP_TYPE Gauge
     THEME_BASE Gauge
@@ -1104,6 +1149,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 46
     KIND PrimitivesCanvas
+    SCENE_SUPPORT Unsupported
     MODULE charm.widgets.primitives_canvas
     CPP_TYPE PrimitivesCanvas
     THEME_BASE PrimitivesCanvas
@@ -1125,6 +1171,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 47
     KIND PerfOverlay
+    SCENE_SUPPORT Supported
     MODULE charm.widgets.perf_overlay
     CPP_TYPE PerfOverlay
     THEME_BASE PerfOverlay
@@ -1146,6 +1193,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 48
     KIND Stepper
+    SCENE_SUPPORT Supported
     MODULE charm.widgets.stepper
     CPP_TYPE Stepper
     THEME_BASE Stepper
@@ -1168,6 +1216,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 49
     KIND Timeline
+    SCENE_SUPPORT Unsupported
     MODULE charm.widgets.timeline
     CPP_TYPE Timeline
     THEME_BASE Timeline
@@ -1189,6 +1238,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 50
     KIND RichText
+    SCENE_SUPPORT Unsupported
     MODULE charm.widgets.rich_text
     CPP_TYPE RichText
     THEME_BASE RichText
@@ -1210,6 +1260,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 51
     KIND CodeBlock
+    SCENE_SUPPORT Unsupported
     MODULE charm.widgets.code_block
     CPP_TYPE CodeBlock
     THEME_BASE CodeBlock
@@ -1231,6 +1282,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 52
     KIND ProgressWheel
+    SCENE_SUPPORT Supported
     MODULE charm.widgets.progress_wheel
     CPP_TYPE ProgressWheel
     THEME_BASE ProgressWheel
@@ -1252,6 +1304,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 53
     KIND WaveformView
+    SCENE_SUPPORT Unsupported
     MODULE charm.widgets.waveform_view
     CPP_TYPE WaveformView
     THEME_BASE WaveformView
@@ -1273,6 +1326,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 54
     KIND BatteryGauge
+    SCENE_SUPPORT Unsupported
     MODULE charm.widgets.battery_gauge
     CPP_TYPE BatteryGauge
     THEME_BASE BatteryGauge
@@ -1294,6 +1348,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 55
     KIND HistogramView
+    SCENE_SUPPORT Unsupported
     MODULE charm.widgets.histogram_view
     CPP_TYPE HistogramView
     THEME_BASE HistogramView
@@ -1315,6 +1370,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 56
     KIND RingIndication
+    SCENE_SUPPORT Unsupported
     MODULE charm.widgets.ring_indication
     CPP_TYPE RingIndication
     THEME_BASE RingIndication
@@ -1336,6 +1392,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 57
     KIND TextBox
+    SCENE_SUPPORT Supported
     MODULE charm.widgets.text_box
     CPP_TYPE TextBox
     THEME_BASE TextBox
@@ -1357,6 +1414,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 58
     KIND FoldablePanel
+    SCENE_SUPPORT Unsupported
     MODULE charm.widgets.foldable_panel
     CPP_TYPE FoldablePanel
     THEME_BASE FoldablePanel
@@ -1378,6 +1436,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 59
     KIND ProgressFlowing
+    SCENE_SUPPORT Supported
     MODULE charm.widgets.progress_flowing
     CPP_TYPE ProgressFlowing
     THEME_BASE ProgressFlowing
@@ -1399,6 +1458,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 60
     KIND CloudyGlass
+    SCENE_SUPPORT Unsupported
     MODULE charm.widgets.cloudy_glass
     CPP_TYPE CloudyGlass
     THEME_BASE CloudyGlass
@@ -1420,6 +1480,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 61
     KIND NumberList
+    SCENE_SUPPORT Supported
     MODULE charm.widgets.number_list
     CPP_TYPE NumberList
     THEME_BASE NumberList
@@ -1442,6 +1503,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 62
     KIND ProgressBarRound
+    SCENE_SUPPORT Supported
     MODULE charm.widgets.progress_bar_round
     CPP_TYPE ProgressBarRound
     THEME_BASE ProgressBarRound
@@ -1463,6 +1525,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 63
     KIND SpinZoomWidget
+    SCENE_SUPPORT Unsupported
     MODULE charm.widgets.spin_zoom_widget
     CPP_TYPE SpinZoomWidget
     THEME_BASE SpinZoomWidget
@@ -1484,6 +1547,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 64
     KIND SpinningWheel
+    SCENE_SUPPORT Unsupported
     MODULE charm.widgets.spinning_wheel
     CPP_TYPE SpinningWheel
     THEME_BASE SpinningWheel
@@ -1505,6 +1569,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 65
     KIND ImageBox
+    SCENE_SUPPORT Unsupported
     MODULE charm.widgets.image_box
     CPP_TYPE ImageBox
     THEME_BASE ImageBox
@@ -1526,6 +1591,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 66
     KIND MeterPointer
+    SCENE_SUPPORT Unsupported
     MODULE charm.widgets.meter_pointer
     CPP_TYPE MeterPointer
     THEME_BASE MeterPointer
@@ -1547,6 +1613,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 67
     KIND ProgressBarDrill
+    SCENE_SUPPORT Unsupported
     MODULE charm.widgets.progress_bar_drill
     CPP_TYPE ProgressBarDrill
     THEME_BASE ProgressBarDrill
@@ -1568,6 +1635,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 68
     KIND SpectrumView
+    SCENE_SUPPORT Unsupported
     MODULE charm.widgets.spectrum_view
     CPP_TYPE SpectrumView
     THEME_BASE SpectrumView
@@ -1589,6 +1657,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 69
     KIND BusyWheel
+    SCENE_SUPPORT Unsupported
     MODULE charm.widgets.busy_wheel
     CPP_TYPE BusyWheel
     THEME_BASE BusyWheel
@@ -1610,6 +1679,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 70
     KIND ConsoleBox
+    SCENE_SUPPORT Supported
     MODULE charm.widgets.console_box
     CPP_TYPE ConsoleBox
     THEME_BASE ConsoleBox
@@ -1631,6 +1701,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 71
     KIND BatteryGasGauge
+    SCENE_SUPPORT Unsupported
     MODULE charm.widgets.battery_gasgauge
     CPP_TYPE BatteryGasGauge
     THEME_BASE BatteryGasGauge
@@ -1652,6 +1723,7 @@ vivid_catalog_widget(
 vivid_catalog_widget(
     ID 72
     KIND Histogram
+    SCENE_SUPPORT Unsupported
     MODULE charm.widgets.histogram
     CPP_TYPE Histogram
     THEME_BASE Histogram

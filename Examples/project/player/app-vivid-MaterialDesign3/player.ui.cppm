@@ -49,25 +49,11 @@ import fs_vfs;
 #endif
 import player.font_cache;
 import charm.widgets.button;
-import charm.widgets.chart;
-import charm.widgets.cloudy_glass;
-import charm.widgets.busy_wheel;
 import charm.widgets.console_box;
-import charm.widgets.foldable_panel;
-import charm.widgets.histogram_view;
-import charm.widgets.histogram;
-import charm.widgets.dynamic_nebula;
-import charm.widgets.crt_screen;
-import charm.widgets.spectrum_view;
-import charm.widgets.spinning_wheel;
 import charm.widgets.image;
-import charm.widgets.image_box;
 import charm.widgets.label;
-import charm.widgets.meter_pointer;
 import charm.widgets.list_view;
 import charm.widgets.progress;
-import charm.widgets.battery_gasgauge;
-import charm.widgets.progress_bar_drill;
 import charm.widgets.progress_bar_simple;
 import charm.widgets.scrollbar;
 import charm.widgets.scroll_container;
@@ -75,7 +61,6 @@ import charm.widgets.segmented_control;
 import charm.widgets.perf_overlay;
 import charm.widgets.switcher;
 import charm.widgets.slider;
-import charm.widgets.dropdown;
 import charm.gfx.svg;
 
 export namespace player::ui {
@@ -1381,45 +1366,6 @@ export namespace player::ui {
         perf_overlay.metrics.padding = 6;
         set_base(WidgetKind::PerfOverlay, perf_overlay);
 
-        Style foldable_panel = theme.get<FoldablePanel>();
-        foldable_panel.metrics.header_padding = 10;
-        foldable_panel.metrics.content_padding = 10;
-        set_base(WidgetKind::FoldablePanel, foldable_panel);
-
-        Style cloudy_glass = theme.get<CloudyGlass>();
-        cloudy_glass.metrics.glass_highlight_pos = 12;
-        cloudy_glass.metrics.glass_highlight_alpha = 90;
-        cloudy_glass.metrics.glass_shadow_alpha = 50;
-        cloudy_glass.metrics.glass_opacity_min = 60;
-        cloudy_glass.metrics.glass_opacity_max = 200;
-        set_base(WidgetKind::CloudyGlass, cloudy_glass);
-
-        Style spectrum_view = theme.get<SpectrumView>();
-        spectrum_view.colors.bg_color = kUiListBg;
-        spectrum_view.colors.border_color = kUiListBorder;
-        spectrum_view.colors.bg_pressed = kUiSwitchOn;
-        spectrum_view.colors.border_focus = kUiOk;
-        set_base(WidgetKind::SpectrumView, spectrum_view);
-
-        Style battery_gasgauge = theme.get<BatteryGasGauge>();
-        battery_gasgauge.colors.bg_color = kUiListBg;
-        battery_gasgauge.colors.border_color = kUiListBorder;
-        battery_gasgauge.metrics.corner_radius = 12;
-        battery_gasgauge.metrics.padding = 6;
-        set_base(WidgetKind::BatteryGasGauge, battery_gasgauge);
-
-        Style histogram = theme.get<Histogram>();
-        histogram.colors.bg_color = kUiListBg;
-        histogram.colors.border_color = kUiListBorder;
-        histogram.metrics.corner_radius = 12;
-        histogram.metrics.padding = 6;
-        histogram.colors.font_color = kUiListFont;
-        set_base(WidgetKind::Histogram, histogram);
-
-        Style busy_wheel = theme.get<BusyWheel>();
-        busy_wheel.colors.font_color = kUiListFont;
-        set_base(WidgetKind::BusyWheel, busy_wheel);
-
         Style console_box = theme.get<ConsoleBox>();
         console_box.colors.bg_color = kUiListBg;
         console_box.colors.border_color = kUiListBorder;
@@ -1446,19 +1392,6 @@ export namespace player::ui {
         btn_pressed.border_color = kUiSwitchOn;
         sheet.add_rule({WidgetKind::Button, static_cast<std::uint8_t>(StyleStateFlag::Pressed)}, btn_pressed);
 
-        StylePatch chart_patch{};
-        chart_patch.has_bg_color = true;
-        chart_patch.bg_color = kUiListBg;
-        chart_patch.has_border_color = true;
-        chart_patch.border_color = kUiListBorder;
-        chart_patch.has_font_color = true;
-        chart_patch.font_color = kUiListFont;
-        theme.patch<Chart>(chart_patch);
-
-        StylePatch hist_patch = chart_patch;
-        theme.patch<HistogramView>(hist_patch);
-        theme.patch<Histogram>(hist_patch);
-
         StylePatch switch_patch{};
         switch_patch.has_bg_color = true;
         switch_patch.bg_color = kUiButtonBg;
@@ -1477,15 +1410,6 @@ export namespace player::ui {
         slider_patch.border_color = kUiButtonBorder;
         theme.patch<Slider>(slider_patch);
 
-        StylePatch dropdown_patch{};
-        dropdown_patch.has_bg_color = true;
-        dropdown_patch.bg_color = kUiButtonBg;
-        dropdown_patch.has_border_color = true;
-        dropdown_patch.border_color = kUiButtonBorder;
-        dropdown_patch.has_font_color = true;
-        dropdown_patch.font_color = kUiListFont;
-        theme.patch<Dropdown>(dropdown_patch);
-
         StylePatch image_patch{};
         image_patch.has_corner_radius = true;
         image_patch.corner_radius = 24;
@@ -1498,39 +1422,6 @@ export namespace player::ui {
         image_patch.has_shadow_enabled = true;
         image_patch.shadow_enabled = false;
         theme.patch<Image>(image_patch);
-
-        StylePatch image_box_patch = chart_patch;
-        theme.patch<ImageBox>(image_box_patch);
-
-        StylePatch meter_patch = chart_patch;
-        meter_patch.has_border_focus = true;
-        meter_patch.border_focus = kUiOk;
-        theme.patch<MeterPointer>(meter_patch);
-
-        StylePatch drill_patch = chart_patch;
-        drill_patch.has_bg_pressed = true;
-        drill_patch.bg_pressed = kUiSwitchOn;
-        theme.patch<ProgressBarDrill>(drill_patch);
-
-        StylePatch wheel_patch{};
-        wheel_patch.has_font_color = true;
-        wheel_patch.font_color = kUiListFont;
-        theme.patch<SpinningWheel>(wheel_patch);
-        theme.patch<BusyWheel>(wheel_patch);
-        StylePatch nebula_patch{};
-        nebula_patch.has_font_color = true;
-        nebula_patch.font_color = kUiListFont;
-        theme.patch<DynamicNebula>(nebula_patch);
-
-        StylePatch crt_patch = chart_patch;
-        theme.patch<CrtScreen>(crt_patch);
-
-        StylePatch spectrum_patch = chart_patch;
-        spectrum_patch.has_bg_pressed = true;
-        spectrum_patch.bg_pressed = kUiSwitchOn;
-        spectrum_patch.has_border_focus = true;
-        spectrum_patch.border_focus = kUiOk;
-        theme.patch<SpectrumView>(spectrum_patch);
 
         sheet.rebuild_if_needed();
     }

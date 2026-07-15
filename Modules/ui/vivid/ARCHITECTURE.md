@@ -83,6 +83,8 @@ generation 变化，旧 handle 不得重新命中新 owner。
 
 `cmake/widget_catalog.cmake` 是 WidgetKind、module、factory、payload、style/default/input behavior 的
 单一构建入口。稳定 kind ID 由 ABI fixture 固定；PRODUCT profile 只裁剪能力和容量，不生成另一套 enum。
+每个 catalog kind 必须显式声明 Scene runtime 是否已支持；object widget 存在或 module 可进入 closure 都不等于
+Scene 能创建、派发并记录该 kind。PRODUCT profile 选择未支持 kind 必须在配置期失败。
 
 Product Profile Compiler 是 Vivid 工具，不是 Charm Core 或产品 C++ API：
 

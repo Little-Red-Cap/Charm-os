@@ -29,31 +29,16 @@ vivid_define_product_profile(
         IconButton
         Label
         Image
-        ImageBox
         ListView
         ScrollBar
         ScrollContainer
         Progress
-        BatteryGasGauge
         ProgressBarSimple
-        ProgressBarDrill
         SegmentedControl
         Slider
         Switch
-        Dropdown
         PerfOverlay
-        BusyWheel
-        Chart
-        CloudyGlass
         ConsoleBox
-        CrtScreen
-        DynamicNebula
-        FoldablePanel
-        Histogram
-        HistogramView
-        MeterPointer
-        SpectrumView
-        SpinningWheel
     PAYLOAD_CAPACITIES
         Label=96
         Button=56
@@ -66,7 +51,6 @@ vivid_define_product_profile(
         ScrollBar=5
         ScrollContainer=5
         TextList=4
-        Spinner=4
     SOA_MAX_NODES 384
     SOA_TEXT_ARENA_BYTES 24576
     STYLE_CLASS_MAX 16

@@ -23,6 +23,48 @@ if (-not $FixtureRoot.StartsWith($fixturePrefix, [System.StringComparison]::Ordi
     throw "Fixture path escaped the build directory: $FixtureRoot"
 }
 
+$catalogPath = Join-Path $RepoRoot "Modules/ui/vivid/cmake/widget_catalog.cmake"
+$soaGuiPath = Join-Path $RepoRoot "Modules/ui/vivid/core/soa_gui.cppm"
+$catalogText = Get-Content -LiteralPath $catalogPath -Raw -Encoding UTF8
+$catalogBlocks = [regex]::Matches(
+    $catalogText,
+    '(?ms)vivid_catalog_widget\(\s*(.*?)\r?\n\)')
+$catalogSupported = @()
+$catalogUnsupported = @()
+foreach ($block in $catalogBlocks) {
+    $body = $block.Groups[1].Value
+    $kindMatch = [regex]::Match($body, '(?m)^[ \t]*KIND[ \t]+(\w+)')
+    $supportMatch = [regex]::Match(
+        $body,
+        '(?m)^[ \t]*SCENE_SUPPORT[ \t]+(Supported|Unsupported)')
+    if (-not $kindMatch.Success -or -not $supportMatch.Success) {
+        throw "Widget catalog scene support declaration is incomplete"
+    }
+    if ($supportMatch.Groups[1].Value -eq "Supported") {
+        $catalogSupported += $kindMatch.Groups[1].Value
+    } else {
+        $catalogUnsupported += $kindMatch.Groups[1].Value
+    }
+}
+
+$soaGuiText = Get-Content -LiteralPath $soaGuiPath -Raw -Encoding UTF8
+$recorderUnsupported = @(
+    [regex]::Matches(
+        $soaGuiText,
+        '(?ms)case[ \t]+WidgetKind::(\w+):[ \t]*\r?\n[ \t]*unsupported_kind\(kind\)') |
+        ForEach-Object { $_.Groups[1].Value } |
+        Where-Object { $_ -ne "None" }
+)
+$sceneSupportDrift = @(Compare-Object -ReferenceObject ($catalogUnsupported | Sort-Object) -DifferenceObject ($recorderUnsupported | Sort-Object))
+if ($sceneSupportDrift.Count -ne 0) {
+    $sceneSupportDrift | Format-Table -AutoSize | Out-Host
+    throw "Widget catalog SCENE_SUPPORT differs from SoaGui recorder support"
+}
+Write-Host (
+    "[vivid-profile-compiler] scene_support supported={0} unsupported={1} recorder_match=1" -f
+        $catalogSupported.Count,
+        $catalogUnsupported.Count)
+
 function Write-Utf8NoBom {
     param(
         [string]$Path,
@@ -185,11 +227,18 @@ endif()
 _vivid_profile_get(player_md3 ROOT_MODULES _roots)
 _vivid_profile_get(player_md3 WIDGET_KINDS _kinds)
 _vivid_profile_get(player_md3 PAYLOAD_CAPACITIES _capacities)
+_vivid_profile_get(player_md3_debug WIDGET_KINDS _debug_kinds)
+_vivid_profile_get(player_md3_debug PAYLOAD_CAPACITIES _debug_capacities)
 vivid_widget_profile_resolve(
     _widget_modules _active_pools _defines
     PROFILE player_md3
     KINDS ${_kinds}
     PAYLOAD_CAPACITIES ${_capacities})
+vivid_widget_profile_resolve(
+    _debug_widget_modules _debug_active_pools _debug_defines
+    PROFILE player_md3_debug
+    KINDS ${_debug_kinds}
+    PAYLOAD_CAPACITIES ${_debug_capacities})
 vivid_compute_product_module_closure(
     _sources _modules _external
     KEY positive-player-md3
@@ -198,12 +247,17 @@ vivid_compute_product_module_closure(
 
 list(LENGTH _kinds _kind_count)
 list(LENGTH _active_pools _pool_count)
-if(NOT _kind_count EQUAL 30 OR NOT _pool_count EQUAL 12)
+list(LENGTH _debug_kinds _debug_kind_count)
+list(LENGTH _debug_active_pools _debug_pool_count)
+if(NOT _kind_count EQUAL 15 OR NOT _pool_count EQUAL 11)
     message(FATAL_ERROR "Unexpected player_md3 catalog shape: kinds=${_kind_count} pools=${_pool_count}")
+endif()
+if(NOT _debug_kind_count EQUAL 17 OR NOT _debug_pool_count EQUAL 13)
+    message(FATAL_ERROR
+        "Unexpected player_md3_debug catalog shape: kinds=${_debug_kind_count} pools=${_debug_pool_count}")
 endif()
 foreach(_expected IN ITEMS
         charm.gfx.color
-        charm.widgets.battery_gasgauge
         charm.core.soa_kernel:actions
         charm.core.soa_kernel:behavior
         charm.core.soa_kernel:input_core
@@ -239,6 +293,8 @@ file(WRITE "${CASE_OUTPUT}"
     "equivalent_target_fingerprint=${_equivalent_target_fingerprint}\n"
     "widget_kinds=${_kind_count}\n"
     "payload_pools=${_pool_count}\n"
+    "debug_widget_kinds=${_debug_kind_count}\n"
+    "debug_payload_pools=${_debug_pool_count}\n"
     "modules=${_module_count}\n"
     "sources=${_source_count}\n"
     "external_requirements=${_external_count}\n")
@@ -249,6 +305,7 @@ function(add_test_widget kind id)
     vivid_catalog_widget(
         ID ${id}
         KIND ${kind}
+        SCENE_SUPPORT Supported
         RUNTIME_ONLY
         CPP_TYPE TestWidget
         THEME_BASE None
@@ -268,6 +325,11 @@ function(add_test_widget kind id)
         WHEEL_AXIS None)
 endfunction()
 '@
+
+$WidgetWithoutSceneSupport = $WidgetHelper -replace '(?m)^[ \t]*SCENE_SUPPORT Supported\r?\n', ''
+$WidgetInvalidSceneSupport = $WidgetHelper.Replace(
+    'SCENE_SUPPORT Supported',
+    'SCENE_SUPPORT Maybe')
 
 $MinimalProfiles = @'
 vivid_define_product_profile(
@@ -313,6 +375,14 @@ add_test_widget(Alpha 2)
 add_test_widget(Alpha 1)
 add_test_widget(Beta 1)
 '@) -ExpectSuccess $false -ExpectedPattern "Duplicate Vivid WidgetKind ID '1'"
+
+    Invoke-CMakeCase -Name "missing-scene-support" -Body ($WidgetWithoutSceneSupport + "`n" + @'
+add_test_widget(Alpha 1)
+'@) -ExpectSuccess $false -ExpectedPattern "vivid_catalog_widget requires SCENE_SUPPORT"
+
+    Invoke-CMakeCase -Name "invalid-scene-support" -Body ($WidgetInvalidSceneSupport + "`n" + @'
+add_test_widget(Alpha 1)
+'@) -ExpectSuccess $false -ExpectedPattern "SCENE_SUPPORT must be Supported or Unsupported"
 
     Invoke-CMakeCase -Name "duplicate-module" -Body @'
 _vivid_register_module(charm.test.duplicate "/first.cppm" "")
@@ -410,6 +480,13 @@ vivid_widget_profile_resolve(
     PROFILE unknown-widget-kind
     KINDS DoesNotExist)
 '@ -ExpectSuccess $false -ExpectedPattern "unknown WidgetKind[\s\S]*'DoesNotExist'"
+
+    Invoke-CMakeCase -Name "unsupported-widget-kind" -Body @'
+vivid_widget_profile_resolve(
+    _modules _pools _defines
+    PROFILE unsupported-widget-kind
+    KINDS Dropdown)
+'@ -ExpectSuccess $false -ExpectedPattern "Dropdown[\s\S]*without Scene runtime support"
 
     Invoke-CMakeCase -Name "second-target-profile" -Body ($MinimalProfiles + "`n" + @'
 vivid_configure_product_target(

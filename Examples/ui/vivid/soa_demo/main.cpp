@@ -131,6 +131,43 @@ namespace {
         return raster(kSquare);
     }
 
+    bool run_perf_overlay_runtime_regression() noexcept {
+        using namespace ui::perf_overlay_runtime;
+
+        clear();
+        clear_perf_overlay_debug_channels();
+
+        constexpr std::string_view overlong_name{"123456789012345678901234"};
+        static_assert(overlong_name.size() == debug_channel_name_capacity);
+        if (perf_overlay_debug_channel(overlong_name) != debug_line_count) return false;
+        if (perf_overlay_debug_channel(overlong_name) != debug_line_count) return false;
+
+        constexpr std::array<std::string_view, debug_line_count> names{
+            "slot.0", "slot.1", "slot.2", "slot.3", "slot.4", "slot.5"
+        };
+        for (std::size_t i = 0; i < names.size(); ++i) {
+            if (perf_overlay_debug_channel(names[i]) != i) return false;
+            if (perf_overlay_debug_channel(names[i]) != i) return false;
+        }
+        if (perf_overlay_debug_channel("slot.overflow") != debug_line_count) return false;
+
+        set_perf_overlay_debug_channel(0, "stale");
+        if (debug_line(0) != "stale") return false;
+        clear_perf_overlay_debug_channels();
+        if (!debug_line(0).empty() || !perf_overlay_debug_channel_name(0).empty()) return false;
+
+        constexpr std::string_view max_name{"12345678901234567890123"};
+        static_assert(max_name.size() + 1u == debug_channel_name_capacity);
+        const std::size_t max_slot = perf_overlay_debug_channel(max_name);
+        if (max_slot != 0 || perf_overlay_debug_channel(max_name) != max_slot) return false;
+
+        set({.dispatch_groups = 7});
+        if (!valid() || get().dispatch_groups != 7) return false;
+        clear();
+        clear_perf_overlay_debug_channels();
+        return !valid();
+    }
+
 
     constexpr int kTestIconWidth = 8;
     constexpr int kTestIconHeight = 8;
@@ -3456,6 +3493,7 @@ int main(int argc, char** argv) {
     bool table_tree_ran = false;
     bool ui_ok = true;
     bool svg_workspace_ok = true;
+    bool perf_overlay_runtime_ok = true;
     auto trace_regress_stage = [&](const char* stage) noexcept {
         (void)out::println<"[soa] regress stage={}">(g_console, stage);
         if (!g_regress_log) return;
@@ -3472,6 +3510,14 @@ int main(int argc, char** argv) {
             svg_workspace_ok ? 1u : 0u);
         if (!svg_workspace_ok) {
             ci_mark_fail("svg_workspace");
+        }
+        perf_overlay_runtime_ok = run_perf_overlay_runtime_regression();
+        (void)out::println<"[soa] perf_overlay_runtime bytes={} ok={}">(
+            g_console,
+            static_cast<unsigned>(ui::perf_overlay_runtime::resident_bytes),
+            perf_overlay_runtime_ok ? 1u : 0u);
+        if (!perf_overlay_runtime_ok) {
+            ci_mark_fail("perf_overlay_runtime");
         }
     }
     if (run_regress) {

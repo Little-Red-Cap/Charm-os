@@ -33,7 +33,9 @@ constexpr bool rect_overlap_or_touch(const Rect& a, const Rect& b) noexcept {
         return !(ax2 < rb.x - 1 || bx2 < ra.x - 1 || ay2 < rb.y - 1 || by2 < ra.y - 1);
 }
 
-std::uint64_t g_alpha_blend_count = 0;
+constinit std::uint64_t g_alpha_blend_count = 0;
+export inline constexpr std::size_t alpha_blend_counter_resident_bytes = sizeof(std::uint64_t);
+static_assert(sizeof(g_alpha_blend_count) == alpha_blend_counter_resident_bytes);
 
 export inline void reset_alpha_blend_count() noexcept { g_alpha_blend_count = 0; }
 export inline std::uint64_t alpha_blend_count() noexcept { return g_alpha_blend_count; }

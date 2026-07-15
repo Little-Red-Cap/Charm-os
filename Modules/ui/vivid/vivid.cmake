@@ -512,6 +512,8 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
     set(_vivid_soa_fixed_upper_bytes 65536)
     set(_vivid_scene_fixed_upper_bytes 65536)
     set(_vivid_global_fixed_upper_bytes 262144)
+    set(_vivid_runtime_globals_upper_bytes 1024)
+    set(VIVID_RUNTIME_GLOBALS_UPPER_BYTES ${_vivid_runtime_globals_upper_bytes})
     math(EXPR _vivid_pixel_snapshot_upper_bytes
         "${CHARM_VIVID_LAYER_CACHE_SLOTS} * ${CHARM_VIVID_LAYER_CACHE_WIDTH} * ${CHARM_VIVID_LAYER_CACHE_HEIGHT} * ${_vivid_screen_bytes_per_pixel}")
     math(EXPR _vivid_command_buffer_upper_bytes
@@ -521,7 +523,7 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
     math(EXPR _vivid_scene_upper_bytes
         "${_vivid_pixel_snapshot_upper_bytes} + ${_vivid_command_buffer_upper_bytes} + ${_vivid_draw_cmd_compaction_workspace_upper_bytes} + ${_vivid_draw_cmd_executor_workspace_upper_bytes} + ${_vivid_soa_traversal_workspace_upper_bytes} + ${_vivid_soa_upper_bytes} + ${_vivid_scene_fixed_upper_bytes}")
     math(EXPR _vivid_global_upper_bytes
-        "${_vivid_global_fixed_upper_bytes} + ${CHARM_VIVID_STYLE_CLASS_MAX} * 256 + ${CHARM_VIVID_STYLE_RULE_CAP} * 256 + ${CHARM_VIVID_STYLE_METRICS_POOL_CAP} * 64")
+        "${_vivid_global_fixed_upper_bytes} + ${_vivid_runtime_globals_upper_bytes} + ${CHARM_VIVID_STYLE_CLASS_MAX} * 256 + ${CHARM_VIVID_STYLE_RULE_CAP} * 256 + ${CHARM_VIVID_STYLE_METRICS_POOL_CAP} * 64")
     math(EXPR VIVID_STATIC_MEMORY_UPPER_BOUND_BYTES
         "${VIVID_RUNTIME_SCENE_INSTANCES} * ${_vivid_scene_upper_bytes} + ${_vivid_global_upper_bytes}")
 
@@ -597,6 +599,7 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
         "soa_traversal_workspace_upper_bytes=${_vivid_soa_traversal_workspace_upper_bytes}\n"
         "soa_upper_bytes=${_vivid_soa_upper_bytes}\n"
         "scene_upper_bytes=${_vivid_scene_upper_bytes}\n"
+        "runtime_globals_upper_bytes=${_vivid_runtime_globals_upper_bytes}\n"
         "global_upper_bytes=${_vivid_global_upper_bytes}\n"
         "upper_bound_bytes=${VIVID_STATIC_MEMORY_UPPER_BOUND_BYTES}\n"
         "budget_bytes=${VIVID_STATIC_MEMORY_BUDGET_BYTES}\n"
@@ -722,6 +725,7 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
             "    \"min_headroom_bytes\": ${VIVID_STATIC_MEMORY_MIN_HEADROOM_BYTES},\n"
             "    \"configured_headroom_bytes\": ${_vivid_configured_headroom_bytes},\n"
             "    \"scene_upper_bytes\": ${_vivid_scene_upper_bytes},\n"
+            "    \"runtime_globals_upper_bytes\": ${_vivid_runtime_globals_upper_bytes},\n"
             "    \"global_upper_bytes\": ${_vivid_global_upper_bytes},\n"
             "    \"command_buffer_upper_bytes\": ${_vivid_command_buffer_upper_bytes},\n"
             "    \"compaction_workspace_upper_bytes\": ${_vivid_draw_cmd_compaction_workspace_upper_bytes},\n"
@@ -786,6 +790,7 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
         list(REMOVE_ITEM ${module_list_var}
             "${PROJECT_SOURCE_DIR}/Modules/ui/vivid/core/object.cppm"
             "${PROJECT_SOURCE_DIR}/Modules/ui/vivid/core/input_interaction.cppm"
+            "${PROJECT_SOURCE_DIR}/Modules/ui/vivid/core/perf_overlay_runtime.cppm"
             "${PROJECT_SOURCE_DIR}/Modules/ui/vivid/core/string.cppm"
             "${PROJECT_SOURCE_DIR}/Modules/ui/vivid/core/virtual_list.cppm"
         )

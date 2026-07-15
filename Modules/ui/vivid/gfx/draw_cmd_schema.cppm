@@ -507,7 +507,9 @@ export namespace ui::draw_cmd {
         return a.r == b.r && a.g == b.g && a.b == b.b && a.a == b.a;
     }
 
-    inline std::int32_t g_compaction_union_max_factor = 8;
+    inline constinit std::int32_t g_compaction_union_max_factor = 8;
+    inline constexpr std::size_t compaction_policy_resident_bytes = sizeof(std::int32_t);
+    static_assert(sizeof(g_compaction_union_max_factor) == compaction_policy_resident_bytes);
 
     [[nodiscard]] inline std::int32_t clamp_union_factor(std::int32_t value) noexcept {
         return (value < 1) ? 1 : value;

@@ -15,7 +15,8 @@
 
 计入 Vivid 自有常驻状态：Scene/SoA kernel、payload/text/style pools、唯一 live DrawCmd buffer、layer
 snapshot stores、compaction/executor/traversal workspace、theme/stylesheet/image registry 和启用 widget 的
-保守 style reserve。
+保守 style reserve。应用级 PerfOverlay runtime、canvas/text profile counter 与 DrawCmd policy 等固定全局
+状态同样计入，不能藏在未解释的 process global 中。
 
 不计入 platform framebuffer/显存、只读 font/image resource、应用对象、任务栈、driver DMA buffer 和其它
 domain memory。因此通过只证明 Vivid 在分配预算内装得下并留有 headroom。
@@ -38,8 +39,9 @@ target_abi_exact_bytes + min_headroom_bytes <= budget_bytes
 任一层失败都拒绝需要 admission 的 target。`FULL` 可以生成 profile 而不强制产品预算；PRODUCT/MCU
 profile 必须显式提供 scene count、budget 和 headroom，不能依赖隐式默认。
 
-`Scene` 的 exact profile 同时验证 live DrawCmd buffer 数量、snapshot/workspace 和 global style/resource
-状态。configure model 低估真实 ABI 是独立硬失败，不能用增大产品 budget 掩盖。
+`Scene` 的 exact profile 同时验证 live DrawCmd buffer 数量、snapshot/workspace、global style/resource 和
+runtime diagnostic/policy 状态。configure model 为 runtime globals 保留独立保守上界；低估真实 ABI 是
+独立硬失败，不能用增大产品 budget 掩盖。
 
 ## Product Profile 与 Envelope
 

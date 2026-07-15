@@ -30,6 +30,9 @@ import charm.core.soa_factory;
 import charm.core.soa_gui;
 import charm.core.soa_kernel;
 import charm.core.soa_payload;
+#if !defined(CHARM_VIVID_FEATURESET_MCU_MIN)
+import charm.ui.vivid.perf_overlay_runtime;
+#endif
 export import charm.gfx.canvas;
 export import charm.gfx.color;
 export import charm.gfx.image;
@@ -706,6 +709,11 @@ namespace {
         std::uint64_t image_registry_bytes{0};
         std::uint64_t object_style_reserve_bytes{0};
         std::uint64_t style_state_table_bytes{0};
+        std::uint64_t perf_overlay_runtime_bytes{0};
+        std::uint64_t canvas_profile_bytes{0};
+        std::uint64_t text_profile_bytes{0};
+        std::uint64_t draw_cmd_policy_bytes{0};
+        std::uint64_t runtime_global_bytes{0};
         std::uint64_t global_bytes{0};
         std::uint64_t total_bytes{0};
         std::uint64_t upper_bound_bytes{0};
@@ -726,11 +734,26 @@ namespace {
         constexpr std::uint64_t object_style_reserve_bytes = widget_kind_count * sizeof(Style);
         constexpr std::uint64_t style_state_table_bytes = widget_kind_count
             * (sizeof(std::uint8_t) + sizeof(std::uint8_t) + sizeof(std::uint16_t));
+#if defined(CHARM_VIVID_FEATURESET_MCU_MIN)
+        constexpr std::uint64_t perf_overlay_runtime_bytes = 0;
+#else
+        constexpr std::uint64_t perf_overlay_runtime_bytes =
+            ui::perf_overlay_runtime::resident_bytes;
+#endif
+        constexpr std::uint64_t canvas_profile_bytes = alpha_blend_counter_resident_bytes;
+        constexpr std::uint64_t text_profile_bytes = ::text_profile_resident_bytes;
+        constexpr std::uint64_t draw_cmd_policy_bytes =
+            ui::draw_cmd::compaction_policy_resident_bytes;
+        constexpr std::uint64_t runtime_global_bytes = perf_overlay_runtime_bytes
+            + canvas_profile_bytes
+            + text_profile_bytes
+            + draw_cmd_policy_bytes;
         constexpr std::uint64_t global_bytes = theme_bytes
             + stylesheet_bytes
             + image_registry_bytes
             + object_style_reserve_bytes
-            + style_state_table_bytes;
+            + style_state_table_bytes
+            + runtime_global_bytes;
         constexpr std::uint64_t total_bytes = scene_instances * scene_bytes + global_bytes;
         constexpr std::uint64_t budget_bytes = CHARM_VIVID_STATIC_MEMORY_BUDGET_BYTES;
         constexpr std::uint64_t exact_headroom_bytes =
@@ -752,6 +775,11 @@ namespace {
             image_registry_bytes,
             object_style_reserve_bytes,
             style_state_table_bytes,
+            perf_overlay_runtime_bytes,
+            canvas_profile_bytes,
+            text_profile_bytes,
+            draw_cmd_policy_bytes,
+            runtime_global_bytes,
             global_bytes,
             total_bytes,
             CHARM_VIVID_STATIC_MEMORY_UPPER_BOUND_BYTES,
@@ -762,6 +790,9 @@ namespace {
     }
 
     inline constexpr auto kVividStaticMemoryProfile = vivid_static_memory_profile();
+    static_assert(kVividStaticMemoryProfile.runtime_global_bytes
+                  <= CHARM_VIVID_RUNTIME_GLOBALS_UPPER_BYTES,
+                  "Vivid target-ABI runtime globals exceed their configure-time upper bound");
     static_assert(kVividStaticMemoryProfile.total_bytes
                   <= kVividStaticMemoryProfile.upper_bound_bytes,
                   "Vivid configure-time static memory model undercounted target-ABI resident bytes");
@@ -800,18 +831,20 @@ extern "C" [[gnu::used]] void charm_vivid_static_memory_profile_symbols() noexce
         ".set charm_vivid_static_profile_command_snapshot_bytes, %c8\n"
         ".global charm_vivid_static_profile_pixel_snapshot_bytes\n"
         ".set charm_vivid_static_profile_pixel_snapshot_bytes, %c9\n"
+        ".global charm_vivid_static_profile_runtime_global_bytes\n"
+        ".set charm_vivid_static_profile_runtime_global_bytes, %c10\n"
         ".global charm_vivid_static_profile_global_bytes\n"
-        ".set charm_vivid_static_profile_global_bytes, %c10\n"
+        ".set charm_vivid_static_profile_global_bytes, %c11\n"
         ".global charm_vivid_static_profile_total_bytes\n"
-        ".set charm_vivid_static_profile_total_bytes, %c11\n"
+        ".set charm_vivid_static_profile_total_bytes, %c12\n"
         ".global charm_vivid_static_profile_upper_bound_bytes\n"
-        ".set charm_vivid_static_profile_upper_bound_bytes, %c12\n"
+        ".set charm_vivid_static_profile_upper_bound_bytes, %c13\n"
         ".global charm_vivid_static_profile_budget_bytes\n"
-        ".set charm_vivid_static_profile_budget_bytes, %c13\n"
+        ".set charm_vivid_static_profile_budget_bytes, %c14\n"
         ".global charm_vivid_static_profile_min_headroom_bytes\n"
-        ".set charm_vivid_static_profile_min_headroom_bytes, %c14\n"
+        ".set charm_vivid_static_profile_min_headroom_bytes, %c15\n"
         ".global charm_vivid_static_profile_exact_headroom_bytes\n"
-        ".set charm_vivid_static_profile_exact_headroom_bytes, %c15\n"
+        ".set charm_vivid_static_profile_exact_headroom_bytes, %c16\n"
         :
         : "i"(profile.scene_bytes),
           "i"(profile.soa_kernel_bytes),
@@ -823,6 +856,7 @@ extern "C" [[gnu::used]] void charm_vivid_static_memory_profile_symbols() noexce
           "i"(profile.soa_traversal_workspace_bytes),
           "i"(profile.command_snapshot_bytes),
           "i"(profile.pixel_snapshot_bytes),
+          "i"(profile.runtime_global_bytes),
           "i"(profile.global_bytes),
           "i"(profile.total_bytes),
           "i"(profile.upper_bound_bytes),

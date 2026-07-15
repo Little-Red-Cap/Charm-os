@@ -27,6 +27,11 @@
 - `charm.gfx.host_tools`：host snapshot/DrawCmd 证据工具，不进入默认 PRODUCT profile；
 - SoA kernel、DrawCmd partitions 与 `charm.ui.vivid_internal`：实现入口，产品不得直接 import。
 
+PerfOverlay runtime 是单 UI execution domain 的应用级诊断通道，不属于任一 Scene；其固定槽、profile
+counter 与 DrawCmd policy 常驻字节必须进入 Vivid global static-memory profile。debug channel 名称接受
+1..23 字节；空名、超长名或槽位耗尽返回 `debug_line_count` sentinel，不能截断后制造别名或重复耗槽。
+清空 channel registry 同时清空对应文本，避免后续复用槽位时泄漏旧诊断内容。
+
 完整 import 规则见
 [`vivid_import_boundary_contract.md`](../../../docs/ui/vivid_import_boundary_contract.md)。
 

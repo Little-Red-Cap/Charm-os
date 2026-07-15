@@ -127,7 +127,8 @@ function Assert-Admission {
         "command_buffer_upper_bytes",
         "draw_cmd_compaction_workspace_upper_bytes",
         "draw_cmd_executor_workspace_upper_bytes",
-        "soa_traversal_workspace_upper_bytes"
+        "soa_traversal_workspace_upper_bytes",
+        "runtime_globals_upper_bytes"
     )) {
         if ([int64]$Values[$field] -le 0) {
             throw "Static memory manifest field must be positive: $field=$($Values[$field])"
@@ -174,13 +175,14 @@ function Assert-ProductEvidence {
         throw "PRODUCT target fingerprint mismatch for profile '$Profile'"
     }
 
-    $expectedKindCount = if ($DebugProfile) { 32 } else { 30 }
-    if (@($profileEvidence.widget_kinds).Count -ne $expectedKindCount) {
-        throw "Unexpected WidgetKind count for '$Profile': $(@($profileEvidence.widget_kinds).Count)"
+    $expectedSceneKindCount = 15
+    $expectedObjectKindCount = if ($DebugProfile) { 2 } else { 0 }
+    if (@($profileEvidence.widget_kinds).Count -ne $expectedSceneKindCount -or
+        @($profileEvidence.object_widget_kinds).Count -ne $expectedObjectKindCount) {
+        throw "Unexpected widget profile for '$Profile': scene=$(@($profileEvidence.widget_kinds).Count) object=$(@($profileEvidence.object_widget_kinds).Count)"
     }
     foreach ($expected in @(
         "charm.gfx.color",
-        "charm.widgets.battery_gasgauge",
         "charm.core.soa_kernel:semantic",
         "charm.core.soa_kernel:storage"
     )) {
@@ -222,8 +224,7 @@ function Assert-ProductEvidence {
     foreach ($expected in @(
         "Modules/ui/vivid/charm.ui.vivid.cppm",
         "Modules/ui/vivid/core/style_sheet.cppm",
-        "Modules/ui/vivid/gfx/svg.cppm",
-        "Modules/ui/vivid/widgets/battery_gasgauge.cppm"
+        "Modules/ui/vivid/gfx/svg.cppm"
     )) {
         if ($stackSources -notcontains $expected) {
             throw "PRODUCT stack source manifest '$Profile' is missing '$expected'"
@@ -236,13 +237,11 @@ function Assert-ProductEvidence {
     $tableSource = "Modules/ui/vivid/widgets/table_view.cppm"
     $treeSource = "Modules/ui/vivid/widgets/tree_view.cppm"
     if ($DebugProfile) {
-        if ($profileEvidence.widget_kinds -notcontains "TableView" -or
-            $profileEvidence.widget_kinds -notcontains "TreeView" -or
-            [int]$profileEvidence.payload_capacities.TableView -ne 4 -or
-            [int]$profileEvidence.payload_capacities.TreeView -ne 4 -or
+        if ($profileEvidence.object_widget_kinds -notcontains "TableView" -or
+            $profileEvidence.object_widget_kinds -notcontains "TreeView" -or
             $stackSources -notcontains $tableSource -or
             $stackSources -notcontains $treeSource) {
-            throw "Debug profile did not admit TableView/TreeView and their payload pools"
+            throw "Debug profile did not admit TableView/TreeView object modules"
         }
     } elseif ($stackSources -contains $tableSource -or $stackSources -contains $treeSource) {
         throw "Base PRODUCT profile was polluted by debug-only widget modules"
@@ -371,8 +370,13 @@ try {
     }
 
     Invoke-VividConfigure -SourceDir $SoaSourceDir -FeatureSet "MCU_MIN" -ExtraArgs $McuArgs | Out-Null
-    $mcuManifest = Join-Path (Get-GeneratedDir -Profile "mcu_min") "static_memory_admission.txt"
+    $mcuGeneratedDir = Get-GeneratedDir -Profile "mcu_min"
+    $mcuManifest = Join-Path $mcuGeneratedDir "static_memory_admission.txt"
     Assert-Admission -Values (Read-KeyValueManifest -Path $mcuManifest) -FeatureSet "MCU_MIN" -Profile "mcu_min" -Status "admitted" -MinimumHeadroom 262144
+    $mcuStackSources = @(Get-Content -LiteralPath (Join-Path $mcuGeneratedDir "stack_usage_sources.txt") -Encoding UTF8)
+    if ($mcuStackSources -contains "Modules/ui/vivid/core/perf_overlay_runtime.cppm") {
+        throw "MCU_MIN source manifest contains PerfOverlay runtime"
+    }
 
     Invoke-VividConfigure -SourceDir $ProductFixtureDir -FeatureSet "PRODUCT" -ExtraArgs $ProductBaseArgs | Out-Null
     $baseFingerprint = Assert-ProductEvidence -Profile "player_md3" -DebugProfile $false

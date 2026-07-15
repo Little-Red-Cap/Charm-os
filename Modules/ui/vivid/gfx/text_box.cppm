@@ -18,9 +18,21 @@ import alg_text_layout;
 #endif
 
 #if CHARM_TEXT_PROFILE
-inline std::uint64_t g_text_draw_calls = 0;
-inline std::uint64_t g_text_glyphs = 0;
-inline std::uint64_t g_text_pixels = 0;
+inline constinit std::uint64_t g_text_draw_calls = 0;
+inline constinit std::uint64_t g_text_glyphs = 0;
+inline constinit std::uint64_t g_text_pixels = 0;
+#endif
+
+export inline constexpr std::size_t text_profile_resident_bytes =
+#if CHARM_TEXT_PROFILE
+    sizeof(std::uint64_t) * 3u;
+#else
+    0u;
+#endif
+
+#if CHARM_TEXT_PROFILE
+static_assert(sizeof(g_text_draw_calls) + sizeof(g_text_glyphs) + sizeof(g_text_pixels)
+              == text_profile_resident_bytes);
 #endif
 
 export

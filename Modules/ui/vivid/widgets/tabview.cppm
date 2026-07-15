@@ -1,4 +1,6 @@
 module;
+#include <cstddef>
+#include <span>
 #include <type_traits>
 export module charm.widgets.tabview;
 
@@ -16,6 +18,11 @@ using namespace ui::render;
 export
 class TabView : public WidgetBase<TabView> {
 public:
+    struct Tab {
+        const char* title{nullptr};
+        WidgetHandle page{};
+    };
+
     struct ResolverCallback {
         using stub_t = ObjectBase*(*)(void*, WidgetHandle) noexcept;
 
@@ -63,14 +70,42 @@ public:
         set_focusable(false);
     }
 
-    // parent should link children pages manually; we store handles
-    void add_tab(const char* title, WidgetHandle page) noexcept {
-        if (tab_count_ >= max_tabs) return;
-        titles_[tab_count_] = title ? title : "";
-        pages_[tab_count_] = page;
+    ~TabView() noexcept {
+        detach_tab_storage();
+    }
+
+    TabView(const TabView&) = delete;
+    TabView& operator=(const TabView&) = delete;
+    TabView(TabView&&) = delete;
+    TabView& operator=(TabView&&) = delete;
+
+    void attach_tab_storage(std::span<Tab> storage) noexcept {
+        detach_tab_storage();
+        for (auto& tab : storage) tab = {};
+        tabs_ = storage;
+    }
+
+    void detach_tab_storage() noexcept {
+        clear_tabs();
+        tabs_ = {};
+    }
+
+    [[nodiscard]] std::size_t tab_storage_capacity() const noexcept {
+        return tabs_.size();
+    }
+
+    [[nodiscard]] int tab_count() const noexcept {
+        return tab_count_;
+    }
+
+    // Parent links page objects separately; TabView only keeps their handles.
+    [[nodiscard]] bool add_tab(const char* title, WidgetHandle page) noexcept {
+        if (static_cast<std::size_t>(tab_count_) >= tabs_.size()) return false;
+        tabs_[static_cast<std::size_t>(tab_count_)] = Tab{title ? title : "", page};
         ++tab_count_;
         if (tab_count_ == 1) active_ = 0;
         sync_page_visibility();
+        return true;
     }
 
     void set_active(int idx) noexcept {
@@ -104,7 +139,8 @@ public:
         int x = r.x + st.metrics.padding;
         for (int i = 0; i < tab_count_; ++i) {
             const bool on = (i == active_);
-            const auto txt = titles_[i] ? titles_[i] : "";
+            const auto& tab = tab_at(i);
+            const auto txt = tab.title ? tab.title : "";
             Label lbl{txt};
             lbl.set_color(on ? font : st.colors.font_color_disabled);
             lbl.set_font(resolve_font(st));
@@ -135,7 +171,8 @@ public:
             if (e.y < r.y || e.y > r.y + tab_h) return false;
             int x = r.x + st.metrics.padding;
             for (int i = 0; i < tab_count_; ++i) {
-                Label lbl{titles_[i] ? titles_[i] : ""};
+                const auto& tab = tab_at(i);
+                Label lbl{tab.title ? tab.title : ""};
                 lbl.set_font(resolve_font(st));
                 const int btn_w = lbl.get_rect().w + st.metrics.padding * 2;
                 const int btn_h = tab_h - 4;
@@ -167,23 +204,44 @@ public:
     }
 
 private:
+    [[nodiscard]] Tab& tab_at(int index) noexcept {
+        return tabs_[static_cast<std::size_t>(index)];
+    }
+
+    [[nodiscard]] const Tab& tab_at(int index) const noexcept {
+        return tabs_[static_cast<std::size_t>(index)];
+    }
+
+    void clear_tabs() noexcept {
+        for (int i = 0; i < tab_count_; ++i) tab_at(i) = {};
+        tab_count_ = 0;
+        active_ = 0;
+    }
+
     void sync_page_visibility() noexcept {
         if (!resolver_) return;
         for (int i = 0; i < tab_count_; ++i) {
-            if (auto* page = resolver_(pages_[i])) {
+            if (auto* page = resolver_(tab_at(i).page)) {
                 page->set_visible(i == active_);
             }
         }
     }
 
-    static constexpr int max_tabs = 6;
-    const char* titles_[max_tabs]{};
-    WidgetHandle pages_[max_tabs]{};
+    std::span<Tab> tabs_{};
     int tab_count_{0};
     int active_{0};
     // Same-domain handle resolver with no dynamic allocation.
     ResolverCallback resolver_{};
 };
+
+static_assert(std::is_trivially_copyable_v<TabView::Tab>);
+static_assert(sizeof(TabView)
+              <= sizeof(ObjectBase) + sizeof(std::span<TabView::Tab>)
+                  + sizeof(int) * 2 + sizeof(TabView::ResolverCallback)
+                  + alignof(std::span<TabView::Tab>),
+              "TabView must not regain a fixed tab table");
+static_assert(!std::is_copy_constructible_v<TabView>);
+static_assert(!std::is_move_constructible_v<TabView>);
 
 
 

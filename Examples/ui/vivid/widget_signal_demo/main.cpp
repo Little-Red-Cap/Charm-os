@@ -62,8 +62,10 @@ namespace {
                   "text Button must not retain icon, style, or observer storage");
     static_assert(sizeof(Dropdown) <= 256,
                   "Dropdown must borrow option labels instead of copying inline text storage");
-    static_assert(sizeof(TabView) <= 160,
-                  "TabView must borrow tab titles instead of copying inline text storage");
+    static_assert(sizeof(TabView) <= 80,
+                  "TabView must borrow its bounded tab storage");
+    static_assert(!std::is_copy_constructible_v<TabView>);
+    static_assert(!std::is_move_constructible_v<TabView>);
     static_assert(sizeof(ListItem) <= 120,
                   "ListItem must not retain an implicit observer slot table");
     static_assert(sizeof(MenuItem) <= 128,
@@ -966,16 +968,24 @@ int main() {
     Theme::instance().set<TabView>(tabview_probe_style);
 
     TabViewPageProbe tab_pages{};
+    std::array<TabView::Tab, 2> tab_storage{};
     TabView tabview{};
     tabview.set_rect({0, 0, 96, 96});
     tabview.set_resolver<&TabViewPageProbe::resolve>(tab_pages);
     char borrowed_tab_title[]{"A"};
-    tabview.add_tab(borrowed_tab_title, tab_pages.first_handle);
-    if (!expect(tab_pages.first.is_visible(),
+    if (!expect(tabview.tab_storage_capacity() == 0
+                    && !tabview.add_tab(borrowed_tab_title, tab_pages.first_handle),
+                "tab view requires explicit tab storage")) return 1;
+    tabview.attach_tab_storage(tab_storage);
+    if (!expect(tabview.add_tab(borrowed_tab_title, tab_pages.first_handle)
+                    && tab_pages.first.is_visible(),
                 "first tab stays visible when added after resolver binding")) return 1;
-    tabview.add_tab("A", tab_pages.second_handle);
-    if (!expect(tab_pages.first.is_visible() && !tab_pages.second.is_visible(),
+    if (!expect(tabview.add_tab("A", tab_pages.second_handle)
+                    && tab_pages.first.is_visible() && !tab_pages.second.is_visible(),
                 "new inactive tab is hidden immediately")) return 1;
+    if (!expect(!tabview.add_tab("overflow", WidgetHandle{WidgetKind::Container, 2, 1})
+                    && tabview.tab_count() == 2,
+                "tab view reports caller-provided storage exhaustion")) return 1;
     tabview.set_active(1);
     if (!expect(!tab_pages.first.is_visible() && tab_pages.second.is_visible(),
                 "tab activation synchronizes page visibility")) return 1;
@@ -987,12 +997,30 @@ int main() {
                 "tab hit testing observes caller-owned title updates")) return 1;
 
     TabViewPageProbe late_tab_pages{};
+    std::array<TabView::Tab, 2> late_tab_storage{};
     TabView late_bound_tabview{};
-    late_bound_tabview.add_tab("A", late_tab_pages.first_handle);
-    late_bound_tabview.add_tab("A", late_tab_pages.second_handle);
+    late_bound_tabview.attach_tab_storage(late_tab_storage);
+    if (!expect(late_bound_tabview.add_tab("A", late_tab_pages.first_handle)
+                    && late_bound_tabview.add_tab("A", late_tab_pages.second_handle),
+                "late-bound tab view fills explicit storage")) return 1;
     late_bound_tabview.set_resolver<&TabViewPageProbe::resolve>(late_tab_pages);
     if (!expect(late_tab_pages.first.is_visible() && !late_tab_pages.second.is_visible(),
                 "late resolver binding synchronizes existing tab pages")) return 1;
+    tabview.detach_tab_storage();
+    if (!expect(tabview.tab_storage_capacity() == 0
+                    && tabview.tab_count() == 0
+                    && tab_storage[0].title == nullptr && !tab_storage[0].page
+                    && tab_storage[1].title == nullptr && !tab_storage[1].page,
+                "tab view detach clears caller-owned active entries")) return 1;
+    std::array<TabView::Tab, 1> scoped_tab_storage{};
+    {
+        TabView scoped_tabview{};
+        scoped_tabview.attach_tab_storage(scoped_tab_storage);
+        if (!expect(scoped_tabview.add_tab("scoped", tab_pages.first_handle),
+                    "scoped tab view accepts caller storage")) return 1;
+    }
+    if (!expect(scoped_tab_storage[0].title == nullptr && !scoped_tab_storage[0].page,
+                "tab view destruction clears caller-owned active entries")) return 1;
     Theme::instance().set<TabView>(saved_tabview_style);
 
     RadioGroup radio_group{};

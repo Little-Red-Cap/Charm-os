@@ -185,9 +185,11 @@ Object `Dropdown` 的最多 8 个 option label 同样只保存借用指针，不
 popup 的完整配置与绘制周期。修改文本内容或数组项会被后续 list source 读取观察到，`nullptr` 项继续归一化为
 空字符串；helper 不再为 16 个选项常驻字符串副本或二次指针表。
 
-Object `TabView` 的最多 6 个标题借用调用方文本，page 继续只保存 handle；resolver 无论在 tab 前还是 tab 后
+Object `TabView` 不再常驻 6 组标题与 page handle。调用方按实际 tab 数量提供独占
+`std::span<TabView::Tab>`；storage 必须覆盖控件使用期，未 attach 或容量耗尽时 `add_tab()` 返回 `false`，
+detach 与析构清空 active entry。标题继续借用调用方文本，page 只保存 handle；resolver 无论在 tab 前还是 tab 后
 绑定，都必须立即把 active page 设为 visible、其余 page 设为 hidden。SoA `WidgetKind::TabView` 使用独立的
-segmented payload/input 路径，不与 object 标题指针或 resolver 生命周期混用。
+segmented payload/input 路径，不与 object storage、标题指针或 resolver 生命周期混用。
 
 跨帧保存的 UI callback 使用 `util::delegate` 并由 owner 保证 target 生命周期。历史名称 `Callback` 只是
 `util::delegate<>` 的单轨别名，不得重新增加独立的 `fn + void*` fallback 或第二份 callback 存储。

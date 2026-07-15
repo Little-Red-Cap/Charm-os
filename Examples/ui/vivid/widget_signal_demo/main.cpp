@@ -14,6 +14,7 @@ import charm.core.style;
 import charm.core.style_sheet;
 import charm.widgets.button;
 import charm.widgets.chart;
+import charm.widgets.code_block;
 import charm.widgets.console_box;
 import charm.widgets.dropdown;
 import charm.widgets.foldable_panel;
@@ -24,12 +25,16 @@ import charm.widgets.label;
 import charm.widgets.list;
 import charm.widgets.list_view;
 import charm.widgets.menu_item;
+import charm.widgets.rich_text;
+import charm.widgets.roller;
 import charm.widgets.scroll_container;
 import charm.widgets.spin_zoom_widget;
 import charm.widgets.spectrum_view;
+import charm.widgets.stepper;
 import charm.widgets.table_view;
 import charm.widgets.tabview;
 import charm.widgets.text_box;
+import charm.widgets.timeline;
 import charm.widgets.tree_view;
 import charm.widgets.waveform_view;
 import charm.gfx.canvas;
@@ -338,6 +343,16 @@ namespace {
         return true;
     }
 
+    template<typename Buffer>
+    [[nodiscard]] std::uint32_t framebuffer_hash(const Buffer& buffer) noexcept {
+        std::uint32_t hash = 2166136261u;
+        for (std::size_t i = 0; i < Buffer::buffer_bytes; ++i) {
+            hash ^= std::to_integer<std::uint8_t>(buffer.data()[i]);
+            hash *= 16777619u;
+        }
+        return hash;
+    }
+
     unsigned widget_signal_summary_case_count{0};
 
     void print_widget_signal_run_begin() noexcept {
@@ -378,6 +393,12 @@ int main() {
                 sizeof(PinchScrollStrategy),
                 sizeof(DragStrategy),
                 sizeof(LongPressStrategy));
+    std::printf("[ws-text-abi] code_block=%zu rich_text=%zu roller=%zu stepper=%zu timeline=%zu\n",
+                sizeof(CodeBlock),
+                sizeof(RichText),
+                sizeof(Roller),
+                sizeof(Stepper),
+                sizeof(Timeline));
 
     Button button{"Apply"};
     button.set_on_click(Callback::bind<&on_button_click>());
@@ -716,6 +737,114 @@ int main() {
     using CallbackFrameBuffer = FrameBuffer<PixelFormat::RGB565, 96, 96>;
     static CallbackFrameBuffer callback_fb{};
     Canvas<PixelFormat::RGB565, 96, 96> callback_canvas{callback_fb};
+
+    const std::array<std::uint8_t, 1> glyph_a_bitmap{0x80};
+    const std::array<std::uint8_t, 1> glyph_b_bitmap{0xC0};
+    std::array<Glyph, 2> text_probe_glyphs{};
+    text_probe_glyphs[0] = Glyph{glyph_a_bitmap.data(), 1, 1, 2, 0, 1, 0};
+    text_probe_glyphs[1] = Glyph{glyph_b_bitmap.data(), 2, 1, 3, 0, 1, 0};
+    const std::array<GlyphRange, 1> text_probe_ranges{{
+        GlyphRange{static_cast<std::uint32_t>('A'), 2, 0}
+    }};
+    Font text_probe_font{};
+    text_probe_font.table = std::span<const Glyph>{text_probe_glyphs};
+    text_probe_font.ranges = std::span<const GlyphRange>{text_probe_ranges};
+    text_probe_font.line_height = 4;
+    text_probe_font.baseline = 2;
+
+    const Font* saved_normal_font = &get_font(FontId::Normal);
+    const Font* saved_mono_font = &get_font(FontId::Mono);
+    set_default_font(FontId::Normal, &text_probe_font);
+    set_default_font(FontId::Mono, &text_probe_font);
+
+    const Style saved_code_block_style = Theme::instance().get<CodeBlock>();
+    const Style saved_rich_text_style = Theme::instance().get<RichText>();
+    const Style saved_roller_style = Theme::instance().get<Roller>();
+    const Style saved_stepper_style = Theme::instance().get<Stepper>();
+    const Style saved_timeline_style = Theme::instance().get<Timeline>();
+    const auto text_probe_style = [&](Style style) {
+        style.font = &text_probe_font;
+        style.colors.bg_color = {0, 0, 0, 255};
+        style.colors.border_color = {0, 0, 0, 255};
+        style.colors.font_color = {255, 255, 255, 255};
+        style.metrics.padding = 2;
+        return style;
+    };
+    Theme::instance().set<CodeBlock>(text_probe_style(saved_code_block_style));
+    Theme::instance().set<RichText>(text_probe_style(saved_rich_text_style));
+    Theme::instance().set<Roller>(text_probe_style(saved_roller_style));
+    Theme::instance().set<Stepper>(text_probe_style(saved_stepper_style));
+    Theme::instance().set<Timeline>(text_probe_style(saved_timeline_style));
+
+    const auto draw_text_widget_hash = [&](auto& widget) {
+        callback_fb.clear({0, 0, 0, 255});
+        widget.draw(callback_canvas);
+        return framebuffer_hash(callback_fb);
+    };
+
+    char code_text[]{"A"};
+    CodeBlock code_block{};
+    code_block.set_rect({0, 0, 96, 48});
+    code_block.set_text(code_text);
+    const auto code_hash_before = draw_text_widget_hash(code_block);
+    code_text[0] = 'B';
+    const auto code_hash_after = draw_text_widget_hash(code_block);
+
+    char rich_text_value[]{"A"};
+    RichText rich_text{};
+    rich_text.set_rect({0, 0, 96, 48});
+    rich_text.set_text(rich_text_value);
+    const auto rich_hash_before = draw_text_widget_hash(rich_text);
+    rich_text_value[0] = 'B';
+    const auto rich_hash_after = draw_text_widget_hash(rich_text);
+
+    char roller_text[]{"A"};
+    Roller roller{};
+    roller.set_rect({0, 0, 96, 80});
+    roller.add_option(roller_text);
+    roller.set_selected(3);
+    const auto roller_hash_before = draw_text_widget_hash(roller);
+    roller_text[0] = 'B';
+    const auto roller_hash_after = draw_text_widget_hash(roller);
+
+    char stepper_text[]{"A"};
+    Stepper stepper{};
+    stepper.set_rect({0, 0, 96, 48});
+    stepper.set_steps(1);
+    stepper.set_label(0, stepper_text);
+    const auto stepper_hash_before = draw_text_widget_hash(stepper);
+    stepper_text[0] = 'B';
+    const auto stepper_hash_after = draw_text_widget_hash(stepper);
+
+    char timeline_text[]{"A"};
+    Timeline timeline{};
+    timeline.set_rect({0, 0, 96, 48});
+    timeline.set_item_count(1);
+    timeline.set_item_text(0, timeline_text);
+    const auto timeline_hash_before = draw_text_widget_hash(timeline);
+    timeline_text[0] = 'B';
+    const auto timeline_hash_after = draw_text_widget_hash(timeline);
+
+    Theme::instance().set<CodeBlock>(saved_code_block_style);
+    Theme::instance().set<RichText>(saved_rich_text_style);
+    Theme::instance().set<Roller>(saved_roller_style);
+    Theme::instance().set<Stepper>(saved_stepper_style);
+    Theme::instance().set<Timeline>(saved_timeline_style);
+    set_default_font(FontId::Normal, saved_normal_font);
+    set_default_font(FontId::Mono, saved_mono_font);
+
+    std::printf("[ws-text-borrow] code=0x%08X/0x%08X rich=0x%08X/0x%08X roller=0x%08X/0x%08X stepper=0x%08X/0x%08X timeline=0x%08X/0x%08X\n",
+                code_hash_before, code_hash_after,
+                rich_hash_before, rich_hash_after,
+                roller_hash_before, roller_hash_after,
+                stepper_hash_before, stepper_hash_after,
+                timeline_hash_before, timeline_hash_after);
+    if (!expect(code_hash_before != code_hash_after
+                    && rich_hash_before != rich_hash_after
+                    && roller_hash_before != roller_hash_after
+                    && stepper_hash_before != stepper_hash_after
+                    && timeline_hash_before != timeline_hash_after,
+                "read-only text widgets observe caller-owned content updates")) return 1;
 
     const Style saved_foldable_style = Theme::instance().get<FoldablePanel>();
     Style profiled_foldable_style = saved_foldable_style;
@@ -1101,7 +1230,7 @@ int main() {
     print_widget_signal_case("owned_interaction_dispatch");
     std::printf(" image=direct scroll=direct spin_zoom=direct\n");
     print_widget_signal_case("object_runtime_footprint");
-    std::printf(" object_base=%zu child_capacity=%zu opt_in_components=%zu text_box=%zu console_box=%zu console_line=%zu console_buffer=%zu chart=%zu histogram=%zu histogram_view=%zu waveform_view=%zu spectrum_view=%zu spectrum_workspace=%zu data_source_calls=%d/%d\n",
+    std::printf(" object_base=%zu child_capacity=%zu opt_in_components=%zu text_box=%zu console_box=%zu console_line=%zu console_buffer=%zu chart=%zu histogram=%zu histogram_view=%zu waveform_view=%zu spectrum_view=%zu spectrum_workspace=%zu data_source_calls=%d/%d borrowed_text_hash=0x%08X\n",
                 sizeof(ObjectBase),
                 scroll.child_storage_capacity(),
                 sizeof(InteractionList<>) + sizeof(DragStrategy) + sizeof(LongPressStrategy),
@@ -1116,7 +1245,9 @@ int main() {
                 sizeof(SpectrumView),
                 sizeof(SpectrumView::PeakWorkspace),
                 chart_source.calls,
-                histogram_source.calls);
+                histogram_source.calls,
+                code_hash_after ^ rich_hash_after ^ roller_hash_after
+                    ^ stepper_hash_after ^ timeline_hash_after);
     print_widget_signal_case("structured_callback_contexts");
     std::printf(" list_draw=%d table_width=%d tree_toggle=%d list_pool=%d/%d/%d tree_pool=%d/%d/%d list_size=%zu tree_size=%zu\n",
                 list_draw.draw_calls,

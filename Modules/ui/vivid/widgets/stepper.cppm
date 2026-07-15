@@ -1,9 +1,9 @@
 module;
 #include <cstddef>
+#include <cstdint>
 export module charm.widgets.stepper;
 
 import charm.core.object;
-import charm.core.string;
 import service.state;
 import charm.core.style;
 import charm.core.style_sheet;
@@ -43,9 +43,11 @@ public:
 
     [[nodiscard]] int current() const noexcept { return current_.get(); }
 
-    void set_label(int index, const char* text) {
+    void set_label(int index, const char* text) noexcept {
         if (index < 0 || index >= static_cast<int>(kMaxSteps)) return;
-        labels_[index].assign(text ? text : "");
+        const char* label = text ? text : "";
+        labels_[index] = label;
+        label_sizes_[index] = bounded_text_size(label);
     }
 
     // observe_current() keeps the same-domain synchronous rules of service::state.
@@ -92,20 +94,36 @@ public:
             draw_circle(cvs, cx, center_y, draw_r, fill, true);
             draw_circle(cvs, cx, center_y, draw_r, is_current ? accent : border, false);
 
-            if (labels_[i].size() > 0) {
-                const char* text = labels_[i].c_str();
-                const int text_w = measure_text_width(text, ft);
+            if (label_sizes_[i] > 0) {
+                const char* text = labels_[i];
+                const int text_w = measure_text_width(text, label_sizes_[i], ft);
                 const int tx = cx - text_w / 2;
-                draw_text_baseline(cvs, tx, label_y + ft.baseline, text, font, ft);
+                draw_text_baseline_range(cvs, tx, label_y + ft.baseline,
+                                         text, label_sizes_[i], font, ft);
             }
         }
     }
 
 private:
+    static constexpr std::uint8_t kMaxLabelBytes = 16;
+
+    static std::uint8_t bounded_text_size(const char* text) noexcept {
+        std::uint8_t size = 0;
+        while (size < kMaxLabelBytes && text[size] != '\0') ++size;
+        return size;
+    }
+
     int count_{3};
     current_state_type current_{0};
-    StaticString<16> labels_[kMaxSteps]{};
+    const char* labels_[kMaxSteps]{};
+    std::uint8_t label_sizes_[kMaxSteps]{};
 };
+
+static_assert(sizeof(Stepper)
+              <= sizeof(ObjectBase) + sizeof(int) + sizeof(Stepper::current_state_type)
+                   + sizeof(const char*) * 8 + sizeof(std::uint8_t) * 8
+                   + alignof(Stepper) * 3,
+              "Stepper must not regain per-label inline text storage");
 
 
 

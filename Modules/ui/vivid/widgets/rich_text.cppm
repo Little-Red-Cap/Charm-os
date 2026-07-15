@@ -1,11 +1,9 @@
 module;
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
 export module charm.widgets.rich_text;
 
 import charm.core.object;
-import charm.core.string;
 import charm.core.style;
 import charm.core.style_sheet;
 import charm.gfx.canvas;
@@ -34,7 +32,10 @@ public:
         set_size(240, 120);
     }
 
-    void set_text(const char* text) { text_.assign(text ? text : ""); }
+    void set_text(const char* text) noexcept {
+        text_ = text ? text : "";
+        text_size_ = bounded_text_size(text_);
+    }
 
     void draw(CanvasBase& cvs) {
         const StyleState st_state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
@@ -60,8 +61,8 @@ public:
 
         std::uint16_t prev_gid = 0;
         const Font* prev_font = nullptr;
-        const char* p = text_.c_str();
-        const char* end = p + text_.size();
+        const char* p = text_;
+        const char* end = p + text_size_;
         while (p < end) {
             if (*p == '[') {
                 const char* tag_start = p + 1;
@@ -155,7 +156,21 @@ public:
     }
 
 private:
-    StaticString<256> text_{};
+    static constexpr std::uint16_t kMaxTextBytes = 256;
+
+    static std::uint16_t bounded_text_size(const char* text) noexcept {
+        std::uint16_t size = 0;
+        while (size < kMaxTextBytes && text[size] != '\0') ++size;
+        return size;
+    }
+
+    const char* text_{""};
+    std::uint16_t text_size_{0};
 };
+
+static_assert(sizeof(RichText)
+              <= sizeof(ObjectBase) + sizeof(const char*) + sizeof(std::uint16_t)
+                   + alignof(RichText) * 2,
+              "RichText must not regain inline read-only text storage");
 
 

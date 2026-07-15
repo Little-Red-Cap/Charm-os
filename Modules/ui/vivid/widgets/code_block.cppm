@@ -1,9 +1,10 @@
 module;
 #include <cstddef>
+#include <cstdint>
+#include <string_view>
 export module charm.widgets.code_block;
 
 import charm.core.object;
-import charm.core.string;
 import charm.core.style;
 import charm.core.style_sheet;
 import charm.gfx.color;
@@ -21,7 +22,10 @@ public:
         set_size(240, 120);
     }
 
-    void set_text(const char* text) { text_.assign(text ? text : ""); }
+    void set_text(const char* text) noexcept {
+        text_ = text ? text : "";
+        text_size_ = bounded_text_size(text_);
+    }
     void set_wrap(TextWrap wrap) noexcept { wrap_ = wrap; }
 
     void draw(CanvasBase& cvs) {
@@ -37,14 +41,28 @@ public:
         draw_rect(cvs, r.x, r.y, r.w, r.h, border, false);
 
         const Font& mono = get_font(FontId::Mono);
-        draw_text_box(cvs, r, text_.c_str(), font, mono,
+        draw_text_box(cvs, r, std::string_view{text_, text_size_}, font, mono,
                       TextAlignH::Left, TextAlignV::Top, wrap_, TextEllipsis::None);
     }
 
 private:
-    StaticString<256> text_{};
+    static constexpr std::uint16_t kMaxTextBytes = 256;
+
+    static std::uint16_t bounded_text_size(const char* text) noexcept {
+        std::uint16_t size = 0;
+        while (size < kMaxTextBytes && text[size] != '\0') ++size;
+        return size;
+    }
+
+    const char* text_{""};
+    std::uint16_t text_size_{0};
     TextWrap wrap_{TextWrap::None};
 };
+
+static_assert(sizeof(CodeBlock)
+              <= sizeof(ObjectBase) + sizeof(const char*) + sizeof(std::uint16_t)
+                   + sizeof(TextWrap) + alignof(CodeBlock) * 2,
+              "CodeBlock must not regain inline read-only text storage");
 
 
 

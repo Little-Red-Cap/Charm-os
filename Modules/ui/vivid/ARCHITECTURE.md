@@ -170,6 +170,11 @@ handle，容器析构也会清空仍 active 的 handle。容量耗尽显式返�
 应使用 SoA TextArena 或显式的上层文本存储，而不是恢复逐实例缓冲。可编辑 `TextInput`/`TextArea` 必须保存
 编辑状态及内容，不能套用只读 view 的借用契约。
 
+同一规则覆盖其余只读 object 文本控件：`CodeBlock`/`RichText` 记录最多 256 字节，`Timeline`/`Roller` 的每项
+记录最多 32 字节，`Stepper` 的每项记录最多 16 字节。控件只保存借用指针和 setter 时计算的有界长度，绘制
+使用显式 range；文本 owner 必须覆盖控件使用期。原地修改 admitted range 内的字节会被后续绘制观察到，若
+指针或文本长度变化则必须重新调用对应 setter。编辑型控件继续拥有自己的内容缓冲，不能借此规则外置编辑状态。
+
 Object `Dropdown` 的最多 8 个 option label 同样只保存借用指针，不为每项复制固定文本缓冲；label owner 必须
 覆盖 Dropdown 使用期，`nullptr` 归一化为空字符串。当前 SoA `WidgetKind::Dropdown` 仍是 catalog 中的稳定 kind
 占位，record pipeline 明确报告 unsupported，不能把 object ownership 收敛误报为 SoA Dropdown 已实现。

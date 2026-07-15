@@ -10,7 +10,6 @@ import charm.core.event;
 import charm.core.style;
 import charm.core.style_sheet;
 import charm.gfx.text_box;
-import charm.core.string;
 import alg_scroll_bounds;
 import alg_text_scroll;
 

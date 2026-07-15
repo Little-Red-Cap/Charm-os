@@ -7,10 +7,9 @@ import charm.core.event;
 import service.state;
 import charm.core.style;
 import charm.core.style_sheet;
-import charm.core.string;
 import charm.gfx.color;
 import charm.gfx.render_style;
-import charm.widgets.label;
+import charm.gfx.text_box;
 
 using namespace ui::render;
 
@@ -31,7 +30,10 @@ public:
 
     void add_option(const char* txt) noexcept {
         if (option_count_ >= max_options) return;
-        options_[option_count_++].assign(txt ? txt : "");
+        const char* text = txt ? txt : "";
+        options_[option_count_] = text;
+        option_sizes_[option_count_] = bounded_text_size(text);
+        ++option_count_;
     }
 
     void set_selected(int idx) noexcept {
@@ -69,25 +71,22 @@ public:
         draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.metrics.corner_radius, bg, true);
         draw_round_rect(cvs, r.x, r.y, r.w, r.h, st.metrics.corner_radius, border, false);
 
-        const int line_h = resolve_font(st).line_height;
+        const Font& ft = resolve_font(st);
+        const int line_h = ft.line_height;
         const int center_y = r.y + r.h / 2;
         const int visible = 2; // above and below
         for (int i = -visible; i <= visible; ++i) {
             const int idx = wrap_index(selected() + i);
             if (idx < 0) continue;
-            Label lbl{options_[idx].c_str()};
-            lbl.set_font(resolve_font(st));
-            lbl.set_color(font);
             const int alpha_step = 60;
             const int dist = (i < 0) ? -i : i;
             int alpha = 255 - dist * alpha_step;
             if (alpha < 60) alpha = 60;
             rgba col = font;
             col.a = static_cast<std::uint8_t>(alpha);
-            lbl.set_color(col);
-            const int baseline_y = center_y + i * line_h + lbl.baseline() - line_h / 2;
-            lbl.set_baseline_pos(r.x + st.metrics.padding, baseline_y);
-            lbl.draw(cvs);
+            const int baseline_y = center_y + i * line_h + ft.baseline - line_h / 2;
+            draw_text_baseline_range(cvs, r.x + st.metrics.padding, baseline_y,
+                                     options_[idx], option_sizes_[idx], col, ft);
         }
 
         // focus indicator
@@ -117,6 +116,14 @@ public:
     }
 
 private:
+    static constexpr std::uint8_t kMaxOptionBytes = 32;
+
+    static std::uint8_t bounded_text_size(const char* text) noexcept {
+        std::uint8_t size = 0;
+        while (size < kMaxOptionBytes && text[size] != '\0') ++size;
+        return size;
+    }
+
     void step(int delta) {
         if (option_count_ == 0) return;
         set_selected(wrap_index(selected() + delta));
@@ -130,11 +137,18 @@ private:
     }
 
     static constexpr int max_options = 16;
-    StaticString<32> options_[max_options]{};
+    const char* options_[max_options]{};
+    std::uint8_t option_sizes_[max_options]{};
     int option_count_{0};
     selected_state_type selected_{0};
     Callback on_change_{};
 };
+
+static_assert(sizeof(Roller)
+              <= sizeof(ObjectBase) + sizeof(const char*) * 16 + sizeof(std::uint8_t) * 16
+                   + sizeof(int) + sizeof(Roller::selected_state_type) + sizeof(Callback)
+                   + alignof(Roller) * 3,
+              "Roller must not regain per-option inline text storage");
 
 
 

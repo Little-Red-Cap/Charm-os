@@ -791,7 +791,6 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
             "${PROJECT_SOURCE_DIR}/Modules/ui/vivid/core/object.cppm"
             "${PROJECT_SOURCE_DIR}/Modules/ui/vivid/core/input_interaction.cppm"
             "${PROJECT_SOURCE_DIR}/Modules/ui/vivid/core/perf_overlay_runtime.cppm"
-            "${PROJECT_SOURCE_DIR}/Modules/ui/vivid/core/string.cppm"
             "${PROJECT_SOURCE_DIR}/Modules/ui/vivid/core/virtual_list.cppm"
         )
     endif()

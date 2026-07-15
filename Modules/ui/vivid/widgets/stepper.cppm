@@ -1,6 +1,8 @@
 module;
 #include <cstddef>
 #include <cstdint>
+#include <span>
+#include <type_traits>
 export module charm.widgets.stepper;
 
 import charm.core.object;
@@ -27,11 +29,41 @@ public:
         set_focusable(false);
     }
 
-    void set_steps(int count) noexcept {
-        if (count < 1) count = 1;
-        if (count > static_cast<int>(kMaxSteps)) count = static_cast<int>(kMaxSteps);
-        count_ = count;
+    ~Stepper() noexcept {
+        release_label_storage();
+    }
+
+    Stepper(const Stepper&) = delete;
+    Stepper& operator=(const Stepper&) = delete;
+    Stepper(Stepper&&) = delete;
+    Stepper& operator=(Stepper&&) = delete;
+
+    [[nodiscard]] bool attach_label_storage(std::span<const char*> labels,
+                                            std::span<std::uint8_t> sizes) noexcept {
+        if (labels.size() != sizes.size() || labels.size() > kMaxSteps) return false;
+        detach_label_storage();
+        for (auto& label : labels) label = nullptr;
+        for (auto& size : sizes) size = 0;
+        labels_ = labels.data();
+        label_sizes_ = sizes.data();
+        label_capacity_ = static_cast<std::uint8_t>(labels.size());
+        return true;
+    }
+
+    void detach_label_storage() noexcept {
+        release_label_storage();
+        (void)current_.set(0);
+    }
+
+    [[nodiscard]] std::size_t label_storage_capacity() const noexcept {
+        return label_capacity_;
+    }
+
+    [[nodiscard]] bool set_steps(int count) noexcept {
+        if (count < 1 || count > label_capacity_) return false;
+        count_ = static_cast<std::uint8_t>(count);
         if (current() >= count_) (void)current_.set(count_ - 1);
+        return true;
     }
 
     void set_current(int index) noexcept {
@@ -41,13 +73,17 @@ public:
         (void)current_.set(index);
     }
 
-    [[nodiscard]] int current() const noexcept { return current_.get(); }
+    [[nodiscard]] int current() const noexcept {
+        const int value = current_.get();
+        return count_ > 0 && value >= 0 && value < count_ ? value : 0;
+    }
 
-    void set_label(int index, const char* text) noexcept {
-        if (index < 0 || index >= static_cast<int>(kMaxSteps)) return;
+    [[nodiscard]] bool set_label(int index, const char* text) noexcept {
+        if (index < 0 || index >= label_capacity_) return false;
         const char* label = text ? text : "";
         labels_[index] = label;
         label_sizes_[index] = bounded_text_size(label);
+        return true;
     }
 
     // observe_current() keeps the same-domain synchronous rules of service::state.
@@ -107,23 +143,36 @@ public:
 private:
     static constexpr std::uint8_t kMaxLabelBytes = 16;
 
+    void release_label_storage() noexcept {
+        for (std::uint8_t i = 0; i < label_capacity_; ++i) {
+            labels_[i] = nullptr;
+            label_sizes_[i] = 0;
+        }
+        labels_ = nullptr;
+        label_sizes_ = nullptr;
+        label_capacity_ = 0;
+        count_ = 0;
+    }
+
     static std::uint8_t bounded_text_size(const char* text) noexcept {
         std::uint8_t size = 0;
         while (size < kMaxLabelBytes && text[size] != '\0') ++size;
         return size;
     }
 
-    int count_{3};
+    const char** labels_{nullptr};
+    std::uint8_t* label_sizes_{nullptr};
     current_state_type current_{0};
-    const char* labels_[kMaxSteps]{};
-    std::uint8_t label_sizes_[kMaxSteps]{};
+    std::uint8_t label_capacity_{0};
+    std::uint8_t count_{0};
 };
 
 static_assert(sizeof(Stepper)
-              <= sizeof(ObjectBase) + sizeof(int) + sizeof(Stepper::current_state_type)
-                   + sizeof(const char*) * 8 + sizeof(std::uint8_t) * 8
-                   + alignof(Stepper) * 3,
-              "Stepper must not regain per-label inline text storage");
+              <= sizeof(ObjectBase) + sizeof(void*) * 2 + sizeof(Stepper::current_state_type)
+                   + sizeof(std::uint8_t) * 2 + alignof(Stepper) * 3,
+              "Stepper must not regain a fixed label pointer or length table");
+static_assert(!std::is_copy_constructible_v<Stepper>);
+static_assert(!std::is_move_constructible_v<Stepper>);
 
 
 

@@ -126,6 +126,15 @@ namespace {
     static_assert(sizeof(WaveformView)
                   <= sizeof(ObjectBase) + sizeof(std::span<const int>)
                       + sizeof(int) * 2 + sizeof(bool) + alignof(void*) * 2);
+    static_assert(sizeof(Roller) <= 192);
+    static_assert(sizeof(Stepper) <= 168);
+    static_assert(sizeof(Timeline) <= 64);
+    static_assert(!std::is_copy_constructible_v<Roller>);
+    static_assert(!std::is_move_constructible_v<Roller>);
+    static_assert(!std::is_copy_constructible_v<Stepper>);
+    static_assert(!std::is_move_constructible_v<Stepper>);
+    static_assert(!std::is_copy_constructible_v<Timeline>);
+    static_assert(!std::is_move_constructible_v<Timeline>);
     static_assert(!std::is_copy_constructible_v<SpectrumView>);
     static_assert(!std::is_move_constructible_v<SpectrumView>);
     static_assert(!std::is_copy_constructible_v<SpectrumView::PeakWorkspace>);
@@ -819,31 +828,69 @@ int main() {
     const auto rich_hash_after = draw_text_widget_hash(rich_text);
 
     char roller_text[]{"A"};
+    std::array<const char*, 4> roller_options{};
+    std::array<std::uint8_t, 4> roller_option_sizes{};
+    std::array<std::uint8_t, 3> mismatched_roller_sizes{};
     Roller roller{};
     roller.set_rect({0, 0, 96, 80});
-    roller.add_option(roller_text);
+    if (!expect(!roller.add_option("missing storage")
+                    && !roller.on_event(Event::key(Event::Type::KeyDown, Event::Key::Down))
+                    && !roller.attach_option_storage(roller_options, mismatched_roller_sizes),
+                "roller requires equal explicit option storage")) return 1;
+    if (!expect(roller.attach_option_storage(roller_options, roller_option_sizes)
+                    && roller.add_option("Item 1")
+                    && roller.add_option("Item 2")
+                    && roller.add_option("Item 3")
+                    && roller.add_option(roller_text)
+                    && !roller.add_option("overflow")
+                    && roller.option_count() == 4,
+                "roller fills caller-provided option storage")) return 1;
     roller.set_selected(3);
     const auto roller_hash_before = draw_text_widget_hash(roller);
     roller_text[0] = 'B';
     const auto roller_hash_after = draw_text_widget_hash(roller);
 
     char stepper_text[]{"A"};
+    std::array<const char*, 1> stepper_labels{};
+    std::array<std::uint8_t, 1> stepper_label_sizes{};
     Stepper stepper{};
     stepper.set_rect({0, 0, 96, 48});
-    stepper.set_steps(1);
-    stepper.set_label(0, stepper_text);
+    if (!expect(!stepper.set_steps(1)
+                    && stepper.attach_label_storage(stepper_labels, stepper_label_sizes)
+                    && stepper.set_steps(1)
+                    && stepper.set_label(0, stepper_text)
+                    && !stepper.set_label(1, "overflow"),
+                "stepper uses caller-provided label storage")) return 1;
     const auto stepper_hash_before = draw_text_widget_hash(stepper);
     stepper_text[0] = 'B';
     const auto stepper_hash_after = draw_text_widget_hash(stepper);
 
     char timeline_text[]{"A"};
+    std::array<const char*, 1> timeline_items{};
+    std::array<std::uint8_t, 1> timeline_item_sizes{};
     Timeline timeline{};
     timeline.set_rect({0, 0, 96, 48});
-    timeline.set_item_count(1);
-    timeline.set_item_text(0, timeline_text);
+    if (!expect(!timeline.set_item_count(1)
+                    && timeline.attach_item_storage(timeline_items, timeline_item_sizes)
+                    && timeline.set_item_count(1)
+                    && timeline.set_item_text(0, timeline_text)
+                    && !timeline.set_item_text(1, "overflow"),
+                "timeline uses caller-provided item storage")) return 1;
     const auto timeline_hash_before = draw_text_widget_hash(timeline);
     timeline_text[0] = 'B';
     const auto timeline_hash_after = draw_text_widget_hash(timeline);
+
+    roller.detach_option_storage();
+    stepper.detach_label_storage();
+    timeline.detach_item_storage();
+    if (!expect(roller.option_storage_capacity() == 0
+                    && roller.option_count() == 0
+                    && roller_options[0] == nullptr && roller_option_sizes[0] == 0
+                    && stepper.label_storage_capacity() == 0
+                    && stepper_labels[0] == nullptr && stepper_label_sizes[0] == 0
+                    && timeline.item_storage_capacity() == 0
+                    && timeline_items[0] == nullptr && timeline_item_sizes[0] == 0,
+                "text item detach clears caller-owned active storage")) return 1;
 
     Theme::instance().set<CodeBlock>(saved_code_block_style);
     Theme::instance().set<RichText>(saved_rich_text_style);

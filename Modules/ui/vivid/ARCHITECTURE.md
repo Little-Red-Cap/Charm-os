@@ -173,10 +173,14 @@ storage；未 attach 或容量耗尽时 `add()` 返回 `false`，detach 与析�
 应使用 SoA TextArena 或显式的上层文本存储，而不是恢复逐实例缓冲。可编辑 `TextInput`/`TextArea` 必须保存
 编辑状态及内容，不能套用只读 view 的借用契约。
 
-同一规则覆盖其余只读 object 文本控件：`CodeBlock`/`RichText` 记录最多 256 字节，`Timeline`/`Roller` 的每项
-记录最多 32 字节，`Stepper` 的每项记录最多 16 字节。控件只保存借用指针和 setter 时计算的有界长度，绘制
-使用显式 range；文本 owner 必须覆盖控件使用期。原地修改 admitted range 内的字节会被后续绘制观察到，若
-指针或文本长度变化则必须重新调用对应 setter。编辑型控件继续拥有自己的内容缓冲，不能借此规则外置编辑状态。
+同一规则覆盖其余只读 object 文本控件：`CodeBlock`/`RichText` 记录最多 256 字节。`Timeline`/`Roller` 的每项
+记录最多 32 字节，`Stepper` 的每项记录最多 16 字节，但三者的 pointer/length 表由调用方以两个等长 span
+按实际容量提供；控件只保存 data pointer、8 位容量和 active count，不再常驻最大槽表。attach 对长度不等或
+超过 Roller 16、Stepper 8、Timeline 16 项的配置整次返回 `false`；未 attach 时 setter/add 返回 `false`，
+空 Roller 不消费输入事件；
+detach 与析构清空 active storage，析构不发送 state 通知。文本与两个 storage span 都必须覆盖控件使用期；
+原地修改 admitted range 内的字节会被后续绘制观察到，若指针或文本长度变化则必须重新调用对应 setter。
+编辑型控件继续拥有自己的内容缓冲，不能借此规则外置编辑状态。
 
 Object `Dropdown` 不注入默认展示文本，也不常驻 8 槽 option 指针表。调用方按实际 option 数量提供独占
 `std::span<const char*>`；storage 与 label owner 都必须覆盖控件使用期，未 attach 或容量耗尽时 `add_option()`

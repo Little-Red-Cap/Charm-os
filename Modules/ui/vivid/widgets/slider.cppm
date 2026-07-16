@@ -17,7 +17,7 @@ using namespace ui::render;
 export
 class Slider : public WidgetBase<Slider> {
 public:
-    using value_state_type = service::state<int, 4>;
+    using value_state_type = service::state<int, 1>;
     using value_slot_type = typename value_state_type::slot_type;
     using value_connection = typename value_state_type::connection;
 

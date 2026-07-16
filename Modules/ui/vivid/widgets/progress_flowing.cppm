@@ -3,7 +3,6 @@ module;
 export module charm.widgets.progress_flowing;
 
 import charm.core.object;
-import service.state;
 import charm.core.style;
 import charm.core.style_sheet;
 import charm.gfx.color;
@@ -16,10 +15,6 @@ using namespace ui::render;
 export
 class ProgressFlowing : public WidgetBase<ProgressFlowing> {
 public:
-    using value_state_type = service::state<int, 4>;
-    using value_slot_type = typename value_state_type::slot_type;
-    using value_connection = typename value_state_type::connection;
-
     ProgressFlowing() {
         set_size(180, 16);
     }
@@ -36,11 +31,11 @@ public:
     }
 
     void set_value(int v) noexcept {
-        (void)value_.set(alg::arc::clamp_to_range(v, min_, max_));
+        value_ = alg::arc::clamp_to_range(v, min_, max_);
         indeterminate_ = false;
     }
 
-    [[nodiscard]] int value() const noexcept { return value_.get(); }
+    [[nodiscard]] int value() const noexcept { return value_; }
 
     void set_indeterminate(bool on) noexcept { indeterminate_ = on; }
     [[nodiscard]] bool is_indeterminate() const noexcept { return indeterminate_; }
@@ -51,15 +46,6 @@ public:
     void set_flow_enabled(bool on) noexcept { flow_enabled_ = on; }
     void set_flow_speed(int px) noexcept { flow_speed_ = (px > 0) ? px : 1; }
     void set_flow_span(int px) noexcept { flow_span_ = (px > 2) ? px : 2; }
-
-    // observe_value() keeps the same-domain synchronous rules of service::state.
-    [[nodiscard]] auto observe_value(value_slot_type slot) noexcept {
-        return value_.connect(slot);
-    }
-
-    [[nodiscard]] bool unobserve_value(value_connection c) noexcept {
-        return value_.disconnect(c);
-    }
 
     void draw(CanvasBase& cvs) {
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
@@ -126,7 +112,7 @@ public:
 private:
     int min_{0};
     int max_{100};
-    value_state_type value_{0};
+    int value_{0};
     bool indeterminate_{false};
     bool flow_enabled_{true};
     int flow_speed_{2};

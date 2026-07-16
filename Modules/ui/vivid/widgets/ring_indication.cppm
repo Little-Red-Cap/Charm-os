@@ -6,7 +6,6 @@ module;
 export module charm.widgets.ring_indication;
 
 import charm.core.object;
-import service.state;
 import charm.core.style;
 import charm.core.style_sheet;
 import charm.gfx.color;
@@ -19,19 +18,15 @@ using namespace ui::render;
 export
 class RingIndication : public WidgetBase<RingIndication> {
 public:
-    using value_state_type = service::state<int, 4>;
-    using value_slot_type = typename value_state_type::slot_type;
-    using value_connection = typename value_state_type::connection;
-
     RingIndication() {
         set_size(120, 120);
     }
 
     void set_value(int v) noexcept {
-        (void)value_.set(alg::arc::clamp_to_range(v, 0, 100));
+        value_ = alg::arc::clamp_to_range(v, 0, 100);
     }
 
-    [[nodiscard]] int value() const noexcept { return value_.get(); }
+    [[nodiscard]] int value() const noexcept { return value_; }
 
     void set_thickness(int t) noexcept {
         thickness_ = (t > 0) ? t : 1;
@@ -46,15 +41,6 @@ public:
     void set_major_tick_every(int every) noexcept { major_every_ = (every > 0) ? every : 1; }
     void set_major_tick_length(int px) noexcept { major_len_ = (px > 0) ? px : 1; }
     void set_show_shadow(bool on) noexcept { show_shadow_ = on; }
-
-    // observe_value() keeps the same-domain synchronous rules of service::state.
-    [[nodiscard]] auto observe_value(value_slot_type slot) noexcept {
-        return value_.connect(slot);
-    }
-
-    [[nodiscard]] bool unobserve_value(value_connection c) noexcept {
-        return value_.disconnect(c);
-    }
 
     Rect paint_bounds() const noexcept {
         const auto r = get_rect();
@@ -128,7 +114,7 @@ public:
     }
 
 private:
-    value_state_type value_{0};
+    int value_{0};
     int thickness_{6};
     int start_deg_{-90};
     int end_deg_{270};

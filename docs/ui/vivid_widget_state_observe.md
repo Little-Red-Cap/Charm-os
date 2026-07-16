@@ -9,7 +9,7 @@
 
 | 表面 | truth owner / 更新入口 | observe 语义 | 典型用途 |
 |---|---|---|---|
-| object-level widget | widget 内的 `service::state<T, N>`，或显式绑定的 caller-owned model | state surface 同执行域同步观察；caller model 由 owner 直接读取 | 小系统、object smoke、局部组合 |
+| object-level widget | 交互 truth 使用 widget 内的 `service::state<T, 1>`；展示 truth 使用标量；也可显式绑定 caller-owned model | 交互 state 提供一个同执行域同步观察槽；展示标量不提供 observer；caller model 由 owner 直接读取 | 小系统、object smoke、局部组合 |
 | SoA scene | kernel/scene graph；`SceneBuilder`、`SceneAccess` 按 handle 更新 | 不提供 object observe 镜像 | page/controller、布局、input、record/execute |
 | SoA-backed helper | helper 或 caller-owned model | helper-local committed truth / confirm edge | popup、menu、picker 等局部交互 |
 
@@ -18,6 +18,11 @@ object-level state 例子包括 `Checkbox::observe_checked()`、`Dropdown::obser
 object widget 直接写入同一模型并用 callback 表达命令边沿，不再复制一份隐式 truth。SoA scene 例子包括
 `set_value(handle, ...)`、`set_checked(handle, ...)`、`set_text(handle, ...)` 与
 `set_style_patch(handle, ...)`。
+
+直接 observer 是稀缺、按需的控件边界，不是逐控件多播总线。会被控件输入改变、且已有真实观察消费者的 truth
+保留一个连接槽；槽满时第二个连接显式失败，disconnect 后可以复用。需要多个订阅者时，controller 将该变化转发到
+caller-owned `service::signal`。Progress、Arc、Gauge 等只由 setter/range 驱动的展示值保存普通标量，调用方应观察
+其上游状态真源；Vivid 不为表面对称让每个展示实例常驻 observer 表。
 
 ## 硬边界
 
@@ -29,9 +34,10 @@ object widget 直接写入同一模型并用 callback 表达命令边沿，不�
 
 ### Truth 与 legacy callback 分离
 
-object-level setter 更新 truth，不保证触发旧命令式 callback。例如 programmatic set 或 range clamp 可以
-改变 truth，但不应伪造 user-action callback。consumer 需要完整 truth observation 时使用 `observe_*`；需要
-兼容 action edge 时使用明确的 callback/edge surface。
+交互型 object-level setter 更新 truth，不保证触发旧命令式 callback。例如 programmatic set 或 range clamp 可以
+改变 truth，但不应伪造 user-action callback。consumer 需要完整 truth observation 时使用该控件明确提供的
+`observe_*`；需要兼容 action edge 时使用明确的 callback/edge surface。纯展示控件不提供 observer，consumer
+应观察 controller/app-state 中的上游 truth。
 
 这条规则只约束 object-level widget。SoA `SceneAccess` 更新不能自动继承 object callback 语义。
 
@@ -69,7 +75,7 @@ caller 显式转发到自己的 signal。
 
 | 入口 | 证明内容 |
 |---|---|
-| `Examples/ui/vivid/widget_state_demo` | object truth observation 与 legacy callback 分离 |
+| `Examples/ui/vivid/widget_state_demo` | 交互 truth 单槽观察、槽位复用、展示标量与 legacy callback 分离 |
 | `Examples/ui/vivid/scene_state_demo` | handle-driven scene update 与 controller wiring |
 | `Examples/ui/vivid/dropdown_popup_demo` | committed selection 与 confirm edge |
 | `Examples/ui/vivid/menu_tree_demo` | caller-owned highlight truth、disabled boundary 与 confirm edge |

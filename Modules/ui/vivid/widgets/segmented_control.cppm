@@ -19,7 +19,7 @@ using namespace ui::render;
 export
 class SegmentedControl : public WidgetBase<SegmentedControl> {
 public:
-    using selected_state_type = service::state<int, 4>;
+    using selected_state_type = service::state<int, 1>;
     using selected_slot_type = typename selected_state_type::slot_type;
     using selected_connection = typename selected_state_type::connection;
     static constexpr std::size_t max_items = 8;

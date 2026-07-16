@@ -16,8 +16,22 @@ import charm.widgets.toggle_group;
 
 namespace {
     constexpr float kFloatEpsilon = 0.0001f;
-    static_assert(sizeof(SegmentedControl) <= 192,
-                  "SegmentedControl must borrow its bounded label view");
+    static_assert(sizeof(Checkbox) <= 152,
+                  "Checkbox must not prepay a multicast observer table");
+    static_assert(sizeof(Dropdown) <= 128,
+                  "Dropdown must not prepay a multicast observer table");
+    static_assert(sizeof(SegmentedControl) <= 104,
+                  "SegmentedControl must borrow labels and keep one observer slot");
+    static_assert(sizeof(Slider) <= 104,
+                  "Slider must not prepay a multicast observer table");
+    static_assert(sizeof(ProgressBarSimple) <= 48,
+                  "ProgressBarSimple must store display truth as a scalar");
+    static_assert(sizeof(Arc) <= 48,
+                  "Arc must store display truth as a scalar");
+    static_assert(sizeof(Slider::value_state_type) <= 40,
+                  "Object interaction truth must keep one direct observer slot");
+    static_assert(sizeof(Checkbox::checked_state_type) <= 40,
+                  "Object interaction truth must keep one direct observer slot");
     static_assert(sizeof(ToggleGroup) <= 80,
                   "ToggleGroup must borrow its bounded item model");
 
@@ -37,14 +51,6 @@ namespace {
         int slider_changes{0};
         int slider_old{0};
         int slider_new{0};
-
-        int progress_changes{0};
-        int progress_old{0};
-        int progress_new{0};
-
-        int arc_changes{0};
-        float arc_old{0.0f};
-        float arc_new{0.0f};
 
         void on_checkbox_changed(const bool& now, const bool& old) noexcept {
             ++checkbox_changes;
@@ -70,17 +76,6 @@ namespace {
             slider_new = now;
         }
 
-        void on_progress_changed(const int& now, const int& old) noexcept {
-            ++progress_changes;
-            progress_old = old;
-            progress_new = now;
-        }
-
-        void on_arc_changed(const float& now, const float& old) noexcept {
-            ++arc_changes;
-            arc_old = old;
-            arc_new = now;
-        }
     };
 
     int g_checkbox_callbacks = 0;
@@ -141,8 +136,15 @@ namespace {
 
 int main() {
     print_widget_state_run_begin();
-    std::printf("[wst-abi] segmented_control=%zu toggle_group=%zu\n",
+    std::printf("[wst-abi] checkbox=%zu dropdown=%zu segmented_control=%zu slider=%zu progress=%zu arc=%zu state_int=%zu state_bool=%zu toggle_group=%zu\n",
+                sizeof(Checkbox),
+                sizeof(Dropdown),
                 sizeof(SegmentedControl),
+                sizeof(Slider),
+                sizeof(ProgressBarSimple),
+                sizeof(Arc),
+                sizeof(Slider::value_state_type),
+                sizeof(Checkbox::checked_state_type),
                 sizeof(ToggleGroup));
 
     Probe probe{};
@@ -152,6 +154,11 @@ int main() {
     const auto checkbox_conn =
         checkbox.observe_checked(util::delegate<const bool&, const bool&>::bind<&Probe::on_checkbox_changed>(probe));
     if (!expect(static_cast<bool>(checkbox_conn), "connect checkbox observe_checked")) return 1;
+    Probe replacement_checkbox_probe{};
+    const auto full_checkbox_conn = checkbox.observe_checked(
+        util::delegate<const bool&, const bool&>::bind<&Probe::on_checkbox_changed>(replacement_checkbox_probe));
+    if (!expect(!static_cast<bool>(full_checkbox_conn),
+                "checkbox exposes one direct observer slot")) return 1;
     if (!expect(!checkbox.is_checked(), "checkbox starts unchecked")) return 1;
 
     checkbox.set_checked(true);
@@ -168,6 +175,19 @@ int main() {
     if (!expect(!checkbox.is_checked(), "checkbox click updates truth")) return 1;
     if (!expect(probe.checkbox_changes == 2, "checkbox observe sees interactive change")) return 1;
     if (!expect(g_checkbox_callbacks == 1, "checkbox click triggers legacy callback")) return 1;
+    if (!expect(checkbox.unobserve_checked(checkbox_conn.value()),
+                "checkbox releases direct observer slot")) return 1;
+    const auto replacement_checkbox_conn = checkbox.observe_checked(
+        util::delegate<const bool&, const bool&>::bind<&Probe::on_checkbox_changed>(replacement_checkbox_probe));
+    if (!expect(static_cast<bool>(replacement_checkbox_conn),
+                "checkbox reuses released observer slot")) return 1;
+    checkbox.set_checked(true);
+    if (!expect(replacement_checkbox_probe.checkbox_changes == 1
+                    && !replacement_checkbox_probe.checkbox_old
+                    && replacement_checkbox_probe.checkbox_new,
+                "replacement checkbox observer receives truth change")) return 1;
+    if (!expect(g_checkbox_callbacks == 1,
+                "replacement observer does not change command callback semantics")) return 1;
 
     char borrowed_dropdown_option[]{"Option 2"};
     std::array<const char*, 3> dropdown_option_storage{};
@@ -329,41 +349,26 @@ int main() {
     if (!expect(g_slider_callbacks == 1, "slider range clamp stays silent for legacy callback")) return 1;
 
     ProgressBarSimple progress{};
-    const auto progress_conn =
-        progress.observe_value(util::delegate<const int&, const int&>::bind<&Probe::on_progress_changed>(probe));
-    if (!expect(static_cast<bool>(progress_conn), "connect progress observe_value")) return 1;
-
     progress.set_value(25);
     if (!expect(progress.value() == 25, "progress updates value truth")) return 1;
-    if (!expect(probe.progress_changes == 1, "progress observe sees value change")) return 1;
-    if (!expect(probe.progress_old == 0 && probe.progress_new == 25, "progress observe reports old/new")) return 1;
 
     progress.set_range(50, 100);
     if (!expect(progress.value() == 50, "progress range clamp updates truth")) return 1;
-    if (!expect(probe.progress_changes == 2, "progress observe sees clamp change")) return 1;
-    if (!expect(probe.progress_old == 25 && probe.progress_new == 50, "progress observe reports clamp old/new")) return 1;
+    progress.set_value(150);
+    if (!expect(progress.value() == 100, "progress clamps value to active range")) return 1;
 
     Arc arc{};
-    const auto arc_conn =
-        arc.observe_value(util::delegate<const float&, const float&>::bind<&Probe::on_arc_changed>(probe));
-    if (!expect(static_cast<bool>(arc_conn), "connect arc observe_value")) return 1;
-
     arc.set_value(0.25f);
     if (!expect(nearly_equal(arc.value(), 0.25f), "arc updates float truth")) return 1;
-    if (!expect(probe.arc_changes == 1, "arc observe sees float truth change")) return 1;
-    if (!expect(nearly_equal(probe.arc_old, 1.0f) && nearly_equal(probe.arc_new, 0.25f),
-                "arc observe reports float old/new")) {
-        return 1;
-    }
-
-    if (!expect(arc.unobserve_value(arc_conn.value()), "arc disconnects observe token")) return 1;
-    arc.set_value(0.75f);
-    if (!expect(nearly_equal(arc.value(), 0.75f), "arc still updates truth after disconnect")) return 1;
-    if (!expect(probe.arc_changes == 1, "arc disconnected observer stays silent")) return 1;
+    arc.set_value(-1.0f);
+    if (!expect(nearly_equal(arc.value(), 0.0f), "arc clamps below normalized range")) return 1;
+    arc.set_value(2.0f);
+    if (!expect(nearly_equal(arc.value(), 1.0f), "arc clamps above normalized range")) return 1;
 
     print_widget_state_case("checkbox_state");
-    std::printf(" changes=%d callbacks=%d now=%d\n",
+    std::printf(" changes=%d replacement_changes=%d callbacks=%d now=%d\n",
                 probe.checkbox_changes,
+                replacement_checkbox_probe.checkbox_changes,
                 g_checkbox_callbacks,
                 checkbox.is_checked() ? 1 : 0);
     print_widget_state_case("dropdown_state");
@@ -389,9 +394,9 @@ int main() {
                 g_slider_callbacks,
                 slider.value());
     print_widget_state_case("progress_state");
-    std::printf(" changes=%d value=%d\n", probe.progress_changes, progress.value());
+    std::printf(" value=%d\n", progress.value());
     print_widget_state_case("arc_state");
-    std::printf(" changes=%d value=%.2f\n", probe.arc_changes, static_cast<double>(arc.value()));
+    std::printf(" value=%.2f\n", static_cast<double>(arc.value()));
     print_widget_state_run_end(true);
     std::puts("[widget_state_demo] ok");
     return 0;

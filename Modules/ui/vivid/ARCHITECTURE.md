@@ -225,6 +225,10 @@ record 与 input 路径，不借用 object storage 或 callback。
 Button、ListItem、MenuItem 这类单一 command edge 每个实例只保存一个 delegate；需要同步多播时，由调用方
 显式拥有 `service::signal` 并从该 delegate 转发，不能让所有控件预付固定槽表。truth/value widget 是否保留
 `service::state` 由其可读状态与真实 observer 消费证据单独裁决，不能与 command edge 混为一谈。
+会由自身输入改变 truth、且已有直接 observer 消费证据的 object widget 只保留一个同步观察槽；第二个直接连接
+必须失败，释放后槽位可复用。需要一对多联动时，controller 从这个边界显式转发到 caller-owned
+`service::signal`，不能把多播容量重新乘到每个控件实例上。只由 setter/range 配置驱动的展示控件直接保存标量，
+不为 API 对称暴露 `observe_value()`；上层若需要观察，应观察其状态真源，而不是展示副本。
 `std::function_ref` 只适合未来同步、非逃逸的函数参数，不得存入 widget、strategy、Scene 或 payload。绑定 owner 自身的控件必须
 禁止复制/移动，或显式实现 callback 重绑；保存成员 strategy 地址的 `InteractionList` 同样不可复制和移动。
 strategy 绑定外部长生命周期 target 时仍可按值复制，不能把该合法场景误收紧为全局禁用 delegate 复制。

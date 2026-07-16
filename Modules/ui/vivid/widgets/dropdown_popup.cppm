@@ -18,7 +18,7 @@ public:
     static constexpr int kMaxOptions = 16;
     static constexpr int kRowHeight = 24;
     static constexpr int kMaxVisible = 8;
-    using selected_state_type = service::state<int, 4>;
+    using selected_state_type = service::state<int, 1>;
     using selected_slot_type = typename selected_state_type::slot_type;
     using selected_connection = typename selected_state_type::connection;
     using select_callback = util::delegate<const int&>;

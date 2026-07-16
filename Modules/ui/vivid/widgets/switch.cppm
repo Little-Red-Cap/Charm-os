@@ -15,7 +15,7 @@ using namespace ui::render;
 export
 class Switch : public WidgetBase<Switch> {
 public:
-    using on_state_type = service::state<bool, 4>;
+    using on_state_type = service::state<bool, 1>;
     using on_slot_type = typename on_state_type::slot_type;
     using on_connection = typename on_state_type::connection;
 

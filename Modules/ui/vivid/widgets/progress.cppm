@@ -3,7 +3,6 @@ module;
 export module charm.widgets.progress;
 
 import charm.core.object;
-import service.state;
 import charm.gfx.color;
 import charm.gfx.render_style;
 import charm.core.style;
@@ -15,10 +14,6 @@ using namespace ui::render;
 export
 class Progress : public WidgetBase<Progress> {
 public:
-    using value_state_type = service::state<int, 4>;
-    using value_slot_type = typename value_state_type::slot_type;
-    using value_connection = typename value_state_type::connection;
-
     Progress() {
         set_size(120, 16);
     }
@@ -35,21 +30,12 @@ public:
     }
 
     void set_value(int v) noexcept {
-        (void)value_.set(alg::arc::clamp_to_range(v, min_, max_));
+        value_ = alg::arc::clamp_to_range(v, min_, max_);
     }
 
-    [[nodiscard]] int value() const noexcept { return value_.get(); }
+    [[nodiscard]] int value() const noexcept { return value_; }
     [[nodiscard]] int min() const noexcept { return min_; }
     [[nodiscard]] int max() const noexcept { return max_; }
-
-    // observe_value() keeps the same-domain synchronous rules of service::state.
-    [[nodiscard]] auto observe_value(value_slot_type slot) noexcept {
-        return value_.connect(slot);
-    }
-
-    [[nodiscard]] bool unobserve_value(value_connection c) noexcept {
-        return value_.disconnect(c);
-    }
 
     void draw(CanvasBase& cvs) {
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
@@ -83,7 +69,7 @@ public:
 private:
     int min_{0};
     int max_{100};
-    value_state_type value_{0};
+    int value_{0};
 };
 
 

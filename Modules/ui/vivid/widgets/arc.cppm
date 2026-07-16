@@ -5,7 +5,6 @@ export module charm.widgets.arc;
 
 
 import charm.core.object;
-import service.state;
 import charm.gfx.color;
 import charm.gfx.render_style;
 import charm.core.style;
@@ -22,10 +21,6 @@ export
 class Arc : public WidgetBase<Arc> {
 
 public:
-    using value_state_type = service::state<float, 4>;
-    using value_slot_type = typename value_state_type::slot_type;
-    using value_connection = typename value_state_type::connection;
-
     void set_start_angle(float deg) noexcept { start_deg_ = deg; }
 
     void set_end_angle(float deg) noexcept { end_deg_ = deg; }
@@ -38,20 +33,11 @@ public:
 
     void set_value(float v) noexcept {
 
-        (void)value_.set(alg::arc::clamp01(v));
+        value_ = alg::arc::clamp01(v);
 
     }
 
-    [[nodiscard]] float value() const noexcept { return value_.get(); }
-
-    // observe_value() keeps the same-domain synchronous rules of service::state.
-    [[nodiscard]] auto observe_value(value_slot_type slot) noexcept {
-        return value_.connect(slot);
-    }
-
-    [[nodiscard]] bool unobserve_value(value_connection c) noexcept {
-        return value_.disconnect(c);
-    }
+    [[nodiscard]] float value() const noexcept { return value_; }
 
 
 
@@ -80,7 +66,7 @@ private:
 
     float end_deg_{270.0f};
 
-    value_state_type value_{1.0f};
+    float value_{1.0f};
 
     int thickness_{6};
 

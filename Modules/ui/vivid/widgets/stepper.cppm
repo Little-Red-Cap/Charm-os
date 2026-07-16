@@ -20,7 +20,7 @@ export
 class Stepper : public WidgetBase<Stepper> {
 public:
     static constexpr std::size_t kMaxSteps = 8;
-    using current_state_type = service::state<int, 4>;
+    using current_state_type = service::state<int, 1>;
     using current_slot_type = typename current_state_type::slot_type;
     using current_connection = typename current_state_type::connection;
 

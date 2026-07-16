@@ -4,7 +4,6 @@ module;
 export module charm.widgets.progress_bar_drill;
 
 import charm.core.object;
-import service.state;
 import charm.core.style;
 import charm.core.style_sheet;
 import charm.gfx.color;
@@ -17,10 +16,6 @@ using namespace ui::render;
 export
 class ProgressBarDrill : public WidgetBase<ProgressBarDrill> {
 public:
-    using value_state_type = service::state<int, 4>;
-    using value_slot_type = typename value_state_type::slot_type;
-    using value_connection = typename value_state_type::connection;
-
     ProgressBarDrill() {
         set_size(200, 18);
     }
@@ -37,11 +32,11 @@ public:
     }
 
     void set_value(int v) noexcept {
-        (void)value_.set(alg::arc::clamp_to_range(v, min_, max_));
+        value_ = alg::arc::clamp_to_range(v, min_, max_);
         indeterminate_ = false;
     }
 
-    [[nodiscard]] int value() const noexcept { return value_.get(); }
+    [[nodiscard]] int value() const noexcept { return value_; }
 
     void set_indeterminate(bool on) noexcept { indeterminate_ = on; }
     [[nodiscard]] bool is_indeterminate() const noexcept { return indeterminate_; }
@@ -56,15 +51,6 @@ public:
     void set_fill_color(const rgba& c) noexcept { fill_color_ = c; }
     void set_track_color(const rgba& c) noexcept { track_color_ = c; }
     void set_hole_color(const rgba& c) noexcept { hole_color_ = c; }
-
-    // observe_value() keeps the same-domain synchronous rules of service::state.
-    [[nodiscard]] auto observe_value(value_slot_type slot) noexcept {
-        return value_.connect(slot);
-    }
-
-    [[nodiscard]] bool unobserve_value(value_connection c) noexcept {
-        return value_.disconnect(c);
-    }
 
     void draw(CanvasBase& cvs) {
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
@@ -145,7 +131,7 @@ public:
 private:
     int min_{0};
     int max_{100};
-    value_state_type value_{0};
+    int value_{0};
     bool indeterminate_{false};
     bool anim_enabled_{true};
     int flow_speed_{2};

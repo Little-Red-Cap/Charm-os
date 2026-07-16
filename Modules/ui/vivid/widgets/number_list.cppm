@@ -101,7 +101,7 @@ export
 class NumberList : public WidgetBase<NumberList> {
 public:
     using ChangeFn = void(*)(void* ctx, int index, int value) noexcept;
-    using selected_state_type = service::state<int, 4>;
+    using selected_state_type = service::state<int, 1>;
     using selected_slot_type = typename selected_state_type::slot_type;
     using selected_connection = typename selected_state_type::connection;
 

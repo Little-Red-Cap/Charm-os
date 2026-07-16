@@ -15,7 +15,7 @@ using namespace ui::render;
 export
 class Checkbox final : public WidgetBase<Checkbox> {
 public:
-    using checked_state_type = service::state<bool, 4>;
+    using checked_state_type = service::state<bool, 1>;
     using checked_slot_type = typename checked_state_type::slot_type;
     using checked_connection = typename checked_state_type::connection;
 

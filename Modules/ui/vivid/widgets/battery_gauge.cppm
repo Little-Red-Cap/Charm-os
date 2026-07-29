@@ -26,7 +26,7 @@ public:
     [[nodiscard]] int value() const noexcept { return value_; }
 
     void draw(CanvasBase& cvs) {
-        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused));
         const Style& base = Theme::instance().get<BatteryGauge>();
         Style st_scratch;
         const Style& st = resolve_style(WidgetKind::BatteryGauge, state, base, st_scratch);

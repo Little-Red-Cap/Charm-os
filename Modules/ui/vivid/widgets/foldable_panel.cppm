@@ -37,7 +37,7 @@ public:
     void set_header_height(int h) noexcept { header_h_ = (h > 12) ? h : 12; }
 
     void draw(CanvasBase& cvs) {
-        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused));
         const Style& base = Theme::instance().get<FoldablePanel>();
         Style st_scratch;
         const Style& st = resolve_style(WidgetKind::FoldablePanel, state, base, st_scratch);
@@ -172,7 +172,7 @@ private:
 
     StyleState current_style_state() const noexcept {
         return make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed),
-                                has_state(State::Focused), style_variant());
+                                has_state(State::Focused));
     }
 
     const Style& resolve_style_for_state(Style& scratch) const noexcept {

@@ -4,6 +4,8 @@ set(target_name ${PROJECT_NAME})
 
 set(CMAKE_CXX_STANDARD 26)
 
+enable_testing()
+
 add_executable(${target_name}
     main.cpp
 )
@@ -25,5 +27,11 @@ target_sources(${target_name} PRIVATE
 )
 
 charm_example_link_sdl3(${target_name} "${CHARM_ROOT}")
+
+add_test(NAME vivid-theme-style-contract
+    COMMAND $<TARGET_FILE:${target_name}> --style-ci)
+set_tests_properties(vivid-theme-style-contract PROPERTIES
+    PASS_REGULAR_EXPRESSION "\\[theme-demo\\] style_ci result=ok"
+    FAIL_REGULAR_EXPRESSION "result=fail|selftest no match|selftest mismatch")
 
 

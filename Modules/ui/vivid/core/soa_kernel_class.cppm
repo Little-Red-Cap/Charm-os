@@ -282,6 +282,41 @@ namespace soa_detail {
     static_assert(sizeof(NodeSlotStorage) == sizeof(std::uint16_t));
     static_assert(std::is_trivially_copyable_v<NodeSlotStorage>);
 
+    class NodeRuntimeState {
+    public:
+        constexpr void reset() noexcept {
+            bits_ = 0;
+        }
+
+        [[nodiscard]] constexpr bool get(SoaStateFlag flag) const noexcept {
+            return (bits_ & static_cast<std::uint8_t>(flag)) != 0;
+        }
+
+        constexpr void set(SoaStateFlag flag, bool on) noexcept {
+            const auto mask = static_cast<std::uint8_t>(flag);
+            bits_ = on
+                ? static_cast<std::uint8_t>(bits_ | mask)
+                : static_cast<std::uint8_t>(bits_ & ~mask);
+        }
+
+        [[nodiscard]] constexpr bool segmented_underline() const noexcept {
+            return (bits_ & kSegmentedUnderlineMask) != 0;
+        }
+
+        constexpr void set_segmented_underline(bool on) noexcept {
+            bits_ = on
+                ? static_cast<std::uint8_t>(bits_ | kSegmentedUnderlineMask)
+                : static_cast<std::uint8_t>(bits_ & ~kSegmentedUnderlineMask);
+        }
+
+    private:
+        static constexpr std::uint8_t kSegmentedUnderlineMask = 1u << 3;
+        std::uint8_t bits_{0};
+    };
+
+    static_assert(sizeof(NodeRuntimeState) == 1);
+    static_assert(std::is_trivially_copyable_v<NodeRuntimeState>);
+
     // ---- Storage / payload descriptor ----
     template <std::size_t N>
     struct CommonSoA {
@@ -295,8 +330,7 @@ namespace soa_detail {
         std::array<std::uint16_t, N> prev_sibling{};
         std::array<std::uint16_t, N> child_count{};
         std::array<std::uint8_t, N> flags{};
-        std::array<std::uint8_t, N> state_flags{};
-        std::array<std::uint8_t, N> variant{};
+        std::array<NodeRuntimeState, N> runtime_state{};
         std::array<Rect, N> rects{};
         std::array<NodeLayoutTextState, N> layout_text{};
         std::array<std::uint16_t, N> style_patch_slot{};
@@ -322,6 +356,8 @@ public:
         sizeof(soa_detail::NodeLayoutTextState);
     static constexpr std::size_t kNodeStorageSlotBytes =
         sizeof(soa_detail::NodeSlotStorage);
+    static constexpr std::size_t kNodeRuntimeStateBytes =
+        sizeof(soa_detail::NodeRuntimeState);
     static_assert(kSemanticPoolBytes <= kSemanticCapacity * 16 + 32,
                   "SoA semantic pool exceeded its admitted capacity bound");
 
@@ -547,7 +583,7 @@ public:
         input_guard_state_write("hovered");
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
-        const bool prev = (common_.state_flags[idx] & static_cast<std::uint8_t>(SoaStateFlag::Hovered)) != 0;
+        const bool prev = common_.runtime_state[idx].get(SoaStateFlag::Hovered);
         if (prev == on) return;
         set_state_flag(h, SoaStateFlag::Hovered, on);
         on_state_change(idx, SoaStateMask::Hovered);
@@ -557,7 +593,7 @@ public:
         input_guard_state_write("pressed");
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
-        const bool prev = (common_.state_flags[idx] & static_cast<std::uint8_t>(SoaStateFlag::Pressed)) != 0;
+        const bool prev = common_.runtime_state[idx].get(SoaStateFlag::Pressed);
         if (prev == on) return;
         set_state_flag(h, SoaStateFlag::Pressed, on);
         on_state_change(idx, SoaStateMask::Pressed);
@@ -567,7 +603,7 @@ public:
         input_guard_state_write("focused");
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
-        const bool prev = (common_.state_flags[idx] & static_cast<std::uint8_t>(SoaStateFlag::Focused)) != 0;
+        const bool prev = common_.runtime_state[idx].get(SoaStateFlag::Focused);
         if (prev == on) return;
         set_state_flag(h, SoaStateFlag::Focused, on);
         on_state_change(idx, SoaStateMask::Focused);
@@ -592,17 +628,17 @@ public:
         if (flag_raw(idx, SoaNodeFlag::Enabled)) {
             bits = static_cast<std::uint8_t>(SoaStateMask::Enabled);
         }
-        const std::uint8_t flags = common_.state_flags[idx];
-        if ((flags & static_cast<std::uint8_t>(SoaStateFlag::Hovered)) != 0) {
+        const auto& runtime_state = common_.runtime_state[idx];
+        if (runtime_state.get(SoaStateFlag::Hovered)) {
             bits = static_cast<std::uint8_t>(bits | static_cast<std::uint8_t>(SoaStateMask::Hovered));
         }
-        if ((flags & static_cast<std::uint8_t>(SoaStateFlag::Pressed)) != 0) {
+        if (runtime_state.get(SoaStateFlag::Pressed)) {
             bits = static_cast<std::uint8_t>(bits | static_cast<std::uint8_t>(SoaStateMask::Pressed));
         }
-        if ((flags & static_cast<std::uint8_t>(SoaStateFlag::Focused)) != 0) {
+        if (runtime_state.get(SoaStateFlag::Focused)) {
             bits = static_cast<std::uint8_t>(bits | static_cast<std::uint8_t>(SoaStateMask::Focused));
         }
-        return StateCompact{bits, common_.variant[idx]};
+        return StateCompact{bits};
     }
 
     void set_input_root(WidgetHandle root) noexcept {
@@ -875,17 +911,19 @@ public:
         return result;
     }
 
-    void set_variant(WidgetHandle h, std::uint8_t variant) noexcept {
+    void set_segmented_underline(WidgetHandle h, bool on) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
-        if (common_.variant[idx] == variant) return;
-        common_.variant[idx] = variant;
-        mark_layout_dirty();
+        const WidgetKind node_kind = common_.kind[idx];
+        if (node_kind != WidgetKind::SegmentedControl && node_kind != WidgetKind::TabView) return;
+        if (common_.runtime_state[idx].segmented_underline() == on) return;
+        common_.runtime_state[idx].set_segmented_underline(on);
+        mark_paint_dirty();
     }
 
-    std::uint8_t variant(WidgetHandle h) const noexcept {
+    bool segmented_underline(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
-        return (idx == kInvalidIndex) ? std::uint8_t{0} : common_.variant[idx];
+        return idx != kInvalidIndex && common_.runtime_state[idx].segmented_underline();
     }
 
     void set_style_patch(WidgetHandle h, const StylePatch& patch) noexcept;

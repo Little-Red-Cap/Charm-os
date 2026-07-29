@@ -97,7 +97,7 @@ public:
     }
     WidgetHandle create_navigation_bar() noexcept {
         auto h = create_tab_view();
-        kernel_.set_variant(h, 1);
+        kernel_.set_segmented_underline(h, true);
         return h;
     }
     WidgetHandle create_toggle_group(WidgetKind group_kind = WidgetKind::None) noexcept {

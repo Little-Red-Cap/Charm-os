@@ -55,7 +55,7 @@ public:
 
     void draw(CanvasBase& cvs) {
         const auto r = get_rect();
-        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused));
         const Style& base = Theme::instance().get<Slider>();
         Style st_scratch;
         const Style& st = resolve_style(WidgetKind::Slider, state, base, st_scratch);
@@ -129,7 +129,7 @@ public:
 
 private:
     void set_value_from_x(int px) noexcept {
-        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused));
         const Style& base = Theme::instance().get<Slider>();
         Style st_scratch;
         const Style& st = resolve_style(WidgetKind::Slider, state, base, st_scratch);

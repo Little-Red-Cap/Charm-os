@@ -48,7 +48,7 @@ public:
     void set_flow_span(int px) noexcept { flow_span_ = (px > 2) ? px : 2; }
 
     void draw(CanvasBase& cvs) {
-        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused));
         const Style& base = Theme::instance().get<ProgressFlowing>();
         Style st_scratch;
         const Style& st = resolve_style(WidgetKind::ProgressFlowing, state, base, st_scratch);

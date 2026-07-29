@@ -422,7 +422,9 @@ export namespace ui::scene {
         void set_scrollbar_orientation(WidgetHandle h, ScrollBarOrientation o) noexcept {
             kernel_.set_scrollbar_orientation(h, o);
         }
-        void set_variant(WidgetHandle h, std::uint8_t variant) noexcept { kernel_.set_variant(h, variant); }
+        void set_segmented_underline(WidgetHandle h, bool on) noexcept {
+            kernel_.set_segmented_underline(h, on);
+        }
         void set_style_patch(WidgetHandle h, const StylePatch& patch) noexcept { kernel_.set_style_override(h, patch); }
         void set_style_adjust(WidgetHandle h, const StylePatch& patch) noexcept { kernel_.set_style_adjust(h, patch); }
         void set_style_override(WidgetHandle h, const StylePatch& patch) noexcept { kernel_.set_style_override(h, patch); }

@@ -61,7 +61,7 @@ public:
     }
 
     void draw(CanvasBase& cvs) {
-        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused));
         const Style& base = Theme::instance().get<ScrollBar>();
         Style st_scratch;
         const Style& st = resolve_style(WidgetKind::ScrollBar, state, base, st_scratch);
@@ -86,7 +86,7 @@ public:
 
     bool on_event(const Event& e) {
         if (!is_enabled()) return false;
-        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused));
         const Style& base = Theme::instance().get<ScrollBar>();
         Style st_scratch;
         const Style& st = resolve_style(WidgetKind::ScrollBar, state, base, st_scratch);

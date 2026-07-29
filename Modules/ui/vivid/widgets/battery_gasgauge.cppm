@@ -54,7 +54,7 @@ public:
     void set_wave_amplitude(int a) noexcept { wave_amplitude_ = (a >= 0) ? a : 0; }
 
     void draw(CanvasBase& cvs) {
-        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused));
         const Style& base = Theme::instance().get<BatteryGasGauge>();
         Style st_scratch;
         const Style& st = resolve_style(WidgetKind::BatteryGasGauge, state, base, st_scratch);

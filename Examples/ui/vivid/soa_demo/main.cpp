@@ -2803,23 +2803,19 @@ namespace {
 
         for (WidgetKind kind : enabled_widget_kinds) {
             const StyleKindStateInfo info = sheet.style_kind_state_info(kind);
-            (void)out::println<"[soa] style kind={} mask=0x{:02X} states={} offset={} variants={} v_offset={}">(
+            (void)out::println<"[soa] style kind={} mask=0x{:02X} states={} offset={}">(
                 g_console,
                 widget_kind_name(kind),
                 static_cast<int>(info.mask),
                 static_cast<int>(info.state_count),
-                static_cast<int>(info.state_offset),
-                static_cast<int>(info.variant_count),
-                static_cast<int>(info.variant_offset));
+                static_cast<int>(info.state_offset));
             if (g_regress_log) {
                 std::fprintf(g_regress_log,
-                             "[soa] style kind=%s mask=0x%02X states=%u offset=%u variants=%u v_offset=%u\n",
+                             "[soa] style kind=%s mask=0x%02X states=%u offset=%u\n",
                              widget_kind_name(kind),
                              static_cast<unsigned>(info.mask),
                              static_cast<unsigned>(info.state_count),
-                             static_cast<unsigned>(info.state_offset),
-                             static_cast<unsigned>(info.variant_count),
-                             static_cast<unsigned>(info.variant_offset));
+                             static_cast<unsigned>(info.state_offset));
             }
         }
 
@@ -3034,6 +3030,67 @@ namespace {
         (void)out::println<"[soa] payload_owner slot_bytes={} stale_read=0 stale_free=0 node_reuse=1 result={}">(
             g_console,
             static_cast<unsigned>(SoaKernel::kNodeStorageSlotBytes),
+            fails == 0 ? "ok" : "fail");
+        return fails == 0;
+    }
+
+    bool run_node_runtime_state_regression() noexcept {
+        int fails = 0;
+        static SoaKernel probe{};
+        WidgetHandle node = probe.create(WidgetKind::TabView);
+        expect_true(static_cast<bool>(node),
+                    "node runtime state: allocation failed", fails);
+        expect_true(!probe.hovered(node) && !probe.pressed(node) && !probe.focused(node)
+                        && !probe.segmented_underline(node),
+                    "node runtime state: defaults mismatch", fails);
+
+        probe.set_segmented_underline(node, true);
+        std::size_t cases = 0;
+        for (std::uint8_t value = 0; value < 8; ++value) {
+            const bool hovered = (value & 1u) != 0;
+            const bool pressed = (value & 2u) != 0;
+            const bool focused = (value & 4u) != 0;
+            probe.set_hovered(node, hovered);
+            probe.set_pressed(node, pressed);
+            probe.set_focused(node, focused);
+
+            std::uint8_t expected = static_cast<std::uint8_t>(SoaStateMask::Enabled);
+            if (hovered) expected = static_cast<std::uint8_t>(expected | static_cast<std::uint8_t>(SoaStateMask::Hovered));
+            if (pressed) expected = static_cast<std::uint8_t>(expected | static_cast<std::uint8_t>(SoaStateMask::Pressed));
+            if (focused) expected = static_cast<std::uint8_t>(expected | static_cast<std::uint8_t>(SoaStateMask::Focused));
+            expect_true(probe.state_compact(node).bits == expected,
+                        "node runtime state: interaction combination mismatch", fails);
+            expect_true(probe.segmented_underline(node),
+                        "node runtime state: interaction write changed presentation", fails);
+            ++cases;
+        }
+
+        const auto before_mode_clear = probe.state_compact(node).bits;
+        probe.set_segmented_underline(node, false);
+        expect_true(!probe.segmented_underline(node)
+                        && probe.state_compact(node).bits == before_mode_clear,
+                    "node runtime state: presentation write changed interaction", fails);
+
+        probe.destroy(node);
+        node = probe.create(WidgetKind::TabView);
+        expect_true(static_cast<bool>(node)
+                        && !probe.hovered(node)
+                        && !probe.pressed(node)
+                        && !probe.focused(node)
+                        && !probe.segmented_underline(node),
+                    "node runtime state: reused node retained stale bits", fails);
+        probe.destroy(node);
+
+        SoaFactory factory{probe};
+        const WidgetHandle navigation = factory.create_navigation_bar();
+        expect_true(static_cast<bool>(navigation) && probe.segmented_underline(navigation),
+                    "node runtime state: navigation factory lost underline mode", fails);
+        probe.destroy(navigation);
+
+        (void)out::println<"[soa] node_runtime_state bytes={} cases={} isolation=1 reuse=1 navigation=1 result={}">(
+            g_console,
+            static_cast<unsigned>(SoaKernel::kNodeRuntimeStateBytes),
+            static_cast<unsigned>(cases),
             fails == 0 ? "ok" : "fail");
         return fails == 0;
     }
@@ -3438,13 +3495,14 @@ int main(int argc, char** argv) {
     }
 #endif
     if (run_ci) {
-        (void)out::println<"[soa] abi style_patch={} soa_kernel={} scene={} nodes={} node_storage_slot={} layout_text_state={} semantic_slots={} semantic_pool={} style_patch_slots={} traversal_frame={} traversal_workspace={}">(
+        (void)out::println<"[soa] abi style_patch={} soa_kernel={} scene={} nodes={} node_storage_slot={} node_runtime_state={} layout_text_state={} semantic_slots={} semantic_pool={} style_patch_slots={} traversal_frame={} traversal_workspace={}">(
             g_console,
             static_cast<unsigned long long>(sizeof(StylePatch)),
             static_cast<unsigned long long>(sizeof(SoaKernel)),
             static_cast<unsigned long long>(sizeof(::ui::scene::Scene)),
             static_cast<unsigned>(SoaKernel::kMaxNodes),
             static_cast<unsigned>(SoaKernel::kNodeStorageSlotBytes),
+            static_cast<unsigned>(SoaKernel::kNodeRuntimeStateBytes),
             static_cast<unsigned>(SoaKernel::kNodeLayoutTextStateBytes),
             static_cast<unsigned>(SoaKernel::kSemanticCapacity),
             static_cast<unsigned>(SoaKernel::kSemanticPoolBytes),
@@ -3845,6 +3903,7 @@ int main(int argc, char** argv) {
     bool style_patch_pool_ok = true;
     bool semantic_pool_ok = true;
     bool payload_owner_ok = true;
+    bool node_runtime_state_ok = true;
     bool layout_text_state_ok = true;
     bool traversal_workspace_ok = true;
     bool rect_truth_ok = true;
@@ -3877,6 +3936,10 @@ int main(int argc, char** argv) {
         payload_owner_ok = run_payload_owner_regression();
         if (!payload_owner_ok) {
             ci_mark_fail("payload_owner");
+        }
+        node_runtime_state_ok = run_node_runtime_state_regression();
+        if (!node_runtime_state_ok) {
+            ci_mark_fail("node_runtime_state");
         }
         layout_text_state_ok = run_layout_text_state_regression();
         if (!layout_text_state_ok) {
@@ -4523,6 +4586,7 @@ int main(int argc, char** argv) {
             && semantic_ok
             && semantic_pool_ok
             && payload_owner_ok
+            && node_runtime_state_ok
             && layout_text_state_ok;
 
         (void)out::println<"[soa-ci] display mode={} bw1={} gray2={} gray2_curve={} eink_max_partial={} eink_min_full_ms={} eink_partial_pct={} missing_glyphs={} fallback_glyphs={} utf8_replace={} text_draw={} text_glyphs={} text_pixels={}">(

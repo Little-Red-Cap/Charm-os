@@ -30,7 +30,7 @@ public:
     void set_on_click(Callback cb) noexcept { callback_ = cb; }
 
     void draw(CanvasBase& cvs) {
-        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused));
         const Style& base = Theme::instance().get<ListItem>();
         Style st_scratch;
         const Style& st = resolve_style(WidgetKind::ListItem, state, base, st_scratch);
@@ -91,7 +91,7 @@ public:
     }
 
     void draw(CanvasBase& cvs) {
-        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused));
         const Style& base = Theme::instance().get<List>();
         Style st_scratch;
         const Style& st = resolve_style(WidgetKind::List, state, base, st_scratch);

@@ -75,7 +75,7 @@ private:
 
     const Style& resolve_list_style(Style& scratch) const noexcept {
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed),
-                                                  has_state(State::Focused), style_variant());
+                                                  has_state(State::Focused));
         const Style& base = Theme::instance().get<ListView>();
         return resolve_style(WidgetKind::ListView, state, base, scratch);
     }

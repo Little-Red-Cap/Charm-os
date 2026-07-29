@@ -24,7 +24,7 @@ public:
     void set_highlight_pos(int percent) noexcept { highlight_pos_ = percent; }
 
     void draw(CanvasBase& cvs) {
-        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused));
         const Style& base = Theme::instance().get<CloudyGlass>();
         Style st_scratch;
         const Style& st = resolve_style(WidgetKind::CloudyGlass, state, base, st_scratch);

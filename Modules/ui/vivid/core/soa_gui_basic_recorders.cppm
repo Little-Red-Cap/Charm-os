@@ -174,10 +174,9 @@ export namespace ui::soa_gui_detail {
 
     void record_segmented_control(ui::draw_cmd::DefaultDrawCmdBuffer& out, const Rect& r,
                                   const ResolvedColors& colors, const ResolvedMetrics& metrics,
-                                  const StyleState& state, std::uint8_t variant,
+                                  const StyleState& state, bool underline_mode,
                                   const char* const* labels, std::uint8_t count, std::uint8_t selected) {
         const int rad = metrics.corner_radius;
-        const bool underline_mode = (variant != 0);
         if (underline_mode) {
             out.fill_rect(r, colors.bg);
             out.stroke_rect(r, colors.border);

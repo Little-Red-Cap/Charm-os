@@ -40,7 +40,7 @@ public:
 
     void draw(CanvasBase& cvs) {
         if (!is_visible()) return;
-        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused));
         const Style& base = Theme::instance().get<ModalDialog>();
         Style st_scratch;
         const Style& st = resolve_style(WidgetKind::ModalDialog, state, base, st_scratch);
@@ -67,7 +67,7 @@ public:
 
     bool on_event(const Event& e) {
         if (!is_visible()) return false;
-        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused));
         const Style& base = Theme::instance().get<ModalDialog>();
         Style st_scratch;
         const Style& st = resolve_style(WidgetKind::ModalDialog, state, base, st_scratch);
@@ -189,7 +189,7 @@ private:
 
     void draw_button(CanvasBase& cvs, const Rect& r,
                      const char* label, bool hot, bool pressed) noexcept {
-        const StyleState state = make_style_state(is_enabled(), hot, pressed, false, style_variant());
+        const StyleState state = make_style_state(is_enabled(), hot, pressed, false);
         const Style& base = Theme::instance().get<Button>();
         Style st_scratch;
         const Style& st = resolve_style(WidgetKind::Button, state, base, st_scratch);

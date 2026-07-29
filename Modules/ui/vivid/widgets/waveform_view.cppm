@@ -35,7 +35,7 @@ public:
     void clear_range() noexcept { has_range_ = false; }
 
     void draw(CanvasBase& cvs) {
-        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused));
         const Style& base = Theme::instance().get<WaveformView>();
         Style st_scratch;
         const Style& st = resolve_style(WidgetKind::WaveformView, state, base, st_scratch);

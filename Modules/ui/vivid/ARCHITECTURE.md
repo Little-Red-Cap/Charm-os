@@ -166,13 +166,13 @@ Object-level widget 不在 `ObjectBase` 常驻通用交互表。需要 gesture/i
 调用方应在 child layout 或集合变化后重新同步，resolver 必须在一次调用期间保持稳定。
 
 `ScrollContainer` 的背景、边框、focus ring 与 scrollbar 统一从 Theme/StyleSheet 解析，不保存 instance-local
-`Style`、nine-slice skin 或调试型拖动文本。逐实例差异使用既有 style variant/rule；图片化外观应由显式
+`Style`、nine-slice skin 或调试型拖动文本。逐实例差异使用 style class 或 local patch；图片化外观应由显式
 装饰控件组合，而不是让每个基础滚动容器常驻未使用的 image/font 状态。
 
 高频 `Button` 同样不保存 instance-local `Style` 或 nine-slice skin；背景、边框、字体和 focus ring 统一从
 Theme/StyleSheet 解析。object `Button` 是纯文本 command 控件，不为无人使用的 image 能力预付 `ImageView`；
 SoA `WidgetKind::IconButton` 是由 Button payload、image registry 与 record pipeline 实现的独立 kind，不等同于
-object `Button` 的类布局。逐实例视觉差异使用既有 style variant/rule，图片化背景通过显式装饰组合实现。
+object `Button` 的类布局。逐实例视觉差异使用 style class 或 local patch，图片化背景通过显式装饰组合实现。
 
 `ObjectBase` 同样不常驻子节点数组。`WidgetBase<Derived, ChildCapacity>` 的默认容量为零；固定 inline 模式
 只供明确选择编译期容量的自定义控件。内置 List、FoldablePanel、ScrollContainer、RadioGroup 使用

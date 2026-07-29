@@ -61,15 +61,11 @@ public:
     void set_focusable(bool on) noexcept { focusable_ = on; }
     bool is_focusable() const noexcept { return focusable_; }
 
-    void set_style_variant(std::uint8_t v) noexcept { style_variant_ = v; }
-    std::uint8_t style_variant() const noexcept { return style_variant_; }
-
 protected:
     Rect rect_{};
     bool visible_{true};
     State state_{State::None};
     bool focusable_{false};
-    std::uint8_t style_variant_{0};
 };
 
 static_assert(sizeof(ObjectBase) <= 32,

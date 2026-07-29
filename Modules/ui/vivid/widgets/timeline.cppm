@@ -80,7 +80,7 @@ public:
     void set_row_height(int h) noexcept { row_h_ = (h > 0) ? h : row_h_; }
 
     void draw(CanvasBase& cvs) {
-        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused));
         const Style& base = Theme::instance().get<Timeline>();
         Style st_scratch;
         const Style& st = resolve_style(WidgetKind::Timeline, state, base, st_scratch);

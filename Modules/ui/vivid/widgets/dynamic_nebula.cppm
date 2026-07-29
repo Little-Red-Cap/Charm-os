@@ -117,7 +117,7 @@ public:
 #else
         const int active_count = active_particle_count();
         if (active_count <= 0) return;
-        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused));
         const Style& base = Theme::instance().get<DynamicNebula>();
         Style st_scratch;
         const Style& st = resolve_style(WidgetKind::DynamicNebula, state, base, st_scratch);

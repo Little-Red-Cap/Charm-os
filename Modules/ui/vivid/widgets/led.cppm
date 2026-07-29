@@ -26,7 +26,7 @@ public:
     void draw(CanvasBase& cvs) {
         const auto r = get_rect();
         if (r.w <= 0 || r.h <= 0) return;
-        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused));
         const Style& base = Theme::instance().get<Led>();
         Style st_scratch;
         const Style& st = resolve_style(WidgetKind::Led, state, base, st_scratch);

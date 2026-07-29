@@ -700,7 +700,6 @@ enum class TableViewColDividerStyle : std::uint8_t {
 export
 struct StateCompact {
     std::uint8_t bits{0};
-    std::uint8_t variant{0};
 
     bool enabled() const noexcept {
         return (bits & static_cast<std::uint8_t>(SoaStateMask::Enabled)) != 0;
@@ -718,3 +717,5 @@ struct StateCompact {
         return (bits & static_cast<std::uint8_t>(SoaStateMask::Focused)) != 0;
     }
 };
+
+static_assert(sizeof(StateCompact) == 1);

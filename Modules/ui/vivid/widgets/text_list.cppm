@@ -131,7 +131,7 @@ public:
     }
 
     void draw(CanvasBase& cvs) {
-        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused));
         const Style& base = Theme::instance().get<TextList>();
         Style st_scratch;
         const Style& st = resolve_style(WidgetKind::TextList, state, base, st_scratch);
@@ -239,7 +239,7 @@ public:
 private:
     StyleState current_style_state() const noexcept {
         return make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed),
-                                has_state(State::Focused), style_variant());
+                                has_state(State::Focused));
     }
 
     const Style& resolve_style_for_state(Style& scratch) const noexcept {

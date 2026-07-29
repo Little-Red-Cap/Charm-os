@@ -189,8 +189,7 @@ public:
     void draw(CanvasBase& cvs) {
 #if !CHARM_VIVID_ENABLE_FLOAT_WIDGETS
         const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered),
-                                                  has_state(State::Pressed), has_state(State::Focused),
-                                                  style_variant());
+                                                  has_state(State::Pressed), has_state(State::Focused));
         const Style& base = Theme::instance().get<NumberList>();
         Style st_scratch;
         const Style& st = resolve_style(WidgetKind::NumberList, state, base, st_scratch);
@@ -221,7 +220,7 @@ public:
         draw_focus_ring(cvs, r, st, has_state(State::Focused));
         return;
 #else
-        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused), style_variant());
+        const StyleState state = make_style_state(is_enabled(), has_state(State::Hovered), has_state(State::Pressed), has_state(State::Focused));
         const Style& base = Theme::instance().get<NumberList>();
         Style st_scratch;
         const Style& st = resolve_style(WidgetKind::NumberList, state, base, st_scratch);

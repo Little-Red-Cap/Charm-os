@@ -56,7 +56,7 @@ private:
         const bool focused = (mask & static_cast<std::uint8_t>(SoaStateMask::Focused)) != 0
             ? state.focused()
             : false;
-        return make_style_state(enabled, hovered, pressed, focused, state.variant);
+    return make_style_state(enabled, hovered, pressed, focused);
     }
 
     bool layout_tree(WidgetHandle root) noexcept {

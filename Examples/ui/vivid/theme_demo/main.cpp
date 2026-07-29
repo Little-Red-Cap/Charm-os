@@ -3,6 +3,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdint>
+#include <cstring>
 
 import charm.core.event;
 import charm.core.handle;
@@ -19,7 +20,7 @@ namespace {
         ThemeTokens tokens;
     };
 
-    constexpr std::uint8_t kVariantSecondary = 1;
+    constexpr StyleClassId kSecondaryButtonStyleClass = 1;
 
     constexpr std::uint8_t mask_hover() noexcept {
         return static_cast<std::uint8_t>(StyleStateFlag::Hovered);
@@ -60,6 +61,7 @@ namespace {
         sheet.clear();
 
         const Style base = make_style_from_tokens(Theme::instance().get_tokens());
+        apply_baseline_theme_preset(base);
         Style out{};
 
         auto mk = [](std::uint8_t r, std::uint8_t g, std::uint8_t b) noexcept {
@@ -68,7 +70,11 @@ namespace {
         auto add_bg_rule = [&](StyleSelector sel, rgba c) {
             StylePatch patch{};
             patch.has_bg_color = true;
+            patch.has_bg_hover = true;
+            patch.has_bg_pressed = true;
             patch.bg_color = c;
+            patch.bg_hover = c;
+            patch.bg_pressed = c;
             sheet.add_rule(sel, patch);
         };
         auto eq = [](const rgba& a, const rgba& b) noexcept {
@@ -91,26 +97,21 @@ namespace {
         add_bg_rule(StyleSelector{WidgetKind::None, hover}, mk(1, 2, 3));
         add_bg_rule(StyleSelector{WidgetKind::Button, hover}, mk(4, 5, 6));
         add_bg_rule(StyleSelector{WidgetKind::Button, static_cast<std::uint8_t>(hover | pressed)}, mk(7, 8, 9));
-        add_bg_rule(StyleSelector{WidgetKind::Button, hover, kVariantSecondary}, mk(10, 11, 12));
+        sheet.rebuild_if_needed();
 
         bool ok = true;
         ok = check(WidgetKind::Button,
-                   make_style_state(true, true, true, false, 0),
+                   make_style_state(true, true, true, false),
                    mk(7, 8, 9),
                    "button hover+pressed") && ok;
         ok = check(WidgetKind::Button,
-                   make_style_state(true, true, false, false, 0),
+                   make_style_state(true, true, false, false),
                    mk(4, 5, 6),
                    "button hover") && ok;
-        ok = check(WidgetKind::Button,
-                   make_style_state(true, true, false, false, kVariantSecondary),
-                   mk(10, 11, 12),
-                   "button variant hover") && ok;
-        ok = check(WidgetKind::Checkbox,
-                   make_style_state(true, true, false, false, 0),
+        ok = check(WidgetKind::Stepper,
+                   make_style_state(true, true, false, false),
                    mk(1, 2, 3),
-                   "generic hover") && ok;
-
+                   "global hover") && ok;
         sheet.clear();
         return ok;
     }
@@ -123,7 +124,13 @@ namespace {
     }
 }
 
-int main() {
+int main(int argc, char** argv) {
+    if (argc == 2 && std::strcmp(argv[1], "--style-ci") == 0) {
+        const bool ok = style_sheet_selftest();
+        std::printf("[theme-demo] style_ci result=%s\n", ok ? "ok" : "fail");
+        return ok ? 0 : 1;
+    }
+
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         std::fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
         return 1;
@@ -157,11 +164,13 @@ int main() {
     DefaultFrameBuffer fb{};
     DefaultCanvas canvas{fb};
     ::ui::scene::Scene scene{canvas};
+    WidgetHandle title{};
+    WidgetHandle progress{};
     scene.build([&](::ui::scene::SceneBuilder& builder) {
         auto root = builder.create_container();
         builder.set_rect(root, {0, 0, screen_width, screen_height});
 
-        auto title = builder.create_label_static("Theme: Light");
+        title = builder.create_label_static("Theme: Light");
         auto subtitle = builder.create_label_static("Keys: 1 Light  2 Dark  3 High Contrast");
 
         auto btn_primary = builder.create_button_static("Primary");
@@ -170,7 +179,7 @@ int main() {
         auto cb = builder.create_checkbox("Enable feature");
         auto radio = builder.create_radio("Radio option");
         auto slider = builder.create_slider();
-        auto progress = builder.create_progress();
+        progress = builder.create_progress();
         auto list_item = builder.create_list_item("List item");
 
         builder.link(root, title);
@@ -198,7 +207,7 @@ int main() {
         builder.set_rect(btn_primary, {col_x, y, col_w, row_h});
         y += row_h + gap;
         builder.set_rect(btn_secondary, {col_x, y, col_w, row_h});
-        builder.set_variant(btn_secondary, kVariantSecondary);
+        builder.set_style_class(btn_secondary, kSecondaryButtonStyleClass);
         y += row_h + gap;
         builder.set_rect(sw, {col_x, y, 64, 28});
         builder.set_checked(sw, true);
@@ -260,10 +269,6 @@ int main() {
         }},
     };
 
-    if (!style_sheet_selftest()) {
-        std::fprintf(stderr, "StyleSheet selftest failed; rule priority may be incorrect.\n");
-    }
-
     auto apply_demo_theme = [&](int index) {
         const int count = static_cast<int>(sizeof(themes) / sizeof(themes[0]));
         if (index < 0) index = 0;
@@ -283,18 +288,19 @@ int main() {
         btn_roles.border_color = StyleRole::Accent;
         sheet.add_role_rule(StyleSelector{WidgetKind::Button, 0}, btn_roles);
 
-        StyleRolePatch btn_secondary_roles{};
-        btn_secondary_roles.has_bg_color = true;
-        btn_secondary_roles.has_bg_hover = true;
-        btn_secondary_roles.has_bg_pressed = true;
-        btn_secondary_roles.has_border_color = true;
-        btn_secondary_roles.has_font_color = true;
-        btn_secondary_roles.bg_color = StyleRole::Surface;
-        btn_secondary_roles.bg_hover = StyleRole::SurfaceHover;
-        btn_secondary_roles.bg_pressed = StyleRole::SurfacePressed;
-        btn_secondary_roles.border_color = StyleRole::Outline;
-        btn_secondary_roles.font_color = StyleRole::OnSurface;
-        sheet.add_role_rule(StyleSelector{WidgetKind::Button, 0, kVariantSecondary}, btn_secondary_roles);
+        const auto& tokens = Theme::instance().get_tokens();
+        StylePatch btn_secondary{};
+        btn_secondary.has_bg_color = true;
+        btn_secondary.has_bg_hover = true;
+        btn_secondary.has_bg_pressed = true;
+        btn_secondary.has_border_color = true;
+        btn_secondary.has_font_color = true;
+        btn_secondary.bg_color = tokens.surface;
+        btn_secondary.bg_hover = adjust_by_luma(tokens.surface, 8);
+        btn_secondary.bg_pressed = adjust_by_luma(tokens.surface, 20);
+        btn_secondary.border_color = tokens.outline;
+        btn_secondary.font_color = tokens.on_surface;
+        Theme::instance().set_style_class(kSecondaryButtonStyleClass, btn_secondary);
 
         StyleRolePatch list_hover{};
         list_hover.has_bg_color = true;

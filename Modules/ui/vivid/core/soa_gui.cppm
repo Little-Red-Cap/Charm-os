@@ -35,7 +35,7 @@ using namespace ui::soa_gui_detail;
 namespace {
     StyleState make_state(const SoaKernel& kernel, WidgetHandle h) noexcept {
         const StateCompact state = kernel.state_compact(h);
-        return make_style_state(state.enabled(), state.hovered(), state.pressed(), state.focused(), state.variant);
+        return make_style_state(state.enabled(), state.hovered(), state.pressed(), state.focused());
     }
 
     constexpr std::size_t kMaxSegments = 8;
@@ -526,7 +526,8 @@ void SoaGui::record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::D
             for (std::uint8_t i = 0; i < count && i < labels.size(); ++i) {
                 labels[i] = kernel_.segmented_label(h, i);
             }
-            record_segmented_control(out, world_rect, *colors, *metrics, state, state.variant,
+            record_segmented_control(out, world_rect, *colors, *metrics, state,
+                                     kernel_.segmented_underline(h),
                                      labels.data(), count, kernel_.segmented_selected(h));
         }
         break;

@@ -44,10 +44,10 @@ runtime diagnostic/policy 状态。configure model 为 runtime globals 保留独
 独立硬失败，不能用增大产品 budget 掩盖。
 
 DrawCmd command arena 以 canonical `CmdHeader + 最大 payload` 的 record stride 乘算：关闭 detail evidence
-时配置上界为 60B/command，开启时为 64B/command。arena 上界不超过 65536B 时，live buffer 与 compaction
-workspace 的 offset table 使用 2B/command，否则使用 4B/command。单 buffer 配置上界为
-`arena + offset table + text + blob + 4096B`；compaction workspace 上界为
-`offset table + 2048B`。C++ `sizeof` 门、manifest 和 admission JSON 必须消费同一组 record/arena/offset 证据。
+时配置上界为 60B/command，开启时为 64B/command。live buffer 与 compaction workspace 不常驻随机索引
+offset table；executor、compaction、snapshot 与 evidence 都按 byte cursor 遍历。单 buffer 配置上界为
+`arena + text + blob + 4096B`，compaction workspace 固定上界为 `2048B`。C++ `sizeof` 门、manifest 和
+admission JSON 必须消费同一组 record/arena 证据。
 
 DrawCmd compaction 的五类 batch scratch 生命周期互斥，必须共享一块 64 项、按最大 item 对齐的 fixed byte
 storage。批项必须具有唯一 object representation，并以 `memcpy` 写入 raw blob；padding 必须显式命名并

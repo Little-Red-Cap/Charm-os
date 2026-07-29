@@ -356,9 +356,11 @@ namespace {
         out.clear();
         out.reserve(buf.size());
         ui::draw_cmd::DrawCmd cmd{};
-        const std::size_t cmd_count = buf.size();
-        for (std::size_t i = 0; i < cmd_count; ++i) {
-            if (!buf.read_cmd(i, cmd)) return false;
+        const std::size_t cmd_bytes = buf.cmd_bytes();
+        std::size_t offset = 0;
+        while (offset < cmd_bytes) {
+            std::size_t stride = 0;
+            if (!buf.read_cmd_at_offset(offset, cmd, stride)) return false;
             switch (cmd.type) {
             case ui::draw_cmd::CmdType::DrawTextBox: {
                 if (cmd.text.length == 0) break;
@@ -387,6 +389,7 @@ namespace {
             default:
                 break;
             }
+            offset += stride;
         }
         return true;
     }
@@ -396,9 +399,11 @@ namespace {
         out.clear();
         out.reserve(buf.size());
         ui::draw_cmd::DrawCmd cmd{};
-        const std::size_t cmd_count = buf.size();
-        for (std::size_t i = 0; i < cmd_count; ++i) {
-            if (!buf.read_cmd(i, cmd)) return false;
+        const std::size_t cmd_bytes = buf.cmd_bytes();
+        std::size_t offset = 0;
+        while (offset < cmd_bytes) {
+            std::size_t stride = 0;
+            if (!buf.read_cmd_at_offset(offset, cmd, stride)) return false;
             switch (cmd.type) {
             case ui::draw_cmd::CmdType::FillRect:
                 out.push_back(cmd.rect);
@@ -420,6 +425,7 @@ namespace {
             default:
                 break;
             }
+            offset += stride;
         }
         return true;
     }

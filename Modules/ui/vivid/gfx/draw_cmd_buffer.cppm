@@ -56,13 +56,6 @@ namespace ui::draw_cmd::buffer_detail {
 
     template <std::size_t MaxCmds>
     inline constexpr std::size_t cmd_bytes_capacity = MaxCmds * max_encoded_cmd_stride;
-
-    template <std::size_t MaxCmds>
-    using CmdOffset = std::conditional_t<
-        (cmd_bytes_capacity<MaxCmds>
-         <= static_cast<std::size_t>(std::numeric_limits<std::uint16_t>::max()) + 1u),
-        std::uint16_t,
-        std::uint32_t>;
 }
 
 export namespace ui::draw_cmd {
@@ -122,7 +115,6 @@ export namespace ui::draw_cmd {
         bool overflowed_{false};
     };
 
-    template <std::size_t MaxCmds, std::size_t TextBytes, std::size_t BlobBytes>
     struct DrawCmdCompactionWorkspace {
         static constexpr std::size_t kMaxBatchItems = 64;
         static constexpr std::size_t kBatchItemBytes = sizeof(GlyphRunItem);
@@ -138,7 +130,6 @@ export namespace ui::draw_cmd {
         static_assert(alignof(PathBatchItem) <= kBatchItemAlignment);
         static_assert(alignof(ImageBatchItem) <= kBatchItemAlignment);
 
-        std::array<buffer_detail::CmdOffset<MaxCmds>, MaxCmds> output_offsets{};
         alignas(kBatchItemAlignment) std::array<std::byte, kBatchStorageBytes> batch_item_storage{};
         DrawCmd batch_command{};
 
@@ -168,20 +159,14 @@ export namespace ui::draw_cmd {
 
     template <std::size_t MaxCmds, std::size_t TextBytes, std::size_t BlobBytes>
     class DrawCmdBuffer {
-        using CmdOffset = buffer_detail::CmdOffset<MaxCmds>;
-
     public:
-        using CompactionWorkspace = DrawCmdCompactionWorkspace<MaxCmds, TextBytes, BlobBytes>;
+        using CompactionWorkspace = DrawCmdCompactionWorkspace;
         static constexpr std::size_t kMaxCommands = MaxCmds;
         static constexpr std::size_t kTextCapacity = TextBytes;
         static constexpr std::size_t kBlobCapacity = BlobBytes;
         static constexpr std::size_t kCmdBytesCapacity =
             buffer_detail::cmd_bytes_capacity<MaxCmds>;
-        static constexpr std::size_t kCompactionWorkspaceUpperBytes =
-            MaxCmds * sizeof(CmdOffset) + 2048;
-        static_assert(kCmdBytesCapacity
-                      <= static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max()) + 1u);
-        static_assert(sizeof(CmdOffset) == 2 || sizeof(CmdOffset) == 4);
+        static constexpr std::size_t kCompactionWorkspaceUpperBytes = 2048;
         static_assert(sizeof(CompactionWorkspace) <= kCompactionWorkspaceUpperBytes);
 
         void clear() noexcept {
@@ -199,7 +184,6 @@ export namespace ui::draw_cmd {
             batch_shrink_round_ = 0;
             batch_shrink_image_ = 0;
             batch_shrink_focus_ = 0;
-            offsets_valid_ = true;
 #if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
             current_draw_scope_ = {};
 #endif
@@ -236,23 +220,6 @@ export namespace ui::draw_cmd {
             if (span.length == 0) return true;
             const std::size_t end = static_cast<std::size_t>(span.offset) + span.length;
             return end <= text_used_;
-        }
-        [[nodiscard]] const CmdHeader* cmd_header(std::size_t index) const noexcept {
-            if (!offsets_valid_) return nullptr;
-            if (index >= count_) return nullptr;
-            const std::size_t offset = cmd_offsets_[index];
-            if (offset + sizeof(CmdHeader) > cmd_bytes_used_) return nullptr;
-            const auto* header = reinterpret_cast<const CmdHeader*>(cmd_bytes_.data() + offset);
-            if (header->size < sizeof(CmdHeader)) return nullptr;
-            const std::size_t stride = cmd_stride(header->size);
-            if (stride > buffer_detail::max_encoded_cmd_stride) return nullptr;
-            if (offset + stride > cmd_bytes_used_) return nullptr;
-            return header;
-        }
-        [[nodiscard]] bool read_cmd(std::size_t index, DrawCmd& out) const noexcept {
-            const CmdHeader* header = cmd_header(index);
-            if (!header) return false;
-            return decode_cmd(header, out);
         }
         [[nodiscard]] bool read_cmd_at_offset(std::size_t offset,
                                               DrawCmd& out,
@@ -292,16 +259,12 @@ export namespace ui::draw_cmd {
             cmd_bytes_used_ = cmd_bytes_len;
             count_ = cmd_count;
             if (cmd_bytes_used_ > 0) {
-                const bool rebuilt = (count_ != 0)
-                    ? rebuild_offsets()
-                    : rebuild_offsets_from_bytes();
-                if (!rebuilt) {
+                if (!validate_cmd_stream(count_)) {
                     cmd_overflowed_ = true;
                     return false;
                 }
             } else {
                 count_ = 0;
-                offsets_valid_ = true;
             }
             if (!text || text_bytes == 0) {
                 text_[0] = '\0';
@@ -556,7 +519,6 @@ export namespace ui::draw_cmd {
         bool compact(CompactionWorkspace& workspace) noexcept {
             if (cmd_bytes_used_ == 0) return true;
             const std::size_t input_bytes = cmd_bytes_used_;
-            auto& output_offsets = workspace.output_offsets;
             std::size_t out_bytes = 0;
             std::size_t out_count = 0;
             std::size_t offset = 0;
@@ -587,8 +549,7 @@ export namespace ui::draw_cmd {
                                 cmd_bytes_.data(),
                                 kCmdBytesCapacity,
                                 out_bytes,
-                                out_count,
-                                output_offsets.data())) {
+                                out_count)) {
                     cmd_overflowed_ = true;
                     return false;
                 }
@@ -1354,14 +1315,9 @@ export namespace ui::draw_cmd {
             if (out_count == 0) {
                 count_ = 0;
                 cmd_bytes_used_ = 0;
-                offsets_valid_ = false;
             } else {
                 count_ = out_count;
                 cmd_bytes_used_ = out_bytes;
-                std::memcpy(cmd_offsets_.data(),
-                            output_offsets.data(),
-                            out_count * sizeof(CmdOffset));
-                offsets_valid_ = true;
             }
             return ok && !blob_.overflowed();
         }
@@ -1396,51 +1352,29 @@ export namespace ui::draw_cmd {
                             cmd_bytes_.data(),
                             kCmdBytesCapacity,
                             cmd_bytes_used_,
-                            count_,
-                            cmd_offsets_.data())) {
+                            count_)) {
                 cmd_overflowed_ = true;
                 return false;
             }
             return true;
         }
 
-        bool rebuild_offsets() noexcept {
+        bool validate_cmd_stream(std::size_t expected_count) noexcept {
             std::size_t offset = 0;
-            for (std::size_t i = 0; i < count_; ++i) {
-                if (offset + sizeof(CmdHeader) > cmd_bytes_used_) return false;
-                const auto* header = reinterpret_cast<const CmdHeader*>(cmd_bytes_.data() + offset);
-                if (header->size < sizeof(CmdHeader)) return false;
-                cmd_offsets_[i] = static_cast<CmdOffset>(offset);
-                const std::size_t stride = cmd_stride(header->size);
-                if (stride == 0 || stride > buffer_detail::max_encoded_cmd_stride) return false;
-                if (offset + stride > cmd_bytes_used_) return false;
-                offset += stride;
-            }
-            if (offset != cmd_bytes_used_) return false;
-            offsets_valid_ = true;
-            return true;
-        }
-
-        bool rebuild_offsets_from_bytes() noexcept {
-            std::size_t offset = 0;
-            std::size_t count = 0;
+            std::size_t actual_count = 0;
             while (offset < cmd_bytes_used_) {
                 if (offset + sizeof(CmdHeader) > cmd_bytes_used_) return false;
-                if (count >= kMaxCommands) {
-                    cmd_overflowed_ = true;
-                    return false;
-                }
+                if (actual_count >= kMaxCommands) return false;
                 const auto* header = reinterpret_cast<const CmdHeader*>(cmd_bytes_.data() + offset);
                 if (header->size < sizeof(CmdHeader)) return false;
-                cmd_offsets_[count] = static_cast<CmdOffset>(offset);
                 const std::size_t stride = cmd_stride(header->size);
                 if (stride == 0 || stride > buffer_detail::max_encoded_cmd_stride) return false;
                 if (offset + stride > cmd_bytes_used_) return false;
                 offset += stride;
-                ++count;
+                ++actual_count;
             }
-            count_ = count;
-            offsets_valid_ = true;
+            if (expected_count != 0 && actual_count != expected_count) return false;
+            count_ = actual_count;
             return true;
         }
 
@@ -1448,7 +1382,6 @@ export namespace ui::draw_cmd {
                               std::size_t capacity,
                               std::size_t& out_bytes,
                               std::size_t& out_count,
-                              CmdOffset* offsets,
                               CmdType type,
                               const Rect& rect,
 #if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
@@ -1462,8 +1395,6 @@ export namespace ui::draw_cmd {
             const std::size_t stride = cmd_stride(cmd_size);
             if (stride > buffer_detail::max_encoded_cmd_stride) return false;
             if ((out_bytes + stride) > capacity) return false;
-            if (out_bytes > std::numeric_limits<CmdOffset>::max()) return false;
-            offsets[out_count] = static_cast<CmdOffset>(out_bytes);
             CmdHeader header{};
             header.type = type;
             header.size = static_cast<std::uint16_t>(cmd_size);
@@ -1485,12 +1416,11 @@ export namespace ui::draw_cmd {
                                std::byte* base,
                                std::size_t capacity,
                                std::size_t& out_bytes,
-                               std::size_t& out_count,
-                               CmdOffset* offsets) noexcept {
+                               std::size_t& out_count) noexcept {
             switch (cmd.type) {
             case CmdType::PushClip:
             case CmdType::PopClip:
-                return write_cmd(base, capacity, out_bytes, out_count, offsets,
+                return write_cmd(base, capacity, out_bytes, out_count,
                                  cmd.type, cmd.rect,
 #if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
                                  cmd.draw_scope,
@@ -1498,7 +1428,7 @@ export namespace ui::draw_cmd {
                                  nullptr, 0);
             case CmdType::DrawLine: {
                 CmdColor payload{cmd.color};
-                return write_cmd(base, capacity, out_bytes, out_count, offsets,
+                return write_cmd(base, capacity, out_bytes, out_count,
                                  cmd.type, cmd.rect,
 #if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
                                  cmd.draw_scope,
@@ -1511,7 +1441,7 @@ export namespace ui::draw_cmd {
                 payload.blob = cmd.blob;
                 payload.count = cmd.p0;
                 payload.closed = cmd.p1;
-                return write_cmd(base, capacity, out_bytes, out_count, offsets,
+                return write_cmd(base, capacity, out_bytes, out_count,
                                  cmd.type, cmd.rect,
 #if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
                                  cmd.draw_scope,
@@ -1521,7 +1451,7 @@ export namespace ui::draw_cmd {
             case CmdType::FillRect:
             case CmdType::StrokeRect: {
                 CmdColor payload{cmd.color};
-                return write_cmd(base, capacity, out_bytes, out_count, offsets,
+                return write_cmd(base, capacity, out_bytes, out_count,
                                  cmd.type, cmd.rect,
 #if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
                                  cmd.draw_scope,
@@ -1535,7 +1465,7 @@ export namespace ui::draw_cmd {
                 payload.p1 = cmd.p1;
                 payload.p2 = cmd.p2;
                 payload.p3 = cmd.p3;
-                return write_cmd(base, capacity, out_bytes, out_count, offsets,
+                return write_cmd(base, capacity, out_bytes, out_count,
                                  cmd.type, cmd.rect,
 #if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
                                  cmd.draw_scope,
@@ -1549,7 +1479,7 @@ export namespace ui::draw_cmd {
                 CmdColorP0 payload{};
                 payload.color = cmd.color;
                 payload.p0 = cmd.p0;
-                return write_cmd(base, capacity, out_bytes, out_count, offsets,
+                return write_cmd(base, capacity, out_bytes, out_count,
                                  cmd.type, cmd.rect,
 #if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
                                  cmd.draw_scope,
@@ -1558,7 +1488,7 @@ export namespace ui::draw_cmd {
             }
             case CmdType::DrawImage: {
                 CmdImage payload{cmd.image};
-                return write_cmd(base, capacity, out_bytes, out_count, offsets,
+                return write_cmd(base, capacity, out_bytes, out_count,
                                  cmd.type, cmd.rect,
 #if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
                                  cmd.draw_scope,
@@ -1571,7 +1501,7 @@ export namespace ui::draw_cmd {
                 payload.p0 = cmd.p0;
                 payload.p1 = cmd.p1;
                 payload.p2 = cmd.p2;
-                return write_cmd(base, capacity, out_bytes, out_count, offsets,
+                return write_cmd(base, capacity, out_bytes, out_count,
                                  cmd.type, cmd.rect,
 #if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
                                  cmd.draw_scope,
@@ -1585,7 +1515,7 @@ export namespace ui::draw_cmd {
                 payload.p1 = cmd.p1;
                 payload.p2 = cmd.p2;
                 payload.p3 = cmd.p3;
-                return write_cmd(base, capacity, out_bytes, out_count, offsets,
+                return write_cmd(base, capacity, out_bytes, out_count,
                                  cmd.type, cmd.rect,
 #if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
                                  cmd.draw_scope,
@@ -1602,7 +1532,7 @@ export namespace ui::draw_cmd {
                 payload.align_v = cmd.align_v;
                 payload.wrap = cmd.wrap;
                 payload.ellipsis = cmd.ellipsis;
-                return write_cmd(base, capacity, out_bytes, out_count, offsets,
+                return write_cmd(base, capacity, out_bytes, out_count,
                                  cmd.type, cmd.rect,
 #if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
                                  cmd.draw_scope,
@@ -1615,7 +1545,7 @@ export namespace ui::draw_cmd {
                 payload.p0 = cmd.p0;
                 payload.p1 = cmd.p1;
                 payload.p2 = cmd.p2;
-                return write_cmd(base, capacity, out_bytes, out_count, offsets,
+                return write_cmd(base, capacity, out_bytes, out_count,
                                  cmd.type, cmd.rect,
 #if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
                                  cmd.draw_scope,
@@ -1628,7 +1558,7 @@ export namespace ui::draw_cmd {
                 payload.color = cmd.color;
                 payload.blob = cmd.blob;
                 payload.count = cmd.p0;
-                return write_cmd(base, capacity, out_bytes, out_count, offsets,
+                return write_cmd(base, capacity, out_bytes, out_count,
                                  cmd.type, cmd.rect,
 #if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
                                  cmd.draw_scope,
@@ -1640,7 +1570,7 @@ export namespace ui::draw_cmd {
                 payload.color = cmd.color;
                 payload.blob = cmd.blob;
                 payload.count = cmd.p0;
-                return write_cmd(base, capacity, out_bytes, out_count, offsets,
+                return write_cmd(base, capacity, out_bytes, out_count,
                                  cmd.type, cmd.rect,
 #if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
                                  cmd.draw_scope,
@@ -1652,7 +1582,7 @@ export namespace ui::draw_cmd {
                 payload.color = cmd.color;
                 payload.blob = cmd.blob;
                 payload.count = cmd.p0;
-                return write_cmd(base, capacity, out_bytes, out_count, offsets,
+                return write_cmd(base, capacity, out_bytes, out_count,
                                  cmd.type, cmd.rect,
 #if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
                                  cmd.draw_scope,
@@ -1667,7 +1597,7 @@ export namespace ui::draw_cmd {
                 payload.p1 = cmd.p1;
                 payload.p2 = cmd.p2;
                 payload.count = cmd.p3;
-                return write_cmd(base, capacity, out_bytes, out_count, offsets,
+                return write_cmd(base, capacity, out_bytes, out_count,
                                  cmd.type, cmd.rect,
 #if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
                                  cmd.draw_scope,
@@ -1683,7 +1613,7 @@ export namespace ui::draw_cmd {
                 payload.blob = cmd.blob;
                 payload.p0 = cmd.p0;
                 payload.count = cmd.p1;
-                return write_cmd(base, capacity, out_bytes, out_count, offsets,
+                return write_cmd(base, capacity, out_bytes, out_count,
                                  cmd.type, cmd.rect,
 #if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
                                  cmd.draw_scope,
@@ -1701,7 +1631,7 @@ export namespace ui::draw_cmd {
                 payload.wrap = cmd.wrap;
                 payload.ellipsis = cmd.ellipsis;
                 payload.count = static_cast<std::uint16_t>(cmd.p0);
-                return write_cmd(base, capacity, out_bytes, out_count, offsets,
+                return write_cmd(base, capacity, out_bytes, out_count,
                                  cmd.type, cmd.rect,
 #if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
                                  cmd.draw_scope,
@@ -1713,7 +1643,7 @@ export namespace ui::draw_cmd {
                 payload.image = cmd.image;
                 payload.blob = cmd.blob;
                 payload.count = cmd.p0;
-                return write_cmd(base, capacity, out_bytes, out_count, offsets,
+                return write_cmd(base, capacity, out_bytes, out_count,
                                  cmd.type, cmd.rect,
 #if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
                                  cmd.draw_scope,
@@ -1728,7 +1658,7 @@ export namespace ui::draw_cmd {
                 payload.p1 = cmd.p1;
                 payload.p2 = cmd.p2;
                 payload.count = cmd.p3;
-                return write_cmd(base, capacity, out_bytes, out_count, offsets,
+                return write_cmd(base, capacity, out_bytes, out_count,
                                  cmd.type, cmd.rect,
 #if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
                                  cmd.draw_scope,
@@ -1743,7 +1673,7 @@ export namespace ui::draw_cmd {
                 payload.p1 = cmd.p1;
                 payload.p2 = cmd.p2;
                 payload.p3 = cmd.p3;
-                return write_cmd(base, capacity, out_bytes, out_count, offsets,
+                return write_cmd(base, capacity, out_bytes, out_count,
                                  cmd.type, cmd.rect,
 #if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
                                  cmd.draw_scope,
@@ -1756,7 +1686,6 @@ export namespace ui::draw_cmd {
         }
 
         alignas(kCmdAlign) std::array<std::byte, kCmdBytesCapacity> cmd_bytes_{};
-        std::array<CmdOffset, kMaxCommands> cmd_offsets_{};
         std::array<char, kTextCapacity> text_{};
         BlobArena<kBlobCapacity> blob_{};
         std::size_t count_{0};
@@ -1771,7 +1700,6 @@ export namespace ui::draw_cmd {
         std::size_t batch_shrink_focus_{0};
         bool cmd_overflowed_{false};
         bool text_overflowed_{false};
-        bool offsets_valid_{true};
 #if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
         DrawScope current_draw_scope_{};
 #endif

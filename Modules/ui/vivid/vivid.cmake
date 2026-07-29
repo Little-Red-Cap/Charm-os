@@ -557,15 +557,9 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
     endif()
     math(EXPR _vivid_draw_cmd_arena_upper_bytes
         "${VIVID_DRAW_CMD_MAX_COMMANDS} * ${_vivid_draw_cmd_record_upper_bytes}")
-    if(_vivid_draw_cmd_arena_upper_bytes LESS_EQUAL 65536)
-        set(_vivid_draw_cmd_offset_bytes 2)
-    else()
-        set(_vivid_draw_cmd_offset_bytes 4)
-    endif()
     math(EXPR _vivid_draw_cmd_buffer_upper_bytes
-        "${_vivid_draw_cmd_arena_upper_bytes} + ${VIVID_DRAW_CMD_MAX_COMMANDS} * ${_vivid_draw_cmd_offset_bytes} + ${VIVID_DRAW_CMD_TEXT_BYTES} + ${VIVID_DRAW_CMD_BLOB_BYTES} + 4096")
-    math(EXPR _vivid_draw_cmd_compaction_workspace_upper_bytes
-        "${VIVID_DRAW_CMD_MAX_COMMANDS} * ${_vivid_draw_cmd_offset_bytes} + 2048")
+        "${_vivid_draw_cmd_arena_upper_bytes} + ${VIVID_DRAW_CMD_TEXT_BYTES} + ${VIVID_DRAW_CMD_BLOB_BYTES} + 4096")
+    set(_vivid_draw_cmd_compaction_workspace_upper_bytes 2048)
     set(_vivid_draw_cmd_executor_workspace_upper_bytes 4096)
     set(VIVID_DRAW_CMD_RECORD_UPPER_BYTES ${_vivid_draw_cmd_record_upper_bytes})
     set(VIVID_DRAW_CMD_BUFFER_UPPER_BYTES ${_vivid_draw_cmd_buffer_upper_bytes})
@@ -667,7 +661,6 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
         "draw_cmd_blob_bytes=${VIVID_DRAW_CMD_BLOB_BYTES}\n"
         "draw_cmd_record_upper_bytes=${_vivid_draw_cmd_record_upper_bytes}\n"
         "draw_cmd_arena_upper_bytes=${_vivid_draw_cmd_arena_upper_bytes}\n"
-        "draw_cmd_offset_bytes=${_vivid_draw_cmd_offset_bytes}\n"
         "draw_cmd_buffer_upper_bytes=${_vivid_draw_cmd_buffer_upper_bytes}\n"
         "draw_detail_evidence=${VIVID_DRAW_DETAIL_EVIDENCE}\n"
         "soa_max_nodes=${VIVID_SOA_MAX_NODES}\n"
@@ -816,7 +809,6 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
             "    \"command_buffer_upper_bytes\": ${_vivid_command_buffer_upper_bytes},\n"
             "    \"draw_cmd_record_upper_bytes\": ${_vivid_draw_cmd_record_upper_bytes},\n"
             "    \"draw_cmd_arena_upper_bytes\": ${_vivid_draw_cmd_arena_upper_bytes},\n"
-            "    \"draw_cmd_offset_bytes\": ${_vivid_draw_cmd_offset_bytes},\n"
             "    \"draw_cmd_buffer_upper_bytes\": ${_vivid_draw_cmd_buffer_upper_bytes},\n"
             "    \"compaction_workspace_upper_bytes\": ${_vivid_draw_cmd_compaction_workspace_upper_bytes},\n"
             "    \"executor_workspace_upper_bytes\": ${_vivid_draw_cmd_executor_workspace_upper_bytes},\n"

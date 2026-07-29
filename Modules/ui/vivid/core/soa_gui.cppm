@@ -182,6 +182,7 @@ WidgetHandle SoaGui::root() const noexcept {
         (void)cmd_buffer_.compact(compaction_workspace_);
         last_cmd_stats_ = cmd_buffer_.stats();
         last_cmd_stats_.workspace_overflowed = kernel_.workspace_overflowed();
+        last_cmd_stats_.style_patch_overflowed = kernel_.style_patch_overflowed();
         text_profile_reset();
         canvas_.begin_frame();
         ui::draw_cmd::ImageRegistryPhaseGuard phase_execute{ui::draw_cmd::ImageRegisterReason::FrameExecute};
@@ -200,6 +201,7 @@ WidgetHandle SoaGui::root() const noexcept {
         (void)out.compact(compaction_workspace_);
         last_cmd_stats_ = out.stats();
         last_cmd_stats_.workspace_overflowed = kernel_.workspace_overflowed();
+        last_cmd_stats_.style_patch_overflowed = kernel_.style_patch_overflowed();
         return last_cmd_stats_;
     }
 
@@ -217,6 +219,7 @@ template <ui::RenderBackend Backend>
         (void)cmd_buffer_.compact(compaction_workspace_);
         last_cmd_stats_ = cmd_buffer_.stats();
         last_cmd_stats_.workspace_overflowed = kernel_.workspace_overflowed();
+        last_cmd_stats_.style_patch_overflowed = kernel_.style_patch_overflowed();
         text_profile_reset();
         ui::draw_cmd::ImageRegistryPhaseGuard phase_execute{ui::draw_cmd::ImageRegisterReason::FrameExecute};
         return cmd_exec_.execute_tiles(backend, tile_buffer, cmd_buffer_, config);

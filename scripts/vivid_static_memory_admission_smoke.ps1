@@ -142,6 +142,10 @@ function Assert-Admission {
     if ($Values.max_hot_stack_frame_bytes -ne "4096") {
         throw "Unexpected Vivid stack frame limit: $($Values.max_hot_stack_frame_bytes)"
     }
+    if ($Values.style_patch_slot_cap -ne "192" -or
+        $Values.style_patch_pool_upper_bytes -ne "49152") {
+        throw "Unexpected sparse StylePatch budget in static memory manifest"
+    }
     if ($Status -eq "admitted" -and
         ($budget -le 0 -or $headroom -lt $MinimumHeadroom)) {
         throw "Admission headroom is insufficient: upper=$upper budget=$budget headroom=$headroom"
@@ -163,6 +167,10 @@ function Assert-ProductEvidence {
     $manifest = Read-KeyValueManifest -Path (Join-Path $generatedDir "static_memory_admission.txt")
 
     Assert-Admission -Values $manifest -FeatureSet "PRODUCT" -Profile $Profile -Status "admitted" -MinimumHeadroom 524288
+    if ([int64]$profileEvidence.workset.style_patch_slot_cap -ne 192 -or
+        [int64]$admissionEvidence.static_memory.style_patch_pool_upper_bytes -ne 49152) {
+        throw "PRODUCT sparse StylePatch evidence mismatch for profile '$Profile'"
+    }
     if ($profileEvidence.profile_fingerprint -ne $envelopeEvidence.profile_fingerprint -or
         $profileEvidence.profile_fingerprint -ne $closureEvidence.profile_fingerprint -or
         $profileEvidence.profile_fingerprint -ne $admissionEvidence.profile_fingerprint -or
@@ -297,6 +305,7 @@ add_subdirectory("${CHARM_ROOT}" "${CMAKE_BINARY_DIR}/Charm")
 $CommonSoaArgs = @(
     "-DCHARM_VIVID_SOA_MAX_NODES=256",
     "-DCHARM_VIVID_SOA_TEXT_ARENA_BYTES=",
+    "-DCHARM_VIVID_STYLE_PATCH_SLOT_CAP=192",
     "-DCHARM_VIVID_STYLE_CLASS_MAX=256",
     "-DCHARM_VIVID_STYLE_RULE_CAP=32",
     "-DCHARM_VIVID_STYLE_METRICS_POOL_CAP=64",

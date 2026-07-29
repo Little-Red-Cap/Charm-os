@@ -53,6 +53,7 @@ vivid_define_product_profile(
         TextList=4
     SOA_MAX_NODES 384
     SOA_TEXT_ARENA_BYTES 24576
+    STYLE_PATCH_SLOT_CAP 192
     STYLE_CLASS_MAX 16
     STYLE_RULE_CAP 8
     STYLE_METRICS_POOL_CAP 16

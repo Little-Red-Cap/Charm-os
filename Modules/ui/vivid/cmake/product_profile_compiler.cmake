@@ -61,7 +61,7 @@ function(vivid_define_product_profile)
     set(_options)
     set(_one_value
         NAME EXTENDS SOA_MAX_NODES SOA_TEXT_ARENA_BYTES
-        STYLE_CLASS_MAX STYLE_RULE_CAP STYLE_METRICS_POOL_CAP
+        STYLE_PATCH_SLOT_CAP STYLE_CLASS_MAX STYLE_RULE_CAP STYLE_METRICS_POOL_CAP
         DRAW_CMD_MAX_COMMANDS DRAW_CMD_TEXT_BYTES DRAW_CMD_BLOB_BYTES
         FLOAT_WIDGETS)
     set(_multi_value
@@ -133,7 +133,8 @@ function(vivid_define_product_profile)
     endif()
 
     foreach(_field IN ITEMS
-            SOA_MAX_NODES SOA_TEXT_ARENA_BYTES STYLE_CLASS_MAX STYLE_RULE_CAP
+            SOA_MAX_NODES SOA_TEXT_ARENA_BYTES STYLE_PATCH_SLOT_CAP
+            STYLE_CLASS_MAX STYLE_RULE_CAP
             STYLE_METRICS_POOL_CAP DRAW_CMD_MAX_COMMANDS DRAW_CMD_TEXT_BYTES
             DRAW_CMD_BLOB_BYTES FLOAT_WIDGETS)
         if(NOT DEFINED PROFILE_${_field} OR "${PROFILE_${_field}}" STREQUAL "")
@@ -155,6 +156,18 @@ function(vivid_define_product_profile)
                 "Vivid profile ${PROFILE_NAME} ${_field} must be > 0")
         endif()
     endforeach()
+    _vivid_normalize_uint(
+        PROFILE_STYLE_PATCH_SLOT_CAP
+        "Vivid profile ${PROFILE_NAME} STYLE_PATCH_SLOT_CAP"
+        "${PROFILE_STYLE_PATCH_SLOT_CAP}" 65535)
+    if("${PROFILE_STYLE_PATCH_SLOT_CAP}" LESS 1)
+        message(FATAL_ERROR
+            "Vivid profile ${PROFILE_NAME} STYLE_PATCH_SLOT_CAP must be > 0")
+    endif()
+    if("${PROFILE_STYLE_PATCH_SLOT_CAP}" GREATER "${PROFILE_SOA_MAX_NODES}")
+        message(FATAL_ERROR
+            "Vivid profile ${PROFILE_NAME} STYLE_PATCH_SLOT_CAP must be <= SOA_MAX_NODES")
+    endif()
     _vivid_normalize_uint(
         PROFILE_STYLE_METRICS_POOL_CAP
         "Vivid profile ${PROFILE_NAME} STYLE_METRICS_POOL_CAP"
@@ -179,12 +192,12 @@ function(vivid_define_product_profile)
     list(SORT _payload_caps)
     vivid_widget_catalog_fingerprint(_catalog_fingerprint)
     set(_canonical
-        "schema=2\ncatalog=${_catalog_fingerprint}\nroots=${_roots}\n"
+        "schema=3\ncatalog=${_catalog_fingerprint}\nroots=${_roots}\n"
         "kinds=${_kinds}\nobject_kinds=${_object_kinds}\n"
         "payloads=${_payload_caps}\n"
         "soa_max_nodes=${PROFILE_SOA_MAX_NODES}\n"
         "soa_text_arena_bytes=${PROFILE_SOA_TEXT_ARENA_BYTES}\n"
-        "style=${PROFILE_STYLE_CLASS_MAX},${PROFILE_STYLE_RULE_CAP},${PROFILE_STYLE_METRICS_POOL_CAP}\n"
+        "style=${PROFILE_STYLE_PATCH_SLOT_CAP},${PROFILE_STYLE_CLASS_MAX},${PROFILE_STYLE_RULE_CAP},${PROFILE_STYLE_METRICS_POOL_CAP}\n"
         "draw_cmd=${PROFILE_DRAW_CMD_MAX_COMMANDS},${PROFILE_DRAW_CMD_TEXT_BYTES},${PROFILE_DRAW_CMD_BLOB_BYTES}\n"
         "float_widgets=${PROFILE_FLOAT_WIDGETS}\n")
     string(SHA256 _fingerprint "${_canonical}")
@@ -198,7 +211,8 @@ function(vivid_define_product_profile)
         "${PROFILE_NAME}" OBJECT_WIDGET_KINDS "${_object_kinds}")
     _vivid_profile_set("${PROFILE_NAME}" PAYLOAD_CAPACITIES "${_payload_caps}")
     foreach(_field IN ITEMS
-            SOA_MAX_NODES SOA_TEXT_ARENA_BYTES STYLE_CLASS_MAX STYLE_RULE_CAP
+            SOA_MAX_NODES SOA_TEXT_ARENA_BYTES STYLE_PATCH_SLOT_CAP
+            STYLE_CLASS_MAX STYLE_RULE_CAP
             STYLE_METRICS_POOL_CAP DRAW_CMD_MAX_COMMANDS DRAW_CMD_TEXT_BYTES
             DRAW_CMD_BLOB_BYTES FLOAT_WIDGETS)
         _vivid_profile_set("${PROFILE_NAME}" "${_field}" "${PROFILE_${_field}}")

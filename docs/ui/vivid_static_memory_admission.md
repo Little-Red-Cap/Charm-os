@@ -43,9 +43,15 @@ profile 必须显式提供 scene count、budget 和 headroom，不能依赖隐�
 runtime diagnostic/policy 状态。configure model 为 runtime globals 保留独立保守上界；低估真实 ABI 是
 独立硬失败，不能用增大产品 budget 掩盖。
 
-SoA 的 common table 以 node capacity 乘算，包含逐节点 `StylePatch`。`StylePatch` 的 presence flags 必须压缩
-存储并保持 trivially copyable；相关 ABI 门与 style law demo 防止一个布尔字段重新变成每节点一个字节。
-配置期仍保留平台无关的 node 保守上界，目标 ABI 的 `Scene`/`SoaKernel` exact profile 才是实际收益证据。
+SoA common table 以 node capacity 乘算，但每个 node 只保存 16 位 `StylePatch` 槽索引；完整 patch 位于
+`STYLE_PATCH_SLOT_CAP` 控制的固定容量稀疏池。FULL/MCU_MIN 默认取 `min(soa_max_nodes, 192)`，PRODUCT 必须在
+profile 中显式声明该容量，且不得超过 node capacity。配置期分别计算 node 与 patch-slot 保守上界，不能把槽池
+成本重新藏回逐节点常量。目标 ABI 的 `Scene`/`SoaKernel` exact profile 才是实际收益证据。
+
+槽池耗尽不得覆盖现有 patch 或静默丢弃证据：失败写入保持目标 node 无 patch，并设置 sticky
+`style_patch_overflowed`、累加 allocation-fail。clear 与 node destroy 必须归还槽；主 Scene 的 overflow evidence
+通过 `Scene::last_cmd_stats()` 进入 SoA CI 最终判定。独立池耗尽回归用于证明拒绝和槽复用，不代表产品正常路径
+允许 overflow。
 
 ## Product Profile 与 Envelope
 

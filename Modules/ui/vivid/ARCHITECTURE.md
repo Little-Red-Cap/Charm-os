@@ -75,7 +75,7 @@ workspace。共享 workspace 只允许单 UI execution domain 内串行使用；
 
 PRODUCT/MCU profile 必须声明：
 
-- SoA node/payload、TextArena、Style、DrawCmd 和 layer cache 容量；
+- SoA node/payload、TextArena、StylePatch 稀疏槽、Style、DrawCmd 和 layer cache 容量；
 - Scene 数量、常驻 RAM 上限、最小 headroom 与 stack frame 上限；
 - screen/pixel format 和 backend envelope；
 - overflow、workspace exhaustion 和 payload generation 的失败行为。
@@ -280,9 +280,12 @@ focus artifact 的边界从 [`vivid_focus_evidence_boundary_v0.md`](../../../doc
 theme token 经 ResolvedTheme/StyleSheet 预编译为可索引 style；热路径不重复派生 role 或搬运大对象。
 规则优先级必须确定，metrics pool 与颜色/state 表保持固定容量。
 
-`StylePatch` 同时进入每节点 SoA 表、style class 与 rule 表，因此 presence flag 必须保持 bit-packed、
-trivially copyable，并由源码 ABI 上限阻止退回逐字节布尔存储。字段打包只改变内部布局，不改变 patch
-优先级、adjust/override 语义或直接字段写法；真实 Scene/StyleSheet 收益由 GCC 目标 ABI evidence 记录。
+`StylePatch` 本身保持 bit-packed、trivially copyable，并由源码 ABI 上限阻止 presence flag 退回逐字节布尔
+存储。SoA node 不常驻完整 patch，只保存一个 16 位稀疏槽索引；`SoaKernel` 按 profile 的
+`STYLE_PATCH_SLOT_CAP` 拥有固定容量 patch pool。首次 set 分配槽，覆盖已有 patch 不增加 live count，clear 和
+node destroy 归还槽。容量耗尽时保留所有既有 patch、拒绝本次写入，并产生 sticky overflow 与 allocation-fail
+evidence；PRODUCT 必须显式声明槽容量，且不得超过 node capacity。字段打包与稀疏化都不改变 patch 优先级、
+adjust/override 语义或公共 `Style`/`StylePatch` API；真实 Scene/StyleSheet 收益由 GCC 目标 ABI evidence 记录。
 
 SoA 与产品配置以 `StyleSheet` 的 `WidgetKind` base style 为真源；`set_base_style` 与 `patch_base_style` 自行标记
 compiled table dirty，调用方不得依赖额外 notify 才让写入生效。`Theme::get<T>/patch<T>` 的 type slot 只服务

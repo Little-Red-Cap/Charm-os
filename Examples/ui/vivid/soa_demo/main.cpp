@@ -13,6 +13,7 @@
 #include <cmath>
 
 import charm.ui.vivid_internal;
+import charm.ui.scene;
 import charm.core.event;
 import charm.core.config;
 import charm.core.geometry;
@@ -2827,6 +2828,74 @@ namespace {
         return fails == 0;
     }
 
+    bool run_style_patch_pool_regression() noexcept {
+        if constexpr (SoaKernel::kStylePatchCapacity >= SoaKernel::kMaxNodes) {
+            (void)out::println<"[soa] style_patch_pool cap={} max_nodes={} overflow_test=skipped result=ok">(
+                g_console,
+                static_cast<unsigned>(SoaKernel::kStylePatchCapacity),
+                static_cast<unsigned>(SoaKernel::kMaxNodes));
+            return true;
+        }
+
+        int fails = 0;
+        static SoaKernel probe{};
+        StylePatch patch{};
+        patch.has_padding = true;
+        patch.padding = 3;
+
+        WidgetHandle first{};
+        for (std::size_t i = 0; i < SoaKernel::kStylePatchCapacity; ++i) {
+            const WidgetHandle node = probe.create(WidgetKind::Container);
+            expect_true(static_cast<bool>(node), "style patch pool: node allocation failed", fails);
+            if (!node) break;
+            if (i == 0) first = node;
+            probe.set_style_adjust(node, patch);
+            expect_true(probe.has_style_patch(node), "style patch pool: admitted patch missing", fails);
+        }
+
+        expect_true(probe.style_patch_live_count() == SoaKernel::kStylePatchCapacity,
+                    "style patch pool: live count mismatch", fails);
+        expect_true(probe.style_patch_peak_count() == SoaKernel::kStylePatchCapacity,
+                    "style patch pool: peak count mismatch", fails);
+        expect_true(probe.style_patch_alloc_fail() == 0,
+                    "style patch pool: unexpected allocation failure", fails);
+
+        probe.set_style_override(first, patch);
+        expect_true(probe.style_patch_kind(first) == StylePatchKind::Override,
+                    "style patch pool: existing slot update changed allocation", fails);
+        expect_true(probe.style_patch_live_count() == SoaKernel::kStylePatchCapacity,
+                    "style patch pool: existing slot update changed live count", fails);
+
+        const WidgetHandle overflow_node = probe.create(WidgetKind::Container);
+        expect_true(static_cast<bool>(overflow_node), "style patch pool: overflow node allocation failed", fails);
+        probe.set_style_adjust(overflow_node, patch);
+        expect_true(!probe.has_style_patch(overflow_node),
+                    "style patch pool: overflow silently installed patch", fails);
+        expect_true(probe.style_patch_overflowed() && probe.style_patch_alloc_fail() == 1,
+                    "style patch pool: overflow evidence missing", fails);
+
+        probe.clear_style_patch(first);
+        probe.set_style_override(overflow_node, patch);
+        expect_true(!probe.has_style_patch(first)
+                        && probe.has_style_patch(overflow_node)
+                        && probe.style_patch_kind(overflow_node) == StylePatchKind::Override,
+                    "style patch pool: released slot was not reused", fails);
+        expect_true(probe.style_patch_live_count() == SoaKernel::kStylePatchCapacity,
+                    "style patch pool: reused slot changed live count", fails);
+        expect_true(probe.style_patch_overflowed() && probe.style_patch_alloc_fail() == 1,
+                    "style patch pool: sticky overflow evidence was lost", fails);
+
+        (void)out::println<"[soa] style_patch_pool live={} peak={} cap={} fail={} overflow={} result={}">(
+            g_console,
+            static_cast<unsigned>(probe.style_patch_live_count()),
+            static_cast<unsigned>(probe.style_patch_peak_count()),
+            static_cast<unsigned>(SoaKernel::kStylePatchCapacity),
+            static_cast<unsigned>(probe.style_patch_alloc_fail()),
+            probe.style_patch_overflowed() ? 1u : 0u,
+            fails == 0 ? "ok" : "fail");
+        return fails == 0;
+    }
+
     bool run_workspace_regression(SoaGui& gui,
                                   SoaKernel& kernel,
                                   SoaFactory& factory,
@@ -3103,6 +3172,15 @@ int main(int argc, char** argv) {
         return 1;
     }
 #endif
+    if (run_ci) {
+        (void)out::println<"[soa] abi style_patch={} soa_kernel={} scene={} nodes={} style_patch_slots={}">(
+            g_console,
+            static_cast<unsigned long long>(sizeof(StylePatch)),
+            static_cast<unsigned long long>(sizeof(SoaKernel)),
+            static_cast<unsigned long long>(sizeof(::ui::scene::Scene)),
+            static_cast<unsigned>(SoaKernel::kMaxNodes),
+            static_cast<unsigned>(SoaKernel::kStylePatchCapacity));
+    }
 #if defined(VIVID_SOA_TRACE_INPUT)
     if (run_regress || run_regress_layout || run_regress_ui) {
         run_compare = true;
@@ -3493,6 +3571,7 @@ int main(int argc, char** argv) {
     bool table_tree_ran = false;
     bool ui_ok = true;
     bool svg_workspace_ok = true;
+    bool style_patch_pool_ok = true;
     bool perf_overlay_runtime_ok = true;
     auto trace_regress_stage = [&](const char* stage) noexcept {
         (void)out::println<"[soa] regress stage={}">(g_console, stage);
@@ -3510,6 +3589,10 @@ int main(int argc, char** argv) {
             svg_workspace_ok ? 1u : 0u);
         if (!svg_workspace_ok) {
             ci_mark_fail("svg_workspace");
+        }
+        style_patch_pool_ok = run_style_patch_pool_regression();
+        if (!style_patch_pool_ok) {
+            ci_mark_fail("style_patch_pool");
         }
         perf_overlay_runtime_ok = run_perf_overlay_runtime_regression();
         (void)out::println<"[soa] perf_overlay_runtime bytes={} ok={}">(
@@ -4100,6 +4183,12 @@ int main(int argc, char** argv) {
         if (!workspace_ok) {
             ci_mark_fail("workspace_overflow");
         }
+        const bool style_patch_ok = !kernel.style_patch_overflowed()
+            && !gui.last_cmd_stats().style_patch_overflowed
+            && kernel.style_patch_alloc_fail() == 0;
+        if (!style_patch_ok) {
+            ci_mark_fail("style_patch_overflow");
+        }
         const bool ok = ci_ok
               && compare_ok
               && dump_ok
@@ -4122,7 +4211,9 @@ int main(int argc, char** argv) {
             && img_overflow_ok
             && img_dedup_ok
             && cmd_budget_ok
-            && workspace_ok;
+            && workspace_ok
+            && style_patch_ok
+            && style_patch_pool_ok;
 
         (void)out::println<"[soa-ci] display mode={} bw1={} gray2={} gray2_curve={} eink_max_partial={} eink_min_full_ms={} eink_partial_pct={} missing_glyphs={} fallback_glyphs={} utf8_replace={} text_draw={} text_glyphs={} text_pixels={}">(
             g_console,
@@ -4140,7 +4231,7 @@ int main(int argc, char** argv) {
             static_cast<unsigned long long>(text_profile.glyphs),
             static_cast<unsigned long long>(text_profile.pixels));
 
-        (void)out::println<"[soa-ci] ok={} hash=0x{:08X} replay_full=0x{:08X} replay_tile=0x{:08X} failed_cmds={} overflows(p/t/b)={}/{}/{} workspace_overflow={} alloc_fail={} peak_ok={} table_tree_ok={} ui_ok={} compact_saved={} batch_shrink={} batch_shrink_line={} batch_shrink_path={} batch_shrink_rect={} batch_shrink_round={} batch_shrink_image={} batch_shrink_focus={} cmd_raw={} cmd_count={} cmd_saved={} cmd_saved_pct={} cmd_budget={} dispatch_groups={} batch_flushes={} groups(rect/text/img/line/path/other)={}/{}/{}/{}/{}/{} cmds(rect/text/img/line/path/other)={}/{}/{}/{}/{}/{} fail(text/img/blob/path/clip/other)={}/{}/{}/{}/{}/{} clip(push_over/pop_under/invalid)={}/{}/{} tile_flushes={} tile_hit_pct={} tile_dispatch_groups={} tile_batch_flushes={} tile_failed_cmds={} img_new_total={} img_new_after_lock={} img_new_record={} img_new_compact={} img_new_execute={} img_bytes={} img_reuse={} img_growth={} img_overflow={} img_dedup_ok={} img_after_lock_reason={} img_after_lock_tag={} reason={}">(
+        (void)out::println<"[soa-ci] ok={} hash=0x{:08X} replay_full=0x{:08X} replay_tile=0x{:08X} failed_cmds={} overflows(p/t/b)={}/{}/{} workspace_overflow={} style_patch_overflow={} style_patch_live={} style_patch_peak={} style_patch_cap={} style_patch_fail={} style_patch_pool_ok={} alloc_fail={} peak_ok={} table_tree_ok={} ui_ok={} compact_saved={} batch_shrink={} batch_shrink_line={} batch_shrink_path={} batch_shrink_rect={} batch_shrink_round={} batch_shrink_image={} batch_shrink_focus={} cmd_raw={} cmd_count={} cmd_saved={} cmd_saved_pct={} cmd_budget={} dispatch_groups={} batch_flushes={} groups(rect/text/img/line/path/other)={}/{}/{}/{}/{}/{} cmds(rect/text/img/line/path/other)={}/{}/{}/{}/{}/{} fail(text/img/blob/path/clip/other)={}/{}/{}/{}/{}/{} clip(push_over/pop_under/invalid)={}/{}/{} tile_flushes={} tile_hit_pct={} tile_dispatch_groups={} tile_batch_flushes={} tile_failed_cmds={} img_new_total={} img_new_after_lock={} img_new_record={} img_new_compact={} img_new_execute={} img_bytes={} img_reuse={} img_growth={} img_overflow={} img_dedup_ok={} img_after_lock_reason={} img_after_lock_tag={} reason={}">(
             g_console,
             ok ? 1u : 0u,
             static_cast<unsigned>(compare_hash_full),
@@ -4151,6 +4242,12 @@ int main(int argc, char** argv) {
             text_ok ? 0u : 1u,
             blob_ok ? 0u : 1u,
             workspace_ok ? 0u : 1u,
+            style_patch_ok ? 0u : 1u,
+            static_cast<unsigned>(kernel.style_patch_live_count()),
+            static_cast<unsigned>(kernel.style_patch_peak_count()),
+            static_cast<unsigned>(SoaKernel::kStylePatchCapacity),
+            static_cast<unsigned>(kernel.style_patch_alloc_fail()),
+            style_patch_pool_ok ? 1u : 0u,
             static_cast<unsigned>(total_fail),
             list_peak_ok ? 1u : 0u,
             table_tree_ok ? 1u : 0u,

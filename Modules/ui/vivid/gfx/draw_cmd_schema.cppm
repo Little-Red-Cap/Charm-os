@@ -397,6 +397,7 @@ export namespace ui::draw_cmd {
         bool text_overflowed{false};
         bool blob_overflowed{false};
         bool workspace_overflowed{false};
+        bool style_patch_overflowed{false};
     };
 
     struct DrawCmdExecStats {

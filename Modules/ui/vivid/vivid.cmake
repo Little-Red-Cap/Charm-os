@@ -155,7 +155,8 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
         _vivid_profile_get("${_vivid_profile_name}" PAYLOAD_CAPACITIES _vivid_profile_payload_capacities)
 
         foreach(_field IN ITEMS
-                SOA_MAX_NODES SOA_TEXT_ARENA_BYTES STYLE_CLASS_MAX STYLE_RULE_CAP
+                SOA_MAX_NODES SOA_TEXT_ARENA_BYTES STYLE_PATCH_SLOT_CAP
+                STYLE_CLASS_MAX STYLE_RULE_CAP
                 STYLE_METRICS_POOL_CAP DRAW_CMD_MAX_COMMANDS DRAW_CMD_TEXT_BYTES
                 DRAW_CMD_BLOB_BYTES FLOAT_WIDGETS)
             _vivid_profile_get("${_vivid_profile_name}" "${_field}" _profile_value)
@@ -179,6 +180,7 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
         set(CHARM_VIVID_ENABLE_FLOAT_WIDGETS "${_vivid_profile_FLOAT_WIDGETS}")
         set(CHARM_VIVID_SOA_MAX_NODES "${_vivid_profile_SOA_MAX_NODES}")
         set(CHARM_VIVID_SOA_TEXT_ARENA_BYTES "${_vivid_profile_SOA_TEXT_ARENA_BYTES}")
+        set(CHARM_VIVID_STYLE_PATCH_SLOT_CAP "${_vivid_profile_STYLE_PATCH_SLOT_CAP}")
         set(CHARM_VIVID_STYLE_CLASS_MAX "${_vivid_profile_STYLE_CLASS_MAX}")
         set(CHARM_VIVID_STYLE_RULE_CAP "${_vivid_profile_STYLE_RULE_CAP}")
         set(CHARM_VIVID_STYLE_METRICS_POOL_CAP "${_vivid_profile_STYLE_METRICS_POOL_CAP}")
@@ -226,6 +228,7 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
         vivid_cache_default(CHARM_VIVID_ENABLE_FLOAT_WIDGETS BOOL ON "Enable float-backed vivid widgets")
         vivid_cache_default(CHARM_VIVID_SOA_MAX_NODES STRING 256 "Vivid SoA max node count")
         vivid_cache_default(CHARM_VIVID_SOA_TEXT_ARENA_BYTES STRING "" "Vivid SoA text arena bytes override; empty keeps the featureset default")
+        vivid_cache_default(CHARM_VIVID_STYLE_PATCH_SLOT_CAP STRING "" "Vivid sparse StylePatch slot capacity; empty keeps min(nodes, 192)")
         vivid_cache_default(CHARM_VIVID_STYLE_CLASS_MAX STRING 256 "Vivid style class capacity")
         vivid_cache_default(CHARM_VIVID_STYLE_RULE_CAP STRING 32 "Vivid stylesheet rule capacity")
         vivid_cache_default(CHARM_VIVID_STYLE_METRICS_POOL_CAP STRING 64 "Vivid stylesheet metrics pool capacity")
@@ -278,6 +281,22 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
     set(VIVID_LAYER_CACHE_HEIGHT ${CHARM_VIVID_LAYER_CACHE_HEIGHT})
     set(VIVID_ENABLE_FLOAT_WIDGETS ${_vivid_enable_float_widgets})
     set(VIVID_SOA_MAX_NODES ${CHARM_VIVID_SOA_MAX_NODES})
+    if("${CHARM_VIVID_STYLE_PATCH_SLOT_CAP}" STREQUAL "")
+        set(CHARM_VIVID_STYLE_PATCH_SLOT_CAP 192)
+        if("${CHARM_VIVID_SOA_MAX_NODES}" LESS "${CHARM_VIVID_STYLE_PATCH_SLOT_CAP}")
+            set(CHARM_VIVID_STYLE_PATCH_SLOT_CAP "${CHARM_VIVID_SOA_MAX_NODES}")
+        endif()
+    endif()
+    vivid_require_uint16_capacity(
+        "CHARM_VIVID_STYLE_PATCH_SLOT_CAP" "${CHARM_VIVID_STYLE_PATCH_SLOT_CAP}")
+    if("${CHARM_VIVID_STYLE_PATCH_SLOT_CAP}" LESS 1)
+        message(FATAL_ERROR "CHARM_VIVID_STYLE_PATCH_SLOT_CAP must be > 0")
+    endif()
+    if("${CHARM_VIVID_STYLE_PATCH_SLOT_CAP}" GREATER "${CHARM_VIVID_SOA_MAX_NODES}")
+        message(FATAL_ERROR
+            "CHARM_VIVID_STYLE_PATCH_SLOT_CAP must be <= CHARM_VIVID_SOA_MAX_NODES")
+    endif()
+    set(VIVID_STYLE_PATCH_SLOT_CAP ${CHARM_VIVID_STYLE_PATCH_SLOT_CAP})
     vivid_require_uint16_capacity("CHARM_VIVID_STYLE_CLASS_MAX" "${CHARM_VIVID_STYLE_CLASS_MAX}")
     vivid_require_uint16_capacity("CHARM_VIVID_STYLE_RULE_CAP" "${CHARM_VIVID_STYLE_RULE_CAP}")
     vivid_require_uint16_capacity("CHARM_VIVID_STYLE_METRICS_POOL_CAP" "${CHARM_VIVID_STYLE_METRICS_POOL_CAP}")
@@ -507,7 +526,10 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
     set(_vivid_draw_cmd_executor_workspace_upper_bytes 32768)
     math(EXPR _vivid_soa_traversal_workspace_upper_bytes
         "${CHARM_VIVID_SOA_MAX_NODES} * 256")
-    set(_vivid_soa_node_upper_bytes 512)
+    set(_vivid_soa_node_upper_bytes 256)
+    set(_vivid_style_patch_slot_upper_bytes 256)
+    math(EXPR _vivid_style_patch_pool_upper_bytes
+        "${VIVID_STYLE_PATCH_SLOT_CAP} * ${_vivid_style_patch_slot_upper_bytes}")
     set(_vivid_payload_slot_upper_bytes 512)
     set(_vivid_soa_fixed_upper_bytes 65536)
     set(_vivid_scene_fixed_upper_bytes 65536)
@@ -519,7 +541,7 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
     math(EXPR _vivid_command_buffer_upper_bytes
         "(${CHARM_VIVID_LAYER_CACHE_SLOTS} + 1) * ${_vivid_draw_cmd_buffer_upper_bytes}")
     math(EXPR _vivid_soa_upper_bytes
-        "${CHARM_VIVID_SOA_MAX_NODES} * ${_vivid_soa_node_upper_bytes} + ${_vivid_payload_slot_cap_total} * ${_vivid_payload_slot_upper_bytes} + ${_vivid_text_arena_bytes} + ${_vivid_soa_fixed_upper_bytes}")
+        "${CHARM_VIVID_SOA_MAX_NODES} * ${_vivid_soa_node_upper_bytes} + ${_vivid_style_patch_pool_upper_bytes} + ${_vivid_payload_slot_cap_total} * ${_vivid_payload_slot_upper_bytes} + ${_vivid_text_arena_bytes} + ${_vivid_soa_fixed_upper_bytes}")
     math(EXPR _vivid_scene_upper_bytes
         "${_vivid_pixel_snapshot_upper_bytes} + ${_vivid_command_buffer_upper_bytes} + ${_vivid_draw_cmd_compaction_workspace_upper_bytes} + ${_vivid_draw_cmd_executor_workspace_upper_bytes} + ${_vivid_soa_traversal_workspace_upper_bytes} + ${_vivid_soa_upper_bytes} + ${_vivid_scene_fixed_upper_bytes}")
     math(EXPR _vivid_global_upper_bytes
@@ -593,6 +615,8 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
         "draw_cmd_max_commands=${VIVID_DRAW_CMD_MAX_COMMANDS}\n"
         "draw_cmd_text_bytes=${VIVID_DRAW_CMD_TEXT_BYTES}\n"
         "draw_cmd_blob_bytes=${VIVID_DRAW_CMD_BLOB_BYTES}\n"
+        "style_patch_slot_cap=${VIVID_STYLE_PATCH_SLOT_CAP}\n"
+        "style_patch_pool_upper_bytes=${_vivid_style_patch_pool_upper_bytes}\n"
         "max_hot_stack_frame_bytes=${VIVID_MAX_HOT_STACK_FRAME_BYTES}\n"
         "draw_cmd_compaction_workspace_upper_bytes=${_vivid_draw_cmd_compaction_workspace_upper_bytes}\n"
         "draw_cmd_executor_workspace_upper_bytes=${_vivid_draw_cmd_executor_workspace_upper_bytes}\n"
@@ -638,7 +662,7 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
             _profile_object_kinds_json ${_profile_object_kinds_json_values})
         file(WRITE "${_vivid_generated_dir}/profile.json"
             "{\n"
-            "  \"schema\": 2,\n"
+            "  \"schema\": 3,\n"
             "  \"name\": \"${_vivid_profile_name}\",\n"
             "  \"catalog_fingerprint\": \"${_vivid_catalog_fingerprint}\",\n"
             "  \"profile_fingerprint\": \"${_vivid_profile_fingerprint}\",\n"
@@ -649,6 +673,7 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
             "  \"workset\": {\n"
             "    \"soa_max_nodes\": ${VIVID_SOA_MAX_NODES},\n"
             "    \"soa_text_arena_bytes\": ${_vivid_text_arena_bytes},\n"
+            "    \"style_patch_slot_cap\": ${VIVID_STYLE_PATCH_SLOT_CAP},\n"
             "    \"style_class_max\": ${VIVID_STYLE_CLASS_MAX},\n"
             "    \"style_rule_cap\": ${VIVID_STYLE_RULE_CAP},\n"
             "    \"style_metrics_pool_cap\": ${VIVID_STYLE_METRICS_POOL_CAP},\n"
@@ -730,6 +755,7 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
             "    \"command_buffer_upper_bytes\": ${_vivid_command_buffer_upper_bytes},\n"
             "    \"compaction_workspace_upper_bytes\": ${_vivid_draw_cmd_compaction_workspace_upper_bytes},\n"
             "    \"executor_workspace_upper_bytes\": ${_vivid_draw_cmd_executor_workspace_upper_bytes},\n"
+            "    \"style_patch_pool_upper_bytes\": ${_vivid_style_patch_pool_upper_bytes},\n"
             "    \"soa_traversal_workspace_upper_bytes\": ${_vivid_soa_traversal_workspace_upper_bytes}\n"
             "  },\n"
             "  \"max_hot_stack_frame_bytes\": ${VIVID_MAX_HOT_STACK_FRAME_BYTES}\n"

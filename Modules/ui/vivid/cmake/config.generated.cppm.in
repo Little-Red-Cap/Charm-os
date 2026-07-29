@@ -57,6 +57,7 @@ export namespace charm::vivid::config {
     };
 
     struct StyleConfig {
+        std::size_t style_patch_slot_cap;
         std::size_t style_class_max;
         std::size_t style_rule_cap;
         std::size_t style_metrics_pool_cap;
@@ -95,6 +96,7 @@ export namespace charm::vivid::config {
             @VIVID_SOA_MAX_NODES@
         },
         StyleConfig{
+            @VIVID_STYLE_PATCH_SLOT_CAP@,
             @VIVID_STYLE_CLASS_MAX@,
             @VIVID_STYLE_RULE_CAP@,
             @VIVID_STYLE_METRICS_POOL_CAP@
@@ -123,6 +125,9 @@ export namespace charm::vivid::config {
     static_assert(kScreen.layer_cache_width > 0);
     static_assert(kScreen.layer_cache_height > 0);
     static_assert(kSoa.max_nodes > 0);
+    static_assert(kStyle.style_patch_slot_cap > 0);
+    static_assert(kStyle.style_patch_slot_cap <= kSoa.max_nodes);
+    static_assert(kStyle.style_patch_slot_cap <= 65535);
     static_assert(kStyle.style_class_max > 0);
     static_assert(kStyle.style_class_max <= 65535);
     static_assert(kStyle.style_rule_cap > 0);
@@ -161,6 +166,7 @@ export inline constexpr int layer_cache_height = vivid_config.screen.layer_cache
 export inline constexpr bool enable_float_widgets = vivid_config.features.enable_float_widgets;
 export inline constexpr bool draw_detail_evidence_enabled = vivid_config.features.draw_detail_evidence;
 export inline constexpr std::size_t soa_max_nodes = vivid_config.soa.max_nodes;
+export inline constexpr std::size_t style_patch_slot_cap = vivid_config.style.style_patch_slot_cap;
 export inline constexpr std::size_t style_class_max = vivid_config.style.style_class_max;
 export inline constexpr std::size_t style_rule_cap = vivid_config.style.style_rule_cap;
 export inline constexpr std::size_t style_metrics_pool_cap = vivid_config.style.style_metrics_pool_cap;

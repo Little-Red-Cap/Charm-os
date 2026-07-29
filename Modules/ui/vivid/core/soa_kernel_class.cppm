@@ -34,6 +34,87 @@ export constexpr std::uint16_t kInvalidIndex = 0xFFFF;
 struct ScrollBarTrackInfo;
 
 namespace soa_detail {
+    template <std::size_t Capacity>
+    class StylePatchPool {
+    public:
+        static_assert(Capacity > 0);
+        static_assert(Capacity <= kInvalidIndex);
+
+        void reset() noexcept {
+            for (std::size_t i = 0; i < Capacity; ++i) {
+                patches_[i] = StylePatch{};
+                kinds_[i] = StylePatchKind::None;
+                free_next_[i] = (i + 1 < Capacity)
+                    ? static_cast<std::uint16_t>(i + 1)
+                    : kInvalidIndex;
+            }
+            free_head_ = 0;
+            live_count_ = 0;
+            peak_count_ = 0;
+            alloc_fail_ = 0;
+            overflowed_ = false;
+        }
+
+        [[nodiscard]] bool set(std::uint16_t& slot,
+                               const StylePatch& patch,
+                               StylePatchKind kind) noexcept {
+            assert(kind != StylePatchKind::None);
+            if (slot == kInvalidIndex) {
+                if (free_head_ == kInvalidIndex) {
+                    overflowed_ = true;
+                    ++alloc_fail_;
+                    return false;
+                }
+                slot = free_head_;
+                free_head_ = free_next_[slot];
+                ++live_count_;
+                if (live_count_ > peak_count_) peak_count_ = live_count_;
+            }
+            assert(slot < Capacity);
+            patches_[slot] = patch;
+            kinds_[slot] = kind;
+            return true;
+        }
+
+        [[nodiscard]] bool clear(std::uint16_t& slot) noexcept {
+            if (slot == kInvalidIndex) return false;
+            assert(slot < Capacity);
+            kinds_[slot] = StylePatchKind::None;
+            free_next_[slot] = free_head_;
+            free_head_ = slot;
+            slot = kInvalidIndex;
+            assert(live_count_ > 0);
+            --live_count_;
+            return true;
+        }
+
+        [[nodiscard]] const StylePatch* get(std::uint16_t slot) const noexcept {
+            if (slot == kInvalidIndex || slot >= Capacity) return nullptr;
+            return kinds_[slot] == StylePatchKind::None ? nullptr : &patches_[slot];
+        }
+
+        [[nodiscard]] StylePatchKind kind(std::uint16_t slot) const noexcept {
+            if (slot == kInvalidIndex || slot >= Capacity) return StylePatchKind::None;
+            return kinds_[slot];
+        }
+
+        [[nodiscard]] bool overflowed() const noexcept { return overflowed_; }
+        [[nodiscard]] std::size_t live_count() const noexcept { return live_count_; }
+        [[nodiscard]] std::size_t peak_count() const noexcept { return peak_count_; }
+        [[nodiscard]] std::uint32_t alloc_fail() const noexcept { return alloc_fail_; }
+        [[nodiscard]] static constexpr std::size_t capacity() noexcept { return Capacity; }
+
+    private:
+        std::array<StylePatch, Capacity> patches_{};
+        std::array<std::uint16_t, Capacity> free_next_{};
+        std::array<StylePatchKind, Capacity> kinds_{};
+        std::uint16_t free_head_{kInvalidIndex};
+        std::uint16_t live_count_{0};
+        std::uint16_t peak_count_{0};
+        std::uint32_t alloc_fail_{0};
+        bool overflowed_{false};
+    };
+
     // ---- Storage / payload descriptor ----
     template <std::size_t N>
     struct CommonSoA {
@@ -53,9 +134,7 @@ namespace soa_detail {
         std::array<Rect, N> paint_bounds{};
         std::array<std::uint8_t, N> layout_kind{};
         std::array<PayloadHandle, N> payload{};
-        std::array<StylePatch, N> style_patch{};
-        std::array<std::uint8_t, N> style_patch_on{};
-        std::array<std::uint8_t, N> style_patch_kind{};
+        std::array<std::uint16_t, N> style_patch_slot{};
         std::array<StyleClassId, N> style_class{};
         std::array<std::uint8_t, N> text_align_h{};
         std::array<std::uint8_t, N> text_align_v{};
@@ -75,6 +154,7 @@ export
 class SoaKernel {
 public:
     static constexpr std::size_t kMaxNodes = soa_max_nodes;
+    static constexpr std::size_t kStylePatchCapacity = style_patch_slot_cap;
 
     SoaKernel() noexcept;
 
@@ -787,6 +867,10 @@ public:
     std::uint32_t paint_dirty_version() const noexcept ;
     bool payload_overflowed() const noexcept ;
     bool text_overflowed() const noexcept ;
+    bool style_patch_overflowed() const noexcept { return style_patches_.overflowed(); }
+    std::size_t style_patch_live_count() const noexcept { return style_patches_.live_count(); }
+    std::size_t style_patch_peak_count() const noexcept { return style_patches_.peak_count(); }
+    std::uint32_t style_patch_alloc_fail() const noexcept { return style_patches_.alloc_fail(); }
     bool workspace_overflowed() const noexcept { return workspace_overflowed_; }
     void clear_workspace_overflow() noexcept { workspace_overflowed_ = false; }
     void note_workspace_overflow() const noexcept { workspace_overflowed_ = true; }
@@ -807,6 +891,7 @@ public:
     void set_table_view_scroll_x_clamped(WidgetHandle h, int x) noexcept ;
     void set_scroll_y_clamped(WidgetHandle h, int y) noexcept ;
     soa_detail::CommonSoA<kMaxNodes> common_{};
+    soa_detail::StylePatchPool<kStylePatchCapacity> style_patches_{};
     soa_detail::PayloadManager payloads_{};
     std::uint16_t free_head_{kInvalidIndex};
     std::uint32_t layout_dirty_version_{0};

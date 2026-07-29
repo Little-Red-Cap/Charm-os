@@ -70,9 +70,13 @@ evidence surface。DrawCmd 与 state-to-artifact evidence 分别见：
 ## Workspace 与静态内存
 
 SoA layout、render、hit-test、focus 与 semantic traversal 共享 `SoaKernel` 唯一拥有的一套固定 frame
-workspace；容量与 `soa_max_nodes` 相同，frame 的配置期保守上界为 64B。各阶段通过 move-only lease 串行借用，
-不能同时保留两套 typed stack。焦点 next/previous 使用单趟遍历维护首尾和相邻候选，不再为所有节点常驻第二张
-candidate 表。
+workspace；容量与 `soa_max_nodes` 相同。正常 runtime frame 固定为 52B；仅开启 Draw Detail evidence 时增加
+`draw_scope_id` 并固定为 56B，PRODUCT 不得为关闭的 evidence 能力常驻该字段。各阶段通过 move-only lease
+串行借用，不能同时保留两套 typed stack。焦点 next/previous 使用单趟遍历维护首尾和相邻候选，不再为所有
+节点常驻第二张 candidate 表。
+
+Draw Detail evidence 同时为每个 SoA node 增加 2B `draw_scope`；配置期 node upper 必须随 feature 从 209B
+切换到 211B。frame 与 node 两项都必须进入同一 target envelope，不能只计算其中一项。
 
 同一 Scene 上的并发或重入会拒绝后进入的 traversal，并产生 sticky phase-conflict 与 workspace-overflow
 evidence；lease 释放后 workspace 必须可再次使用。compaction、DrawCmd executor 与 raster scratch 仍使用各自

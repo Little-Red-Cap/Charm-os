@@ -235,7 +235,9 @@ void SoaGui::record_tree(ui::draw_cmd::DefaultDrawCmdBuffer& out) {
     stack[sp++] = SoaKernel::TraversalFrame{
         .h = root_,
         .clip_rect = base_clip.rect,
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
         .draw_scope_id = ui::draw_cmd::kDrawScopeDefault,
+#endif
         .flags = base_clip.enabled
             ? SoaKernel::TraversalFrame::kClipEnabled
             : std::uint8_t{0},
@@ -328,7 +330,9 @@ void SoaGui::record_tree(ui::draw_cmd::DefaultDrawCmdBuffer& out) {
             .clip_rect = frame.clip_rect,
             .offset_x = frame.child_offset_x,
             .offset_y = frame.child_offset_y,
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
             .draw_scope_id = frame.draw_scope_id,
+#endif
             .flags = frame.clip_enabled()
                 ? SoaKernel::TraversalFrame::kClipEnabled
                 : std::uint8_t{0},

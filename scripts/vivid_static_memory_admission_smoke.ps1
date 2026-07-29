@@ -150,11 +150,16 @@ function Assert-Admission {
         $Values.semantic_pool_upper_bytes -ne "1056") {
         throw "Unexpected sparse semantic budget in static memory manifest"
     }
-    if ($Values.soa_node_upper_bytes -ne "209") {
+    if ($Values.draw_detail_evidence -notin @("0", "1")) {
+        throw "Unexpected Draw Detail evidence value: $($Values.draw_detail_evidence)"
+    }
+    $expectedSoaNodeBytes = if ($Values.draw_detail_evidence -eq "1") { 211 } else { 209 }
+    if ([int64]$Values.soa_node_upper_bytes -ne $expectedSoaNodeBytes) {
         throw "Unexpected packed SoA node upper bound: $($Values.soa_node_upper_bytes)"
     }
-    $expectedTraversalBytes = [int64]$Values.soa_max_nodes * 64
-    if ($Values.soa_traversal_frame_upper_bytes -ne "64" -or
+    $expectedTraversalFrameBytes = if ($Values.draw_detail_evidence -eq "1") { 56 } else { 52 }
+    $expectedTraversalBytes = [int64]$Values.soa_max_nodes * $expectedTraversalFrameBytes
+    if ([int64]$Values.soa_traversal_frame_upper_bytes -ne $expectedTraversalFrameBytes -or
         [int64]$Values.soa_traversal_workspace_upper_bytes -ne $expectedTraversalBytes) {
         throw "Unexpected shared SoA traversal workspace budget"
     }
@@ -162,7 +167,7 @@ function Assert-Admission {
         ($budget -le 0 -or $headroom -lt $MinimumHeadroom)) {
         throw "Admission headroom is insufficient: upper=$upper budget=$budget headroom=$headroom"
     }
-    Write-Host "[vivid-static-memory] featureset=$FeatureSet profile=$Profile status=$Status upper=$upper budget=$budget headroom=$headroom"
+    Write-Host "[vivid-static-memory] featureset=$FeatureSet profile=$Profile status=$Status upper=$upper budget=$budget headroom=$headroom soa_node=$expectedSoaNodeBytes traversal_frame=$expectedTraversalFrameBytes draw_detail=$($Values.draw_detail_evidence)"
 }
 
 function Assert-ProductEvidence {
@@ -184,16 +189,20 @@ function Assert-ProductEvidence {
         [int64]$admissionEvidence.static_memory.semantic_pool_upper_bytes -ne 1056) {
         throw "PRODUCT sparse semantic evidence mismatch for profile '$Profile'"
     }
-    if ([int64]$admissionEvidence.static_memory.soa_node_upper_bytes -ne 209) {
+    $drawDetailEnabled = $envelopeEvidence.draw_detail_evidence -eq $true
+    $expectedSoaNodeBytes = if ($drawDetailEnabled) { 211 } else { 209 }
+    if ([int64]$admissionEvidence.static_memory.soa_node_upper_bytes -ne $expectedSoaNodeBytes) {
         throw "PRODUCT packed SoA node evidence mismatch for profile '$Profile'"
     }
     if ([int64]$profileEvidence.workset.style_patch_slot_cap -ne 192 -or
         [int64]$admissionEvidence.static_memory.style_patch_pool_upper_bytes -ne 49152) {
         throw "PRODUCT sparse StylePatch evidence mismatch for profile '$Profile'"
     }
-    if ([int64]$admissionEvidence.static_memory.soa_traversal_frame_upper_bytes -ne 64 -or
+    $expectedTraversalFrameBytes = if ($drawDetailEnabled) { 56 } else { 52 }
+    if ($admissionEvidence.static_memory.draw_detail_evidence -ne $drawDetailEnabled -or
+        [int64]$admissionEvidence.static_memory.soa_traversal_frame_upper_bytes -ne $expectedTraversalFrameBytes -or
         [int64]$admissionEvidence.static_memory.soa_traversal_workspace_upper_bytes -ne
-            ([int64]$profileEvidence.workset.soa_max_nodes * 64)) {
+            ([int64]$profileEvidence.workset.soa_max_nodes * $expectedTraversalFrameBytes)) {
         throw "PRODUCT shared traversal workspace evidence mismatch for profile '$Profile'"
     }
     if ($profileEvidence.profile_fingerprint -ne $envelopeEvidence.profile_fingerprint -or
@@ -373,6 +382,10 @@ try {
 
     Invoke-VividConfigure -SourceDir $SoaSourceDir -FeatureSet "FULL" -ExtraArgs $FullArgs | Out-Null
     $fullManifest = Join-Path (Get-GeneratedDir -Profile "full") "static_memory_admission.txt"
+    Assert-Admission -Values (Read-KeyValueManifest -Path $fullManifest) -FeatureSet "FULL" -Profile "full" -Status "profile_only" -MinimumHeadroom 0
+
+    $fullDrawDetailArgs = $FullArgs + @("-DCHARM_VIVID_DRAW_DETAIL_EVIDENCE=ON")
+    Invoke-VividConfigure -SourceDir $SoaSourceDir -FeatureSet "FULL" -ExtraArgs $fullDrawDetailArgs | Out-Null
     Assert-Admission -Values (Read-KeyValueManifest -Path $fullManifest) -FeatureSet "FULL" -Profile "full" -Status "profile_only" -MinimumHeadroom 0
 
     $styleClassOverArgs = @($FullArgs | ForEach-Object {

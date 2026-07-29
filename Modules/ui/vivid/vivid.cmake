@@ -551,10 +551,15 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
     math(EXPR _vivid_draw_cmd_compaction_workspace_upper_bytes
         "${VIVID_DRAW_CMD_MAX_COMMANDS} * 4 + 32768")
     set(_vivid_draw_cmd_executor_workspace_upper_bytes 32768)
-    set(_vivid_soa_traversal_frame_upper_bytes 64)
+    if(VIVID_DRAW_DETAIL_EVIDENCE)
+        set(_vivid_soa_traversal_frame_upper_bytes 56)
+        set(_vivid_soa_node_upper_bytes 211)
+    else()
+        set(_vivid_soa_traversal_frame_upper_bytes 52)
+        set(_vivid_soa_node_upper_bytes 209)
+    endif()
     math(EXPR _vivid_soa_traversal_workspace_upper_bytes
         "${CHARM_VIVID_SOA_MAX_NODES} * ${_vivid_soa_traversal_frame_upper_bytes}")
-    set(_vivid_soa_node_upper_bytes 209)
     set(_vivid_semantic_slot_upper_bytes 16)
     set(_vivid_semantic_pool_fixed_upper_bytes 32)
     math(EXPR _vivid_semantic_pool_upper_bytes
@@ -647,6 +652,7 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
         "draw_cmd_max_commands=${VIVID_DRAW_CMD_MAX_COMMANDS}\n"
         "draw_cmd_text_bytes=${VIVID_DRAW_CMD_TEXT_BYTES}\n"
         "draw_cmd_blob_bytes=${VIVID_DRAW_CMD_BLOB_BYTES}\n"
+        "draw_detail_evidence=${VIVID_DRAW_DETAIL_EVIDENCE}\n"
         "soa_max_nodes=${VIVID_SOA_MAX_NODES}\n"
         "soa_node_upper_bytes=${_vivid_soa_node_upper_bytes}\n"
         "semantic_slot_cap=${VIVID_SEMANTIC_SLOT_CAP}\n"
@@ -796,6 +802,7 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
             "    \"soa_node_upper_bytes\": ${_vivid_soa_node_upper_bytes},\n"
             "    \"semantic_pool_upper_bytes\": ${_vivid_semantic_pool_upper_bytes},\n"
             "    \"style_patch_pool_upper_bytes\": ${_vivid_style_patch_pool_upper_bytes},\n"
+            "    \"draw_detail_evidence\": ${_draw_detail_json},\n"
             "    \"soa_traversal_frame_upper_bytes\": ${_vivid_soa_traversal_frame_upper_bytes},\n"
             "    \"soa_traversal_workspace_upper_bytes\": ${_vivid_soa_traversal_workspace_upper_bytes}\n"
             "  },\n"

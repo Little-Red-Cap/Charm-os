@@ -91,10 +91,15 @@ Semantic pool 使用相同拒绝原则：池满时新 entry 保持 `found=false`
 证据由 SoA CI 单独验证，主 Scene 的 `semantic_overflowed` 必须通过 `Scene::last_cmd_stats()` 保持可见且正常路径为零。
 
 SoA layout、render、hit-test、focus 与 semantic 不分别乘算遍历数组。每个 `SoaKernel` 只拥有一套
-`soa_max_nodes` 容量的共享 traversal workspace；配置期按 64B/frame 计入上界，目标 ABI profile 记录实际
-frame 与 workspace 字节。phase lease 禁止重入覆盖：冲突必须拒绝后进入的 traversal，并同时设置 sticky
+`soa_max_nodes` 容量的共享 traversal workspace。正常 runtime 的 frame 固定为 52B；仅开启 Draw Detail
+evidence 时才携带 `draw_scope_id` 并固定为 56B。配置期上界、manifest 与 admission JSON 必须消费同一
+feature 值，不能让 PRODUCT 为关闭的 evidence 字段付费；目标 ABI profile 记录实际 frame 与 workspace 字节。
+phase lease 禁止重入覆盖：冲突必须拒绝后进入的 traversal，并同时设置 sticky
 `traversal_phase_conflicted` 与 `workspace_overflowed`。独立冲突回归只证明拒绝和释放恢复；产品正常路径要求
 两项 evidence 均为零。
+
+Draw Detail evidence 还会为每个 SoA node 增加 2B `draw_scope`。因此配置期 `soa_node_upper_bytes` 必须在正常
+209B 与 evidence 211B 之间切换；frame 与 node 预算必须由同一 target feature 驱动，禁止只计一项。
 
 ## Product Profile 与 Envelope
 

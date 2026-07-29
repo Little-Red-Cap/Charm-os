@@ -433,7 +433,9 @@ public:
         int child_offset_x{0};
         int child_offset_y{0};
         std::uint16_t depth{0};
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
         std::uint16_t draw_scope_id{0};
+#endif
         std::uint8_t flags{0};
 
         constexpr bool entered() const noexcept { return (flags & kEntered) != 0; }
@@ -483,8 +485,14 @@ public:
         TraversalPhase phase_{TraversalPhase::Idle};
     };
 
-    static_assert(sizeof(TraversalFrame) <= 64,
-                  "SoA shared traversal frame exceeded its admitted per-node bound");
+#if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
+    static_assert(sizeof(TraversalFrame) == 56,
+                  "SoA draw-detail traversal frame ABI changed");
+#else
+    static_assert(sizeof(TraversalFrame) == 52,
+                  "SoA product traversal frame ABI changed");
+#endif
+    static_assert(std::is_trivially_copyable_v<TraversalFrame>);
     static constexpr std::size_t kTraversalWorkspaceBytes =
         sizeof(std::array<TraversalFrame, kMaxNodes>);
 

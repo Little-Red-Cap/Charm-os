@@ -150,7 +150,7 @@ function Assert-Admission {
         $Values.semantic_pool_upper_bytes -ne "1056") {
         throw "Unexpected sparse semantic budget in static memory manifest"
     }
-    if ($Values.soa_node_upper_bytes -ne "216") {
+    if ($Values.soa_node_upper_bytes -ne "215") {
         throw "Unexpected packed SoA node upper bound: $($Values.soa_node_upper_bytes)"
     }
     $expectedTraversalBytes = [int64]$Values.soa_max_nodes * 64
@@ -184,7 +184,7 @@ function Assert-ProductEvidence {
         [int64]$admissionEvidence.static_memory.semantic_pool_upper_bytes -ne 1056) {
         throw "PRODUCT sparse semantic evidence mismatch for profile '$Profile'"
     }
-    if ([int64]$admissionEvidence.static_memory.soa_node_upper_bytes -ne 216) {
+    if ([int64]$admissionEvidence.static_memory.soa_node_upper_bytes -ne 215) {
         throw "PRODUCT packed SoA node evidence mismatch for profile '$Profile'"
     }
     if ([int64]$profileEvidence.workset.style_patch_slot_cap -ne 192 -or
@@ -374,6 +374,18 @@ try {
     Invoke-VividConfigure -SourceDir $SoaSourceDir -FeatureSet "FULL" -ExtraArgs $FullArgs | Out-Null
     $fullManifest = Join-Path (Get-GeneratedDir -Profile "full") "static_memory_admission.txt"
     Assert-Admission -Values (Read-KeyValueManifest -Path $fullManifest) -FeatureSet "FULL" -Profile "full" -Status "profile_only" -MinimumHeadroom 0
+
+    $styleClassOverArgs = @($FullArgs | ForEach-Object {
+        if ($_ -like "-DCHARM_VIVID_STYLE_CLASS_MAX=*") {
+            "-DCHARM_VIVID_STYLE_CLASS_MAX=257"
+        } else {
+            $_
+        }
+    })
+    $styleClassOver = Invoke-VividConfigure -SourceDir $SoaSourceDir -FeatureSet "FULL" -ExtraArgs $styleClassOverArgs -ExpectSuccess $false
+    if ($styleClassOver -notmatch 'CHARM_VIVID_STYLE_CLASS_MAX must be <= 256') {
+        throw "FULL style-class-width failure did not report the expected rule"
+    }
 
     $missingSceneArgs = $CommonSoaArgs + @(
         "-DCHARM_VIVID_STATIC_MEMORY_BUDGET_BYTES=1835008",

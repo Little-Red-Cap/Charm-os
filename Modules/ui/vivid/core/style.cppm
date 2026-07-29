@@ -295,7 +295,7 @@ struct StyleToken {
 };
 
 export
-using StyleClassId = std::uint16_t;
+using StyleClassId = std::uint8_t;
 
 export
 inline constexpr StyleClassId kStyleClassInvalid = 0;
@@ -303,7 +303,9 @@ inline constexpr StyleClassId kStyleClassInvalid = 0;
 export
 inline constexpr std::size_t kStyleClassMax = style_class_max;
 static_assert(kStyleClassMax > 0);
-static_assert(kStyleClassMax <= static_cast<std::size_t>(std::numeric_limits<StyleClassId>::max()));
+static_assert(kStyleClassMax
+              <= static_cast<std::size_t>(std::numeric_limits<StyleClassId>::max()) + 1u);
+static_assert(sizeof(StyleClassId) == 1);
 
 export
 inline void merge_style_patch(StylePatch& dst, const StylePatch& src) noexcept {

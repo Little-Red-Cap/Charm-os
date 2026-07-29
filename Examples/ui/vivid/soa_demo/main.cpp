@@ -3130,6 +3130,43 @@ namespace {
         return fails == 0;
     }
 
+    bool run_style_class_id_regression() noexcept {
+        int fails = 0;
+        static SoaKernel probe{};
+        WidgetHandle node = probe.create(WidgetKind::Button);
+        expect_true(static_cast<bool>(node)
+                        && probe.style_class(node) == kStyleClassInvalid,
+                    "style class id: allocation or default mismatch", fails);
+
+        if constexpr (kStyleClassMax > 1) {
+            const auto max_id = static_cast<StyleClassId>(kStyleClassMax - 1u);
+            probe.set_style_class(node, max_id);
+            expect_true(probe.style_class(node) == max_id,
+                        "style class id: maximum admitted id mismatch", fails);
+            probe.clear_style_class(node);
+            expect_true(probe.style_class(node) == kStyleClassInvalid,
+                        "style class id: clear mismatch", fails);
+
+            probe.set_style_class(node, static_cast<StyleClassId>(1));
+            const WidgetHandle stale = node;
+            probe.destroy(node);
+            node = probe.create(WidgetKind::Button);
+            expect_true(static_cast<bool>(node)
+                            && node.index == stale.index
+                            && node.generation != stale.generation
+                            && probe.style_class(node) == kStyleClassInvalid,
+                        "style class id: reused node retained stale class", fails);
+        }
+        probe.destroy(node);
+
+        (void)out::println<"[soa] style_class_id bytes={} max={} invalid=0 reuse=1 result={}">(
+            g_console,
+            static_cast<unsigned>(SoaKernel::kNodeStyleClassBytes),
+            static_cast<unsigned>(kStyleClassMax),
+            fails == 0 ? "ok" : "fail");
+        return fails == 0;
+    }
+
     bool run_layout_text_state_regression() noexcept {
         int fails = 0;
         static SoaKernel probe{};
@@ -3530,7 +3567,7 @@ int main(int argc, char** argv) {
     }
 #endif
     if (run_ci) {
-        (void)out::println<"[soa] abi style_patch={} soa_kernel={} scene={} nodes={} node_storage_slot={} node_runtime_state={} layout_text_state={} semantic_slots={} semantic_pool={} style_patch_slots={} traversal_frame={} traversal_workspace={}">(
+        (void)out::println<"[soa] abi style_patch={} soa_kernel={} scene={} nodes={} node_storage_slot={} node_runtime_state={} node_style_class={} layout_text_state={} semantic_slots={} semantic_pool={} style_patch_slots={} traversal_frame={} traversal_workspace={}">(
             g_console,
             static_cast<unsigned long long>(sizeof(StylePatch)),
             static_cast<unsigned long long>(sizeof(SoaKernel)),
@@ -3538,6 +3575,7 @@ int main(int argc, char** argv) {
             static_cast<unsigned>(SoaKernel::kMaxNodes),
             static_cast<unsigned>(SoaKernel::kNodeStorageSlotBytes),
             static_cast<unsigned>(SoaKernel::kNodeRuntimeStateBytes),
+            static_cast<unsigned>(SoaKernel::kNodeStyleClassBytes),
             static_cast<unsigned>(SoaKernel::kNodeLayoutTextStateBytes),
             static_cast<unsigned>(SoaKernel::kSemanticCapacity),
             static_cast<unsigned>(SoaKernel::kSemanticPoolBytes),
@@ -3939,6 +3977,7 @@ int main(int argc, char** argv) {
     bool semantic_pool_ok = true;
     bool payload_owner_ok = true;
     bool node_runtime_state_ok = true;
+    bool style_class_id_ok = true;
     bool layout_text_state_ok = true;
     bool traversal_workspace_ok = true;
     bool rect_truth_ok = true;
@@ -3975,6 +4014,10 @@ int main(int argc, char** argv) {
         node_runtime_state_ok = run_node_runtime_state_regression();
         if (!node_runtime_state_ok) {
             ci_mark_fail("node_runtime_state");
+        }
+        style_class_id_ok = run_style_class_id_regression();
+        if (!style_class_id_ok) {
+            ci_mark_fail("style_class_id");
         }
         layout_text_state_ok = run_layout_text_state_regression();
         if (!layout_text_state_ok) {
@@ -4622,6 +4665,7 @@ int main(int argc, char** argv) {
             && semantic_pool_ok
             && payload_owner_ok
             && node_runtime_state_ok
+            && style_class_id_ok
             && layout_text_state_ok;
 
         (void)out::println<"[soa-ci] display mode={} bw1={} gray2={} gray2_curve={} eink_max_partial={} eink_min_full_ms={} eink_partial_pct={} missing_glyphs={} fallback_glyphs={} utf8_replace={} text_draw={} text_glyphs={} text_pixels={}">(

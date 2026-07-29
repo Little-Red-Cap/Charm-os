@@ -357,6 +357,7 @@ public:
         sizeof(soa_detail::NodeSlotStorage);
     static constexpr std::size_t kNodeRuntimeStateBytes =
         sizeof(soa_detail::NodeRuntimeState);
+    static constexpr std::size_t kNodeStyleClassBytes = sizeof(StyleClassId);
     static_assert(kSemanticPoolBytes <= kSemanticCapacity * 16 + 32,
                   "SoA semantic pool exceeded its admitted capacity bound");
 

@@ -134,7 +134,7 @@ export namespace charm::vivid::config {
     static_assert(kStyle.style_patch_slot_cap <= kSoa.max_nodes);
     static_assert(kStyle.style_patch_slot_cap <= 65535);
     static_assert(kStyle.style_class_max > 0);
-    static_assert(kStyle.style_class_max <= 65535);
+    static_assert(kStyle.style_class_max <= 256);
     static_assert(kStyle.style_rule_cap > 0);
     static_assert(kStyle.style_rule_cap <= 65535);
     static_assert(kStyle.style_metrics_pool_cap > 0);

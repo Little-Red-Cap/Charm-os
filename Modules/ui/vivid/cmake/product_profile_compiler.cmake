@@ -156,6 +156,10 @@ function(vivid_define_product_profile)
                 "Vivid profile ${PROFILE_NAME} ${_field} must be > 0")
         endif()
     endforeach()
+    if("${PROFILE_STYLE_CLASS_MAX}" GREATER 256)
+        message(FATAL_ERROR
+            "Vivid profile ${PROFILE_NAME} STYLE_CLASS_MAX must be <= 256")
+    endif()
     _vivid_normalize_uint(
         PROFILE_SEMANTIC_SLOT_CAP
         "Vivid profile ${PROFILE_NAME} SEMANTIC_SLOT_CAP"

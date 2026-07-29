@@ -28,9 +28,9 @@ import charm.core.soa_registry;
             common_.prev_sibling[i] = kInvalidIndex;
             common_.child_count[i] = 0;
             common_.layout_text[i].reset();
-            common_.style_patch_slot[i] = kInvalidIndex;
+            common_.style_patch_slot[i].reset();
             common_.style_class[i] = kStyleClassInvalid;
-            common_.semantic_slot[i] = kInvalidIndex;
+            common_.semantic_slot[i].reset();
 #if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
             common_.draw_scope[i] = 0;
 #endif
@@ -69,9 +69,9 @@ import charm.core.soa_registry;
         common_.prev_sibling[idx] = kInvalidIndex;
         common_.child_count[idx] = 0;
         common_.layout_text[idx].reset(defaults.layout_kind);
-        common_.style_patch_slot[idx] = kInvalidIndex;
+        common_.style_patch_slot[idx].reset();
         common_.style_class[idx] = kStyleClassInvalid;
-        common_.semantic_slot[idx] = kInvalidIndex;
+        common_.semantic_slot[idx].reset();
 #if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
         common_.draw_scope[idx] = 0;
 #endif
@@ -87,9 +87,9 @@ import charm.core.soa_registry;
             common_.prev_sibling[idx] = kInvalidIndex;
             common_.child_count[idx] = 0;
             common_.layout_text[idx].reset();
-            common_.style_patch_slot[idx] = kInvalidIndex;
+            common_.style_patch_slot[idx].reset();
             common_.style_class[idx] = kStyleClassInvalid;
-            common_.semantic_slot[idx] = kInvalidIndex;
+            common_.semantic_slot[idx].reset();
 #if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
             common_.draw_scope[idx] = 0;
 #endif

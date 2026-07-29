@@ -35,68 +35,117 @@ export constexpr std::uint16_t kInvalidIndex = 0xFFFF;
 struct ScrollBarTrackInfo;
 
 namespace soa_detail {
+    template <typename Tag>
+    class CompactSlotId {
+    public:
+        using value_type = std::uint8_t;
+
+        constexpr CompactSlotId() noexcept = default;
+
+        [[nodiscard]] static constexpr CompactSlotId from_index(std::size_t index) noexcept {
+            return CompactSlotId{static_cast<value_type>(index)};
+        }
+
+        [[nodiscard]] static constexpr std::size_t max_capacity() noexcept {
+            return static_cast<std::size_t>(kInvalidValue);
+        }
+
+        [[nodiscard]] constexpr bool valid() const noexcept {
+            return value_ != kInvalidValue;
+        }
+
+        [[nodiscard]] constexpr std::size_t index() const noexcept {
+            return static_cast<std::size_t>(value_);
+        }
+
+        constexpr void reset() noexcept {
+            value_ = kInvalidValue;
+        }
+
+    private:
+        static constexpr value_type kInvalidValue = 0xFF;
+
+        constexpr explicit CompactSlotId(value_type value) noexcept
+            : value_{value} {}
+
+        value_type value_{kInvalidValue};
+    };
+
+    struct StylePatchSlotTag {};
+    struct SemanticSlotTag {};
+    using StylePatchSlot = CompactSlotId<StylePatchSlotTag>;
+    using SemanticSlot = CompactSlotId<SemanticSlotTag>;
+
+    static_assert(sizeof(StylePatchSlot) == 1);
+    static_assert(sizeof(SemanticSlot) == 1);
+    static_assert(std::is_trivially_copyable_v<StylePatchSlot>);
+    static_assert(std::is_trivially_copyable_v<SemanticSlot>);
+
     template <std::size_t Capacity>
     class StylePatchPool {
     public:
         static_assert(Capacity > 0);
-        static_assert(Capacity <= kInvalidIndex);
+        static_assert(Capacity <= StylePatchSlot::max_capacity());
 
         void reset() noexcept {
             for (std::size_t i = 0; i < Capacity; ++i) {
                 patches_[i] = StylePatch{};
                 kinds_[i] = StylePatchKind::None;
                 free_next_[i] = (i + 1 < Capacity)
-                    ? static_cast<std::uint16_t>(i + 1)
-                    : kInvalidIndex;
+                    ? StylePatchSlot::from_index(i + 1)
+                    : StylePatchSlot{};
             }
-            free_head_ = 0;
+            free_head_ = StylePatchSlot::from_index(0);
             live_count_ = 0;
             peak_count_ = 0;
             alloc_fail_ = 0;
             overflowed_ = false;
         }
 
-        [[nodiscard]] bool set(std::uint16_t& slot,
+        [[nodiscard]] bool set(StylePatchSlot& slot,
                                const StylePatch& patch,
                                StylePatchKind kind) noexcept {
             assert(kind != StylePatchKind::None);
-            if (slot == kInvalidIndex) {
-                if (free_head_ == kInvalidIndex) {
+            if (!slot.valid()) {
+                if (!free_head_.valid()) {
                     overflowed_ = true;
                     ++alloc_fail_;
                     return false;
                 }
                 slot = free_head_;
-                free_head_ = free_next_[slot];
+                free_head_ = free_next_[slot.index()];
                 ++live_count_;
                 if (live_count_ > peak_count_) peak_count_ = live_count_;
             }
-            assert(slot < Capacity);
-            patches_[slot] = patch;
-            kinds_[slot] = kind;
+            const std::size_t index = slot.index();
+            assert(index < Capacity);
+            patches_[index] = patch;
+            kinds_[index] = kind;
             return true;
         }
 
-        [[nodiscard]] bool clear(std::uint16_t& slot) noexcept {
-            if (slot == kInvalidIndex) return false;
-            assert(slot < Capacity);
-            kinds_[slot] = StylePatchKind::None;
-            free_next_[slot] = free_head_;
+        [[nodiscard]] bool clear(StylePatchSlot& slot) noexcept {
+            if (!slot.valid()) return false;
+            const std::size_t index = slot.index();
+            assert(index < Capacity);
+            kinds_[index] = StylePatchKind::None;
+            free_next_[index] = free_head_;
             free_head_ = slot;
-            slot = kInvalidIndex;
+            slot.reset();
             assert(live_count_ > 0);
             --live_count_;
             return true;
         }
 
-        [[nodiscard]] const StylePatch* get(std::uint16_t slot) const noexcept {
-            if (slot == kInvalidIndex || slot >= Capacity) return nullptr;
-            return kinds_[slot] == StylePatchKind::None ? nullptr : &patches_[slot];
+        [[nodiscard]] const StylePatch* get(StylePatchSlot slot) const noexcept {
+            if (!slot.valid() || slot.index() >= Capacity) return nullptr;
+            const std::size_t index = slot.index();
+            return kinds_[index] == StylePatchKind::None ? nullptr : &patches_[index];
         }
 
-        [[nodiscard]] StylePatchKind kind(std::uint16_t slot) const noexcept {
-            if (slot == kInvalidIndex || slot >= Capacity) return StylePatchKind::None;
-            return kinds_[slot];
+        [[nodiscard]] StylePatchKind kind(StylePatchSlot slot) const noexcept {
+            if (!slot.valid() || slot.index() >= Capacity) return StylePatchKind::None;
+            return kinds_[slot.index()];
         }
 
         [[nodiscard]] bool overflowed() const noexcept { return overflowed_; }
@@ -107,9 +156,9 @@ namespace soa_detail {
 
     private:
         std::array<StylePatch, Capacity> patches_{};
-        std::array<std::uint16_t, Capacity> free_next_{};
+        std::array<StylePatchSlot, Capacity> free_next_{};
         std::array<StylePatchKind, Capacity> kinds_{};
-        std::uint16_t free_head_{kInvalidIndex};
+        StylePatchSlot free_head_{};
         std::uint16_t live_count_{0};
         std::uint16_t peak_count_{0};
         std::uint32_t alloc_fail_{0};
@@ -130,57 +179,63 @@ namespace soa_detail {
     class SemanticPool {
     public:
         static_assert(Capacity > 0);
-        static_assert(Capacity <= kInvalidIndex);
+        static_assert(Capacity <= SemanticSlot::max_capacity());
 
         void reset() noexcept {
             for (std::size_t i = 0; i < Capacity; ++i) {
                 records_[i] = SemanticRecord{};
                 free_next_[i] = (i + 1 < Capacity)
-                    ? static_cast<std::uint16_t>(i + 1)
-                    : kInvalidIndex;
+                    ? SemanticSlot::from_index(i + 1)
+                    : SemanticSlot{};
             }
-            free_head_ = 0;
+            free_head_ = SemanticSlot::from_index(0);
             live_count_ = 0;
             peak_count_ = 0;
             alloc_fail_ = 0;
             overflowed_ = false;
         }
 
-        [[nodiscard]] SemanticRecord* acquire(std::uint16_t& slot) noexcept {
-            if (slot == kInvalidIndex) {
-                if (free_head_ == kInvalidIndex) {
+        [[nodiscard]] SemanticRecord* acquire(SemanticSlot& slot) noexcept {
+            if (!slot.valid()) {
+                if (!free_head_.valid()) {
                     overflowed_ = true;
                     ++alloc_fail_;
                     return nullptr;
                 }
                 slot = free_head_;
-                free_head_ = free_next_[slot];
-                records_[slot] = SemanticRecord{};
+                free_head_ = free_next_[slot.index()];
+                records_[slot.index()] = SemanticRecord{};
                 ++live_count_;
                 if (live_count_ > peak_count_) peak_count_ = live_count_;
             }
-            assert(slot < Capacity);
-            return &records_[slot];
+            const std::size_t index = slot.index();
+            assert(index < Capacity);
+            return &records_[index];
         }
 
-        [[nodiscard]] bool clear(std::uint16_t& slot) noexcept {
-            if (slot == kInvalidIndex) return false;
-            assert(slot < Capacity);
-            records_[slot] = SemanticRecord{};
-            free_next_[slot] = free_head_;
+        [[nodiscard]] bool clear(SemanticSlot& slot) noexcept {
+            if (!slot.valid()) return false;
+            const std::size_t index = slot.index();
+            assert(index < Capacity);
+            records_[index] = SemanticRecord{};
+            free_next_[index] = free_head_;
             free_head_ = slot;
-            slot = kInvalidIndex;
+            slot.reset();
             assert(live_count_ > 0);
             --live_count_;
             return true;
         }
 
-        [[nodiscard]] SemanticRecord* get(std::uint16_t slot) noexcept {
-            return (slot == kInvalidIndex || slot >= Capacity) ? nullptr : &records_[slot];
+        [[nodiscard]] SemanticRecord* get(SemanticSlot slot) noexcept {
+            return (!slot.valid() || slot.index() >= Capacity)
+                ? nullptr
+                : &records_[slot.index()];
         }
 
-        [[nodiscard]] const SemanticRecord* get(std::uint16_t slot) const noexcept {
-            return (slot == kInvalidIndex || slot >= Capacity) ? nullptr : &records_[slot];
+        [[nodiscard]] const SemanticRecord* get(SemanticSlot slot) const noexcept {
+            return (!slot.valid() || slot.index() >= Capacity)
+                ? nullptr
+                : &records_[slot.index()];
         }
 
         [[nodiscard]] bool overflowed() const noexcept { return overflowed_; }
@@ -191,8 +246,8 @@ namespace soa_detail {
 
     private:
         std::array<SemanticRecord, Capacity> records_{};
-        std::array<std::uint16_t, Capacity> free_next_{};
-        std::uint16_t free_head_{kInvalidIndex};
+        std::array<SemanticSlot, Capacity> free_next_{};
+        SemanticSlot free_head_{};
         std::uint16_t live_count_{0};
         std::uint16_t peak_count_{0};
         std::uint32_t alloc_fail_{0};
@@ -332,9 +387,9 @@ namespace soa_detail {
         std::array<NodeRuntimeState, N> runtime_state{};
         std::array<Rect, N> rects{};
         std::array<NodeLayoutTextState, N> layout_text{};
-        std::array<std::uint16_t, N> style_patch_slot{};
+        std::array<StylePatchSlot, N> style_patch_slot{};
         std::array<StyleClassId, N> style_class{};
-        std::array<std::uint16_t, N> semantic_slot{};
+        std::array<SemanticSlot, N> semantic_slot{};
 #if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
         std::array<std::uint16_t, N> draw_scope{};
 #endif
@@ -351,6 +406,8 @@ public:
     static constexpr std::size_t kStylePatchCapacity = style_patch_slot_cap;
     static constexpr std::size_t kSemanticPoolBytes =
         sizeof(soa_detail::SemanticPool<kSemanticCapacity>);
+    static constexpr std::size_t kStylePatchPoolBytes =
+        sizeof(soa_detail::StylePatchPool<kStylePatchCapacity>);
     static constexpr std::size_t kNodeLayoutTextStateBytes =
         sizeof(soa_detail::NodeLayoutTextState);
     static constexpr std::size_t kNodeStorageSlotBytes =
@@ -358,6 +415,10 @@ public:
     static constexpr std::size_t kNodeRuntimeStateBytes =
         sizeof(soa_detail::NodeRuntimeState);
     static constexpr std::size_t kNodeStyleClassBytes = sizeof(StyleClassId);
+    static constexpr std::size_t kNodeStylePatchSlotBytes =
+        sizeof(soa_detail::StylePatchSlot);
+    static constexpr std::size_t kNodeSemanticSlotBytes =
+        sizeof(soa_detail::SemanticSlot);
     static_assert(kSemanticPoolBytes <= kSemanticCapacity * 16 + 32,
                   "SoA semantic pool exceeded its admitted capacity bound");
 

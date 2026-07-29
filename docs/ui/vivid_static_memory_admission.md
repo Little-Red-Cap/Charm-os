@@ -43,14 +43,14 @@ profile 必须显式提供 scene count、budget 和 headroom，不能依赖隐�
 runtime diagnostic/policy 状态。configure model 为 runtime globals 保留独立保守上界；低估真实 ABI 是
 独立硬失败，不能用增大产品 budget 掩盖。
 
-SoA common table 以 node capacity 乘算，但每个 node 只保存 16 位 `StylePatch` 槽索引；完整 patch 位于
+SoA common table 以 node capacity 乘算，但每个 node 只保存强类型 8 位 `StylePatch` 槽索引；完整 patch 位于
 `STYLE_PATCH_SLOT_CAP` 控制的固定容量稀疏池。FULL/MCU_MIN 默认取 `min(soa_max_nodes, 192)`，PRODUCT 必须在
-profile 中显式声明该容量，且不得超过 node capacity。配置期分别计算 node 与 patch-slot 保守上界，不能把槽池
+profile 中显式声明该容量，且不得超过 255 或 node capacity。配置期分别计算 node 与 patch-slot 保守上界，不能把槽池
 成本重新藏回逐节点常量。目标 ABI 的 `Scene`/`SoaKernel` exact profile 才是实际收益证据。
 
 Semantic role、id、label 与 action mask 同样位于 `SEMANTIC_SLOT_CAP` 控制的固定容量稀疏池，common table
-只保存 16 位槽索引。FULL/MCU_MIN 默认取 `min(soa_max_nodes, 64)`，PRODUCT 必须显式声明容量且不得超过
-node capacity。配置期按 16B/slot 加固定管理上界单列 semantic pool，不得把完整 semantic record 重新乘到
+只保存独立强类型的 8 位槽索引。FULL/MCU_MIN 默认取 `min(soa_max_nodes, 64)`，PRODUCT 必须显式声明容量且
+不得超过 255 或 node capacity。配置期按 16B/slot 加固定管理上界单列 semantic pool，不得把完整 semantic record 重新乘到
 所有 node。profile fingerprint、typed config、static-memory manifest 与 admission JSON 必须消费同一容量真源。
 
 common table 只保存一份当前 `Rect`；layout、paint culling 与 hit-test 共同消费它。不得为未获准的视觉越界能力

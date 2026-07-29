@@ -3567,7 +3567,7 @@ int main(int argc, char** argv) {
     }
 #endif
     if (run_ci) {
-        (void)out::println<"[soa] abi style_patch={} soa_kernel={} scene={} nodes={} node_storage_slot={} node_runtime_state={} node_style_class={} layout_text_state={} semantic_slots={} semantic_pool={} style_patch_slots={} traversal_frame={} traversal_workspace={}">(
+        (void)out::println<"[soa] abi style_patch={} soa_kernel={} scene={} nodes={} node_storage_slot={} node_runtime_state={} node_style_class={} node_style_patch_slot={} node_semantic_slot={} layout_text_state={} semantic_slots={} semantic_pool={} style_patch_slots={} style_patch_pool={} traversal_frame={} traversal_workspace={}">(
             g_console,
             static_cast<unsigned long long>(sizeof(StylePatch)),
             static_cast<unsigned long long>(sizeof(SoaKernel)),
@@ -3576,10 +3576,13 @@ int main(int argc, char** argv) {
             static_cast<unsigned>(SoaKernel::kNodeStorageSlotBytes),
             static_cast<unsigned>(SoaKernel::kNodeRuntimeStateBytes),
             static_cast<unsigned>(SoaKernel::kNodeStyleClassBytes),
+            static_cast<unsigned>(SoaKernel::kNodeStylePatchSlotBytes),
+            static_cast<unsigned>(SoaKernel::kNodeSemanticSlotBytes),
             static_cast<unsigned>(SoaKernel::kNodeLayoutTextStateBytes),
             static_cast<unsigned>(SoaKernel::kSemanticCapacity),
             static_cast<unsigned>(SoaKernel::kSemanticPoolBytes),
             static_cast<unsigned>(SoaKernel::kStylePatchCapacity),
+            static_cast<unsigned>(SoaKernel::kStylePatchPoolBytes),
             static_cast<unsigned>(sizeof(SoaKernel::TraversalFrame)),
             static_cast<unsigned>(SoaKernel::kTraversalWorkspaceBytes));
     }

@@ -423,6 +423,8 @@ vivid_define_product_profile(
 $MissingStylePatchSlotCap = $MinimalProfiles -replace '(?m)^[ \t]*STYLE_PATCH_SLOT_CAP[ \t]+[0-9]+\r?\n', ''
 $MissingSemanticSlotCap = $MinimalProfiles -replace '(?m)^[ \t]*SEMANTIC_SLOT_CAP[ \t]+[0-9]+\r?\n', ''
 $StyleClassMaxOverByte = $MinimalProfiles -replace '(?m)^([ \t]*STYLE_CLASS_MAX[ \t]+)[0-9]+', '${1}257'
+$SemanticSlotCapOverByte = $MinimalProfiles -replace '(?m)^([ \t]*SEMANTIC_SLOT_CAP[ \t]+)[0-9]+', '${1}256'
+$StylePatchSlotCapOverByte = $MinimalProfiles -replace '(?m)^([ \t]*STYLE_PATCH_SLOT_CAP[ \t]+)[0-9]+', '${1}256'
 
 try {
     if (Test-Path -LiteralPath $FixtureRoot) {
@@ -453,6 +455,16 @@ try {
         -Body $StyleClassMaxOverByte `
         -ExpectSuccess $false `
         -ExpectedPattern "STYLE_CLASS_MAX must be <= 256"
+
+    Invoke-CMakeCase -Name "semantic-slot-cap-over-byte" `
+        -Body $SemanticSlotCapOverByte `
+        -ExpectSuccess $false `
+        -ExpectedPattern "SEMANTIC_SLOT_CAP must be <= 255"
+
+    Invoke-CMakeCase -Name "style-patch-slot-cap-over-byte" `
+        -Body $StylePatchSlotCapOverByte `
+        -ExpectSuccess $false `
+        -ExpectedPattern "STYLE_PATCH_SLOT_CAP must be <= 255"
 
     Invoke-CMakeCase -Name "semantic-slot-cap-over-nodes" -Body @'
 vivid_define_product_profile(

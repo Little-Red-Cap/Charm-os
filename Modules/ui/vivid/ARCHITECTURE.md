@@ -96,8 +96,9 @@ Widget node 不保存可逃逸的 payload handle。节点未使用时，16 位 s
 旧 owner 对已复用槽的读取或释放必须被拒绝。公开 `WidgetHandle` 的 generation 继续独立保护 node identity，
 不能用 payload slot 代替公开 handle。
 
-Semantic role、id、label 与 action mask 只由显式 semantic entry 使用，不随每个 node 常驻。node 保存 16 位
-槽索引，`SoaKernel` 按 profile 的 `SEMANTIC_SLOT_CAP` 拥有固定容量 semantic pool。set 覆盖已有槽；clear 与
+Semantic role、id、label 与 action mask 只由显式 semantic entry 使用，不随每个 node 常驻。node 保存强类型
+8 位槽索引，`SoaKernel` 按 profile 的 `SEMANTIC_SLOT_CAP` 拥有固定容量 semantic pool，容量不得超过 255。
+set 覆盖已有槽；clear 与
 node destroy 归还槽；action-only 更新不能隐式创建 entry。池满时保留已有 entry、拒绝新 entry，并产生 sticky
 overflow、allocation-fail、live/peak evidence。`WidgetKind`、Scene semantic API 与 snapshot 值语义不随存储迁移改变。
 
@@ -302,8 +303,9 @@ theme token 经 ResolvedTheme/StyleSheet 预编译为可索引 style；热路径
 规则优先级必须确定，metrics pool 与颜色/state 表保持固定容量。
 
 `StylePatch` 本身保持 bit-packed、trivially copyable，并由源码 ABI 上限阻止 presence flag 退回逐字节布尔
-存储。SoA node 不常驻完整 patch，只保存一个 16 位稀疏槽索引；`SoaKernel` 按 profile 的
-`STYLE_PATCH_SLOT_CAP` 拥有固定容量 patch pool。首次 set 分配槽，覆盖已有 patch 不增加 live count，clear 和
+存储。SoA node 不常驻完整 patch，只保存一个强类型 8 位稀疏槽索引；`SoaKernel` 按 profile 的
+`STYLE_PATCH_SLOT_CAP` 拥有固定容量 patch pool，容量不得超过 255。首次 set 分配槽，覆盖已有 patch 不增加
+live count，clear 和
 node destroy 归还槽。容量耗尽时保留所有既有 patch、拒绝本次写入，并产生 sticky overflow 与 allocation-fail
 evidence；PRODUCT 必须显式声明槽容量，且不得超过 node capacity。字段打包与稀疏化都不改变 patch 优先级、
 adjust/override 语义或公共 `Style`/`StylePatch` API；真实 Scene/StyleSheet 收益由 GCC 目标 ABI evidence 记录。

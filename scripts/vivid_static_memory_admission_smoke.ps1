@@ -150,7 +150,7 @@ function Assert-Admission {
         $Values.semantic_pool_upper_bytes -ne "1056") {
         throw "Unexpected sparse semantic budget in static memory manifest"
     }
-    if ($Values.soa_node_upper_bytes -ne "215") {
+    if ($Values.soa_node_upper_bytes -ne "213") {
         throw "Unexpected packed SoA node upper bound: $($Values.soa_node_upper_bytes)"
     }
     $expectedTraversalBytes = [int64]$Values.soa_max_nodes * 64
@@ -184,7 +184,7 @@ function Assert-ProductEvidence {
         [int64]$admissionEvidence.static_memory.semantic_pool_upper_bytes -ne 1056) {
         throw "PRODUCT sparse semantic evidence mismatch for profile '$Profile'"
     }
-    if ([int64]$admissionEvidence.static_memory.soa_node_upper_bytes -ne 215) {
+    if ([int64]$admissionEvidence.static_memory.soa_node_upper_bytes -ne 213) {
         throw "PRODUCT packed SoA node evidence mismatch for profile '$Profile'"
     }
     if ([int64]$profileEvidence.workset.style_patch_slot_cap -ne 192 -or
@@ -385,6 +385,30 @@ try {
     $styleClassOver = Invoke-VividConfigure -SourceDir $SoaSourceDir -FeatureSet "FULL" -ExtraArgs $styleClassOverArgs -ExpectSuccess $false
     if ($styleClassOver -notmatch 'CHARM_VIVID_STYLE_CLASS_MAX must be <= 256') {
         throw "FULL style-class-width failure did not report the expected rule"
+    }
+
+    $semanticSlotOverArgs = @($FullArgs | ForEach-Object {
+        if ($_ -like "-DCHARM_VIVID_SEMANTIC_SLOT_CAP=*") {
+            "-DCHARM_VIVID_SEMANTIC_SLOT_CAP=256"
+        } else {
+            $_
+        }
+    })
+    $semanticSlotOver = Invoke-VividConfigure -SourceDir $SoaSourceDir -FeatureSet "FULL" -ExtraArgs $semanticSlotOverArgs -ExpectSuccess $false
+    if ($semanticSlotOver -notmatch 'CHARM_VIVID_SEMANTIC_SLOT_CAP must be <= 255') {
+        throw "FULL semantic-slot-width failure did not report the expected rule"
+    }
+
+    $stylePatchSlotOverArgs = @($FullArgs | ForEach-Object {
+        if ($_ -like "-DCHARM_VIVID_STYLE_PATCH_SLOT_CAP=*") {
+            "-DCHARM_VIVID_STYLE_PATCH_SLOT_CAP=256"
+        } else {
+            $_
+        }
+    })
+    $stylePatchSlotOver = Invoke-VividConfigure -SourceDir $SoaSourceDir -FeatureSet "FULL" -ExtraArgs $stylePatchSlotOverArgs -ExpectSuccess $false
+    if ($stylePatchSlotOver -notmatch 'CHARM_VIVID_STYLE_PATCH_SLOT_CAP must be <= 255') {
+        throw "FULL style-patch-slot-width failure did not report the expected rule"
     }
 
     $missingSceneArgs = $CommonSoaArgs + @(

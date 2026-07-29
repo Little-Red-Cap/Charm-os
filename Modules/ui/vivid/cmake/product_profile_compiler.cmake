@@ -163,7 +163,7 @@ function(vivid_define_product_profile)
     _vivid_normalize_uint(
         PROFILE_SEMANTIC_SLOT_CAP
         "Vivid profile ${PROFILE_NAME} SEMANTIC_SLOT_CAP"
-        "${PROFILE_SEMANTIC_SLOT_CAP}" 65535)
+        "${PROFILE_SEMANTIC_SLOT_CAP}" 255)
     if("${PROFILE_SEMANTIC_SLOT_CAP}" LESS 1)
         message(FATAL_ERROR
             "Vivid profile ${PROFILE_NAME} SEMANTIC_SLOT_CAP must be > 0")
@@ -175,7 +175,7 @@ function(vivid_define_product_profile)
     _vivid_normalize_uint(
         PROFILE_STYLE_PATCH_SLOT_CAP
         "Vivid profile ${PROFILE_NAME} STYLE_PATCH_SLOT_CAP"
-        "${PROFILE_STYLE_PATCH_SLOT_CAP}" 65535)
+        "${PROFILE_STYLE_PATCH_SLOT_CAP}" 255)
     if("${PROFILE_STYLE_PATCH_SLOT_CAP}" LESS 1)
         message(FATAL_ERROR
             "Vivid profile ${PROFILE_NAME} STYLE_PATCH_SLOT_CAP must be > 0")

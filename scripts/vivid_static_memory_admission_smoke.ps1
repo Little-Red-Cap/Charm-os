@@ -146,6 +146,11 @@ function Assert-Admission {
         $Values.style_patch_pool_upper_bytes -ne "49152") {
         throw "Unexpected sparse StylePatch budget in static memory manifest"
     }
+    $expectedTraversalBytes = [int64]$Values.soa_max_nodes * 64
+    if ($Values.soa_traversal_frame_upper_bytes -ne "64" -or
+        [int64]$Values.soa_traversal_workspace_upper_bytes -ne $expectedTraversalBytes) {
+        throw "Unexpected shared SoA traversal workspace budget"
+    }
     if ($Status -eq "admitted" -and
         ($budget -le 0 -or $headroom -lt $MinimumHeadroom)) {
         throw "Admission headroom is insufficient: upper=$upper budget=$budget headroom=$headroom"
@@ -170,6 +175,11 @@ function Assert-ProductEvidence {
     if ([int64]$profileEvidence.workset.style_patch_slot_cap -ne 192 -or
         [int64]$admissionEvidence.static_memory.style_patch_pool_upper_bytes -ne 49152) {
         throw "PRODUCT sparse StylePatch evidence mismatch for profile '$Profile'"
+    }
+    if ([int64]$admissionEvidence.static_memory.soa_traversal_frame_upper_bytes -ne 64 -or
+        [int64]$admissionEvidence.static_memory.soa_traversal_workspace_upper_bytes -ne
+            ([int64]$profileEvidence.workset.soa_max_nodes * 64)) {
+        throw "PRODUCT shared traversal workspace evidence mismatch for profile '$Profile'"
     }
     if ($profileEvidence.profile_fingerprint -ne $envelopeEvidence.profile_fingerprint -or
         $profileEvidence.profile_fingerprint -ne $closureEvidence.profile_fingerprint -or

@@ -101,12 +101,14 @@ import charm.core.soa_payload;
             return out;
         }
 
-        auto& stack = semantic_traversal_stack_;
+        const auto workspace = acquire_traversal(TraversalPhase::Semantic);
+        if (!workspace) return out;
+        auto& stack = workspace.stack();
         std::size_t sp = 0;
-        stack[sp++] = SemanticTraversalEntry{root, 0};
+        stack[sp++] = TraversalFrame{.h = root};
 
         while (sp > 0) {
-            const WidgetHandle h = stack[--sp].handle;
+            const WidgetHandle h = stack[--sp].h;
             if (!valid(h) || !visible(h)) continue;
             ++out.visited_count;
 
@@ -129,7 +131,7 @@ import charm.core.soa_payload;
                     note_workspace_overflow();
                     break;
                 }
-                stack[sp++] = SemanticTraversalEntry{child, 0};
+                stack[sp++] = TraversalFrame{.h = child};
             }
         }
 
@@ -284,12 +286,14 @@ import charm.core.soa_payload;
             return out;
         }
 
-        auto& stack = semantic_traversal_stack_;
+        const auto workspace = acquire_traversal(TraversalPhase::Semantic);
+        if (!workspace) return out;
+        auto& stack = workspace.stack();
         std::size_t sp = 0;
-        stack[sp++] = SemanticTraversalEntry{root, 0};
+        stack[sp++] = TraversalFrame{.h = root};
 
         while (sp > 0) {
-            const WidgetHandle h = stack[--sp].handle;
+            const WidgetHandle h = stack[--sp].h;
             if (!valid(h) || !visible(h)) continue;
             ++out.visited_count;
 
@@ -313,7 +317,7 @@ import charm.core.soa_payload;
                     note_workspace_overflow();
                     break;
                 }
-                stack[sp++] = SemanticTraversalEntry{child, 0};
+                stack[sp++] = TraversalFrame{.h = child};
             }
         }
 
@@ -448,13 +452,18 @@ import charm.core.soa_payload;
             max_nodes = kSemanticTreeMaxNodes;
         }
 
-        auto& stack = semantic_traversal_stack_;
+        const auto workspace = acquire_traversal(TraversalPhase::Semantic);
+        if (!workspace) {
+            out.overflowed = true;
+            return out;
+        }
+        auto& stack = workspace.stack();
         std::size_t sp = 0;
-        stack[sp++] = SemanticTraversalEntry{root, 0};
+        stack[sp++] = TraversalFrame{.h = root};
 
         while (sp > 0) {
-            const SemanticTraversalEntry entry = stack[--sp];
-            const WidgetHandle h = entry.handle;
+            const TraversalFrame entry = stack[--sp];
+            const WidgetHandle h = entry.h;
             if (!valid(h) || !visible(h)) continue;
             ++out.visited_count;
 
@@ -496,9 +505,9 @@ import charm.core.soa_payload;
                     note_workspace_overflow();
                     break;
                 }
-                stack[sp++] = SemanticTraversalEntry{
-                    child,
-                    static_cast<std::uint16_t>(entry.depth + 1),
+                stack[sp++] = TraversalFrame{
+                    .h = child,
+                    .depth = static_cast<std::uint16_t>(entry.depth + 1),
                 };
             }
         }

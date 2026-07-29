@@ -53,6 +53,12 @@ profile 中显式声明该容量，且不得超过 node capacity。配置期分�
 通过 `Scene::last_cmd_stats()` 进入 SoA CI 最终判定。独立池耗尽回归用于证明拒绝和槽复用，不代表产品正常路径
 允许 overflow。
 
+SoA layout、render、hit-test、focus 与 semantic 不分别乘算遍历数组。每个 `SoaKernel` 只拥有一套
+`soa_max_nodes` 容量的共享 traversal workspace；配置期按 64B/frame 计入上界，目标 ABI profile 记录实际
+frame 与 workspace 字节。phase lease 禁止重入覆盖：冲突必须拒绝后进入的 traversal，并同时设置 sticky
+`traversal_phase_conflicted` 与 `workspace_overflowed`。独立冲突回归只证明拒绝和释放恢复；产品正常路径要求
+两项 evidence 均为零。
+
 ## Product Profile 与 Envelope
 
 PRODUCT 通过两层 DSL 分离：

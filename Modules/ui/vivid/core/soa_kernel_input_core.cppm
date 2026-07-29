@@ -929,11 +929,13 @@ import charm.core.soa_registry;
 
     WidgetHandle SoaKernel::input_first_focus_candidate(WidgetHandle root) const noexcept {
         if (!root || !valid(root)) return {};
-        auto& stack = input_traversal_stack_;
+        const auto workspace = acquire_traversal(TraversalPhase::Focus);
+        if (!workspace) return {};
+        auto& stack = workspace.stack();
         std::size_t sp = 0;
-        stack[sp++] = root;
+        stack[sp++] = TraversalFrame{.h = root};
         while (sp > 0) {
-            const WidgetHandle h = stack[--sp];
+            const WidgetHandle h = stack[--sp].h;
             if (!valid(h) || !visible(h) || !enabled(h)) continue;
             if (input_is_focus_candidate(h)) return h;
             for (auto child = last_child(h); child; child = prev_sibling(child)) {
@@ -941,7 +943,7 @@ import charm.core.soa_registry;
                     note_workspace_overflow();
                     break;
                 }
-                stack[sp++] = child;
+                stack[sp++] = TraversalFrame{.h = child};
             }
         }
         return {};
@@ -951,35 +953,41 @@ import charm.core.soa_registry;
                                                        WidgetHandle current,
                                                        bool reverse) const noexcept {
         if (!root || !valid(root)) return {};
-        auto& candidates = input_focus_candidates_;
-        std::size_t count = 0;
-        auto& stack = input_traversal_stack_;
+        const auto workspace = acquire_traversal(TraversalPhase::Focus);
+        if (!workspace) return {};
+        auto& stack = workspace.stack();
         std::size_t sp = 0;
-        stack[sp++] = root;
+        stack[sp++] = TraversalFrame{.h = root};
+        WidgetHandle first{};
+        WidgetHandle last{};
+        WidgetHandle before_current{};
+        WidgetHandle after_current{};
+        bool current_seen = false;
         while (sp > 0) {
-            const WidgetHandle h = stack[--sp];
+            const WidgetHandle h = stack[--sp].h;
             if (!valid(h) || !visible(h) || !enabled(h)) continue;
-            if (input_is_focus_candidate(h) && count < candidates.size()) {
-                candidates[count++] = h;
+            if (input_is_focus_candidate(h)) {
+                if (!first) first = h;
+                if (current_seen && !after_current) after_current = h;
+                if (h == current) {
+                    current_seen = true;
+                    before_current = last;
+                }
+                last = h;
             }
             for (auto child = last_child(h); child; child = prev_sibling(child)) {
                 if (sp >= stack.size()) {
                     note_workspace_overflow();
                     break;
                 }
-                stack[sp++] = child;
+                stack[sp++] = TraversalFrame{.h = child};
             }
         }
-        if (count == 0) return {};
-        if (!current) return reverse ? candidates[count - 1] : candidates[0];
-        for (std::size_t index = 0; index < count; ++index) {
-            if (candidates[index] != current) continue;
-            if (reverse) {
-                return index == 0 ? candidates[count - 1] : candidates[index - 1];
-            }
-            return (index + 1 == count) ? candidates[0] : candidates[index + 1];
-        }
-        return reverse ? candidates[count - 1] : candidates[0];
+        if (!first) return {};
+        if (!current || !current_seen) return reverse ? last : first;
+        return reverse
+            ? (before_current ? before_current : last)
+            : (after_current ? after_current : first);
     }
 
     WidgetHandle SoaKernel::input_spatial_focus_candidate(WidgetHandle root,
@@ -998,11 +1006,13 @@ import charm.core.soa_registry;
         std::int64_t best_order = 0;
         std::int64_t order = 0;
 
-        auto& stack = input_traversal_stack_;
+        const auto workspace = acquire_traversal(TraversalPhase::Focus);
+        if (!workspace) return {};
+        auto& stack = workspace.stack();
         std::size_t sp = 0;
-        stack[sp++] = root;
+        stack[sp++] = TraversalFrame{.h = root};
         while (sp > 0) {
-            const WidgetHandle h = stack[--sp];
+            const WidgetHandle h = stack[--sp].h;
             if (!valid(h) || !visible(h) || !enabled(h)) continue;
             if (input_is_focus_candidate(h) && h != current) {
                 const Rect to = input_world_rect(h);
@@ -1057,7 +1067,7 @@ import charm.core.soa_registry;
                     note_workspace_overflow();
                     break;
                 }
-                stack[sp++] = child;
+                stack[sp++] = TraversalFrame{.h = child};
             }
         }
         return best;

@@ -2896,6 +2896,41 @@ namespace {
         return fails == 0;
     }
 
+    bool run_traversal_workspace_regression() noexcept {
+        int fails = 0;
+        static SoaKernel probe{};
+        const WidgetHandle root = probe.create(WidgetKind::Container);
+        expect_true(static_cast<bool>(root), "traversal workspace: root allocation failed", fails);
+
+        {
+            const auto held = probe.acquire_traversal(SoaKernel::TraversalPhase::Render);
+            expect_true(static_cast<bool>(held), "traversal workspace: initial lease failed", fails);
+            if (held) {
+                expect_true(held.stack().size() == SoaKernel::kMaxNodes,
+                            "traversal workspace: capacity mismatch", fails);
+            }
+            const auto blocked = probe.semantic_tree_snapshot(root);
+            expect_true(blocked.overflowed && blocked.visited_count == 0,
+                        "traversal workspace: conflicting phase was not rejected", fails);
+            expect_true(probe.traversal_phase_conflicted() && probe.workspace_overflowed(),
+                        "traversal workspace: conflict evidence missing", fails);
+        }
+
+        const auto recovered = probe.semantic_tree_snapshot(root);
+        expect_true(!recovered.overflowed && recovered.visited_count == 1,
+                    "traversal workspace: lease release did not restore traversal", fails);
+
+        (void)out::println<"[soa] traversal_workspace frame={} bytes={} cap={} conflict={} overflow={} result={}">(
+            g_console,
+            static_cast<unsigned>(sizeof(SoaKernel::TraversalFrame)),
+            static_cast<unsigned>(SoaKernel::kTraversalWorkspaceBytes),
+            static_cast<unsigned>(SoaKernel::kMaxNodes),
+            probe.traversal_phase_conflicted() ? 1u : 0u,
+            probe.workspace_overflowed() ? 1u : 0u,
+            fails == 0 ? "ok" : "fail");
+        return fails == 0;
+    }
+
     bool run_workspace_regression(SoaGui& gui,
                                   SoaKernel& kernel,
                                   SoaFactory& factory,
@@ -2952,11 +2987,12 @@ namespace {
             kernel.destroy(chain[i - 1]);
         }
 
-        (void)out::println<"[soa] workspace chain={} max={} overflow={} result={}">(
+        (void)out::println<"[soa] workspace chain={} max={} overflow={} conflict={} result={}">(
             g_console,
             static_cast<unsigned>(chain_count),
             static_cast<unsigned>(SoaKernel::kMaxNodes),
             kernel.workspace_overflowed() ? 1u : 0u,
+            kernel.traversal_phase_conflicted() ? 1u : 0u,
             fails == 0 ? "ok" : "fail");
         return fails == 0;
     }
@@ -3173,13 +3209,15 @@ int main(int argc, char** argv) {
     }
 #endif
     if (run_ci) {
-        (void)out::println<"[soa] abi style_patch={} soa_kernel={} scene={} nodes={} style_patch_slots={}">(
+        (void)out::println<"[soa] abi style_patch={} soa_kernel={} scene={} nodes={} style_patch_slots={} traversal_frame={} traversal_workspace={}">(
             g_console,
             static_cast<unsigned long long>(sizeof(StylePatch)),
             static_cast<unsigned long long>(sizeof(SoaKernel)),
             static_cast<unsigned long long>(sizeof(::ui::scene::Scene)),
             static_cast<unsigned>(SoaKernel::kMaxNodes),
-            static_cast<unsigned>(SoaKernel::kStylePatchCapacity));
+            static_cast<unsigned>(SoaKernel::kStylePatchCapacity),
+            static_cast<unsigned>(sizeof(SoaKernel::TraversalFrame)),
+            static_cast<unsigned>(SoaKernel::kTraversalWorkspaceBytes));
     }
 #if defined(VIVID_SOA_TRACE_INPUT)
     if (run_regress || run_regress_layout || run_regress_ui) {
@@ -3572,6 +3610,7 @@ int main(int argc, char** argv) {
     bool ui_ok = true;
     bool svg_workspace_ok = true;
     bool style_patch_pool_ok = true;
+    bool traversal_workspace_ok = true;
     bool perf_overlay_runtime_ok = true;
     auto trace_regress_stage = [&](const char* stage) noexcept {
         (void)out::println<"[soa] regress stage={}">(g_console, stage);
@@ -3593,6 +3632,10 @@ int main(int argc, char** argv) {
         style_patch_pool_ok = run_style_patch_pool_regression();
         if (!style_patch_pool_ok) {
             ci_mark_fail("style_patch_pool");
+        }
+        traversal_workspace_ok = run_traversal_workspace_regression();
+        if (!traversal_workspace_ok) {
+            ci_mark_fail("traversal_workspace");
         }
         perf_overlay_runtime_ok = run_perf_overlay_runtime_regression();
         (void)out::println<"[soa] perf_overlay_runtime bytes={} ok={}">(
@@ -4179,7 +4222,9 @@ int main(int argc, char** argv) {
             ci_mark_fail("tile_failed_cmds");
         }
         const bool workspace_ok = !kernel.workspace_overflowed()
-            && !gui.last_cmd_stats().workspace_overflowed;
+            && !gui.last_cmd_stats().workspace_overflowed
+            && !kernel.traversal_phase_conflicted()
+            && !gui.last_cmd_stats().traversal_phase_conflicted;
         if (!workspace_ok) {
             ci_mark_fail("workspace_overflow");
         }
@@ -4212,6 +4257,7 @@ int main(int argc, char** argv) {
             && img_dedup_ok
             && cmd_budget_ok
             && workspace_ok
+            && traversal_workspace_ok
             && style_patch_ok
             && style_patch_pool_ok;
 
@@ -4231,7 +4277,7 @@ int main(int argc, char** argv) {
             static_cast<unsigned long long>(text_profile.glyphs),
             static_cast<unsigned long long>(text_profile.pixels));
 
-        (void)out::println<"[soa-ci] ok={} hash=0x{:08X} replay_full=0x{:08X} replay_tile=0x{:08X} failed_cmds={} overflows(p/t/b)={}/{}/{} workspace_overflow={} style_patch_overflow={} style_patch_live={} style_patch_peak={} style_patch_cap={} style_patch_fail={} style_patch_pool_ok={} alloc_fail={} peak_ok={} table_tree_ok={} ui_ok={} compact_saved={} batch_shrink={} batch_shrink_line={} batch_shrink_path={} batch_shrink_rect={} batch_shrink_round={} batch_shrink_image={} batch_shrink_focus={} cmd_raw={} cmd_count={} cmd_saved={} cmd_saved_pct={} cmd_budget={} dispatch_groups={} batch_flushes={} groups(rect/text/img/line/path/other)={}/{}/{}/{}/{}/{} cmds(rect/text/img/line/path/other)={}/{}/{}/{}/{}/{} fail(text/img/blob/path/clip/other)={}/{}/{}/{}/{}/{} clip(push_over/pop_under/invalid)={}/{}/{} tile_flushes={} tile_hit_pct={} tile_dispatch_groups={} tile_batch_flushes={} tile_failed_cmds={} img_new_total={} img_new_after_lock={} img_new_record={} img_new_compact={} img_new_execute={} img_bytes={} img_reuse={} img_growth={} img_overflow={} img_dedup_ok={} img_after_lock_reason={} img_after_lock_tag={} reason={}">(
+        (void)out::println<"[soa-ci] ok={} hash=0x{:08X} replay_full=0x{:08X} replay_tile=0x{:08X} failed_cmds={} overflows(p/t/b)={}/{}/{} workspace_overflow={} traversal_conflict={} traversal_workspace_ok={} style_patch_overflow={} style_patch_live={} style_patch_peak={} style_patch_cap={} style_patch_fail={} style_patch_pool_ok={} alloc_fail={} peak_ok={} table_tree_ok={} ui_ok={} compact_saved={} batch_shrink={} batch_shrink_line={} batch_shrink_path={} batch_shrink_rect={} batch_shrink_round={} batch_shrink_image={} batch_shrink_focus={} cmd_raw={} cmd_count={} cmd_saved={} cmd_saved_pct={} cmd_budget={} dispatch_groups={} batch_flushes={} groups(rect/text/img/line/path/other)={}/{}/{}/{}/{}/{} cmds(rect/text/img/line/path/other)={}/{}/{}/{}/{}/{} fail(text/img/blob/path/clip/other)={}/{}/{}/{}/{}/{} clip(push_over/pop_under/invalid)={}/{}/{} tile_flushes={} tile_hit_pct={} tile_dispatch_groups={} tile_batch_flushes={} tile_failed_cmds={} img_new_total={} img_new_after_lock={} img_new_record={} img_new_compact={} img_new_execute={} img_bytes={} img_reuse={} img_growth={} img_overflow={} img_dedup_ok={} img_after_lock_reason={} img_after_lock_tag={} reason={}">(
             g_console,
             ok ? 1u : 0u,
             static_cast<unsigned>(compare_hash_full),
@@ -4242,6 +4288,8 @@ int main(int argc, char** argv) {
             text_ok ? 0u : 1u,
             blob_ok ? 0u : 1u,
             workspace_ok ? 0u : 1u,
+            kernel.traversal_phase_conflicted() ? 1u : 0u,
+            traversal_workspace_ok ? 1u : 0u,
             style_patch_ok ? 0u : 1u,
             static_cast<unsigned>(kernel.style_patch_live_count()),
             static_cast<unsigned>(kernel.style_patch_peak_count()),

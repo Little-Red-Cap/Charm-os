@@ -524,8 +524,9 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
     math(EXPR _vivid_draw_cmd_compaction_workspace_upper_bytes
         "${VIVID_DRAW_CMD_MAX_COMMANDS} * 4 + 32768")
     set(_vivid_draw_cmd_executor_workspace_upper_bytes 32768)
+    set(_vivid_soa_traversal_frame_upper_bytes 64)
     math(EXPR _vivid_soa_traversal_workspace_upper_bytes
-        "${CHARM_VIVID_SOA_MAX_NODES} * 256")
+        "${CHARM_VIVID_SOA_MAX_NODES} * ${_vivid_soa_traversal_frame_upper_bytes}")
     set(_vivid_soa_node_upper_bytes 256)
     set(_vivid_style_patch_slot_upper_bytes 256)
     math(EXPR _vivid_style_patch_pool_upper_bytes
@@ -615,11 +616,13 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
         "draw_cmd_max_commands=${VIVID_DRAW_CMD_MAX_COMMANDS}\n"
         "draw_cmd_text_bytes=${VIVID_DRAW_CMD_TEXT_BYTES}\n"
         "draw_cmd_blob_bytes=${VIVID_DRAW_CMD_BLOB_BYTES}\n"
+        "soa_max_nodes=${VIVID_SOA_MAX_NODES}\n"
         "style_patch_slot_cap=${VIVID_STYLE_PATCH_SLOT_CAP}\n"
         "style_patch_pool_upper_bytes=${_vivid_style_patch_pool_upper_bytes}\n"
         "max_hot_stack_frame_bytes=${VIVID_MAX_HOT_STACK_FRAME_BYTES}\n"
         "draw_cmd_compaction_workspace_upper_bytes=${_vivid_draw_cmd_compaction_workspace_upper_bytes}\n"
         "draw_cmd_executor_workspace_upper_bytes=${_vivid_draw_cmd_executor_workspace_upper_bytes}\n"
+        "soa_traversal_frame_upper_bytes=${_vivid_soa_traversal_frame_upper_bytes}\n"
         "soa_traversal_workspace_upper_bytes=${_vivid_soa_traversal_workspace_upper_bytes}\n"
         "soa_upper_bytes=${_vivid_soa_upper_bytes}\n"
         "scene_upper_bytes=${_vivid_scene_upper_bytes}\n"
@@ -756,6 +759,7 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
             "    \"compaction_workspace_upper_bytes\": ${_vivid_draw_cmd_compaction_workspace_upper_bytes},\n"
             "    \"executor_workspace_upper_bytes\": ${_vivid_draw_cmd_executor_workspace_upper_bytes},\n"
             "    \"style_patch_pool_upper_bytes\": ${_vivid_style_patch_pool_upper_bytes},\n"
+            "    \"soa_traversal_frame_upper_bytes\": ${_vivid_soa_traversal_frame_upper_bytes},\n"
             "    \"soa_traversal_workspace_upper_bytes\": ${_vivid_soa_traversal_workspace_upper_bytes}\n"
             "  },\n"
             "  \"max_hot_stack_frame_bytes\": ${VIVID_MAX_HOT_STACK_FRAME_BYTES}\n"

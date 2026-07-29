@@ -69,9 +69,14 @@ evidence surface。DrawCmd 与 state-to-artifact evidence 分别见：
 
 ## Workspace 与静态内存
 
-SoA traversal、layout、render、input、semantic、compaction 和 raster scratch 使用 Scene/调用方拥有的固定
-workspace。共享 workspace 只允许单 UI execution domain 内串行使用；同一对象上的并发或重入必须被
-拒绝或由调用方隔离。
+SoA layout、render、hit-test、focus 与 semantic traversal 共享 `SoaKernel` 唯一拥有的一套固定 frame
+workspace；容量与 `soa_max_nodes` 相同，frame 的配置期保守上界为 64B。各阶段通过 move-only lease 串行借用，
+不能同时保留两套 typed stack。焦点 next/previous 使用单趟遍历维护首尾和相邻候选，不再为所有节点常驻第二张
+candidate 表。
+
+同一 Scene 上的并发或重入会拒绝后进入的 traversal，并产生 sticky phase-conflict 与 workspace-overflow
+evidence；lease 释放后 workspace 必须可再次使用。compaction、DrawCmd executor 与 raster scratch 仍使用各自
+职责明确的固定 workspace，不与 traversal frame 做无生命周期证明的内存覆盖。
 
 PRODUCT/MCU profile 必须声明：
 

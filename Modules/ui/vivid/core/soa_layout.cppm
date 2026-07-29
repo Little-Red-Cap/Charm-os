@@ -1,5 +1,4 @@
 module;
-#include <array>
 #include <cstddef>
 #include <cstdint>
 
@@ -14,9 +13,6 @@ import charm.core.soa_registry;
 export
 class SoaLayoutPass {
 public:
-    static constexpr std::size_t kTraversalWorkspaceBytes =
-        sizeof(std::array<WidgetHandle, SoaKernel::kMaxNodes>);
-
     explicit SoaLayoutPass(SoaKernel& kernel) noexcept
         : kernel_(kernel) {}
 
@@ -30,7 +26,7 @@ public:
             stylesheet_version == stylesheet_version_) {
             return;
         }
-        layout_tree(root);
+        if (!layout_tree(root)) return;
         kernel_.set_layout_applied_version(dirty);
 #if defined(VIVID_SOA_TRACE_INPUT)
         kernel_.layout_trace_on_pass();
@@ -43,7 +39,6 @@ private:
     SoaKernel& kernel_;
     std::uint32_t tokens_version_{0};
     std::uint32_t stylesheet_version_{0};
-    std::array<WidgetHandle, SoaKernel::kMaxNodes> traversal_stack_{};
 
     static StyleState make_state(const SoaKernel& kernel, WidgetHandle h) noexcept {
         const StateCompact state = kernel.state_compact(h);
@@ -64,12 +59,15 @@ private:
         return make_style_state(enabled, hovered, pressed, focused, state.variant);
     }
 
-    void layout_tree(WidgetHandle root) noexcept {
-        auto& stack = traversal_stack_;
+    bool layout_tree(WidgetHandle root) noexcept {
+        const auto workspace = kernel_.acquire_traversal(SoaKernel::TraversalPhase::Layout);
+        if (!workspace) return false;
+        auto& stack = workspace.stack();
         std::size_t sp = 0;
-        stack[sp++] = root;
+        stack[sp++] = SoaKernel::TraversalFrame{.h = root};
+        bool complete = true;
         while (sp > 0) {
-            WidgetHandle h = stack[--sp];
+            WidgetHandle h = stack[--sp].h;
             if (!kernel_.valid(h) || !kernel_.visible(h)) continue;
             const SoaLayoutKind kind = kernel_.layout_kind(h);
             if (kind == SoaLayoutKind::List) {
@@ -82,11 +80,13 @@ private:
             }
             for (auto child = kernel_.last_child(h); child; child = kernel_.prev_sibling(child)) {
                 if (sp < stack.size()) {
-                    stack[sp++] = child;
+                    stack[sp++] = SoaKernel::TraversalFrame{.h = child};
                 } else {
                     kernel_.note_workspace_overflow();
+                    complete = false;
                 }
             }
         }
+        return complete;
     }
 };

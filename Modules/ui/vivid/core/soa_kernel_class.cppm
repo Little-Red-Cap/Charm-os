@@ -7,6 +7,7 @@ module;
 #include <cstddef>
 #include <cstdint>
 #include <type_traits>
+#include <utility>
 
 #if defined(CHARM_VIVID_UNSUPPORTED_WIDGET_DIAG)
 extern "C" void charm_vivid_soa_unsupported_widget_kind(unsigned kind, unsigned caller) noexcept;
@@ -155,6 +156,74 @@ class SoaKernel {
 public:
     static constexpr std::size_t kMaxNodes = soa_max_nodes;
     static constexpr std::size_t kStylePatchCapacity = style_patch_slot_cap;
+
+    struct TraversalFrame {
+        static constexpr std::uint8_t kEntered = 1u << 0;
+        static constexpr std::uint8_t kClipEnabled = 1u << 1;
+        static constexpr std::uint8_t kClipPushed = 1u << 2;
+
+        WidgetHandle h{};
+        WidgetHandle child{};
+        Rect clip_rect{};
+        int offset_x{0};
+        int offset_y{0};
+        int child_offset_x{0};
+        int child_offset_y{0};
+        std::uint16_t depth{0};
+        std::uint16_t draw_scope_id{0};
+        std::uint8_t flags{0};
+
+        constexpr bool entered() const noexcept { return (flags & kEntered) != 0; }
+        constexpr bool clip_enabled() const noexcept { return (flags & kClipEnabled) != 0; }
+        constexpr bool clip_pushed() const noexcept { return (flags & kClipPushed) != 0; }
+        constexpr void set_entered() noexcept { flags |= kEntered; }
+        constexpr void set_clip_enabled() noexcept { flags |= kClipEnabled; }
+        constexpr void set_clip_pushed() noexcept { flags |= kClipPushed; }
+    };
+
+    enum class TraversalPhase : std::uint8_t {
+        Idle,
+        Layout,
+        Render,
+        HitTest,
+        Focus,
+        Semantic,
+    };
+
+    class TraversalLease {
+        friend class SoaKernel;
+
+    public:
+        TraversalLease() noexcept = default;
+        TraversalLease(const TraversalLease&) = delete;
+        TraversalLease& operator=(const TraversalLease&) = delete;
+        TraversalLease(TraversalLease&& other) noexcept
+            : owner_(std::exchange(other.owner_, nullptr)), phase_(other.phase_) {}
+        TraversalLease& operator=(TraversalLease&&) = delete;
+
+        ~TraversalLease() noexcept {
+            if (owner_) owner_->release_traversal(phase_);
+        }
+
+        explicit operator bool() const noexcept { return owner_ != nullptr; }
+
+        std::array<TraversalFrame, kMaxNodes>& stack() const noexcept {
+            assert(owner_ != nullptr);
+            return owner_->traversal_stack_;
+        }
+
+    private:
+        TraversalLease(const SoaKernel* owner, TraversalPhase phase) noexcept
+            : owner_(owner), phase_(phase) {}
+
+        const SoaKernel* owner_{nullptr};
+        TraversalPhase phase_{TraversalPhase::Idle};
+    };
+
+    static_assert(sizeof(TraversalFrame) <= 64,
+                  "SoA shared traversal frame exceeded its admitted per-node bound");
+    static constexpr std::size_t kTraversalWorkspaceBytes =
+        sizeof(std::array<TraversalFrame, kMaxNodes>);
 
     SoaKernel() noexcept;
 
@@ -600,13 +669,15 @@ public:
 
     WidgetHandle input_hit_test(int x, int y) noexcept {
         if (!input_.root) return {};
-        auto& stack = input_hit_stack_;
+        const auto workspace = acquire_traversal(TraversalPhase::HitTest);
+        if (!workspace) return {};
+        auto& stack = workspace.stack();
         std::size_t sp = 0;
-        stack[sp++] = InputHitTraversalFrame{input_.root, 0, 0, Rect{}, false};
+        stack[sp++] = TraversalFrame{.h = input_.root};
         WidgetHandle result{};
 
         while (sp > 0) {
-            InputHitTraversalFrame frame = stack[--sp];
+            TraversalFrame frame = stack[--sp];
             if (!valid(frame.h)) continue;
             if (!visible(frame.h)) continue;
             if (!enabled(frame.h)) continue;
@@ -623,7 +694,7 @@ public:
                 hit_local.w,
                 hit_local.h
             };
-            if (frame.clip_enabled && !frame.clip.contains(x, y)) {
+            if (frame.clip_enabled() && !frame.clip_rect.contains(x, y)) {
                 continue;
             }
             const bool inside = hit_world.contains(x, y);
@@ -641,8 +712,8 @@ public:
             if (input_is_scrollable_kind(kind(frame.h))) {
                 child_offset_y -= scroll_y(frame.h);
             }
-            Rect child_clip = frame.clip;
-            bool child_clip_enabled = frame.clip_enabled;
+            Rect child_clip = frame.clip_rect;
+            bool child_clip_enabled = frame.clip_enabled();
             if (clip_children(frame.h)) {
                 child_clip = world;
                 child_clip_enabled = true;
@@ -653,12 +724,12 @@ public:
                     note_workspace_overflow();
                     break;
                 }
-                stack[sp++] = InputHitTraversalFrame{
-                    child,
-                    child_offset_x,
-                    child_offset_y,
-                    child_clip,
-                    child_clip_enabled,
+                stack[sp++] = TraversalFrame{
+                    .h = child,
+                    .clip_rect = child_clip,
+                    .offset_x = child_offset_x,
+                    .offset_y = child_offset_y,
+                    .flags = child_clip_enabled ? TraversalFrame::kClipEnabled : std::uint8_t{0},
                 };
             }
         }
@@ -872,8 +943,22 @@ public:
     std::size_t style_patch_peak_count() const noexcept { return style_patches_.peak_count(); }
     std::uint32_t style_patch_alloc_fail() const noexcept { return style_patches_.alloc_fail(); }
     bool workspace_overflowed() const noexcept { return workspace_overflowed_; }
-    void clear_workspace_overflow() noexcept { workspace_overflowed_ = false; }
+    bool traversal_phase_conflicted() const noexcept { return traversal_phase_conflicted_; }
+    void clear_workspace_overflow() noexcept {
+        workspace_overflowed_ = false;
+        traversal_phase_conflicted_ = false;
+    }
     void note_workspace_overflow() const noexcept { workspace_overflowed_ = true; }
+    [[nodiscard]] TraversalLease acquire_traversal(TraversalPhase phase) const noexcept {
+        assert(phase != TraversalPhase::Idle);
+        if (phase == TraversalPhase::Idle || traversal_phase_ != TraversalPhase::Idle) {
+            traversal_phase_conflicted_ = true;
+            workspace_overflowed_ = true;
+            return {};
+        }
+        traversal_phase_ = phase;
+        return TraversalLease{this, phase};
+    }
     soa_detail::PayloadStats payload_stats() const noexcept ;
     std::uint32_t layout_applied_version() const noexcept ;
     void set_layout_applied_version(std::uint32_t v) noexcept ;
@@ -947,32 +1032,16 @@ public:
     }
 
 private:
-    struct InputHitTraversalFrame {
-        WidgetHandle h{};
-        int offset_x{0};
-        int offset_y{0};
-        Rect clip{};
-        bool clip_enabled{false};
-    };
-
-    struct SemanticTraversalEntry {
-        WidgetHandle handle{};
-        std::uint16_t depth{0};
-    };
-
-    std::array<InputHitTraversalFrame, kMaxNodes> input_hit_stack_{};
-    mutable std::array<WidgetHandle, kMaxNodes> input_traversal_stack_{};
-    mutable std::array<WidgetHandle, kMaxNodes> input_focus_candidates_{};
-    mutable std::array<SemanticTraversalEntry, kMaxNodes> semantic_traversal_stack_{};
+    mutable std::array<TraversalFrame, kMaxNodes> traversal_stack_{};
+    mutable TraversalPhase traversal_phase_{TraversalPhase::Idle};
+    mutable bool traversal_phase_conflicted_{false};
     mutable bool workspace_overflowed_{false};
 
-public:
-    static constexpr std::size_t kTraversalWorkspaceBytes =
-        sizeof(std::array<InputHitTraversalFrame, kMaxNodes>)
-        + sizeof(std::array<WidgetHandle, kMaxNodes>) * 2
-        + sizeof(std::array<SemanticTraversalEntry, kMaxNodes>);
+    void release_traversal(TraversalPhase phase) const noexcept {
+        assert(traversal_phase_ == phase);
+        traversal_phase_ = TraversalPhase::Idle;
+    }
 
-private:
     void mark_layout_dirty() noexcept;
     void mark_paint_dirty() noexcept;
 

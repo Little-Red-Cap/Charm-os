@@ -65,6 +65,9 @@ widget/scene state
   二进制可见 padding 必须改为显式 reserved，禁止恢复五张并存数组或未受对象生命周期约束的 reinterpret 写入；
 - executor 对相邻 rect/image/line/path/text run 单遍读取并立即执行；禁止恢复“先收集到 64 项 typed array、
   再逐项执行”的常驻中间表。clip stack 与 tile-hit table 在 Tile 执行期间真实重叠，仍由 executor 独立持有；
+- command arena 只按 canonical `CmdHeader + 最大 payload` stride 乘算；arena 不超过 64KiB 时，live buffer 与
+  compaction workspace 共享 16 位 offset 宽度，否则自动回退 32 位。load/replay 必须拒绝超过 canonical
+  stride 的扩展 record，不能让外部字节绕过静态容量证明；
 - tile 命中索引容量不足时必须回退到正确但更慢的扫描路径；
 - 产品 evidence 只消费 Scene stats 和 artifact 摘要，不依赖 CmdHeader/payload 私有布局。
 

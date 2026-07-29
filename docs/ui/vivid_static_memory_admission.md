@@ -43,11 +43,16 @@ profile 必须显式提供 scene count、budget 和 headroom，不能依赖隐�
 runtime diagnostic/policy 状态。configure model 为 runtime globals 保留独立保守上界；低估真实 ABI 是
 独立硬失败，不能用增大产品 budget 掩盖。
 
+DrawCmd command arena 以 canonical `CmdHeader + 最大 payload` 的 record stride 乘算：关闭 detail evidence
+时配置上界为 60B/command，开启时为 64B/command。arena 上界不超过 65536B 时，live buffer 与 compaction
+workspace 的 offset table 使用 2B/command，否则使用 4B/command。单 buffer 配置上界为
+`arena + offset table + text + blob + 4096B`；compaction workspace 上界为
+`offset table + 2048B`。C++ `sizeof` 门、manifest 和 admission JSON 必须消费同一组 record/arena/offset 证据。
+
 DrawCmd compaction 的五类 batch scratch 生命周期互斥，必须共享一块 64 项、按最大 item 对齐的 fixed byte
-storage。配置期 compaction workspace 上界为 `4B * DRAW_CMD_MAX_COMMANDS + 2048B`，分别覆盖 output
-offsets 与固定 scratch/command/对齐成本；C++ `sizeof` 门、manifest 和 admission JSON 必须消费同一公式。
-批项必须具有唯一 object representation，并以 `memcpy` 写入 raw blob；padding 必须显式命名并确定初始化，
-不能把历史 storage 字节带入 replay artifact。
+storage。批项必须具有唯一 object representation，并以 `memcpy` 写入 raw blob；padding 必须显式命名并
+确定初始化，不能把历史 storage 字节带入 replay artifact。load/replay 必须拒绝超过 canonical stride 的
+record，即使额外尾字节仍能被旧 decoder 忽略，也不能让它占用未纳入 command arena 的预算。
 
 DrawCmd executor 不为相邻命令 run 常驻 Rect/DrawCmd 中间数组；命令从固定容量 buffer 单遍读取并立即执行。
 配置期 executor workspace 上界固定为 `4096B`，覆盖真实重叠的 clip stack、tile-hit table 与可选 detail evidence；

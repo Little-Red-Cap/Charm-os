@@ -26,6 +26,45 @@ import charm.font.typography;
 import charm.gfx.text_box;
 import ui.render_backend;
 
+namespace ui::draw_cmd::buffer_detail {
+    inline constexpr std::size_t max_encoded_payload_bytes = sizeof(CmdGlyphRun);
+    inline constexpr std::size_t max_encoded_cmd_stride =
+        cmd_stride(sizeof(CmdHeader) + max_encoded_payload_bytes);
+
+    static_assert(sizeof(CmdColor) <= max_encoded_payload_bytes);
+    static_assert(sizeof(CmdColorP0) <= max_encoded_payload_bytes);
+    static_assert(sizeof(CmdColorP0P1P2) <= max_encoded_payload_bytes);
+    static_assert(sizeof(CmdColorP0P1P2P3) <= max_encoded_payload_bytes);
+    static_assert(sizeof(CmdTextBox) <= max_encoded_payload_bytes);
+    static_assert(sizeof(CmdPath) <= max_encoded_payload_bytes);
+    static_assert(sizeof(CmdImage) <= max_encoded_payload_bytes);
+    static_assert(sizeof(CmdImageP0) <= max_encoded_payload_bytes);
+    static_assert(sizeof(CmdImageP0P1) <= max_encoded_payload_bytes);
+    static_assert(sizeof(CmdImageP0P1P2) <= max_encoded_payload_bytes);
+    static_assert(sizeof(CmdImageP0P1P2P3) <= max_encoded_payload_bytes);
+    static_assert(sizeof(CmdBatchRect) <= max_encoded_payload_bytes);
+    static_assert(sizeof(CmdBatchLine) <= max_encoded_payload_bytes);
+    static_assert(sizeof(CmdBatchPath) <= max_encoded_payload_bytes);
+    static_assert(sizeof(CmdBatchRectP0) <= max_encoded_payload_bytes);
+    static_assert(sizeof(CmdBatchRectP0P1P2) <= max_encoded_payload_bytes);
+    static_assert(sizeof(CmdImageBatch) <= max_encoded_payload_bytes);
+    static_assert(sizeof(CmdImageBatchP0) <= max_encoded_payload_bytes);
+    static_assert(sizeof(CmdImageBatchP0P1) <= max_encoded_payload_bytes);
+    static_assert(sizeof(CmdImageBatchP0P1P2) <= max_encoded_payload_bytes);
+    static_assert(sizeof(CmdImageBatchP0P1P2P3) <= max_encoded_payload_bytes);
+    static_assert(max_encoded_cmd_stride <= CHARM_VIVID_DRAW_CMD_RECORD_UPPER_BYTES);
+
+    template <std::size_t MaxCmds>
+    inline constexpr std::size_t cmd_bytes_capacity = MaxCmds * max_encoded_cmd_stride;
+
+    template <std::size_t MaxCmds>
+    using CmdOffset = std::conditional_t<
+        (cmd_bytes_capacity<MaxCmds>
+         <= static_cast<std::size_t>(std::numeric_limits<std::uint16_t>::max()) + 1u),
+        std::uint16_t,
+        std::uint32_t>;
+}
+
 export namespace ui::draw_cmd {
     template <std::size_t Capacity>
     class BlobArena {
@@ -99,7 +138,7 @@ export namespace ui::draw_cmd {
         static_assert(alignof(PathBatchItem) <= kBatchItemAlignment);
         static_assert(alignof(ImageBatchItem) <= kBatchItemAlignment);
 
-        std::array<std::uint32_t, MaxCmds> output_offsets{};
+        std::array<buffer_detail::CmdOffset<MaxCmds>, MaxCmds> output_offsets{};
         alignas(kBatchItemAlignment) std::array<std::byte, kBatchStorageBytes> batch_item_storage{};
         DrawCmd batch_command{};
 
@@ -129,14 +168,20 @@ export namespace ui::draw_cmd {
 
     template <std::size_t MaxCmds, std::size_t TextBytes, std::size_t BlobBytes>
     class DrawCmdBuffer {
+        using CmdOffset = buffer_detail::CmdOffset<MaxCmds>;
+
     public:
         using CompactionWorkspace = DrawCmdCompactionWorkspace<MaxCmds, TextBytes, BlobBytes>;
         static constexpr std::size_t kMaxCommands = MaxCmds;
         static constexpr std::size_t kTextCapacity = TextBytes;
         static constexpr std::size_t kBlobCapacity = BlobBytes;
-        static constexpr std::size_t kCmdBytesCapacity = kMaxCommands * sizeof(DrawCmd);
+        static constexpr std::size_t kCmdBytesCapacity =
+            buffer_detail::cmd_bytes_capacity<MaxCmds>;
         static constexpr std::size_t kCompactionWorkspaceUpperBytes =
-            MaxCmds * sizeof(std::uint32_t) + 2048;
+            MaxCmds * sizeof(CmdOffset) + 2048;
+        static_assert(kCmdBytesCapacity
+                      <= static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max()) + 1u);
+        static_assert(sizeof(CmdOffset) == 2 || sizeof(CmdOffset) == 4);
         static_assert(sizeof(CompactionWorkspace) <= kCompactionWorkspaceUpperBytes);
 
         void clear() noexcept {
@@ -200,6 +245,7 @@ export namespace ui::draw_cmd {
             const auto* header = reinterpret_cast<const CmdHeader*>(cmd_bytes_.data() + offset);
             if (header->size < sizeof(CmdHeader)) return nullptr;
             const std::size_t stride = cmd_stride(header->size);
+            if (stride > buffer_detail::max_encoded_cmd_stride) return nullptr;
             if (offset + stride > cmd_bytes_used_) return nullptr;
             return header;
         }
@@ -215,7 +261,8 @@ export namespace ui::draw_cmd {
             const auto* header = reinterpret_cast<const CmdHeader*>(cmd_bytes_.data() + offset);
             if (header->size < sizeof(CmdHeader)) return false;
             stride = cmd_stride(header->size);
-            if (stride == 0 || offset + stride > cmd_bytes_used_) return false;
+            if (stride == 0 || stride > buffer_detail::max_encoded_cmd_stride
+                || offset + stride > cmd_bytes_used_) return false;
             return decode_cmd(header, out);
         }
 
@@ -244,13 +291,18 @@ export namespace ui::draw_cmd {
             }
             cmd_bytes_used_ = cmd_bytes_len;
             count_ = cmd_count;
-            if (cmd_bytes_used_ > 0 && count_ != 0) {
-                if (!rebuild_offsets()) {
+            if (cmd_bytes_used_ > 0) {
+                const bool rebuilt = (count_ != 0)
+                    ? rebuild_offsets()
+                    : rebuild_offsets_from_bytes();
+                if (!rebuilt) {
                     cmd_overflowed_ = true;
                     return false;
                 }
+            } else {
+                count_ = 0;
+                offsets_valid_ = true;
             }
-            offsets_valid_ = (count_ != 0);
             if (!text || text_bytes == 0) {
                 text_[0] = '\0';
                 text_used_ = 1;
@@ -525,7 +577,8 @@ export namespace ui::draw_cmd {
                 const auto* header = reinterpret_cast<const CmdHeader*>(cmd_bytes_.data() + at);
                 if (header->size < sizeof(CmdHeader)) return false;
                 stride = cmd_stride(header->size);
-                if (stride == 0 || at + stride > input_bytes) return false;
+                if (stride == 0 || stride > buffer_detail::max_encoded_cmd_stride
+                    || at + stride > input_bytes) return false;
                 return decode_cmd(header, out_cmd);
             };
 
@@ -1307,7 +1360,7 @@ export namespace ui::draw_cmd {
                 cmd_bytes_used_ = out_bytes;
                 std::memcpy(cmd_offsets_.data(),
                             output_offsets.data(),
-                            out_count * sizeof(std::uint32_t));
+                            out_count * sizeof(CmdOffset));
                 offsets_valid_ = true;
             }
             return ok && !blob_.overflowed();
@@ -1357,12 +1410,13 @@ export namespace ui::draw_cmd {
                 if (offset + sizeof(CmdHeader) > cmd_bytes_used_) return false;
                 const auto* header = reinterpret_cast<const CmdHeader*>(cmd_bytes_.data() + offset);
                 if (header->size < sizeof(CmdHeader)) return false;
-                cmd_offsets_[i] = static_cast<std::uint32_t>(offset);
+                cmd_offsets_[i] = static_cast<CmdOffset>(offset);
                 const std::size_t stride = cmd_stride(header->size);
-                if (stride == 0) return false;
+                if (stride == 0 || stride > buffer_detail::max_encoded_cmd_stride) return false;
                 if (offset + stride > cmd_bytes_used_) return false;
                 offset += stride;
             }
+            if (offset != cmd_bytes_used_) return false;
             offsets_valid_ = true;
             return true;
         }
@@ -1378,9 +1432,9 @@ export namespace ui::draw_cmd {
                 }
                 const auto* header = reinterpret_cast<const CmdHeader*>(cmd_bytes_.data() + offset);
                 if (header->size < sizeof(CmdHeader)) return false;
-                cmd_offsets_[count] = static_cast<std::uint32_t>(offset);
+                cmd_offsets_[count] = static_cast<CmdOffset>(offset);
                 const std::size_t stride = cmd_stride(header->size);
-                if (stride == 0) return false;
+                if (stride == 0 || stride > buffer_detail::max_encoded_cmd_stride) return false;
                 if (offset + stride > cmd_bytes_used_) return false;
                 offset += stride;
                 ++count;
@@ -1394,7 +1448,7 @@ export namespace ui::draw_cmd {
                               std::size_t capacity,
                               std::size_t& out_bytes,
                               std::size_t& out_count,
-                              std::uint32_t* offsets,
+                              CmdOffset* offsets,
                               CmdType type,
                               const Rect& rect,
 #if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
@@ -1406,8 +1460,10 @@ export namespace ui::draw_cmd {
             const std::size_t cmd_size = sizeof(CmdHeader) + payload_size;
             if (cmd_size > std::numeric_limits<std::uint16_t>::max()) return false;
             const std::size_t stride = cmd_stride(cmd_size);
+            if (stride > buffer_detail::max_encoded_cmd_stride) return false;
             if ((out_bytes + stride) > capacity) return false;
-            offsets[out_count] = static_cast<std::uint32_t>(out_bytes);
+            if (out_bytes > std::numeric_limits<CmdOffset>::max()) return false;
+            offsets[out_count] = static_cast<CmdOffset>(out_bytes);
             CmdHeader header{};
             header.type = type;
             header.size = static_cast<std::uint16_t>(cmd_size);
@@ -1430,7 +1486,7 @@ export namespace ui::draw_cmd {
                                std::size_t capacity,
                                std::size_t& out_bytes,
                                std::size_t& out_count,
-                               std::uint32_t* offsets) noexcept {
+                               CmdOffset* offsets) noexcept {
             switch (cmd.type) {
             case CmdType::PushClip:
             case CmdType::PopClip:
@@ -1700,7 +1756,7 @@ export namespace ui::draw_cmd {
         }
 
         alignas(kCmdAlign) std::array<std::byte, kCmdBytesCapacity> cmd_bytes_{};
-        std::array<std::uint32_t, kMaxCommands> cmd_offsets_{};
+        std::array<CmdOffset, kMaxCommands> cmd_offsets_{};
         std::array<char, kTextCapacity> text_{};
         BlobArena<kBlobCapacity> blob_{};
         std::size_t count_{0};
@@ -1726,5 +1782,7 @@ export namespace ui::draw_cmd {
     constexpr std::size_t kDefaultBlobCapacity = CHARM_VIVID_DRAW_CMD_BLOB_BYTES;
     using DefaultDrawCmdBuffer = DrawCmdBuffer<kDefaultCmdCapacity, kDefaultTextCapacity, kDefaultBlobCapacity>;
     using DefaultDrawCmdCompactionWorkspace = DefaultDrawCmdBuffer::CompactionWorkspace;
+    static_assert(sizeof(DefaultDrawCmdBuffer) <= CHARM_VIVID_DRAW_CMD_BUFFER_UPPER_BYTES,
+                  "DrawCmd buffer exceeds its configure-time upper bound");
 }
 

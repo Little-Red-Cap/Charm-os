@@ -139,7 +139,22 @@ function Assert-Admission {
         $Values.draw_cmd_blob_bytes -ne "2048") {
         throw "Unexpected DrawCmd profile in static memory manifest"
     }
-    $expectedCompactionWorkspaceBytes = [int64]$Values.draw_cmd_max_commands * 4 + 2048
+    $expectedRecordBytes = if ($Values.draw_detail_evidence -eq "1") { 64 } else { 60 }
+    $expectedArenaBytes = [int64]$Values.draw_cmd_max_commands * $expectedRecordBytes
+    $expectedOffsetBytes = if ($expectedArenaBytes -le 65536) { 2 } else { 4 }
+    $expectedBufferBytes = $expectedArenaBytes `
+        + [int64]$Values.draw_cmd_max_commands * $expectedOffsetBytes `
+        + [int64]$Values.draw_cmd_text_bytes `
+        + [int64]$Values.draw_cmd_blob_bytes `
+        + 4096
+    if ([int64]$Values.draw_cmd_record_upper_bytes -ne $expectedRecordBytes -or
+        [int64]$Values.draw_cmd_arena_upper_bytes -ne $expectedArenaBytes -or
+        [int64]$Values.draw_cmd_offset_bytes -ne $expectedOffsetBytes -or
+        [int64]$Values.draw_cmd_buffer_upper_bytes -ne $expectedBufferBytes) {
+        throw "Unexpected DrawCmd buffer budget"
+    }
+    $expectedCompactionWorkspaceBytes =
+        [int64]$Values.draw_cmd_max_commands * $expectedOffsetBytes + 2048
     if ([int64]$Values.draw_cmd_compaction_workspace_upper_bytes -ne $expectedCompactionWorkspaceBytes) {
         throw "Unexpected DrawCmd compaction workspace budget"
     }
@@ -205,7 +220,22 @@ function Assert-ProductEvidence {
         [int64]$admissionEvidence.static_memory.style_patch_pool_upper_bytes -ne 49152) {
         throw "PRODUCT sparse StylePatch evidence mismatch for profile '$Profile'"
     }
-    $expectedCompactionWorkspaceBytes = [int64]$profileEvidence.workset.draw_cmd_max_commands * 4 + 2048
+    $expectedRecordBytes = if ($drawDetailEnabled) { 64 } else { 60 }
+    $expectedArenaBytes = [int64]$profileEvidence.workset.draw_cmd_max_commands * $expectedRecordBytes
+    $expectedOffsetBytes = if ($expectedArenaBytes -le 65536) { 2 } else { 4 }
+    $expectedBufferBytes = $expectedArenaBytes `
+        + [int64]$profileEvidence.workset.draw_cmd_max_commands * $expectedOffsetBytes `
+        + [int64]$profileEvidence.workset.draw_cmd_text_bytes `
+        + [int64]$profileEvidence.workset.draw_cmd_blob_bytes `
+        + 4096
+    if ([int64]$admissionEvidence.static_memory.draw_cmd_record_upper_bytes -ne $expectedRecordBytes -or
+        [int64]$admissionEvidence.static_memory.draw_cmd_arena_upper_bytes -ne $expectedArenaBytes -or
+        [int64]$admissionEvidence.static_memory.draw_cmd_offset_bytes -ne $expectedOffsetBytes -or
+        [int64]$admissionEvidence.static_memory.draw_cmd_buffer_upper_bytes -ne $expectedBufferBytes) {
+        throw "PRODUCT DrawCmd buffer evidence mismatch for profile '$Profile'"
+    }
+    $expectedCompactionWorkspaceBytes =
+        [int64]$profileEvidence.workset.draw_cmd_max_commands * $expectedOffsetBytes + 2048
     if ([int64]$admissionEvidence.static_memory.compaction_workspace_upper_bytes -ne
             $expectedCompactionWorkspaceBytes) {
         throw "PRODUCT compaction workspace evidence mismatch for profile '$Profile'"

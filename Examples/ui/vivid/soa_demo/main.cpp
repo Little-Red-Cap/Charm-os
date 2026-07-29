@@ -3240,38 +3240,79 @@ namespace {
                         "child topology: initial link failed", fails);
             expect_true(probe.child_count(parent_a) == 3
                             && same_handle(probe.first_child(parent_a), child_a)
-                            && same_handle(probe.last_child(parent_a), child_c),
-                        "child topology: linked count or endpoints mismatch", fails);
+                            && same_handle(probe.last_child(parent_a), child_c)
+                            && !probe.prev_sibling(child_a)
+                            && same_handle(probe.prev_sibling(child_b), child_a)
+                            && same_handle(probe.prev_sibling(child_c), child_b),
+                        "child topology: linked endpoints or reverse order mismatch", fails);
 
             expect_true(probe.unlink(parent_a, child_b),
                         "child topology: unlink failed", fails);
             expect_true(probe.child_count(parent_a) == 2
                             && !probe.parent(child_b)
+                            && !probe.prev_sibling(child_a)
                             && same_handle(probe.next_sibling(child_a), child_c)
-                            && same_handle(probe.prev_sibling(child_c), child_a),
+                            && same_handle(probe.prev_sibling(child_c), child_a)
+                            && same_handle(probe.last_child(parent_a), child_c),
                         "child topology: unlink did not preserve sibling truth", fails);
 
+            expect_true(probe.link(parent_a, child_b)
+                            && same_handle(probe.last_child(parent_a), child_b)
+                            && same_handle(probe.prev_sibling(child_b), child_c),
+                        "child topology: append after unlink failed", fails);
+
+            expect_true(probe.link(parent_b, child_a),
+                        "child topology: first-child reparent failed", fails);
+            expect_true(probe.child_count(parent_a) == 2
+                            && probe.child_count(parent_b) == 1
+                            && same_handle(probe.first_child(parent_a), child_c)
+                            && same_handle(probe.last_child(parent_a), child_b)
+                            && !probe.prev_sibling(child_c)
+                            && same_handle(probe.first_child(parent_b), child_a)
+                            && same_handle(probe.last_child(parent_b), child_a)
+                            && !probe.prev_sibling(child_a),
+                        "child topology: first-child reparent mismatch", fails);
+
             expect_true(probe.link(parent_b, child_b),
-                        "child topology: second-parent link failed", fails);
-            expect_true(probe.link(parent_b, child_c),
-                        "child topology: reparent failed", fails);
+                        "child topology: tail reparent failed", fails);
             expect_true(probe.child_count(parent_a) == 1
                             && probe.child_count(parent_b) == 2
-                            && same_handle(probe.parent(child_c), parent_b)
-                            && same_handle(probe.first_child(parent_b), child_b)
-                            && same_handle(probe.last_child(parent_b), child_c),
-                        "child topology: reparent count mismatch", fails);
+                            && same_handle(probe.first_child(parent_a), child_c)
+                            && same_handle(probe.last_child(parent_a), child_c)
+                            && !probe.prev_sibling(child_c)
+                            && same_handle(probe.last_child(parent_b), child_b),
+                        "child topology: tail reparent mismatch", fails);
 
-            probe.destroy(child_a);
+            expect_true(probe.link(parent_b, child_c),
+                        "child topology: singleton reparent failed", fails);
             expect_true(probe.child_count(parent_a) == 0
                             && !probe.first_child(parent_a)
-                            && !probe.last_child(parent_a),
-                        "child topology: child destroy did not detach", fails);
+                            && !probe.last_child(parent_a)
+                            && probe.child_count(parent_b) == 3
+                            && same_handle(probe.first_child(parent_b), child_a)
+                            && same_handle(probe.last_child(parent_b), child_c)
+                            && !probe.prev_sibling(child_a)
+                            && same_handle(probe.prev_sibling(child_b), child_a)
+                            && same_handle(probe.prev_sibling(child_c), child_b),
+                        "child topology: singleton reparent mismatch", fails);
+
+            probe.destroy(child_b);
+            expect_true(probe.child_count(parent_b) == 2
+                            && same_handle(probe.first_child(parent_b), child_a)
+                            && same_handle(probe.last_child(parent_b), child_c)
+                            && !probe.prev_sibling(child_a)
+                            && same_handle(probe.prev_sibling(child_c), child_a),
+                        "child topology: middle-child destroy mismatch", fails);
+            probe.destroy(child_a);
+            expect_true(probe.child_count(parent_b) == 1
+                            && same_handle(probe.first_child(parent_b), child_c)
+                            && same_handle(probe.last_child(parent_b), child_c)
+                            && !probe.prev_sibling(child_c),
+                        "child topology: first-child destroy mismatch", fails);
 
             const WidgetHandle stale_parent = parent_b;
             probe.destroy(parent_b);
             expect_true(probe.child_count(stale_parent) == 0
-                            && !probe.parent(child_b)
                             && !probe.parent(child_c),
                         "child topology: parent destroy did not detach children", fails);
 
@@ -3292,7 +3333,7 @@ namespace {
         probe.destroy(parent_b);
         probe.destroy(parent_a);
 
-        (void)out::println<"[soa] child_topology storage=derived link=1 unlink=1 reparent=1 destroy=1 reuse=1 result={}">(
+        (void)out::println<"[soa] child_topology count=derived tail=intrusive link=1 unlink=1 reparent=1 destroy=1 reverse=1 reuse=1 result={}">(
             g_console,
             fails == 0 ? "ok" : "fail");
         return fails == 0;

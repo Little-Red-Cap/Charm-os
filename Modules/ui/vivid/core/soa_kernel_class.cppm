@@ -380,7 +380,6 @@ namespace soa_detail {
         std::array<NodeSlotStorage, N> storage_slot{};
         std::array<std::uint16_t, N> parent{};
         std::array<std::uint16_t, N> first_child{};
-        std::array<std::uint16_t, N> last_child{};
         std::array<std::uint16_t, N> next_sibling{};
         std::array<std::uint16_t, N> prev_sibling{};
         std::array<NodeRuntimeState, N> runtime_state{};
@@ -1445,6 +1444,8 @@ private:
     WidgetHandle input_drag_target() const noexcept ;
     std::uint16_t index_of(WidgetHandle h) const noexcept ;
     WidgetHandle handle_from_index(std::uint16_t idx) const noexcept ;
+    std::uint16_t last_child_index(std::uint16_t parent) const noexcept ;
+    std::uint16_t prev_sibling_index(std::uint16_t idx) const noexcept ;
     void detach_from_parent(std::uint16_t idx) noexcept ;
     void detach_children(std::uint16_t idx) noexcept ;
     bool creates_cycle(std::uint16_t parent, std::uint16_t child) const noexcept ;

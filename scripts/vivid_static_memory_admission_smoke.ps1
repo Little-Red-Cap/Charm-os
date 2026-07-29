@@ -139,6 +139,10 @@ function Assert-Admission {
         $Values.draw_cmd_blob_bytes -ne "2048") {
         throw "Unexpected DrawCmd profile in static memory manifest"
     }
+    $expectedCompactionWorkspaceBytes = [int64]$Values.draw_cmd_max_commands * 4 + 2048
+    if ([int64]$Values.draw_cmd_compaction_workspace_upper_bytes -ne $expectedCompactionWorkspaceBytes) {
+        throw "Unexpected DrawCmd compaction workspace budget"
+    }
     if ($Values.max_hot_stack_frame_bytes -ne "4096") {
         throw "Unexpected Vivid stack frame limit: $($Values.max_hot_stack_frame_bytes)"
     }
@@ -197,6 +201,11 @@ function Assert-ProductEvidence {
     if ([int64]$profileEvidence.workset.style_patch_slot_cap -ne 192 -or
         [int64]$admissionEvidence.static_memory.style_patch_pool_upper_bytes -ne 49152) {
         throw "PRODUCT sparse StylePatch evidence mismatch for profile '$Profile'"
+    }
+    $expectedCompactionWorkspaceBytes = [int64]$profileEvidence.workset.draw_cmd_max_commands * 4 + 2048
+    if ([int64]$admissionEvidence.static_memory.compaction_workspace_upper_bytes -ne
+            $expectedCompactionWorkspaceBytes) {
+        throw "PRODUCT compaction workspace evidence mismatch for profile '$Profile'"
     }
     $expectedTraversalFrameBytes = if ($drawDetailEnabled) { 56 } else { 52 }
     if ($admissionEvidence.static_memory.draw_detail_evidence -ne $drawDetailEnabled -or

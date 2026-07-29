@@ -120,7 +120,10 @@ export namespace ui::draw_cmd {
     struct TextSpan {
         std::uint32_t offset{0};
         std::uint16_t length{0};
+        std::uint16_t reserved{0};
     };
+
+    static_assert(sizeof(TextSpan) == 8);
 
     struct BlobRef {
         std::uint32_t offset{0};
@@ -489,6 +492,22 @@ export namespace ui::draw_cmd {
     struct ImageBatchItem {
         Rect rect{};
     };
+
+    static_assert(std::is_trivially_copyable_v<RectBatchItem>);
+    static_assert(std::is_trivially_copyable_v<LineBatchItem>);
+    static_assert(std::is_trivially_copyable_v<PathBatchItem>);
+    static_assert(std::is_trivially_copyable_v<GlyphRunItem>);
+    static_assert(std::is_trivially_copyable_v<ImageBatchItem>);
+    static_assert(sizeof(RectBatchItem) == 16);
+    static_assert(sizeof(LineBatchItem) == 16);
+    static_assert(sizeof(PathBatchItem) == 12);
+    static_assert(sizeof(GlyphRunItem) == 24);
+    static_assert(sizeof(ImageBatchItem) == 16);
+    static_assert(std::has_unique_object_representations_v<RectBatchItem>);
+    static_assert(std::has_unique_object_representations_v<LineBatchItem>);
+    static_assert(std::has_unique_object_representations_v<PathBatchItem>);
+    static_assert(std::has_unique_object_representations_v<GlyphRunItem>);
+    static_assert(std::has_unique_object_representations_v<ImageBatchItem>);
 
     constexpr Rect rect_union(const Rect& a, const Rect& b) noexcept {
         const Rect ra = rect_normalized(a);

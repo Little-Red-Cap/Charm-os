@@ -3686,7 +3686,7 @@ int main(int argc, char** argv) {
     }
 #endif
     if (run_ci) {
-        (void)out::println<"[soa] abi style_patch={} soa_kernel={} scene={} nodes={} node_storage_slot={} node_runtime_state={} node_style_class={} node_style_patch_slot={} node_semantic_slot={} layout_text_state={} semantic_slots={} semantic_pool={} style_patch_slots={} style_patch_pool={} traversal_frame={} traversal_workspace={}">(
+        (void)out::println<"[soa] abi style_patch={} soa_kernel={} scene={} nodes={} node_storage_slot={} node_runtime_state={} node_style_class={} node_style_patch_slot={} node_semantic_slot={} layout_text_state={} semantic_slots={} semantic_pool={} style_patch_slots={} style_patch_pool={} traversal_frame={} traversal_workspace={} compaction_workspace={} batch_storage={}">(
             g_console,
             static_cast<unsigned long long>(sizeof(StylePatch)),
             static_cast<unsigned long long>(sizeof(SoaKernel)),
@@ -3703,7 +3703,9 @@ int main(int argc, char** argv) {
             static_cast<unsigned>(SoaKernel::kStylePatchCapacity),
             static_cast<unsigned>(SoaKernel::kStylePatchPoolBytes),
             static_cast<unsigned>(sizeof(SoaKernel::TraversalFrame)),
-            static_cast<unsigned>(SoaKernel::kTraversalWorkspaceBytes));
+            static_cast<unsigned>(SoaKernel::kTraversalWorkspaceBytes),
+            static_cast<unsigned>(sizeof(ui::draw_cmd::DefaultDrawCmdCompactionWorkspace)),
+            static_cast<unsigned>(ui::draw_cmd::DefaultDrawCmdCompactionWorkspace::kBatchStorageBytes));
     }
 #if defined(VIVID_SOA_TRACE_INPUT)
     if (run_regress || run_regress_layout || run_regress_ui) {

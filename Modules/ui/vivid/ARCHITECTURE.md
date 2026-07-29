@@ -60,6 +60,9 @@ widget/scene state
 - compaction 在 record 完成后执行，不能改变命令可观察顺序或 artifact 语义；
 - compaction workspace 复用的 `DrawCmd` 必须通过类型默认值赋值重置，禁止以 `memset` 假设非 trivial 对象
   的默认语义等于全零位模式；该 reset 必须保持 `noexcept` 且不引入局部大对象；
+- rect/line/path/glyph/image batch scratch 生命周期互斥，只能共享一块按最大 item 对齐的 fixed byte storage；
+  item 必须 trivially copyable 且具有唯一 object representation，通过 `memcpy` 写入最终 raw blob 所需字节；
+  二进制可见 padding 必须改为显式 reserved，禁止恢复五张并存数组或未受对象生命周期约束的 reinterpret 写入；
 - tile 命中索引容量不足时必须回退到正确但更慢的扫描路径；
 - 产品 evidence 只消费 Scene stats 和 artifact 摘要，不依赖 CmdHeader/payload 私有布局。
 

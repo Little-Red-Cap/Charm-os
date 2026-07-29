@@ -43,6 +43,12 @@ profile 必须显式提供 scene count、budget 和 headroom，不能依赖隐�
 runtime diagnostic/policy 状态。configure model 为 runtime globals 保留独立保守上界；低估真实 ABI 是
 独立硬失败，不能用增大产品 budget 掩盖。
 
+DrawCmd compaction 的五类 batch scratch 生命周期互斥，必须共享一块 64 项、按最大 item 对齐的 fixed byte
+storage。配置期 compaction workspace 上界为 `4B * DRAW_CMD_MAX_COMMANDS + 2048B`，分别覆盖 output
+offsets 与固定 scratch/command/对齐成本；C++ `sizeof` 门、manifest 和 admission JSON 必须消费同一公式。
+批项必须具有唯一 object representation，并以 `memcpy` 写入 raw blob；padding 必须显式命名并确定初始化，
+不能把历史 storage 字节带入 replay artifact。
+
 SoA common table 以 node capacity 乘算，但每个 node 只保存强类型 8 位 `StylePatch` 槽索引；完整 patch 位于
 `STYLE_PATCH_SLOT_CAP` 控制的固定容量稀疏池。FULL/MCU_MIN 默认取 `min(soa_max_nodes, 192)`，PRODUCT 必须在
 profile 中显式声明该容量，且不得超过 255 或 node capacity。配置期分别计算 node 与 patch-slot 保守上界，不能把槽池

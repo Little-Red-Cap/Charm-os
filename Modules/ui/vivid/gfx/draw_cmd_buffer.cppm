@@ -9,6 +9,7 @@ module;
 #include <cstring>
 #include <limits>
 #include <span>
+#include <type_traits>
 
 export module charm.gfx.draw_cmd:buffer;
 
@@ -85,14 +86,40 @@ export namespace ui::draw_cmd {
     template <std::size_t MaxCmds, std::size_t TextBytes, std::size_t BlobBytes>
     struct DrawCmdCompactionWorkspace {
         static constexpr std::size_t kMaxBatchItems = 64;
+        static constexpr std::size_t kBatchItemBytes = sizeof(GlyphRunItem);
+        static constexpr std::size_t kBatchItemAlignment = alignof(GlyphRunItem);
+        static constexpr std::size_t kBatchStorageBytes = kMaxBatchItems * kBatchItemBytes;
+
+        static_assert(sizeof(RectBatchItem) <= kBatchItemBytes);
+        static_assert(sizeof(LineBatchItem) <= kBatchItemBytes);
+        static_assert(sizeof(PathBatchItem) <= kBatchItemBytes);
+        static_assert(sizeof(ImageBatchItem) <= kBatchItemBytes);
+        static_assert(alignof(RectBatchItem) <= kBatchItemAlignment);
+        static_assert(alignof(LineBatchItem) <= kBatchItemAlignment);
+        static_assert(alignof(PathBatchItem) <= kBatchItemAlignment);
+        static_assert(alignof(ImageBatchItem) <= kBatchItemAlignment);
 
         std::array<std::uint32_t, MaxCmds> output_offsets{};
-        std::array<RectBatchItem, kMaxBatchItems> rect_items{};
-        std::array<LineBatchItem, kMaxBatchItems> line_items{};
-        std::array<PathBatchItem, kMaxBatchItems> path_items{};
-        std::array<GlyphRunItem, kMaxBatchItems> text_items{};
-        std::array<ImageBatchItem, kMaxBatchItems> image_items{};
+        alignas(kBatchItemAlignment) std::array<std::byte, kBatchStorageBytes> batch_item_storage{};
         DrawCmd batch_command{};
+
+        template <typename Item>
+        void write_batch_item(std::size_t index, const Item& item) noexcept {
+            static_assert(std::is_trivially_copyable_v<Item>);
+            static_assert(std::has_unique_object_representations_v<Item>);
+            static_assert(sizeof(Item) <= kBatchItemBytes);
+            static_assert(alignof(Item) <= kBatchItemAlignment);
+            assert(index < kMaxBatchItems);
+            std::memcpy(batch_item_storage.data() + index * sizeof(Item), &item, sizeof(Item));
+        }
+
+        template <typename Item>
+        [[nodiscard]] const std::byte* batch_item_data() const noexcept {
+            static_assert(std::is_trivially_copyable_v<Item>);
+            static_assert(std::has_unique_object_representations_v<Item>);
+            static_assert(sizeof(Item) <= kBatchItemBytes);
+            return batch_item_storage.data();
+        }
 
         [[nodiscard]] DrawCmd& reset_batch_command() noexcept {
             batch_command = DrawCmd{};
@@ -108,6 +135,9 @@ export namespace ui::draw_cmd {
         static constexpr std::size_t kTextCapacity = TextBytes;
         static constexpr std::size_t kBlobCapacity = BlobBytes;
         static constexpr std::size_t kCmdBytesCapacity = kMaxCommands * sizeof(DrawCmd);
+        static constexpr std::size_t kCompactionWorkspaceUpperBytes =
+            MaxCmds * sizeof(std::uint32_t) + 2048;
+        static_assert(sizeof(CompactionWorkspace) <= kCompactionWorkspaceUpperBytes);
 
         void clear() noexcept {
             count_ = 0;
@@ -480,11 +510,6 @@ export namespace ui::draw_cmd {
             std::size_t offset = 0;
             bool ok = true;
             constexpr std::size_t kMaxBatchItems = CompactionWorkspace::kMaxBatchItems;
-            auto& rect_items = workspace.rect_items;
-            auto& line_items = workspace.line_items;
-            auto& path_items = workspace.path_items;
-            auto& text_items = workspace.text_items;
-            auto& image_items = workspace.image_items;
             bool allow_batch = !blob_.overflowed();
             batch_shrink_ = 0;
             batch_shrink_line_ = 0;
@@ -564,9 +589,11 @@ export namespace ui::draw_cmd {
                                 DrawCmd next{};
                                 std::size_t item_stride = 0;
                                 (void)read_cmd_at_offset(item_offset, next, item_stride);
-                                line_items[j] = LineBatchItem{next.rect.x, next.rect.y, next.rect.w, next.rect.h};
-                                const Rect line_rect = line_bounds(line_items[j].x0, line_items[j].y0,
-                                                                   line_items[j].x1, line_items[j].y1);
+                                const LineBatchItem item{
+                                    next.rect.x, next.rect.y, next.rect.w, next.rect.h};
+                                workspace.write_batch_item(j, item);
+                                const Rect line_rect = line_bounds(
+                                    item.x0, item.y0, item.x1, item.y1);
                                 if (j == 0) {
                                     bounds = line_rect;
                                 } else {
@@ -590,9 +617,10 @@ export namespace ui::draw_cmd {
                                 --batch;
                                 continue;
                             }
-                            const BlobRef blob = blob_.add_bytes(line_items.data(),
-                                                                 blob_bytes,
-                                                                 alignof(LineBatchItem));
+                            const BlobRef blob = blob_.add_bytes(
+                                workspace.template batch_item_data<LineBatchItem>(),
+                                blob_bytes,
+                                alignof(LineBatchItem));
                             if (blob.length != 0) {
                                 auto& batch_cmd = workspace.reset_batch_command();
                                 batch_cmd.type = CmdType::DrawLineBatch;
@@ -640,9 +668,9 @@ export namespace ui::draw_cmd {
                                 DrawCmd next{};
                                 std::size_t item_stride = 0;
                                 (void)read_cmd_at_offset(item_offset, next, item_stride);
-                                path_items[j].blob = next.blob;
-                                path_items[j].count = next.p0;
-                                path_items[j].closed = next.p1;
+                                workspace.write_batch_item(
+                                    j,
+                                    PathBatchItem{next.blob, next.p0, next.p1});
                                 if (j == 0) {
                                     bounds = next.rect;
                                 } else {
@@ -666,9 +694,10 @@ export namespace ui::draw_cmd {
                                 --batch;
                                 continue;
                             }
-                            const BlobRef blob = blob_.add_bytes(path_items.data(),
-                                                                 blob_bytes,
-                                                                 alignof(PathBatchItem));
+                            const BlobRef blob = blob_.add_bytes(
+                                workspace.template batch_item_data<PathBatchItem>(),
+                                blob_bytes,
+                                alignof(PathBatchItem));
                             if (blob.length != 0) {
                                 auto& batch_cmd = workspace.reset_batch_command();
                                 batch_cmd.type = CmdType::DrawPathBatch;
@@ -715,13 +744,13 @@ export namespace ui::draw_cmd {
                                 DrawCmd next{};
                                 std::size_t item_stride = 0;
                                 (void)read_cmd_at_offset(item_offset, next, item_stride);
-                                rect_items[j].rect = next.rect;
+                                workspace.write_batch_item(j, RectBatchItem{next.rect});
                                 if (j == 0) {
-                                    bounds = rect_items[j].rect;
+                                    bounds = next.rect;
                                 } else {
-                                    bounds = rect_union(bounds, rect_items[j].rect);
+                                    bounds = rect_union(bounds, next.rect);
                                 }
-                                sum_area += rect_area(rect_items[j].rect);
+                                sum_area += rect_area(next.rect);
                                 item_offset += item_stride;
                             }
                             const std::int64_t union_area = rect_area(bounds);
@@ -739,9 +768,10 @@ export namespace ui::draw_cmd {
                                 --batch;
                                 continue;
                             }
-                            const BlobRef blob = blob_.add_bytes(rect_items.data(),
-                                                                 blob_bytes,
-                                                                 alignof(RectBatchItem));
+                            const BlobRef blob = blob_.add_bytes(
+                                workspace.template batch_item_data<RectBatchItem>(),
+                                blob_bytes,
+                                alignof(RectBatchItem));
                             if (blob.length != 0) {
                                 auto& batch_cmd = workspace.reset_batch_command();
                                 batch_cmd.type = (cmd.type == CmdType::StrokeRect)
@@ -796,13 +826,13 @@ export namespace ui::draw_cmd {
                                 DrawCmd next{};
                                 std::size_t item_stride = 0;
                                 (void)read_cmd_at_offset(item_offset, next, item_stride);
-                                rect_items[j].rect = next.rect;
+                                workspace.write_batch_item(j, RectBatchItem{next.rect});
                                 if (j == 0) {
-                                    bounds = rect_items[j].rect;
+                                    bounds = next.rect;
                                 } else {
-                                    bounds = rect_union(bounds, rect_items[j].rect);
+                                    bounds = rect_union(bounds, next.rect);
                                 }
-                                sum_area += rect_area(rect_items[j].rect);
+                                sum_area += rect_area(next.rect);
                                 item_offset += item_stride;
                             }
                             const std::int64_t union_area = rect_area(bounds);
@@ -820,9 +850,10 @@ export namespace ui::draw_cmd {
                                 --batch;
                                 continue;
                             }
-                            const BlobRef blob = blob_.add_bytes(rect_items.data(),
-                                                                 blob_bytes,
-                                                                 alignof(RectBatchItem));
+                            const BlobRef blob = blob_.add_bytes(
+                                workspace.template batch_item_data<RectBatchItem>(),
+                                blob_bytes,
+                                alignof(RectBatchItem));
                             if (blob.length != 0) {
                                 auto& batch_cmd = workspace.reset_batch_command();
                                 switch (cmd.type) {
@@ -890,20 +921,22 @@ export namespace ui::draw_cmd {
                             DrawCmd next{};
                             std::size_t item_stride = 0;
                             (void)read_cmd_at_offset(item_offset, next, item_stride);
-                            text_items[j].rect = next.rect;
-                            text_items[j].text = next.text;
+                            workspace.write_batch_item(
+                                j,
+                                GlyphRunItem{next.rect, next.text});
                             if (j == 0) {
-                                bounds = text_items[j].rect;
+                                bounds = next.rect;
                             } else {
-                                bounds = rect_union(bounds, text_items[j].rect);
+                                bounds = rect_union(bounds, next.rect);
                             }
                             item_offset += item_stride;
                         }
                         const std::size_t blob_bytes = batch * sizeof(GlyphRunItem);
                         if (blob_.can_add_bytes(blob_bytes, alignof(GlyphRunItem))) {
-                            const BlobRef blob = blob_.add_bytes(text_items.data(),
-                                                                 blob_bytes,
-                                                                 alignof(GlyphRunItem));
+                            const BlobRef blob = blob_.add_bytes(
+                                workspace.template batch_item_data<GlyphRunItem>(),
+                                blob_bytes,
+                                alignof(GlyphRunItem));
                             if (blob.length != 0) {
                                 auto& batch_cmd = workspace.reset_batch_command();
                                 batch_cmd.type = CmdType::GlyphRun;
@@ -959,13 +992,13 @@ export namespace ui::draw_cmd {
                                 DrawCmd next{};
                                 std::size_t item_stride = 0;
                                 (void)read_cmd_at_offset(item_offset, next, item_stride);
-                                image_items[j].rect = next.rect;
+                                workspace.write_batch_item(j, ImageBatchItem{next.rect});
                                 if (j == 0) {
-                                    bounds = image_items[j].rect;
+                                    bounds = next.rect;
                                 } else {
-                                    bounds = rect_union(bounds, image_items[j].rect);
+                                    bounds = rect_union(bounds, next.rect);
                                 }
-                                sum_area += rect_area(image_items[j].rect);
+                                sum_area += rect_area(next.rect);
                                 item_offset += item_stride;
                             }
                             const std::int64_t union_area = rect_area(bounds);
@@ -983,9 +1016,10 @@ export namespace ui::draw_cmd {
                                 --batch;
                                 continue;
                             }
-                            const BlobRef blob = blob_.add_bytes(image_items.data(),
-                                                                 blob_bytes,
-                                                                 alignof(ImageBatchItem));
+                            const BlobRef blob = blob_.add_bytes(
+                                workspace.template batch_item_data<ImageBatchItem>(),
+                                blob_bytes,
+                                alignof(ImageBatchItem));
                             if (blob.length != 0) {
                                 auto& batch_cmd = workspace.reset_batch_command();
                                 batch_cmd.type = CmdType::DrawImageBatch;
@@ -1041,13 +1075,13 @@ export namespace ui::draw_cmd {
                                 DrawCmd next{};
                                 std::size_t item_stride = 0;
                                 (void)read_cmd_at_offset(item_offset, next, item_stride);
-                                image_items[j].rect = next.rect;
+                                workspace.write_batch_item(j, ImageBatchItem{next.rect});
                                 if (j == 0) {
-                                    bounds = image_items[j].rect;
+                                    bounds = next.rect;
                                 } else {
-                                    bounds = rect_union(bounds, image_items[j].rect);
+                                    bounds = rect_union(bounds, next.rect);
                                 }
-                                sum_area += rect_area(image_items[j].rect);
+                                sum_area += rect_area(next.rect);
                                 item_offset += item_stride;
                             }
                             const std::int64_t union_area = rect_area(bounds);
@@ -1065,9 +1099,10 @@ export namespace ui::draw_cmd {
                                 --batch;
                                 continue;
                             }
-                            const BlobRef blob = blob_.add_bytes(image_items.data(),
-                                                                 blob_bytes,
-                                                                 alignof(ImageBatchItem));
+                            const BlobRef blob = blob_.add_bytes(
+                                workspace.template batch_item_data<ImageBatchItem>(),
+                                blob_bytes,
+                                alignof(ImageBatchItem));
                             if (blob.length != 0) {
                                 auto& batch_cmd = workspace.reset_batch_command();
                                 batch_cmd.type = CmdType::DrawImageRoundRectBatch;
@@ -1125,13 +1160,13 @@ export namespace ui::draw_cmd {
                                 DrawCmd next{};
                                 std::size_t item_stride = 0;
                                 (void)read_cmd_at_offset(item_offset, next, item_stride);
-                                image_items[j].rect = next.rect;
+                                workspace.write_batch_item(j, ImageBatchItem{next.rect});
                                 if (j == 0) {
-                                    bounds = image_items[j].rect;
+                                    bounds = next.rect;
                                 } else {
-                                    bounds = rect_union(bounds, image_items[j].rect);
+                                    bounds = rect_union(bounds, next.rect);
                                 }
-                                sum_area += rect_area(image_items[j].rect);
+                                sum_area += rect_area(next.rect);
                                 item_offset += item_stride;
                             }
                             const std::int64_t union_area = rect_area(bounds);
@@ -1149,9 +1184,10 @@ export namespace ui::draw_cmd {
                                 --batch;
                                 continue;
                             }
-                            const BlobRef blob = blob_.add_bytes(image_items.data(),
-                                                                 blob_bytes,
-                                                                 alignof(ImageBatchItem));
+                            const BlobRef blob = blob_.add_bytes(
+                                workspace.template batch_item_data<ImageBatchItem>(),
+                                blob_bytes,
+                                alignof(ImageBatchItem));
                             if (blob.length != 0) {
                                 auto& batch_cmd = workspace.reset_batch_command();
                                 batch_cmd.type = CmdType::DrawImageNineSliceBatch;
@@ -1203,13 +1239,13 @@ export namespace ui::draw_cmd {
                                 DrawCmd next{};
                                 std::size_t item_stride = 0;
                                 (void)read_cmd_at_offset(item_offset, next, item_stride);
-                                rect_items[j].rect = next.rect;
+                                workspace.write_batch_item(j, RectBatchItem{next.rect});
                                 if (j == 0) {
-                                    bounds = rect_items[j].rect;
+                                    bounds = next.rect;
                                 } else {
-                                    bounds = rect_union(bounds, rect_items[j].rect);
+                                    bounds = rect_union(bounds, next.rect);
                                 }
-                                sum_area += rect_area(rect_items[j].rect);
+                                sum_area += rect_area(next.rect);
                                 item_offset += item_stride;
                             }
                             const std::int64_t union_area = rect_area(bounds);
@@ -1227,9 +1263,10 @@ export namespace ui::draw_cmd {
                                 --batch;
                                 continue;
                             }
-                            const BlobRef blob = blob_.add_bytes(rect_items.data(),
-                                                                 blob_bytes,
-                                                                 alignof(RectBatchItem));
+                            const BlobRef blob = blob_.add_bytes(
+                                workspace.template batch_item_data<RectBatchItem>(),
+                                blob_bytes,
+                                alignof(RectBatchItem));
                             if (blob.length != 0) {
                                 auto& batch_cmd = workspace.reset_batch_command();
                                 batch_cmd.type = CmdType::FocusRingBatch;

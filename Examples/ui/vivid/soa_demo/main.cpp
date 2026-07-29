@@ -3220,6 +3220,84 @@ namespace {
         return fails == 0;
     }
 
+    bool run_child_topology_regression() noexcept {
+        int fails = 0;
+        static SoaKernel probe{};
+        const WidgetHandle parent_a = probe.create(WidgetKind::Container);
+        const WidgetHandle parent_b = probe.create(WidgetKind::Container);
+        const WidgetHandle child_a = probe.create(WidgetKind::Container);
+        const WidgetHandle child_b = probe.create(WidgetKind::Container);
+        const WidgetHandle child_c = probe.create(WidgetKind::Container);
+        const bool allocated = parent_a && parent_b && child_a && child_b && child_c;
+        expect_true(allocated, "child topology: node allocation failed", fails);
+
+        if (allocated) {
+            expect_true(probe.child_count(parent_a) == 0 && probe.child_count(parent_b) == 0,
+                        "child topology: initial count mismatch", fails);
+            expect_true(probe.link(parent_a, child_a)
+                            && probe.link(parent_a, child_b)
+                            && probe.link(parent_a, child_c),
+                        "child topology: initial link failed", fails);
+            expect_true(probe.child_count(parent_a) == 3
+                            && same_handle(probe.first_child(parent_a), child_a)
+                            && same_handle(probe.last_child(parent_a), child_c),
+                        "child topology: linked count or endpoints mismatch", fails);
+
+            expect_true(probe.unlink(parent_a, child_b),
+                        "child topology: unlink failed", fails);
+            expect_true(probe.child_count(parent_a) == 2
+                            && !probe.parent(child_b)
+                            && same_handle(probe.next_sibling(child_a), child_c)
+                            && same_handle(probe.prev_sibling(child_c), child_a),
+                        "child topology: unlink did not preserve sibling truth", fails);
+
+            expect_true(probe.link(parent_b, child_b),
+                        "child topology: second-parent link failed", fails);
+            expect_true(probe.link(parent_b, child_c),
+                        "child topology: reparent failed", fails);
+            expect_true(probe.child_count(parent_a) == 1
+                            && probe.child_count(parent_b) == 2
+                            && same_handle(probe.parent(child_c), parent_b)
+                            && same_handle(probe.first_child(parent_b), child_b)
+                            && same_handle(probe.last_child(parent_b), child_c),
+                        "child topology: reparent count mismatch", fails);
+
+            probe.destroy(child_a);
+            expect_true(probe.child_count(parent_a) == 0
+                            && !probe.first_child(parent_a)
+                            && !probe.last_child(parent_a),
+                        "child topology: child destroy did not detach", fails);
+
+            const WidgetHandle stale_parent = parent_b;
+            probe.destroy(parent_b);
+            expect_true(probe.child_count(stale_parent) == 0
+                            && !probe.parent(child_b)
+                            && !probe.parent(child_c),
+                        "child topology: parent destroy did not detach children", fails);
+
+            const WidgetHandle replacement = probe.create(WidgetKind::Container);
+            expect_true(replacement
+                            && replacement.index == stale_parent.index
+                            && replacement.generation != stale_parent.generation
+                            && probe.child_count(replacement) == 0
+                            && !probe.first_child(replacement)
+                            && !probe.last_child(replacement),
+                        "child topology: reused node retained stale links", fails);
+            probe.destroy(replacement);
+        }
+
+        probe.destroy(child_c);
+        probe.destroy(child_b);
+        probe.destroy(child_a);
+        probe.destroy(parent_b);
+        probe.destroy(parent_a);
+
+        (void)out::println<"[soa] child_topology storage=derived link=1 unlink=1 reparent=1 destroy=1 reuse=1 result={}">(
+            g_console,
+            fails == 0 ? "ok" : "fail");
+        return fails == 0;
+    }
+
     bool run_traversal_workspace_regression() noexcept {
         int fails = 0;
         static SoaKernel probe{};
@@ -3982,6 +4060,7 @@ int main(int argc, char** argv) {
     bool node_runtime_state_ok = true;
     bool style_class_id_ok = true;
     bool layout_text_state_ok = true;
+    bool child_topology_ok = true;
     bool traversal_workspace_ok = true;
     bool rect_truth_ok = true;
     bool perf_overlay_runtime_ok = true;
@@ -4025,6 +4104,10 @@ int main(int argc, char** argv) {
         layout_text_state_ok = run_layout_text_state_regression();
         if (!layout_text_state_ok) {
             ci_mark_fail("layout_text_state");
+        }
+        child_topology_ok = run_child_topology_regression();
+        if (!child_topology_ok) {
+            ci_mark_fail("child_topology");
         }
         traversal_workspace_ok = run_traversal_workspace_regression();
         if (!traversal_workspace_ok) {

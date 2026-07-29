@@ -1,5 +1,6 @@
 module;
 
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 
@@ -26,7 +27,6 @@ import charm.core.soa_registry;
             common_.last_child[i] = kInvalidIndex;
             common_.next_sibling[i] = kInvalidIndex;
             common_.prev_sibling[i] = kInvalidIndex;
-            common_.child_count[i] = 0;
             common_.layout_text[i].reset();
             common_.style_patch_slot[i].reset();
             common_.style_class[i] = kStyleClassInvalid;
@@ -67,7 +67,6 @@ import charm.core.soa_registry;
         common_.last_child[idx] = kInvalidIndex;
         common_.next_sibling[idx] = kInvalidIndex;
         common_.prev_sibling[idx] = kInvalidIndex;
-        common_.child_count[idx] = 0;
         common_.layout_text[idx].reset(defaults.layout_kind);
         common_.style_patch_slot[idx].reset();
         common_.style_class[idx] = kStyleClassInvalid;
@@ -85,7 +84,6 @@ import charm.core.soa_registry;
             common_.last_child[idx] = kInvalidIndex;
             common_.next_sibling[idx] = kInvalidIndex;
             common_.prev_sibling[idx] = kInvalidIndex;
-            common_.child_count[idx] = 0;
             common_.layout_text[idx].reset();
             common_.style_patch_slot[idx].reset();
             common_.style_class[idx] = kStyleClassInvalid;
@@ -155,7 +153,6 @@ import charm.core.soa_registry;
             common_.prev_sibling[c] = kInvalidIndex;
         }
         common_.next_sibling[c] = kInvalidIndex;
-        common_.child_count[p] = static_cast<std::uint16_t>(common_.child_count[p] + 1);
         mark_layout_dirty();
         return true;
     }
@@ -202,7 +199,18 @@ import charm.core.soa_registry;
 
     std::size_t SoaKernel::child_count(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
-        return (idx == kInvalidIndex) ? std::size_t{0} : static_cast<std::size_t>(common_.child_count[idx]);
+        if (idx == kInvalidIndex) return 0;
+
+        std::size_t count = 0;
+        std::uint16_t child = common_.first_child[idx];
+        while (child != kInvalidIndex && count < kMaxNodes) {
+            assert(child < kMaxNodes && "SoA child list contains an invalid node index");
+            if (child >= kMaxNodes) break;
+            ++count;
+            child = common_.next_sibling[child];
+        }
+        assert(child == kInvalidIndex && "SoA child list contains a cycle");
+        return count;
     }
 
     std::uint16_t SoaKernel::index_of(WidgetHandle h) const noexcept {
@@ -238,9 +246,6 @@ import charm.core.soa_registry;
         common_.parent[idx] = kInvalidIndex;
         common_.prev_sibling[idx] = kInvalidIndex;
         common_.next_sibling[idx] = kInvalidIndex;
-        if (common_.child_count[p] > 0) {
-            common_.child_count[p] = static_cast<std::uint16_t>(common_.child_count[p] - 1);
-        }
     }
 
     void SoaKernel::detach_children(std::uint16_t idx) noexcept {
@@ -254,7 +259,6 @@ import charm.core.soa_registry;
         }
         common_.first_child[idx] = kInvalidIndex;
         common_.last_child[idx] = kInvalidIndex;
-        common_.child_count[idx] = 0;
     }
 
     bool SoaKernel::creates_cycle(std::uint16_t parent, std::uint16_t child) const noexcept {

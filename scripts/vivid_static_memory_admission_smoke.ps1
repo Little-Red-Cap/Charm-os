@@ -150,7 +150,7 @@ function Assert-Admission {
         $Values.semantic_pool_upper_bytes -ne "1056") {
         throw "Unexpected sparse semantic budget in static memory manifest"
     }
-    if ($Values.soa_node_upper_bytes -ne "213") {
+    if ($Values.soa_node_upper_bytes -ne "211") {
         throw "Unexpected packed SoA node upper bound: $($Values.soa_node_upper_bytes)"
     }
     $expectedTraversalBytes = [int64]$Values.soa_max_nodes * 64
@@ -184,7 +184,7 @@ function Assert-ProductEvidence {
         [int64]$admissionEvidence.static_memory.semantic_pool_upper_bytes -ne 1056) {
         throw "PRODUCT sparse semantic evidence mismatch for profile '$Profile'"
     }
-    if ([int64]$admissionEvidence.static_memory.soa_node_upper_bytes -ne 213) {
+    if ([int64]$admissionEvidence.static_memory.soa_node_upper_bytes -ne 211) {
         throw "PRODUCT packed SoA node evidence mismatch for profile '$Profile'"
     }
     if ([int64]$profileEvidence.workset.style_patch_slot_cap -ne 192 -or

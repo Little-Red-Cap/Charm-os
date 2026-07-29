@@ -96,6 +96,11 @@ Widget node 不保存可逃逸的 payload handle。节点未使用时，16 位 s
 旧 owner 对已复用槽的读取或释放必须被拒绝。公开 `WidgetHandle` 的 generation 继续独立保护 node identity，
 不能用 payload slot 代替公开 handle。
 
+SoA 子树以 `first_child` / `next_sibling` 链作为直接子节点集合的唯一真相，不常驻第二份逐节点
+`child_count` 表。`child_count()` 仅在调用时做 `soa_max_nodes` 有界遍历；debug 构建必须对越界索引或 sibling
+环断言。该查询不属于 layout、render、input 或 semantic 热路径；未来若出现热路径计数需求，必须以真实消费
+证据重新评估索引结构，不能恢复无条件的 2B/node 缓存。
+
 Semantic role、id、label 与 action mask 只由显式 semantic entry 使用，不随每个 node 常驻。node 保存强类型
 8 位槽索引，`SoaKernel` 按 profile 的 `SEMANTIC_SLOT_CAP` 拥有固定容量 semantic pool，容量不得超过 255。
 set 覆盖已有槽；clear 与

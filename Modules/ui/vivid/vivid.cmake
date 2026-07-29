@@ -554,7 +554,7 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
     set(_vivid_soa_traversal_frame_upper_bytes 64)
     math(EXPR _vivid_soa_traversal_workspace_upper_bytes
         "${CHARM_VIVID_SOA_MAX_NODES} * ${_vivid_soa_traversal_frame_upper_bytes}")
-    set(_vivid_soa_node_upper_bytes 213)
+    set(_vivid_soa_node_upper_bytes 211)
     set(_vivid_semantic_slot_upper_bytes 16)
     set(_vivid_semantic_pool_fixed_upper_bytes 32)
     math(EXPR _vivid_semantic_pool_upper_bytes

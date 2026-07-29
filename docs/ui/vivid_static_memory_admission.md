@@ -65,6 +65,11 @@ node free-list link 与活动 payload slot 的生命周期互斥，必须复用�
 以 owner node index 拒绝旧 owner 访问或释放已复用槽。该 owner 表替换 pool generation 表，不增加 pool
 容量乘数。`WidgetHandle` generation 仍负责公开 node identity，不得与内部 payload ownership 混为一层。
 
+SoA 直接子节点集合以 `first_child` / `next_sibling` 链为唯一真相，不为每个 node 常驻重复的 16 位
+`child_count`。配置期 `soa_node_upper_bytes` 必须扣除这 2B/node；保留的 `child_count()` 查询按
+`soa_max_nodes` 有界派生，并在 debug 构建对损坏索引或 sibling 环断言。该节省必须由目标 ABI 的
+`SoaKernel` / `Scene` exact profile 和 link/unlink/reparent/destroy 回归共同证明。
+
 Visible、Enabled、Focusable、HitTest、ClipChildren 与 hover/press/focus 必须共享 1B/node runtime state，
 且通过 helper 隔离位布局；节点存活由既有 `kind != None` 真源判断，不得恢复重复的 Used 位。仅由
 SegmentedControl/TabView 消费的 underline presentation 存入对应 payload 的既有对齐空隙，payload 尺寸不得

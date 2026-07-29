@@ -383,7 +383,6 @@ namespace soa_detail {
         std::array<std::uint16_t, N> last_child{};
         std::array<std::uint16_t, N> next_sibling{};
         std::array<std::uint16_t, N> prev_sibling{};
-        std::array<std::uint16_t, N> child_count{};
         std::array<NodeRuntimeState, N> runtime_state{};
         std::array<Rect, N> rects{};
         std::array<NodeLayoutTextState, N> layout_text{};

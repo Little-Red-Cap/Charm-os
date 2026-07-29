@@ -199,6 +199,64 @@ namespace soa_detail {
         bool overflowed_{false};
     };
 
+    struct NodeLayoutTextState {
+        static constexpr std::uint8_t kValueMask = 0x03;
+        static constexpr std::uint8_t kLayoutShift = 0;
+        static constexpr std::uint8_t kAlignHShift = 2;
+        static constexpr std::uint8_t kAlignVShift = 4;
+        static constexpr std::uint8_t kLayoutMask = kValueMask << kLayoutShift;
+        static constexpr std::uint8_t kAlignHMask = kValueMask << kAlignHShift;
+        static constexpr std::uint8_t kAlignVMask = kValueMask << kAlignVShift;
+
+        static_assert(static_cast<std::uint8_t>(SoaLayoutKind::List) <= kValueMask);
+        static_assert(static_cast<std::uint8_t>(TextAlignH::Right) <= kValueMask);
+        static_assert(static_cast<std::uint8_t>(TextAlignV::Bottom) <= kValueMask);
+
+        constexpr void reset(SoaLayoutKind layout = SoaLayoutKind::None) noexcept {
+            bits_ = static_cast<std::uint8_t>(
+                static_cast<std::uint8_t>(TextAlignV::Center) << kAlignVShift);
+            set_layout_kind(layout);
+        }
+
+        constexpr void set_layout_kind(SoaLayoutKind layout) noexcept {
+            const auto value = static_cast<std::uint8_t>(layout);
+            if (value > kValueMask) return;
+            bits_ = static_cast<std::uint8_t>(
+                (bits_ & static_cast<std::uint8_t>(~kLayoutMask))
+                | static_cast<std::uint8_t>(value << kLayoutShift));
+        }
+
+        [[nodiscard]] constexpr SoaLayoutKind layout_kind() const noexcept {
+            return static_cast<SoaLayoutKind>((bits_ & kLayoutMask) >> kLayoutShift);
+        }
+
+        constexpr void set_text_align(TextAlignH align_h, TextAlignV align_v) noexcept {
+            const auto h = static_cast<std::uint8_t>(align_h);
+            const auto v = static_cast<std::uint8_t>(align_v);
+            if (h > kValueMask || v > kValueMask) return;
+            constexpr auto align_mask = static_cast<std::uint8_t>(kAlignHMask | kAlignVMask);
+            bits_ = static_cast<std::uint8_t>(
+                (bits_ & static_cast<std::uint8_t>(~align_mask))
+                | static_cast<std::uint8_t>(h << kAlignHShift)
+                | static_cast<std::uint8_t>(v << kAlignVShift));
+        }
+
+        [[nodiscard]] constexpr TextAlignH text_align_h() const noexcept {
+            return static_cast<TextAlignH>((bits_ & kAlignHMask) >> kAlignHShift);
+        }
+
+        [[nodiscard]] constexpr TextAlignV text_align_v() const noexcept {
+            return static_cast<TextAlignV>((bits_ & kAlignVMask) >> kAlignVShift);
+        }
+
+    private:
+        std::uint8_t bits_{
+            static_cast<std::uint8_t>(TextAlignV::Center) << kAlignVShift};
+    };
+
+    static_assert(sizeof(NodeLayoutTextState) == 1);
+    static_assert(std::is_trivially_copyable_v<NodeLayoutTextState>);
+
     // ---- Storage / payload descriptor ----
     template <std::size_t N>
     struct CommonSoA {
@@ -215,12 +273,10 @@ namespace soa_detail {
         std::array<std::uint8_t, N> state_flags{};
         std::array<std::uint8_t, N> variant{};
         std::array<Rect, N> rects{};
-        std::array<std::uint8_t, N> layout_kind{};
+        std::array<NodeLayoutTextState, N> layout_text{};
         std::array<PayloadHandle, N> payload{};
         std::array<std::uint16_t, N> style_patch_slot{};
         std::array<StyleClassId, N> style_class{};
-        std::array<std::uint8_t, N> text_align_h{};
-        std::array<std::uint8_t, N> text_align_v{};
         std::array<std::uint16_t, N> semantic_slot{};
 #if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
         std::array<std::uint16_t, N> draw_scope{};
@@ -238,6 +294,8 @@ public:
     static constexpr std::size_t kStylePatchCapacity = style_patch_slot_cap;
     static constexpr std::size_t kSemanticPoolBytes =
         sizeof(soa_detail::SemanticPool<kSemanticCapacity>);
+    static constexpr std::size_t kNodeLayoutTextStateBytes =
+        sizeof(soa_detail::NodeLayoutTextState);
     static_assert(kSemanticPoolBytes <= kSemanticCapacity * 16 + 32,
                   "SoA semantic pool exceeded its admitted capacity bound");
 
@@ -339,22 +397,17 @@ public:
     void set_text_align(WidgetHandle h, TextAlignH align_h, TextAlignV align_v) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
-        common_.text_align_h[idx] = static_cast<std::uint8_t>(align_h);
-        common_.text_align_v[idx] = static_cast<std::uint8_t>(align_v);
+        common_.layout_text[idx].set_text_align(align_h, align_v);
     }
 
     TextAlignH text_align_h(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
-        return (idx == kInvalidIndex)
-            ? TextAlignH::Left
-            : static_cast<TextAlignH>(common_.text_align_h[idx]);
+        return (idx == kInvalidIndex) ? TextAlignH::Left : common_.layout_text[idx].text_align_h();
     }
 
     TextAlignV text_align_v(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
-        return (idx == kInvalidIndex)
-            ? TextAlignV::Center
-            : static_cast<TextAlignV>(common_.text_align_v[idx]);
+        return (idx == kInvalidIndex) ? TextAlignV::Center : common_.layout_text[idx].text_align_v();
     }
 
     bool link(WidgetHandle parent, WidgetHandle child) noexcept;

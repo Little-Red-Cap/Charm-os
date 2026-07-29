@@ -133,6 +133,10 @@ SoA node 的当前 `Rect` 同时是 layout、paint culling 与 hit-test 的几�
 硬删除。未来若确有阴影、滤镜等越界绘制需求，必须以按需 decoration/effect bounds 和独立容量 evidence 引入，
 不能恢复所有节点常驻的备用矩形。
 
+SoA node 的 layout kind 与 label 水平/垂直对齐保持原强类型 API，但内部共享一个显式 mask 编码的 1B state。
+当前 layout 2 值、双轴对齐各 3 值均在源码 `static_assert` 的 2-bit 上界内；调用点不得依赖 bit layout。layout
+更新不能覆盖对齐，对齐更新不能覆盖 layout，node create/destroy 必须恢复 `None/Left/Center` 默认值。
+
 状态影响由 source 中的 `layout_state_influence_mask(kind)` 决定：
 
 | 变化 | 默认影响 |

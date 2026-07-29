@@ -19,6 +19,7 @@ import charm.core.config;
 import charm.core.geometry;
 import charm.core.style;
 import charm.core.style_evidence;
+import charm.core.soa_registry;
 import charm.gfx.snapshot;
 import charm.core.theme_preset;
 import charm.core.widget_registry;
@@ -2985,6 +2986,59 @@ namespace {
         return fails == 0;
     }
 
+    bool run_layout_text_state_regression() noexcept {
+        int fails = 0;
+        static SoaKernel probe{};
+        WidgetHandle node = probe.create(WidgetKind::Container);
+        expect_true(static_cast<bool>(node), "layout text state: node allocation failed", fails);
+        expect_true(probe.layout_kind(node) == SoaLayoutKind::None
+                        && probe.text_align_h(node) == TextAlignH::Left
+                        && probe.text_align_v(node) == TextAlignV::Center,
+                    "layout text state: defaults mismatch", fails);
+
+        constexpr std::array layouts{SoaLayoutKind::None, SoaLayoutKind::List};
+        constexpr std::array align_h{TextAlignH::Left, TextAlignH::Center, TextAlignH::Right};
+        constexpr std::array align_v{TextAlignV::Top, TextAlignV::Center, TextAlignV::Bottom};
+        std::size_t cases = 0;
+        for (const auto layout : layouts) {
+            for (const auto h : align_h) {
+                for (const auto v : align_v) {
+                    probe.set_layout_kind(node, layout);
+                    probe.set_text_align(node, h, v);
+                    expect_true(probe.layout_kind(node) == layout
+                                    && probe.text_align_h(node) == h
+                                    && probe.text_align_v(node) == v,
+                                "layout text state: combination mismatch", fails);
+                    ++cases;
+                }
+            }
+        }
+
+        probe.set_text_align(node, TextAlignH::Right, TextAlignV::Bottom);
+        probe.set_layout_kind(node, SoaLayoutKind::List);
+        expect_true(probe.text_align_h(node) == TextAlignH::Right
+                        && probe.text_align_v(node) == TextAlignV::Bottom,
+                    "layout text state: layout update changed alignment", fails);
+        probe.set_text_align(node, TextAlignH::Center, TextAlignV::Top);
+        expect_true(probe.layout_kind(node) == SoaLayoutKind::List,
+                    "layout text state: alignment update changed layout", fails);
+
+        probe.destroy(node);
+        node = probe.create(WidgetKind::Container);
+        expect_true(static_cast<bool>(node)
+                        && probe.layout_kind(node) == SoaLayoutKind::None
+                        && probe.text_align_h(node) == TextAlignH::Left
+                        && probe.text_align_v(node) == TextAlignV::Center,
+                    "layout text state: reused node retained stale bits", fails);
+
+        (void)out::println<"[soa] layout_text_state bytes={} cases={} defaults=1 isolation=1 result={}">(
+            g_console,
+            static_cast<unsigned>(SoaKernel::kNodeLayoutTextStateBytes),
+            static_cast<unsigned>(cases),
+            fails == 0 ? "ok" : "fail");
+        return fails == 0;
+    }
+
     bool run_traversal_workspace_regression() noexcept {
         int fails = 0;
         static SoaKernel probe{};
@@ -3332,12 +3386,13 @@ int main(int argc, char** argv) {
     }
 #endif
     if (run_ci) {
-        (void)out::println<"[soa] abi style_patch={} soa_kernel={} scene={} nodes={} semantic_slots={} semantic_pool={} style_patch_slots={} traversal_frame={} traversal_workspace={}">(
+        (void)out::println<"[soa] abi style_patch={} soa_kernel={} scene={} nodes={} layout_text_state={} semantic_slots={} semantic_pool={} style_patch_slots={} traversal_frame={} traversal_workspace={}">(
             g_console,
             static_cast<unsigned long long>(sizeof(StylePatch)),
             static_cast<unsigned long long>(sizeof(SoaKernel)),
             static_cast<unsigned long long>(sizeof(::ui::scene::Scene)),
             static_cast<unsigned>(SoaKernel::kMaxNodes),
+            static_cast<unsigned>(SoaKernel::kNodeLayoutTextStateBytes),
             static_cast<unsigned>(SoaKernel::kSemanticCapacity),
             static_cast<unsigned>(SoaKernel::kSemanticPoolBytes),
             static_cast<unsigned>(SoaKernel::kStylePatchCapacity),
@@ -3736,6 +3791,7 @@ int main(int argc, char** argv) {
     bool svg_workspace_ok = true;
     bool style_patch_pool_ok = true;
     bool semantic_pool_ok = true;
+    bool layout_text_state_ok = true;
     bool traversal_workspace_ok = true;
     bool rect_truth_ok = true;
     bool perf_overlay_runtime_ok = true;
@@ -3763,6 +3819,10 @@ int main(int argc, char** argv) {
         semantic_pool_ok = run_semantic_pool_regression();
         if (!semantic_pool_ok) {
             ci_mark_fail("semantic_pool");
+        }
+        layout_text_state_ok = run_layout_text_state_regression();
+        if (!layout_text_state_ok) {
+            ci_mark_fail("layout_text_state");
         }
         traversal_workspace_ok = run_traversal_workspace_regression();
         if (!traversal_workspace_ok) {
@@ -4403,7 +4463,8 @@ int main(int argc, char** argv) {
             && style_patch_ok
             && style_patch_pool_ok
             && semantic_ok
-            && semantic_pool_ok;
+            && semantic_pool_ok
+            && layout_text_state_ok;
 
         (void)out::println<"[soa-ci] display mode={} bw1={} gray2={} gray2_curve={} eink_max_partial={} eink_min_full_ms={} eink_partial_pct={} missing_glyphs={} fallback_glyphs={} utf8_replace={} text_draw={} text_glyphs={} text_pixels={}">(
             g_console,

@@ -578,14 +578,14 @@ import alg_list_scroll;
     void SoaKernel::set_layout_kind(WidgetHandle h, SoaLayoutKind kind) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
-        common_.layout_kind[idx] = static_cast<std::uint8_t>(kind);
+        common_.layout_text[idx].set_layout_kind(kind);
         mark_layout_dirty();
     }
 
     SoaLayoutKind SoaKernel::layout_kind(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return SoaLayoutKind::None;
-        return static_cast<SoaLayoutKind>(common_.layout_kind[idx]);
+        return common_.layout_text[idx].layout_kind();
     }
 
     void SoaKernel::set_style_patch(WidgetHandle h, const StylePatch& patch) noexcept {

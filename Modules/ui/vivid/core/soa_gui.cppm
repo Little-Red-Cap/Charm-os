@@ -260,15 +260,11 @@ void SoaGui::record_tree(ui::draw_cmd::DefaultDrawCmdBuffer& out) {
                 local_rect.w,
                 local_rect.h
             };
-            Rect paint = kernel_.paint_bounds(frame.h);
-            if (!rect_valid(paint)) {
-                paint = local_rect;
-            }
-            paint = Rect{
-                paint.x + frame.offset_x,
-                paint.y + frame.offset_y,
-                paint.w,
-                paint.h
+            const Rect paint{
+                local_rect.x + frame.offset_x,
+                local_rect.y + frame.offset_y,
+                local_rect.w,
+                local_rect.h
             };
             if (frame.clip_enabled()) {
                 Rect out_clip{};

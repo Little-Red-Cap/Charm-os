@@ -123,6 +123,11 @@ draw/event/geometry 手写动态派发。固定容量容器拥有 child handle�
 产品 layout 与 invalidation truth 属于 SoA Scene/kernel。未来若增加 object-level layout 或动态派发扩展，必须
 同时拥有明确执行器、固定预算和 evidence，不能只向 `ObjectBase` 增加被动配置字段或函数表。
 
+SoA node 的当前 `Rect` 同时是 layout、paint culling 与 hit-test 的几何真源，不保存第二份逐节点
+`paint_bounds`。历史副本只在第一次 `set_rect()` 时写入，重布局后会陈旧且仓库没有 override 消费者，因而已
+硬删除。未来若确有阴影、滤镜等越界绘制需求，必须以按需 decoration/effect bounds 和独立容量 evidence 引入，
+不能恢复所有节点常驻的备用矩形。
+
 状态影响由 source 中的 `layout_state_influence_mask(kind)` 决定：
 
 | 变化 | 默认影响 |

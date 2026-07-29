@@ -2931,6 +2931,40 @@ namespace {
         return fails == 0;
     }
 
+    bool run_rect_truth_regression() noexcept {
+        int fails = 0;
+        static SoaKernel probe{};
+        const WidgetHandle node = probe.create(WidgetKind::Container);
+        expect_true(static_cast<bool>(node), "rect truth: node allocation failed", fails);
+        probe.set_input_root(node);
+        probe.set_visible(node, true);
+        probe.set_enabled(node, true);
+        probe.set_hit_testable(node, true);
+
+        probe.set_rect(node, {10, 10, 20, 20});
+        const WidgetHandle initial_hit = probe.input_hit_test(15, 15);
+        expect_true(same_handle(initial_hit, node), "rect truth: initial bounds not hittable", fails);
+
+        probe.set_rect(node, {100, 100, 20, 20});
+        const WidgetHandle stale_hit = probe.input_hit_test(15, 15);
+        const WidgetHandle moved_hit = probe.input_hit_test(105, 105);
+        expect_true(!stale_hit, "rect truth: old bounds remained hittable after move", fails);
+        expect_true(same_handle(moved_hit, node), "rect truth: moved bounds not hittable", fails);
+        expect_true(probe.rect(node).x == 100 && probe.rect(node).y == 100,
+                    "rect truth: current geometry was not retained", fails);
+        expect_true(!probe.workspace_overflowed() && !probe.traversal_phase_conflicted(),
+                    "rect truth: hit-test workspace evidence failed", fails);
+
+        probe.destroy(node);
+        (void)out::println<"[soa] rect_truth initial={} stale={} moved={} result={}">(
+            g_console,
+            initial_hit ? 1u : 0u,
+            stale_hit ? 1u : 0u,
+            moved_hit ? 1u : 0u,
+            fails == 0 ? "ok" : "fail");
+        return fails == 0;
+    }
+
     bool run_workspace_regression(SoaGui& gui,
                                   SoaKernel& kernel,
                                   SoaFactory& factory,
@@ -3611,6 +3645,7 @@ int main(int argc, char** argv) {
     bool svg_workspace_ok = true;
     bool style_patch_pool_ok = true;
     bool traversal_workspace_ok = true;
+    bool rect_truth_ok = true;
     bool perf_overlay_runtime_ok = true;
     auto trace_regress_stage = [&](const char* stage) noexcept {
         (void)out::println<"[soa] regress stage={}">(g_console, stage);
@@ -3636,6 +3671,10 @@ int main(int argc, char** argv) {
         traversal_workspace_ok = run_traversal_workspace_regression();
         if (!traversal_workspace_ok) {
             ci_mark_fail("traversal_workspace");
+        }
+        rect_truth_ok = run_rect_truth_regression();
+        if (!rect_truth_ok) {
+            ci_mark_fail("rect_truth");
         }
         perf_overlay_runtime_ok = run_perf_overlay_runtime_regression();
         (void)out::println<"[soa] perf_overlay_runtime bytes={} ok={}">(
@@ -4258,6 +4297,7 @@ int main(int argc, char** argv) {
             && cmd_budget_ok
             && workspace_ok
             && traversal_workspace_ok
+            && rect_truth_ok
             && style_patch_ok
             && style_patch_pool_ok;
 
@@ -4277,7 +4317,7 @@ int main(int argc, char** argv) {
             static_cast<unsigned long long>(text_profile.glyphs),
             static_cast<unsigned long long>(text_profile.pixels));
 
-        (void)out::println<"[soa-ci] ok={} hash=0x{:08X} replay_full=0x{:08X} replay_tile=0x{:08X} failed_cmds={} overflows(p/t/b)={}/{}/{} workspace_overflow={} traversal_conflict={} traversal_workspace_ok={} style_patch_overflow={} style_patch_live={} style_patch_peak={} style_patch_cap={} style_patch_fail={} style_patch_pool_ok={} alloc_fail={} peak_ok={} table_tree_ok={} ui_ok={} compact_saved={} batch_shrink={} batch_shrink_line={} batch_shrink_path={} batch_shrink_rect={} batch_shrink_round={} batch_shrink_image={} batch_shrink_focus={} cmd_raw={} cmd_count={} cmd_saved={} cmd_saved_pct={} cmd_budget={} dispatch_groups={} batch_flushes={} groups(rect/text/img/line/path/other)={}/{}/{}/{}/{}/{} cmds(rect/text/img/line/path/other)={}/{}/{}/{}/{}/{} fail(text/img/blob/path/clip/other)={}/{}/{}/{}/{}/{} clip(push_over/pop_under/invalid)={}/{}/{} tile_flushes={} tile_hit_pct={} tile_dispatch_groups={} tile_batch_flushes={} tile_failed_cmds={} img_new_total={} img_new_after_lock={} img_new_record={} img_new_compact={} img_new_execute={} img_bytes={} img_reuse={} img_growth={} img_overflow={} img_dedup_ok={} img_after_lock_reason={} img_after_lock_tag={} reason={}">(
+        (void)out::println<"[soa-ci] ok={} hash=0x{:08X} replay_full=0x{:08X} replay_tile=0x{:08X} failed_cmds={} overflows(p/t/b)={}/{}/{} workspace_overflow={} traversal_conflict={} traversal_workspace_ok={} rect_truth_ok={} style_patch_overflow={} style_patch_live={} style_patch_peak={} style_patch_cap={} style_patch_fail={} style_patch_pool_ok={} alloc_fail={} peak_ok={} table_tree_ok={} ui_ok={} compact_saved={} batch_shrink={} batch_shrink_line={} batch_shrink_path={} batch_shrink_rect={} batch_shrink_round={} batch_shrink_image={} batch_shrink_focus={} cmd_raw={} cmd_count={} cmd_saved={} cmd_saved_pct={} cmd_budget={} dispatch_groups={} batch_flushes={} groups(rect/text/img/line/path/other)={}/{}/{}/{}/{}/{} cmds(rect/text/img/line/path/other)={}/{}/{}/{}/{}/{} fail(text/img/blob/path/clip/other)={}/{}/{}/{}/{}/{} clip(push_over/pop_under/invalid)={}/{}/{} tile_flushes={} tile_hit_pct={} tile_dispatch_groups={} tile_batch_flushes={} tile_failed_cmds={} img_new_total={} img_new_after_lock={} img_new_record={} img_new_compact={} img_new_execute={} img_bytes={} img_reuse={} img_growth={} img_overflow={} img_dedup_ok={} img_after_lock_reason={} img_after_lock_tag={} reason={}">(
             g_console,
             ok ? 1u : 0u,
             static_cast<unsigned>(compare_hash_full),
@@ -4290,6 +4330,7 @@ int main(int argc, char** argv) {
             workspace_ok ? 0u : 1u,
             kernel.traversal_phase_conflicted() ? 1u : 0u,
             traversal_workspace_ok ? 1u : 0u,
+            rect_truth_ok ? 1u : 0u,
             style_patch_ok ? 0u : 1u,
             static_cast<unsigned>(kernel.style_patch_live_count()),
             static_cast<unsigned>(kernel.style_patch_peak_count()),

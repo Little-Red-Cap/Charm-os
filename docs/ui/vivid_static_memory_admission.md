@@ -48,6 +48,10 @@ SoA common table 以 node capacity 乘算，但每个 node 只保存 16 位 `Sty
 profile 中显式声明该容量，且不得超过 node capacity。配置期分别计算 node 与 patch-slot 保守上界，不能把槽池
 成本重新藏回逐节点常量。目标 ABI 的 `Scene`/`SoaKernel` exact profile 才是实际收益证据。
 
+common table 只保存一份当前 `Rect`；layout、paint culling 与 hit-test 共同消费它。不得为未获准的视觉越界能力
+恢复逐节点 `paint_bounds` 副本。需要扩展绘制边界时，应按实际消费者引入固定容量、可裁剪且有 overflow evidence
+的 decoration/effect 存储。
+
 槽池耗尽不得覆盖现有 patch 或静默丢弃证据：失败写入保持目标 node 无 patch，并设置 sticky
 `style_patch_overflowed`、累加 allocation-fail。clear 与 node destroy 必须归还槽；主 Scene 的 overflow evidence
 通过 `Scene::last_cmd_stats()` 进入 SoA CI 最终判定。独立池耗尽回归用于证明拒绝和槽复用，不代表产品正常路径

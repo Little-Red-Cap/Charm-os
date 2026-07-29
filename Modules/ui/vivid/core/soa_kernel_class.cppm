@@ -132,7 +132,6 @@ namespace soa_detail {
         std::array<std::uint8_t, N> state_flags{};
         std::array<std::uint8_t, N> variant{};
         std::array<Rect, N> rects{};
-        std::array<Rect, N> paint_bounds{};
         std::array<std::uint8_t, N> layout_kind{};
         std::array<PayloadHandle, N> payload{};
         std::array<std::uint16_t, N> style_patch_slot{};
@@ -249,9 +248,6 @@ public:
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
         common_.rects[idx] = r;
-        if (!rect_valid(common_.paint_bounds[idx])) {
-            common_.paint_bounds[idx] = r;
-        }
         mark_layout_dirty();
     }
 
@@ -274,17 +270,6 @@ public:
         return (idx == kInvalidIndex)
             ? TextAlignV::Center
             : static_cast<TextAlignV>(common_.text_align_v[idx]);
-    }
-
-    Rect paint_bounds(WidgetHandle h) const noexcept {
-        const std::uint16_t idx = index_of(h);
-        return (idx == kInvalidIndex) ? Rect{} : common_.paint_bounds[idx];
-    }
-
-    void set_paint_bounds(WidgetHandle h, const Rect& r) noexcept {
-        const std::uint16_t idx = index_of(h);
-        if (idx == kInvalidIndex) return;
-        common_.paint_bounds[idx] = r;
     }
 
     bool link(WidgetHandle parent, WidgetHandle child) noexcept;
@@ -684,20 +669,10 @@ public:
 
             const Rect local = rect(frame.h);
             const Rect world{local.x + frame.offset_x, local.y + frame.offset_y, local.w, local.h};
-            Rect hit_local = paint_bounds(frame.h);
-            if (!rect_valid(hit_local)) {
-                hit_local = local;
-            }
-            const Rect hit_world{
-                hit_local.x + frame.offset_x,
-                hit_local.y + frame.offset_y,
-                hit_local.w,
-                hit_local.h
-            };
             if (frame.clip_enabled() && !frame.clip_rect.contains(x, y)) {
                 continue;
             }
-            const bool inside = hit_world.contains(x, y);
+            const bool inside = world.contains(x, y);
 
             if (inside && hit_testable(frame.h)) {
                 result = frame.h;

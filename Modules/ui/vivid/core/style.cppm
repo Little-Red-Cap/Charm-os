@@ -99,53 +99,54 @@ export rgba adjust_by_luma(const rgba& c, int delta) noexcept;
 
 export
 struct StylePatch {
-    bool has_bg_color{false};
-    bool has_border_color{false};
-    bool has_border_width{false};
-    bool has_corner_radius{false};
-    bool has_padding{false};
-    bool has_header_padding{false};
-    bool has_content_padding{false};
-    bool has_scrollbar_margin{false};
-    bool has_scrollbar_thumb_min{false};
-    bool has_glass_highlight_pos{false};
-    bool has_glass_highlight_alpha{false};
-    bool has_glass_shadow_alpha{false};
-    bool has_glass_opacity_min{false};
-    bool has_glass_opacity_max{false};
-    bool has_font{false};
-    bool has_font_role{false};
-    bool has_font_weight{false};
-    bool has_font_color{false};
-    bool has_bg_hover{false};
-    bool has_bg_pressed{false};
-    bool has_bg_disabled{false};
-    bool has_border_hover{false};
-    bool has_border_pressed{false};
-    bool has_border_disabled{false};
-    bool has_border_focus{false};
-    bool has_font_color_disabled{false};
-    bool has_accent_color{false};
-    bool has_accent_hover{false};
-    bool has_accent_pressed{false};
-    bool has_accent_disabled{false};
-    bool has_on_accent{false};
-    bool has_shadow_enabled{false};
-    bool has_shadow_color{false};
-    bool has_shadow_offset_x{false};
-    bool has_shadow_offset_y{false};
-    bool has_shadow_spread{false};
-    bool has_shadow_radius{false};
-    bool has_inner_stroke_enabled{false};
-    bool has_inner_stroke_color{false};
-    bool has_inner_stroke_width{false};
-    bool has_outline_enabled{false};
-    bool has_outline_color{false};
-    bool has_outline_width{false};
-    bool has_gradient_enabled{false};
-    bool has_gradient_start{false};
-    bool has_gradient_end{false};
-    bool has_gradient_direction{false};
+    // Every SoA node reserves a StylePatch, so presence flags must stay packed.
+    bool has_bg_color : 1 {false};
+    bool has_border_color : 1 {false};
+    bool has_border_width : 1 {false};
+    bool has_corner_radius : 1 {false};
+    bool has_padding : 1 {false};
+    bool has_header_padding : 1 {false};
+    bool has_content_padding : 1 {false};
+    bool has_scrollbar_margin : 1 {false};
+    bool has_scrollbar_thumb_min : 1 {false};
+    bool has_glass_highlight_pos : 1 {false};
+    bool has_glass_highlight_alpha : 1 {false};
+    bool has_glass_shadow_alpha : 1 {false};
+    bool has_glass_opacity_min : 1 {false};
+    bool has_glass_opacity_max : 1 {false};
+    bool has_font : 1 {false};
+    bool has_font_role : 1 {false};
+    bool has_font_weight : 1 {false};
+    bool has_font_color : 1 {false};
+    bool has_bg_hover : 1 {false};
+    bool has_bg_pressed : 1 {false};
+    bool has_bg_disabled : 1 {false};
+    bool has_border_hover : 1 {false};
+    bool has_border_pressed : 1 {false};
+    bool has_border_disabled : 1 {false};
+    bool has_border_focus : 1 {false};
+    bool has_font_color_disabled : 1 {false};
+    bool has_accent_color : 1 {false};
+    bool has_accent_hover : 1 {false};
+    bool has_accent_pressed : 1 {false};
+    bool has_accent_disabled : 1 {false};
+    bool has_on_accent : 1 {false};
+    bool has_shadow_enabled : 1 {false};
+    bool has_shadow_color : 1 {false};
+    bool has_shadow_offset_x : 1 {false};
+    bool has_shadow_offset_y : 1 {false};
+    bool has_shadow_spread : 1 {false};
+    bool has_shadow_radius : 1 {false};
+    bool has_inner_stroke_enabled : 1 {false};
+    bool has_inner_stroke_color : 1 {false};
+    bool has_inner_stroke_width : 1 {false};
+    bool has_outline_enabled : 1 {false};
+    bool has_outline_color : 1 {false};
+    bool has_outline_width : 1 {false};
+    bool has_gradient_enabled : 1 {false};
+    bool has_gradient_start : 1 {false};
+    bool has_gradient_end : 1 {false};
+    bool has_gradient_direction : 1 {false};
 
     rgba bg_color{};
     rgba border_color{};
@@ -261,6 +262,25 @@ struct StylePatch {
         if (has_gradient_direction) s.decoration.gradient_direction = gradient_direction;
     }
 };
+
+static_assert(std::is_trivially_copyable_v<StylePatch>,
+              "StylePatch must remain a fixed-cost value type");
+static_assert(sizeof(StylePatch) <= 184,
+              "StylePatch presence flags must remain packed");
+static_assert([] {
+    StylePatch patch{};
+    patch.has_bg_color = true;
+    patch.has_scrollbar_thumb_min = true;
+    patch.has_shadow_enabled = true;
+    patch.has_gradient_direction = true;
+    return patch.has_bg_color
+        && patch.has_scrollbar_thumb_min
+        && patch.has_shadow_enabled
+        && patch.has_gradient_direction
+        && !patch.has_border_color
+        && !patch.has_shadow_color
+        && !patch.has_gradient_end;
+}(), "StylePatch packed presence flags must remain independent");
 
 export
 enum class StylePatchKind : std::uint8_t {

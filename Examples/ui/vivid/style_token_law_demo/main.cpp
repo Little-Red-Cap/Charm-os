@@ -94,6 +94,10 @@ namespace {
 int main() {
     auto run_log = kRunLog;
     run_log.begin();
+    std::printf("[stl-abi] style_patch=%zu style_sheet=%zu scene=%zu\n",
+                sizeof(StylePatch),
+                sizeof(StyleSheet),
+                sizeof(::ui::scene::Scene));
 
     if (!setup_tokens_and_style_sheet(make_tokens(rgba{64, 120, 220, 255}, rgba{255, 255, 255, 255}))) {
         std::puts("[ERR] failed to add button role patch");

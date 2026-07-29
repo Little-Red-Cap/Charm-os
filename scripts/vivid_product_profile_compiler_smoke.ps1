@@ -190,6 +190,7 @@ vivid_define_product_profile(
     PAYLOAD_CAPACITIES Label=096
     SOA_MAX_NODES 0384
     SOA_TEXT_ARENA_BYTES 024576
+    SEMANTIC_SLOT_CAP 064
     STYLE_PATCH_SLOT_CAP 0192
     STYLE_CLASS_MAX 016
     STYLE_RULE_CAP 08
@@ -238,6 +239,7 @@ _vivid_profile_get(player_md3 ROOT_MODULES _roots)
 _vivid_profile_get(player_md3 WIDGET_KINDS _kinds)
 _vivid_profile_get(player_md3 OBJECT_WIDGET_KINDS _object_kinds)
 _vivid_profile_get(player_md3 PAYLOAD_CAPACITIES _capacities)
+_vivid_profile_get(player_md3 SEMANTIC_SLOT_CAP _semantic_slot_cap)
 _vivid_profile_get(player_md3 STYLE_PATCH_SLOT_CAP _style_patch_slot_cap)
 _vivid_profile_get(player_md3_debug ROOT_MODULES _debug_roots)
 _vivid_profile_get(player_md3_debug WIDGET_KINDS _debug_kinds)
@@ -255,6 +257,10 @@ vivid_widget_profile_resolve(
     KINDS ${_debug_kinds}
     OBJECT_KINDS ${_debug_object_kinds}
     PAYLOAD_CAPACITIES ${_debug_capacities})
+if(NOT _semantic_slot_cap EQUAL 64)
+    message(FATAL_ERROR
+        "Unexpected player_md3 SEMANTIC_SLOT_CAP=${_semantic_slot_cap}")
+endif()
 if(NOT _style_patch_slot_cap EQUAL 192)
     message(FATAL_ERROR
         "Unexpected player_md3 STYLE_PATCH_SLOT_CAP=${_style_patch_slot_cap}")
@@ -349,6 +355,7 @@ file(WRITE "${CASE_OUTPUT}"
     "widget_kinds=${_kind_count}\n"
     "object_widget_kinds=${_object_kind_count}\n"
     "payload_pools=${_pool_count}\n"
+    "semantic_slot_cap=${_semantic_slot_cap}\n"
     "style_patch_slot_cap=${_style_patch_slot_cap}\n"
     "debug_widget_kinds=${_debug_kind_count}\n"
     "debug_object_widget_kinds=${_debug_object_kind_count}\n"
@@ -398,6 +405,7 @@ vivid_define_product_profile(
     WIDGET_KINDS Container
     SOA_MAX_NODES 16
     SOA_TEXT_ARENA_BYTES 128
+    SEMANTIC_SLOT_CAP 8
     STYLE_PATCH_SLOT_CAP 8
     STYLE_CLASS_MAX 2
     STYLE_RULE_CAP 2
@@ -413,6 +421,7 @@ vivid_define_product_profile(
 '@
 
 $MissingStylePatchSlotCap = $MinimalProfiles -replace '(?m)^[ \t]*STYLE_PATCH_SLOT_CAP[ \t]+[0-9]+\r?\n', ''
+$MissingSemanticSlotCap = $MinimalProfiles -replace '(?m)^[ \t]*SEMANTIC_SLOT_CAP[ \t]+[0-9]+\r?\n', ''
 
 try {
     if (Test-Path -LiteralPath $FixtureRoot) {
@@ -434,6 +443,29 @@ try {
         -ExpectSuccess $false `
         -ExpectedPattern "requires STYLE_PATCH_SLOT_CAP"
 
+    Invoke-CMakeCase -Name "missing-semantic-slot-cap" `
+        -Body $MissingSemanticSlotCap `
+        -ExpectSuccess $false `
+        -ExpectedPattern "requires SEMANTIC_SLOT_CAP"
+
+    Invoke-CMakeCase -Name "semantic-slot-cap-over-nodes" -Body @'
+vivid_define_product_profile(
+    NAME invalid_semantic_slots
+    ROOT_MODULES charm.ui.vivid
+    WIDGET_KINDS Container
+    SOA_MAX_NODES 16
+    SOA_TEXT_ARENA_BYTES 128
+    SEMANTIC_SLOT_CAP 17
+    STYLE_PATCH_SLOT_CAP 8
+    STYLE_CLASS_MAX 2
+    STYLE_RULE_CAP 2
+    STYLE_METRICS_POOL_CAP 2
+    DRAW_CMD_MAX_COMMANDS 16
+    DRAW_CMD_TEXT_BYTES 128
+    DRAW_CMD_BLOB_BYTES 64
+    FLOAT_WIDGETS OFF)
+'@ -ExpectSuccess $false -ExpectedPattern "SEMANTIC_SLOT_CAP must be <="
+
     Invoke-CMakeCase -Name "style-patch-slot-cap-over-nodes" -Body @'
 vivid_define_product_profile(
     NAME invalid_style_patch_slots
@@ -441,6 +473,7 @@ vivid_define_product_profile(
     WIDGET_KINDS Container
     SOA_MAX_NODES 16
     SOA_TEXT_ARENA_BYTES 128
+    SEMANTIC_SLOT_CAP 8
     STYLE_PATCH_SLOT_CAP 17
     STYLE_CLASS_MAX 2
     STYLE_RULE_CAP 2

@@ -116,6 +116,89 @@ namespace soa_detail {
         bool overflowed_{false};
     };
 
+    struct alignas(4) SemanticRecord {
+        TextId id{};
+        TextId label{};
+        SemanticRole role{SemanticRole::None};
+        SemanticActionMask actions{0};
+    };
+
+    static_assert(sizeof(SemanticRecord) <= 12);
+    static_assert(std::is_trivially_copyable_v<SemanticRecord>);
+
+    template <std::size_t Capacity>
+    class SemanticPool {
+    public:
+        static_assert(Capacity > 0);
+        static_assert(Capacity <= kInvalidIndex);
+
+        void reset() noexcept {
+            for (std::size_t i = 0; i < Capacity; ++i) {
+                records_[i] = SemanticRecord{};
+                free_next_[i] = (i + 1 < Capacity)
+                    ? static_cast<std::uint16_t>(i + 1)
+                    : kInvalidIndex;
+            }
+            free_head_ = 0;
+            live_count_ = 0;
+            peak_count_ = 0;
+            alloc_fail_ = 0;
+            overflowed_ = false;
+        }
+
+        [[nodiscard]] SemanticRecord* acquire(std::uint16_t& slot) noexcept {
+            if (slot == kInvalidIndex) {
+                if (free_head_ == kInvalidIndex) {
+                    overflowed_ = true;
+                    ++alloc_fail_;
+                    return nullptr;
+                }
+                slot = free_head_;
+                free_head_ = free_next_[slot];
+                records_[slot] = SemanticRecord{};
+                ++live_count_;
+                if (live_count_ > peak_count_) peak_count_ = live_count_;
+            }
+            assert(slot < Capacity);
+            return &records_[slot];
+        }
+
+        [[nodiscard]] bool clear(std::uint16_t& slot) noexcept {
+            if (slot == kInvalidIndex) return false;
+            assert(slot < Capacity);
+            records_[slot] = SemanticRecord{};
+            free_next_[slot] = free_head_;
+            free_head_ = slot;
+            slot = kInvalidIndex;
+            assert(live_count_ > 0);
+            --live_count_;
+            return true;
+        }
+
+        [[nodiscard]] SemanticRecord* get(std::uint16_t slot) noexcept {
+            return (slot == kInvalidIndex || slot >= Capacity) ? nullptr : &records_[slot];
+        }
+
+        [[nodiscard]] const SemanticRecord* get(std::uint16_t slot) const noexcept {
+            return (slot == kInvalidIndex || slot >= Capacity) ? nullptr : &records_[slot];
+        }
+
+        [[nodiscard]] bool overflowed() const noexcept { return overflowed_; }
+        [[nodiscard]] std::size_t live_count() const noexcept { return live_count_; }
+        [[nodiscard]] std::size_t peak_count() const noexcept { return peak_count_; }
+        [[nodiscard]] std::uint32_t alloc_fail() const noexcept { return alloc_fail_; }
+        [[nodiscard]] static constexpr std::size_t capacity() noexcept { return Capacity; }
+
+    private:
+        std::array<SemanticRecord, Capacity> records_{};
+        std::array<std::uint16_t, Capacity> free_next_{};
+        std::uint16_t free_head_{kInvalidIndex};
+        std::uint16_t live_count_{0};
+        std::uint16_t peak_count_{0};
+        std::uint32_t alloc_fail_{0};
+        bool overflowed_{false};
+    };
+
     // ---- Storage / payload descriptor ----
     template <std::size_t N>
     struct CommonSoA {
@@ -138,10 +221,7 @@ namespace soa_detail {
         std::array<StyleClassId, N> style_class{};
         std::array<std::uint8_t, N> text_align_h{};
         std::array<std::uint8_t, N> text_align_v{};
-        std::array<SemanticRole, N> semantic_role{};
-        std::array<soa_detail::TextId, N> semantic_id{};
-        std::array<soa_detail::TextId, N> semantic_label{};
-        std::array<SemanticActionMask, N> semantic_actions{};
+        std::array<std::uint16_t, N> semantic_slot{};
 #if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
         std::array<std::uint16_t, N> draw_scope{};
 #endif
@@ -154,7 +234,12 @@ export
 class SoaKernel {
 public:
     static constexpr std::size_t kMaxNodes = soa_max_nodes;
+    static constexpr std::size_t kSemanticCapacity = semantic_slot_cap;
     static constexpr std::size_t kStylePatchCapacity = style_patch_slot_cap;
+    static constexpr std::size_t kSemanticPoolBytes =
+        sizeof(soa_detail::SemanticPool<kSemanticCapacity>);
+    static_assert(kSemanticPoolBytes <= kSemanticCapacity * 16 + 32,
+                  "SoA semantic pool exceeded its admitted capacity bound");
 
     struct TraversalFrame {
         static constexpr std::uint8_t kEntered = 1u << 0;
@@ -913,6 +998,10 @@ public:
     std::uint32_t paint_dirty_version() const noexcept ;
     bool payload_overflowed() const noexcept ;
     bool text_overflowed() const noexcept ;
+    bool semantic_overflowed() const noexcept { return semantics_.overflowed(); }
+    std::size_t semantic_live_count() const noexcept { return semantics_.live_count(); }
+    std::size_t semantic_peak_count() const noexcept { return semantics_.peak_count(); }
+    std::uint32_t semantic_alloc_fail() const noexcept { return semantics_.alloc_fail(); }
     bool style_patch_overflowed() const noexcept { return style_patches_.overflowed(); }
     std::size_t style_patch_live_count() const noexcept { return style_patches_.live_count(); }
     std::size_t style_patch_peak_count() const noexcept { return style_patches_.peak_count(); }
@@ -951,6 +1040,7 @@ public:
     void set_table_view_scroll_x_clamped(WidgetHandle h, int x) noexcept ;
     void set_scroll_y_clamped(WidgetHandle h, int y) noexcept ;
     soa_detail::CommonSoA<kMaxNodes> common_{};
+    soa_detail::SemanticPool<kSemanticCapacity> semantics_{};
     soa_detail::StylePatchPool<kStylePatchCapacity> style_patches_{};
     soa_detail::PayloadManager payloads_{};
     std::uint16_t free_head_{kInvalidIndex};

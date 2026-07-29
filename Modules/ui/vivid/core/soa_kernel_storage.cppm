@@ -34,14 +34,12 @@ import charm.core.soa_registry;
             common_.style_class[i] = kStyleClassInvalid;
             common_.text_align_h[i] = static_cast<std::uint8_t>(TextAlignH::Left);
             common_.text_align_v[i] = static_cast<std::uint8_t>(TextAlignV::Center);
-            common_.semantic_role[i] = SemanticRole::None;
-            common_.semantic_id[i] = soa_detail::empty_text_id();
-            common_.semantic_label[i] = soa_detail::empty_text_id();
-            common_.semantic_actions[i] = 0;
+            common_.semantic_slot[i] = kInvalidIndex;
 #if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
             common_.draw_scope[i] = 0;
 #endif
         }
+        semantics_.reset();
         style_patches_.reset();
         payloads_.reset();
     }
@@ -81,10 +79,7 @@ import charm.core.soa_registry;
         common_.style_class[idx] = kStyleClassInvalid;
         common_.text_align_h[idx] = static_cast<std::uint8_t>(TextAlignH::Left);
         common_.text_align_v[idx] = static_cast<std::uint8_t>(TextAlignV::Center);
-        common_.semantic_role[idx] = SemanticRole::None;
-        common_.semantic_id[idx] = soa_detail::empty_text_id();
-        common_.semantic_label[idx] = soa_detail::empty_text_id();
-        common_.semantic_actions[idx] = 0;
+        common_.semantic_slot[idx] = kInvalidIndex;
 #if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
         common_.draw_scope[idx] = 0;
 #endif
@@ -107,10 +102,7 @@ import charm.core.soa_registry;
             common_.style_class[idx] = kStyleClassInvalid;
             common_.text_align_h[idx] = static_cast<std::uint8_t>(TextAlignH::Left);
             common_.text_align_v[idx] = static_cast<std::uint8_t>(TextAlignV::Center);
-            common_.semantic_role[idx] = SemanticRole::None;
-            common_.semantic_id[idx] = soa_detail::empty_text_id();
-            common_.semantic_label[idx] = soa_detail::empty_text_id();
-            common_.semantic_actions[idx] = 0;
+            common_.semantic_slot[idx] = kInvalidIndex;
 #if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
             common_.draw_scope[idx] = 0;
 #endif
@@ -141,10 +133,7 @@ import charm.core.soa_registry;
         common_.style_class[idx] = kStyleClassInvalid;
         common_.text_align_h[idx] = static_cast<std::uint8_t>(TextAlignH::Left);
         common_.text_align_v[idx] = static_cast<std::uint8_t>(TextAlignV::Center);
-        common_.semantic_role[idx] = SemanticRole::None;
-        common_.semantic_id[idx] = soa_detail::empty_text_id();
-        common_.semantic_label[idx] = soa_detail::empty_text_id();
-        common_.semantic_actions[idx] = 0;
+        (void)semantics_.clear(common_.semantic_slot[idx]);
 #if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
         common_.draw_scope[idx] = 0;
 #endif

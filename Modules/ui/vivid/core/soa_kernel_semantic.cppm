@@ -19,10 +19,16 @@ import charm.core.soa_payload;
                                  const char* label) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
-        common_.semantic_role[idx] = role;
-        common_.semantic_id[idx] = payloads_.store_text(id);
-        common_.semantic_label[idx] = payloads_.store_text(label);
-        common_.semantic_actions[idx] = semantic_default_actions_for_role(role);
+        if (role == SemanticRole::None) {
+            (void)semantics_.clear(common_.semantic_slot[idx]);
+            return;
+        }
+        auto* semantic = semantics_.acquire(common_.semantic_slot[idx]);
+        if (!semantic) return;
+        semantic->role = role;
+        semantic->id = payloads_.store_text(id);
+        semantic->label = payloads_.store_text(label);
+        semantic->actions = semantic_default_actions_for_role(role);
     }
 
     void SoaKernel::set_semantic_default(WidgetHandle h,
@@ -45,30 +51,30 @@ import charm.core.soa_payload;
     void SoaKernel::clear_semantic(WidgetHandle h) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
-        common_.semantic_role[idx] = SemanticRole::None;
-        common_.semantic_id[idx] = soa_detail::empty_text_id();
-        common_.semantic_label[idx] = soa_detail::empty_text_id();
-        common_.semantic_actions[idx] = 0;
+        (void)semantics_.clear(common_.semantic_slot[idx]);
     }
 
     void SoaKernel::set_semantic_actions(WidgetHandle h, SemanticActionMask actions) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
-        common_.semantic_actions[idx] = actions;
+        auto* semantic = semantics_.get(common_.semantic_slot[idx]);
+        if (!semantic || semantic->role == SemanticRole::None) return;
+        semantic->actions = actions;
     }
 
     SemanticFocusSnapshot SoaKernel::semantic_snapshot(WidgetHandle h) const noexcept {
         SemanticFocusSnapshot out{};
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return out;
-        const SemanticRole role = common_.semantic_role[idx];
         out.handle = h;
-        out.id = payloads_.text_c_str(common_.semantic_id[idx]);
-        out.role = semantic_role_name(role);
-        out.label = payloads_.text_c_str(common_.semantic_label[idx]);
-        out.actions = common_.semantic_actions[idx];
         out.focusable = focusable(h);
-        out.found = role != SemanticRole::None && out.id && out.id[0] != '\0';
+        const auto* semantic = semantics_.get(common_.semantic_slot[idx]);
+        if (!semantic) return out;
+        out.id = payloads_.text_c_str(semantic->id);
+        out.role = semantic_role_name(semantic->role);
+        out.label = payloads_.text_c_str(semantic->label);
+        out.actions = semantic->actions;
+        out.found = semantic->role != SemanticRole::None && out.id && out.id[0] != '\0';
         return out;
     }
 

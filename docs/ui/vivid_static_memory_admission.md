@@ -13,7 +13,7 @@
 
 ## Resident RAM 范围
 
-计入 Vivid 自有常驻状态：Scene/SoA kernel、payload/text/style pools、唯一 live DrawCmd buffer、layer
+计入 Vivid 自有常驻状态：Scene/SoA kernel、payload/text/semantic/style pools、唯一 live DrawCmd buffer、layer
 snapshot stores、compaction/executor/traversal workspace、theme/stylesheet/image registry 和启用 widget 的
 保守 style reserve。应用级 PerfOverlay runtime、canvas/text profile counter 与 DrawCmd policy 等固定全局
 状态同样计入，不能藏在未解释的 process global 中。
@@ -48,6 +48,11 @@ SoA common table 以 node capacity 乘算，但每个 node 只保存 16 位 `Sty
 profile 中显式声明该容量，且不得超过 node capacity。配置期分别计算 node 与 patch-slot 保守上界，不能把槽池
 成本重新藏回逐节点常量。目标 ABI 的 `Scene`/`SoaKernel` exact profile 才是实际收益证据。
 
+Semantic role、id、label 与 action mask 同样位于 `SEMANTIC_SLOT_CAP` 控制的固定容量稀疏池，common table
+只保存 16 位槽索引。FULL/MCU_MIN 默认取 `min(soa_max_nodes, 64)`，PRODUCT 必须显式声明容量且不得超过
+node capacity。配置期按 16B/slot 加固定管理上界单列 semantic pool，不得把完整 semantic record 重新乘到
+所有 node。profile fingerprint、typed config、static-memory manifest 与 admission JSON 必须消费同一容量真源。
+
 common table 只保存一份当前 `Rect`；layout、paint culling 与 hit-test 共同消费它。不得为未获准的视觉越界能力
 恢复逐节点 `paint_bounds` 副本。需要扩展绘制边界时，应按实际消费者引入固定容量、可裁剪且有 overflow evidence
 的 decoration/effect 存储。
@@ -56,6 +61,10 @@ common table 只保存一份当前 `Rect`；layout、paint culling 与 hit-test 
 `style_patch_overflowed`、累加 allocation-fail。clear 与 node destroy 必须归还槽；主 Scene 的 overflow evidence
 通过 `Scene::last_cmd_stats()` 进入 SoA CI 最终判定。独立池耗尽回归用于证明拒绝和槽复用，不代表产品正常路径
 允许 overflow。
+
+Semantic pool 使用相同拒绝原则：池满时新 entry 保持 `found=false`，但有效 node snapshot 仍返回原 handle；
+`set_semantic_actions()` 对没有 entry 的 node 无副作用。clear 与 node destroy 必须归还槽，overflow/fail/peak/live
+证据由 SoA CI 单独验证，主 Scene 的 `semantic_overflowed` 必须通过 `Scene::last_cmd_stats()` 保持可见且正常路径为零。
 
 SoA layout、render、hit-test、focus 与 semantic 不分别乘算遍历数组。每个 `SoaKernel` 只拥有一套
 `soa_max_nodes` 容量的共享 traversal workspace；配置期按 64B/frame 计入上界，目标 ABI profile 记录实际
@@ -67,7 +76,7 @@ frame 与 workspace 字节。phase lease 禁止重入覆盖：冲突必须拒绝
 
 PRODUCT 通过两层 DSL 分离：
 
-- product profile：active widget kinds、payload capacities、SoA/Text/Style/DrawCmd 工作集；
+- product profile：active widget kinds、payload capacities、SoA/Text/Semantic/Style/DrawCmd 工作集；
 - target envelope：screen/pixel format、layer cache、scene count、RAM/headroom 和 stack limit。
 
 每个 target 只能绑定一个规范化 profile 和一个 envelope；重复配置只有内容完全相同时才允许。旧手写

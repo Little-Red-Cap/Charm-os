@@ -80,7 +80,7 @@ evidence；lease 释放后 workspace 必须可再次使用。compaction、DrawCm
 
 PRODUCT/MCU profile 必须声明：
 
-- SoA node/payload、TextArena、StylePatch 稀疏槽、Style、DrawCmd 和 layer cache 容量；
+- SoA node/payload、TextArena、semantic/StylePatch 稀疏槽、Style、DrawCmd 和 layer cache 容量；
 - Scene 数量、常驻 RAM 上限、最小 headroom 与 stack frame 上限；
 - screen/pixel format 和 backend envelope；
 - overflow、workspace exhaustion 和 payload generation 的失败行为。
@@ -93,6 +93,11 @@ high-water evidence。静态内存准入见
 
 Widget node 只保存 kind 与 generation-checked payload handle。每类 payload 使用固定容量 pool；释放后
 generation 变化，旧 handle 不得重新命中新 owner。
+
+Semantic role、id、label 与 action mask 只由显式 semantic entry 使用，不随每个 node 常驻。node 保存 16 位
+槽索引，`SoaKernel` 按 profile 的 `SEMANTIC_SLOT_CAP` 拥有固定容量 semantic pool。set 覆盖已有槽；clear 与
+node destroy 归还槽；action-only 更新不能隐式创建 entry。池满时保留已有 entry、拒绝新 entry，并产生 sticky
+overflow、allocation-fail、live/peak evidence。`WidgetKind`、Scene semantic API 与 snapshot 值语义不随存储迁移改变。
 
 `cmake/widget_catalog.cmake` 是 WidgetKind、module、factory、payload、style/default/input behavior 的
 单一构建入口。稳定 kind ID 由 ABI fixture 固定；PRODUCT profile 只裁剪能力和容量，不生成另一套 enum。

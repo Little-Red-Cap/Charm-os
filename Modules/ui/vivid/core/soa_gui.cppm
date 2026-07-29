@@ -153,6 +153,7 @@ WidgetHandle SoaGui::root() const noexcept {
         last_cmd_stats_.workspace_overflowed = kernel_.workspace_overflowed();
         last_cmd_stats_.traversal_phase_conflicted = kernel_.traversal_phase_conflicted();
         last_cmd_stats_.style_patch_overflowed = kernel_.style_patch_overflowed();
+        last_cmd_stats_.semantic_overflowed = kernel_.semantic_overflowed();
         text_profile_reset();
         canvas_.begin_frame();
         ui::draw_cmd::ImageRegistryPhaseGuard phase_execute{ui::draw_cmd::ImageRegisterReason::FrameExecute};
@@ -173,6 +174,7 @@ WidgetHandle SoaGui::root() const noexcept {
         last_cmd_stats_.workspace_overflowed = kernel_.workspace_overflowed();
         last_cmd_stats_.traversal_phase_conflicted = kernel_.traversal_phase_conflicted();
         last_cmd_stats_.style_patch_overflowed = kernel_.style_patch_overflowed();
+        last_cmd_stats_.semantic_overflowed = kernel_.semantic_overflowed();
         return last_cmd_stats_;
     }
 
@@ -192,6 +194,7 @@ template <ui::RenderBackend Backend>
         last_cmd_stats_.workspace_overflowed = kernel_.workspace_overflowed();
         last_cmd_stats_.traversal_phase_conflicted = kernel_.traversal_phase_conflicted();
         last_cmd_stats_.style_patch_overflowed = kernel_.style_patch_overflowed();
+        last_cmd_stats_.semantic_overflowed = kernel_.semantic_overflowed();
         text_profile_reset();
         ui::draw_cmd::ImageRegistryPhaseGuard phase_execute{ui::draw_cmd::ImageRegisterReason::FrameExecute};
         return cmd_exec_.execute_tiles(backend, tile_buffer, cmd_buffer_, config);

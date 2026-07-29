@@ -1,6 +1,5 @@
 #pragma once
 
-#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -355,17 +354,17 @@ namespace vivid::evidence {
     }
 
     inline void print_causal_chain(const CausalChainEvidence& evidence) noexcept {
-        const std::array<CausalVerdictField, 5> fields{{
+        const CausalVerdictField fields[]{
             {"request_ok", evidence.request_ok},
             {"state_delta_ok", evidence.state_delta_ok},
             {"invalidation_ok", evidence.invalidation_ok},
             {"artifact_ok", evidence.artifact_ok},
             {"rejected_no_mutation", evidence.rejected_no_mutation},
-        }};
+        };
         const CausalVerdictEvidence verdict{
             .name = evidence.name,
-            .fields = fields.data(),
-            .field_count = fields.size(),
+            .fields = fields,
+            .field_count = sizeof(fields) / sizeof(fields[0]),
             .cases_closed = 0,
         };
         print_causal_verdict(verdict);

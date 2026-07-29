@@ -35,6 +35,9 @@ export namespace ui::scene {
         bool text_overflowed{false};
         bool blob_overflowed{false};
         bool workspace_overflowed{false};
+        bool traversal_phase_conflicted{false};
+        bool style_patch_overflowed{false};
+        bool semantic_overflowed{false};
     };
 
     struct ExecStats {

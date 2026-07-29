@@ -146,6 +146,10 @@ function Assert-Admission {
         $Values.style_patch_pool_upper_bytes -ne "49152") {
         throw "Unexpected sparse StylePatch budget in static memory manifest"
     }
+    if ($Values.semantic_slot_cap -ne "64" -or
+        $Values.semantic_pool_upper_bytes -ne "1056") {
+        throw "Unexpected sparse semantic budget in static memory manifest"
+    }
     $expectedTraversalBytes = [int64]$Values.soa_max_nodes * 64
     if ($Values.soa_traversal_frame_upper_bytes -ne "64" -or
         [int64]$Values.soa_traversal_workspace_upper_bytes -ne $expectedTraversalBytes) {
@@ -172,6 +176,11 @@ function Assert-ProductEvidence {
     $manifest = Read-KeyValueManifest -Path (Join-Path $generatedDir "static_memory_admission.txt")
 
     Assert-Admission -Values $manifest -FeatureSet "PRODUCT" -Profile $Profile -Status "admitted" -MinimumHeadroom 524288
+    if ([int64]$profileEvidence.schema -ne 4 -or
+        [int64]$profileEvidence.workset.semantic_slot_cap -ne 64 -or
+        [int64]$admissionEvidence.static_memory.semantic_pool_upper_bytes -ne 1056) {
+        throw "PRODUCT sparse semantic evidence mismatch for profile '$Profile'"
+    }
     if ([int64]$profileEvidence.workset.style_patch_slot_cap -ne 192 -or
         [int64]$admissionEvidence.static_memory.style_patch_pool_upper_bytes -ne 49152) {
         throw "PRODUCT sparse StylePatch evidence mismatch for profile '$Profile'"
@@ -315,6 +324,7 @@ add_subdirectory("${CHARM_ROOT}" "${CMAKE_BINARY_DIR}/Charm")
 $CommonSoaArgs = @(
     "-DCHARM_VIVID_SOA_MAX_NODES=256",
     "-DCHARM_VIVID_SOA_TEXT_ARENA_BYTES=",
+    "-DCHARM_VIVID_SEMANTIC_SLOT_CAP=64",
     "-DCHARM_VIVID_STYLE_PATCH_SLOT_CAP=192",
     "-DCHARM_VIVID_STYLE_CLASS_MAX=256",
     "-DCHARM_VIVID_STYLE_RULE_CAP=32",

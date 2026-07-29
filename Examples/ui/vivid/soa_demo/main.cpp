@@ -2896,6 +2896,95 @@ namespace {
         return fails == 0;
     }
 
+    bool run_semantic_pool_regression() noexcept {
+        if constexpr (SoaKernel::kSemanticCapacity >= SoaKernel::kMaxNodes) {
+            (void)out::println<"[soa] semantic_pool cap={} max_nodes={} overflow_test=skipped result=ok">(
+                g_console,
+                static_cast<unsigned>(SoaKernel::kSemanticCapacity),
+                static_cast<unsigned>(SoaKernel::kMaxNodes));
+            return true;
+        }
+
+        int fails = 0;
+        static SoaKernel probe{};
+        WidgetHandle first{};
+        for (std::size_t i = 0; i < SoaKernel::kSemanticCapacity; ++i) {
+            const WidgetHandle node = probe.create(WidgetKind::Container);
+            expect_true(static_cast<bool>(node), "semantic pool: node allocation failed", fails);
+            if (!node) break;
+            if (i == 0) first = node;
+            probe.set_semantic(node, SemanticRole::Container, "s", "l");
+            expect_true(probe.semantic_snapshot(node).found,
+                        "semantic pool: admitted entry missing", fails);
+        }
+
+        expect_true(probe.semantic_live_count() == SoaKernel::kSemanticCapacity,
+                    "semantic pool: live count mismatch", fails);
+        expect_true(probe.semantic_peak_count() == SoaKernel::kSemanticCapacity,
+                    "semantic pool: peak count mismatch", fails);
+        expect_true(probe.semantic_alloc_fail() == 0,
+                    "semantic pool: unexpected allocation failure", fails);
+
+        probe.set_semantic(first, SemanticRole::Button, "updated", "Updated");
+        probe.set_semantic_actions(first, 0);
+        const auto updated = probe.semantic_snapshot(first);
+        expect_true(updated.found && updated.actions == 0,
+                    "semantic pool: existing slot update failed", fails);
+        expect_true(probe.semantic_live_count() == SoaKernel::kSemanticCapacity,
+                    "semantic pool: existing slot update changed live count", fails);
+
+        const WidgetHandle overflow_node = probe.create(WidgetKind::Container);
+        expect_true(static_cast<bool>(overflow_node),
+                    "semantic pool: overflow node allocation failed", fails);
+        probe.set_semantic_actions(
+            overflow_node,
+            semantic_action_mask(SemanticAction::Activate));
+        expect_true(probe.semantic_live_count() == SoaKernel::kSemanticCapacity
+                        && probe.semantic_alloc_fail() == 0,
+                    "semantic pool: action-only write allocated a slot", fails);
+        probe.set_semantic(overflow_node, SemanticRole::Container, "overflow", "Overflow");
+        const auto rejected = probe.semantic_snapshot(overflow_node);
+        expect_true(same_handle(rejected.handle, overflow_node) && !rejected.found,
+                    "semantic pool: overflow silently installed entry", fails);
+        const auto preserved = probe.semantic_snapshot(first);
+        expect_true(preserved.found && preserved.actions == 0
+                        && std::strcmp(preserved.id, "updated") == 0,
+                    "semantic pool: overflow replaced an existing entry", fails);
+        expect_true(probe.semantic_overflowed() && probe.semantic_alloc_fail() == 1,
+                    "semantic pool: overflow evidence missing", fails);
+
+        probe.clear_semantic(first);
+        const auto cleared = probe.semantic_snapshot(first);
+        expect_true(same_handle(cleared.handle, first) && !cleared.found,
+                    "semantic pool: clear did not remove entry", fails);
+        probe.set_semantic(overflow_node, SemanticRole::Container, "reused", "Reused");
+        expect_true(probe.semantic_snapshot(overflow_node).found
+                        && probe.semantic_live_count() == SoaKernel::kSemanticCapacity,
+                    "semantic pool: cleared slot was not reused", fails);
+
+        probe.destroy(overflow_node);
+        const WidgetHandle replacement = probe.create(WidgetKind::Container);
+        expect_true(static_cast<bool>(replacement),
+                    "semantic pool: replacement node allocation failed", fails);
+        probe.set_semantic(replacement, SemanticRole::Container, "replacement", "Replacement");
+        expect_true(probe.semantic_snapshot(replacement).found
+                        && probe.semantic_live_count() == SoaKernel::kSemanticCapacity,
+                    "semantic pool: destroyed node did not release slot", fails);
+        expect_true(probe.semantic_overflowed() && probe.semantic_alloc_fail() == 1,
+                    "semantic pool: sticky overflow evidence was lost", fails);
+
+        (void)out::println<"[soa] semantic_pool live={} peak={} cap={} bytes={} fail={} overflow={} result={}">(
+            g_console,
+            static_cast<unsigned>(probe.semantic_live_count()),
+            static_cast<unsigned>(probe.semantic_peak_count()),
+            static_cast<unsigned>(SoaKernel::kSemanticCapacity),
+            static_cast<unsigned>(SoaKernel::kSemanticPoolBytes),
+            static_cast<unsigned>(probe.semantic_alloc_fail()),
+            probe.semantic_overflowed() ? 1u : 0u,
+            fails == 0 ? "ok" : "fail");
+        return fails == 0;
+    }
+
     bool run_traversal_workspace_regression() noexcept {
         int fails = 0;
         static SoaKernel probe{};
@@ -3243,12 +3332,14 @@ int main(int argc, char** argv) {
     }
 #endif
     if (run_ci) {
-        (void)out::println<"[soa] abi style_patch={} soa_kernel={} scene={} nodes={} style_patch_slots={} traversal_frame={} traversal_workspace={}">(
+        (void)out::println<"[soa] abi style_patch={} soa_kernel={} scene={} nodes={} semantic_slots={} semantic_pool={} style_patch_slots={} traversal_frame={} traversal_workspace={}">(
             g_console,
             static_cast<unsigned long long>(sizeof(StylePatch)),
             static_cast<unsigned long long>(sizeof(SoaKernel)),
             static_cast<unsigned long long>(sizeof(::ui::scene::Scene)),
             static_cast<unsigned>(SoaKernel::kMaxNodes),
+            static_cast<unsigned>(SoaKernel::kSemanticCapacity),
+            static_cast<unsigned>(SoaKernel::kSemanticPoolBytes),
             static_cast<unsigned>(SoaKernel::kStylePatchCapacity),
             static_cast<unsigned>(sizeof(SoaKernel::TraversalFrame)),
             static_cast<unsigned>(SoaKernel::kTraversalWorkspaceBytes));
@@ -3644,6 +3735,7 @@ int main(int argc, char** argv) {
     bool ui_ok = true;
     bool svg_workspace_ok = true;
     bool style_patch_pool_ok = true;
+    bool semantic_pool_ok = true;
     bool traversal_workspace_ok = true;
     bool rect_truth_ok = true;
     bool perf_overlay_runtime_ok = true;
@@ -3667,6 +3759,10 @@ int main(int argc, char** argv) {
         style_patch_pool_ok = run_style_patch_pool_regression();
         if (!style_patch_pool_ok) {
             ci_mark_fail("style_patch_pool");
+        }
+        semantic_pool_ok = run_semantic_pool_regression();
+        if (!semantic_pool_ok) {
+            ci_mark_fail("semantic_pool");
         }
         traversal_workspace_ok = run_traversal_workspace_regression();
         if (!traversal_workspace_ok) {
@@ -4273,6 +4369,12 @@ int main(int argc, char** argv) {
         if (!style_patch_ok) {
             ci_mark_fail("style_patch_overflow");
         }
+        const bool semantic_ok = !kernel.semantic_overflowed()
+            && !gui.last_cmd_stats().semantic_overflowed
+            && kernel.semantic_alloc_fail() == 0;
+        if (!semantic_ok) {
+            ci_mark_fail("semantic_overflow");
+        }
         const bool ok = ci_ok
               && compare_ok
               && dump_ok
@@ -4299,7 +4401,9 @@ int main(int argc, char** argv) {
             && traversal_workspace_ok
             && rect_truth_ok
             && style_patch_ok
-            && style_patch_pool_ok;
+            && style_patch_pool_ok
+            && semantic_ok
+            && semantic_pool_ok;
 
         (void)out::println<"[soa-ci] display mode={} bw1={} gray2={} gray2_curve={} eink_max_partial={} eink_min_full_ms={} eink_partial_pct={} missing_glyphs={} fallback_glyphs={} utf8_replace={} text_draw={} text_glyphs={} text_pixels={}">(
             g_console,
@@ -4317,7 +4421,7 @@ int main(int argc, char** argv) {
             static_cast<unsigned long long>(text_profile.glyphs),
             static_cast<unsigned long long>(text_profile.pixels));
 
-        (void)out::println<"[soa-ci] ok={} hash=0x{:08X} replay_full=0x{:08X} replay_tile=0x{:08X} failed_cmds={} overflows(p/t/b)={}/{}/{} workspace_overflow={} traversal_conflict={} traversal_workspace_ok={} rect_truth_ok={} style_patch_overflow={} style_patch_live={} style_patch_peak={} style_patch_cap={} style_patch_fail={} style_patch_pool_ok={} alloc_fail={} peak_ok={} table_tree_ok={} ui_ok={} compact_saved={} batch_shrink={} batch_shrink_line={} batch_shrink_path={} batch_shrink_rect={} batch_shrink_round={} batch_shrink_image={} batch_shrink_focus={} cmd_raw={} cmd_count={} cmd_saved={} cmd_saved_pct={} cmd_budget={} dispatch_groups={} batch_flushes={} groups(rect/text/img/line/path/other)={}/{}/{}/{}/{}/{} cmds(rect/text/img/line/path/other)={}/{}/{}/{}/{}/{} fail(text/img/blob/path/clip/other)={}/{}/{}/{}/{}/{} clip(push_over/pop_under/invalid)={}/{}/{} tile_flushes={} tile_hit_pct={} tile_dispatch_groups={} tile_batch_flushes={} tile_failed_cmds={} img_new_total={} img_new_after_lock={} img_new_record={} img_new_compact={} img_new_execute={} img_bytes={} img_reuse={} img_growth={} img_overflow={} img_dedup_ok={} img_after_lock_reason={} img_after_lock_tag={} reason={}">(
+        (void)out::println<"[soa-ci] ok={} hash=0x{:08X} replay_full=0x{:08X} replay_tile=0x{:08X} failed_cmds={} overflows(p/t/b)={}/{}/{} workspace_overflow={} traversal_conflict={} traversal_workspace_ok={} rect_truth_ok={} style_patch_overflow={} style_patch_live={} style_patch_peak={} style_patch_cap={} style_patch_fail={} style_patch_pool_ok={} semantic_overflow={} semantic_live={} semantic_peak={} semantic_cap={} semantic_fail={} semantic_pool_ok={} alloc_fail={} peak_ok={} table_tree_ok={} ui_ok={} compact_saved={} batch_shrink={} batch_shrink_line={} batch_shrink_path={} batch_shrink_rect={} batch_shrink_round={} batch_shrink_image={} batch_shrink_focus={} cmd_raw={} cmd_count={} cmd_saved={} cmd_saved_pct={} cmd_budget={} dispatch_groups={} batch_flushes={} groups(rect/text/img/line/path/other)={}/{}/{}/{}/{}/{} cmds(rect/text/img/line/path/other)={}/{}/{}/{}/{}/{} fail(text/img/blob/path/clip/other)={}/{}/{}/{}/{}/{} clip(push_over/pop_under/invalid)={}/{}/{} tile_flushes={} tile_hit_pct={} tile_dispatch_groups={} tile_batch_flushes={} tile_failed_cmds={} img_new_total={} img_new_after_lock={} img_new_record={} img_new_compact={} img_new_execute={} img_bytes={} img_reuse={} img_growth={} img_overflow={} img_dedup_ok={} img_after_lock_reason={} img_after_lock_tag={} reason={}">(
             g_console,
             ok ? 1u : 0u,
             static_cast<unsigned>(compare_hash_full),
@@ -4337,6 +4441,12 @@ int main(int argc, char** argv) {
             static_cast<unsigned>(SoaKernel::kStylePatchCapacity),
             static_cast<unsigned>(kernel.style_patch_alloc_fail()),
             style_patch_pool_ok ? 1u : 0u,
+            semantic_ok ? 0u : 1u,
+            static_cast<unsigned>(kernel.semantic_live_count()),
+            static_cast<unsigned>(kernel.semantic_peak_count()),
+            static_cast<unsigned>(SoaKernel::kSemanticCapacity),
+            static_cast<unsigned>(kernel.semantic_alloc_fail()),
+            semantic_pool_ok ? 1u : 0u,
             static_cast<unsigned>(total_fail),
             list_peak_ok ? 1u : 0u,
             table_tree_ok ? 1u : 0u,

@@ -49,6 +49,11 @@ offsets 与固定 scratch/command/对齐成本；C++ `sizeof` 门、manifest 和
 批项必须具有唯一 object representation，并以 `memcpy` 写入 raw blob；padding 必须显式命名并确定初始化，
 不能把历史 storage 字节带入 replay artifact。
 
+DrawCmd executor 不为相邻命令 run 常驻 Rect/DrawCmd 中间数组；命令从固定容量 buffer 单遍读取并立即执行。
+配置期 executor workspace 上界固定为 `4096B`，覆盖真实重叠的 clip stack、tile-hit table 与可选 detail evidence；
+生成配置中的同值 `sizeof` 门必须拒绝 target ABI 超界。FullFrame/Tile 哈希、dispatch/group/cmd 计数与失败统计
+共同证明流式化没有改变可观察执行语义。
+
 SoA common table 以 node capacity 乘算，但每个 node 只保存强类型 8 位 `StylePatch` 槽索引；完整 patch 位于
 `STYLE_PATCH_SLOT_CAP` 控制的固定容量稀疏池。FULL/MCU_MIN 默认取 `min(soa_max_nodes, 192)`，PRODUCT 必须在
 profile 中显式声明该容量，且不得超过 255 或 node capacity。配置期分别计算 node 与 patch-slot 保守上界，不能把槽池

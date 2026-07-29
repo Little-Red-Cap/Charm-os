@@ -3686,9 +3686,11 @@ int main(int argc, char** argv) {
     }
 #endif
     if (run_ci) {
-        (void)out::println<"[soa] abi style_patch={} soa_kernel={} scene={} nodes={} node_storage_slot={} node_runtime_state={} node_style_class={} node_style_patch_slot={} node_semantic_slot={} layout_text_state={} semantic_slots={} semantic_pool={} style_patch_slots={} style_patch_pool={} traversal_frame={} traversal_workspace={} compaction_workspace={} batch_storage={}">(
+        (void)out::println<"[soa] abi style_patch={} draw_cmd={} executor={} soa_kernel={} scene={} nodes={} node_storage_slot={} node_runtime_state={} node_style_class={} node_style_patch_slot={} node_semantic_slot={} layout_text_state={} semantic_slots={} semantic_pool={} style_patch_slots={} style_patch_pool={} traversal_frame={} traversal_workspace={} compaction_workspace={} batch_storage={}">(
             g_console,
             static_cast<unsigned long long>(sizeof(StylePatch)),
+            static_cast<unsigned long long>(sizeof(ui::draw_cmd::DrawCmd)),
+            static_cast<unsigned long long>(sizeof(ui::draw_cmd::DrawCmdExecutor)),
             static_cast<unsigned long long>(sizeof(SoaKernel)),
             static_cast<unsigned long long>(sizeof(::ui::scene::Scene)),
             static_cast<unsigned>(SoaKernel::kMaxNodes),
@@ -4445,6 +4447,7 @@ int main(int argc, char** argv) {
     std::size_t compare_clip_invalid = 0;
     bool compare_ok = true;
     bool compact_ok = true;
+    bool executor_stream_ok = true;
     std::size_t compact_saved = 0;
 
     if (run_compare) {
@@ -4482,6 +4485,32 @@ int main(int argc, char** argv) {
             }
         }
         ui::draw_cmd::DrawCmdExecutor exec{};
+        {
+            constexpr std::size_t kStreamRunLength = 80;
+            ui::draw_cmd::DrawCmdBuffer<kStreamRunLength * 2, 1, 1> stream_probe{};
+            for (std::size_t i = 0; i < kStreamRunLength; ++i) {
+                const int x = static_cast<int>(i % 40);
+                const int y = static_cast<int>(i / 40);
+                stream_probe.fill_rect({x, y, 1, 1}, kDemoPanel);
+            }
+            for (std::size_t i = 0; i < kStreamRunLength; ++i) {
+                const int y = 4 + static_cast<int>(i % 40);
+                stream_probe.draw_line(0, y, 3, y, kDemoPanelBorder);
+            }
+            fb.clear(kDemoBg);
+            canvas.begin_frame();
+            const auto stream_stats = exec.execute(canvas, stream_probe);
+            canvas.end_frame();
+            const auto stream_buffer_stats = stream_probe.stats();
+            executor_stream_ok = stream_stats.failed_cmds == 0
+                && !stream_buffer_stats.cmd_overflowed
+                && stream_stats.dispatch_groups == 2
+                && stream_stats.batch_flushes == 2
+                && stream_stats.group_rect == 1
+                && stream_stats.group_line == 1
+                && stream_stats.cmd_rect == kStreamRunLength
+                && stream_stats.cmd_line == kStreamRunLength;
+        }
         const auto cmp_stats = compare_buf.stats();
         compare_cmd_count = cmp_stats.cmd_count;
         compare_cmd_capacity = cmp_stats.cmd_capacity;
@@ -4578,6 +4607,9 @@ int main(int argc, char** argv) {
 #if defined(VIVID_SOA_TRACE_INPUT)
         if (run_ci && !compact_ok) {
             ci_mark_fail("compact");
+        }
+        if (run_ci && !executor_stream_ok) {
+            ci_mark_fail("executor_stream");
         }
 #endif
 #if defined(VIVID_SOA_TRACE_INPUT)
@@ -4765,6 +4797,7 @@ int main(int argc, char** argv) {
         }
         const bool ok = ci_ok
               && compare_ok
+              && executor_stream_ok
               && dump_ok
               && replay_ok
             && payload_ok
@@ -4813,7 +4846,7 @@ int main(int argc, char** argv) {
             static_cast<unsigned long long>(text_profile.glyphs),
             static_cast<unsigned long long>(text_profile.pixels));
 
-        (void)out::println<"[soa-ci] ok={} hash=0x{:08X} replay_full=0x{:08X} replay_tile=0x{:08X} failed_cmds={} overflows(p/t/b)={}/{}/{} workspace_overflow={} traversal_conflict={} traversal_workspace_ok={} rect_truth_ok={} style_patch_overflow={} style_patch_live={} style_patch_peak={} style_patch_cap={} style_patch_fail={} style_patch_pool_ok={} semantic_overflow={} semantic_live={} semantic_peak={} semantic_cap={} semantic_fail={} semantic_pool_ok={} alloc_fail={} peak_ok={} table_tree_ok={} ui_ok={} compact_saved={} batch_shrink={} batch_shrink_line={} batch_shrink_path={} batch_shrink_rect={} batch_shrink_round={} batch_shrink_image={} batch_shrink_focus={} cmd_raw={} cmd_count={} cmd_saved={} cmd_saved_pct={} cmd_budget={} dispatch_groups={} batch_flushes={} groups(rect/text/img/line/path/other)={}/{}/{}/{}/{}/{} cmds(rect/text/img/line/path/other)={}/{}/{}/{}/{}/{} fail(text/img/blob/path/clip/other)={}/{}/{}/{}/{}/{} clip(push_over/pop_under/invalid)={}/{}/{} tile_flushes={} tile_hit_pct={} tile_dispatch_groups={} tile_batch_flushes={} tile_failed_cmds={} img_new_total={} img_new_after_lock={} img_new_record={} img_new_compact={} img_new_execute={} img_bytes={} img_reuse={} img_growth={} img_overflow={} img_dedup_ok={} img_after_lock_reason={} img_after_lock_tag={} reason={}">(
+        (void)out::println<"[soa-ci] ok={} hash=0x{:08X} replay_full=0x{:08X} replay_tile=0x{:08X} failed_cmds={} overflows(p/t/b)={}/{}/{} workspace_overflow={} traversal_conflict={} traversal_workspace_ok={} rect_truth_ok={} style_patch_overflow={} style_patch_live={} style_patch_peak={} style_patch_cap={} style_patch_fail={} style_patch_pool_ok={} semantic_overflow={} semantic_live={} semantic_peak={} semantic_cap={} semantic_fail={} semantic_pool_ok={} alloc_fail={} peak_ok={} table_tree_ok={} ui_ok={} executor_stream_ok={} compact_saved={} batch_shrink={} batch_shrink_line={} batch_shrink_path={} batch_shrink_rect={} batch_shrink_round={} batch_shrink_image={} batch_shrink_focus={} cmd_raw={} cmd_count={} cmd_saved={} cmd_saved_pct={} cmd_budget={} dispatch_groups={} batch_flushes={} groups(rect/text/img/line/path/other)={}/{}/{}/{}/{}/{} cmds(rect/text/img/line/path/other)={}/{}/{}/{}/{}/{} fail(text/img/blob/path/clip/other)={}/{}/{}/{}/{}/{} clip(push_over/pop_under/invalid)={}/{}/{} tile_flushes={} tile_hit_pct={} tile_dispatch_groups={} tile_batch_flushes={} tile_failed_cmds={} img_new_total={} img_new_after_lock={} img_new_record={} img_new_compact={} img_new_execute={} img_bytes={} img_reuse={} img_growth={} img_overflow={} img_dedup_ok={} img_after_lock_reason={} img_after_lock_tag={} reason={}">(
             g_console,
             ok ? 1u : 0u,
             static_cast<unsigned>(compare_hash_full),
@@ -4843,6 +4876,7 @@ int main(int argc, char** argv) {
             list_peak_ok ? 1u : 0u,
             table_tree_ok ? 1u : 0u,
             ui_ok ? 1u : 0u,
+            executor_stream_ok ? 1u : 0u,
             static_cast<unsigned>(compact_saved),
             static_cast<unsigned>(compare_batch_shrink),
             static_cast<unsigned>(compare_batch_shrink_line),

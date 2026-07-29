@@ -550,7 +550,9 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
         "${VIVID_DRAW_CMD_MAX_COMMANDS} * 128 + ${VIVID_DRAW_CMD_TEXT_BYTES} + ${VIVID_DRAW_CMD_BLOB_BYTES} + 4096")
     math(EXPR _vivid_draw_cmd_compaction_workspace_upper_bytes
         "${VIVID_DRAW_CMD_MAX_COMMANDS} * 4 + 2048")
-    set(_vivid_draw_cmd_executor_workspace_upper_bytes 32768)
+    set(_vivid_draw_cmd_executor_workspace_upper_bytes 4096)
+    set(VIVID_DRAW_CMD_EXECUTOR_WORKSPACE_UPPER_BYTES
+        ${_vivid_draw_cmd_executor_workspace_upper_bytes})
     if(VIVID_DRAW_DETAIL_EVIDENCE)
         set(_vivid_soa_traversal_frame_upper_bytes 56)
         set(_vivid_soa_node_upper_bytes 211)

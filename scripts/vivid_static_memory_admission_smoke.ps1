@@ -143,6 +143,9 @@ function Assert-Admission {
     if ([int64]$Values.draw_cmd_compaction_workspace_upper_bytes -ne $expectedCompactionWorkspaceBytes) {
         throw "Unexpected DrawCmd compaction workspace budget"
     }
+    if ([int64]$Values.draw_cmd_executor_workspace_upper_bytes -ne 4096) {
+        throw "Unexpected DrawCmd executor workspace budget"
+    }
     if ($Values.max_hot_stack_frame_bytes -ne "4096") {
         throw "Unexpected Vivid stack frame limit: $($Values.max_hot_stack_frame_bytes)"
     }
@@ -206,6 +209,9 @@ function Assert-ProductEvidence {
     if ([int64]$admissionEvidence.static_memory.compaction_workspace_upper_bytes -ne
             $expectedCompactionWorkspaceBytes) {
         throw "PRODUCT compaction workspace evidence mismatch for profile '$Profile'"
+    }
+    if ([int64]$admissionEvidence.static_memory.executor_workspace_upper_bytes -ne 4096) {
+        throw "PRODUCT executor workspace evidence mismatch for profile '$Profile'"
     }
     $expectedTraversalFrameBytes = if ($drawDetailEnabled) { 56 } else { 52 }
     if ($admissionEvidence.static_memory.draw_detail_evidence -ne $drawDetailEnabled -or

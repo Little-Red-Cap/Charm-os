@@ -58,6 +58,8 @@ widget/scene state
 - FullFrame 与 Tile/PFB 消费同一 record 语义；不同 backend 结果需要一致性证据；
 - command snapshot 复制 buffer/payload，不复制临时 workspace；
 - compaction 在 record 完成后执行，不能改变命令可观察顺序或 artifact 语义；
+- compaction workspace 复用的 `DrawCmd` 必须通过类型默认值赋值重置，禁止以 `memset` 假设非 trivial 对象
+  的默认语义等于全零位模式；该 reset 必须保持 `noexcept` 且不引入局部大对象；
 - tile 命中索引容量不足时必须回退到正确但更慢的扫描路径；
 - 产品 evidence 只消费 Scene stats 和 artifact 摘要，不依赖 CmdHeader/payload 私有布局。
 

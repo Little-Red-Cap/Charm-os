@@ -93,6 +93,11 @@ export namespace ui::draw_cmd {
         std::array<GlyphRunItem, kMaxBatchItems> text_items{};
         std::array<ImageBatchItem, kMaxBatchItems> image_items{};
         DrawCmd batch_command{};
+
+        [[nodiscard]] DrawCmd& reset_batch_command() noexcept {
+            batch_command = DrawCmd{};
+            return batch_command;
+        }
     };
 
     template <std::size_t MaxCmds, std::size_t TextBytes, std::size_t BlobBytes>
@@ -589,8 +594,7 @@ export namespace ui::draw_cmd {
                                                                  blob_bytes,
                                                                  alignof(LineBatchItem));
                             if (blob.length != 0) {
-                                auto& batch_cmd = workspace.batch_command;
-                                std::memset(&batch_cmd, 0, sizeof(batch_cmd));
+                                auto& batch_cmd = workspace.reset_batch_command();
                                 batch_cmd.type = CmdType::DrawLineBatch;
 #if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
                                 batch_cmd.draw_scope = cmd.draw_scope;
@@ -666,8 +670,7 @@ export namespace ui::draw_cmd {
                                                                  blob_bytes,
                                                                  alignof(PathBatchItem));
                             if (blob.length != 0) {
-                                auto& batch_cmd = workspace.batch_command;
-                                std::memset(&batch_cmd, 0, sizeof(batch_cmd));
+                                auto& batch_cmd = workspace.reset_batch_command();
                                 batch_cmd.type = CmdType::DrawPathBatch;
 #if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
                                 batch_cmd.draw_scope = cmd.draw_scope;
@@ -740,8 +743,7 @@ export namespace ui::draw_cmd {
                                                                  blob_bytes,
                                                                  alignof(RectBatchItem));
                             if (blob.length != 0) {
-                                auto& batch_cmd = workspace.batch_command;
-                                std::memset(&batch_cmd, 0, sizeof(batch_cmd));
+                                auto& batch_cmd = workspace.reset_batch_command();
                                 batch_cmd.type = (cmd.type == CmdType::StrokeRect)
                                     ? CmdType::StrokeRectBatch
                                     : CmdType::FillRectBatch;
@@ -822,8 +824,7 @@ export namespace ui::draw_cmd {
                                                                  blob_bytes,
                                                                  alignof(RectBatchItem));
                             if (blob.length != 0) {
-                                auto& batch_cmd = workspace.batch_command;
-                                std::memset(&batch_cmd, 0, sizeof(batch_cmd));
+                                auto& batch_cmd = workspace.reset_batch_command();
                                 switch (cmd.type) {
                                 case CmdType::FillRoundRect:
                                     batch_cmd.type = CmdType::FillRoundRectBatch;
@@ -904,8 +905,7 @@ export namespace ui::draw_cmd {
                                                                  blob_bytes,
                                                                  alignof(GlyphRunItem));
                             if (blob.length != 0) {
-                                auto& batch_cmd = workspace.batch_command;
-                                std::memset(&batch_cmd, 0, sizeof(batch_cmd));
+                                auto& batch_cmd = workspace.reset_batch_command();
                                 batch_cmd.type = CmdType::GlyphRun;
 #if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
                                 batch_cmd.draw_scope = cmd.draw_scope;
@@ -987,8 +987,7 @@ export namespace ui::draw_cmd {
                                                                  blob_bytes,
                                                                  alignof(ImageBatchItem));
                             if (blob.length != 0) {
-                                auto& batch_cmd = workspace.batch_command;
-                                std::memset(&batch_cmd, 0, sizeof(batch_cmd));
+                                auto& batch_cmd = workspace.reset_batch_command();
                                 batch_cmd.type = CmdType::DrawImageBatch;
 #if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
                                 batch_cmd.draw_scope = cmd.draw_scope;
@@ -1070,8 +1069,7 @@ export namespace ui::draw_cmd {
                                                                  blob_bytes,
                                                                  alignof(ImageBatchItem));
                             if (blob.length != 0) {
-                                auto& batch_cmd = workspace.batch_command;
-                                std::memset(&batch_cmd, 0, sizeof(batch_cmd));
+                                auto& batch_cmd = workspace.reset_batch_command();
                                 batch_cmd.type = CmdType::DrawImageRoundRectBatch;
 #if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
                                 batch_cmd.draw_scope = cmd.draw_scope;
@@ -1155,8 +1153,7 @@ export namespace ui::draw_cmd {
                                                                  blob_bytes,
                                                                  alignof(ImageBatchItem));
                             if (blob.length != 0) {
-                                auto& batch_cmd = workspace.batch_command;
-                                std::memset(&batch_cmd, 0, sizeof(batch_cmd));
+                                auto& batch_cmd = workspace.reset_batch_command();
                                 batch_cmd.type = CmdType::DrawImageNineSliceBatch;
 #if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
                                 batch_cmd.draw_scope = cmd.draw_scope;
@@ -1234,8 +1231,7 @@ export namespace ui::draw_cmd {
                                                                  blob_bytes,
                                                                  alignof(RectBatchItem));
                             if (blob.length != 0) {
-                                auto& batch_cmd = workspace.batch_command;
-                                std::memset(&batch_cmd, 0, sizeof(batch_cmd));
+                                auto& batch_cmd = workspace.reset_batch_command();
                                 batch_cmd.type = CmdType::FocusRingBatch;
 #if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
                                 batch_cmd.draw_scope = cmd.draw_scope;

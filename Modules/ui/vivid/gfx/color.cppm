@@ -8,7 +8,7 @@ export
 struct rgb {
     uint8_t r, g, b;
 
-    constexpr rgb(const uint8_t rr = 0, const uint8_t gg = 0, const uint8_t bb = 0)
+    constexpr rgb(const uint8_t rr = 0, const uint8_t gg = 0, const uint8_t bb = 0) noexcept
         : r(rr), g(gg), b(bb) {}
 
     constexpr bool operator==(rgb other) const noexcept {
@@ -20,7 +20,7 @@ export
 struct alignas(4) rgba {
     uint8_t r, g, b, a;
 
-    constexpr rgba(const uint8_t rr = 0, const uint8_t gg = 0, const uint8_t bb = 0, const uint8_t aa = 255)
+    constexpr rgba(const uint8_t rr = 0, const uint8_t gg = 0, const uint8_t bb = 0, const uint8_t aa = 255) noexcept
         : r(rr), g(gg), b(bb), a(aa) {}
 
     [[nodiscard]] constexpr rgba blend_over(const rgba& bg) const noexcept {
@@ -40,6 +40,8 @@ struct alignas(4) rgba {
 
 static_assert(sizeof(rgba) == 4);
 static_assert(alignof(rgba) == 4);
+static_assert(noexcept(rgb{}));
+static_assert(noexcept(rgba{}));
 
 // Color space conversion example (RGB -> HSV).
 export

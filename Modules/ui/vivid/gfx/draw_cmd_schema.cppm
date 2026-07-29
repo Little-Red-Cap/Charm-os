@@ -377,6 +377,8 @@ export namespace ui::draw_cmd {
 
     static_assert(sizeof(ImageId) == 4);
     static_assert(std::is_trivially_copyable_v<DrawCmd>);
+    static_assert(std::is_nothrow_default_constructible_v<DrawCmd>);
+    static_assert(std::is_nothrow_move_assignable_v<DrawCmd>);
 
     struct DrawCmdStats {
         std::size_t cmd_count{0};

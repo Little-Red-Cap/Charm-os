@@ -288,29 +288,29 @@ namespace soa_detail {
             bits_ = 0;
         }
 
+        [[nodiscard]] constexpr bool get(SoaNodeFlag flag) const noexcept {
+            return (bits_ & static_cast<std::uint8_t>(flag)) != 0;
+        }
+
         [[nodiscard]] constexpr bool get(SoaStateFlag flag) const noexcept {
             return (bits_ & static_cast<std::uint8_t>(flag)) != 0;
         }
 
+        constexpr void set(SoaNodeFlag flag, bool on) noexcept {
+            set_mask(static_cast<std::uint8_t>(flag), on);
+        }
+
         constexpr void set(SoaStateFlag flag, bool on) noexcept {
-            const auto mask = static_cast<std::uint8_t>(flag);
+            set_mask(static_cast<std::uint8_t>(flag), on);
+        }
+
+    private:
+        constexpr void set_mask(std::uint8_t mask, bool on) noexcept {
             bits_ = on
                 ? static_cast<std::uint8_t>(bits_ | mask)
                 : static_cast<std::uint8_t>(bits_ & ~mask);
         }
 
-        [[nodiscard]] constexpr bool segmented_underline() const noexcept {
-            return (bits_ & kSegmentedUnderlineMask) != 0;
-        }
-
-        constexpr void set_segmented_underline(bool on) noexcept {
-            bits_ = on
-                ? static_cast<std::uint8_t>(bits_ | kSegmentedUnderlineMask)
-                : static_cast<std::uint8_t>(bits_ & ~kSegmentedUnderlineMask);
-        }
-
-    private:
-        static constexpr std::uint8_t kSegmentedUnderlineMask = 1u << 3;
         std::uint8_t bits_{0};
     };
 
@@ -329,7 +329,6 @@ namespace soa_detail {
         std::array<std::uint16_t, N> next_sibling{};
         std::array<std::uint16_t, N> prev_sibling{};
         std::array<std::uint16_t, N> child_count{};
-        std::array<std::uint8_t, N> flags{};
         std::array<NodeRuntimeState, N> runtime_state{};
         std::array<Rect, N> rects{};
         std::array<NodeLayoutTextState, N> layout_text{};
@@ -501,12 +500,7 @@ public:
         if (idx == kInvalidIndex) return;
         const bool prev = flag_raw(idx, SoaNodeFlag::Enabled);
         if (prev == on) return;
-        const std::uint8_t mask = static_cast<std::uint8_t>(SoaNodeFlag::Enabled);
-        if (on) {
-            common_.flags[idx] |= mask;
-        } else {
-            common_.flags[idx] = static_cast<std::uint8_t>(common_.flags[idx] & ~mask);
-        }
+        common_.runtime_state[idx].set(SoaNodeFlag::Enabled, on);
         on_state_change(idx, SoaStateMask::Enabled);
     }
 
@@ -911,21 +905,6 @@ public:
         return result;
     }
 
-    void set_segmented_underline(WidgetHandle h, bool on) noexcept {
-        const std::uint16_t idx = index_of(h);
-        if (idx == kInvalidIndex) return;
-        const WidgetKind node_kind = common_.kind[idx];
-        if (node_kind != WidgetKind::SegmentedControl && node_kind != WidgetKind::TabView) return;
-        if (common_.runtime_state[idx].segmented_underline() == on) return;
-        common_.runtime_state[idx].set_segmented_underline(on);
-        mark_paint_dirty();
-    }
-
-    bool segmented_underline(WidgetHandle h) const noexcept {
-        const std::uint16_t idx = index_of(h);
-        return idx != kInvalidIndex && common_.runtime_state[idx].segmented_underline();
-    }
-
     void set_style_patch(WidgetHandle h, const StylePatch& patch) noexcept;
     void set_style_adjust(WidgetHandle h, const StylePatch& patch) noexcept;
     void set_style_override(WidgetHandle h, const StylePatch& patch) noexcept;
@@ -966,8 +945,10 @@ public:
     void set_segmented_count(WidgetHandle h, std::uint8_t count) noexcept ;
     void set_segmented_label(WidgetHandle h, std::uint8_t index, const char* text) noexcept ;
     void set_segmented_selected(WidgetHandle h, std::uint8_t index) noexcept ;
+    void set_segmented_underline(WidgetHandle h, bool on) noexcept;
     std::uint8_t segmented_count(WidgetHandle h) const noexcept ;
     std::uint8_t segmented_selected(WidgetHandle h) const noexcept ;
+    bool segmented_underline(WidgetHandle h) const noexcept;
     const char* segmented_label(WidgetHandle h, std::uint8_t index) const noexcept ;
     void set_stepper_count(WidgetHandle h, std::uint8_t count) noexcept ;
     void set_stepper_current(WidgetHandle h, std::uint8_t index) noexcept ;

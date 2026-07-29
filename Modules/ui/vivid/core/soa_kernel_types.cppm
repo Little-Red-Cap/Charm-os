@@ -10,20 +10,32 @@ export import charm.core.handle;
 
 export
 enum class SoaNodeFlag : std::uint8_t {
-    Used = 1 << 0,
-    Visible = 1 << 1,
-    Enabled = 1 << 2,
-    Focusable = 1 << 3,
-    HitTest = 1 << 4,
-    ClipChildren = 1 << 5
+    Visible = 1 << 0,
+    Enabled = 1 << 1,
+    Focusable = 1 << 2,
+    HitTest = 1 << 3,
+    ClipChildren = 1 << 4
 };
 
 export
 enum class SoaStateFlag : std::uint8_t {
-    Hovered = 1 << 0,
-    Pressed = 1 << 1,
-    Focused = 1 << 2
+    Hovered = 1 << 5,
+    Pressed = 1 << 6,
+    Focused = 1 << 7
 };
+
+constexpr std::uint8_t kSoaNodeFlagBits =
+    static_cast<std::uint8_t>(SoaNodeFlag::Visible)
+    | static_cast<std::uint8_t>(SoaNodeFlag::Enabled)
+    | static_cast<std::uint8_t>(SoaNodeFlag::Focusable)
+    | static_cast<std::uint8_t>(SoaNodeFlag::HitTest)
+    | static_cast<std::uint8_t>(SoaNodeFlag::ClipChildren);
+constexpr std::uint8_t kSoaStateFlagBits =
+    static_cast<std::uint8_t>(SoaStateFlag::Hovered)
+    | static_cast<std::uint8_t>(SoaStateFlag::Pressed)
+    | static_cast<std::uint8_t>(SoaStateFlag::Focused);
+static_assert((kSoaNodeFlagBits & kSoaStateFlagBits) == 0);
+static_assert(static_cast<std::uint8_t>(kSoaNodeFlagBits | kSoaStateFlagBits) == 0xFF);
 
 export
 enum class SoaStateMask : std::uint8_t {

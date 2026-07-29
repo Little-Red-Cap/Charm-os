@@ -581,6 +581,17 @@ import alg_list_scroll;
         }
     }
 
+    void SoaKernel::set_segmented_underline(WidgetHandle h, bool on) noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return;
+        const WidgetKind kind = common_.kind[idx];
+        if (kind != WidgetKind::SegmentedControl && kind != WidgetKind::TabView) return;
+        auto* payload = payload_get<soa_detail::SegmentedControlPayload>(idx);
+        if (!payload || payload->underline_mode() == on) return;
+        payload->set_underline_mode(on);
+        mark_paint_dirty();
+    }
+
     std::uint8_t SoaKernel::segmented_count(WidgetHandle h) const noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return 0;
@@ -603,6 +614,15 @@ import alg_list_scroll;
         }
         const auto* payload = payload_get<soa_detail::SegmentedControlPayload>(idx);
         return payload ? payload->selected : 0;
+    }
+
+    bool SoaKernel::segmented_underline(WidgetHandle h) const noexcept {
+        const std::uint16_t idx = index_of(h);
+        if (idx == kInvalidIndex) return false;
+        const WidgetKind kind = common_.kind[idx];
+        if (kind != WidgetKind::SegmentedControl && kind != WidgetKind::TabView) return false;
+        const auto* payload = payload_get<soa_detail::SegmentedControlPayload>(idx);
+        return payload && payload->underline_mode();
     }
 
     const char* SoaKernel::segmented_label(WidgetHandle h, std::uint8_t index) const noexcept {

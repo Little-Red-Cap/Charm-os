@@ -3065,6 +3065,40 @@ namespace {
             ++cases;
         }
 
+        const auto interaction_before_lifecycle = probe.state_compact(node).bits;
+        probe.set_visible(node, false);
+        probe.set_focusable(node, true);
+        probe.set_hit_testable(node, false);
+        probe.set_clip_children(node, true);
+        expect_true(!probe.visible(node)
+                        && probe.focusable(node)
+                        && !probe.hit_testable(node)
+                        && probe.clip_children(node)
+                        && probe.state_compact(node).bits == interaction_before_lifecycle
+                        && probe.segmented_underline(node),
+                    "node runtime state: lifecycle write changed interaction or presentation", fails);
+
+        probe.set_visible(node, true);
+        probe.set_focusable(node, false);
+        probe.set_hit_testable(node, true);
+        probe.set_clip_children(node, false);
+        probe.set_enabled(node, false);
+        const auto enabled_mask = static_cast<std::uint8_t>(SoaStateMask::Enabled);
+        expect_true(probe.visible(node)
+                        && !probe.focusable(node)
+                        && probe.hit_testable(node)
+                        && !probe.clip_children(node)
+                        && probe.state_compact(node).bits
+                            == static_cast<std::uint8_t>(interaction_before_lifecycle & ~enabled_mask)
+                        && probe.hovered(node)
+                        && probe.pressed(node)
+                        && probe.focused(node)
+                        && probe.segmented_underline(node),
+                    "node runtime state: enabled write changed unrelated packed state", fails);
+        probe.set_enabled(node, true);
+        expect_true(probe.state_compact(node).bits == interaction_before_lifecycle,
+                    "node runtime state: enabled bit did not restore", fails);
+
         const auto before_mode_clear = probe.state_compact(node).bits;
         probe.set_segmented_underline(node, false);
         expect_true(!probe.segmented_underline(node)
@@ -3087,9 +3121,10 @@ namespace {
                     "node runtime state: navigation factory lost underline mode", fails);
         probe.destroy(navigation);
 
-        (void)out::println<"[soa] node_runtime_state bytes={} cases={} isolation=1 reuse=1 navigation=1 result={}">(
+        (void)out::println<"[soa] node_runtime_state bytes={} segmented_payload_bytes={} cases={} lifecycle=1 isolation=1 reuse=1 navigation=1 result={}">(
             g_console,
             static_cast<unsigned>(SoaKernel::kNodeRuntimeStateBytes),
+            static_cast<unsigned>(sizeof(soa_detail::SegmentedControlPayload)),
             static_cast<unsigned>(cases),
             fails == 0 ? "ok" : "fail");
         return fails == 0;

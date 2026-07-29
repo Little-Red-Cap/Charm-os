@@ -63,7 +63,7 @@ import charm.core.soa_registry;
 
     void SoaKernel::clear_scrollbar_targets(WidgetHandle h) noexcept {
         for (std::uint16_t i = 0; i < kMaxNodes; ++i) {
-            if (!flag_raw(i, SoaNodeFlag::Used)) continue;
+            if (common_.kind[i] == WidgetKind::None) continue;
             if (common_.kind[i] != WidgetKind::ScrollBar) continue;
             const auto* payload = payload_get<soa_detail::ScrollBarPayload>(i);
             WidgetHandle target = payload ? payload->target : WidgetHandle{};

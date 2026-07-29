@@ -19,7 +19,6 @@ import charm.core.soa_registry;
                 (i + 1 < kMaxNodes) ? static_cast<std::uint16_t>(i + 1) : kInvalidIndex);
             common_.kind[i] = WidgetKind::None;
             common_.generation[i] = 1;
-            common_.flags[i] = 0;
             common_.runtime_state[i].reset();
             common_.rects[i] = Rect{};
             common_.parent[i] = kInvalidIndex;
@@ -56,13 +55,12 @@ import charm.core.soa_registry;
         free_head_ = common_.storage_slot[idx].free_next();
         const SoaDefaults defaults = default_for_kind(kind);
         common_.kind[idx] = kind;
-        common_.flags[idx] = static_cast<std::uint8_t>(SoaNodeFlag::Used)
-            | static_cast<std::uint8_t>(SoaNodeFlag::Visible)
-            | static_cast<std::uint8_t>(SoaNodeFlag::Enabled)
-            | (defaults.hit_test ? static_cast<std::uint8_t>(SoaNodeFlag::HitTest) : std::uint8_t{0})
-            | (defaults.focusable ? static_cast<std::uint8_t>(SoaNodeFlag::Focusable) : std::uint8_t{0})
-            | (defaults.clip_children ? static_cast<std::uint8_t>(SoaNodeFlag::ClipChildren) : std::uint8_t{0});
         common_.runtime_state[idx].reset();
+        common_.runtime_state[idx].set(SoaNodeFlag::Visible, true);
+        common_.runtime_state[idx].set(SoaNodeFlag::Enabled, true);
+        common_.runtime_state[idx].set(SoaNodeFlag::HitTest, defaults.hit_test);
+        common_.runtime_state[idx].set(SoaNodeFlag::Focusable, defaults.focusable);
+        common_.runtime_state[idx].set(SoaNodeFlag::ClipChildren, defaults.clip_children);
         common_.rects[idx] = Rect{};
         common_.parent[idx] = kInvalidIndex;
         common_.first_child[idx] = kInvalidIndex;
@@ -80,7 +78,6 @@ import charm.core.soa_registry;
         const auto payload = payload_alloc(kind, idx);
         if (desc.payload != soa_detail::PayloadKind::None && !soa_detail::payload_slot_valid(payload)) {
             common_.kind[idx] = WidgetKind::None;
-            common_.flags[idx] = 0;
             common_.runtime_state[idx].reset();
             common_.rects[idx] = Rect{};
             common_.parent[idx] = kInvalidIndex;
@@ -114,7 +111,6 @@ import charm.core.soa_registry;
         detach_from_parent(idx);
         detach_children(idx);
         common_.kind[idx] = WidgetKind::None;
-        common_.flags[idx] = 0;
         common_.runtime_state[idx].reset();
         common_.rects[idx] = Rect{};
         common_.layout_text[idx].reset();
@@ -212,15 +208,15 @@ import charm.core.soa_registry;
     std::uint16_t SoaKernel::index_of(WidgetHandle h) const noexcept {
         const std::uint16_t idx = h.index;
         if (idx >= kMaxNodes) return kInvalidIndex;
-        if (common_.kind[idx] != h.kind) return kInvalidIndex;
+        const WidgetKind kind = common_.kind[idx];
+        if (kind == WidgetKind::None || kind != h.kind) return kInvalidIndex;
         if (common_.generation[idx] != h.generation) return kInvalidIndex;
-        if (!flag_raw(idx, SoaNodeFlag::Used)) return kInvalidIndex;
         return idx;
     }
 
     WidgetHandle SoaKernel::handle_from_index(std::uint16_t idx) const noexcept {
         if (idx == kInvalidIndex || idx >= kMaxNodes) return {};
-        if (!flag_raw(idx, SoaNodeFlag::Used)) return {};
+        if (common_.kind[idx] == WidgetKind::None) return {};
         return WidgetHandle{common_.kind[idx], idx, common_.generation[idx]};
     }
 
@@ -271,7 +267,7 @@ import charm.core.soa_registry;
     }
 
     bool SoaKernel::flag_raw(std::uint16_t idx, SoaNodeFlag flag) const noexcept {
-        return (common_.flags[idx] & static_cast<std::uint8_t>(flag)) != 0;
+        return common_.runtime_state[idx].get(flag);
     }
 
     bool SoaKernel::get_flag(WidgetHandle h, SoaNodeFlag flag) const noexcept {
@@ -283,12 +279,7 @@ import charm.core.soa_registry;
     void SoaKernel::set_flag(WidgetHandle h, SoaNodeFlag flag, bool on) noexcept {
         const std::uint16_t idx = index_of(h);
         if (idx == kInvalidIndex) return;
-        const std::uint8_t mask = static_cast<std::uint8_t>(flag);
-        if (on) {
-            common_.flags[idx] |= mask;
-        } else {
-            common_.flags[idx] = static_cast<std::uint8_t>(common_.flags[idx] & ~mask);
-        }
+        common_.runtime_state[idx].set(flag, on);
     }
 
     bool SoaKernel::get_state_flag(WidgetHandle h, SoaStateFlag flag) const noexcept {

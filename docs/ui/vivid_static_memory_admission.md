@@ -65,9 +65,11 @@ node free-list link 与活动 payload slot 的生命周期互斥，必须复用�
 以 owner node index 拒绝旧 owner 访问或释放已复用槽。该 owner 表替换 pool generation 表，不增加 pool
 容量乘数。`WidgetHandle` generation 仍负责公开 node identity，不得与内部 payload ownership 混为一层。
 
-hover/press/focus 与 SegmentedControl/TabView 的 underline presentation 必须共享 1B/node runtime state，且
-通过 helper 隔离位布局。通用 style variant 不得重新进入 node 或 dense style table；逐实例视觉差异由已受
-容量管理的 style class 或 local patch 表达，presentation 写入只能触发 paint dirty。
+Visible、Enabled、Focusable、HitTest、ClipChildren 与 hover/press/focus 必须共享 1B/node runtime state，
+且通过 helper 隔离位布局；节点存活由既有 `kind != None` 真源判断，不得恢复重复的 Used 位。仅由
+SegmentedControl/TabView 消费的 underline presentation 存入对应 payload 的既有对齐空隙，payload 尺寸不得
+增长。通用 style variant 不得重新进入 node 或 dense style table；逐实例视觉差异由已受容量管理的 style
+class 或 local patch 表达，presentation 写入只能触发 paint dirty。
 
 槽池耗尽不得覆盖现有 patch 或静默丢弃证据：失败写入保持目标 node 无 patch，并设置 sticky
 `style_patch_overflowed`、累加 allocation-fail。clear 与 node destroy 必须归还槽；主 Scene 的 overflow evidence

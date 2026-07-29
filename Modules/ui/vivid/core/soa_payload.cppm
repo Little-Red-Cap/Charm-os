@@ -231,7 +231,24 @@ export namespace soa_detail {
         std::array<TextId, kMaxSegments> labels{};
         std::uint8_t count{0};
         std::uint8_t selected{0};
+
+        [[nodiscard]] constexpr bool underline_mode() const noexcept {
+            return (presentation_flags_ & kUnderlineMask) != 0;
+        }
+
+        constexpr void set_underline_mode(bool on) noexcept {
+            presentation_flags_ = on
+                ? static_cast<std::uint8_t>(presentation_flags_ | kUnderlineMask)
+                : static_cast<std::uint8_t>(presentation_flags_ & ~kUnderlineMask);
+        }
+
+    private:
+        static constexpr std::uint8_t kUnderlineMask = 1u << 0;
+        std::uint8_t presentation_flags_{0};
     };
+
+    static_assert(sizeof(SegmentedControlPayload) == 36);
+    static_assert(std::is_trivially_copyable_v<SegmentedControlPayload>);
 
     struct alignas(4) StepperPayload {
         std::array<TextId, kMaxStepperSteps> labels{};

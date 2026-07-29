@@ -15,7 +15,8 @@ import charm.core.soa_registry;
     SoaKernel::SoaKernel() noexcept {
         free_head_ = 0;
         for (std::uint16_t i = 0; i < kMaxNodes; ++i) {
-            common_.free_next[i] = (i + 1 < kMaxNodes) ? static_cast<std::uint16_t>(i + 1) : kInvalidIndex;
+            common_.storage_slot[i].set_free_next(
+                (i + 1 < kMaxNodes) ? static_cast<std::uint16_t>(i + 1) : kInvalidIndex);
             common_.kind[i] = WidgetKind::None;
             common_.generation[i] = 1;
             common_.flags[i] = 0;
@@ -29,7 +30,6 @@ import charm.core.soa_registry;
             common_.prev_sibling[i] = kInvalidIndex;
             common_.child_count[i] = 0;
             common_.layout_text[i].reset();
-            common_.payload[i] = soa_detail::invalid_payload_handle();
             common_.style_patch_slot[i] = kInvalidIndex;
             common_.style_class[i] = kStyleClassInvalid;
             common_.semantic_slot[i] = kInvalidIndex;
@@ -54,7 +54,7 @@ import charm.core.soa_registry;
         }
         if (free_head_ == kInvalidIndex) return {};
         const std::uint16_t idx = free_head_;
-        free_head_ = common_.free_next[idx];
+        free_head_ = common_.storage_slot[idx].free_next();
         const SoaDefaults defaults = default_for_kind(kind);
         common_.kind[idx] = kind;
         common_.flags[idx] = static_cast<std::uint8_t>(SoaNodeFlag::Used)
@@ -80,7 +80,7 @@ import charm.core.soa_registry;
         common_.draw_scope[idx] = 0;
 #endif
         const auto payload = payload_alloc(kind, idx);
-        if (desc.payload != soa_detail::PayloadKind::None && !soa_detail::payload_valid(payload)) {
+        if (desc.payload != soa_detail::PayloadKind::None && !soa_detail::payload_slot_valid(payload)) {
             common_.kind[idx] = WidgetKind::None;
             common_.flags[idx] = 0;
             common_.state_flags[idx] = 0;
@@ -93,18 +93,17 @@ import charm.core.soa_registry;
             common_.prev_sibling[idx] = kInvalidIndex;
             common_.child_count[idx] = 0;
             common_.layout_text[idx].reset();
-            common_.payload[idx] = soa_detail::invalid_payload_handle();
             common_.style_patch_slot[idx] = kInvalidIndex;
             common_.style_class[idx] = kStyleClassInvalid;
             common_.semantic_slot[idx] = kInvalidIndex;
 #if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
             common_.draw_scope[idx] = 0;
 #endif
-            common_.free_next[idx] = free_head_;
+            common_.storage_slot[idx].set_free_next(free_head_);
             free_head_ = idx;
             return {};
         }
-        common_.payload[idx] = payload;
+        common_.storage_slot[idx].set_payload_slot(payload);
         mark_layout_dirty();
         return WidgetHandle{kind, idx, common_.generation[idx]};
     }
@@ -129,11 +128,10 @@ import charm.core.soa_registry;
 #if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
         common_.draw_scope[idx] = 0;
 #endif
-        payload_free(old_kind, common_.payload[idx], idx);
-        common_.payload[idx] = soa_detail::invalid_payload_handle();
+        payload_free(old_kind, common_.storage_slot[idx].payload_slot(), idx);
         mark_layout_dirty();
         common_.generation[idx] = static_cast<std::uint16_t>(common_.generation[idx] + 1);
-        common_.free_next[idx] = free_head_;
+        common_.storage_slot[idx].set_free_next(free_head_);
         free_head_ = idx;
     }
 

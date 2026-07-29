@@ -83,7 +83,7 @@ PRODUCT/MCU profile 必须声明：
 - SoA node/payload、TextArena、semantic/StylePatch 稀疏槽、Style、DrawCmd 和 layer cache 容量；
 - Scene 数量、常驻 RAM 上限、最小 headroom 与 stack frame 上限；
 - screen/pixel format 和 backend envelope；
-- overflow、workspace exhaustion 和 payload generation 的失败行为。
+- overflow、workspace exhaustion 和 payload ownership 的失败行为。
 
 `-fstack-usage` 只能约束单函数 frame，不能证明调用链峰值。产品任务栈仍需入口分析或运行时
 high-water evidence。静态内存准入见
@@ -91,8 +91,10 @@ high-water evidence。静态内存准入见
 
 ## Payload、Catalog 与 PRODUCT Profile
 
-Widget node 只保存 kind 与 generation-checked payload handle。每类 payload 使用固定容量 pool；释放后
-generation 变化，旧 handle 不得重新命中新 owner。
+Widget node 不保存可逃逸的 payload handle。节点未使用时，16 位 storage slot 表示 node free-list link；
+节点活动时，同一字段表示 payload slot。每类 payload 使用固定容量 pool，并常驻记录当前 owner node index；
+旧 owner 对已复用槽的读取或释放必须被拒绝。公开 `WidgetHandle` 的 generation 继续独立保护 node identity，
+不能用 payload slot 代替公开 handle。
 
 Semantic role、id、label 与 action mask 只由显式 semantic entry 使用，不随每个 node 常驻。node 保存 16 位
 槽索引，`SoaKernel` 按 profile 的 `SEMANTIC_SLOT_CAP` 拥有固定容量 semantic pool。set 覆盖已有槽；clear 与

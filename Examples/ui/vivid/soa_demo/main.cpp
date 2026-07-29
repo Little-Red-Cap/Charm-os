@@ -2986,6 +2986,58 @@ namespace {
         return fails == 0;
     }
 
+    bool run_payload_owner_regression() noexcept {
+        int fails = 0;
+
+        soa_detail::PayloadPool<soa_detail::LabelPayload, 1> pool{};
+        pool.reset();
+        constexpr std::uint16_t first_owner = 7;
+        constexpr std::uint16_t second_owner = 9;
+        const auto stale_slot = pool.alloc(first_owner, WidgetKind::Label);
+        expect_true(soa_detail::payload_slot_valid(stale_slot),
+                    "payload owner: initial allocation failed", fails);
+        expect_true(pool.get(stale_slot, first_owner, WidgetKind::Label) != nullptr,
+                    "payload owner: initial owner lookup failed", fails);
+
+        pool.free(stale_slot, first_owner, WidgetKind::Label);
+        const auto active_slot = pool.alloc(second_owner, WidgetKind::Label);
+        expect_true(active_slot == stale_slot,
+                    "payload owner: fixed slot was not reused", fails);
+        expect_true(pool.get(stale_slot, first_owner, WidgetKind::Label) == nullptr,
+                    "payload owner: stale owner reached reused slot", fails);
+        pool.free(stale_slot, first_owner, WidgetKind::Label);
+        expect_true(pool.get(active_slot, second_owner, WidgetKind::Label) != nullptr,
+                    "payload owner: stale free released current owner", fails);
+        pool.free(active_slot, second_owner, WidgetKind::Label);
+
+        static SoaKernel probe{};
+        const WidgetHandle first = probe.create(WidgetKind::Label);
+        expect_true(static_cast<bool>(first),
+                    "payload owner: first node allocation failed", fails);
+        probe.set_text(first, "old");
+        probe.destroy(first);
+        const WidgetHandle replacement = probe.create(WidgetKind::Label);
+        expect_true(static_cast<bool>(replacement)
+                        && replacement.index == first.index
+                        && replacement.generation != first.generation,
+                    "payload owner: node slot generation did not advance", fails);
+        expect_true(std::strcmp(probe.text(replacement), "") == 0,
+                    "payload owner: replacement retained stale payload", fails);
+        probe.set_text(first, "stale");
+        expect_true(std::strcmp(probe.text(replacement), "") == 0,
+                    "payload owner: stale widget handle changed replacement", fails);
+        probe.set_text(replacement, "new");
+        expect_true(std::strcmp(probe.text(replacement), "new") == 0,
+                    "payload owner: replacement payload write failed", fails);
+        probe.destroy(replacement);
+
+        (void)out::println<"[soa] payload_owner slot_bytes={} stale_read=0 stale_free=0 node_reuse=1 result={}">(
+            g_console,
+            static_cast<unsigned>(SoaKernel::kNodeStorageSlotBytes),
+            fails == 0 ? "ok" : "fail");
+        return fails == 0;
+    }
+
     bool run_layout_text_state_regression() noexcept {
         int fails = 0;
         static SoaKernel probe{};
@@ -3386,12 +3438,13 @@ int main(int argc, char** argv) {
     }
 #endif
     if (run_ci) {
-        (void)out::println<"[soa] abi style_patch={} soa_kernel={} scene={} nodes={} layout_text_state={} semantic_slots={} semantic_pool={} style_patch_slots={} traversal_frame={} traversal_workspace={}">(
+        (void)out::println<"[soa] abi style_patch={} soa_kernel={} scene={} nodes={} node_storage_slot={} layout_text_state={} semantic_slots={} semantic_pool={} style_patch_slots={} traversal_frame={} traversal_workspace={}">(
             g_console,
             static_cast<unsigned long long>(sizeof(StylePatch)),
             static_cast<unsigned long long>(sizeof(SoaKernel)),
             static_cast<unsigned long long>(sizeof(::ui::scene::Scene)),
             static_cast<unsigned>(SoaKernel::kMaxNodes),
+            static_cast<unsigned>(SoaKernel::kNodeStorageSlotBytes),
             static_cast<unsigned>(SoaKernel::kNodeLayoutTextStateBytes),
             static_cast<unsigned>(SoaKernel::kSemanticCapacity),
             static_cast<unsigned>(SoaKernel::kSemanticPoolBytes),
@@ -3791,6 +3844,7 @@ int main(int argc, char** argv) {
     bool svg_workspace_ok = true;
     bool style_patch_pool_ok = true;
     bool semantic_pool_ok = true;
+    bool payload_owner_ok = true;
     bool layout_text_state_ok = true;
     bool traversal_workspace_ok = true;
     bool rect_truth_ok = true;
@@ -3819,6 +3873,10 @@ int main(int argc, char** argv) {
         semantic_pool_ok = run_semantic_pool_regression();
         if (!semantic_pool_ok) {
             ci_mark_fail("semantic_pool");
+        }
+        payload_owner_ok = run_payload_owner_regression();
+        if (!payload_owner_ok) {
+            ci_mark_fail("payload_owner");
         }
         layout_text_state_ok = run_layout_text_state_regression();
         if (!layout_text_state_ok) {
@@ -4464,6 +4522,7 @@ int main(int argc, char** argv) {
             && style_patch_pool_ok
             && semantic_ok
             && semantic_pool_ok
+            && payload_owner_ok
             && layout_text_state_ok;
 
         (void)out::println<"[soa-ci] display mode={} bw1={} gray2={} gray2_curve={} eink_max_partial={} eink_min_full_ms={} eink_partial_pct={} missing_glyphs={} fallback_glyphs={} utf8_replace={} text_draw={} text_glyphs={} text_pixels={}">(

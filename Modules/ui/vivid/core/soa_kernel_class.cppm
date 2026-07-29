@@ -257,12 +257,37 @@ namespace soa_detail {
     static_assert(sizeof(NodeLayoutTextState) == 1);
     static_assert(std::is_trivially_copyable_v<NodeLayoutTextState>);
 
+    class NodeSlotStorage {
+    public:
+        [[nodiscard]] constexpr std::uint16_t free_next() const noexcept {
+            return value_;
+        }
+
+        constexpr void set_free_next(std::uint16_t next) noexcept {
+            value_ = next;
+        }
+
+        [[nodiscard]] constexpr PayloadSlot payload_slot() const noexcept {
+            return value_;
+        }
+
+        constexpr void set_payload_slot(PayloadSlot slot) noexcept {
+            value_ = slot;
+        }
+
+    private:
+        std::uint16_t value_{kInvalidIndex};
+    };
+
+    static_assert(sizeof(NodeSlotStorage) == sizeof(std::uint16_t));
+    static_assert(std::is_trivially_copyable_v<NodeSlotStorage>);
+
     // ---- Storage / payload descriptor ----
     template <std::size_t N>
     struct CommonSoA {
         std::array<WidgetKind, N> kind{};
         std::array<std::uint16_t, N> generation{};
-        std::array<std::uint16_t, N> free_next{};
+        std::array<NodeSlotStorage, N> storage_slot{};
         std::array<std::uint16_t, N> parent{};
         std::array<std::uint16_t, N> first_child{};
         std::array<std::uint16_t, N> last_child{};
@@ -274,7 +299,6 @@ namespace soa_detail {
         std::array<std::uint8_t, N> variant{};
         std::array<Rect, N> rects{};
         std::array<NodeLayoutTextState, N> layout_text{};
-        std::array<PayloadHandle, N> payload{};
         std::array<std::uint16_t, N> style_patch_slot{};
         std::array<StyleClassId, N> style_class{};
         std::array<std::uint16_t, N> semantic_slot{};
@@ -296,6 +320,8 @@ public:
         sizeof(soa_detail::SemanticPool<kSemanticCapacity>);
     static constexpr std::size_t kNodeLayoutTextStateBytes =
         sizeof(soa_detail::NodeLayoutTextState);
+    static constexpr std::size_t kNodeStorageSlotBytes =
+        sizeof(soa_detail::NodeSlotStorage);
     static_assert(kSemanticPoolBytes <= kSemanticCapacity * 16 + 32,
                   "SoA semantic pool exceeded its admitted capacity bound");
 
@@ -1120,33 +1146,33 @@ public:
 #endif
     }
 
-    soa_detail::PayloadHandle payload_alloc(WidgetKind kind, std::uint16_t owner_idx) noexcept {
+    soa_detail::PayloadSlot payload_alloc(WidgetKind kind, std::uint16_t owner_idx) noexcept {
         const auto desc = payload_descriptor(kind);
         if (!desc.supported) {
-            return soa_detail::invalid_payload_handle();
+            return soa_detail::invalid_payload_slot();
         }
         return payloads_.alloc(desc.payload, kind, owner_idx);
     }
 
-    void payload_free(WidgetKind kind, soa_detail::PayloadHandle handle, std::uint16_t owner_idx) noexcept {
-        if (!soa_detail::payload_valid(handle)) return;
+    void payload_free(WidgetKind kind, soa_detail::PayloadSlot slot, std::uint16_t owner_idx) noexcept {
+        if (!soa_detail::payload_slot_valid(slot)) return;
         const auto desc = payload_descriptor(kind);
         if (!desc.supported) return;
-        payloads_.free(desc.payload, kind, handle, owner_idx);
+        payloads_.free(desc.payload, kind, slot, owner_idx);
     }
 
     template <typename T>
     T* payload_get(std::uint16_t idx) noexcept {
-        const auto handle = common_.payload[idx];
-        if (!soa_detail::payload_valid(handle)) return nullptr;
-        return payloads_.get<T>(handle, idx, common_.kind[idx]);
+        const auto slot = common_.storage_slot[idx].payload_slot();
+        if (!soa_detail::payload_slot_valid(slot)) return nullptr;
+        return payloads_.get<T>(slot, idx, common_.kind[idx]);
     }
 
     template <typename T>
     const T* payload_get(std::uint16_t idx) const noexcept {
-        const auto handle = common_.payload[idx];
-        if (!soa_detail::payload_valid(handle)) return nullptr;
-        return payloads_.get<T>(handle, idx, common_.kind[idx]);
+        const auto slot = common_.storage_slot[idx].payload_slot();
+        if (!soa_detail::payload_slot_valid(slot)) return nullptr;
+        return payloads_.get<T>(slot, idx, common_.kind[idx]);
     }
 
 private:

@@ -18,10 +18,7 @@ import charm.core.soa_pool_caps;
 export namespace soa_detail {
     constexpr std::uint16_t kInvalidPayloadSlot = 0xFFFF;
 
-    struct alignas(4) PayloadHandle {
-        std::uint16_t slot{kInvalidPayloadSlot};
-        std::uint16_t generation{0};
-    };
+    using PayloadSlot = std::uint16_t;
 
     struct alignas(4) TextId {
         std::uint16_t offset{0};
@@ -41,12 +38,12 @@ export namespace soa_detail {
         return ui::draw_cmd::image_id_valid(id);
     }
 
-    constexpr PayloadHandle invalid_payload_handle() noexcept {
-        return PayloadHandle{kInvalidPayloadSlot, 0};
+    constexpr PayloadSlot invalid_payload_slot() noexcept {
+        return kInvalidPayloadSlot;
     }
 
-    constexpr bool payload_valid(PayloadHandle h) noexcept {
-        return h.slot != kInvalidPayloadSlot;
+    constexpr bool payload_slot_valid(PayloadSlot slot) noexcept {
+        return slot != kInvalidPayloadSlot;
     }
 
     constexpr TextId empty_text_id() noexcept {
@@ -428,7 +425,7 @@ export namespace soa_detail {
     struct PayloadPool {
         static_assert(N <= 0xFFFF, "PayloadPool capacity exceeds slot range");
         std::array<T, N> items{};
-        std::array<std::uint16_t, N> generation{};
+        std::array<std::uint16_t, N> owner{};
         std::array<std::uint16_t, N> free_next{};
         std::uint16_t free_head{kInvalidPayloadSlot};
 #if defined(VIVID_SOA_TRACE_INPUT)
@@ -437,7 +434,6 @@ export namespace soa_detail {
         std::uint32_t alloc_fail{0};
 #endif
 #ifndef NDEBUG
-        std::array<std::uint16_t, N> owner{};
         std::array<WidgetKind, N> owner_kind{};
 #endif
 
@@ -449,67 +445,59 @@ export namespace soa_detail {
             alloc_fail = 0;
 #endif
             for (std::uint16_t i = 0; i < N; ++i) {
-                generation[i] = 1;
+                owner[i] = kInvalidPayloadSlot;
                 const auto next = static_cast<std::size_t>(i) + 1u;
                 free_next[i] = (next < N) ? static_cast<std::uint16_t>(next) : kInvalidPayloadSlot;
                 items[i] = T{};
 #ifndef NDEBUG
-                owner[i] = kInvalidPayloadSlot;
                 owner_kind[i] = WidgetKind::None;
 #endif
             }
         }
 
-        PayloadHandle alloc(std::uint16_t owner_idx, WidgetKind kind) noexcept {
+        PayloadSlot alloc(std::uint16_t owner_idx, WidgetKind kind) noexcept {
             if constexpr (N == 0) {
 #if defined(VIVID_SOA_TRACE_INPUT)
                 alloc_fail += 1;
 #endif
                 (void)owner_idx;
                 (void)kind;
-                return invalid_payload_handle();
+                return invalid_payload_slot();
             }
             if (free_head == kInvalidPayloadSlot) {
 #if defined(VIVID_SOA_TRACE_INPUT)
                 alloc_fail += 1;
 #endif
-                return invalid_payload_handle();
+                return invalid_payload_slot();
             }
             const std::uint16_t slot = free_head;
             free_head = free_next[slot];
             items[slot] = T{};
+            owner[slot] = owner_idx;
 #if defined(VIVID_SOA_TRACE_INPUT)
             used = static_cast<std::uint16_t>(used + 1u);
             if (used > peak) peak = used;
 #endif
 #ifndef NDEBUG
-            owner[slot] = owner_idx;
             owner_kind[slot] = kind;
 #else
-            (void)owner_idx;
             (void)kind;
 #endif
-            return PayloadHandle{slot, generation[slot]};
+            return slot;
         }
 
-        void free(PayloadHandle h, std::uint16_t owner_idx, WidgetKind kind) noexcept {
-            if (!payload_valid(h) || h.slot >= N) return;
-            const std::uint16_t slot = h.slot;
-            if (generation[slot] != h.generation) return;
+        void free(PayloadSlot slot, std::uint16_t owner_idx, WidgetKind kind) noexcept {
+            if (!payload_slot_valid(slot) || slot >= N) return;
+            if (owner[slot] != owner_idx) return;
 #ifndef NDEBUG
-            if (owner[slot] != owner_idx) {
-                assert(false && "PayloadPool owner mismatch");
-            }
             if (owner_kind[slot] != kind) {
                 assert(false && "PayloadPool kind mismatch");
             }
-            owner[slot] = kInvalidPayloadSlot;
             owner_kind[slot] = WidgetKind::None;
 #else
-            (void)owner_idx;
             (void)kind;
 #endif
-            generation[slot] = static_cast<std::uint16_t>(generation[slot] + 1u);
+            owner[slot] = kInvalidPayloadSlot;
             free_next[slot] = free_head;
             free_head = slot;
             items[slot] = T{};
@@ -520,41 +508,29 @@ export namespace soa_detail {
 #endif
         }
 
-        T* get(PayloadHandle h, std::uint16_t owner_idx, WidgetKind kind) noexcept {
-            if (!payload_valid(h) || h.slot >= N) return nullptr;
-            const std::uint16_t slot = h.slot;
-            if (generation[slot] != h.generation) return nullptr;
+        T* get(PayloadSlot slot, std::uint16_t owner_idx, WidgetKind kind) noexcept {
+            if (!payload_slot_valid(slot) || slot >= N) return nullptr;
+            if (owner[slot] != owner_idx) return nullptr;
 #ifndef NDEBUG
-            if (owner[slot] != owner_idx) {
-                assert(false && "PayloadPool owner mismatch");
-                return nullptr;
-            }
             if (owner_kind[slot] != kind) {
                 assert(false && "PayloadPool kind mismatch");
                 return nullptr;
             }
 #else
-            (void)owner_idx;
             (void)kind;
 #endif
             return &items[slot];
         }
 
-        const T* get(PayloadHandle h, std::uint16_t owner_idx, WidgetKind kind) const noexcept {
-            if (!payload_valid(h) || h.slot >= N) return nullptr;
-            const std::uint16_t slot = h.slot;
-            if (generation[slot] != h.generation) return nullptr;
+        const T* get(PayloadSlot slot, std::uint16_t owner_idx, WidgetKind kind) const noexcept {
+            if (!payload_slot_valid(slot) || slot >= N) return nullptr;
+            if (owner[slot] != owner_idx) return nullptr;
 #ifndef NDEBUG
-            if (owner[slot] != owner_idx) {
-                assert(false && "PayloadPool owner mismatch");
-                return nullptr;
-            }
             if (owner_kind[slot] != kind) {
                 assert(false && "PayloadPool kind mismatch");
                 return nullptr;
             }
 #else
-            (void)owner_idx;
             (void)kind;
 #endif
             return &items[slot];
@@ -603,31 +579,31 @@ export namespace soa_detail {
             overflowed_ = false;
         }
 
-        PayloadHandle alloc(PayloadKind payload,
-                            WidgetKind kind,
-                            std::uint16_t owner_idx) noexcept {
+        PayloadSlot alloc(PayloadKind payload,
+                          WidgetKind kind,
+                          std::uint16_t owner_idx) noexcept {
             switch (payload) {
                 case PayloadKind::None:
-                    return invalid_payload_handle();
+                    return invalid_payload_slot();
 #define VIVID_PAYLOAD_KIND(name, member, stats_field, cap_kind) \
                 case PayloadKind::name: \
-                    return handle_or_overflow(member.alloc(owner_idx, kind), payload, kind, owner_idx);
+                    return slot_or_overflow(member.alloc(owner_idx, kind), payload, kind, owner_idx);
 #include "payload_kinds.generated.inc"
 #undef VIVID_PAYLOAD_KIND
             }
-            return invalid_payload_handle();
+            return invalid_payload_slot();
         }
 
         void free(PayloadKind payload,
                   WidgetKind kind,
-                  PayloadHandle handle,
+                  PayloadSlot slot,
                   std::uint16_t owner_idx) noexcept {
             switch (payload) {
                 case PayloadKind::None:
                     return;
 #define VIVID_PAYLOAD_KIND(name, member, stats_field, cap_kind) \
                 case PayloadKind::name: \
-                    member.free(handle, owner_idx, kind); \
+                    member.free(slot, owner_idx, kind); \
                     break;
 #include "payload_kinds.generated.inc"
 #undef VIVID_PAYLOAD_KIND
@@ -635,13 +611,13 @@ export namespace soa_detail {
         }
 
         template <typename T>
-        T* get(PayloadHandle handle, std::uint16_t owner_idx, WidgetKind kind) noexcept {
-            return pool_for<T>().get(handle, owner_idx, kind);
+        T* get(PayloadSlot slot, std::uint16_t owner_idx, WidgetKind kind) noexcept {
+            return pool_for<T>().get(slot, owner_idx, kind);
         }
 
         template <typename T>
-        const T* get(PayloadHandle handle, std::uint16_t owner_idx, WidgetKind kind) const noexcept {
-            return pool_for<T>().get(handle, owner_idx, kind);
+        const T* get(PayloadSlot slot, std::uint16_t owner_idx, WidgetKind kind) const noexcept {
+            return pool_for<T>().get(slot, owner_idx, kind);
         }
 
         TextId store_text(const char* text) noexcept {
@@ -829,11 +805,11 @@ export namespace soa_detail {
         }
 #endif
 
-        PayloadHandle handle_or_overflow(PayloadHandle handle,
-                                         PayloadKind payload,
-                                         WidgetKind kind,
-                                         std::uint16_t owner_idx) noexcept {
-            if (payload != PayloadKind::None && !payload_valid(handle)) {
+        PayloadSlot slot_or_overflow(PayloadSlot slot,
+                                     PayloadKind payload,
+                                     WidgetKind kind,
+                                     std::uint16_t owner_idx) noexcept {
+            if (payload != PayloadKind::None && !payload_slot_valid(slot)) {
                 overflowed_ = true;
 #ifndef NDEBUG
                 const auto stats = pool_stats_for(payload);
@@ -849,7 +825,7 @@ export namespace soa_detail {
                 assert(false && "PayloadPool capacity exceeded");
 #endif
             }
-            return handle;
+            return slot;
         }
 
 #define VIVID_PAYLOAD_KIND(name, member, stats_field, cap_kind) \

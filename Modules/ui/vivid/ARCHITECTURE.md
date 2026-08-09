@@ -59,8 +59,9 @@ widget/scene state
 - command snapshot 只复制已使用的 command/text/blob payload，不复制 live buffer 元数据或临时 workspace；
 - command snapshot replay 支持 identity 与整数平移；平移叠加到 Canvas 既有 origin，执行后必须恢复，target
   clip 逆变换到 source 坐标，命令内嵌 clip 只能继续收窄。非 255 opacity 仍必须在执行命令前返回
-  `UnsupportedTransform`。`PageTransitionRunner` 不执行 command compose，因此相关 fallback 必须以
-  `StaticCut` 写入 trace/ledger；
+  `UnsupportedTransform`。`PageTransitionRunner` 只在 recipe 全程保持 255 opacity 时采用单 source command
+  snapshot，并以 live destination 合成；prepare 导致 epoch 变化或实际 command 工作量超过 budget 时，必须在
+  首帧前释放 snapshot，并以 `StaticCut` 及对应 fallback reason 写入 trace/ledger；
 - snapshot handle slot 与 payload slot 一一对应；`HYBRID` 中 command 与 pixel payload 共享同一块按较大者
   定额的 slot storage，`COMMAND` / `PIXEL` 只保留对应 kind 的 slot，`NONE` 不保留 payload capacity；
   同一逻辑槽不能让两种 kind 同时占用，禁止恢复两套各自乘 `layer_cache_slots` 的常驻池；

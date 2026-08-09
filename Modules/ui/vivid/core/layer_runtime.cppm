@@ -63,6 +63,7 @@ export namespace ui::scene {
         PixelSurfaceUnsupported,
         DoubleSnapshotUnsupported,
         Disabled,
+        StaleSnapshot,
     };
 
     enum class LayerAdmission : std::uint8_t {
@@ -219,6 +220,7 @@ export namespace ui::scene {
         case LayerFallbackReason::PixelSurfaceUnsupported: return "pixel_surface_unsupported";
         case LayerFallbackReason::DoubleSnapshotUnsupported: return "double_snapshot_unsupported";
         case LayerFallbackReason::Disabled: return "disabled";
+        case LayerFallbackReason::StaleSnapshot: return "stale_snapshot";
         }
         return "unknown";
     }

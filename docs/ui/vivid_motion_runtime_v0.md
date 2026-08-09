@@ -61,8 +61,9 @@ fallback 或 reject，不能静默启动另一套页面动画。
 
 当 target 配置 `layer_cache_slots=0` 时，所有需要 snapshot 的 admission 都必须降级为 `StaticCut` 或
 `Reject`，不能返回随后必然以 `NoSnapshotSlot` 失败的 command/pixel snapshot 形态。
-product profile 未启用 pixel storage 时，PageTransition 同样必须正规化为 `StaticCut` 或 `Reject`；当前 runner
-不消费 command compose，不能因 `COMMAND` 可用而返回无法执行的 command transition admission。
+product profile 未启用 pixel storage 时，PageTransition 只允许全程 255 opacity 的 recipe 采用单 source
+command snapshot；需要整体 opacity、prepare 后 epoch 已变化或实际 command 工作量越过 budget 时，必须在
+首帧前正规化为 `StaticCut` 或 `Reject`，并在 trace/ledger 保留具体 fallback reason。
 
 新增 recipe 前应先证明现有 recipe 无法表达真实 consumer，并补齐各 profile 的成功、降级和拒绝语义。
 
@@ -78,8 +79,7 @@ compose bridge 只在以下条件满足时生成请求：
 dry-run 只能证明计划和预算可形成，不证明 Scene 已执行。真实 execute 必须返回 replay/compose 状态和
 工作量证据；失败不能提交 page truth。当前 pixel compose 支持平移与 opacity，command replay 支持
 identity 与整数平移，但不支持整体 opacity；后者收到非 255 opacity 时必须返回 `UnsupportedTransform`，
-不能静默按原透明度执行。`PageTransitionRunner` 尚不消费 command compose，这项能力只属于 compose bridge，
-相关 page admission 仍正规化为 `StaticCut`。
+不能静默按原透明度执行。`PageTransitionRunner` 的 command 形态只复用该能力，不扩大 transform 集合。
 
 ## Page Transition 事务
 
@@ -104,9 +104,9 @@ begin
 |---|---|---|
 | PixelDouble | source 与 destination 均为 frozen pixel snapshot | commit/cancel 后释放两者 |
 | PixelSingle | source snapshot 合成到 live destination | destination 不产生 snapshot；结束后释放 source |
+| CommandSnapshot | source command snapshot 合成到 live destination | 只占一个 slot；结束或降级后释放 source |
 | Static/StaticCut | 不启动 motion/capture，prepare 后直接提交目标页 | 是合法运行形态，不是错误 |
 | None/Reject | 不 prepare、不 capture、不改变 page truth | 返回明确拒绝 |
-| unsupported CommandSnapshot path | 正规化为 StaticCut 或 reject | trace/ledger 不保留未执行的 command admission |
 
 recipe 不能绕过这些形态。Static 与 None 不同：Static 提交目标页，None 保持 begin 前状态并拒绝。
 
@@ -132,6 +132,7 @@ Motion/PageTransition evidence 至少覆盖：
 - 每个 time tier 的起点、量化、终点和零时长；
 - recipe 在 Rich/Cheap/Static/None 下的执行、降级和拒绝；
 - PixelDouble 与 PixelSingle 的 artifact/ownership 差异；
+- CommandSnapshot 的单槽 source replay，以及 opacity、budget、epoch 不满足时的首帧前降级；
 - source/destination capture failure rollback；
 - commit、cancel、rebegin interrupt 后 page truth 与 snapshot release；
 - stale、over-budget 和 unsupported compose 的负例；

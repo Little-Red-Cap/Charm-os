@@ -77,6 +77,7 @@ export namespace ui::scene {
         PageTransitionBeginStatus begin_status{PageTransitionBeginStatus::Rejected};
         PageTransitionState last_state{PageTransitionState::Idle};
         LayerAdmission admission{LayerAdmission::Reject};
+        LayerFallbackReason fallback_reason{LayerFallbackReason::None};
         LayerProfile requested_profile{LayerProfile::Rich};
         LayerProfile effective_profile{LayerProfile::Rich};
         std::uint16_t begin_count{0};
@@ -96,6 +97,7 @@ export namespace ui::scene {
         PageTransitionBeginStatus begin_status{PageTransitionBeginStatus::Rejected};
         PageTransitionState final_state{PageTransitionState::Idle};
         LayerAdmission admission{LayerAdmission::Reject};
+        LayerFallbackReason fallback_reason{LayerFallbackReason::None};
         LayerProfile requested_profile{LayerProfile::Rich};
         LayerProfile effective_profile{LayerProfile::Rich};
         std::uint16_t begin_count{0};
@@ -174,9 +176,6 @@ export namespace ui::scene {
             state_ = PageTransitionState::Admitting;
             trace_.last_state = state_;
             trace_.admission = decide_admission(spec);
-            if (trace_.admission == LayerAdmission::CommandSnapshot) {
-                trace_.admission = LayerAdmission::StaticCut;
-            }
             if (trace_.admission == LayerAdmission::Reject) {
                 trace_.begin_status = PageTransitionBeginStatus::Rejected;
                 clear_tracking();
@@ -191,16 +190,10 @@ export namespace ui::scene {
                     abort_begin_failure(scene, access);
                     return begin_result(PageTransitionBeginStatus::PrepareFailed);
                 }
-                state_ = PageTransitionState::Committing;
-                trace_.last_state = state_;
-                trace_.begin_status = PageTransitionBeginStatus::StaticCut;
-                trace_.effective_profile = LayerProfile::Static;
-                ++trace_.static_cut_count;
-                ++trace_.commit_count;
-                ledger_.committed = true;
-                commit_page_truth(scene, access);
-                clear_tracking();
-                return begin_result(PageTransitionBeginStatus::StaticCut);
+                return complete_static_cut(scene,
+                                           access,
+                                           {},
+                                           static_cut_fallback_reason(spec));
             }
 
             state_ = PageTransitionState::FreezingSource;
@@ -208,7 +201,7 @@ export namespace ui::scene {
             const auto source_capture =
                 source_->freeze(scene,
                                 access,
-                                pixel_snapshot_spec(spec.source_snapshot),
+                                admitted_snapshot_spec(spec.source_snapshot, trace_.admission),
                                 spec.hide_source_live_root);
             trace_.source_capture_status = source_capture.status;
             if (!source_capture.ok()) {
@@ -219,7 +212,7 @@ export namespace ui::scene {
             }
             source_snapshot_ = source_capture.handle;
             ++trace_.source_capture_count;
-            ledger_.source_bytes = snapshot_bytes(spec.source_snapshot);
+            ledger_.source_bytes = captured_snapshot_bytes(scene, source_snapshot_);
             ledger_.peak_layer_bytes = ledger_.source_bytes + ledger_.destination_bytes;
             source_->mark_transitioning();
 
@@ -232,7 +225,18 @@ export namespace ui::scene {
                 return begin_result(PageTransitionBeginStatus::PrepareFailed, source_capture);
             }
 
-            if (trace_.admission == LayerAdmission::PixelSingle) {
+            if (trace_.admission == LayerAdmission::CommandSnapshot) {
+                const auto fallback_reason = command_snapshot_fallback_reason(scene, spec);
+                if (fallback_reason != LayerFallbackReason::None) {
+                    return complete_static_cut(scene,
+                                               access,
+                                               source_capture,
+                                               fallback_reason);
+                }
+            }
+
+            if (trace_.admission == LayerAdmission::PixelSingle
+                || trace_.admission == LayerAdmission::CommandSnapshot) {
                 destination_->thaw(scene, access, true);
                 runner_.begin({
                     .recipe = spec.recipe,
@@ -251,7 +255,8 @@ export namespace ui::scene {
             const auto destination_capture =
                 destination_->freeze(scene,
                                      access,
-                                     pixel_snapshot_spec(spec.destination_snapshot),
+                                     admitted_snapshot_spec(spec.destination_snapshot,
+                                                            LayerAdmission::PixelDouble),
                                      spec.hide_destination_live_root);
             trace_.destination_capture_status = destination_capture.status;
             if (!destination_capture.ok()) {
@@ -263,7 +268,7 @@ export namespace ui::scene {
             }
             destination_snapshot_ = destination_capture.handle;
             ++trace_.destination_capture_count;
-            ledger_.destination_bytes = snapshot_bytes(spec.destination_snapshot);
+            ledger_.destination_bytes = captured_snapshot_bytes(scene, destination_snapshot_);
             ledger_.peak_layer_bytes = ledger_.source_bytes + ledger_.destination_bytes;
             destination_->mark_transitioning();
 
@@ -389,21 +394,65 @@ export namespace ui::scene {
         }
 
     private:
-        static constexpr SnapshotSpec pixel_snapshot_spec(SnapshotSpec spec) noexcept {
-            spec.preferred_kind = SnapshotKind::PixelSurface;
-            spec.preferred_format = screen_pixel_format;
+        static constexpr SnapshotSpec admitted_snapshot_spec(
+            SnapshotSpec spec,
+            LayerAdmission admission) noexcept {
+            if (admission == LayerAdmission::CommandSnapshot) {
+                spec.preferred_kind = SnapshotKind::CommandBuffer;
+            } else {
+                spec.preferred_kind = SnapshotKind::PixelSurface;
+                spec.preferred_format = screen_pixel_format;
+            }
             return spec;
         }
 
-        static constexpr std::uint32_t snapshot_bytes(const SnapshotSpec& spec) noexcept {
+        static constexpr std::uint32_t pixel_snapshot_bytes(const SnapshotSpec& spec) noexcept {
             return static_cast<std::uint32_t>(
                 snapshot_pixel_bytes(screen_pixel_format, spec.bounds.w, spec.bounds.h));
         }
 
-        static constexpr std::uint32_t max_snapshot_bytes(const PageTransitionSpec& spec) noexcept {
-            const auto source = snapshot_bytes(spec.source_snapshot);
-            const auto destination = snapshot_bytes(spec.destination_snapshot);
+        static constexpr std::uint32_t max_pixel_snapshot_bytes(
+            const PageTransitionSpec& spec) noexcept {
+            const auto source = pixel_snapshot_bytes(spec.source_snapshot);
+            const auto destination = pixel_snapshot_bytes(spec.destination_snapshot);
             return source > destination ? source : destination;
+        }
+
+        static constexpr bool command_compose_supported(
+            const PageTransitionSpec& spec) noexcept {
+            if (spec.recipe.from_opacity != 255 || spec.recipe.to_opacity != 255) {
+                return false;
+            }
+            const auto caps = layer_profile_caps(spec.requested_profile);
+            return (spec.recipe.kind != MotionRecipeKind::Slide
+                    && spec.recipe.kind != MotionRecipeKind::FadeSlide)
+                || caps.allow_slide;
+        }
+
+        static std::uint32_t captured_snapshot_bytes(
+            const Scene& scene,
+            SnapshotHandle handle) noexcept {
+            const auto* record = scene.snapshot_record(handle);
+            return record ? record->bytes : 0u;
+        }
+
+        LayerFallbackReason command_snapshot_fallback_reason(
+            Scene& scene,
+            const PageTransitionSpec& spec) const noexcept {
+            if (!scene.snapshot_current(source_snapshot_)) {
+                return LayerFallbackReason::StaleSnapshot;
+            }
+            const auto frame = sample_motion_recipe(spec.recipe,
+                                                    spec.requested_profile,
+                                                    spec.start_ms,
+                                                    spec.start_ms);
+            if (!frame.compose) return LayerFallbackReason::Disabled;
+            const auto plan = scene.make_snapshot_compose_plan({
+                .source = source_snapshot_,
+                .transform = frame.transform,
+            });
+            if (!plan.valid) return LayerFallbackReason::Disabled;
+            return layer_budget_fallback_reason(scene.check_layer_budget(plan, spec.budget));
         }
 
         static constexpr LayerAdmission decide_admission(
@@ -411,12 +460,54 @@ export namespace ui::scene {
             return decide_layer_admission({
                 .profile = spec.requested_profile,
                 .budget = spec.budget,
-                .pixel_snapshot_bytes = max_snapshot_bytes(spec),
+                .pixel_snapshot_bytes = max_pixel_snapshot_bytes(spec),
                 .cache_slots = static_cast<std::uint16_t>(layer_cache_slots),
                 .need_double_snapshot = true,
-                .command_snapshot_enabled = false,
+                .command_snapshot_enabled =
+                    snapshot_command_enabled && command_compose_supported(spec),
                 .pixel_snapshot_enabled = snapshot_pixel_enabled,
             });
+        }
+
+        static constexpr LayerFallbackReason static_cut_fallback_reason(
+            const PageTransitionSpec& spec) noexcept {
+            if (spec.requested_profile == LayerProfile::Static) {
+                return LayerFallbackReason::None;
+            }
+            if (layer_cache_slots == 0) {
+                return LayerFallbackReason::DoubleSnapshotUnsupported;
+            }
+            if (snapshot_command_enabled && !snapshot_pixel_enabled
+                && !command_compose_supported(spec)) {
+                return (spec.recipe.from_opacity != 255 || spec.recipe.to_opacity != 255)
+                    ? LayerFallbackReason::AlphaUnsupported
+                    : LayerFallbackReason::Disabled;
+            }
+            if (snapshot_pixel_enabled && spec.budget.max_layer_bytes > 0
+                && max_pixel_snapshot_bytes(spec) > spec.budget.max_layer_bytes) {
+                return LayerFallbackReason::LayerBytesOver;
+            }
+            return LayerFallbackReason::Disabled;
+        }
+
+        PageTransitionBeginResult complete_static_cut(
+            Scene& scene,
+            SceneAccess access,
+            LayerCaptureResult source_capture = {},
+            LayerFallbackReason fallback_reason = LayerFallbackReason::None) noexcept {
+            state_ = PageTransitionState::Committing;
+            trace_.last_state = state_;
+            trace_.admission = LayerAdmission::StaticCut;
+            trace_.fallback_reason = fallback_reason;
+            trace_.begin_status = PageTransitionBeginStatus::StaticCut;
+            trace_.effective_profile = LayerProfile::Static;
+            ++trace_.static_cut_count;
+            ++trace_.commit_count;
+            ledger_.committed = true;
+            commit_page_truth(scene, access);
+            clear_tracking();
+            source_capture.handle = {};
+            return begin_result(PageTransitionBeginStatus::StaticCut, source_capture);
         }
 
         void reset_transition_trace(LayerProfile requested) noexcept {
@@ -448,6 +539,7 @@ export namespace ui::scene {
             ledger_.begin_status = status;
             ledger_.final_state = state_;
             ledger_.admission = trace_.admission;
+            ledger_.fallback_reason = trace_.fallback_reason;
             ledger_.effective_profile = trace_.effective_profile;
             ledger_.interrupt_count = trace_.interrupt_count;
             ledger_.sample_count = trace_.sample_count;

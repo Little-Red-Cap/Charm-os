@@ -16,6 +16,7 @@ namespace {
         WidgetHandle root{};
         WidgetHandle source_root{};
         WidgetHandle destination_root{};
+        WidgetHandle source_probe{};
         ui::scene::PageLayer source{};
         ui::scene::PageLayer destination{};
 
@@ -24,11 +25,14 @@ namespace {
                 root = builder.create_container();
                 source_root = builder.create_container();
                 destination_root = builder.create_container();
+                source_probe = builder.create_button_static("Source");
                 builder.set_rect(root, {0, 0, 32, 32});
                 builder.set_rect(source_root, {0, 0, 32, 32});
                 builder.set_rect(destination_root, {0, 0, 32, 32});
+                builder.set_rect(source_probe, {2, 2, 12, 8});
                 builder.link(root, source_root);
                 builder.link(root, destination_root);
+                builder.link(source_root, source_probe);
                 builder.set_input_root(root);
                 builder.set_root(root);
             });
@@ -47,6 +51,7 @@ namespace {
         int x{0};
         int y{0};
         bool ok{true};
+        bool invalidate_layout{false};
     };
 
     inline constexpr unsigned one_pixel_snapshot_bytes = 3;
@@ -135,7 +140,10 @@ namespace {
     }
 
     unsigned transition_summary_case_count{0};
-    inline constexpr unsigned kTransactionEvidenceCaseCount = 15;
+    inline constexpr bool kCommandOnlyStorage =
+        ::snapshot_command_enabled && !::snapshot_pixel_enabled;
+    inline constexpr unsigned kTransactionEvidenceCaseCount =
+        kCommandOnlyStorage ? 4u : (::snapshot_command_enabled ? 17u : 15u);
 
     void print_transition_run_begin() noexcept {
         std::printf("[pt] run=page_transition_demo phase=begin\n");
@@ -160,12 +168,13 @@ namespace {
             ? frame->transition.motion.transform
             : ui::scene::LayerTransform{};
         std::printf(
-            "[pt] case=%s status=%s admission=%s requested=%s effective=%s recipe=%s tier=%s "
+            "[pt] case=%s status=%s admission=%s fallback=%s requested=%s effective=%s recipe=%s tier=%s "
             "snapshots=%u src_caps=%u dst_caps=%u samples=%u commits=%u aborts=%u static_cuts=%u "
             "interrupts=%u src_status=%u dst_status=%u bytes=%u pixels=%u sampled=%llu x=%d opacity=%u\n",
             name,
             ui::scene::page_transition_begin_status_name(begin.status),
             ui::scene::layer_admission_name(begin.admission),
+            ui::scene::layer_fallback_reason_name(trace.fallback_reason),
             ui::scene::layer_profile_name(trace.requested_profile),
             ui::scene::layer_profile_name(trace.effective_profile),
             motion_started ? ui::scene::motion_recipe_name(trace.motion.recipe_kind) : "none",
@@ -234,12 +243,15 @@ namespace {
     }
 
     bool prepare_destination(ui::scene::Scene&,
-                             ui::scene::SceneAccess,
-                             ui::scene::PageLayer&,
+                             ui::scene::SceneAccess access,
+                             ui::scene::PageLayer& destination,
                              void* ctx) noexcept {
         auto* prepare = static_cast<PaintPrepare*>(ctx);
         if (!prepare || !prepare->ok) return false;
         prepare->canvas->set_pixel(prepare->x, prepare->y, prepare->color);
+        if (prepare->invalidate_layout) {
+            access.set_rect(destination.root(), {0, 0, 31, 32});
+        }
         return true;
     }
 
@@ -281,6 +293,16 @@ namespace {
         ui::scene::LayerProfile profile = ui::scene::LayerProfile::Rich) noexcept {
         auto spec = transition_spec(env, prepare, budget, profile);
         spec.recipe = ui::scene::motion_fade_slide(ui::scene::MotionAxis::X, 6, 120, 0, 240);
+        return spec;
+    }
+
+    [[nodiscard]] ui::scene::PageTransitionSpec command_transition_spec(
+        TransitionScene& env,
+        PaintPrepare& prepare,
+        ui::scene::LayerBudget budget = {.max_layer_bytes = 2048}) noexcept {
+        auto spec = transition_spec(env, prepare, budget);
+        spec.source_snapshot.bounds = {0, 0, 32, 32};
+        spec.destination_snapshot.bounds = {0, 0, 32, 32};
         return spec;
     }
 
@@ -509,6 +531,64 @@ namespace {
         return true;
     }
 
+    [[nodiscard]] bool run_command_snapshot_slide() noexcept {
+        TransitionScene env{};
+        PaintPrepare prepare{.canvas = &env.canvas, .color = rgba{40, 70, 200, 255}, .x = 4, .y = 2};
+        ui::scene::PageTransitionRunner runner{};
+        auto access = env.scene.access();
+        const auto begin = runner.begin(env.scene, access, command_transition_spec(env, prepare));
+        const auto trace = runner.trace();
+        if (!expect(begin.started(), "command transition starts")) return false;
+        if (!expect(begin.admission == ui::scene::LayerAdmission::CommandSnapshot,
+                    "command transition admission is selected")) {
+            return false;
+        }
+        if (!expect(trace.source_capture_count == 1 && trace.destination_capture_count == 0,
+                    "command transition captures source only")) {
+            return false;
+        }
+        if (!expect_snapshot_count(env, 1, "command transition owns one snapshot")) return false;
+        if (!expect_page_truth(env, false, true,
+                               "command transition keeps destination live")) {
+            return false;
+        }
+        const auto* record = env.scene.snapshot_record(runner.source_snapshot());
+        if (!expect(record && record->kind == ui::scene::SnapshotKind::CommandBuffer
+                    && record->bytes > 0,
+                    "command transition owns recorded command payload")) {
+            return false;
+        }
+        env.canvas.clear(rgba{0, 0, 0, 255});
+        const auto frame = runner.sample(env.scene, 0);
+        if (!expect(frame.valid && frame.source.valid && !frame.destination.valid,
+                    "command transition replays source over live destination")) {
+            return false;
+        }
+        if (!expect(frame.source.replay.kind == ui::scene::SnapshotKind::CommandBuffer
+                    && frame.source.replay.ok()
+                    && frame.source.replay.stats.cmd_count > 0,
+                    "command transition executes recorded commands")) {
+            return false;
+        }
+        if (!expect(frame.source.plan.transform.x == 5
+                    && frame.source.plan.transform.opacity == 255,
+                    "command transition applies integer translation without opacity")) {
+            return false;
+        }
+        runner.commit(env.scene, access);
+        const auto ledger = runner.ledger();
+        if (!expect_snapshot_count(env, 0, "command transition releases snapshot")) return false;
+        if (!expect(ledger.committed && ledger.snapshots_released
+                    && ledger.source_bytes > 0
+                    && ledger.destination_bytes == 0
+                    && ledger.peak_layer_bytes == ledger.source_bytes,
+                    "command transition ledger records source-only cost")) {
+            return false;
+        }
+        print_transition_summary("command_slide", begin, runner.trace(), ledger, env, &frame);
+        return true;
+    }
+
     [[nodiscard]] bool run_command_fallback_static_cut() noexcept {
         TransitionScene env{};
         env.canvas.set_pixel(2, 2, rgba{250, 50, 40, 255});
@@ -529,8 +609,18 @@ namespace {
                     "command fallback uses static effective profile")) {
             return false;
         }
-        if (!expect(trace.source_capture_count == 0 && trace.destination_capture_count == 0,
-                    "command fallback performs no captures")) {
+        if (!expect(trace.fallback_reason == ui::scene::LayerFallbackReason::LayerBytesOver,
+                    "command budget fallback records layer byte reason")) return false;
+        if constexpr (::snapshot_command_enabled) {
+            if (!expect(trace.source_capture_count == 1 && trace.destination_capture_count == 0,
+                        "command budget fallback records source capture only")) {
+                return false;
+            }
+            if (!expect(begin.source_capture.ok() && !begin.source_capture.handle,
+                        "command budget fallback does not expose released handle")) return false;
+        } else if (!expect(trace.source_capture_count == 0
+                           && trace.destination_capture_count == 0,
+                           "unavailable command fallback performs no capture")) {
             return false;
         }
         if (!expect(!env.source.visible() && env.destination.visible(),
@@ -545,16 +635,95 @@ namespace {
                     "command fallback ledger records commit")) {
             return false;
         }
+        if (!expect(ledger.fallback_reason == ui::scene::LayerFallbackReason::LayerBytesOver,
+                    "command budget fallback ledger keeps reason")) return false;
         if (!expect(ledger.admission == ui::scene::LayerAdmission::StaticCut &&
                     ledger.effective_profile == ui::scene::LayerProfile::Static,
                     "command fallback is recorded as static cut in ledger")) {
             return false;
         }
-        if (!expect(ledger.peak_layer_bytes == 0 && ledger.total_composite_pixels == 0,
-                    "command fallback records no layer cost")) {
+        if constexpr (::snapshot_command_enabled) {
+            if (!expect(ledger.source_bytes > 1
+                        && ledger.destination_bytes == 0
+                        && ledger.peak_layer_bytes == ledger.source_bytes
+                        && ledger.total_composite_pixels == 0
+                        && ledger.snapshots_released,
+                        "command budget fallback records temporary capture cost")) {
+                return false;
+            }
+        } else if (!expect(ledger.peak_layer_bytes == 0
+                           && ledger.total_composite_pixels == 0
+                           && ledger.snapshots_released,
+                           "unavailable command fallback records zero capture cost")) {
             return false;
         }
         print_transition_summary("command_fallback_static_cut", begin, trace, ledger, env);
+        return true;
+    }
+
+    [[nodiscard]] bool run_command_epoch_fallback_static_cut() noexcept {
+        TransitionScene env{};
+        PaintPrepare prepare{
+            .canvas = &env.canvas,
+            .color = rgba{45, 85, 205, 255},
+            .x = 4,
+            .y = 2,
+            .invalidate_layout = true,
+        };
+        ui::scene::PageTransitionRunner runner{};
+        auto access = env.scene.access();
+        const auto begin = runner.begin(env.scene, access, command_transition_spec(env, prepare));
+        const auto trace = runner.trace();
+        const auto ledger = runner.ledger();
+        if (!expect(begin.static_cut(), "stale command transition resolves static cut")) return false;
+        if (!expect(begin.admission == ui::scene::LayerAdmission::StaticCut,
+                    "stale command transition records static admission")) return false;
+        if (!expect(trace.fallback_reason == ui::scene::LayerFallbackReason::StaleSnapshot,
+                    "stale command transition records epoch reason")) return false;
+        if (!expect(trace.source_capture_count == 1 && trace.destination_capture_count == 0,
+                    "stale command transition records source capture")) return false;
+        if (!expect(begin.source_capture.ok() && !begin.source_capture.handle,
+                    "stale command transition does not expose released handle")) return false;
+        if (!expect_page_truth(env, false, true,
+                               "stale command transition commits destination truth")) return false;
+        if (!expect_snapshot_count(env, 0,
+                                   "stale command transition releases source snapshot")) return false;
+        if (!expect(ledger.static_cut && ledger.committed && ledger.snapshots_released
+                    && ledger.source_bytes > 0 && ledger.destination_bytes == 0,
+                    "stale command transition ledger closes ownership")) return false;
+        if (!expect(ledger.fallback_reason == ui::scene::LayerFallbackReason::StaleSnapshot,
+                    "stale command transition ledger keeps reason")) return false;
+        print_transition_summary("command_epoch_static_cut", begin, trace, ledger, env);
+        return true;
+    }
+
+    [[nodiscard]] bool run_command_opacity_fallback_static_cut() noexcept {
+        TransitionScene env{};
+        PaintPrepare prepare{.canvas = &env.canvas, .color = rgba{55, 95, 215, 255}, .x = 4, .y = 2};
+        auto spec = command_transition_spec(env, prepare);
+        spec.recipe = ui::scene::motion_fade_slide(ui::scene::MotionAxis::X, 5, 100, 0, 255);
+        ui::scene::PageTransitionRunner runner{};
+        auto access = env.scene.access();
+        const auto begin = runner.begin(env.scene, access, spec);
+        const auto trace = runner.trace();
+        const auto ledger = runner.ledger();
+        if (!expect(begin.static_cut(), "command opacity transition resolves static cut")) return false;
+        if (!expect(begin.admission == ui::scene::LayerAdmission::StaticCut,
+                    "command opacity transition records static admission")) return false;
+        if (!expect(trace.fallback_reason == ui::scene::LayerFallbackReason::AlphaUnsupported,
+                    "command opacity transition records alpha reason")) return false;
+        if (!expect(trace.source_capture_count == 0 && trace.destination_capture_count == 0,
+                    "command opacity transition performs no capture")) return false;
+        if (!expect_page_truth(env, false, true,
+                               "command opacity transition commits destination truth")) return false;
+        if (!expect_snapshot_count(env, 0,
+                                   "command opacity transition leaves no snapshot")) return false;
+        if (!expect(ledger.static_cut && ledger.committed && ledger.snapshots_released
+                    && ledger.peak_layer_bytes == 0,
+                    "command opacity transition ledger records zero capture cost")) return false;
+        if (!expect(ledger.fallback_reason == ui::scene::LayerFallbackReason::AlphaUnsupported,
+                    "command opacity transition ledger keeps reason")) return false;
+        print_transition_summary("command_opacity_static_cut", begin, trace, ledger, env);
         return true;
     }
 
@@ -1163,11 +1332,24 @@ int main() {
     print_transition_run_begin();
     bool ok = true;
     do {
+        if constexpr (kCommandOnlyStorage) {
+            if (!run_command_snapshot_slide()) { ok = false; break; }
+            if (!run_command_fallback_static_cut()) { ok = false; break; }
+            if (!run_command_epoch_fallback_static_cut()) { ok = false; break; }
+            if (!run_command_opacity_fallback_static_cut()) { ok = false; break; }
+            break;
+        }
         if (!run_normal_commit()) { ok = false; break; }
         if (!run_fade_slide_pixel_double()) { ok = false; break; }
         if (!run_fade_slide_cheap_quantized()) { ok = false; break; }
         if (!run_cancel_during_compose()) { ok = false; break; }
+        if constexpr (::snapshot_command_enabled) {
+            if (!run_command_snapshot_slide()) { ok = false; break; }
+        }
         if (!run_command_fallback_static_cut()) { ok = false; break; }
+        if constexpr (::snapshot_command_enabled) {
+            if (!run_command_epoch_fallback_static_cut()) { ok = false; break; }
+        }
         if (!run_static_profile_static_cut()) { ok = false; break; }
         if (!run_none_profile_reject()) { ok = false; break; }
         if (!run_pixel_single_fade_slide_live_destination()) { ok = false; break; }

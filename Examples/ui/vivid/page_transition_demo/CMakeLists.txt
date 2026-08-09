@@ -18,7 +18,13 @@ set(CHARM_ENABLE_SDL3 OFF CACHE BOOL "" FORCE)
 set(CHARM_ENABLE_POSIX OFF CACHE BOOL "" FORCE)
 set(CHARM_VIVID_SCREEN_WIDTH 32 CACHE STRING "" FORCE)
 set(CHARM_VIVID_SCREEN_HEIGHT 32 CACHE STRING "" FORCE)
-set(CHARM_VIVID_LAYER_CACHE_SLOTS 2 CACHE STRING "" FORCE)
+if(CHARM_VIVID_SNAPSHOT_STORAGE_MODE STREQUAL "COMMAND")
+    set(_vivid_page_transition_cache_slots 1)
+else()
+    set(_vivid_page_transition_cache_slots 2)
+endif()
+set(CHARM_VIVID_LAYER_CACHE_SLOTS
+    ${_vivid_page_transition_cache_slots} CACHE STRING "" FORCE)
 set(CHARM_VIVID_LAYER_CACHE_WIDTH 32 CACHE STRING "" FORCE)
 set(CHARM_VIVID_LAYER_CACHE_HEIGHT 32 CACHE STRING "" FORCE)
 add_subdirectory("${CHARM_ROOT}" "${CMAKE_BINARY_DIR}/Charm")
@@ -26,6 +32,16 @@ target_link_libraries(${target_name} PRIVATE Charm-os)
 
 add_test(NAME ${target_name}
     COMMAND $<TARGET_FILE:${target_name}>)
+if(CHARM_VIVID_SNAPSHOT_STORAGE_MODE STREQUAL "COMMAND")
+    set(_vivid_page_transition_pass_gate
+        "\\[pt\\] run=page_transition_demo phase=end result=ok cases=5")
+elseif(CHARM_VIVID_SNAPSHOT_STORAGE_MODE STREQUAL "PIXEL")
+    set(_vivid_page_transition_pass_gate
+        "\\[pt\\] run=page_transition_demo phase=end result=ok cases=16")
+else()
+    set(_vivid_page_transition_pass_gate
+        "\\[pt\\] run=page_transition_demo phase=end result=ok cases=18")
+endif()
 set_tests_properties(${target_name} PROPERTIES
-    PASS_REGULAR_EXPRESSION "\\[pt\\] run=page_transition_demo phase=end result=ok cases=16"
+    PASS_REGULAR_EXPRESSION "${_vivid_page_transition_pass_gate}"
     FAIL_REGULAR_EXPRESSION "\\[ERR\\]|result=fail")

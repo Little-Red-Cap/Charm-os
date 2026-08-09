@@ -1,5 +1,7 @@
 module;
 
+#include "vivid_features.generated.hpp"
+
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -22,6 +24,9 @@ import charm.gfx.pixel_format;
 namespace ui::scene::detail {
     inline constexpr int command_replay_tile_width = 64;
     inline constexpr int command_replay_tile_height = 64;
+    inline constexpr std::size_t command_snapshot_chunk_commands =
+        CHARM_VIVID_COMMAND_SNAPSHOT_CHUNK_COMMANDS;
+    static_assert(command_snapshot_chunk_commands > 0);
 
     [[nodiscard]] consteval std::size_t ceil_div_positive(int value, int divisor) noexcept {
         return value > 0
@@ -105,6 +110,7 @@ export namespace ui::scene {
         std::size_t bounds_command_reads{0};
         std::size_t bounds_item_reads{0};
         std::size_t execute_command_reads{0};
+        std::size_t execute_chunks_skipped{0};
 
         [[nodiscard]] constexpr std::size_t total_command_reads() const noexcept {
             return bounds_command_reads + execute_command_reads;
@@ -135,14 +141,31 @@ export namespace ui::scene {
 
     class CommandSnapshotPayload {
     private:
+        static constexpr std::size_t chunk_capacity =
+            (ui::draw_cmd::DefaultDrawCmdBuffer::kMaxCommands
+             + detail::command_snapshot_chunk_commands - 1)
+            / detail::command_snapshot_chunk_commands;
+        static constexpr std::size_t chunk_state_word_count =
+            (chunk_capacity + 63u) / 64u;
+        static_assert(ui::draw_cmd::DefaultDrawCmdBuffer::kCmdBytesCapacity
+                      <= 0xFFFFFFFFULL);
+
         struct SpatialIndex {
-            std::array<std::uint64_t, detail::command_hit_index_word_count> words{};
+            std::array<std::uint64_t, detail::command_hit_index_word_count>
+                occupancy_words{};
             Rect bounds{};
+            std::array<std::uint32_t, chunk_capacity + 1> chunk_offsets{};
+            std::array<Rect, chunk_capacity> chunk_bounds{};
+            std::array<std::uint64_t, chunk_state_word_count> stateful_chunks{};
+            std::uint32_t chunk_count{0};
             bool valid{false};
         };
 
     public:
         using SourceBuffer = ui::draw_cmd::DefaultDrawCmdBuffer;
+        static constexpr std::size_t chunk_command_capacity =
+            detail::command_snapshot_chunk_commands;
+        static constexpr std::size_t chunk_index_capacity = chunk_capacity;
         static constexpr std::size_t spatial_index_storage_bytes = sizeof(SpatialIndex);
 
         struct DrawHitTestResult {
@@ -158,8 +181,10 @@ export namespace ui::scene {
             cmd_bytes_used_ = 0;
             text_used_ = 0;
             blob_used_ = 0;
-            hit_index_.words.fill(0);
+            hit_index_.occupancy_words.fill(0);
             hit_index_.bounds = {};
+            hit_index_.stateful_chunks.fill(0);
+            hit_index_.chunk_count = 0;
             hit_index_.valid = false;
             if (source.overflowed()
                 || source.size() > SourceBuffer::kMaxCommands
@@ -191,7 +216,7 @@ export namespace ui::scene {
             cmd_bytes_used_ = source.cmd_bytes();
             text_used_ = source.text_used();
             blob_used_ = source.blob_used();
-            hit_index_.valid = build_hit_index(bounds);
+            hit_index_.valid = build_spatial_index(bounds);
             return true;
         }
 
@@ -254,7 +279,8 @@ export namespace ui::scene {
             for (std::size_t y = first_y; y <= last_y; ++y) {
                 for (std::size_t x = first_x; x <= last_x; ++x) {
                     const auto bit = y * detail::command_hit_index_columns + x;
-                    if ((hit_index_.words[bit / 64u] & (std::uint64_t{1} << (bit % 64u)))
+                    if ((hit_index_.occupancy_words[bit / 64u]
+                         & (std::uint64_t{1} << (bit % 64u)))
                         != 0) {
                         result.hit = true;
                         return result;
@@ -262,6 +288,39 @@ export namespace ui::scene {
                 }
             }
             return result;
+        }
+
+        [[nodiscard]] std::size_t next_command_offset(
+            std::size_t offset,
+            const Rect& selection,
+            std::size_t& chunk_cursor,
+            std::size_t& chunks_skipped) const noexcept {
+            if (!hit_index_.valid || !rect_valid(selection)) return offset;
+            const auto count = static_cast<std::size_t>(hit_index_.chunk_count);
+            while (chunk_cursor < count
+                   && hit_index_.chunk_offsets[chunk_cursor + 1] <= offset) {
+                ++chunk_cursor;
+            }
+            while (chunk_cursor < count) {
+                const auto begin = static_cast<std::size_t>(
+                    hit_index_.chunk_offsets[chunk_cursor]);
+                const auto end = static_cast<std::size_t>(
+                    hit_index_.chunk_offsets[chunk_cursor + 1]);
+                const auto state_word = chunk_cursor / 64u;
+                const auto state_mask = std::uint64_t{1} << (chunk_cursor % 64u);
+                Rect intersection{};
+                if ((hit_index_.stateful_chunks[state_word] & state_mask) != 0
+                    || (rect_valid(hit_index_.chunk_bounds[chunk_cursor])
+                        && rect_intersect(hit_index_.chunk_bounds[chunk_cursor],
+                                          selection,
+                                          intersection))) {
+                    return offset < begin ? begin : offset;
+                }
+                offset = end;
+                ++chunk_cursor;
+                ++chunks_skipped;
+            }
+            return cmd_bytes_used_;
         }
 
     private:
@@ -281,30 +340,50 @@ export namespace ui::scene {
             for (std::size_t y = first_y; y <= last_y; ++y) {
                 for (std::size_t x = first_x; x <= last_x; ++x) {
                     const auto bit = y * detail::command_hit_index_columns + x;
-                    hit_index_.words[bit / 64u] |= std::uint64_t{1} << (bit % 64u);
+                    hit_index_.occupancy_words[bit / 64u]
+                        |= std::uint64_t{1} << (bit % 64u);
                 }
             }
         }
 
-        [[nodiscard]] bool build_hit_index(Rect bounds) noexcept {
+        void include_chunk_bounds(std::size_t chunk, const Rect& bounds) noexcept {
+            auto& current = hit_index_.chunk_bounds[chunk];
+            current = rect_valid(current)
+                ? ui::draw_cmd::rect_union(current, bounds)
+                : bounds;
+        }
+
+        void mark_stateful_chunk(std::size_t chunk) noexcept {
+            hit_index_.stateful_chunks[chunk / 64u]
+                |= std::uint64_t{1} << (chunk % 64u);
+        }
+
+        [[nodiscard]] bool build_spatial_index(Rect bounds) noexcept {
             if (!rect_valid(bounds)
                 || bounds.w > layer_cache_width
                 || bounds.h > layer_cache_height
-                || detail::command_hit_index_word_count == 0) {
+                || detail::command_hit_index_word_count == 0
+                || chunk_capacity == 0) {
                 return false;
             }
             hit_index_.bounds = bounds;
             ui::draw_cmd::DrawCmd cmd{};
             std::size_t offset = 0;
+            std::size_t command_index = 0;
             while (offset < cmd_bytes_used_) {
+                const auto chunk =
+                    command_index / detail::command_snapshot_chunk_commands;
+                if (chunk >= chunk_capacity) return false;
+                if ((command_index % detail::command_snapshot_chunk_commands) == 0) {
+                    hit_index_.chunk_offsets[chunk] = static_cast<std::uint32_t>(offset);
+                    hit_index_.chunk_bounds[chunk] = {};
+                }
                 std::size_t stride = 0;
                 if (!read_cmd_at_offset(offset, cmd, stride)) return false;
                 if (cmd.type == ui::draw_cmd::CmdType::PushClip
                     || cmd.type == ui::draw_cmd::CmdType::PopClip) {
-                    offset += stride;
-                    continue;
-                }
-                if (cmd.type == ui::draw_cmd::CmdType::DrawLineBatch) {
+                    mark_stateful_chunk(chunk);
+                } else if (cmd.type == ui::draw_cmd::CmdType::DrawLineBatch) {
                     const int count = cmd.p0;
                     if (count <= 0) return false;
                     const auto bytes = blob_at(cmd.blob);
@@ -317,16 +396,30 @@ export namespace ui::scene {
                         reinterpret_cast<const ui::draw_cmd::LineBatchItem*>(bytes.data()),
                         count);
                     for (const auto& item : items) {
-                        mark_hit_bounds(ui::draw_cmd::line_bounds(
-                            item.x0, item.y0, item.x1, item.y1));
+                        const auto item_bounds = ui::draw_cmd::line_bounds(
+                            item.x0, item.y0, item.x1, item.y1);
+                        mark_hit_bounds(item_bounds);
+                        include_chunk_bounds(chunk, item_bounds);
                     }
-                    offset += stride;
-                    continue;
+                } else {
+                    const Rect draw_bounds = ui::draw_cmd::draw_cmd_bounds(cmd);
+                    if (rect_valid(draw_bounds)) {
+                        mark_hit_bounds(draw_bounds);
+                        include_chunk_bounds(chunk, draw_bounds);
+                    }
                 }
-                const Rect draw_bounds = ui::draw_cmd::draw_cmd_bounds(cmd);
-                if (rect_valid(draw_bounds)) mark_hit_bounds(draw_bounds);
                 offset += stride;
+                ++command_index;
+                if ((command_index % detail::command_snapshot_chunk_commands) == 0
+                    || offset == cmd_bytes_used_) {
+                    hit_index_.chunk_offsets[chunk + 1]
+                        = static_cast<std::uint32_t>(offset);
+                }
             }
+            if (command_index != count_) return false;
+            hit_index_.chunk_count = static_cast<std::uint32_t>(
+                (command_index + detail::command_snapshot_chunk_commands - 1)
+                / detail::command_snapshot_chunk_commands);
             return true;
         }
 

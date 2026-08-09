@@ -47,8 +47,13 @@ namespace {
     class CommandSnapshotReadView {
     public:
         CommandSnapshotReadView(const ui::scene::CommandSnapshotPayload& payload,
-                                std::size_t& command_reads) noexcept
-            : payload_(payload), command_reads_(command_reads) {}
+                                const Rect& selection,
+                                std::size_t& command_reads,
+                                std::size_t& chunks_skipped) noexcept
+            : payload_(payload),
+              selection_(selection),
+              command_reads_(command_reads),
+              chunks_skipped_(chunks_skipped) {}
 
         [[nodiscard]] std::size_t size() const noexcept { return payload_.size(); }
         [[nodiscard]] std::size_t cmd_bytes() const noexcept { return payload_.cmd_bytes(); }
@@ -59,6 +64,11 @@ namespace {
                                               std::size_t& stride) const noexcept {
             ++command_reads_;
             return payload_.read_cmd_at_offset(offset, out, stride);
+        }
+
+        [[nodiscard]] std::size_t next_command_offset(std::size_t offset) const noexcept {
+            return payload_.next_command_offset(
+                offset, selection_, chunk_cursor_, chunks_skipped_);
         }
 
         [[nodiscard]] bool text_span_valid(ui::draw_cmd::TextSpan span) const noexcept {
@@ -76,7 +86,10 @@ namespace {
 
     private:
         const ui::scene::CommandSnapshotPayload& payload_;
+        Rect selection_{};
         std::size_t& command_reads_;
+        std::size_t& chunks_skipped_;
+        mutable std::size_t chunk_cursor_{0};
     };
 }
 
@@ -548,10 +561,13 @@ export namespace ui::scene {
                         scratch.set_origin(static_cast<int>(plan.transform.x) - tile_x,
                                            static_cast<int>(plan.transform.y) - tile_y);
                         std::size_t command_reads = 0;
-                        const CommandSnapshotReadView measured_payload{*payload, command_reads};
+                        std::size_t chunks_skipped = 0;
+                        const CommandSnapshotReadView measured_payload{
+                            *payload, source_tile, command_reads, chunks_skipped};
                         const auto tile_stats = cmd_exec_.execute(
                             scratch, measured_payload, &source_tile);
                         out.command_cost.execute_command_reads += command_reads;
+                        out.command_cost.execute_chunks_skipped += chunks_skipped;
                         detail::accumulate_scene_stats(out.stats, tile_stats);
                         scratch.clear_origin();
 
@@ -586,11 +602,14 @@ export namespace ui::scene {
             canvas_.set_origin(origin.x + static_cast<int>(plan.transform.x),
                                origin.y + static_cast<int>(plan.transform.y));
             std::size_t command_reads = 0;
-            const CommandSnapshotReadView measured_payload{*payload, command_reads};
+            std::size_t chunks_skipped = 0;
+            const CommandSnapshotReadView measured_payload{
+                *payload, plan.source_visible, command_reads, chunks_skipped};
             const auto draw_stats = cmd_exec_.execute(
                 canvas_, measured_payload, &plan.source_visible);
             out.stats = detail::to_scene_stats(draw_stats);
             out.command_cost.execute_command_reads = command_reads;
+            out.command_cost.execute_chunks_skipped = chunks_skipped;
             canvas_.restore_origin(origin);
             out.stats.alpha_blend_count = alpha_blend_count();
             out.status = out.stats.failed_cmds == 0

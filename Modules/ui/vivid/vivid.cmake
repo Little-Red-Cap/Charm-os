@@ -616,6 +616,9 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
     else()
         set(_vivid_pixel_snapshot_upper_bytes 0)
     endif()
+    set(_vivid_command_snapshot_chunk_commands 8)
+    set(VIVID_COMMAND_SNAPSHOT_CHUNK_COMMANDS
+        ${_vivid_command_snapshot_chunk_commands})
     if(VIVID_SNAPSHOT_COMMAND_ENABLED AND CHARM_VIVID_LAYER_CACHE_SLOTS GREATER 0)
         math(EXPR _vivid_command_hit_index_columns
             "(${CHARM_VIVID_LAYER_CACHE_WIDTH} + 63) / 64")
@@ -625,8 +628,14 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
             "${_vivid_command_hit_index_columns} * ${_vivid_command_hit_index_rows}")
         math(EXPR _vivid_command_hit_index_words
             "(${_vivid_command_hit_index_cells} + 63) / 64")
+        math(EXPR _vivid_command_snapshot_chunk_capacity
+            "(${CHARM_VIVID_DRAW_CMD_MAX_COMMANDS} + ${_vivid_command_snapshot_chunk_commands} - 1) / ${_vivid_command_snapshot_chunk_commands}")
+        math(EXPR _vivid_command_snapshot_chunk_state_words
+            "(${_vivid_command_snapshot_chunk_capacity} + 63) / 64")
+        math(EXPR _vivid_command_snapshot_spatial_index_raw_bytes
+            "${_vivid_command_hit_index_words} * 8 + 16 + (${_vivid_command_snapshot_chunk_capacity} + 1) * 4 + ${_vivid_command_snapshot_chunk_capacity} * 16 + ${_vivid_command_snapshot_chunk_state_words} * 8 + 4 + 1")
         math(EXPR _vivid_command_snapshot_spatial_index_slot_upper_bytes
-            "${_vivid_command_hit_index_words} * 8 + 24")
+            "((${_vivid_command_snapshot_spatial_index_raw_bytes} + 7) / 8) * 8")
         math(EXPR _vivid_command_snapshot_spatial_index_upper_bytes
             "${CHARM_VIVID_LAYER_CACHE_SLOTS} * ${_vivid_command_snapshot_spatial_index_slot_upper_bytes}")
         math(EXPR _vivid_command_snapshot_slot_upper_bytes
@@ -636,6 +645,7 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
         math(EXPR _vivid_command_replay_workspace_upper_bytes
             "64 * 64 * ${_vivid_screen_bytes_per_pixel}")
     else()
+        set(_vivid_command_snapshot_chunk_capacity 0)
         set(_vivid_command_snapshot_spatial_index_slot_upper_bytes 0)
         set(_vivid_command_snapshot_spatial_index_upper_bytes 0)
         set(_vivid_command_snapshot_upper_bytes 0)
@@ -736,6 +746,8 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
         "layer_cache_height=${VIVID_LAYER_CACHE_HEIGHT}\n"
         "pixel_snapshot_upper_bytes=${_vivid_pixel_snapshot_upper_bytes}\n"
         "command_snapshot_upper_bytes=${_vivid_command_snapshot_upper_bytes}\n"
+        "command_snapshot_chunk_commands=${_vivid_command_snapshot_chunk_commands}\n"
+        "command_snapshot_chunk_capacity=${_vivid_command_snapshot_chunk_capacity}\n"
         "command_snapshot_spatial_index_slot_upper_bytes=${_vivid_command_snapshot_spatial_index_slot_upper_bytes}\n"
         "command_snapshot_spatial_index_upper_bytes=${_vivid_command_snapshot_spatial_index_upper_bytes}\n"
         "snapshot_payload_metadata_upper_bytes=${_vivid_snapshot_payload_metadata_upper_bytes}\n"
@@ -895,6 +907,8 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
             "    \"global_upper_bytes\": ${_vivid_global_upper_bytes},\n"
             "    \"pixel_snapshot_upper_bytes\": ${_vivid_pixel_snapshot_upper_bytes},\n"
             "    \"command_snapshot_upper_bytes\": ${_vivid_command_snapshot_upper_bytes},\n"
+            "    \"command_snapshot_chunk_commands\": ${_vivid_command_snapshot_chunk_commands},\n"
+            "    \"command_snapshot_chunk_capacity\": ${_vivid_command_snapshot_chunk_capacity},\n"
             "    \"command_snapshot_spatial_index_slot_upper_bytes\": ${_vivid_command_snapshot_spatial_index_slot_upper_bytes},\n"
             "    \"command_snapshot_spatial_index_upper_bytes\": ${_vivid_command_snapshot_spatial_index_upper_bytes},\n"
             "    \"snapshot_storage_mode\": \"${CHARM_VIVID_SNAPSHOT_STORAGE_MODE}\",\n"

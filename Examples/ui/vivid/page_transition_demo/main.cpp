@@ -99,6 +99,7 @@ namespace {
         std::uint64_t total_command_reads{0};
         std::uint64_t peak_command_reads{0};
         std::uint64_t total_bounds_item_reads{0};
+        std::uint64_t total_execute_chunks_skipped{0};
 
         void observe(const ui::scene::LayerReplayResult& replay) noexcept {
             const auto& cost = replay.command_cost;
@@ -110,6 +111,7 @@ namespace {
             total_tiles_skipped += cost.tiles_skipped;
             total_command_reads += command_reads;
             total_bounds_item_reads += cost.bounds_item_reads;
+            total_execute_chunks_skipped += cost.execute_chunks_skipped;
             if (command_reads > peak_command_reads) {
                 peak_command_reads = command_reads;
             }
@@ -127,6 +129,37 @@ namespace {
                 builder.set_rect(probe, {34, 18, 12, 8});
                 builder.set_input_root(probe);
                 builder.set_root(probe);
+            });
+            canvas.clear(rgba{0, 0, 0, 255});
+        }
+    };
+
+    struct ClippedCommandScene {
+        TransitionFrameBuffer fb{};
+        TransitionCanvas canvas{fb};
+        ui::scene::Scene scene{canvas};
+
+        ClippedCommandScene() {
+            scene.build([&](ui::scene::SceneBuilder& builder) {
+                const auto root = builder.create_scroll_container();
+                builder.set_rect(root,
+                                 {0, 0, command_snapshot_width, command_snapshot_height});
+                constexpr Rect probe_rects[] = {
+                    {2, 2, 10, 8}, {20, 2, 10, 8}, {38, 2, 10, 8},
+                    {66, 2, 10, 8}, {84, 2, 10, 8}, {102, 2, 10, 8},
+                    {130, 2, 8, 8}, {140, 2, 8, 8}, {150, 2, 8, 8},
+                    {2, 66, 10, 8}, {20, 66, 10, 8}, {38, 66, 10, 8},
+                    {66, 66, 10, 8}, {84, 66, 10, 8}, {102, 66, 10, 8},
+                    {130, 66, 8, 8}, {140, 66, 8, 8}, {150, 66, 8, 8},
+                    {50, 50, 10, 8},
+                };
+                for (const auto& rect : probe_rects) {
+                    const auto probe = builder.create_button_static("C");
+                    builder.set_rect(probe, rect);
+                    builder.link(root, probe);
+                }
+                builder.set_input_root(root);
+                builder.set_root(root);
             });
             canvas.clear(rgba{0, 0, 0, 255});
         }
@@ -929,8 +962,9 @@ namespace {
         }
         if (!expect(dense_cost.total_command_reads() > sparse_cost.total_command_reads()
                         && dense_cost.execute_command_reads
-                            > sparse_cost.execute_command_reads,
-                    "dense command replay exposes the command visit multiplier")) {
+                            > sparse_cost.execute_command_reads
+                        && dense_cost.execute_chunks_skipped > 0,
+                    "dense command replay skips non-intersecting command chunks")) {
             return false;
         }
         if (!observe_command_replay_sample(dense_runner,
@@ -950,6 +984,7 @@ namespace {
                             > sparse_envelope.total_command_reads
                         && dense_envelope.peak_command_reads
                             > sparse_envelope.peak_command_reads
+                        && dense_envelope.total_execute_chunks_skipped > 0
                         && dense_envelope.total_tiles_considered
                             == dense_envelope.total_tiles_executed
                                 + dense_envelope.total_tiles_skipped,
@@ -1013,7 +1048,8 @@ namespace {
             if (!expect(fallback_replay.ok()
                             && fallback_cost.tiles_considered == 6
                             && fallback_cost.tiles_executed == 6
-                            && fallback_cost.tiles_skipped == 0,
+                            && fallback_cost.tiles_skipped == 0
+                            && fallback_cost.execute_chunks_skipped == 0,
                         "oversized command snapshot falls back to conservative hits")) {
                 return false;
             }
@@ -1022,23 +1058,103 @@ namespace {
                 return false;
             }
         }
+
+        ui::scene::CommandReplayCost clipped_cost{};
+        ui::scene::CommandReplayCost clipped_baseline_cost{};
+        std::uint32_t clipped_hash = 0;
+        std::uint32_t clipped_baseline_hash = 0;
+        {
+            ClippedCommandScene clipped_env{};
+            const ui::scene::SnapshotSpec clipped_snapshot_spec{
+                .bounds = {0, 0, command_snapshot_width, command_snapshot_height},
+                .preferred_kind = ui::scene::SnapshotKind::CommandBuffer,
+            };
+            const auto clipped_capture =
+                clipped_env.scene.capture_command_snapshot_result(clipped_snapshot_spec);
+            if (!expect(clipped_capture.ok(), "clipped command snapshot captures")) return false;
+            const auto clipped_plan = clipped_env.scene.make_snapshot_compose_plan({
+                .source = clipped_capture.handle,
+                .transform = {.opacity = 128},
+            });
+            clipped_env.canvas.clear(command_replay_background);
+            const auto clipped_replay = clipped_env.scene.replay_command_snapshot(clipped_plan);
+            clipped_cost = clipped_replay.command_cost;
+            clipped_hash = vivid::evidence::hash_bytes(
+                clipped_env.fb.data(), TransitionFrameBuffer::buffer_bytes);
+            if (!expect(clipped_replay.ok()
+                            && clipped_cost.tiles_considered == 6
+                            && clipped_cost.tiles_executed == 6
+                            && clipped_cost.execute_chunks_skipped > 0
+                            && clipped_replay.stats.clip_pushes == 6
+                            && clipped_replay.stats.clip_pops == 6
+                            && clipped_replay.stats.clip_invalid == 0
+                            && clipped_replay.stats.failed_cmds == 0,
+                        "command chunk skips preserve spanning clip state")) {
+                return false;
+            }
+            if (!expect(clipped_env.scene.release_snapshot(clipped_capture.handle),
+                        "clipped command snapshot releases")) {
+                return false;
+            }
+
+            const ui::scene::SnapshotSpec baseline_snapshot_spec{
+                .bounds = {0, 0, command_snapshot_width + 1, command_snapshot_height},
+                .preferred_kind = ui::scene::SnapshotKind::CommandBuffer,
+            };
+            const auto baseline_capture =
+                clipped_env.scene.capture_command_snapshot_result(baseline_snapshot_spec);
+            if (!expect(baseline_capture.ok(),
+                        "clipped conservative baseline captures")) {
+                return false;
+            }
+            const auto baseline_plan = clipped_env.scene.make_snapshot_compose_plan({
+                .source = baseline_capture.handle,
+                .transform = {.opacity = 128},
+            });
+            clipped_env.canvas.clear(command_replay_background);
+            const auto baseline_replay =
+                clipped_env.scene.replay_command_snapshot(baseline_plan);
+            clipped_baseline_cost = baseline_replay.command_cost;
+            clipped_baseline_hash = vivid::evidence::hash_bytes(
+                clipped_env.fb.data(), TransitionFrameBuffer::buffer_bytes);
+            if (!expect(baseline_replay.ok()
+                            && clipped_baseline_cost.tiles_considered == 6
+                            && clipped_baseline_cost.tiles_executed == 6
+                            && clipped_baseline_cost.execute_chunks_skipped == 0
+                            && baseline_replay.stats.clip_pushes == 6
+                            && baseline_replay.stats.clip_pops == 6
+                            && clipped_cost.execute_command_reads
+                                < clipped_baseline_cost.execute_command_reads
+                            && clipped_hash == clipped_baseline_hash,
+                        "indexed command replay beats equivalent conservative baseline")) {
+                return false;
+            }
+            if (!expect(clipped_env.scene.release_snapshot(baseline_capture.handle),
+                        "clipped conservative baseline releases")) {
+                return false;
+            }
+        }
         std::printf(
             "[pt] evidence=command_replay_cost sparse_tiles=%u/%u/%u "
-            "sparse_reads=%llu/%llu dense_tiles=%u/%u/%u dense_reads=%llu/%llu "
+            "sparse_reads=%llu/%llu sparse_chunk_skips=%llu "
+            "dense_tiles=%u/%u/%u dense_reads=%llu/%llu dense_chunk_skips=%llu "
             "shifted_tiles=%u/%u/%u shifted_bounds_reads=%llu "
-            "fallback_tiles=%u/%u/%u "
-            "samples=%u sparse_envelope=%llu/%llu/%llu/%llu/%llu/%llu "
-            "dense_envelope=%llu/%llu/%llu/%llu/%llu/%llu result=ok\n",
+            "fallback_tiles=%u/%u/%u fallback_chunk_skips=%llu "
+            "clipped_tiles=%u/%u/%u clipped_reads=%llu/%llu clipped_chunk_skips=%llu "
+            "samples=%u sparse_envelope=%llu/%llu/%llu/%llu/%llu/%llu/%llu "
+            "dense_envelope=%llu/%llu/%llu/%llu/%llu/%llu/%llu result=ok\n",
             sparse_cost.tiles_considered,
             sparse_cost.tiles_executed,
             sparse_cost.tiles_skipped,
             static_cast<unsigned long long>(sparse_cost.bounds_command_reads),
             static_cast<unsigned long long>(sparse_cost.execute_command_reads),
+            static_cast<unsigned long long>(sparse_cost.execute_chunks_skipped),
             dense_cost.tiles_considered,
             dense_cost.tiles_executed,
             dense_cost.tiles_skipped,
             static_cast<unsigned long long>(dense_cost.bounds_command_reads),
             static_cast<unsigned long long>(dense_cost.execute_command_reads),
+            static_cast<unsigned long long>(dense_cost.execute_chunks_skipped),
             shifted_cost.tiles_considered,
             shifted_cost.tiles_executed,
             shifted_cost.tiles_skipped,
@@ -1046,6 +1162,13 @@ namespace {
             fallback_cost.tiles_considered,
             fallback_cost.tiles_executed,
             fallback_cost.tiles_skipped,
+            static_cast<unsigned long long>(fallback_cost.execute_chunks_skipped),
+            clipped_cost.tiles_considered,
+            clipped_cost.tiles_executed,
+            clipped_cost.tiles_skipped,
+            static_cast<unsigned long long>(clipped_cost.execute_command_reads),
+            static_cast<unsigned long long>(clipped_baseline_cost.execute_command_reads),
+            static_cast<unsigned long long>(clipped_cost.execute_chunks_skipped),
             sparse_envelope.sample_count,
             static_cast<unsigned long long>(sparse_envelope.total_tiles_considered),
             static_cast<unsigned long long>(sparse_envelope.total_tiles_executed),
@@ -1053,12 +1176,14 @@ namespace {
             static_cast<unsigned long long>(sparse_envelope.total_command_reads),
             static_cast<unsigned long long>(sparse_envelope.peak_command_reads),
             static_cast<unsigned long long>(sparse_envelope.total_bounds_item_reads),
+            static_cast<unsigned long long>(sparse_envelope.total_execute_chunks_skipped),
             static_cast<unsigned long long>(dense_envelope.total_tiles_considered),
             static_cast<unsigned long long>(dense_envelope.total_tiles_executed),
             static_cast<unsigned long long>(dense_envelope.total_tiles_skipped),
             static_cast<unsigned long long>(dense_envelope.total_command_reads),
             static_cast<unsigned long long>(dense_envelope.peak_command_reads),
-            static_cast<unsigned long long>(dense_envelope.total_bounds_item_reads));
+            static_cast<unsigned long long>(dense_envelope.total_bounds_item_reads),
+            static_cast<unsigned long long>(dense_envelope.total_execute_chunks_skipped));
         print_transition_summary("command_opacity", begin, runner.trace(), ledger, env, &frame);
         return true;
     }

@@ -190,7 +190,20 @@ function Assert-Admission {
         $columns = [Math]::Ceiling([int64]$Values.layer_cache_width / 64.0)
         $rows = [Math]::Ceiling([int64]$Values.layer_cache_height / 64.0)
         $words = [Math]::Ceiling(($columns * $rows) / 64.0)
-        [int64]$words * 8 + 24
+        $chunkCommands = 8
+        $chunkCapacity = [Math]::Ceiling(
+            [int64]$Values.draw_cmd_max_commands / [double]$chunkCommands)
+        $chunkStateWords = [Math]::Ceiling($chunkCapacity / 64.0)
+        $rawBytes = [int64]$words * 8 + 16 `
+            + ($chunkCapacity + 1) * 4 `
+            + $chunkCapacity * 16 `
+            + $chunkStateWords * 8 + 4 + 1
+        [int64]([Math]::Ceiling($rawBytes / 8.0) * 8)
+    } else {
+        0
+    }
+    $expectedCommandChunkCapacity = if ($commandEnabled -and $layerCacheSlots -gt 0) {
+        [int64][Math]::Ceiling([int64]$Values.draw_cmd_max_commands / 8.0)
     } else {
         0
     }
@@ -207,6 +220,8 @@ function Assert-Admission {
     $expectedSnapshotPayloadBytes = $expectedSnapshotPayloadDataBytes `
         + $expectedSnapshotPayloadMetadataBytes
     if ([int64]$Values.command_buffer_upper_bytes -ne $expectedBufferBytes -or
+        [int64]$Values.command_snapshot_chunk_commands -ne 8 -or
+        [int64]$Values.command_snapshot_chunk_capacity -ne $expectedCommandChunkCapacity -or
         [int64]$Values.command_snapshot_spatial_index_slot_upper_bytes -ne $expectedCommandIndexSlotBytes -or
         [int64]$Values.command_snapshot_spatial_index_upper_bytes -ne $expectedCommandIndexBytes -or
         [int64]$Values.command_snapshot_upper_bytes -ne $expectedCommandSnapshotBytes -or
@@ -298,7 +313,16 @@ function Assert-ProductEvidence {
         [int64]$envelopeEvidence.layer_cache.height / 64.0)
     $commandIndexWords = [Math]::Ceiling(
         ($commandIndexColumns * $commandIndexRows) / 64.0)
-    $expectedCommandIndexSlotBytes = [int64]$commandIndexWords * 8 + 24
+    $commandChunkCommands = 8
+    $commandChunkCapacity = [Math]::Ceiling(
+        [int64]$profileEvidence.workset.draw_cmd_max_commands / [double]$commandChunkCommands)
+    $commandChunkStateWords = [Math]::Ceiling($commandChunkCapacity / 64.0)
+    $commandIndexRawBytes = [int64]$commandIndexWords * 8 + 16 `
+        + ($commandChunkCapacity + 1) * 4 `
+        + $commandChunkCapacity * 16 `
+        + $commandChunkStateWords * 8 + 4 + 1
+    $expectedCommandIndexSlotBytes =
+        [int64]([Math]::Ceiling($commandIndexRawBytes / 8.0) * 8)
     $expectedCommandIndexBytes = $layerCacheSlots * $expectedCommandIndexSlotBytes
     $expectedCommandSnapshotBytes =
         $layerCacheSlots * ($expectedBufferBytes + $expectedCommandIndexSlotBytes)
@@ -309,6 +333,10 @@ function Assert-ProductEvidence {
     $expectedSnapshotPayloadBytes = $expectedSnapshotPayloadDataBytes `
         + $expectedSnapshotPayloadMetadataBytes
     if ([int64]$admissionEvidence.static_memory.command_buffer_upper_bytes -ne $expectedBufferBytes -or
+        [int64]$admissionEvidence.static_memory.command_snapshot_chunk_commands -ne
+            $commandChunkCommands -or
+        [int64]$admissionEvidence.static_memory.command_snapshot_chunk_capacity -ne
+            $commandChunkCapacity -or
         [int64]$admissionEvidence.static_memory.command_snapshot_spatial_index_slot_upper_bytes -ne
             $expectedCommandIndexSlotBytes -or
         [int64]$admissionEvidence.static_memory.command_snapshot_spatial_index_upper_bytes -ne

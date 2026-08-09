@@ -51,10 +51,12 @@ freeze 不隐含 hide，调用方必须明确是否隐藏 live root。失败的 
 Canvas 既有 origin，执行后恢复；target clip 先逆变换到 source 坐标，命令流内的嵌套 clip 只能继续收窄。
 中间 opacity 通过固定 tile workspace 保持整层混合语义，不能改成逐命令乘 alpha。
 
-capture 按 snapshot bounds 构建 fixed occupancy，半透明 replay 不再为每个 tile 重扫 command bounds。
-occupancy 容量随 target envelope 进入静态内存 admission；bounds 超出 envelope 或索引构建失败时保守执行全部
-候选 tile，不能漏绘。该能力不改变快照槽仍按 profile mode 定额的事实：`COMMAND` 只支付 command slot，
-`HYBRID` 才按 pixel/command 较大者支付。
+capture 按 snapshot bounds 构建 fixed occupancy，并按每 8 条命令记录 byte offset、union bounds 与 clip-state
+标记。半透明 replay 不再为每个 tile 重扫 command bounds，并可跳过确认不命中的无状态 chunk；包含
+`PushClip` / `PopClip` 的 chunk 始终保序执行。occupancy 与 chunk index 容量分别随 target envelope 和
+DrawCmd command cap 进入静态内存 admission；bounds 超出 envelope 或索引构建失败时完整回放全部候选 tile
+与 command，skip evidence 必须为零。该能力不改变快照槽仍按 profile mode 定额的事实：`COMMAND` 只支付
+command slot，`HYBRID` 才按 pixel/command 较大者支付。
 
 ### PixelSurface Snapshot
 
@@ -131,6 +133,8 @@ Layer evidence 至少覆盖：
 - capture 成功与容量耗尽；
 - stale/generation/payload 拒绝；
 - compose/replay 的 clip、offset、opacity 和 unsupported 分支；
+- indexed replay 与同场景 conservative replay 的 framebuffer hash 一致，clip push/pop 数量与顺序不变；
+- command chunk skip、实际 command reads 与索引失效时的零 skip 回退；
 - commit、cancel、interrupt 后 snapshot 全部释放；
 - pre-capture rejection 没有发生隐藏分配；
 - budget 请求、effective 结果和 fallback reason。

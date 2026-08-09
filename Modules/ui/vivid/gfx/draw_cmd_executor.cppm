@@ -96,6 +96,14 @@ export namespace ui::draw_cmd {
             auto read_cmd_at_offset = [&](std::size_t at, DrawCmd& out, std::size_t& stride) noexcept -> bool {
                 return buf.read_cmd_at_offset(at, out, stride);
             };
+            auto has_readable_command = [&](std::size_t& at) noexcept {
+                if (at >= cmd_bytes) return false;
+                if constexpr (requires { buf.next_command_offset(at); }) {
+                    const auto next = static_cast<std::size_t>(buf.next_command_offset(at));
+                    if (next >= at && next <= cmd_bytes) at = next;
+                }
+                return at < cmd_bytes;
+            };
             auto fail_text = [&]() noexcept {
                 stats.failed_cmds++;
                 stats.fail_text++;
@@ -1043,7 +1051,7 @@ export namespace ui::draw_cmd {
                     && a.ellipsis == b.ellipsis;
             };
 
-            while (offset < cmd_bytes) {
+            while (has_readable_command(offset)) {
                 DrawCmd cmd{};
                 std::size_t stride = 0;
                 if (!read_cmd_at_offset(offset, cmd, stride)) {
@@ -1063,7 +1071,7 @@ export namespace ui::draw_cmd {
                                 exec_rectlike_item(cur, cur.rect);
                                 count_cmd(kind);
                                 std::size_t scan_offset = offset + cur_stride;
-                                while (scan_offset < cmd_bytes) {
+                                while (has_readable_command(scan_offset)) {
                                     DrawCmd next{};
                                     std::size_t next_stride = 0;
                                     if (!read_cmd_at_offset(scan_offset, next, next_stride)) {
@@ -1084,7 +1092,7 @@ export namespace ui::draw_cmd {
                                 count_cmd(kind);
                                 offset += cur_stride;
                             }
-                            if (offset >= cmd_bytes) break;
+                            if (!has_readable_command(offset)) break;
                             if (!read_cmd_at_offset(offset, cmd, stride)) {
                                 fail_other();
                                 offset = cmd_bytes;
@@ -1103,7 +1111,7 @@ export namespace ui::draw_cmd {
                                 exec_imagelike_item(cur, cur.rect);
                                 count_cmd(kind);
                                 std::size_t scan_offset = offset + cur_stride;
-                                while (scan_offset < cmd_bytes) {
+                                while (has_readable_command(scan_offset)) {
                                     DrawCmd next{};
                                     std::size_t next_stride = 0;
                                     if (!read_cmd_at_offset(scan_offset, next, next_stride)) {
@@ -1124,7 +1132,7 @@ export namespace ui::draw_cmd {
                                 count_cmd(kind);
                                 offset += cur_stride;
                             }
-                            if (offset >= cmd_bytes) break;
+                            if (!has_readable_command(offset)) break;
                             if (!read_cmd_at_offset(offset, cmd, stride)) {
                                 fail_other();
                                 offset = cmd_bytes;
@@ -1151,7 +1159,7 @@ export namespace ui::draw_cmd {
                                     exec_group_cmd(cur, kind);
                                     count_cmd(kind);
                                     std::size_t scan_offset = offset + cur_stride;
-                                    while (scan_offset < cmd_bytes) {
+                                    while (has_readable_command(scan_offset)) {
                                         DrawCmd next{};
                                         std::size_t next_stride = 0;
                                         if (!read_cmd_at_offset(scan_offset, next, next_stride)) {
@@ -1174,7 +1182,7 @@ export namespace ui::draw_cmd {
                                 count_cmd(kind);
                                 offset += cur_stride;
                             }
-                            if (offset >= cmd_bytes) break;
+                            if (!has_readable_command(offset)) break;
                             if (!read_cmd_at_offset(offset, cmd, stride)) {
                                 fail_other();
                                 offset = cmd_bytes;
@@ -1197,7 +1205,7 @@ export namespace ui::draw_cmd {
                                 exec_draw_line(cur);
                                 count_cmd(kind);
                                 std::size_t scan_offset = offset + cur_stride;
-                                while (scan_offset < cmd_bytes) {
+                                while (has_readable_command(scan_offset)) {
                                     DrawCmd next{};
                                     std::size_t next_stride = 0;
                                     if (!read_cmd_at_offset(scan_offset, next, next_stride)) {
@@ -1218,7 +1226,7 @@ export namespace ui::draw_cmd {
                                 count_cmd(kind);
                                 offset += cur_stride;
                             }
-                            if (offset >= cmd_bytes) break;
+                            if (!has_readable_command(offset)) break;
                             if (!read_cmd_at_offset(offset, cmd, stride)) {
                                 fail_other();
                                 offset = cmd_bytes;
@@ -1241,7 +1249,7 @@ export namespace ui::draw_cmd {
                                 exec_draw_path(cur);
                                 count_cmd(kind);
                                 std::size_t scan_offset = offset + cur_stride;
-                                while (scan_offset < cmd_bytes) {
+                                while (has_readable_command(scan_offset)) {
                                     DrawCmd next{};
                                     std::size_t next_stride = 0;
                                     if (!read_cmd_at_offset(scan_offset, next, next_stride)) {
@@ -1262,7 +1270,7 @@ export namespace ui::draw_cmd {
                                 count_cmd(kind);
                                 offset += cur_stride;
                             }
-                            if (offset >= cmd_bytes) break;
+                            if (!has_readable_command(offset)) break;
                             if (!read_cmd_at_offset(offset, cmd, stride)) {
                                 fail_other();
                                 offset = cmd_bytes;
@@ -1276,7 +1284,7 @@ export namespace ui::draw_cmd {
                     exec_group_cmd(cmd, kind);
                     count_cmd(kind);
                     offset += stride;
-                    while (offset < cmd_bytes) {
+                    while (has_readable_command(offset)) {
                         DrawCmd cur{};
                         std::size_t cur_stride = 0;
                         if (!read_cmd_at_offset(offset, cur, cur_stride)) {

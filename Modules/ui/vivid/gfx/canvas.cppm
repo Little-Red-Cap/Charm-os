@@ -43,6 +43,11 @@ export inline std::uint64_t alpha_blend_count() noexcept { return g_alpha_blend_
 export
 class CanvasBase {
 public:
+    struct OriginState {
+        int x{0};
+        int y{0};
+    };
+
     struct ClipState {
         bool enabled{false};
         Rect rect{};
@@ -59,6 +64,8 @@ public:
         void (*clear)(void*, const rgba&) noexcept;
         void (*set_origin)(void*, int, int) noexcept;
         void (*clear_origin)(void*) noexcept;
+        OriginState (*save_origin)(const void*) noexcept;
+        void (*restore_origin)(void*, const OriginState&) noexcept;
         void (*set_clip)(void*, const Rect&) noexcept;
         void (*clear_clip)(void*) noexcept;
         ClipState (*save_clip)(const void*) noexcept;
@@ -87,6 +94,8 @@ public:
     void clear(const rgba& c = {0,0,0,0}) noexcept { ops_->clear(self_, c); }
     void set_origin(int ox, int oy) noexcept { ops_->set_origin(self_, ox, oy); }
     void clear_origin() noexcept { ops_->clear_origin(self_); }
+    OriginState save_origin() const noexcept { return ops_->save_origin(self_); }
+    void restore_origin(const OriginState& state) noexcept { ops_->restore_origin(self_, state); }
     void set_clip(const Rect& r) noexcept { ops_->set_clip(self_, r); }
     void clear_clip() noexcept { ops_->clear_clip(self_); }
     ClipState save_clip() const noexcept { return ops_->save_clip(self_); }
@@ -117,6 +126,8 @@ private:
             +[](void*, const rgba&) noexcept {},
             +[](void*, int, int) noexcept {},
             +[](void*) noexcept {},
+            +[](const void*) noexcept { return OriginState{}; },
+            +[](void*, const OriginState&) noexcept {},
             +[](void*, const Rect&) noexcept {},
             +[](void*) noexcept {},
             +[](const void*) noexcept { return ClipState{}; },
@@ -169,6 +180,12 @@ public:
     void clear_origin() noexcept {
         origin_x_ = 0;
         origin_y_ = 0;
+    }
+
+    OriginState save_origin() const noexcept { return {origin_x_, origin_y_}; }
+    void restore_origin(const OriginState& state) noexcept {
+        origin_x_ = state.x;
+        origin_y_ = state.y;
     }
 
     void set_clip(const Rect& r) noexcept {
@@ -312,6 +329,8 @@ private:
             +[](void* self, const rgba& c) noexcept { static_cast<Canvas*>(self)->clear(c); },
             +[](void* self, int ox, int oy) noexcept { static_cast<Canvas*>(self)->set_origin(ox, oy); },
             +[](void* self) noexcept { static_cast<Canvas*>(self)->clear_origin(); },
+            +[](const void* self) noexcept { return static_cast<const Canvas*>(self)->save_origin(); },
+            +[](void* self, const OriginState& state) noexcept { static_cast<Canvas*>(self)->restore_origin(state); },
             +[](void* self, const Rect& r) noexcept { static_cast<Canvas*>(self)->set_clip(r); },
             +[](void* self) noexcept { static_cast<Canvas*>(self)->clear_clip(); },
             +[](const void* self) noexcept { return static_cast<const Canvas*>(self)->save_clip(); },
@@ -397,6 +416,12 @@ public:
     void clear_origin() noexcept {
         origin_x_ = 0;
         origin_y_ = 0;
+    }
+
+    OriginState save_origin() const noexcept { return {origin_x_, origin_y_}; }
+    void restore_origin(const OriginState& state) noexcept {
+        origin_x_ = state.x;
+        origin_y_ = state.y;
     }
 
     void set_clip(const Rect& r) noexcept {
@@ -543,6 +568,8 @@ private:
             +[](void* self, const rgba& c) noexcept { static_cast<RuntimeCanvas*>(self)->clear(c); },
             +[](void* self, int ox, int oy) noexcept { static_cast<RuntimeCanvas*>(self)->set_origin(ox, oy); },
             +[](void* self) noexcept { static_cast<RuntimeCanvas*>(self)->clear_origin(); },
+            +[](const void* self) noexcept { return static_cast<const RuntimeCanvas*>(self)->save_origin(); },
+            +[](void* self, const OriginState& state) noexcept { static_cast<RuntimeCanvas*>(self)->restore_origin(state); },
             +[](void* self, const Rect& r) noexcept { static_cast<RuntimeCanvas*>(self)->set_clip(r); },
             +[](void* self) noexcept { static_cast<RuntimeCanvas*>(self)->clear_clip(); },
             +[](const void* self) noexcept { return static_cast<const RuntimeCanvas*>(self)->save_clip(); },

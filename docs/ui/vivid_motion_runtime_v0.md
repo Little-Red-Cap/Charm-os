@@ -74,9 +74,10 @@ compose bridge 只在以下条件满足时生成请求：
 - admission 与 budget 允许本次工作量。
 
 dry-run 只能证明计划和预算可形成，不证明 Scene 已执行。真实 execute 必须返回 replay/compose 状态和
-工作量证据；失败不能提交 page truth。当前 pixel compose 支持平移与 opacity，command replay 只支持
-identity transform；后者收到平移或非 255 opacity 时必须返回 `UnsupportedTransform`，不能静默按原坐标、
-原透明度执行。
+工作量证据；失败不能提交 page truth。当前 pixel compose 支持平移与 opacity，command replay 支持
+identity 与整数平移，但不支持整体 opacity；后者收到非 255 opacity 时必须返回 `UnsupportedTransform`，
+不能静默按原透明度执行。`PageTransitionRunner` 尚不消费 command compose，这项能力只属于 compose bridge，
+相关 page admission 仍正规化为 `StaticCut`。
 
 ## Page Transition 事务
 

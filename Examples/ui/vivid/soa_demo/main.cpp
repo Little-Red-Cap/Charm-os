@@ -4459,6 +4459,7 @@ int main(int argc, char** argv) {
     bool compare_ok = true;
     bool compact_ok = true;
     bool executor_stream_ok = true;
+    bool executor_clip_ok = true;
     bool cmd_schema_ok = true;
     bool snapshot_payload_ok = true;
     std::size_t compact_saved = 0;
@@ -4523,6 +4524,57 @@ int main(int argc, char** argv) {
                 && stream_stats.group_line == 1
                 && stream_stats.cmd_rect == kStreamRunLength
                 && stream_stats.cmd_line == kStreamRunLength;
+        }
+        {
+            constexpr rgba kClipProbeColor{11, 222, 33, 255};
+            constexpr rgba kClipProbeBackground{1, 2, 3, 255};
+            ui::draw_cmd::DrawCmdBuffer<4, 1, 1> clip_probe{};
+            const bool recorded = clip_probe.push_clip({0, 0, 12, 12})
+                && clip_probe.fill_rect({0, 0, 12, 12}, kClipProbeColor)
+                && clip_probe.pop_clip();
+            fb.clear(kClipProbeBackground);
+            canvas.set_clip({1, 1, 2, 2});
+            const auto base_clip = canvas.save_clip();
+            const Rect replay_clip{4, 4, 2, 2};
+            const auto clip_stats = exec.execute(canvas, clip_probe, &replay_clip);
+            const auto restored_clip = canvas.save_clip();
+            canvas.clear_clip();
+            const auto inside = canvas.get_pixel(4, 4);
+            const auto outside_left = canvas.get_pixel(3, 4);
+            const auto outside_right = canvas.get_pixel(6, 4);
+
+            ui::draw_cmd::DrawCmdBuffer<2, 1, 1> unclosed_probe{};
+            const bool unclosed_recorded = unclosed_probe.push_clip({2, 2, 3, 3});
+            canvas.restore_clip(base_clip);
+            const auto unclosed_stats = exec.execute(canvas, unclosed_probe);
+            const auto clip_after_unclosed = canvas.save_clip();
+            canvas.clear_clip();
+
+            executor_clip_ok = recorded
+                && clip_stats.failed_cmds == 0
+                && inside.r == kClipProbeColor.r
+                && inside.g == kClipProbeColor.g
+                && inside.b == kClipProbeColor.b
+                && outside_left.r == kClipProbeBackground.r
+                && outside_left.g == kClipProbeBackground.g
+                && outside_left.b == kClipProbeBackground.b
+                && outside_right.r == kClipProbeBackground.r
+                && outside_right.g == kClipProbeBackground.g
+                && outside_right.b == kClipProbeBackground.b
+                && restored_clip.enabled == base_clip.enabled
+                && restored_clip.rect.x == base_clip.rect.x
+                && restored_clip.rect.y == base_clip.rect.y
+                && restored_clip.rect.w == base_clip.rect.w
+                && restored_clip.rect.h == base_clip.rect.h
+                && unclosed_recorded
+                && unclosed_stats.failed_cmds == 1
+                && unclosed_stats.fail_clip == 1
+                && unclosed_stats.clip_invalid == 1
+                && clip_after_unclosed.enabled == base_clip.enabled
+                && clip_after_unclosed.rect.x == base_clip.rect.x
+                && clip_after_unclosed.rect.y == base_clip.rect.y
+                && clip_after_unclosed.rect.w == base_clip.rect.w
+                && clip_after_unclosed.rect.h == base_clip.rect.h;
         }
         {
             constexpr std::size_t kCanonicalStride =
@@ -4740,6 +4792,9 @@ int main(int argc, char** argv) {
         if (run_ci && !executor_stream_ok) {
             ci_mark_fail("executor_stream");
         }
+        if (run_ci && !executor_clip_ok) {
+            ci_mark_fail("executor_clip");
+        }
         if (run_ci && !cmd_schema_ok) {
             ci_mark_fail("cmd_schema");
         }
@@ -4933,6 +4988,7 @@ int main(int argc, char** argv) {
         const bool ok = ci_ok
               && compare_ok
               && executor_stream_ok
+              && executor_clip_ok
               && cmd_schema_ok
               && snapshot_payload_ok
               && dump_ok
@@ -4983,7 +5039,7 @@ int main(int argc, char** argv) {
             static_cast<unsigned long long>(text_profile.glyphs),
             static_cast<unsigned long long>(text_profile.pixels));
 
-        (void)out::println<"[soa-ci] ok={} hash=0x{:08X} replay_full=0x{:08X} replay_tile=0x{:08X} failed_cmds={} overflows(p/t/b)={}/{}/{} workspace_overflow={} traversal_conflict={} traversal_workspace_ok={} rect_truth_ok={} style_patch_overflow={} style_patch_live={} style_patch_peak={} style_patch_cap={} style_patch_fail={} style_patch_pool_ok={} semantic_overflow={} semantic_live={} semantic_peak={} semantic_cap={} semantic_fail={} semantic_pool_ok={} alloc_fail={} peak_ok={} table_tree_ok={} ui_ok={} executor_stream_ok={} cmd_schema_ok={} snapshot_payload_ok={} compact_saved={} batch_shrink={} batch_shrink_line={} batch_shrink_path={} batch_shrink_rect={} batch_shrink_round={} batch_shrink_image={} batch_shrink_focus={} cmd_raw={} cmd_count={} cmd_saved={} cmd_saved_pct={} cmd_budget={} dispatch_groups={} batch_flushes={} groups(rect/text/img/line/path/other)={}/{}/{}/{}/{}/{} cmds(rect/text/img/line/path/other)={}/{}/{}/{}/{}/{} fail(text/img/blob/path/clip/other)={}/{}/{}/{}/{}/{} clip(push_over/pop_under/invalid)={}/{}/{} tile_flushes={} tile_hit_pct={} tile_dispatch_groups={} tile_batch_flushes={} tile_failed_cmds={} img_new_total={} img_new_after_lock={} img_new_record={} img_new_compact={} img_new_execute={} img_bytes={} img_reuse={} img_growth={} img_overflow={} img_dedup_ok={} img_after_lock_reason={} img_after_lock_tag={} reason={}">(
+        (void)out::println<"[soa-ci] ok={} hash=0x{:08X} replay_full=0x{:08X} replay_tile=0x{:08X} failed_cmds={} overflows(p/t/b)={}/{}/{} workspace_overflow={} traversal_conflict={} traversal_workspace_ok={} rect_truth_ok={} style_patch_overflow={} style_patch_live={} style_patch_peak={} style_patch_cap={} style_patch_fail={} style_patch_pool_ok={} semantic_overflow={} semantic_live={} semantic_peak={} semantic_cap={} semantic_fail={} semantic_pool_ok={} alloc_fail={} peak_ok={} table_tree_ok={} ui_ok={} executor_stream_ok={} executor_clip_ok={} cmd_schema_ok={} snapshot_payload_ok={} compact_saved={} batch_shrink={} batch_shrink_line={} batch_shrink_path={} batch_shrink_rect={} batch_shrink_round={} batch_shrink_image={} batch_shrink_focus={} cmd_raw={} cmd_count={} cmd_saved={} cmd_saved_pct={} cmd_budget={} dispatch_groups={} batch_flushes={} groups(rect/text/img/line/path/other)={}/{}/{}/{}/{}/{} cmds(rect/text/img/line/path/other)={}/{}/{}/{}/{}/{} fail(text/img/blob/path/clip/other)={}/{}/{}/{}/{}/{} clip(push_over/pop_under/invalid)={}/{}/{} tile_flushes={} tile_hit_pct={} tile_dispatch_groups={} tile_batch_flushes={} tile_failed_cmds={} img_new_total={} img_new_after_lock={} img_new_record={} img_new_compact={} img_new_execute={} img_bytes={} img_reuse={} img_growth={} img_overflow={} img_dedup_ok={} img_after_lock_reason={} img_after_lock_tag={} reason={}">(
             g_console,
             ok ? 1u : 0u,
             static_cast<unsigned>(compare_hash_full),
@@ -5014,6 +5070,7 @@ int main(int argc, char** argv) {
             table_tree_ok ? 1u : 0u,
             ui_ok ? 1u : 0u,
             executor_stream_ok ? 1u : 0u,
+            executor_clip_ok ? 1u : 0u,
             cmd_schema_ok ? 1u : 0u,
             snapshot_payload_ok ? 1u : 0u,
             static_cast<unsigned>(compact_saved),

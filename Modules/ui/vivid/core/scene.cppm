@@ -417,7 +417,7 @@ export namespace ui::scene {
                 out.status = LayerReplayStatus::UnsupportedKind;
                 return out;
             }
-            if (plan.transform.x != 0 || plan.transform.y != 0 || plan.transform.opacity != 255) {
+            if (plan.transform.opacity != 255) {
                 out.status = LayerReplayStatus::UnsupportedTransform;
                 return out;
             }
@@ -437,9 +437,13 @@ export namespace ui::scene {
                 return out;
             }
             reset_alpha_blend_count();
+            const auto origin = canvas_.save_origin();
+            canvas_.set_origin(origin.x + static_cast<int>(plan.transform.x),
+                               origin.y + static_cast<int>(plan.transform.y));
             out.stats = detail::to_scene_stats(cmd_exec_.execute(canvas_,
                                                                  *payload,
-                                                                 &plan.target_bounds));
+                                                                 &plan.source_visible));
+            canvas_.restore_origin(origin);
             out.stats.alpha_blend_count = alpha_blend_count();
             out.status = out.stats.failed_cmds == 0
                 ? LayerReplayStatus::Ok

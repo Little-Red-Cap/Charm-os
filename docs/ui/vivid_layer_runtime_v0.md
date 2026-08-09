@@ -47,8 +47,10 @@ freeze 不隐含 hide，调用方必须明确是否隐藏 live root。失败的 
 命令快照冻结 record 结果，replay 时仍依赖 scene 的执行环境、资源和 epoch。相关 layout/style/theme 或
 资源语义失效后必须拒绝 stale replay，不能把“命令仍可解析”当作“页面仍正确”。
 
-它占用较少 payload，但每次显示仍需执行命令。当前 replay 只支持 identity transform，并允许 target bounds
-作为 clip；任何平移或非 255 opacity 都必须在命令执行前返回 `UnsupportedTransform`，不能产生部分像素写入。
+它占用较少 payload，但每次显示仍需执行命令。当前 replay 支持 identity 与整数平移：平移叠加到 Canvas
+既有 origin，执行后恢复；target clip 先逆变换到 source 坐标，命令流内的嵌套 clip 只能继续收窄。非 255
+opacity 必须在命令执行前返回 `UnsupportedTransform`，不能产生部分像素写入。该能力不改变快照槽仍按
+pixel/command 较大者定额的事实，也不单独构成 RAM 收益。
 
 ### PixelSurface Snapshot
 

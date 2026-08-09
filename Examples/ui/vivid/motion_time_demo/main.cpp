@@ -421,27 +421,63 @@ int main() {
     }
 
     canvas.clear(rgba{0, 0, 0, 255});
+    canvas.set_origin(-2, -1);
+    const auto command_origin_before = canvas.save_origin();
     const auto command_translated = ui::scene::execute_motion_compose(scene, {
         .source = command_capture.handle,
         .frame = {
             .state = ui::scene::MotionTransitionState::Running,
             .motion = {
-                .transform = {.x = 4},
+                .transform = {.x = 4, .y = 3},
                 .compose = true,
             },
         },
     });
-    if (!expect(!command_translated.valid &&
-                    command_translated.replay.status == ui::scene::LayerReplayStatus::UnsupportedTransform,
-                "translated command snapshot replay is rejected")) {
+    const auto command_origin_after = canvas.save_origin();
+    if (!expect(command_translated.valid &&
+                    command_translated.replay.status == ui::scene::LayerReplayStatus::Ok,
+                "translated command snapshot replay succeeds")) {
         return 1;
     }
     const auto command_original_after_translate = canvas.get_pixel(4, 4);
-    const auto command_target_after_translate = canvas.get_pixel(8, 4);
+    const auto command_target_after_translate = canvas.get_pixel(8, 7);
     if (!expect(command_original_after_translate.r == 0 && command_original_after_translate.g == 0 &&
-                    command_original_after_translate.b == 0 && command_target_after_translate.r == 0 &&
-                    command_target_after_translate.g == 0 && command_target_after_translate.b == 0,
-                "rejected translated command replay does not write pixels")) {
+                    command_original_after_translate.b == 0 && command_target_after_translate.r == 30 &&
+                    command_target_after_translate.g == 140 && command_target_after_translate.b == 230,
+                "translated command snapshot replay moves expected pixels")) {
+        return 1;
+    }
+    if (!expect(command_origin_after.x == command_origin_before.x &&
+                    command_origin_after.y == command_origin_before.y,
+                "translated command snapshot replay restores canvas origin")) {
+        return 1;
+    }
+    canvas.clear_origin();
+
+    canvas.clear(rgba{0, 0, 0, 255});
+    const auto command_clipped = ui::scene::execute_motion_compose(scene, {
+        .source = command_capture.handle,
+        .frame = {
+            .state = ui::scene::MotionTransitionState::Running,
+            .motion = {
+                .transform = {.x = 4, .y = 3},
+                .compose = true,
+            },
+        },
+        .clip = {.x = 9, .y = 8, .w = 1, .h = 1},
+        .has_clip = true,
+    });
+    if (!expect(command_clipped.valid &&
+                    command_clipped.replay.status == ui::scene::LayerReplayStatus::Ok,
+                "translated command snapshot replay accepts target clip")) {
+        return 1;
+    }
+    const auto command_clipped_outside = canvas.get_pixel(8, 7);
+    const auto command_clipped_inside = canvas.get_pixel(9, 8);
+    if (!expect(command_clipped_outside.r == 0 && command_clipped_outside.g == 0 &&
+                    command_clipped_outside.b == 0 && command_clipped_inside.r == 30 &&
+                    command_clipped_inside.g == 140 && command_clipped_inside.b == 230,
+                "translated command snapshot replay clips in source coordinates")) {
         return 1;
     }
 
@@ -571,7 +607,7 @@ int main() {
                 static_cast<unsigned>(dry_run.plan.composite_pixels),
                 static_cast<unsigned>(dry_run.budget.ok));
     print_motion_case("execute");
-    std::printf(" pixels=%u status=%u moved_r=%u moved_g=%u moved_b=%u command_identity=%u command_translate=%u command_fade=%u\n",
+    std::printf(" pixels=%u status=%u moved_r=%u moved_g=%u moved_b=%u command_identity=%u command_translate=%u command_clip=%u command_fade=%u origin_restored=%u\n",
                 static_cast<unsigned>(executed.plan.composite_pixels),
                 static_cast<unsigned>(executed.replay.status),
                 static_cast<unsigned>(moved_pixel.r),
@@ -579,7 +615,10 @@ int main() {
                 static_cast<unsigned>(moved_pixel.b),
                 static_cast<unsigned>(command_identity.replay.status),
                 static_cast<unsigned>(command_translated.replay.status),
-                static_cast<unsigned>(command_faded.replay.status));
+                static_cast<unsigned>(command_clipped.replay.status),
+                static_cast<unsigned>(command_faded.replay.status),
+                static_cast<unsigned>(command_origin_after.x == command_origin_before.x &&
+                                      command_origin_after.y == command_origin_before.y));
     print_motion_case("page");
     std::printf(" pixels=%u moved_g=%u trace=%u\n",
                 static_cast<unsigned>(page_frame.compose.plan.composite_pixels),

@@ -954,8 +954,18 @@ export namespace ui::draw_cmd {
                         return;
                     }
                     if (sp < clip_stack.size()) {
-                        clip_stack[sp++] = canvas.save_clip();
-                        canvas.set_clip(cur.rect);
+                        const auto parent = canvas.save_clip();
+                        clip_stack[sp++] = parent;
+                        if (!parent.enabled) {
+                            canvas.set_clip(cur.rect);
+                        } else {
+                            Rect intersection{};
+                            if (rect_intersect(parent.rect, cur.rect, intersection)) {
+                                canvas.set_clip(intersection);
+                            } else {
+                                canvas.restore_clip({true, {}});
+                            }
+                        }
                         stats.clip_pushes++;
                     } else {
                         stats.clip_push_overflow++;
@@ -1292,9 +1302,12 @@ export namespace ui::draw_cmd {
                 offset += stride;
             }
 
-            if (initial_clip) {
-                canvas.restore_clip(base_clip);
+            if (sp != 0) {
+                stats.clip_invalid += sp;
+                stats.failed_cmds += sp;
+                stats.fail_clip += sp;
             }
+            canvas.restore_clip(base_clip);
             return stats;
         }
 

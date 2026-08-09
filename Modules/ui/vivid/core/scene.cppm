@@ -324,10 +324,15 @@ export namespace ui::scene {
             return validate_snapshot(handle);
         }
         bool update_command_snapshot(SnapshotHandle handle) noexcept {
-            return snapshot_store_.update_command_snapshot(
-                handle,
-                static_cast<std::uint32_t>(last_cmd_stats_.cmd_count),
-                static_cast<std::uint32_t>(last_cmd_stats_.cmd_bytes));
+            if constexpr (!snapshot_command_enabled) {
+                (void)handle;
+                return false;
+            } else {
+                return snapshot_store_.update_command_snapshot(
+                    handle,
+                    static_cast<std::uint32_t>(last_cmd_stats_.cmd_count),
+                    static_cast<std::uint32_t>(last_cmd_stats_.cmd_bytes));
+            }
         }
         LayerCaptureResult capture_command_snapshot_result(const SnapshotSpec& spec) noexcept {
             LayerCaptureResult result{};
@@ -398,7 +403,14 @@ export namespace ui::scene {
         bool update_pixel_snapshot(SnapshotHandle handle,
                                    PixelFormat format,
                                    std::uint32_t bytes) noexcept {
-            return snapshot_store_.update_pixel_snapshot(handle, format, bytes);
+            if constexpr (!snapshot_pixel_enabled) {
+                (void)handle;
+                (void)format;
+                (void)bytes;
+                return false;
+            } else {
+                return snapshot_store_.update_pixel_snapshot(handle, format, bytes);
+            }
         }
         LayerComposeResult compose_snapshot_dry_run(const LayerComposeSpec& spec) noexcept {
             if (!validate_snapshot_for_compose(spec.source)) {

@@ -4682,6 +4682,20 @@ int main(int argc, char** argv) {
                           && NoSnapshotStore::pixel_capacity_bytes == 0
                           && NoSnapshotStore::slot_bytes == 0);
 
+            const auto forced_admission = ::ui::scene::decide_layer_admission({
+                .profile = ::ui::scene::LayerProfile::Rich,
+                .pixel_snapshot_bytes = 1,
+                .cache_slots = 2,
+                .command_snapshot_enabled = true,
+                .pixel_snapshot_enabled = true,
+            });
+            const auto expected_admission = snapshot_pixel_enabled
+                ? ::ui::scene::LayerAdmission::PixelDouble
+                : (snapshot_command_enabled
+                    ? ::ui::scene::LayerAdmission::CommandSnapshot
+                    : ::ui::scene::LayerAdmission::StaticCut);
+            const bool admission_capability_ok = forced_admission == expected_admission;
+
             static ::ui::scene::DefaultSnapshotPayloadStore payload_store{};
             payload_store.clear();
             ui::draw_cmd::DefaultDrawCmdBuffer source{};
@@ -4728,7 +4742,9 @@ int main(int argc, char** argv) {
                     && payload_store.pixel_height(0) == 0
                     && payload_store.pixel_row(0, 0) == nullptr;
             }
-            snapshot_payload_ok = command_behavior_ok && pixel_behavior_ok;
+            snapshot_payload_ok = command_behavior_ok
+                && pixel_behavior_ok
+                && admission_capability_ok;
         }
         const auto cmp_stats = compare_buf.stats();
         compare_cmd_count = cmp_stats.cmd_count;

@@ -365,11 +365,15 @@ export namespace ui::scene {
     constexpr LayerAdmission decide_layer_admission(
         const LayerAdmissionSpec& spec) noexcept {
         const auto caps = layer_profile_caps(spec.profile);
+        const bool command_available =
+            snapshot_command_enabled && spec.command_snapshot_enabled;
+        const bool pixel_available =
+            snapshot_pixel_enabled && spec.pixel_snapshot_enabled;
         if (spec.profile == LayerProfile::None) return LayerAdmission::Reject;
         if (spec.profile == LayerProfile::Static) return LayerAdmission::StaticCut;
         if (spec.profile == LayerProfile::Eink) {
             return caps.allow_command_snapshot
-                    && spec.command_snapshot_enabled
+                    && command_available
                     && spec.cache_slots > 0
                 ? LayerAdmission::CommandSnapshot
                 : LayerAdmission::StaticCut;
@@ -381,7 +385,7 @@ export namespace ui::scene {
             || requested_pixel_bytes <= spec.budget.max_layer_bytes;
         const bool has_slots = spec.cache_slots >= (spec.need_double_snapshot ? 2u : 1u);
         if (caps.allow_pixel_surface
-            && spec.pixel_snapshot_enabled
+            && pixel_available
             && has_budget
             && has_slots) {
             return spec.need_double_snapshot
@@ -389,14 +393,14 @@ export namespace ui::scene {
                 : LayerAdmission::PixelSingle;
         }
         if (caps.allow_pixel_surface &&
-            spec.pixel_snapshot_enabled &&
+            pixel_available &&
             spec.cache_slots >= 1u &&
             (spec.budget.max_layer_bytes == 0 ||
              spec.pixel_snapshot_bytes <= spec.budget.max_layer_bytes)) {
             return LayerAdmission::PixelSingle;
         }
         if (caps.allow_command_snapshot
-            && spec.command_snapshot_enabled
+            && command_available
             && spec.cache_slots > 0) {
             return LayerAdmission::CommandSnapshot;
         }
@@ -416,13 +420,17 @@ export namespace ui::scene {
         .cache_slots = 2,
         .command_snapshot_enabled = true,
         .pixel_snapshot_enabled = false,
-    }) == LayerAdmission::CommandSnapshot);
+    }) == (snapshot_command_enabled
+               ? LayerAdmission::CommandSnapshot
+               : LayerAdmission::StaticCut));
     static_assert(decide_layer_admission({
         .profile = LayerProfile::Rich,
         .cache_slots = 2,
         .command_snapshot_enabled = false,
         .pixel_snapshot_enabled = true,
-    }) == LayerAdmission::PixelDouble);
+    }) == (snapshot_pixel_enabled
+               ? LayerAdmission::PixelDouble
+               : LayerAdmission::StaticCut));
     static_assert(decide_layer_admission({
         .profile = LayerProfile::Rich,
         .cache_slots = 2,

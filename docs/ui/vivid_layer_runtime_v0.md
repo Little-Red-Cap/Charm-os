@@ -51,8 +51,9 @@ freeze 不隐含 hide，调用方必须明确是否隐藏 live root。失败的 
 Canvas 既有 origin，执行后恢复；target clip 先逆变换到 source 坐标，命令流内的嵌套 clip 只能继续收窄。
 中间 opacity 通过固定 tile workspace 保持整层混合语义，不能改成逐命令乘 alpha。
 
-capture 按 snapshot bounds 构建 fixed occupancy，并按每 8 条命令记录 byte offset、union bounds 与 clip-state
-标记。半透明 replay 不再为每个 tile 重扫 command bounds，并可跳过确认不命中的无状态 chunk；包含
+capture 用一次 command stream 解码同时验证编码结构、按 snapshot bounds 构建 fixed occupancy，并按每 8 条
+命令记录 byte offset、union bounds 与 clip-state 标记。半透明 replay 不再为每个 tile 重扫 command bounds，
+并可跳过确认不命中的无状态 chunk；包含
 `PushClip` / `PopClip` 的 chunk 始终保序执行。occupancy 与 chunk index 容量分别随 target envelope 和
 DrawCmd command cap 进入静态内存 admission；bounds 超出 envelope 或索引构建失败时完整回放全部候选 tile
 与 command，skip evidence 必须为零。该能力不改变快照槽仍按 profile mode 定额的事实：`COMMAND` 只支付

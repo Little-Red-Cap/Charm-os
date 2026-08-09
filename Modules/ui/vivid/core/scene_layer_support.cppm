@@ -161,6 +161,11 @@ export namespace ui::scene {
             bool valid{false};
         };
 
+        struct SourceScanResult {
+            bool stream_valid{false};
+            bool index_valid{false};
+        };
+
     public:
         using SourceBuffer = ui::draw_cmd::DefaultDrawCmdBuffer;
         static constexpr std::size_t chunk_command_capacity =
@@ -193,16 +198,8 @@ export namespace ui::scene {
                 || source.blob_used() > SourceBuffer::kBlobCapacity) {
                 return false;
             }
-            std::size_t validated_count = 0;
-            std::size_t offset = 0;
-            while (offset < source.cmd_bytes()) {
-                ui::draw_cmd::DrawCmd decoded{};
-                std::size_t stride = 0;
-                if (!source.read_cmd_at_offset(offset, decoded, stride)) return false;
-                offset += stride;
-                ++validated_count;
-            }
-            if (validated_count != source.size()) return false;
+            const auto scan = scan_source_and_build_spatial_index(source, bounds);
+            if (!scan.stream_valid) return false;
             if (source.cmd_bytes() > 0) {
                 std::memcpy(cmd_bytes_.data(), source.cmd_data(), source.cmd_bytes());
             }
@@ -216,7 +213,7 @@ export namespace ui::scene {
             cmd_bytes_used_ = source.cmd_bytes();
             text_used_ = source.text_used();
             blob_used_ = source.blob_used();
-            hit_index_.valid = build_spatial_index(bounds);
+            hit_index_.valid = scan.index_valid;
             return true;
         }
 
@@ -358,69 +355,90 @@ export namespace ui::scene {
                 |= std::uint64_t{1} << (chunk % 64u);
         }
 
-        [[nodiscard]] bool build_spatial_index(Rect bounds) noexcept {
-            if (!rect_valid(bounds)
-                || bounds.w > layer_cache_width
-                || bounds.h > layer_cache_height
-                || detail::command_hit_index_word_count == 0
-                || chunk_capacity == 0) {
-                return false;
-            }
-            hit_index_.bounds = bounds;
+        [[nodiscard]] SourceScanResult scan_source_and_build_spatial_index(
+            const SourceBuffer& source,
+            Rect bounds) noexcept {
+            SourceScanResult result{};
+            bool index_valid = rect_valid(bounds)
+                && bounds.w <= layer_cache_width
+                && bounds.h <= layer_cache_height
+                && detail::command_hit_index_word_count != 0
+                && chunk_capacity != 0;
+            if (index_valid) hit_index_.bounds = bounds;
+
             ui::draw_cmd::DrawCmd cmd{};
             std::size_t offset = 0;
             std::size_t command_index = 0;
-            while (offset < cmd_bytes_used_) {
-                const auto chunk =
-                    command_index / detail::command_snapshot_chunk_commands;
-                if (chunk >= chunk_capacity) return false;
-                if ((command_index % detail::command_snapshot_chunk_commands) == 0) {
-                    hit_index_.chunk_offsets[chunk] = static_cast<std::uint32_t>(offset);
-                    hit_index_.chunk_bounds[chunk] = {};
-                }
+            while (offset < source.cmd_bytes()) {
+                if (command_index >= source.size()) return result;
                 std::size_t stride = 0;
-                if (!read_cmd_at_offset(offset, cmd, stride)) return false;
-                if (cmd.type == ui::draw_cmd::CmdType::PushClip
-                    || cmd.type == ui::draw_cmd::CmdType::PopClip) {
-                    mark_stateful_chunk(chunk);
-                } else if (cmd.type == ui::draw_cmd::CmdType::DrawLineBatch) {
-                    const int count = cmd.p0;
-                    if (count <= 0) return false;
-                    const auto bytes = blob_at(cmd.blob);
-                    if (bytes.size()
-                        < static_cast<std::size_t>(count)
-                            * sizeof(ui::draw_cmd::LineBatchItem)) {
-                        return false;
-                    }
-                    const auto items = std::span<const ui::draw_cmd::LineBatchItem>(
-                        reinterpret_cast<const ui::draw_cmd::LineBatchItem*>(bytes.data()),
-                        count);
-                    for (const auto& item : items) {
-                        const auto item_bounds = ui::draw_cmd::line_bounds(
-                            item.x0, item.y0, item.x1, item.y1);
-                        mark_hit_bounds(item_bounds);
-                        include_chunk_bounds(chunk, item_bounds);
-                    }
-                } else {
-                    const Rect draw_bounds = ui::draw_cmd::draw_cmd_bounds(cmd);
-                    if (rect_valid(draw_bounds)) {
-                        mark_hit_bounds(draw_bounds);
-                        include_chunk_bounds(chunk, draw_bounds);
+                if (!source.read_cmd_at_offset(offset, cmd, stride)) return result;
+
+                if (index_valid) {
+                    const auto chunk =
+                        command_index / detail::command_snapshot_chunk_commands;
+                    if (chunk >= chunk_capacity) {
+                        index_valid = false;
+                    } else {
+                        if ((command_index % detail::command_snapshot_chunk_commands) == 0) {
+                            hit_index_.chunk_offsets[chunk]
+                                = static_cast<std::uint32_t>(offset);
+                            hit_index_.chunk_bounds[chunk] = {};
+                        }
+                        if (cmd.type == ui::draw_cmd::CmdType::PushClip
+                            || cmd.type == ui::draw_cmd::CmdType::PopClip) {
+                            mark_stateful_chunk(chunk);
+                        } else if (cmd.type == ui::draw_cmd::CmdType::DrawLineBatch) {
+                            const int count = cmd.p0;
+                            const auto bytes = source.blob_at(cmd.blob);
+                            if (count <= 0
+                                || bytes.size()
+                                    < static_cast<std::size_t>(count)
+                                        * sizeof(ui::draw_cmd::LineBatchItem)) {
+                                index_valid = false;
+                            } else {
+                                const auto items =
+                                    std::span<const ui::draw_cmd::LineBatchItem>(
+                                        reinterpret_cast<const ui::draw_cmd::LineBatchItem*>(
+                                            bytes.data()),
+                                        count);
+                                for (const auto& item : items) {
+                                    const auto item_bounds = ui::draw_cmd::line_bounds(
+                                        item.x0, item.y0, item.x1, item.y1);
+                                    mark_hit_bounds(item_bounds);
+                                    include_chunk_bounds(chunk, item_bounds);
+                                }
+                            }
+                        } else {
+                            const Rect draw_bounds = ui::draw_cmd::draw_cmd_bounds(cmd);
+                            if (rect_valid(draw_bounds)) {
+                                mark_hit_bounds(draw_bounds);
+                                include_chunk_bounds(chunk, draw_bounds);
+                            }
+                        }
+                        if (index_valid
+                            && ((command_index + 1)
+                                    % detail::command_snapshot_chunk_commands == 0
+                                || offset + stride == source.cmd_bytes())) {
+                            hit_index_.chunk_offsets[chunk + 1]
+                                = static_cast<std::uint32_t>(offset + stride);
+                        }
                     }
                 }
+
                 offset += stride;
                 ++command_index;
-                if ((command_index % detail::command_snapshot_chunk_commands) == 0
-                    || offset == cmd_bytes_used_) {
-                    hit_index_.chunk_offsets[chunk + 1]
-                        = static_cast<std::uint32_t>(offset);
-                }
             }
-            if (command_index != count_) return false;
-            hit_index_.chunk_count = static_cast<std::uint32_t>(
-                (command_index + detail::command_snapshot_chunk_commands - 1)
-                / detail::command_snapshot_chunk_commands);
-            return true;
+            if (command_index != source.size()) return result;
+
+            result.stream_valid = true;
+            result.index_valid = index_valid;
+            if (index_valid) {
+                hit_index_.chunk_count = static_cast<std::uint32_t>(
+                    (command_index + detail::command_snapshot_chunk_commands - 1)
+                    / detail::command_snapshot_chunk_commands);
+            }
+            return result;
         }
 
         alignas(ui::draw_cmd::kCmdAlign)

@@ -62,7 +62,8 @@ widget/scene state
   target clip 逆变换到 source 坐标，命令内嵌 clip 只能继续收窄。中间 opacity 使用每 Scene 固定 64x64 tile
   workspace：先把目标背景复制到 tile、完整执行 source command，再把结果与原背景整体混合，禁止逐命令乘 alpha
   破坏重叠语义；该 workspace 只随 command snapshot 编译，并显式进入静态内存 admission。
-  capture 同时按 snapshot bounds 单遍构建 fixed occupancy，并按每 8 条命令构建固定容量 chunk index；
+  capture 对 command stream 的一次解码扫描同时完成结构验证、按 snapshot bounds 构建 fixed occupancy，
+  并按每 8 条命令构建固定容量 chunk index；
   replay 先跳过空白 tile，再跳过 bounds 明确不命中的无状态 chunk。含 `PushClip` / `PopClip` 的 chunk
   必须保序执行，不能跨块推断或折叠 clip 状态。index storage 按 target envelope 与 DrawCmd command cap
   定额并进入 snapshot payload admission；bounds 超出 envelope 或索引构建失败时必须完整回放全部候选 tile

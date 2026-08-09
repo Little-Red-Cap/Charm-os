@@ -335,31 +335,7 @@ export namespace ui::scene {
             }
         }
         LayerCaptureResult capture_command_snapshot_result(const SnapshotSpec& spec) noexcept {
-            LayerCaptureResult result{};
-            if constexpr (!snapshot_command_enabled) {
-                result.status = LayerCaptureStatus::UnsupportedKind;
-                return result;
-            }
-            SnapshotSpec command_spec = spec;
-            command_spec.preferred_kind = SnapshotKind::CommandBuffer;
-            const auto handle = reserve_snapshot(command_spec);
-            if (!handle) return result;
-            result.handle = handle;
-            record_current_scene();
-            if (!update_command_snapshot(handle)) {
-                (void)release_snapshot(handle);
-                result.handle = {};
-                result.status = LayerCaptureStatus::RecordFailed;
-                return result;
-            }
-            if (!store_command_snapshot_payload(handle)) {
-                (void)release_snapshot(handle);
-                result.handle = {};
-                result.status = LayerCaptureStatus::StoreFailed;
-                return result;
-            }
-            result.status = LayerCaptureStatus::Ok;
-            return result;
+            return capture_command_snapshot_result_for_root(spec, {});
         }
         SnapshotHandle capture_command_snapshot(const SnapshotSpec& spec) noexcept {
             return capture_command_snapshot_result(spec).handle;
@@ -560,10 +536,43 @@ export namespace ui::scene {
         }
 
     private:
-        void record_current_scene() noexcept {
+        friend class PageLayer;
+
+        LayerCaptureResult capture_command_snapshot_result_for_root(
+            const SnapshotSpec& spec,
+            WidgetHandle record_root) noexcept {
+            LayerCaptureResult result{};
+            if constexpr (!snapshot_command_enabled) {
+                result.status = LayerCaptureStatus::UnsupportedKind;
+                return result;
+            }
+            SnapshotSpec command_spec = spec;
+            command_spec.preferred_kind = SnapshotKind::CommandBuffer;
+            const auto handle = reserve_snapshot(command_spec);
+            if (!handle) return result;
+            result.handle = handle;
+            record_current_scene(record_root);
+            if (!update_command_snapshot(handle)) {
+                (void)release_snapshot(handle);
+                result.handle = {};
+                result.status = LayerCaptureStatus::RecordFailed;
+                return result;
+            }
+            if (!store_command_snapshot_payload(handle)) {
+                (void)release_snapshot(handle);
+                result.handle = {};
+                result.status = LayerCaptureStatus::StoreFailed;
+                return result;
+            }
+            result.status = LayerCaptureStatus::Ok;
+            return result;
+        }
+
+        void record_current_scene(WidgetHandle record_root = {}) noexcept {
             cmd_buf_.clear();
-            last_cmd_stats_ = detail::to_scene_stats(gui_.record_commands(cmd_buf_));
-            if (overlay_fn_) {
+            last_cmd_stats_ = detail::to_scene_stats(
+                gui_.record_commands(cmd_buf_, record_root));
+            if (!record_root && overlay_fn_) {
                 SceneOverlay overlay{cmd_buf_};
                 overlay_fn_(overlay, overlay_ctx_);
             }
@@ -665,7 +674,7 @@ export namespace ui::scene {
             release_snapshot(scene);
             LayerCaptureResult result = (spec.preferred_kind == SnapshotKind::PixelSurface)
                 ? scene.capture_pixel_snapshot_result(spec)
-                : scene.capture_command_snapshot_result(spec);
+                : scene.capture_command_snapshot_result_for_root(spec, root_);
             if (result.ok() && result.handle) {
                 snapshot_ = result.handle;
                 state_ = LayerState::Frozen;

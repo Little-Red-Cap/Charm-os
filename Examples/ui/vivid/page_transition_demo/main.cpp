@@ -17,6 +17,7 @@ namespace {
         WidgetHandle source_root{};
         WidgetHandle destination_root{};
         WidgetHandle source_probe{};
+        WidgetHandle persistent_probe{};
         ui::scene::PageLayer source{};
         ui::scene::PageLayer destination{};
 
@@ -26,12 +27,15 @@ namespace {
                 source_root = builder.create_container();
                 destination_root = builder.create_container();
                 source_probe = builder.create_button_static("Source");
+                persistent_probe = builder.create_button_static("Persistent");
                 builder.set_rect(root, {0, 0, 32, 32});
-                builder.set_rect(source_root, {0, 0, 32, 32});
+                builder.set_rect(source_root, {0, 0, 16, 16});
                 builder.set_rect(destination_root, {0, 0, 32, 32});
                 builder.set_rect(source_probe, {2, 2, 12, 8});
+                builder.set_rect(persistent_probe, {20, 20, 10, 8});
                 builder.link(root, source_root);
                 builder.link(root, destination_root);
+                builder.link(root, persistent_probe);
                 builder.link(source_root, source_probe);
                 builder.set_input_root(root);
                 builder.set_root(root);
@@ -568,6 +572,10 @@ namespace {
                     && frame.source.replay.ok()
                     && frame.source.replay.stats.cmd_count > 0,
                     "command transition executes recorded commands")) {
+            return false;
+        }
+        if (!expect(same_rgba(env.canvas.get_pixel(27, 22), rgba{0, 0, 0, 255}),
+                    "command transition excludes visible sibling roots")) {
             return false;
         }
         if (!expect(frame.source.plan.transform.x == 5

@@ -57,6 +57,7 @@ widget/scene state
 - command/text/blob/workspace 容量固定，耗尽必须产生显式 sticky evidence，不静默截断；
 - FullFrame 与 Tile/PFB 消费同一 record 语义；不同 backend 结果需要一致性证据；
 - command snapshot 只复制已使用的 command/text/blob payload，不复制 live buffer 元数据或临时 workspace；
+  `PageLayer` capture 必须从自身 root 录制子树，不能把同一 Scene 中矩形相交的兄弟 layer 混入 payload；
 - command snapshot replay 支持 identity 与整数平移；平移叠加到 Canvas 既有 origin，执行后必须恢复，target
   clip 逆变换到 source 坐标，命令内嵌 clip 只能继续收窄。非 255 opacity 仍必须在执行命令前返回
   `UnsupportedTransform`。`PageTransitionRunner` 只在 recipe 全程保持 255 opacity 时采用单 source command

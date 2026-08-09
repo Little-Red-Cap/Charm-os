@@ -77,7 +77,9 @@ public:
     WidgetHandle root() const noexcept;
 
     void render();
-    ui::draw_cmd::DrawCmdStats record_commands(ui::draw_cmd::DefaultDrawCmdBuffer& out);
+    ui::draw_cmd::DrawCmdStats record_commands(
+        ui::draw_cmd::DefaultDrawCmdBuffer& out,
+        WidgetHandle record_root = {});
     template <ui::RenderBackend Backend>
     ui::draw_cmd::DrawCmdTileStats render_tiles(Backend& backend,
                                                 const FrameBufferView& tile_buffer,
@@ -104,7 +106,8 @@ private:
 
     void refresh_styles();
     ResolvedStyleView resolve_style(WidgetKind kind, const StyleState& state) const noexcept;
-    void record_tree(ui::draw_cmd::DefaultDrawCmdBuffer& out);
+    void record_tree(ui::draw_cmd::DefaultDrawCmdBuffer& out,
+                     WidgetHandle record_root = {});
     void record_node(WidgetHandle h, const Rect& world_rect, ui::draw_cmd::DefaultDrawCmdBuffer& out);
 };
 
@@ -161,13 +164,15 @@ WidgetHandle SoaGui::root() const noexcept {
         canvas_.end_frame();
     }
 
-    ui::draw_cmd::DrawCmdStats SoaGui::record_commands(ui::draw_cmd::DefaultDrawCmdBuffer& out) {
+    ui::draw_cmd::DrawCmdStats SoaGui::record_commands(
+        ui::draw_cmd::DefaultDrawCmdBuffer& out,
+        WidgetHandle record_root) {
         refresh_styles();
         layout_.run_if_needed(root_);
         out.clear();
         ui::draw_cmd::ImageRegistryLockGuard guard{};
         ui::draw_cmd::ImageRegistryPhaseGuard phase_record{ui::draw_cmd::ImageRegisterReason::FrameRecord};
-        record_tree(out);
+        record_tree(out, record_root);
         ui::draw_cmd::ImageRegistryPhaseGuard phase_compact{ui::draw_cmd::ImageRegisterReason::FrameCompact};
         (void)out.compact(compaction_workspace_);
         last_cmd_stats_ = out.stats();
@@ -225,16 +230,22 @@ ResolvedStyleView SoaGui::resolve_style(WidgetKind kind, const StyleState& state
     return StyleSheet::instance().lookup(kind, state);
 }
 
-void SoaGui::record_tree(ui::draw_cmd::DefaultDrawCmdBuffer& out) {
-    if (!root_) return;
+void SoaGui::record_tree(ui::draw_cmd::DefaultDrawCmdBuffer& out,
+                         WidgetHandle record_root) {
+    const WidgetHandle traversal_root = record_root ? record_root : root_;
+    if (!traversal_root || !kernel_.valid(traversal_root)) return;
+    const Rect local_root = kernel_.rect(traversal_root);
+    const Rect world_root = kernel_.world_rect(traversal_root);
     const auto workspace = kernel_.acquire_traversal(SoaKernel::TraversalPhase::Render);
     if (!workspace) return;
     auto& stack = workspace.stack();
     std::size_t sp = 0;
     const auto base_clip = canvas_.save_clip();
     stack[sp++] = SoaKernel::TraversalFrame{
-        .h = root_,
+        .h = traversal_root,
         .clip_rect = base_clip.rect,
+        .offset_x = world_root.x - local_root.x,
+        .offset_y = world_root.y - local_root.y,
 #if CHARM_VIVID_DRAW_DETAIL_EVIDENCE
         .draw_scope_id = ui::draw_cmd::kDrawScopeDefault,
 #endif

@@ -59,6 +59,9 @@ path。requested profile 也不是执行保证。
 决定。Cheap 可以量化时间/opacity；Static 可以裁为 cut；None 可以拒绝；unsupported 形态必须显式
 fallback 或 reject，不能静默启动另一套页面动画。
 
+当 target 配置 `layer_cache_slots=0` 时，所有需要 snapshot 的 admission 都必须降级为 `StaticCut` 或
+`Reject`，不能返回随后必然以 `NoSnapshotSlot` 失败的 command/pixel snapshot 形态。
+
 新增 recipe 前应先证明现有 recipe 无法表达真实 consumer，并补齐各 profile 的成功、降级和拒绝语义。
 
 ## Compose Boundary

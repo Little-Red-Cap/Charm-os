@@ -125,8 +125,6 @@ function Assert-Admission {
     }
     foreach ($field in @(
         "command_buffer_upper_bytes",
-        "pixel_snapshot_upper_bytes",
-        "command_snapshot_upper_bytes",
         "snapshot_payload_metadata_upper_bytes",
         "snapshot_payload_upper_bytes",
         "draw_cmd_compaction_workspace_upper_bytes",
@@ -137,6 +135,19 @@ function Assert-Admission {
         if ([int64]$Values[$field] -le 0) {
             throw "Static memory manifest field must be positive: $field=$($Values[$field])"
         }
+    }
+    $layerCacheSlots = [int64]$Values.layer_cache_slots
+    if ($layerCacheSlots -lt 0) {
+        throw "Layer cache slot count must be non-negative"
+    }
+    if ($layerCacheSlots -eq 0) {
+        if ([int64]$Values.pixel_snapshot_upper_bytes -ne 0 -or
+            [int64]$Values.command_snapshot_upper_bytes -ne 0) {
+            throw "Zero-slot profile retained snapshot payload capacity"
+        }
+    } elseif ([int64]$Values.pixel_snapshot_upper_bytes -le 0 -or
+              [int64]$Values.command_snapshot_upper_bytes -le 0) {
+        throw "Non-zero snapshot slots must retain both capacity projections"
     }
     if ($Values.draw_cmd_max_commands -ne "1024" -or
         $Values.draw_cmd_text_bytes -ne "4096" -or
@@ -447,7 +458,27 @@ try {
 
     Invoke-VividConfigure -SourceDir $SoaSourceDir -FeatureSet "FULL" -ExtraArgs $FullArgs | Out-Null
     $fullManifest = Join-Path (Get-GeneratedDir -Profile "full") "static_memory_admission.txt"
-    Assert-Admission -Values (Read-KeyValueManifest -Path $fullManifest) -FeatureSet "FULL" -Profile "full" -Status "profile_only" -MinimumHeadroom 0
+    $fullValues = Read-KeyValueManifest -Path $fullManifest
+    Assert-Admission -Values $fullValues -FeatureSet "FULL" -Profile "full" -Status "profile_only" -MinimumHeadroom 0
+
+    $zeroSnapshotArgs = @($FullArgs | ForEach-Object {
+        if ($_ -like "-DCHARM_VIVID_LAYER_CACHE_SLOTS=*") {
+            "-DCHARM_VIVID_LAYER_CACHE_SLOTS=0"
+        } else {
+            $_
+        }
+    })
+    Invoke-VividConfigure -SourceDir $SoaSourceDir -FeatureSet "FULL" -ExtraArgs $zeroSnapshotArgs | Out-Null
+    $zeroSnapshotValues = Read-KeyValueManifest -Path $fullManifest
+    Assert-Admission -Values $zeroSnapshotValues -FeatureSet "FULL" -Profile "full" -Status "profile_only" -MinimumHeadroom 0
+    $releasedSnapshotBytes = [int64]$fullValues.snapshot_payload_upper_bytes - 64
+    $releasedUpperBytes = [int64]$fullValues.upper_bound_bytes `
+        - [int64]$zeroSnapshotValues.upper_bound_bytes
+    if ([int64]$zeroSnapshotValues.snapshot_payload_upper_bytes -ne 64 -or
+        $releasedUpperBytes -ne $releasedSnapshotBytes) {
+        throw "Zero-slot profile did not remove snapshot payload bytes from the upper bound"
+    }
+    Write-Host "[vivid-static-memory] zero_snapshot_slots=ok released_upper_bytes=$releasedUpperBytes"
 
     $fullDrawDetailArgs = $FullArgs + @("-DCHARM_VIVID_DRAW_DETAIL_EVIDENCE=ON")
     Invoke-VividConfigure -SourceDir $SoaSourceDir -FeatureSet "FULL" -ExtraArgs $fullDrawDetailArgs | Out-Null

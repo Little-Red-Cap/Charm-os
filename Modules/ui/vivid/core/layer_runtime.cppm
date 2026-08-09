@@ -364,7 +364,7 @@ export namespace ui::scene {
         if (spec.profile == LayerProfile::None) return LayerAdmission::Reject;
         if (spec.profile == LayerProfile::Static) return LayerAdmission::StaticCut;
         if (spec.profile == LayerProfile::Eink) {
-            return caps.allow_command_snapshot
+            return caps.allow_command_snapshot && spec.cache_slots > 0
                 ? LayerAdmission::CommandSnapshot
                 : LayerAdmission::StaticCut;
         }
@@ -385,9 +385,20 @@ export namespace ui::scene {
              spec.pixel_snapshot_bytes <= spec.budget.max_layer_bytes)) {
             return LayerAdmission::PixelSingle;
         }
-        if (caps.allow_command_snapshot) return LayerAdmission::CommandSnapshot;
+        if (caps.allow_command_snapshot && spec.cache_slots > 0) {
+            return LayerAdmission::CommandSnapshot;
+        }
         return LayerAdmission::StaticCut;
     }
+
+    static_assert(decide_layer_admission({
+        .profile = LayerProfile::Rich,
+        .cache_slots = 0,
+    }) == LayerAdmission::StaticCut);
+    static_assert(decide_layer_admission({
+        .profile = LayerProfile::Eink,
+        .cache_slots = 0,
+    }) == LayerAdmission::StaticCut);
 
     struct SnapshotRecord {
         SnapshotKind kind{SnapshotKind::EmptyFallback};

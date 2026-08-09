@@ -123,7 +123,8 @@ export namespace charm::vivid::config {
 
     static_assert(kScreen.width > 0);
     static_assert(kScreen.height > 0);
-    static_assert(kScreen.layer_cache_slots > 0);
+    static_assert(kScreen.layer_cache_slots >= 0);
+    static_assert(kScreen.layer_cache_slots <= 65535);
     static_assert(kScreen.layer_cache_width > 0);
     static_assert(kScreen.layer_cache_height > 0);
     static_assert(kSoa.max_nodes > 0);

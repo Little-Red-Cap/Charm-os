@@ -184,6 +184,29 @@ vivid_configure_product_target(
 _vivid_target_get(h747_lab_player_md3 PROFILE_FINGERPRINT _h747_profile_fingerprint)
 _vivid_target_get(h747_lab_player_md3 TARGET_FINGERPRINT _h747_target_fingerprint)
 
+vivid_configure_product_target(
+    TARGET h747_lab_player_md3_static_cut
+    PROFILE player_md3
+    SCREEN_WIDTH 720
+    SCREEN_HEIGHT 1280
+    PIXEL_FORMAT RGB888
+    LAYER_CACHE_SLOTS 0
+    LAYER_CACHE_WIDTH 720
+    LAYER_CACHE_HEIGHT 1280
+    RUNTIME_SCENE_INSTANCES 1
+    STATIC_MEMORY_BUDGET_BYTES 5242880
+    STATIC_MEMORY_MIN_HEADROOM_BYTES 524288
+    MAX_HOT_STACK_FRAME_BYTES 4096)
+_vivid_target_get(h747_lab_player_md3_static_cut LAYER_CACHE_SLOTS _static_cut_slots)
+_vivid_target_get(
+    h747_lab_player_md3_static_cut TARGET_FINGERPRINT _static_cut_target_fingerprint)
+if(NOT _static_cut_slots EQUAL 0)
+    message(FATAL_ERROR "Zero-slot target envelope was not preserved")
+endif()
+if(_static_cut_target_fingerprint STREQUAL _h747_target_fingerprint)
+    message(FATAL_ERROR "Snapshot slot count must affect the target fingerprint")
+endif()
+
 vivid_define_product_profile(
     NAME player_md3_equivalent
     EXTENDS player_md3
@@ -680,6 +703,15 @@ vivid_configure_product_target(
     RUNTIME_SCENE_INSTANCES 1 STATIC_MEMORY_BUDGET_BYTES 65536
     STATIC_MEMORY_MIN_HEADROOM_BYTES 4096 MAX_HOT_STACK_FRAME_BYTES 1024)
 '@) -ExpectSuccess $false -ExpectedPattern "already configured with a different envelope"
+
+    Invoke-CMakeCase -Name "layer-cache-slots-over-handle-range" -Body ($MinimalProfiles + "`n" + @'
+vivid_configure_product_target(
+    TARGET Charm-ui PROFILE first
+    SCREEN_WIDTH 32 SCREEN_HEIGHT 32 PIXEL_FORMAT RGB565
+    LAYER_CACHE_SLOTS 65536 LAYER_CACHE_WIDTH 32 LAYER_CACHE_HEIGHT 32
+    RUNTIME_SCENE_INSTANCES 1 STATIC_MEMORY_BUDGET_BYTES 65536
+    STATIC_MEMORY_MIN_HEADROOM_BYTES 4096 MAX_HOT_STACK_FRAME_BYTES 1024)
+'@) -ExpectSuccess $false -ExpectedPattern "LAYER_CACHE_SLOTS must be <= 65535"
 
     Invoke-CMakeCase -Name "duplicate-profile" -Body ($MinimalProfiles + "`n" + @'
 vivid_define_product_profile(NAME first)

@@ -59,6 +59,8 @@ widget/scene state
 - command snapshot 只复制已使用的 command/text/blob payload，不复制 live buffer 元数据或临时 workspace；
 - snapshot handle slot 与 payload slot 一一对应；command 与 pixel payload 共享同一块按较大者定额的 slot
   storage，同一逻辑槽不能让两种 kind 同时占用，禁止恢复两套各自乘 `layer_cache_slots` 的常驻池；
+- `layer_cache_slots=0` 是合法的无快照 profile：Scene 保留稳定 API，但 capture 必须返回无槽，admission
+  必须降级为 `StaticCut` 或 `Reject`，静态内存画像中的 command/pixel payload capacity 必须同时为零；
 - compaction 在 record 完成后执行，不能改变命令可观察顺序或 artifact 语义；
 - compaction workspace 复用的 `DrawCmd` 必须通过类型默认值赋值重置，禁止以 `memset` 假设非 trivial 对象
   的默认语义等于全零位模式；该 reset 必须保持 `noexcept` 且不引入局部大对象；

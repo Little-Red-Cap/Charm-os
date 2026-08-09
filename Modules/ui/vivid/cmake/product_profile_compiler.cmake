@@ -294,12 +294,18 @@ function(vivid_configure_product_target)
             SCREEN_WIDTH SCREEN_HEIGHT LAYER_CACHE_SLOTS LAYER_CACHE_WIDTH
             LAYER_CACHE_HEIGHT RUNTIME_SCENE_INSTANCES STATIC_MEMORY_BUDGET_BYTES
             STATIC_MEMORY_MIN_HEADROOM_BYTES MAX_HOT_STACK_FRAME_BYTES)
+        if(_field STREQUAL "LAYER_CACHE_SLOTS")
+            set(_field_max 65535)
+        else()
+            set(_field_max 4294967295)
+        endif()
         _vivid_normalize_uint(
             _normalized_value
             "Vivid target ${TARGET_PROFILE_TARGET} ${_field}"
-            "${TARGET_PROFILE_${_field}}" 4294967295)
+            "${TARGET_PROFILE_${_field}}" ${_field_max})
         set(TARGET_PROFILE_${_field} "${_normalized_value}")
-        if("${TARGET_PROFILE_${_field}}" LESS 1)
+        if(NOT _field STREQUAL "LAYER_CACHE_SLOTS" AND
+           "${TARGET_PROFILE_${_field}}" LESS 1)
             message(FATAL_ERROR
                 "Vivid target ${TARGET_PROFILE_TARGET} ${_field} must be > 0")
         endif()

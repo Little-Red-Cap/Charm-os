@@ -62,6 +62,11 @@ SnapshotStore 的 handle 总容量只有 `layer_cache_slots`，command 与 pixel
 `snapshot_payload_bytes` 是真实常驻值；兼容保留的 `command_snapshot_bytes` / `pixel_snapshot_bytes` 只表示
 各 kind 独占全部逻辑槽时的容量，不得相加为 resident RAM。
 
+`layer_cache_slots=0` 表示 target 不接纳 command 或 pixel snapshot，是合法的 profile envelope，不是缺省值。
+此时 capture 通过既有 `NoSnapshotSlot` 失败，admission 不能返回无法兑现的 snapshot 形态，而应降级为
+`StaticCut` 或 `Reject`；两种 capacity projection 必须为 0，payload store 只允许保留不超过固定 metadata
+上界的空对象成本。槽数受 `SnapshotHandle` 约束为 `0..65535`，越界在配置期拒绝。
+
 DrawCmd executor 不为相邻命令 run 常驻 Rect/DrawCmd 中间数组；命令从固定容量 buffer 单遍读取并立即执行。
 配置期 executor workspace 上界固定为 `4096B`，覆盖真实重叠的 clip stack、tile-hit table 与可选 detail evidence；
 生成配置中的同值 `sizeof` 门必须拒绝 target ABI 超界。FullFrame/Tile 哈希、dispatch/group/cmd 计数与失败统计

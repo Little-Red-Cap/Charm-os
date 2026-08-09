@@ -47,10 +47,14 @@ freeze 不隐含 hide，调用方必须明确是否隐藏 live root。失败的 
 命令快照冻结 record 结果，replay 时仍依赖 scene 的执行环境、资源和 epoch。相关 layout/style/theme 或
 资源语义失效后必须拒绝 stale replay，不能把“命令仍可解析”当作“页面仍正确”。
 
-它占用较少 payload，但每次显示仍需执行命令。当前 replay 支持 identity 与整数平移：平移叠加到 Canvas
-既有 origin，执行后恢复；target clip 先逆变换到 source 坐标，命令流内的嵌套 clip 只能继续收窄。非 255
-opacity 必须在命令执行前返回 `UnsupportedTransform`，不能产生部分像素写入。该能力不改变快照槽仍按
-profile mode 定额的事实：`COMMAND` 只支付 command slot，`HYBRID` 才按 pixel/command 较大者支付。
+它占用较少 payload，但每次显示仍需执行命令。当前 replay 支持 identity、整数平移和整体 opacity：平移叠加到
+Canvas 既有 origin，执行后恢复；target clip 先逆变换到 source 坐标，命令流内的嵌套 clip 只能继续收窄。
+中间 opacity 通过固定 tile workspace 保持整层混合语义，不能改成逐命令乘 alpha。
+
+capture 按 snapshot bounds 构建 fixed occupancy，半透明 replay 不再为每个 tile 重扫 command bounds。
+occupancy 容量随 target envelope 进入静态内存 admission；bounds 超出 envelope 或索引构建失败时保守执行全部
+候选 tile，不能漏绘。该能力不改变快照槽仍按 profile mode 定额的事实：`COMMAND` 只支付 command slot，
+`HYBRID` 才按 pixel/command 较大者支付。
 
 ### PixelSurface Snapshot
 

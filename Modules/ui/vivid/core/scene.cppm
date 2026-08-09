@@ -733,7 +733,7 @@ export namespace ui::scene {
             auto* record = snapshot_store_.mutable_record(handle);
             if (!record) return false;
             const auto payload_slot = static_cast<std::uint32_t>(handle.slot);
-            if (!snapshot_payloads_.store_command(payload_slot, cmd_buf_)) {
+            if (!snapshot_payloads_.store_command(payload_slot, cmd_buf_, record->bounds)) {
                 return false;
             }
             record->payload_slot = payload_slot;
@@ -989,6 +989,9 @@ namespace {
     static_assert(kVividStaticMemoryProfile.snapshot_payload_bytes
                   <= CHARM_VIVID_SNAPSHOT_PAYLOAD_UPPER_BYTES,
                   "Vivid target-ABI snapshot payload store exceeds its configure-time upper bound");
+    static_assert(ui::scene::DefaultSnapshotPayloadStore::command_spatial_index_capacity_bytes
+                  <= CHARM_VIVID_COMMAND_SNAPSHOT_SPATIAL_INDEX_UPPER_BYTES,
+                  "Vivid command snapshot spatial index exceeds its configure-time upper bound");
     static_assert(kVividStaticMemoryProfile.command_replay_workspace_bytes
                   <= CHARM_VIVID_COMMAND_REPLAY_WORKSPACE_UPPER_BYTES,
                   "Vivid command replay workspace exceeds its configure-time upper bound");

@@ -62,6 +62,9 @@ widget/scene state
   target clip 逆变换到 source 坐标，命令内嵌 clip 只能继续收窄。中间 opacity 使用每 Scene 固定 64x64 tile
   workspace：先把目标背景复制到 tile、完整执行 source command，再把结果与原背景整体混合，禁止逐命令乘 alpha
   破坏重叠语义；该 workspace 只随 command snapshot 编译，并显式进入静态内存 admission。
+  capture 同时按 snapshot bounds 单遍构建 fixed occupancy，replay 查询 occupancy 后只执行可能命中的 tile；
+  index storage 按 target envelope 定额并进入 snapshot payload admission。bounds 超出 envelope 或构建失败时必须
+  保守执行全部候选 tile，禁止因优化元数据不可用而漏绘；
   `PageTransitionRunner` 可采用单 source command snapshot 与 live destination 合成；prepare 导致 epoch 变化或实际
   command 工作量超过 budget 时，必须在首帧前释放 snapshot，并以 `StaticCut` 及对应 fallback reason 写入
   trace/ledger；
@@ -84,7 +87,7 @@ widget/scene state
   executor、compaction、snapshot 与 evidence 均按 byte cursor 遍历。load/replay 在一次扫描中验证并解码每条
   record、重建 command count，并拒绝未知 type、payload 不足或超过 canonical stride 的扩展 record；失败后
   stream 必须保持为空，executor 遇到运行期损坏必须有界退出，不能让外部字节绕过容量证明或锁死渲染；
-- tile 命中索引容量不足时必须回退到正确但更慢的扫描路径；
+- tile 命中索引不能表达 snapshot bounds 或构建失败时必须回退到正确但更慢的全候选 tile 执行路径；
 - 产品 evidence 只消费 Scene stats 和 artifact 摘要，不依赖 CmdHeader/payload 私有布局。
 
 `Scene` 的 builder/layer support 是附属实现层，render detail 是 private partition；它们不建立新的产品或

@@ -617,14 +617,34 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
         set(_vivid_pixel_snapshot_upper_bytes 0)
     endif()
     if(VIVID_SNAPSHOT_COMMAND_ENABLED AND CHARM_VIVID_LAYER_CACHE_SLOTS GREATER 0)
+        math(EXPR _vivid_command_hit_index_columns
+            "(${CHARM_VIVID_LAYER_CACHE_WIDTH} + 63) / 64")
+        math(EXPR _vivid_command_hit_index_rows
+            "(${CHARM_VIVID_LAYER_CACHE_HEIGHT} + 63) / 64")
+        math(EXPR _vivid_command_hit_index_cells
+            "${_vivid_command_hit_index_columns} * ${_vivid_command_hit_index_rows}")
+        math(EXPR _vivid_command_hit_index_words
+            "(${_vivid_command_hit_index_cells} + 63) / 64")
+        math(EXPR _vivid_command_snapshot_spatial_index_slot_upper_bytes
+            "${_vivid_command_hit_index_words} * 8 + 24")
+        math(EXPR _vivid_command_snapshot_spatial_index_upper_bytes
+            "${CHARM_VIVID_LAYER_CACHE_SLOTS} * ${_vivid_command_snapshot_spatial_index_slot_upper_bytes}")
+        math(EXPR _vivid_command_snapshot_slot_upper_bytes
+            "${_vivid_draw_cmd_buffer_upper_bytes} + ${_vivid_command_snapshot_spatial_index_slot_upper_bytes}")
         math(EXPR _vivid_command_snapshot_upper_bytes
-            "${CHARM_VIVID_LAYER_CACHE_SLOTS} * ${_vivid_draw_cmd_buffer_upper_bytes}")
+            "${CHARM_VIVID_LAYER_CACHE_SLOTS} * ${_vivid_command_snapshot_slot_upper_bytes}")
         math(EXPR _vivid_command_replay_workspace_upper_bytes
             "64 * 64 * ${_vivid_screen_bytes_per_pixel}")
     else()
+        set(_vivid_command_snapshot_spatial_index_slot_upper_bytes 0)
+        set(_vivid_command_snapshot_spatial_index_upper_bytes 0)
         set(_vivid_command_snapshot_upper_bytes 0)
         set(_vivid_command_replay_workspace_upper_bytes 0)
     endif()
+    set(VIVID_COMMAND_SNAPSHOT_SPATIAL_INDEX_SLOT_UPPER_BYTES
+        ${_vivid_command_snapshot_spatial_index_slot_upper_bytes})
+    set(VIVID_COMMAND_SNAPSHOT_SPATIAL_INDEX_UPPER_BYTES
+        ${_vivid_command_snapshot_spatial_index_upper_bytes})
     set(VIVID_COMMAND_REPLAY_WORKSPACE_UPPER_BYTES
         ${_vivid_command_replay_workspace_upper_bytes})
     if(_vivid_pixel_snapshot_upper_bytes GREATER _vivid_command_snapshot_upper_bytes)
@@ -712,8 +732,12 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
         "snapshot_command_enabled=${VIVID_SNAPSHOT_COMMAND_ENABLED}\n"
         "snapshot_pixel_enabled=${VIVID_SNAPSHOT_PIXEL_ENABLED}\n"
         "layer_cache_slots=${VIVID_LAYER_CACHE_SLOTS}\n"
+        "layer_cache_width=${VIVID_LAYER_CACHE_WIDTH}\n"
+        "layer_cache_height=${VIVID_LAYER_CACHE_HEIGHT}\n"
         "pixel_snapshot_upper_bytes=${_vivid_pixel_snapshot_upper_bytes}\n"
         "command_snapshot_upper_bytes=${_vivid_command_snapshot_upper_bytes}\n"
+        "command_snapshot_spatial_index_slot_upper_bytes=${_vivid_command_snapshot_spatial_index_slot_upper_bytes}\n"
+        "command_snapshot_spatial_index_upper_bytes=${_vivid_command_snapshot_spatial_index_upper_bytes}\n"
         "snapshot_payload_metadata_upper_bytes=${_vivid_snapshot_payload_metadata_upper_bytes}\n"
         "snapshot_payload_upper_bytes=${_vivid_snapshot_payload_upper_bytes}\n"
         "command_buffer_upper_bytes=${_vivid_command_buffer_upper_bytes}\n"
@@ -871,6 +895,8 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
             "    \"global_upper_bytes\": ${_vivid_global_upper_bytes},\n"
             "    \"pixel_snapshot_upper_bytes\": ${_vivid_pixel_snapshot_upper_bytes},\n"
             "    \"command_snapshot_upper_bytes\": ${_vivid_command_snapshot_upper_bytes},\n"
+            "    \"command_snapshot_spatial_index_slot_upper_bytes\": ${_vivid_command_snapshot_spatial_index_slot_upper_bytes},\n"
+            "    \"command_snapshot_spatial_index_upper_bytes\": ${_vivid_command_snapshot_spatial_index_upper_bytes},\n"
             "    \"snapshot_storage_mode\": \"${CHARM_VIVID_SNAPSHOT_STORAGE_MODE}\",\n"
             "    \"snapshot_command_enabled\": ${VIVID_SNAPSHOT_COMMAND_ENABLED},\n"
             "    \"snapshot_pixel_enabled\": ${VIVID_SNAPSHOT_PIXEL_ENABLED},\n"

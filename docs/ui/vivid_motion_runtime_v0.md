@@ -77,9 +77,10 @@ compose bridge 只在以下条件满足时生成请求：
 - admission 与 budget 允许本次工作量。
 
 dry-run 只能证明计划和预算可形成，不证明 Scene 已执行。真实 execute 必须返回 replay/compose 状态和
-工作量证据；失败不能提交 page truth。当前 pixel compose 支持平移与 opacity，command replay 支持
-identity 与整数平移，但不支持整体 opacity；后者收到非 255 opacity 时必须返回 `UnsupportedTransform`，
-不能静默按原透明度执行。`PageTransitionRunner` 的 command 形态只复用该能力，不扩大 transform 集合。
+工作量证据；失败不能提交 page truth。当前 pixel compose 与 command replay 都支持整数平移和整体 opacity；
+command 的中间 opacity 使用固定 tile workspace，并依赖 capture-time occupancy 跳过空白 tile。索引不可用时
+必须保守执行全部候选 tile，不能产生漏绘。`PageTransitionRunner` 的 command 形态只复用该能力，不扩大
+transform 集合。
 
 ## Page Transition 事务
 
@@ -133,7 +134,8 @@ Motion/PageTransition evidence 至少覆盖：
 - recipe 在 Rich/Cheap/Static/None 下的执行、降级和拒绝；
 - PixelDouble 与 PixelSingle 的 artifact/ownership 差异；
 - CommandSnapshot 的单槽 source replay，以及 opacity、budget、epoch 不满足时的首帧前降级；
-- CommandSnapshot 半透明 replay 的候选/命中/跳过 tile 与 bounds/execute 命令流读取，且同时覆盖
+- CommandSnapshot 半透明 replay 的候选/命中/跳过 tile 与 bounds/execute 命令流读取，确认 indexed replay
+  不再重复扫描 bounds command，并同时覆盖
   稀疏与密集页面的完整 transition workload envelope；
 - source/destination capture failure rollback；
 - commit、cancel、rebegin interrupt 后 page truth 与 snapshot release；

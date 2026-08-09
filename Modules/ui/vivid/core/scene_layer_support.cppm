@@ -19,6 +19,27 @@ import charm.gfx.color;
 import charm.gfx.draw_cmd;
 import charm.gfx.pixel_format;
 
+namespace ui::scene::detail {
+    inline constexpr int command_replay_tile_width = 64;
+    inline constexpr int command_replay_tile_height = 64;
+
+    [[nodiscard]] consteval std::size_t ceil_div_positive(int value, int divisor) noexcept {
+        return value > 0
+            ? (static_cast<std::size_t>(value) + static_cast<std::size_t>(divisor) - 1)
+                / static_cast<std::size_t>(divisor)
+            : 0;
+    }
+
+    inline constexpr std::size_t command_hit_index_columns =
+        ceil_div_positive(layer_cache_width, command_replay_tile_width);
+    inline constexpr std::size_t command_hit_index_rows =
+        ceil_div_positive(layer_cache_height, command_replay_tile_height);
+    inline constexpr std::size_t command_hit_index_cells =
+        command_hit_index_columns * command_hit_index_rows;
+    inline constexpr std::size_t command_hit_index_word_count =
+        (command_hit_index_cells + 63u) / 64u;
+}
+
 export namespace ui::scene {
     struct CmdStats {
         std::size_t cmd_count{0};
@@ -113,8 +134,16 @@ export namespace ui::scene {
     };
 
     class CommandSnapshotPayload {
+    private:
+        struct SpatialIndex {
+            std::array<std::uint64_t, detail::command_hit_index_word_count> words{};
+            Rect bounds{};
+            bool valid{false};
+        };
+
     public:
         using SourceBuffer = ui::draw_cmd::DefaultDrawCmdBuffer;
+        static constexpr std::size_t spatial_index_storage_bytes = sizeof(SpatialIndex);
 
         struct DrawHitTestResult {
             bool hit{false};
@@ -124,11 +153,14 @@ export namespace ui::scene {
 
         CommandSnapshotPayload() noexcept {}
 
-        [[nodiscard]] bool store(const SourceBuffer& source) noexcept {
+        [[nodiscard]] bool store(const SourceBuffer& source, Rect bounds) noexcept {
             count_ = 0;
             cmd_bytes_used_ = 0;
             text_used_ = 0;
             blob_used_ = 0;
+            hit_index_.words.fill(0);
+            hit_index_.bounds = {};
+            hit_index_.valid = false;
             if (source.overflowed()
                 || source.size() > SourceBuffer::kMaxCommands
                 || source.cmd_bytes() > SourceBuffer::kCmdBytesCapacity
@@ -159,6 +191,7 @@ export namespace ui::scene {
             cmd_bytes_used_ = source.cmd_bytes();
             text_used_ = source.text_used();
             blob_used_ = source.blob_used();
+            hit_index_.valid = build_hit_index(bounds);
             return true;
         }
 
@@ -201,16 +234,71 @@ export namespace ui::scene {
 
         [[nodiscard]] DrawHitTestResult test_draw_hits(const Rect& rect) const noexcept {
             DrawHitTestResult result{};
-            Rect intersection{};
+            if (!hit_index_.valid) {
+                result.hit = true;
+                return result;
+            }
+
+            Rect visible{};
+            if (!rect_intersect(rect, hit_index_.bounds, visible)) return result;
+            const auto first_x = static_cast<std::size_t>(
+                (visible.x - hit_index_.bounds.x) / detail::command_replay_tile_width);
+            const auto last_x = static_cast<std::size_t>(
+                (visible.x + visible.w - 1 - hit_index_.bounds.x)
+                / detail::command_replay_tile_width);
+            const auto first_y = static_cast<std::size_t>(
+                (visible.y - hit_index_.bounds.y) / detail::command_replay_tile_height);
+            const auto last_y = static_cast<std::size_t>(
+                (visible.y + visible.h - 1 - hit_index_.bounds.y)
+                / detail::command_replay_tile_height);
+            for (std::size_t y = first_y; y <= last_y; ++y) {
+                for (std::size_t x = first_x; x <= last_x; ++x) {
+                    const auto bit = y * detail::command_hit_index_columns + x;
+                    if ((hit_index_.words[bit / 64u] & (std::uint64_t{1} << (bit % 64u)))
+                        != 0) {
+                        result.hit = true;
+                        return result;
+                    }
+                }
+            }
+            return result;
+        }
+
+    private:
+        void mark_hit_bounds(const Rect& bounds) noexcept {
+            Rect visible{};
+            if (!rect_intersect(bounds, hit_index_.bounds, visible)) return;
+            const auto first_x = static_cast<std::size_t>(
+                (visible.x - hit_index_.bounds.x) / detail::command_replay_tile_width);
+            const auto last_x = static_cast<std::size_t>(
+                (visible.x + visible.w - 1 - hit_index_.bounds.x)
+                / detail::command_replay_tile_width);
+            const auto first_y = static_cast<std::size_t>(
+                (visible.y - hit_index_.bounds.y) / detail::command_replay_tile_height);
+            const auto last_y = static_cast<std::size_t>(
+                (visible.y + visible.h - 1 - hit_index_.bounds.y)
+                / detail::command_replay_tile_height);
+            for (std::size_t y = first_y; y <= last_y; ++y) {
+                for (std::size_t x = first_x; x <= last_x; ++x) {
+                    const auto bit = y * detail::command_hit_index_columns + x;
+                    hit_index_.words[bit / 64u] |= std::uint64_t{1} << (bit % 64u);
+                }
+            }
+        }
+
+        [[nodiscard]] bool build_hit_index(Rect bounds) noexcept {
+            if (!rect_valid(bounds)
+                || bounds.w > layer_cache_width
+                || bounds.h > layer_cache_height
+                || detail::command_hit_index_word_count == 0) {
+                return false;
+            }
+            hit_index_.bounds = bounds;
             ui::draw_cmd::DrawCmd cmd{};
             std::size_t offset = 0;
             while (offset < cmd_bytes_used_) {
                 std::size_t stride = 0;
-                ++result.command_reads;
-                if (!read_cmd_at_offset(offset, cmd, stride)) {
-                    result.hit = true;
-                    return result;
-                }
+                if (!read_cmd_at_offset(offset, cmd, stride)) return false;
                 if (cmd.type == ui::draw_cmd::CmdType::PushClip
                     || cmd.type == ui::draw_cmd::CmdType::PopClip) {
                     offset += stride;
@@ -218,48 +306,35 @@ export namespace ui::scene {
                 }
                 if (cmd.type == ui::draw_cmd::CmdType::DrawLineBatch) {
                     const int count = cmd.p0;
-                    if (count <= 0) {
-                        result.hit = true;
-                        return result;
-                    }
+                    if (count <= 0) return false;
                     const auto bytes = blob_at(cmd.blob);
                     if (bytes.size()
                         < static_cast<std::size_t>(count)
                             * sizeof(ui::draw_cmd::LineBatchItem)) {
-                        result.hit = true;
-                        return result;
+                        return false;
                     }
                     const auto items = std::span<const ui::draw_cmd::LineBatchItem>(
                         reinterpret_cast<const ui::draw_cmd::LineBatchItem*>(bytes.data()),
                         count);
                     for (const auto& item : items) {
-                        ++result.item_reads;
-                        const Rect bounds = ui::draw_cmd::line_bounds(
-                            item.x0, item.y0, item.x1, item.y1);
-                        if (rect_intersect(bounds, rect, intersection)) {
-                            result.hit = true;
-                            return result;
-                        }
+                        mark_hit_bounds(ui::draw_cmd::line_bounds(
+                            item.x0, item.y0, item.x1, item.y1));
                     }
                     offset += stride;
                     continue;
                 }
-                const Rect bounds = ui::draw_cmd::draw_cmd_bounds(cmd);
-                if (rect_valid(bounds)
-                    && rect_intersect(bounds, rect, intersection)) {
-                    result.hit = true;
-                    return result;
-                }
+                const Rect draw_bounds = ui::draw_cmd::draw_cmd_bounds(cmd);
+                if (rect_valid(draw_bounds)) mark_hit_bounds(draw_bounds);
                 offset += stride;
             }
-            return result;
+            return true;
         }
 
-    private:
         alignas(ui::draw_cmd::kCmdAlign)
             std::array<std::byte, SourceBuffer::kCmdBytesCapacity> cmd_bytes_;
         std::array<char, SourceBuffer::kTextCapacity> text_;
         std::array<std::byte, SourceBuffer::kBlobCapacity> blob_;
+        SpatialIndex hit_index_{};
         std::size_t count_{0};
         std::size_t cmd_bytes_used_{0};
         std::size_t text_used_{0};
@@ -268,7 +343,9 @@ export namespace ui::scene {
 
     static_assert(std::is_trivially_destructible_v<CommandSnapshotPayload>);
     static_assert(sizeof(CommandSnapshotPayload)
-                  <= sizeof(ui::draw_cmd::DefaultDrawCmdBuffer));
+                  <= sizeof(ui::draw_cmd::DefaultDrawCmdBuffer)
+                      + CommandSnapshotPayload::spatial_index_storage_bytes
+                      + alignof(CommandSnapshotPayload));
 
     template<std::size_t MaxSlots, bool CommandEnabled, bool PixelEnabled>
     class SnapshotPayloadStore {
@@ -299,6 +376,8 @@ export namespace ui::scene {
         }();
         static constexpr std::size_t command_capacity_bytes =
             command_enabled ? command_slot_bytes * MaxSlots : 0;
+        static constexpr std::size_t command_spatial_index_capacity_bytes =
+            command_enabled ? CommandPayload::spatial_index_storage_bytes * MaxSlots : 0;
         static constexpr std::size_t pixel_capacity_bytes =
             pixel_enabled ? pixel_slot_bytes * MaxSlots : 0;
 
@@ -313,15 +392,17 @@ export namespace ui::scene {
         }
 
         [[nodiscard]] bool store_command(std::uint32_t slot,
-                                         const ui::draw_cmd::DefaultDrawCmdBuffer& source) noexcept {
+                                         const ui::draw_cmd::DefaultDrawCmdBuffer& source,
+                                         Rect bounds) noexcept {
             if constexpr (!command_enabled) {
                 (void)slot;
                 (void)source;
+                (void)bounds;
                 return false;
             } else {
                 if (!slot_available(slot)) return false;
                 auto* payload = std::construct_at(command_storage(slot));
-                if (!payload->store(source)) {
+                if (!payload->store(source, bounds)) {
                     std::destroy_at(payload);
                     return false;
                 }
@@ -493,8 +574,8 @@ export namespace ui::scene {
     template<PixelFormat Format>
     class CommandReplayWorkspace<true, Format> {
     public:
-        static constexpr int tile_width = 64;
-        static constexpr int tile_height = 64;
+        static constexpr int tile_width = detail::command_replay_tile_width;
+        static constexpr int tile_height = detail::command_replay_tile_height;
         static constexpr std::size_t storage_bytes =
             static_cast<std::size_t>(tile_width)
             * static_cast<std::size_t>(tile_height)

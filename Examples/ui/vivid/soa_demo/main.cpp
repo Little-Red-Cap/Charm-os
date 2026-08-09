@@ -4700,7 +4700,8 @@ int main(int argc, char** argv) {
             payload_store.clear();
             ui::draw_cmd::DefaultDrawCmdBuffer source{};
             (void)source.fill_rect({1, 2, 3, 4}, kDemoPanel);
-            const bool command_stored = payload_store.store_command(0, source);
+            const bool command_stored = payload_store.store_command(
+                0, source, Rect{0, 0, 8, 8});
             ui::draw_cmd::DrawCmd decoded{};
             std::size_t stride = 0;
             const auto* command = payload_store.command(0);

@@ -116,6 +116,22 @@ namespace {
         }
     };
 
+    struct ShiftedCommandScene {
+        TransitionFrameBuffer fb{};
+        TransitionCanvas canvas{fb};
+        ui::scene::Scene scene{canvas};
+
+        ShiftedCommandScene() {
+            scene.build([&](ui::scene::SceneBuilder& builder) {
+                const auto probe = builder.create_button_static("A");
+                builder.set_rect(probe, {34, 18, 12, 8});
+                builder.set_input_root(probe);
+                builder.set_root(probe);
+            });
+            canvas.clear(rgba{0, 0, 0, 255});
+        }
+    };
+
     inline constexpr unsigned one_pixel_snapshot_bytes = 3;
 
     [[nodiscard]] bool expect(bool condition, const char* message) noexcept {
@@ -829,12 +845,12 @@ namespace {
                     "sparse command replay records one hit and five skipped tiles")) {
             return false;
         }
-        if (!expect(sparse_cost.bounds_command_reads > 0
+        if (!expect(sparse_cost.bounds_command_reads == 0
+                        && sparse_cost.bounds_item_reads == 0
                         && sparse_cost.execute_command_reads > 0
                         && sparse_cost.total_command_reads()
-                            == sparse_cost.bounds_command_reads
-                                + sparse_cost.execute_command_reads,
-                    "sparse command replay records command stream reads")) {
+                            == sparse_cost.execute_command_reads,
+                    "sparse command replay avoids bounds command scans")) {
             return false;
         }
         if (!observe_command_replay_sample(runner,
@@ -900,7 +916,9 @@ namespace {
         const auto dense_cost = dense_frame.source.replay.command_cost;
         if (!expect(dense_cost.tiles_considered == 6
                         && dense_cost.tiles_executed == 6
-                        && dense_cost.tiles_skipped == 0,
+                        && dense_cost.tiles_skipped == 0
+                        && dense_cost.bounds_command_reads == 0
+                        && dense_cost.bounds_item_reads == 0,
                     "dense command replay records six hit tiles")) {
             return false;
         }
@@ -943,9 +961,72 @@ namespace {
                                    "dense command opacity transition releases snapshot")) {
             return false;
         }
+
+        ui::scene::CommandReplayCost shifted_cost{};
+        {
+            ShiftedCommandScene shifted_env{};
+            const ui::scene::SnapshotSpec shifted_snapshot_spec{
+                .bounds = {32, 16, 96, 64},
+                .preferred_kind = ui::scene::SnapshotKind::CommandBuffer,
+            };
+            const auto shifted_capture =
+                shifted_env.scene.capture_command_snapshot_result(shifted_snapshot_spec);
+            if (!expect(shifted_capture.ok(), "shifted command snapshot captures")) return false;
+            const auto shifted_plan = shifted_env.scene.make_snapshot_compose_plan({
+                .source = shifted_capture.handle,
+                .transform = {.x = 5, .opacity = 128},
+            });
+            shifted_env.canvas.clear(command_replay_background);
+            const auto shifted_replay = shifted_env.scene.replay_command_snapshot(shifted_plan);
+            shifted_cost = shifted_replay.command_cost;
+            if (!expect(shifted_replay.ok()
+                            && shifted_cost.tiles_considered == 2
+                            && shifted_cost.tiles_executed == 1
+                            && shifted_cost.tiles_skipped == 1
+                            && shifted_cost.bounds_command_reads == 0,
+                        "shifted command snapshot uses bounds-relative occupancy")) {
+                return false;
+            }
+            if (!expect(shifted_env.scene.release_snapshot(shifted_capture.handle),
+                        "shifted command snapshot releases")) {
+                return false;
+            }
+        }
+
+        ui::scene::CommandReplayCost fallback_cost{};
+        {
+            TransitionScene fallback_env{};
+            const ui::scene::SnapshotSpec fallback_snapshot_spec{
+                .bounds = {0, 0, command_snapshot_width + 1, command_snapshot_height},
+                .preferred_kind = ui::scene::SnapshotKind::CommandBuffer,
+            };
+            const auto fallback_capture =
+                fallback_env.scene.capture_command_snapshot_result(fallback_snapshot_spec);
+            if (!expect(fallback_capture.ok(), "oversized command snapshot captures")) return false;
+            const auto fallback_plan = fallback_env.scene.make_snapshot_compose_plan({
+                .source = fallback_capture.handle,
+                .transform = {.opacity = 128},
+            });
+            fallback_env.canvas.clear(command_replay_background);
+            const auto fallback_replay = fallback_env.scene.replay_command_snapshot(fallback_plan);
+            fallback_cost = fallback_replay.command_cost;
+            if (!expect(fallback_replay.ok()
+                            && fallback_cost.tiles_considered == 6
+                            && fallback_cost.tiles_executed == 6
+                            && fallback_cost.tiles_skipped == 0,
+                        "oversized command snapshot falls back to conservative hits")) {
+                return false;
+            }
+            if (!expect(fallback_env.scene.release_snapshot(fallback_capture.handle),
+                        "oversized command snapshot releases")) {
+                return false;
+            }
+        }
         std::printf(
             "[pt] evidence=command_replay_cost sparse_tiles=%u/%u/%u "
             "sparse_reads=%llu/%llu dense_tiles=%u/%u/%u dense_reads=%llu/%llu "
+            "shifted_tiles=%u/%u/%u shifted_bounds_reads=%llu "
+            "fallback_tiles=%u/%u/%u "
             "samples=%u sparse_envelope=%llu/%llu/%llu/%llu/%llu/%llu "
             "dense_envelope=%llu/%llu/%llu/%llu/%llu/%llu result=ok\n",
             sparse_cost.tiles_considered,
@@ -958,6 +1039,13 @@ namespace {
             dense_cost.tiles_skipped,
             static_cast<unsigned long long>(dense_cost.bounds_command_reads),
             static_cast<unsigned long long>(dense_cost.execute_command_reads),
+            shifted_cost.tiles_considered,
+            shifted_cost.tiles_executed,
+            shifted_cost.tiles_skipped,
+            static_cast<unsigned long long>(shifted_cost.bounds_command_reads),
+            fallback_cost.tiles_considered,
+            fallback_cost.tiles_executed,
+            fallback_cost.tiles_skipped,
             sparse_envelope.sample_count,
             static_cast<unsigned long long>(sparse_envelope.total_tiles_considered),
             static_cast<unsigned long long>(sparse_envelope.total_tiles_executed),

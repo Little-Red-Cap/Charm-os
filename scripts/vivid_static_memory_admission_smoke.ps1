@@ -186,8 +186,17 @@ function Assert-Admission {
         [int64]$Values.draw_cmd_buffer_upper_bytes -ne $expectedBufferBytes) {
         throw "Unexpected DrawCmd buffer budget"
     }
+    $expectedCommandIndexSlotBytes = if ($commandEnabled -and $layerCacheSlots -gt 0) {
+        $columns = [Math]::Ceiling([int64]$Values.layer_cache_width / 64.0)
+        $rows = [Math]::Ceiling([int64]$Values.layer_cache_height / 64.0)
+        $words = [Math]::Ceiling(($columns * $rows) / 64.0)
+        [int64]$words * 8 + 24
+    } else {
+        0
+    }
+    $expectedCommandIndexBytes = $layerCacheSlots * $expectedCommandIndexSlotBytes
     $expectedCommandSnapshotBytes = if ($commandEnabled) {
-        [int64]$Values.layer_cache_slots * $expectedBufferBytes
+        $layerCacheSlots * ($expectedBufferBytes + $expectedCommandIndexSlotBytes)
     } else {
         0
     }
@@ -198,6 +207,8 @@ function Assert-Admission {
     $expectedSnapshotPayloadBytes = $expectedSnapshotPayloadDataBytes `
         + $expectedSnapshotPayloadMetadataBytes
     if ([int64]$Values.command_buffer_upper_bytes -ne $expectedBufferBytes -or
+        [int64]$Values.command_snapshot_spatial_index_slot_upper_bytes -ne $expectedCommandIndexSlotBytes -or
+        [int64]$Values.command_snapshot_spatial_index_upper_bytes -ne $expectedCommandIndexBytes -or
         [int64]$Values.command_snapshot_upper_bytes -ne $expectedCommandSnapshotBytes -or
         [int64]$Values.snapshot_payload_metadata_upper_bytes -ne $expectedSnapshotPayloadMetadataBytes -or
         [int64]$Values.snapshot_payload_upper_bytes -ne $expectedSnapshotPayloadBytes) {
@@ -281,7 +292,16 @@ function Assert-ProductEvidence {
         throw "PRODUCT DrawCmd buffer evidence mismatch for profile '$Profile'"
     }
     $layerCacheSlots = [int64]$envelopeEvidence.layer_cache.slots
-    $expectedCommandSnapshotBytes = $layerCacheSlots * $expectedBufferBytes
+    $commandIndexColumns = [Math]::Ceiling(
+        [int64]$envelopeEvidence.layer_cache.width / 64.0)
+    $commandIndexRows = [Math]::Ceiling(
+        [int64]$envelopeEvidence.layer_cache.height / 64.0)
+    $commandIndexWords = [Math]::Ceiling(
+        ($commandIndexColumns * $commandIndexRows) / 64.0)
+    $expectedCommandIndexSlotBytes = [int64]$commandIndexWords * 8 + 24
+    $expectedCommandIndexBytes = $layerCacheSlots * $expectedCommandIndexSlotBytes
+    $expectedCommandSnapshotBytes =
+        $layerCacheSlots * ($expectedBufferBytes + $expectedCommandIndexSlotBytes)
     $expectedSnapshotPayloadDataBytes = [Math]::Max(
         [int64]$admissionEvidence.static_memory.pixel_snapshot_upper_bytes,
         $expectedCommandSnapshotBytes)
@@ -289,6 +309,10 @@ function Assert-ProductEvidence {
     $expectedSnapshotPayloadBytes = $expectedSnapshotPayloadDataBytes `
         + $expectedSnapshotPayloadMetadataBytes
     if ([int64]$admissionEvidence.static_memory.command_buffer_upper_bytes -ne $expectedBufferBytes -or
+        [int64]$admissionEvidence.static_memory.command_snapshot_spatial_index_slot_upper_bytes -ne
+            $expectedCommandIndexSlotBytes -or
+        [int64]$admissionEvidence.static_memory.command_snapshot_spatial_index_upper_bytes -ne
+            $expectedCommandIndexBytes -or
         [int64]$admissionEvidence.static_memory.command_snapshot_upper_bytes -ne $expectedCommandSnapshotBytes -or
         [int64]$admissionEvidence.static_memory.snapshot_payload_metadata_upper_bytes -ne $expectedSnapshotPayloadMetadataBytes -or
         [int64]$admissionEvidence.static_memory.snapshot_payload_upper_bytes -ne $expectedSnapshotPayloadBytes) {

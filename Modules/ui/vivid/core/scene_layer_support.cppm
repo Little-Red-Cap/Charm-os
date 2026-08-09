@@ -399,11 +399,17 @@ export namespace ui::scene {
         std::array<int, MaxSlots> heights_{};
     };
 
-    using DefaultSnapshotPayloadStore =
-        SnapshotPayloadStore<
-            static_cast<std::size_t>(layer_cache_slots),
-            snapshot_command_enabled,
-            snapshot_pixel_enabled>;
+    // Materialize the config specialization in its owning module; GCC 16
+    // cannot deserialize a Scene CMI that implicitly owns this specialization.
+    template class SnapshotPayloadStore<
+        static_cast<std::size_t>(layer_cache_slots),
+        snapshot_command_enabled,
+        snapshot_pixel_enabled>;
+
+    using DefaultSnapshotPayloadStore = SnapshotPayloadStore<
+        static_cast<std::size_t>(layer_cache_slots),
+        snapshot_command_enabled,
+        snapshot_pixel_enabled>;
 
     struct TileStats {
         int tiles_total{0};

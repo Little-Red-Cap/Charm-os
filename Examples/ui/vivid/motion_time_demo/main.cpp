@@ -37,6 +37,29 @@ namespace {
 
     void record_command_snapshot_probe(ui::scene::SceneOverlay& overlay, void*) noexcept {
         overlay.fill_rect({4, 4, 2, 2}, rgba{30, 140, 230, 255});
+        overlay.fill_rect({5, 5, 1, 1}, rgba{220, 45, 80, 255});
+    }
+
+    [[nodiscard]] constexpr rgba blend_reference(rgba background,
+                                                 rgba foreground,
+                                                 std::uint8_t opacity) noexcept {
+        const auto inverse = static_cast<std::uint32_t>(255u - opacity);
+        const auto blend = [inverse, opacity](std::uint8_t bg, std::uint8_t fg) constexpr {
+            return static_cast<std::uint8_t>(
+                (static_cast<std::uint32_t>(bg) * inverse
+                 + static_cast<std::uint32_t>(fg) * opacity)
+                / 255u);
+        };
+        return {
+            blend(background.r, foreground.r),
+            blend(background.g, foreground.g),
+            blend(background.b, foreground.b),
+            255,
+        };
+    }
+
+    [[nodiscard]] constexpr bool same_rgba(rgba lhs, rgba rhs) noexcept {
+        return lhs.r == rhs.r && lhs.g == rhs.g && lhs.b == rhs.b && lhs.a == rhs.a;
     }
 
     [[nodiscard]] bool print_motion_causal_chain_verdict() noexcept {
@@ -394,7 +417,7 @@ int main() {
 
     scene.set_overlay(record_command_snapshot_probe, nullptr);
     const auto command_capture = scene.capture_command_snapshot_result({
-        .bounds = {.x = 4, .y = 4, .w = 2, .h = 2},
+        .bounds = {.x = 4, .y = 4, .w = 3, .h = 3},
     });
     if (!expect(command_capture.ok(), "scene captures command snapshot")) return 1;
     canvas.clear(rgba{0, 0, 0, 255});
@@ -464,7 +487,7 @@ int main() {
                 .compose = true,
             },
         },
-        .clip = {.x = 9, .y = 8, .w = 1, .h = 1},
+        .clip = {.x = 8, .y = 7, .w = 1, .h = 1},
         .has_clip = true,
     });
     if (!expect(command_clipped.valid &&
@@ -472,8 +495,8 @@ int main() {
                 "translated command snapshot replay accepts target clip")) {
         return 1;
     }
-    const auto command_clipped_outside = canvas.get_pixel(8, 7);
-    const auto command_clipped_inside = canvas.get_pixel(9, 8);
+    const auto command_clipped_outside = canvas.get_pixel(9, 8);
+    const auto command_clipped_inside = canvas.get_pixel(8, 7);
     if (!expect(command_clipped_outside.r == 0 && command_clipped_outside.g == 0 &&
                     command_clipped_outside.b == 0 && command_clipped_inside.r == 30 &&
                     command_clipped_inside.g == 140 && command_clipped_inside.b == 230,
@@ -481,7 +504,33 @@ int main() {
         return 1;
     }
 
-    canvas.clear(rgba{0, 0, 0, 255});
+    constexpr rgba command_background{12, 28, 44, 255};
+    canvas.clear(command_background);
+    const auto command_full_reference = ui::scene::execute_motion_compose(scene, {
+        .source = command_capture.handle,
+        .frame = {
+            .state = ui::scene::MotionTransitionState::Running,
+            .motion = {
+                .transform = {},
+                .compose = true,
+            },
+        },
+    });
+    if (!expect(command_full_reference.valid
+                    && command_full_reference.replay.status == ui::scene::LayerReplayStatus::Ok,
+                "full-opacity command reference replay succeeds")) {
+        return 1;
+    }
+    const auto command_reference_single = canvas.get_pixel(4, 4);
+    const auto command_reference_overlap = canvas.get_pixel(5, 5);
+    const auto command_reference_background = canvas.get_pixel(6, 6);
+    if (!expect(!same_rgba(command_reference_single, command_reference_overlap)
+                    && same_rgba(command_reference_background, command_background),
+                "command reference distinguishes overlap and untouched background")) {
+        return 1;
+    }
+
+    canvas.clear(command_background);
     const auto command_faded = ui::scene::execute_motion_compose(scene, {
         .source = command_capture.handle,
         .frame = {
@@ -492,15 +541,23 @@ int main() {
             },
         },
     });
-    if (!expect(!command_faded.valid &&
-                    command_faded.replay.status == ui::scene::LayerReplayStatus::UnsupportedTransform,
-                "faded command snapshot replay is rejected")) {
+    if (!expect(command_faded.valid
+                    && command_faded.replay.status == ui::scene::LayerReplayStatus::Ok
+                    && command_faded.replay.stats.alpha_blend_count == 9,
+                "faded command snapshot replay blends the visible tile")) {
         return 1;
     }
-    const auto command_original_after_fade = canvas.get_pixel(4, 4);
-    if (!expect(command_original_after_fade.r == 0 && command_original_after_fade.g == 0 &&
-                    command_original_after_fade.b == 0,
-                "rejected faded command replay does not write pixels")) {
+    const auto command_faded_single = canvas.get_pixel(4, 4);
+    const auto command_faded_overlap = canvas.get_pixel(5, 5);
+    const auto command_faded_background = canvas.get_pixel(6, 6);
+    if (!expect(same_rgba(command_faded_single,
+                          blend_reference(command_background, command_reference_single, 128))
+                    && same_rgba(command_faded_overlap,
+                                 blend_reference(command_background,
+                                                 command_reference_overlap,
+                                                 128))
+                    && same_rgba(command_faded_background, command_background),
+                "faded command replay preserves whole-layer opacity semantics")) {
         return 1;
     }
     scene.set_overlay(nullptr, nullptr);

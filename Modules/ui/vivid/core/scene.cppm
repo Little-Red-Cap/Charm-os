@@ -423,10 +423,6 @@ export namespace ui::scene {
                 out.status = LayerReplayStatus::UnsupportedKind;
                 return out;
             }
-            if (plan.transform.opacity != 255) {
-                out.status = LayerReplayStatus::UnsupportedTransform;
-                return out;
-            }
             const auto* record = snapshot_store_.record(plan.source);
             if (!record) {
                 out.status = LayerReplayStatus::MissingSnapshot;
@@ -440,6 +436,94 @@ export namespace ui::scene {
             const auto* payload = snapshot_payloads_.command(record->payload_slot);
             if (!payload) {
                 out.status = LayerReplayStatus::MissingPayload;
+                return out;
+            }
+            if (plan.transform.opacity == 0) {
+                reset_alpha_blend_count();
+                out.status = LayerReplayStatus::Ok;
+                return out;
+            }
+            if (plan.transform.opacity != 255) {
+                const auto origin = canvas_.save_origin();
+                const Rect canvas_bounds{
+                    -origin.x,
+                    -origin.y,
+                    canvas_.width(),
+                    canvas_.height(),
+                };
+                const Rect visible_target =
+                    layer_intersect_rect(plan.target_bounds, canvas_bounds);
+                out.stats.cmd_count = payload->size();
+                out.stats.cmd_bytes = payload->cmd_bytes();
+                out.stats.overflowed = payload->overflowed();
+                reset_alpha_blend_count();
+                if (layer_rect_empty(visible_target)) {
+                    out.status = LayerReplayStatus::Ok;
+                    return out;
+                }
+
+                const auto base_clip = canvas_.save_clip();
+                canvas_.clear_clip();
+                std::uint64_t blended_pixels = 0;
+                constexpr int tile_width = DefaultCommandReplayWorkspace::tile_width;
+                constexpr int tile_height = DefaultCommandReplayWorkspace::tile_height;
+                for (int tile_y = visible_target.y;
+                     tile_y < visible_target.y + visible_target.h;
+                     tile_y += tile_height) {
+                    const int height = std::min(tile_height,
+                                                visible_target.y + visible_target.h - tile_y);
+                    for (int tile_x = visible_target.x;
+                         tile_x < visible_target.x + visible_target.w;
+                         tile_x += tile_width) {
+                        const int width = std::min(tile_width,
+                                                   visible_target.x + visible_target.w - tile_x);
+                        const Rect tile{tile_x, tile_y, width, height};
+                        RuntimeCanvas scratch{
+                            command_replay_workspace_.data(),
+                            width,
+                            height,
+                            screen_pixel_format,
+                        };
+                        for (int y = 0; y < height; ++y) {
+                            for (int x = 0; x < width; ++x) {
+                                scratch.set_pixel(x,
+                                                  y,
+                                                  canvas_.get_pixel(tile_x + x, tile_y + y));
+                            }
+                        }
+
+                        scratch.set_origin(static_cast<int>(plan.transform.x) - tile_x,
+                                           static_cast<int>(plan.transform.y) - tile_y);
+                        Rect source_tile = layer_inverse_translate_rect(tile, plan.transform);
+                        source_tile = layer_intersect_rect(source_tile, plan.source_visible);
+                        const auto tile_stats = cmd_exec_.execute(scratch, *payload, &source_tile);
+                        detail::accumulate_scene_stats(out.stats, tile_stats);
+                        scratch.clear_origin();
+
+                        for (int y = 0; y < height; ++y) {
+                            for (int x = 0; x < width; ++x) {
+                                const int target_x = tile_x + x;
+                                const int target_y = tile_y + y;
+                                const auto background = canvas_.get_pixel(target_x, target_y);
+                                const auto foreground = scratch.get_pixel(x, y);
+                                canvas_.set_pixel(
+                                    target_x,
+                                    target_y,
+                                    detail::blend_opaque_pixels(background,
+                                                                foreground,
+                                                                plan.transform.opacity));
+                                ++blended_pixels;
+                            }
+                        }
+                    }
+                }
+                canvas_.restore_clip(base_clip);
+                canvas_.mark_dirty(visible_target);
+                reset_alpha_blend_count();
+                out.stats.alpha_blend_count = blended_pixels;
+                out.status = out.stats.failed_cmds == 0
+                    ? LayerReplayStatus::Ok
+                    : LayerReplayStatus::ExecuteFailed;
                 return out;
             }
             reset_alpha_blend_count();
@@ -604,6 +688,7 @@ export namespace ui::scene {
         ui::draw_cmd::DefaultDrawCmdBuffer cmd_buf_{};
         ui::draw_cmd::DefaultDrawCmdCompactionWorkspace compaction_workspace_{};
         ui::draw_cmd::DrawCmdExecutor cmd_exec_{};
+        [[no_unique_address]] DefaultCommandReplayWorkspace command_replay_workspace_{};
         SoaGui gui_;
         WidgetHandle root_{};
         DefaultSnapshotPayloadStore snapshot_payloads_{};
@@ -747,6 +832,7 @@ namespace {
         std::uint64_t draw_cmd_buffer_instances_per_scene{0};
         std::uint64_t draw_cmd_compaction_workspace_bytes{0};
         std::uint64_t draw_cmd_executor_bytes{0};
+        std::uint64_t command_replay_workspace_bytes{0};
         std::uint64_t soa_traversal_workspace_bytes{0};
         std::uint64_t snapshot_payload_bytes{0};
         std::uint64_t command_snapshot_bytes{0};
@@ -814,6 +900,7 @@ namespace {
             1,
             sizeof(ui::draw_cmd::DefaultDrawCmdCompactionWorkspace),
             sizeof(ui::draw_cmd::DrawCmdExecutor),
+            ui::scene::DefaultCommandReplayWorkspace::storage_bytes,
             SoaGui::kTraversalWorkspaceBytes,
             sizeof(ui::scene::DefaultSnapshotPayloadStore),
             ui::scene::DefaultSnapshotPayloadStore::command_capacity_bytes,
@@ -844,6 +931,9 @@ namespace {
     static_assert(kVividStaticMemoryProfile.snapshot_payload_bytes
                   <= CHARM_VIVID_SNAPSHOT_PAYLOAD_UPPER_BYTES,
                   "Vivid target-ABI snapshot payload store exceeds its configure-time upper bound");
+    static_assert(kVividStaticMemoryProfile.command_replay_workspace_bytes
+                  <= CHARM_VIVID_COMMAND_REPLAY_WORKSPACE_UPPER_BYTES,
+                  "Vivid command replay workspace exceeds its configure-time upper bound");
     static_assert(kVividStaticMemoryProfile.total_bytes
                   <= kVividStaticMemoryProfile.upper_bound_bytes,
                   "Vivid configure-time static memory model undercounted target-ABI resident bytes");
@@ -876,28 +966,30 @@ extern "C" [[gnu::used]] void charm_vivid_static_memory_profile_symbols() noexce
         ".set charm_vivid_static_profile_draw_cmd_compaction_workspace_bytes, %c5\n"
         ".global charm_vivid_static_profile_draw_cmd_executor_bytes\n"
         ".set charm_vivid_static_profile_draw_cmd_executor_bytes, %c6\n"
+        ".global charm_vivid_static_profile_command_replay_workspace_bytes\n"
+        ".set charm_vivid_static_profile_command_replay_workspace_bytes, %c7\n"
         ".global charm_vivid_static_profile_soa_traversal_workspace_bytes\n"
-        ".set charm_vivid_static_profile_soa_traversal_workspace_bytes, %c7\n"
+        ".set charm_vivid_static_profile_soa_traversal_workspace_bytes, %c8\n"
         ".global charm_vivid_static_profile_snapshot_payload_bytes\n"
-        ".set charm_vivid_static_profile_snapshot_payload_bytes, %c8\n"
+        ".set charm_vivid_static_profile_snapshot_payload_bytes, %c9\n"
         ".global charm_vivid_static_profile_command_snapshot_bytes\n"
-        ".set charm_vivid_static_profile_command_snapshot_bytes, %c9\n"
+        ".set charm_vivid_static_profile_command_snapshot_bytes, %c10\n"
         ".global charm_vivid_static_profile_pixel_snapshot_bytes\n"
-        ".set charm_vivid_static_profile_pixel_snapshot_bytes, %c10\n"
+        ".set charm_vivid_static_profile_pixel_snapshot_bytes, %c11\n"
         ".global charm_vivid_static_profile_runtime_global_bytes\n"
-        ".set charm_vivid_static_profile_runtime_global_bytes, %c11\n"
+        ".set charm_vivid_static_profile_runtime_global_bytes, %c12\n"
         ".global charm_vivid_static_profile_global_bytes\n"
-        ".set charm_vivid_static_profile_global_bytes, %c12\n"
+        ".set charm_vivid_static_profile_global_bytes, %c13\n"
         ".global charm_vivid_static_profile_total_bytes\n"
-        ".set charm_vivid_static_profile_total_bytes, %c13\n"
+        ".set charm_vivid_static_profile_total_bytes, %c14\n"
         ".global charm_vivid_static_profile_upper_bound_bytes\n"
-        ".set charm_vivid_static_profile_upper_bound_bytes, %c14\n"
+        ".set charm_vivid_static_profile_upper_bound_bytes, %c15\n"
         ".global charm_vivid_static_profile_budget_bytes\n"
-        ".set charm_vivid_static_profile_budget_bytes, %c15\n"
+        ".set charm_vivid_static_profile_budget_bytes, %c16\n"
         ".global charm_vivid_static_profile_min_headroom_bytes\n"
-        ".set charm_vivid_static_profile_min_headroom_bytes, %c16\n"
+        ".set charm_vivid_static_profile_min_headroom_bytes, %c17\n"
         ".global charm_vivid_static_profile_exact_headroom_bytes\n"
-        ".set charm_vivid_static_profile_exact_headroom_bytes, %c17\n"
+        ".set charm_vivid_static_profile_exact_headroom_bytes, %c18\n"
         :
         : "i"(profile.scene_bytes),
           "i"(profile.soa_kernel_bytes),
@@ -906,6 +998,7 @@ extern "C" [[gnu::used]] void charm_vivid_static_memory_profile_symbols() noexce
           "i"(profile.draw_cmd_buffer_instances_per_scene),
           "i"(profile.draw_cmd_compaction_workspace_bytes),
           "i"(profile.draw_cmd_executor_bytes),
+          "i"(profile.command_replay_workspace_bytes),
           "i"(profile.soa_traversal_workspace_bytes),
           "i"(profile.snapshot_payload_bytes),
           "i"(profile.command_snapshot_bytes),

@@ -195,6 +195,7 @@ function(_h747_mem_run_evidence)
         draw_cmd_buffer_instances_per_scene
         draw_cmd_compaction_workspace_bytes
         draw_cmd_executor_bytes
+        command_replay_workspace_bytes
         soa_traversal_workspace_bytes
         command_snapshot_bytes
         pixel_snapshot_bytes
@@ -499,6 +500,7 @@ function(_h747_mem_run_evidence)
         foreach(_vivid_workspace_field IN ITEMS
                 draw_cmd_compaction_workspace_bytes
                 draw_cmd_executor_bytes
+                command_replay_workspace_bytes
                 soa_traversal_workspace_bytes)
             if(NOT _vivid_static_profile_${_vivid_workspace_field} GREATER 0)
                 _h747_mem_fail(

@@ -705,7 +705,7 @@ namespace {
         return true;
     }
 
-    [[nodiscard]] bool run_command_opacity_fallback_static_cut() noexcept {
+    [[nodiscard]] bool run_command_opacity_replay() noexcept {
         TransitionScene env{};
         PaintPrepare prepare{.canvas = &env.canvas, .color = rgba{55, 95, 215, 255}, .x = 4, .y = 2};
         auto spec = command_transition_spec(env, prepare);
@@ -714,24 +714,36 @@ namespace {
         auto access = env.scene.access();
         const auto begin = runner.begin(env.scene, access, spec);
         const auto trace = runner.trace();
-        const auto ledger = runner.ledger();
-        if (!expect(begin.static_cut(), "command opacity transition resolves static cut")) return false;
-        if (!expect(begin.admission == ui::scene::LayerAdmission::StaticCut,
-                    "command opacity transition records static admission")) return false;
-        if (!expect(trace.fallback_reason == ui::scene::LayerFallbackReason::AlphaUnsupported,
-                    "command opacity transition records alpha reason")) return false;
-        if (!expect(trace.source_capture_count == 0 && trace.destination_capture_count == 0,
-                    "command opacity transition performs no capture")) return false;
+        if (!expect(begin.started(), "command opacity transition starts")) return false;
+        if (!expect(begin.admission == ui::scene::LayerAdmission::CommandSnapshot,
+                    "command opacity transition records command admission")) return false;
+        if (!expect(trace.fallback_reason == ui::scene::LayerFallbackReason::None,
+                    "command opacity transition has no fallback")) return false;
+        if (!expect(trace.source_capture_count == 1 && trace.destination_capture_count == 0,
+                    "command opacity transition captures source only")) return false;
         if (!expect_page_truth(env, false, true,
-                               "command opacity transition commits destination truth")) return false;
+                               "command opacity transition keeps destination live")) return false;
+        if (!expect_snapshot_count(env, 1,
+                                   "command opacity transition owns one snapshot")) return false;
+
+        env.canvas.clear(rgba{12, 28, 44, 255});
+        const auto frame = runner.sample(env.scene, 50);
+        if (!expect(frame.valid && frame.source.valid && frame.source.replay.ok(),
+                    "command opacity transition replays a middle frame")) return false;
+        if (!expect(frame.source.plan.transform.opacity > 0
+                        && frame.source.plan.transform.opacity < 255,
+                    "command opacity transition samples intermediate opacity")) return false;
+        if (!expect(frame.source.replay.stats.alpha_blend_count > 0,
+                    "command opacity transition records whole-layer blending")) return false;
+
+        runner.commit(env.scene, access);
+        const auto ledger = runner.ledger();
         if (!expect_snapshot_count(env, 0,
-                                   "command opacity transition leaves no snapshot")) return false;
-        if (!expect(ledger.static_cut && ledger.committed && ledger.snapshots_released
-                    && ledger.peak_layer_bytes == 0,
-                    "command opacity transition ledger records zero capture cost")) return false;
-        if (!expect(ledger.fallback_reason == ui::scene::LayerFallbackReason::AlphaUnsupported,
-                    "command opacity transition ledger keeps reason")) return false;
-        print_transition_summary("command_opacity_static_cut", begin, trace, ledger, env);
+                                   "command opacity transition releases snapshot")) return false;
+        if (!expect(ledger.committed && ledger.snapshots_released && !ledger.static_cut
+                    && ledger.source_bytes > 0 && ledger.destination_bytes == 0,
+                    "command opacity transition ledger closes command ownership")) return false;
+        print_transition_summary("command_opacity", begin, runner.trace(), ledger, env, &frame);
         return true;
     }
 
@@ -1344,7 +1356,7 @@ int main() {
             if (!run_command_snapshot_slide()) { ok = false; break; }
             if (!run_command_fallback_static_cut()) { ok = false; break; }
             if (!run_command_epoch_fallback_static_cut()) { ok = false; break; }
-            if (!run_command_opacity_fallback_static_cut()) { ok = false; break; }
+            if (!run_command_opacity_replay()) { ok = false; break; }
             break;
         }
         if (!run_normal_commit()) { ok = false; break; }

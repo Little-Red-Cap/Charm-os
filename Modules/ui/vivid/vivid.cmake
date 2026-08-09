@@ -616,12 +616,17 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
     else()
         set(_vivid_pixel_snapshot_upper_bytes 0)
     endif()
-    if(VIVID_SNAPSHOT_COMMAND_ENABLED)
+    if(VIVID_SNAPSHOT_COMMAND_ENABLED AND CHARM_VIVID_LAYER_CACHE_SLOTS GREATER 0)
         math(EXPR _vivid_command_snapshot_upper_bytes
             "${CHARM_VIVID_LAYER_CACHE_SLOTS} * ${_vivid_draw_cmd_buffer_upper_bytes}")
+        math(EXPR _vivid_command_replay_workspace_upper_bytes
+            "64 * 64 * ${_vivid_screen_bytes_per_pixel}")
     else()
         set(_vivid_command_snapshot_upper_bytes 0)
+        set(_vivid_command_replay_workspace_upper_bytes 0)
     endif()
+    set(VIVID_COMMAND_REPLAY_WORKSPACE_UPPER_BYTES
+        ${_vivid_command_replay_workspace_upper_bytes})
     if(_vivid_pixel_snapshot_upper_bytes GREATER _vivid_command_snapshot_upper_bytes)
         set(_vivid_snapshot_payload_data_upper_bytes ${_vivid_pixel_snapshot_upper_bytes})
     else()
@@ -636,7 +641,7 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
     math(EXPR _vivid_soa_upper_bytes
         "${CHARM_VIVID_SOA_MAX_NODES} * ${_vivid_soa_node_upper_bytes} + ${_vivid_semantic_pool_upper_bytes} + ${_vivid_style_patch_pool_upper_bytes} + ${_vivid_payload_slot_cap_total} * ${_vivid_payload_slot_upper_bytes} + ${_vivid_text_arena_bytes} + ${_vivid_soa_fixed_upper_bytes}")
     math(EXPR _vivid_scene_upper_bytes
-        "${_vivid_snapshot_payload_upper_bytes} + ${_vivid_command_buffer_upper_bytes} + ${_vivid_draw_cmd_compaction_workspace_upper_bytes} + ${_vivid_draw_cmd_executor_workspace_upper_bytes} + ${_vivid_soa_traversal_workspace_upper_bytes} + ${_vivid_soa_upper_bytes} + ${_vivid_scene_fixed_upper_bytes}")
+        "${_vivid_snapshot_payload_upper_bytes} + ${_vivid_command_buffer_upper_bytes} + ${_vivid_draw_cmd_compaction_workspace_upper_bytes} + ${_vivid_draw_cmd_executor_workspace_upper_bytes} + ${_vivid_command_replay_workspace_upper_bytes} + ${_vivid_soa_traversal_workspace_upper_bytes} + ${_vivid_soa_upper_bytes} + ${_vivid_scene_fixed_upper_bytes}")
     math(EXPR _vivid_global_upper_bytes
         "${_vivid_global_fixed_upper_bytes} + ${_vivid_runtime_globals_upper_bytes} + ${CHARM_VIVID_STYLE_CLASS_MAX} * 256 + ${CHARM_VIVID_STYLE_RULE_CAP} * 256 + ${CHARM_VIVID_STYLE_METRICS_POOL_CAP} * 64")
     math(EXPR VIVID_STATIC_MEMORY_UPPER_BOUND_BYTES
@@ -728,6 +733,7 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
         "max_hot_stack_frame_bytes=${VIVID_MAX_HOT_STACK_FRAME_BYTES}\n"
         "draw_cmd_compaction_workspace_upper_bytes=${_vivid_draw_cmd_compaction_workspace_upper_bytes}\n"
         "draw_cmd_executor_workspace_upper_bytes=${_vivid_draw_cmd_executor_workspace_upper_bytes}\n"
+        "command_replay_workspace_upper_bytes=${_vivid_command_replay_workspace_upper_bytes}\n"
         "soa_traversal_frame_upper_bytes=${_vivid_soa_traversal_frame_upper_bytes}\n"
         "soa_traversal_workspace_upper_bytes=${_vivid_soa_traversal_workspace_upper_bytes}\n"
         "soa_upper_bytes=${_vivid_soa_upper_bytes}\n"
@@ -876,6 +882,7 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
             "    \"draw_cmd_buffer_upper_bytes\": ${_vivid_draw_cmd_buffer_upper_bytes},\n"
             "    \"compaction_workspace_upper_bytes\": ${_vivid_draw_cmd_compaction_workspace_upper_bytes},\n"
             "    \"executor_workspace_upper_bytes\": ${_vivid_draw_cmd_executor_workspace_upper_bytes},\n"
+            "    \"command_replay_workspace_upper_bytes\": ${_vivid_command_replay_workspace_upper_bytes},\n"
             "    \"soa_node_upper_bytes\": ${_vivid_soa_node_upper_bytes},\n"
             "    \"semantic_pool_upper_bytes\": ${_vivid_semantic_pool_upper_bytes},\n"
             "    \"style_patch_pool_upper_bytes\": ${_vivid_style_patch_pool_upper_bytes},\n"

@@ -420,9 +420,6 @@ export namespace ui::scene {
 
         static constexpr bool command_compose_supported(
             const PageTransitionSpec& spec) noexcept {
-            if (spec.recipe.from_opacity != 255 || spec.recipe.to_opacity != 255) {
-                return false;
-            }
             const auto caps = layer_profile_caps(spec.requested_profile);
             return (spec.recipe.kind != MotionRecipeKind::Slide
                     && spec.recipe.kind != MotionRecipeKind::FadeSlide)
@@ -446,7 +443,6 @@ export namespace ui::scene {
                                                     spec.requested_profile,
                                                     spec.start_ms,
                                                     spec.start_ms);
-            if (!frame.compose) return LayerFallbackReason::Disabled;
             const auto plan = scene.make_snapshot_compose_plan({
                 .source = source_snapshot_,
                 .transform = frame.transform,
@@ -479,9 +475,7 @@ export namespace ui::scene {
             }
             if (snapshot_command_enabled && !snapshot_pixel_enabled
                 && !command_compose_supported(spec)) {
-                return (spec.recipe.from_opacity != 255 || spec.recipe.to_opacity != 255)
-                    ? LayerFallbackReason::AlphaUnsupported
-                    : LayerFallbackReason::Disabled;
+                return LayerFallbackReason::Disabled;
             }
             if (snapshot_pixel_enabled && spec.budget.max_layer_bytes > 0
                 && max_pixel_snapshot_bytes(spec) > spec.budget.max_layer_bytes) {

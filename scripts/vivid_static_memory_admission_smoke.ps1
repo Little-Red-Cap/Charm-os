@@ -161,6 +161,15 @@ function Assert-Admission {
         (-not $pixelEnabled -and $pixelCapacity -ne 0)) {
         throw "Snapshot capacity does not match mode=$SnapshotMode slots=$layerCacheSlots command=$commandCapacity pixel=$pixelCapacity"
     }
+    $expectedCommandReplayWorkspaceBytes = if ($commandEnabled -and $layerCacheSlots -gt 0) {
+        64 * 64 * 3
+    } else {
+        0
+    }
+    if ([int64]$Values.command_replay_workspace_upper_bytes -ne
+        $expectedCommandReplayWorkspaceBytes) {
+        throw "Command replay workspace does not match mode=$SnapshotMode expected=$expectedCommandReplayWorkspaceBytes actual=$($Values.command_replay_workspace_upper_bytes)"
+    }
     if ($Values.draw_cmd_max_commands -ne "1024" -or
         $Values.draw_cmd_text_bytes -ne "4096" -or
         $Values.draw_cmd_blob_bytes -ne "2048") {
@@ -290,6 +299,12 @@ function Assert-ProductEvidence {
     }
     if ([int64]$admissionEvidence.static_memory.executor_workspace_upper_bytes -ne 4096) {
         throw "PRODUCT executor workspace evidence mismatch for profile '$Profile'"
+    }
+    $screenBytesPerPixel = if ($envelopeEvidence.screen.pixel_format -eq "RGB565") { 2 } else { 3 }
+    $expectedCommandReplayWorkspaceBytes = 64 * 64 * $screenBytesPerPixel
+    if ([int64]$admissionEvidence.static_memory.command_replay_workspace_upper_bytes -ne
+        $expectedCommandReplayWorkspaceBytes) {
+        throw "PRODUCT command replay workspace evidence mismatch for profile '$Profile'"
     }
     $expectedTraversalFrameBytes = if ($drawDetailEnabled) { 56 } else { 52 }
     if ($admissionEvidence.static_memory.draw_detail_evidence -ne $drawDetailEnabled -or
@@ -489,12 +504,13 @@ try {
     Invoke-VividConfigure -SourceDir $SoaSourceDir -FeatureSet "FULL" -ExtraArgs $zeroSnapshotArgs | Out-Null
     $zeroSnapshotValues = Read-KeyValueManifest -Path $fullManifest
     Assert-Admission -Values $zeroSnapshotValues -FeatureSet "FULL" -Profile "full" -Status "profile_only" -MinimumHeadroom 0
-    $releasedSnapshotBytes = [int64]$fullValues.snapshot_payload_upper_bytes - 64
+    $releasedSnapshotBytes = [int64]$fullValues.snapshot_payload_upper_bytes - 64 `
+        + [int64]$fullValues.command_replay_workspace_upper_bytes
     $releasedUpperBytes = [int64]$fullValues.upper_bound_bytes `
         - [int64]$zeroSnapshotValues.upper_bound_bytes
     if ([int64]$zeroSnapshotValues.snapshot_payload_upper_bytes -ne 64 -or
         $releasedUpperBytes -ne $releasedSnapshotBytes) {
-        throw "Zero-slot profile did not remove snapshot payload bytes from the upper bound"
+        throw "Zero-slot profile did not remove snapshot payload and replay workspace bytes from the upper bound"
     }
     Write-Host "[vivid-static-memory] zero_snapshot_slots=ok released_upper_bytes=$releasedUpperBytes"
 

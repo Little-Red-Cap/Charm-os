@@ -116,6 +116,56 @@ namespace ui::scene::detail {
         return out;
     }
 
+    constexpr rgba blend_opaque_pixels(rgba background,
+                                       rgba foreground,
+                                       std::uint8_t opacity) noexcept {
+        const auto inverse = static_cast<std::uint32_t>(255u - opacity);
+        const auto blend = [inverse, opacity](std::uint8_t bg, std::uint8_t fg) constexpr {
+            return static_cast<std::uint8_t>(
+                (static_cast<std::uint32_t>(bg) * inverse
+                 + static_cast<std::uint32_t>(fg) * opacity)
+                / 255u);
+        };
+        return {
+            blend(background.r, foreground.r),
+            blend(background.g, foreground.g),
+            blend(background.b, foreground.b),
+            255,
+        };
+    }
+
+    void accumulate_scene_stats(ExecStats& total,
+                                const ui::draw_cmd::DrawCmdExecStats& stats) noexcept {
+        const auto part = to_scene_stats(stats);
+        total.clip_pushes += part.clip_pushes;
+        total.clip_pops += part.clip_pops;
+        total.clip_push_overflow += part.clip_push_overflow;
+        total.clip_pop_underflow += part.clip_pop_underflow;
+        total.clip_invalid += part.clip_invalid;
+        total.failed_cmds += part.failed_cmds;
+        total.fail_text += part.fail_text;
+        total.fail_image += part.fail_image;
+        total.fail_blob += part.fail_blob;
+        total.fail_path += part.fail_path;
+        total.fail_clip += part.fail_clip;
+        total.fail_other += part.fail_other;
+        total.dispatch_groups += part.dispatch_groups;
+        total.batch_flushes += part.batch_flushes;
+        total.group_rect += part.group_rect;
+        total.group_text += part.group_text;
+        total.group_image += part.group_image;
+        total.group_line += part.group_line;
+        total.group_path += part.group_path;
+        total.group_other += part.group_other;
+        total.cmd_rect += part.cmd_rect;
+        total.cmd_text += part.cmd_text;
+        total.cmd_image += part.cmd_image;
+        total.cmd_line += part.cmd_line;
+        total.cmd_path += part.cmd_path;
+        total.cmd_other += part.cmd_other;
+        total.overflowed = total.overflowed || part.overflowed;
+    }
+
     TileStats to_scene_stats(const ui::draw_cmd::DrawCmdTileStats& stats) noexcept {
         TileStats out{};
         out.tiles_total = stats.tiles_total;

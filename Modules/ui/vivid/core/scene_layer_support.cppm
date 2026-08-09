@@ -411,6 +411,43 @@ export namespace ui::scene {
         snapshot_command_enabled,
         snapshot_pixel_enabled>;
 
+    template<bool Enabled, PixelFormat Format>
+    class CommandReplayWorkspace {};
+
+    template<PixelFormat Format>
+    class CommandReplayWorkspace<true, Format> {
+    public:
+        static constexpr int tile_width = 64;
+        static constexpr int tile_height = 64;
+        static constexpr std::size_t storage_bytes =
+            static_cast<std::size_t>(tile_width)
+            * static_cast<std::size_t>(tile_height)
+            * ui::draw_cmd::bytes_per_pixel(Format);
+
+        [[nodiscard]] std::byte* data() noexcept { return pixels_.data(); }
+
+    private:
+        std::array<std::byte, storage_bytes> pixels_{};
+    };
+
+    template<PixelFormat Format>
+    class CommandReplayWorkspace<false, Format> {
+    public:
+        static constexpr int tile_width = 64;
+        static constexpr int tile_height = 64;
+        static constexpr std::size_t storage_bytes = 0;
+
+        [[nodiscard]] std::byte* data() noexcept { return nullptr; }
+    };
+
+    template class CommandReplayWorkspace<
+        snapshot_command_enabled && (layer_cache_slots > 0),
+        screen_pixel_format>;
+
+    using DefaultCommandReplayWorkspace = CommandReplayWorkspace<
+        snapshot_command_enabled && (layer_cache_slots > 0),
+        screen_pixel_format>;
+
     struct TileStats {
         int tiles_total{0};
         int tiles_drawn{0};

@@ -22,6 +22,48 @@ namespace {
                                     command_snapshot_width,
                                     command_snapshot_height>;
 
+    template<typename T>
+    concept exposes_snapshot_reserve = requires(T& scene,
+                                                 const ui::scene::SnapshotSpec& spec) {
+        scene.reserve_snapshot(spec);
+    };
+
+    template<typename T>
+    concept exposes_command_snapshot_update = requires(T& scene,
+                                                        ui::scene::SnapshotHandle handle) {
+        scene.update_command_snapshot(handle);
+    };
+
+    template<typename T>
+    concept exposes_pixel_snapshot_update = requires(T& scene,
+                                                      ui::scene::SnapshotHandle handle) {
+        scene.update_pixel_snapshot(handle, screen_pixel_format, std::uint32_t{0});
+    };
+
+    template<typename T>
+    concept exposes_layer_epoch_query = requires(T& scene) {
+        scene.current_layer_epoch();
+    };
+
+    template<typename T>
+    concept exposes_snapshot_epoch_refresh = requires(T& scene,
+                                                       ui::scene::SnapshotHandle handle) {
+        scene.refresh_snapshot_epoch(handle);
+    };
+
+    template<typename T>
+    concept exposes_compose_validation_detail = requires(T& scene,
+                                                          ui::scene::SnapshotHandle handle) {
+        scene.validate_snapshot_for_compose(handle);
+    };
+
+    static_assert(!exposes_snapshot_reserve<ui::scene::Scene>);
+    static_assert(!exposes_command_snapshot_update<ui::scene::Scene>);
+    static_assert(!exposes_pixel_snapshot_update<ui::scene::Scene>);
+    static_assert(!exposes_layer_epoch_query<ui::scene::Scene>);
+    static_assert(!exposes_snapshot_epoch_refresh<ui::scene::Scene>);
+    static_assert(!exposes_compose_validation_detail<ui::scene::Scene>);
+
     struct TransitionScene {
         TransitionFrameBuffer fb{};
         TransitionCanvas canvas{fb};
@@ -409,8 +451,10 @@ namespace {
                     "command overflow remains visible in scene evidence")) {
             return false;
         }
-        if (!expect(env.scene.layer_stats().snapshot_count == 0,
-                    "command overflow releases reserved snapshot")) {
+        const auto failed_layer_stats = env.scene.layer_stats();
+        if (!expect(failed_layer_stats.snapshot_count == 0
+                        && failed_layer_stats.layer_bytes == 0,
+                    "command overflow publishes no snapshot state")) {
             return false;
         }
 
@@ -430,27 +474,8 @@ namespace {
             return false;
         }
 
-        const auto incomplete = env.scene.reserve_snapshot(spec);
-        if (!expect(incomplete
-                        && env.scene.update_command_snapshot(incomplete)
-                        && !env.scene.snapshot_current(incomplete),
-                    "metadata without payload is never a current snapshot")) {
-            return false;
-        }
-        const auto incomplete_plan = env.scene.make_snapshot_compose_plan({
-            .source = incomplete,
-        });
-        const auto* incomplete_record = env.scene.snapshot_record(incomplete);
-        if (!expect(!incomplete_plan.valid
-                        && incomplete_record
-                        && incomplete_record->stale
-                        && env.scene.release_snapshot(incomplete),
-                    "compose rejects and releases incomplete snapshot")) {
-            return false;
-        }
-
         ++transition_summary_case_count;
-        std::puts("[pt] case=command_record_overflow status=record_failed recovered=1 incomplete_rejected=1 snapshots=0");
+        std::puts("[pt] case=command_record_overflow status=record_failed recovered=1 transactional=1 snapshots=0");
         return true;
     }
 

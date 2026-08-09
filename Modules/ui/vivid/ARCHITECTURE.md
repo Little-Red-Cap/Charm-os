@@ -74,6 +74,8 @@ widget/scene state
 - snapshot handle slot 与 payload slot 一一对应；`HYBRID` 中 command 与 pixel payload 共享同一块按较大者
   定额的 slot storage，`COMMAND` / `PIXEL` 只保留对应 kind 的 slot，`NONE` 不保留 payload capacity；
   同一逻辑槽不能让两种 kind 同时占用，禁止恢复两套各自乘 `layer_cache_slots` 的常驻池；
+- `Scene` 的 snapshot capture 是完整事务；reserve、payload 写入、metadata 发布与 epoch 绑定属于内部阶段，
+  产品调用方不能构造半成品 snapshot，也不能通过刷新 epoch 复活 stale command payload；
 - snapshot storage mode 属于 product profile，决定编译进产品的能力和 `Scene` 布局；slot 数、尺寸和 pixel
   format 属于 target envelope。未编译 kind 的 capture 必须在 reserve 前返回 `UnsupportedKind`；
 - `layer_cache_slots=0` 是合法的无快照 target envelope：Scene 保留稳定 API，但 capture 必须返回无槽，admission

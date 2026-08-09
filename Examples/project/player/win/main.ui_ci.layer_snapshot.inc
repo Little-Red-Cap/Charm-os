@@ -30,22 +30,23 @@
             }
         }
         {
-            const auto epoch = scene.current_layer_epoch();
             const ::ui::scene::SnapshotSpec spec{
                 .bounds = Rect{0, 0, 16, 16},
                 .preferred_kind = ::ui::scene::SnapshotKind::CommandBuffer,
             };
-            const auto handle = scene.reserve_snapshot(spec);
+            const auto capture = scene.capture_command_snapshot_result(spec);
+            const auto handle = capture.handle;
             const auto* record = scene.snapshot_record(handle);
-            const bool reserved = static_cast<bool>(handle)
+            const bool lifecycle = capture.ok()
+                && static_cast<bool>(handle)
                 && record
-                && record->epoch == epoch
-                && scene.update_command_snapshot(handle)
+                && record->kind == ::ui::scene::SnapshotKind::CommandBuffer
+                && scene.snapshot_current(handle)
                 && scene.mark_snapshot_stale(handle)
-                && scene.refresh_snapshot_epoch(handle)
+                && !scene.snapshot_current(handle)
                 && scene.release_snapshot(handle)
                 && !scene.snapshot_record(handle);
-            if (reserved && scene.layer_stats().snapshot_count == 0) {
+            if (lifecycle && scene.layer_stats().snapshot_count == 0) {
                 ui_ci_emit("layer_snapshot_lifecycle", true, nullptr);
             } else {
                 ui_ci_emit("layer_snapshot_lifecycle", false, "snapshot_lifecycle");

@@ -82,6 +82,10 @@ command capture 必须先完成 record，再写入 payload，最后发布 snapsh
 traversal workspace 溢出或 traversal phase 冲突属于 `RecordFailed`；完整 record 无法写入 payload 才属于
 `StoreFailed`。任一失败都必须释放已保留的 slot 与已构造的 payload，且后续 capture 可以继续复用容量。
 
+`Scene` 只向调用方发布完整 capture。slot reserve、payload write、metadata publish 和 epoch assignment 是
+一次 capture 内部的事务阶段，不是产品可逐步调用的生命周期 API。stale command snapshot 必须重新 capture，
+不能只刷新 epoch 后继续使用旧 payload。
+
 `TileSurface` 或其它 snapshot kind 在进入 source、测试和 ownership 证据前不属于 v0 保证。
 
 ## 生命周期闭环

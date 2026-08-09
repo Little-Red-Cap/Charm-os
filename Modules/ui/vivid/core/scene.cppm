@@ -329,18 +329,6 @@ export namespace ui::scene {
         ui::draw_cmd::DrawCmdDetailStats last_draw_detail_stats() const noexcept { return {}; }
 #endif
         LayerStats layer_stats() const noexcept { return snapshot_store_.stats(); }
-        LayerEpoch current_layer_epoch() const noexcept {
-            return make_layer_epoch();
-        }
-        SnapshotHandle reserve_snapshot(const SnapshotSpec& spec) noexcept {
-            if ((spec.preferred_kind == SnapshotKind::CommandBuffer
-                 && !snapshot_command_enabled)
-                || (spec.preferred_kind == SnapshotKind::PixelSurface
-                    && !snapshot_pixel_enabled)) {
-                return {};
-            }
-            return snapshot_store_.reserve(spec, make_layer_epoch());
-        }
         bool release_snapshot(SnapshotHandle handle) noexcept {
             if (const auto* record = snapshot_store_.record(handle);
                 record && record->payload_slot != kInvalidSnapshotPayloadSlot) {
@@ -350,9 +338,6 @@ export namespace ui::scene {
         }
         bool mark_snapshot_stale(SnapshotHandle handle) noexcept {
             return snapshot_store_.mark_stale(handle);
-        }
-        bool refresh_snapshot_epoch(SnapshotHandle handle) noexcept {
-            return snapshot_store_.refresh_epoch(handle, make_layer_epoch());
         }
         const SnapshotRecord* snapshot_record(SnapshotHandle handle) const noexcept {
             return snapshot_store_.record(handle);
@@ -373,20 +358,6 @@ export namespace ui::scene {
             }
             return false;
         }
-        bool validate_snapshot_for_compose(SnapshotHandle handle) noexcept {
-            return validate_snapshot(handle);
-        }
-        bool update_command_snapshot(SnapshotHandle handle) noexcept {
-            if constexpr (!snapshot_command_enabled) {
-                (void)handle;
-                return false;
-            } else {
-                return snapshot_store_.update_command_snapshot(
-                    handle,
-                    static_cast<std::uint32_t>(last_cmd_stats_.cmd_count),
-                    command_snapshot_payload_bytes(last_cmd_stats_));
-            }
-        }
         LayerCaptureResult capture_command_snapshot_result(const SnapshotSpec& spec) noexcept {
             return capture_command_snapshot_result_for_root(spec, {});
         }
@@ -402,7 +373,7 @@ export namespace ui::scene {
             SnapshotSpec pixel_spec = spec;
             pixel_spec.preferred_kind = SnapshotKind::PixelSurface;
             pixel_spec.preferred_format = screen_pixel_format;
-            const auto handle = reserve_snapshot(pixel_spec);
+            const auto handle = reserve_snapshot_slot(pixel_spec);
             if (!handle) return result;
             result.handle = handle;
             const auto payload_slot = static_cast<std::uint32_t>(handle.slot);
@@ -428,18 +399,6 @@ export namespace ui::scene {
         }
         SnapshotHandle capture_pixel_snapshot(const SnapshotSpec& spec) noexcept {
             return capture_pixel_snapshot_result(spec).handle;
-        }
-        bool update_pixel_snapshot(SnapshotHandle handle,
-                                   PixelFormat format,
-                                   std::uint32_t bytes) noexcept {
-            if constexpr (!snapshot_pixel_enabled) {
-                (void)handle;
-                (void)format;
-                (void)bytes;
-                return false;
-            } else {
-                return snapshot_store_.update_pixel_snapshot(handle, format, bytes);
-            }
         }
         LayerComposeResult compose_snapshot_dry_run(const LayerComposeSpec& spec) noexcept {
             if (!validate_snapshot_for_compose(spec.source)) {
@@ -701,6 +660,22 @@ export namespace ui::scene {
     private:
         friend class PageLayer;
 
+        [[nodiscard]] SnapshotHandle reserve_snapshot_slot(
+            const SnapshotSpec& spec) noexcept {
+            if ((spec.preferred_kind == SnapshotKind::CommandBuffer
+                 && !snapshot_command_enabled)
+                || (spec.preferred_kind == SnapshotKind::PixelSurface
+                    && !snapshot_pixel_enabled)) {
+                return {};
+            }
+            return snapshot_store_.reserve(spec, make_layer_epoch());
+        }
+
+        [[nodiscard]] bool validate_snapshot_for_compose(
+            SnapshotHandle handle) noexcept {
+            return validate_snapshot(handle);
+        }
+
         LayerCaptureResult capture_command_snapshot_result_for_root(
             const SnapshotSpec& spec,
             WidgetHandle record_root) noexcept {
@@ -711,7 +686,7 @@ export namespace ui::scene {
             }
             SnapshotSpec command_spec = spec;
             command_spec.preferred_kind = SnapshotKind::CommandBuffer;
-            const auto handle = reserve_snapshot(command_spec);
+            const auto handle = reserve_snapshot_slot(command_spec);
             if (!handle) return result;
             result.handle = handle;
             record_current_scene(record_root);

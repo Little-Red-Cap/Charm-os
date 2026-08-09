@@ -489,27 +489,17 @@ export namespace ui::draw_cmd {
             std::size_t offset = 0;
             while (offset < cmd_bytes_used_) {
                 std::size_t stride = 0;
-                if (!read_cmd_at_offset(offset, cmd, stride)) break;
+                if (!read_cmd_at_offset(offset, cmd, stride)) return true;
                 if (cmd.type == CmdType::PushClip || cmd.type == CmdType::PopClip) {
-                    offset += stride;
-                    continue;
-                }
-                if (cmd.type == CmdType::DrawLine) {
-                    const Rect bounds = line_bounds(cmd.rect.x, cmd.rect.y, cmd.rect.w, cmd.rect.h);
-                    if (rect_intersect(bounds, rect, out)) return true;
                     offset += stride;
                     continue;
                 }
                 if (cmd.type == CmdType::DrawLineBatch) {
                     const int count = cmd.p0;
-                    if (count <= 0) {
-                        offset += stride;
-                        continue;
-                    }
+                    if (count <= 0) return true;
                     const auto blob = blob_.bytes(cmd.blob);
                     if (blob.size() < static_cast<std::size_t>(count) * sizeof(LineBatchItem)) {
-                        offset += stride;
-                        continue;
+                        return true;
                     }
                     const auto items = std::span<const LineBatchItem>(
                         reinterpret_cast<const LineBatchItem*>(blob.data()), count);
@@ -520,11 +510,12 @@ export namespace ui::draw_cmd {
                     offset += stride;
                     continue;
                 }
-                if (!rect_valid(cmd.rect)) {
+                const Rect bounds = draw_cmd_bounds(cmd);
+                if (!rect_valid(bounds)) {
                     offset += stride;
                     continue;
                 }
-                if (rect_intersect(cmd.rect, rect, out)) return true;
+                if (rect_intersect(bounds, rect, out)) return true;
                 offset += stride;
             }
             return false;

@@ -179,6 +179,48 @@ export namespace ui::scene {
             return std::span<const std::byte>(blob_.data() + ref.offset, ref.length);
         }
 
+        [[nodiscard]] bool any_draw_hits(const Rect& rect) const noexcept {
+            Rect intersection{};
+            ui::draw_cmd::DrawCmd cmd{};
+            std::size_t offset = 0;
+            while (offset < cmd_bytes_used_) {
+                std::size_t stride = 0;
+                if (!read_cmd_at_offset(offset, cmd, stride)) return true;
+                if (cmd.type == ui::draw_cmd::CmdType::PushClip
+                    || cmd.type == ui::draw_cmd::CmdType::PopClip) {
+                    offset += stride;
+                    continue;
+                }
+                if (cmd.type == ui::draw_cmd::CmdType::DrawLineBatch) {
+                    const int count = cmd.p0;
+                    if (count <= 0) return true;
+                    const auto bytes = blob_at(cmd.blob);
+                    if (bytes.size()
+                        < static_cast<std::size_t>(count)
+                            * sizeof(ui::draw_cmd::LineBatchItem)) {
+                        return true;
+                    }
+                    const auto items = std::span<const ui::draw_cmd::LineBatchItem>(
+                        reinterpret_cast<const ui::draw_cmd::LineBatchItem*>(bytes.data()),
+                        count);
+                    for (const auto& item : items) {
+                        const Rect bounds = ui::draw_cmd::line_bounds(
+                            item.x0, item.y0, item.x1, item.y1);
+                        if (rect_intersect(bounds, rect, intersection)) return true;
+                    }
+                    offset += stride;
+                    continue;
+                }
+                const Rect bounds = ui::draw_cmd::draw_cmd_bounds(cmd);
+                if (rect_valid(bounds)
+                    && rect_intersect(bounds, rect, intersection)) {
+                    return true;
+                }
+                offset += stride;
+            }
+            return false;
+        }
+
     private:
         alignas(ui::draw_cmd::kCmdAlign)
             std::array<std::byte, SourceBuffer::kCmdBytesCapacity> cmd_bytes_;

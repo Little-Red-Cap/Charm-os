@@ -9,9 +9,19 @@ import charm.ui.vivid;
 #include "../support/vivid_evidence_support.hpp"
 
 namespace {
+    inline constexpr int command_snapshot_width = 160;
+    inline constexpr int command_snapshot_height = 96;
+    inline constexpr std::uint64_t command_replay_hit_tile_pixels = 64u * 64u;
+    using TransitionFrameBuffer = FrameBuffer<screen_pixel_format,
+                                              command_snapshot_width,
+                                              command_snapshot_height>;
+    using TransitionCanvas = Canvas<screen_pixel_format,
+                                    command_snapshot_width,
+                                    command_snapshot_height>;
+
     struct TransitionScene {
-        DefaultFrameBuffer fb{};
-        DefaultCanvas canvas{fb};
+        TransitionFrameBuffer fb{};
+        TransitionCanvas canvas{fb};
         ui::scene::Scene scene{canvas};
         WidgetHandle root{};
         WidgetHandle source_root{};
@@ -50,7 +60,7 @@ namespace {
     };
 
     struct PaintPrepare {
-        DefaultCanvas* canvas{nullptr};
+        TransitionCanvas* canvas{nullptr};
         rgba color{};
         int x{0};
         int y{0};
@@ -305,8 +315,8 @@ namespace {
         PaintPrepare& prepare,
         ui::scene::LayerBudget budget = {.max_layer_bytes = 2048}) noexcept {
         auto spec = transition_spec(env, prepare, budget);
-        spec.source_snapshot.bounds = {0, 0, 32, 32};
-        spec.destination_snapshot.bounds = {0, 0, 32, 32};
+        spec.source_snapshot.bounds = {0, 0, command_snapshot_width, command_snapshot_height};
+        spec.destination_snapshot.bounds = {0, 0, command_snapshot_width, command_snapshot_height};
         return spec;
     }
 
@@ -735,6 +745,11 @@ namespace {
                     "command opacity transition samples intermediate opacity")) return false;
         if (!expect(frame.source.replay.stats.alpha_blend_count > 0,
                     "command opacity transition records whole-layer blending")) return false;
+        if (!expect(frame.source.replay.stats.alpha_blend_count
+                        == command_replay_hit_tile_pixels,
+                    "command opacity transition blends only the hit tile")) {
+            return false;
+        }
 
         runner.commit(env.scene, access);
         const auto ledger = runner.ledger();
@@ -1132,7 +1147,12 @@ namespace {
         env.canvas.set_pixel(2, 2, rgba{190, 40, 60, 255});
         PaintPrepare prepare{.canvas = &env.canvas, .color = rgba{40, 90, 220, 255}, .x = 4, .y = 2};
         auto spec = transition_spec(env, prepare);
-        spec.source_snapshot.bounds = {.x = 40, .y = 40, .w = 1, .h = 1};
+        spec.source_snapshot.bounds = {
+            .x = command_snapshot_width + 8,
+            .y = command_snapshot_height + 8,
+            .w = 1,
+            .h = 1,
+        };
         ui::scene::PageTransitionRunner runner{};
         auto access = env.scene.access();
         const auto begin = runner.begin(env.scene, access, spec);
@@ -1176,7 +1196,12 @@ namespace {
         env.canvas.set_pixel(2, 2, rgba{180, 50, 70, 255});
         PaintPrepare prepare{.canvas = &env.canvas, .color = rgba{50, 100, 230, 255}, .x = 4, .y = 2};
         auto spec = transition_spec(env, prepare);
-        spec.destination_snapshot.bounds = {.x = 40, .y = 40, .w = 1, .h = 1};
+        spec.destination_snapshot.bounds = {
+            .x = command_snapshot_width + 8,
+            .y = command_snapshot_height + 8,
+            .w = 1,
+            .h = 1,
+        };
         ui::scene::PageTransitionRunner runner{};
         auto access = env.scene.access();
         const auto begin = runner.begin(env.scene, access, spec);

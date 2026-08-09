@@ -478,6 +478,12 @@ export namespace ui::scene {
                         const int width = std::min(tile_width,
                                                    visible_target.x + visible_target.w - tile_x);
                         const Rect tile{tile_x, tile_y, width, height};
+                        Rect source_tile = layer_inverse_translate_rect(tile, plan.transform);
+                        source_tile = layer_intersect_rect(source_tile, plan.source_visible);
+                        if (layer_rect_empty(source_tile)
+                            || !payload->any_draw_hits(source_tile)) {
+                            continue;
+                        }
                         RuntimeCanvas scratch{
                             command_replay_workspace_.data(),
                             width,
@@ -494,8 +500,6 @@ export namespace ui::scene {
 
                         scratch.set_origin(static_cast<int>(plan.transform.x) - tile_x,
                                            static_cast<int>(plan.transform.y) - tile_y);
-                        Rect source_tile = layer_inverse_translate_rect(tile, plan.transform);
-                        source_tile = layer_intersect_rect(source_tile, plan.source_visible);
                         const auto tile_stats = cmd_exec_.execute(scratch, *payload, &source_tile);
                         detail::accumulate_scene_stats(out.stats, tile_stats);
                         scratch.clear_origin();
@@ -518,7 +522,7 @@ export namespace ui::scene {
                     }
                 }
                 canvas_.restore_clip(base_clip);
-                canvas_.mark_dirty(visible_target);
+                if (blended_pixels != 0) canvas_.mark_dirty(visible_target);
                 reset_alpha_blend_count();
                 out.stats.alpha_blend_count = blended_pixels;
                 out.status = out.stats.failed_cmds == 0

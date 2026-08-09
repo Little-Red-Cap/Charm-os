@@ -1427,19 +1427,16 @@ export namespace ui::draw_cmd {
                                 const auto items = std::span<const RectBatchItem>(
                                     reinterpret_cast<const RectBatchItem*>(blob.data()), count);
                                 for (std::size_t i = 0; i < items.size(); ++i) {
-                                    const auto& item = items[i];
-                                    mark_bounds(item.rect);
+                                    DrawCmd item_cmd = cmd;
+                                    item_cmd.rect = items[i].rect;
+                                    mark_bounds(draw_cmd_bounds(item_cmd));
                                 }
                             }
                         }
                         offset += stride;
                         continue;
                     }
-                    Rect bounds = cmd.rect;
-                    if (cmd.type == CmdType::DrawLine) {
-                        bounds = line_bounds(cmd.rect.x, cmd.rect.y, cmd.rect.w, cmd.rect.h);
-                    }
-                    mark_bounds(bounds);
+                    mark_bounds(draw_cmd_bounds(cmd));
                     offset += stride;
                 }
             }

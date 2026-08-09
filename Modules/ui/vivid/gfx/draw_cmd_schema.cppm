@@ -527,6 +527,34 @@ export namespace ui::draw_cmd {
         return Rect{left, top, w, h};
     }
 
+    constexpr Rect focus_ring_bounds(const Rect& rect, int inset) noexcept {
+        if (inset >= 0) return rect;
+        return Rect{
+            rect.x + inset,
+            rect.y + inset,
+            rect.w - inset * 2,
+            rect.h - inset * 2,
+        };
+    }
+
+    constexpr Rect draw_cmd_bounds(const DrawCmd& cmd) noexcept {
+        switch (cmd.type) {
+        case CmdType::PushClip:
+        case CmdType::PopClip:
+            return {};
+        case CmdType::DrawLine:
+            return line_bounds(cmd.rect.x, cmd.rect.y, cmd.rect.w, cmd.rect.h);
+        case CmdType::FocusRing:
+        case CmdType::FocusRingBatch:
+            return focus_ring_bounds(cmd.rect, cmd.p1);
+        default:
+            return cmd.rect;
+        }
+    }
+
+    static_assert(focus_ring_bounds(Rect{8, 8, 10, 10}, -2).x == 6);
+    static_assert(focus_ring_bounds(Rect{8, 8, 10, 10}, -2).w == 14);
+
     constexpr bool rgba_equal(const rgba& a, const rgba& b) noexcept {
         return a.r == b.r && a.g == b.g && a.b == b.b && a.a == b.a;
     }

@@ -87,8 +87,8 @@ traversal workspace 溢出或 traversal phase 冲突属于 `RecordFailed`；完�
 不能只刷新 epoch 后继续使用旧 payload。
 
 capture result 以值语义返回 kind、实际 payload bytes 和 command count。generation、epoch、payload slot、
-occupied/stale record 及可变 store 属于 Scene private partition；产品 evidence 不持有 record 指针，也不以
-内部 slot 编号证明资源复用。
+occupied/stale record 属于 Scene private partition；command/pixel payload 与 replay workspace 属于 internal
+runtime module。产品 evidence 不持有 store/record 指针，也不以内存 slot 编号证明资源复用。
 
 `TileSurface` 或其它 snapshot kind 在进入 source、测试和 ownership 证据前不属于 v0 保证。
 

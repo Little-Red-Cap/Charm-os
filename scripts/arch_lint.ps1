@@ -311,6 +311,7 @@ function Invoke-VividImportBoundaryRules {
         "|charm\\.gfx\\.draw_cmd(:[A-Za-z0-9_]+)?" +
         "|charm\\.gfx\\.host_tools" +
         "|charm\\.ui\\.scene\\.(builder_support|layer_support|layer_runtime)" +
+        "|charm\\.ui\\.scene\\.snapshot_payload_store" +
         "|charm\\.ui\\.scene:render_detail" +
         "|charm\\.ui\\.scene:snapshot_store" +
         ")\\b"

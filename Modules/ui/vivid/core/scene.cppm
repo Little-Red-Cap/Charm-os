@@ -27,6 +27,7 @@ export import charm.ui.scene.pill_surface;
 export import charm.ui.scene.layer_runtime;
 export import charm.ui.scene.builder_support;
 export import charm.ui.scene.layer_support;
+import charm.ui.scene.snapshot_payload_store;
 import charm.core.soa_factory;
 import charm.core.soa_gui;
 import charm.core.soa_kernel;

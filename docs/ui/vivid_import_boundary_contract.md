@@ -54,6 +54,7 @@ Profile Compiler 是 Vivid `Implementation / Tool`，不进入 Charm Core，也�
 - `charm.ui.scene.builder_support`
 - `charm.ui.scene.layer_support`
 - `charm.ui.scene.layer_runtime`
+- `charm.ui.scene.snapshot_payload_store`
 - `charm.ui.scene:render_detail`
 - `charm.ui.scene:snapshot_store`
 
@@ -63,8 +64,10 @@ Profile Compiler 是 Vivid `Implementation / Tool`，不进入 Charm Core，也�
 - 产品代码不应把它们当成可独立演进的入口。
 - `scene:render_detail` 是 private partition，不得被产品、demo 或 evidence 直接依赖。
 - `scene:snapshot_store` 是 private partition，只拥有 handle generation、epoch、payload slot 和 record storage。
+- `scene.snapshot_payload_store` 是 internal runtime module，只供 Scene 与显式 regression 使用；产品不得持有
+  command/pixel payload 或 replay workspace。
 - `builder_support` 负责 construction/access aliases，不负责 render/snapshot/evidence formatting。
-- `layer_support` 负责 layer stats、capture/replay value result 和 snapshot payload storage，不公开 Scene record 账本。
+- `layer_support` 只负责 layer stats 与 capture/replay value result，不公开 Scene payload/record 存储。
 - `layer_runtime` 只定义 handle/spec/plan/budget 等值协议，不拥有或导出 snapshot store。
 - `scene:render_detail` 负责 Scene-private stats conversion、pixel decode/blend 与 compose glue，不建立第二个 render surface。
 

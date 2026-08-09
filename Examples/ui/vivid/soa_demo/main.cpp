@@ -14,6 +14,7 @@
 
 import charm.ui.vivid_internal;
 import charm.ui.scene;
+import charm.ui.scene.snapshot_payload_store;
 import charm.core.event;
 import charm.core.config;
 import charm.core.geometry;

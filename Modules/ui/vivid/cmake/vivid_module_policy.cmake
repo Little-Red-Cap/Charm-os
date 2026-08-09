@@ -48,6 +48,7 @@ foreach(_module IN ITEMS
         charm.gfx.draw_cmd
         charm.ui.scene.builder_support
         charm.ui.scene.layer_support
+        charm.ui.scene.snapshot_payload_store
         charm.ui.scene:snapshot_store
         charm.ui.scene:render_detail)
     vivid_module_policy(NAME "${_module}" ACCESS INTERNAL)

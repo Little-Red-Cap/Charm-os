@@ -158,7 +158,7 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
                 SOA_MAX_NODES SOA_TEXT_ARENA_BYTES SEMANTIC_SLOT_CAP STYLE_PATCH_SLOT_CAP
                 STYLE_CLASS_MAX STYLE_RULE_CAP
                 STYLE_METRICS_POOL_CAP DRAW_CMD_MAX_COMMANDS DRAW_CMD_TEXT_BYTES
-                DRAW_CMD_BLOB_BYTES FLOAT_WIDGETS)
+                DRAW_CMD_BLOB_BYTES FLOAT_WIDGETS SNAPSHOT_STORAGE_MODE)
             _vivid_profile_get("${_vivid_profile_name}" "${_field}" _profile_value)
             set(_vivid_profile_${_field} "${_profile_value}")
         endforeach()
@@ -188,6 +188,8 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
         set(CHARM_VIVID_DRAW_CMD_MAX_COMMANDS "${_vivid_profile_DRAW_CMD_MAX_COMMANDS}")
         set(CHARM_VIVID_DRAW_CMD_TEXT_BYTES "${_vivid_profile_DRAW_CMD_TEXT_BYTES}")
         set(CHARM_VIVID_DRAW_CMD_BLOB_BYTES "${_vivid_profile_DRAW_CMD_BLOB_BYTES}")
+        set(CHARM_VIVID_SNAPSHOT_STORAGE_MODE
+            "${_vivid_profile_SNAPSHOT_STORAGE_MODE}")
         set(CHARM_VIVID_MAX_HOT_STACK_FRAME_BYTES "${_vivid_target_MAX_HOT_STACK_FRAME_BYTES}")
         set(CHARM_VIVID_DRAW_DETAIL_EVIDENCE "${_vivid_target_DRAW_DETAIL_EVIDENCE}")
         set(CHARM_VIVID_RUNTIME_SCENE_INSTANCES "${_vivid_target_RUNTIME_SCENE_INSTANCES}")
@@ -237,6 +239,9 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
         vivid_cache_default(CHARM_VIVID_DRAW_CMD_MAX_COMMANDS STRING 1024 "Vivid DrawCmd command capacity")
         vivid_cache_default(CHARM_VIVID_DRAW_CMD_TEXT_BYTES STRING 4096 "Vivid DrawCmd text arena bytes")
         vivid_cache_default(CHARM_VIVID_DRAW_CMD_BLOB_BYTES STRING 2048 "Vivid DrawCmd blob arena bytes")
+        vivid_cache_default(CHARM_VIVID_SNAPSHOT_STORAGE_MODE STRING HYBRID "Vivid snapshot storage mode")
+        set_property(CACHE CHARM_VIVID_SNAPSHOT_STORAGE_MODE PROPERTY STRINGS
+            NONE COMMAND PIXEL HYBRID)
         vivid_cache_default(CHARM_VIVID_MAX_HOT_STACK_FRAME_BYTES STRING 4096 "Vivid selected-module stack frame limit")
         vivid_cache_default(CHARM_VIVID_DRAW_DETAIL_EVIDENCE BOOL OFF "Enable DrawCmd detail evidence")
         vivid_cache_default(CHARM_VIVID_RUNTIME_SCENE_INSTANCES STRING "" "Vivid resident Scene instance count; required by MCU_MIN")
@@ -266,6 +271,24 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
         message(FATAL_ERROR "Unknown CHARM_VIVID_FEATURESET: ${CHARM_VIVID_FEATURESET}")
     endif()
 
+    if(NOT CHARM_VIVID_SNAPSHOT_STORAGE_MODE MATCHES "^(NONE|COMMAND|PIXEL|HYBRID)$")
+        message(FATAL_ERROR
+            "CHARM_VIVID_SNAPSHOT_STORAGE_MODE must be NONE, COMMAND, PIXEL, or HYBRID")
+    endif()
+    if(CHARM_VIVID_SNAPSHOT_STORAGE_MODE STREQUAL "NONE")
+        set(VIVID_SNAPSHOT_COMMAND_ENABLED 0)
+        set(VIVID_SNAPSHOT_PIXEL_ENABLED 0)
+    elseif(CHARM_VIVID_SNAPSHOT_STORAGE_MODE STREQUAL "COMMAND")
+        set(VIVID_SNAPSHOT_COMMAND_ENABLED 1)
+        set(VIVID_SNAPSHOT_PIXEL_ENABLED 0)
+    elseif(CHARM_VIVID_SNAPSHOT_STORAGE_MODE STREQUAL "PIXEL")
+        set(VIVID_SNAPSHOT_COMMAND_ENABLED 0)
+        set(VIVID_SNAPSHOT_PIXEL_ENABLED 1)
+    else()
+        set(VIVID_SNAPSHOT_COMMAND_ENABLED 1)
+        set(VIVID_SNAPSHOT_PIXEL_ENABLED 1)
+    endif()
+
     if (CHARM_VIVID_SCREEN_PIXEL_FORMAT STREQUAL "RGB565")
         set(VIVID_SCREEN_PIXEL_FORMAT "PixelFormat::RGB565")
         set(_vivid_screen_bytes_per_pixel 2)
@@ -280,6 +303,11 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
     set(VIVID_SCREEN_HEIGHT ${CHARM_VIVID_SCREEN_HEIGHT})
     vivid_require_uint16_capacity(
         "CHARM_VIVID_LAYER_CACHE_SLOTS" "${CHARM_VIVID_LAYER_CACHE_SLOTS}")
+    if(CHARM_VIVID_SNAPSHOT_STORAGE_MODE STREQUAL "NONE"
+       AND NOT CHARM_VIVID_LAYER_CACHE_SLOTS EQUAL 0)
+        message(FATAL_ERROR
+            "CHARM_VIVID_SNAPSHOT_STORAGE_MODE=NONE requires CHARM_VIVID_LAYER_CACHE_SLOTS=0")
+    endif()
     set(VIVID_LAYER_CACHE_SLOTS ${CHARM_VIVID_LAYER_CACHE_SLOTS})
     set(VIVID_LAYER_CACHE_WIDTH ${CHARM_VIVID_LAYER_CACHE_WIDTH})
     set(VIVID_LAYER_CACHE_HEIGHT ${CHARM_VIVID_LAYER_CACHE_HEIGHT})
@@ -582,11 +610,19 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
     set(_vivid_global_fixed_upper_bytes 262144)
     set(_vivid_runtime_globals_upper_bytes 1024)
     set(VIVID_RUNTIME_GLOBALS_UPPER_BYTES ${_vivid_runtime_globals_upper_bytes})
-    math(EXPR _vivid_pixel_snapshot_upper_bytes
-        "${CHARM_VIVID_LAYER_CACHE_SLOTS} * ${CHARM_VIVID_LAYER_CACHE_WIDTH} * ${CHARM_VIVID_LAYER_CACHE_HEIGHT} * ${_vivid_screen_bytes_per_pixel}")
-    math(EXPR _vivid_command_snapshot_upper_bytes
-        "${CHARM_VIVID_LAYER_CACHE_SLOTS} * ${_vivid_draw_cmd_buffer_upper_bytes}")
-    if (_vivid_pixel_snapshot_upper_bytes GREATER _vivid_command_snapshot_upper_bytes)
+    if(VIVID_SNAPSHOT_PIXEL_ENABLED)
+        math(EXPR _vivid_pixel_snapshot_upper_bytes
+            "${CHARM_VIVID_LAYER_CACHE_SLOTS} * ${CHARM_VIVID_LAYER_CACHE_WIDTH} * ${CHARM_VIVID_LAYER_CACHE_HEIGHT} * ${_vivid_screen_bytes_per_pixel}")
+    else()
+        set(_vivid_pixel_snapshot_upper_bytes 0)
+    endif()
+    if(VIVID_SNAPSHOT_COMMAND_ENABLED)
+        math(EXPR _vivid_command_snapshot_upper_bytes
+            "${CHARM_VIVID_LAYER_CACHE_SLOTS} * ${_vivid_draw_cmd_buffer_upper_bytes}")
+    else()
+        set(_vivid_command_snapshot_upper_bytes 0)
+    endif()
+    if(_vivid_pixel_snapshot_upper_bytes GREATER _vivid_command_snapshot_upper_bytes)
         set(_vivid_snapshot_payload_data_upper_bytes ${_vivid_pixel_snapshot_upper_bytes})
     else()
         set(_vivid_snapshot_payload_data_upper_bytes ${_vivid_command_snapshot_upper_bytes})
@@ -667,6 +703,9 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
         "admission_required=${VIVID_STATIC_MEMORY_ADMISSION_REQUIRED}\n"
         "status=${_vivid_admission_status}\n"
         "scene_instances=${VIVID_RUNTIME_SCENE_INSTANCES}\n"
+        "snapshot_storage_mode=${CHARM_VIVID_SNAPSHOT_STORAGE_MODE}\n"
+        "snapshot_command_enabled=${VIVID_SNAPSHOT_COMMAND_ENABLED}\n"
+        "snapshot_pixel_enabled=${VIVID_SNAPSHOT_PIXEL_ENABLED}\n"
         "layer_cache_slots=${VIVID_LAYER_CACHE_SLOTS}\n"
         "pixel_snapshot_upper_bytes=${_vivid_pixel_snapshot_upper_bytes}\n"
         "command_snapshot_upper_bytes=${_vivid_command_snapshot_upper_bytes}\n"
@@ -732,10 +771,11 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
             _profile_object_kinds_json ${_profile_object_kinds_json_values})
         file(WRITE "${_vivid_generated_dir}/profile.json"
             "{\n"
-            "  \"schema\": 4,\n"
+            "  \"schema\": 5,\n"
             "  \"name\": \"${_vivid_profile_name}\",\n"
             "  \"catalog_fingerprint\": \"${_vivid_catalog_fingerprint}\",\n"
             "  \"profile_fingerprint\": \"${_vivid_profile_fingerprint}\",\n"
+            "  \"snapshot_storage_mode\": \"${CHARM_VIVID_SNAPSHOT_STORAGE_MODE}\",\n"
             "  \"root_modules\": ${_profile_roots_json},\n"
             "  \"widget_kinds\": ${_profile_kinds_json},\n"
             "  \"object_widget_kinds\": ${_profile_object_kinds_json},\n"
@@ -825,6 +865,9 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
             "    \"global_upper_bytes\": ${_vivid_global_upper_bytes},\n"
             "    \"pixel_snapshot_upper_bytes\": ${_vivid_pixel_snapshot_upper_bytes},\n"
             "    \"command_snapshot_upper_bytes\": ${_vivid_command_snapshot_upper_bytes},\n"
+            "    \"snapshot_storage_mode\": \"${CHARM_VIVID_SNAPSHOT_STORAGE_MODE}\",\n"
+            "    \"snapshot_command_enabled\": ${VIVID_SNAPSHOT_COMMAND_ENABLED},\n"
+            "    \"snapshot_pixel_enabled\": ${VIVID_SNAPSHOT_PIXEL_ENABLED},\n"
             "    \"snapshot_payload_metadata_upper_bytes\": ${_vivid_snapshot_payload_metadata_upper_bytes},\n"
             "    \"snapshot_payload_upper_bytes\": ${_vivid_snapshot_payload_upper_bytes},\n"
             "    \"command_buffer_upper_bytes\": ${_vivid_command_buffer_upper_bytes},\n"

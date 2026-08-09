@@ -3692,7 +3692,7 @@ int main(int argc, char** argv) {
     }
 #endif
     if (run_ci) {
-        (void)out::println<"[soa] abi style_patch={} draw_cmd={} cmd_buffer={} cmd_arena={} executor={} soa_kernel={} scene={} snapshot_payload={} command_snapshot_capacity={} pixel_snapshot_capacity={} nodes={} node_storage_slot={} node_runtime_state={} node_style_class={} node_style_patch_slot={} node_semantic_slot={} layout_text_state={} semantic_slots={} semantic_pool={} style_patch_slots={} style_patch_pool={} traversal_frame={} traversal_workspace={} compaction_workspace={} batch_storage={}">(
+        (void)out::println<"[soa] abi style_patch={} draw_cmd={} cmd_buffer={} cmd_arena={} executor={} soa_kernel={} scene={} snapshot_payload={} snapshot_mode={} snapshot_command={} snapshot_pixel={} command_snapshot_capacity={} pixel_snapshot_capacity={} nodes={} node_storage_slot={} node_runtime_state={} node_style_class={} node_style_patch_slot={} node_semantic_slot={} layout_text_state={} semantic_slots={} semantic_pool={} style_patch_slots={} style_patch_pool={} traversal_frame={} traversal_workspace={} compaction_workspace={} batch_storage={}">(
             g_console,
             static_cast<unsigned long long>(sizeof(StylePatch)),
             static_cast<unsigned long long>(sizeof(ui::draw_cmd::DrawCmd)),
@@ -3702,6 +3702,10 @@ int main(int argc, char** argv) {
             static_cast<unsigned long long>(sizeof(SoaKernel)),
             static_cast<unsigned long long>(sizeof(::ui::scene::Scene)),
             static_cast<unsigned long long>(sizeof(::ui::scene::DefaultSnapshotPayloadStore)),
+            (snapshot_command_enabled ? 1u : 0u)
+                | (snapshot_pixel_enabled ? 2u : 0u),
+            snapshot_command_enabled ? 1u : 0u,
+            snapshot_pixel_enabled ? 1u : 0u,
             static_cast<unsigned long long>(::ui::scene::DefaultSnapshotPayloadStore::command_capacity_bytes),
             static_cast<unsigned long long>(::ui::scene::DefaultSnapshotPayloadStore::pixel_capacity_bytes),
             static_cast<unsigned>(SoaKernel::kMaxNodes),
@@ -4658,6 +4662,26 @@ int main(int argc, char** argv) {
                 && corrupt_stats.failed_cmds == 1;
         }
         {
+            using CommandOnlyStore = ::ui::scene::SnapshotPayloadStore<
+                1, true, false>;
+            using PixelOnlyStore = ::ui::scene::SnapshotPayloadStore<
+                1, false, true>;
+            using HybridStore = ::ui::scene::SnapshotPayloadStore<
+                1, true, true>;
+            using NoSnapshotStore = ::ui::scene::SnapshotPayloadStore<
+                0, false, false>;
+            static_assert(CommandOnlyStore::command_capacity_bytes > 0
+                          && CommandOnlyStore::pixel_capacity_bytes == 0
+                          && CommandOnlyStore::slot_bytes == CommandOnlyStore::command_slot_bytes);
+            static_assert(PixelOnlyStore::command_capacity_bytes == 0
+                          && PixelOnlyStore::pixel_capacity_bytes > 0
+                          && PixelOnlyStore::slot_bytes == PixelOnlyStore::pixel_slot_bytes);
+            static_assert(HybridStore::command_capacity_bytes > 0
+                          && HybridStore::pixel_capacity_bytes > 0);
+            static_assert(NoSnapshotStore::command_capacity_bytes == 0
+                          && NoSnapshotStore::pixel_capacity_bytes == 0
+                          && NoSnapshotStore::slot_bytes == 0);
+
             static ::ui::scene::DefaultSnapshotPayloadStore payload_store{};
             payload_store.clear();
             ui::draw_cmd::DefaultDrawCmdBuffer source{};
@@ -4666,31 +4690,45 @@ int main(int argc, char** argv) {
             ui::draw_cmd::DrawCmd decoded{};
             std::size_t stride = 0;
             const auto* command = payload_store.command(0);
-            const bool command_roundtrip = command
-                && command->size() == 1
-                && command->read_cmd_at_offset(0, decoded, stride)
-                && decoded.type == ui::draw_cmd::CmdType::FillRect
-                && decoded.rect.x == 1
-                && decoded.rect.y == 2
-                && decoded.rect.w == 3
-                && decoded.rect.h == 4;
-            const bool occupied_rejected = !payload_store.store_pixel(
-                0, canvas, Rect{0, 0, 2, 2});
-            const bool command_released = payload_store.release(0);
+            bool command_behavior_ok = false;
+            bool occupied_rejected = true;
+            if constexpr (snapshot_command_enabled) {
+                const bool command_roundtrip = command_stored
+                    && command
+                    && command->size() == 1
+                    && command->read_cmd_at_offset(0, decoded, stride)
+                    && decoded.type == ui::draw_cmd::CmdType::FillRect
+                    && decoded.rect.x == 1
+                    && decoded.rect.y == 2
+                    && decoded.rect.w == 3
+                    && decoded.rect.h == 4;
+                if constexpr (snapshot_pixel_enabled) {
+                    occupied_rejected = !payload_store.store_pixel(
+                        0, canvas, Rect{0, 0, 2, 2});
+                }
+                command_behavior_ok = command_roundtrip
+                    && occupied_rejected
+                    && payload_store.release(0);
+            } else {
+                command_behavior_ok = !command_stored && command == nullptr;
+            }
             const bool pixel_stored = payload_store.store_pixel(
                 0, canvas, Rect{0, 0, 2, 2});
-            const bool pixel_roundtrip = pixel_stored
-                && payload_store.command(0) == nullptr
-                && payload_store.pixel_width(0) == 2
-                && payload_store.pixel_height(0) == 2
-                && payload_store.pixel_row(0, 0) != nullptr;
-            const bool pixel_released = payload_store.release(0);
-            snapshot_payload_ok = command_stored
-                && command_roundtrip
-                && occupied_rejected
-                && command_released
-                && pixel_roundtrip
-                && pixel_released;
+            bool pixel_behavior_ok = false;
+            if constexpr (snapshot_pixel_enabled) {
+                pixel_behavior_ok = pixel_stored
+                    && payload_store.command(0) == nullptr
+                    && payload_store.pixel_width(0) == 2
+                    && payload_store.pixel_height(0) == 2
+                    && payload_store.pixel_row(0, 0) != nullptr
+                    && payload_store.release(0);
+            } else {
+                pixel_behavior_ok = !pixel_stored
+                    && payload_store.pixel_width(0) == 0
+                    && payload_store.pixel_height(0) == 0
+                    && payload_store.pixel_row(0, 0) == nullptr;
+            }
+            snapshot_payload_ok = command_behavior_ok && pixel_behavior_ok;
         }
         const auto cmp_stats = compare_buf.stats();
         compare_cmd_count = cmp_stats.cmd_count;

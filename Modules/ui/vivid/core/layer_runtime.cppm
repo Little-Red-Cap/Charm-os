@@ -43,6 +43,7 @@ export namespace ui::scene {
         NoSnapshotSlot,
         RecordFailed,
         StoreFailed,
+        UnsupportedKind,
     };
 
     enum class LayerProfile : std::uint8_t {
@@ -186,6 +187,8 @@ export namespace ui::scene {
         std::uint32_t pixel_snapshot_bytes{0};
         std::uint16_t cache_slots{0};
         bool need_double_snapshot{true};
+        bool command_snapshot_enabled{snapshot_command_enabled};
+        bool pixel_snapshot_enabled{snapshot_pixel_enabled};
     };
 
     struct LayerBudgetResult {
@@ -365,7 +368,9 @@ export namespace ui::scene {
         if (spec.profile == LayerProfile::None) return LayerAdmission::Reject;
         if (spec.profile == LayerProfile::Static) return LayerAdmission::StaticCut;
         if (spec.profile == LayerProfile::Eink) {
-            return caps.allow_command_snapshot && spec.cache_slots > 0
+            return caps.allow_command_snapshot
+                    && spec.command_snapshot_enabled
+                    && spec.cache_slots > 0
                 ? LayerAdmission::CommandSnapshot
                 : LayerAdmission::StaticCut;
         }
@@ -375,18 +380,24 @@ export namespace ui::scene {
         const bool has_budget = spec.budget.max_layer_bytes == 0
             || requested_pixel_bytes <= spec.budget.max_layer_bytes;
         const bool has_slots = spec.cache_slots >= (spec.need_double_snapshot ? 2u : 1u);
-        if (caps.allow_pixel_surface && has_budget && has_slots) {
+        if (caps.allow_pixel_surface
+            && spec.pixel_snapshot_enabled
+            && has_budget
+            && has_slots) {
             return spec.need_double_snapshot
                 ? LayerAdmission::PixelDouble
                 : LayerAdmission::PixelSingle;
         }
         if (caps.allow_pixel_surface &&
+            spec.pixel_snapshot_enabled &&
             spec.cache_slots >= 1u &&
             (spec.budget.max_layer_bytes == 0 ||
              spec.pixel_snapshot_bytes <= spec.budget.max_layer_bytes)) {
             return LayerAdmission::PixelSingle;
         }
-        if (caps.allow_command_snapshot && spec.cache_slots > 0) {
+        if (caps.allow_command_snapshot
+            && spec.command_snapshot_enabled
+            && spec.cache_slots > 0) {
             return LayerAdmission::CommandSnapshot;
         }
         return LayerAdmission::StaticCut;
@@ -399,6 +410,24 @@ export namespace ui::scene {
     static_assert(decide_layer_admission({
         .profile = LayerProfile::Eink,
         .cache_slots = 0,
+    }) == LayerAdmission::StaticCut);
+    static_assert(decide_layer_admission({
+        .profile = LayerProfile::Rich,
+        .cache_slots = 2,
+        .command_snapshot_enabled = true,
+        .pixel_snapshot_enabled = false,
+    }) == LayerAdmission::CommandSnapshot);
+    static_assert(decide_layer_admission({
+        .profile = LayerProfile::Rich,
+        .cache_slots = 2,
+        .command_snapshot_enabled = false,
+        .pixel_snapshot_enabled = true,
+    }) == LayerAdmission::PixelDouble);
+    static_assert(decide_layer_admission({
+        .profile = LayerProfile::Rich,
+        .cache_slots = 2,
+        .command_snapshot_enabled = false,
+        .pixel_snapshot_enabled = false,
     }) == LayerAdmission::StaticCut);
 
     struct SnapshotRecord {

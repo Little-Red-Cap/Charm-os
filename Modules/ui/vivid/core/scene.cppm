@@ -282,6 +282,12 @@ export namespace ui::scene {
             return make_layer_epoch();
         }
         SnapshotHandle reserve_snapshot(const SnapshotSpec& spec) noexcept {
+            if ((spec.preferred_kind == SnapshotKind::CommandBuffer
+                 && !snapshot_command_enabled)
+                || (spec.preferred_kind == SnapshotKind::PixelSurface
+                    && !snapshot_pixel_enabled)) {
+                return {};
+            }
             return snapshot_store_.reserve(spec, make_layer_epoch());
         }
         bool release_snapshot(SnapshotHandle handle) noexcept {
@@ -325,6 +331,10 @@ export namespace ui::scene {
         }
         LayerCaptureResult capture_command_snapshot_result(const SnapshotSpec& spec) noexcept {
             LayerCaptureResult result{};
+            if constexpr (!snapshot_command_enabled) {
+                result.status = LayerCaptureStatus::UnsupportedKind;
+                return result;
+            }
             SnapshotSpec command_spec = spec;
             command_spec.preferred_kind = SnapshotKind::CommandBuffer;
             const auto handle = reserve_snapshot(command_spec);
@@ -351,6 +361,10 @@ export namespace ui::scene {
         }
         LayerCaptureResult capture_pixel_snapshot_result(const SnapshotSpec& spec) noexcept {
             LayerCaptureResult result{};
+            if constexpr (!snapshot_pixel_enabled) {
+                result.status = LayerCaptureStatus::UnsupportedKind;
+                return result;
+            }
             SnapshotSpec pixel_spec = spec;
             pixel_spec.preferred_kind = SnapshotKind::PixelSurface;
             pixel_spec.preferred_format = screen_pixel_format;
@@ -413,6 +427,10 @@ export namespace ui::scene {
             out.kind = plan.kind;
             out.target_bounds = plan.target_bounds;
             if (!plan.valid) return out;
+            if constexpr (!snapshot_command_enabled) {
+                out.status = LayerReplayStatus::UnsupportedKind;
+                return out;
+            }
             if (plan.kind != SnapshotKind::CommandBuffer) {
                 out.status = LayerReplayStatus::UnsupportedKind;
                 return out;
@@ -456,6 +474,10 @@ export namespace ui::scene {
             out.kind = plan.kind;
             out.target_bounds = plan.target_bounds;
             if (!plan.valid) return out;
+            if constexpr (!snapshot_pixel_enabled) {
+                out.status = LayerReplayStatus::UnsupportedKind;
+                return out;
+            }
             if (plan.kind != SnapshotKind::PixelSurface) {
                 out.status = LayerReplayStatus::UnsupportedKind;
                 return out;

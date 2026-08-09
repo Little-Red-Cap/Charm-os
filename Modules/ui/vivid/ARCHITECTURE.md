@@ -61,9 +61,12 @@ widget/scene state
   clip 逆变换到 source 坐标，命令内嵌 clip 只能继续收窄。非 255 opacity 仍必须在执行命令前返回
   `UnsupportedTransform`。`PageTransitionRunner` 不执行 command compose，因此相关 fallback 必须以
   `StaticCut` 写入 trace/ledger；
-- snapshot handle slot 与 payload slot 一一对应；command 与 pixel payload 共享同一块按较大者定额的 slot
-  storage，同一逻辑槽不能让两种 kind 同时占用，禁止恢复两套各自乘 `layer_cache_slots` 的常驻池；
-- `layer_cache_slots=0` 是合法的无快照 profile：Scene 保留稳定 API，但 capture 必须返回无槽，admission
+- snapshot handle slot 与 payload slot 一一对应；`HYBRID` 中 command 与 pixel payload 共享同一块按较大者
+  定额的 slot storage，`COMMAND` / `PIXEL` 只保留对应 kind 的 slot，`NONE` 不保留 payload capacity；
+  同一逻辑槽不能让两种 kind 同时占用，禁止恢复两套各自乘 `layer_cache_slots` 的常驻池；
+- snapshot storage mode 属于 product profile，决定编译进产品的能力和 `Scene` 布局；slot 数、尺寸和 pixel
+  format 属于 target envelope。未编译 kind 的 capture 必须在 reserve 前返回 `UnsupportedKind`；
+- `layer_cache_slots=0` 是合法的无快照 target envelope：Scene 保留稳定 API，但 capture 必须返回无槽，admission
   必须降级为 `StaticCut` 或 `Reject`，静态内存画像中的 command/pixel payload capacity 必须同时为零；
 - compaction 在 record 完成后执行，不能改变命令可观察顺序或 artifact 语义；
 - compaction workspace 复用的 `DrawCmd` 必须通过类型默认值赋值重置，禁止以 `memset` 假设非 trivial 对象
@@ -103,7 +106,8 @@ evidence；lease 释放后 workspace 必须可再次使用。compaction、DrawCm
 
 PRODUCT/MCU profile 必须声明：
 
-- SoA node/payload、TextArena、semantic/StylePatch 稀疏槽、Style、DrawCmd 和 layer cache 容量；
+- SoA node/payload、TextArena、semantic/StylePatch 稀疏槽、Style、DrawCmd 和 snapshot storage mode；
+- layer cache 槽数、尺寸及 pixel format；
 - Scene 数量、常驻 RAM 上限、最小 headroom 与 stack frame 上限；
 - screen/pixel format 和 backend envelope；
 - overflow、workspace exhaustion 和 payload ownership 的失败行为。
@@ -144,7 +148,8 @@ Product Profile Compiler 是 Vivid 工具，不是 Charm Core 或产品 C++ API�
 
 - C++ `module/import/export import` 是依赖边唯一来源；
 - CMake policy 只标记 product root、internal、host-only 和硬件 envelope；
-- profile 固定产品 root、active Scene WidgetKind、按需 object widget module 和工作集；target envelope 固定设备资源；
+- profile 固定产品 root、active Scene WidgetKind、按需 object widget module、snapshot storage mode 和工作集；
+  target envelope 固定设备资源与 snapshot slot 几何；
 - 一个 target 只能选择一个不可变 profile/envelope；漂移、未知 root、cycle、internal root、catalog/pool
   不一致必须在 configure 阶段失败；
 - fingerprint 和 generated evidence 证明规范化输入，不证明运行行为或视觉正确。

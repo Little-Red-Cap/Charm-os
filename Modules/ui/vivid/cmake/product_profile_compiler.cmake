@@ -63,7 +63,7 @@ function(vivid_define_product_profile)
         NAME EXTENDS SOA_MAX_NODES SOA_TEXT_ARENA_BYTES SEMANTIC_SLOT_CAP
         STYLE_PATCH_SLOT_CAP STYLE_CLASS_MAX STYLE_RULE_CAP STYLE_METRICS_POOL_CAP
         DRAW_CMD_MAX_COMMANDS DRAW_CMD_TEXT_BYTES DRAW_CMD_BLOB_BYTES
-        FLOAT_WIDGETS)
+        FLOAT_WIDGETS SNAPSHOT_STORAGE_MODE)
     set(_multi_value
         ROOT_MODULES WIDGET_KINDS OBJECT_WIDGET_KINDS PAYLOAD_CAPACITIES)
     cmake_parse_arguments(PARSE_ARGV 0 PROFILE
@@ -136,7 +136,7 @@ function(vivid_define_product_profile)
             SOA_MAX_NODES SOA_TEXT_ARENA_BYTES SEMANTIC_SLOT_CAP STYLE_PATCH_SLOT_CAP
             STYLE_CLASS_MAX STYLE_RULE_CAP
             STYLE_METRICS_POOL_CAP DRAW_CMD_MAX_COMMANDS DRAW_CMD_TEXT_BYTES
-            DRAW_CMD_BLOB_BYTES FLOAT_WIDGETS)
+            DRAW_CMD_BLOB_BYTES FLOAT_WIDGETS SNAPSHOT_STORAGE_MODE)
         if(NOT DEFINED PROFILE_${_field} OR "${PROFILE_${_field}}" STREQUAL "")
             message(FATAL_ERROR
                 "Vivid product profile '${PROFILE_NAME}' requires ${_field}")
@@ -201,6 +201,10 @@ function(vivid_define_product_profile)
     else()
         set(PROFILE_FLOAT_WIDGETS OFF)
     endif()
+    if(NOT PROFILE_SNAPSHOT_STORAGE_MODE MATCHES "^(NONE|COMMAND|PIXEL|HYBRID)$")
+        message(FATAL_ERROR
+            "Vivid profile ${PROFILE_NAME} SNAPSHOT_STORAGE_MODE must be NONE, COMMAND, PIXEL, or HYBRID")
+    endif()
 
     list(SORT _roots)
     list(SORT _kinds)
@@ -208,7 +212,7 @@ function(vivid_define_product_profile)
     list(SORT _payload_caps)
     vivid_widget_catalog_fingerprint(_catalog_fingerprint)
     set(_canonical
-        "schema=4\ncatalog=${_catalog_fingerprint}\nroots=${_roots}\n"
+        "schema=5\ncatalog=${_catalog_fingerprint}\nroots=${_roots}\n"
         "kinds=${_kinds}\nobject_kinds=${_object_kinds}\n"
         "payloads=${_payload_caps}\n"
         "soa_max_nodes=${PROFILE_SOA_MAX_NODES}\n"
@@ -216,7 +220,8 @@ function(vivid_define_product_profile)
         "semantic_slot_cap=${PROFILE_SEMANTIC_SLOT_CAP}\n"
         "style=${PROFILE_STYLE_PATCH_SLOT_CAP},${PROFILE_STYLE_CLASS_MAX},${PROFILE_STYLE_RULE_CAP},${PROFILE_STYLE_METRICS_POOL_CAP}\n"
         "draw_cmd=${PROFILE_DRAW_CMD_MAX_COMMANDS},${PROFILE_DRAW_CMD_TEXT_BYTES},${PROFILE_DRAW_CMD_BLOB_BYTES}\n"
-        "float_widgets=${PROFILE_FLOAT_WIDGETS}\n")
+        "float_widgets=${PROFILE_FLOAT_WIDGETS}\n"
+        "snapshot_storage_mode=${PROFILE_SNAPSHOT_STORAGE_MODE}\n")
     string(SHA256 _fingerprint "${_canonical}")
 
     _vivid_profile_set("${PROFILE_NAME}" DEFINED TRUE)
@@ -231,7 +236,7 @@ function(vivid_define_product_profile)
             SOA_MAX_NODES SOA_TEXT_ARENA_BYTES SEMANTIC_SLOT_CAP STYLE_PATCH_SLOT_CAP
             STYLE_CLASS_MAX STYLE_RULE_CAP
             STYLE_METRICS_POOL_CAP DRAW_CMD_MAX_COMMANDS DRAW_CMD_TEXT_BYTES
-            DRAW_CMD_BLOB_BYTES FLOAT_WIDGETS)
+            DRAW_CMD_BLOB_BYTES FLOAT_WIDGETS SNAPSHOT_STORAGE_MODE)
         _vivid_profile_set("${PROFILE_NAME}" "${_field}" "${PROFILE_${_field}}")
     endforeach()
     _vivid_profile_set("${PROFILE_NAME}" CANONICAL "${_canonical}")
@@ -310,6 +315,15 @@ function(vivid_configure_product_target)
                 "Vivid target ${TARGET_PROFILE_TARGET} ${_field} must be > 0")
         endif()
     endforeach()
+
+    _vivid_profile_get(
+        "${TARGET_PROFILE_PROFILE}" SNAPSHOT_STORAGE_MODE _snapshot_storage_mode)
+    if(_snapshot_storage_mode STREQUAL "NONE"
+       AND NOT TARGET_PROFILE_LAYER_CACHE_SLOTS EQUAL 0)
+        message(FATAL_ERROR
+            "Vivid target '${TARGET_PROFILE_TARGET}' uses SNAPSHOT_STORAGE_MODE=NONE "
+            "and requires LAYER_CACHE_SLOTS=0")
+    endif()
 
     _vivid_target_get("${TARGET_PROFILE_TARGET}" CONFIGURED _configured)
     _vivid_target_get("${TARGET_PROFILE_TARGET}" PROFILE _configured_profile)

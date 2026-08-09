@@ -50,7 +50,7 @@ freeze 不隐含 hide，调用方必须明确是否隐藏 live root。失败的 
 它占用较少 payload，但每次显示仍需执行命令。当前 replay 支持 identity 与整数平移：平移叠加到 Canvas
 既有 origin，执行后恢复；target clip 先逆变换到 source 坐标，命令流内的嵌套 clip 只能继续收窄。非 255
 opacity 必须在命令执行前返回 `UnsupportedTransform`，不能产生部分像素写入。该能力不改变快照槽仍按
-pixel/command 较大者定额的事实，也不单独构成 RAM 收益。
+profile mode 定额的事实：`COMMAND` 只支付 command slot，`HYBRID` 才按 pixel/command 较大者支付。
 
 ### PixelSurface Snapshot
 
@@ -64,6 +64,8 @@ generation 失配、显式 stale 或 compose 前置条件失败时才拒绝。
 
 容量不足、artifact 不受支持或 stale 无法重建时，可以选择 command fallback、static cut、direct redraw
 或 reject。选择由 profile、budget、backend capability 和调用方可执行路径共同决定，必须记录原因。
+profile 未编译对应 snapshot kind 时，capture 必须在 reserve 前返回 `UnsupportedKind`；能力已编译但 slot
+为零时返回 `NoSnapshotSlot`，两者不能合并成模糊的 store failure。
 
 `TileSurface` 或其它 snapshot kind 在进入 source、测试和 ownership 证据前不属于 v0 保证。
 
@@ -106,7 +108,8 @@ stale 判定取决于 artifact kind，而不是一个全局布尔值：
 | pre-capture admission | 在分配前判断 PixelDouble、PixelSingle、CommandSnapshot、StaticCut 或 Reject 是否可行 |
 | post-capture arbitration | 用实际 bytes、compose pixels 和 capture 结果确认或降低 effective profile |
 
-profile 是请求，不是保证。预算必须覆盖 payload slot、格式/stride、同时存活层数和 compose 工作量；
+layer profile 是运行策略请求，不是编译期能力保证。product profile 的 snapshot storage mode 先限定可选
+kind，预算再覆盖 payload slot、格式/stride、同时存活层数和 compose 工作量；
 fallback reason、峰值与释放结果需要可观察。页面或 motion 代码不能绕过 admission 直接申请全屏 surface。
 
 ## Motion 边界

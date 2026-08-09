@@ -227,6 +227,21 @@ if(NOT _equivalent_profile_fingerprint STREQUAL _host_profile_fingerprint)
     message(FATAL_ERROR "Equivalent resolved profiles must have the same fingerprint")
 endif()
 
+vivid_define_product_profile(
+    NAME player_md3_command
+    EXTENDS player_md3
+    SNAPSHOT_STORAGE_MODE COMMAND)
+_vivid_profile_get(player_md3 SNAPSHOT_STORAGE_MODE _base_snapshot_storage_mode)
+_vivid_profile_get(player_md3_debug SNAPSHOT_STORAGE_MODE _debug_snapshot_storage_mode)
+_vivid_profile_get(player_md3_command FINGERPRINT _command_profile_fingerprint)
+if(NOT _base_snapshot_storage_mode STREQUAL "HYBRID"
+   OR NOT _debug_snapshot_storage_mode STREQUAL "HYBRID")
+    message(FATAL_ERROR "Player snapshot storage mode inheritance drifted")
+endif()
+if(_command_profile_fingerprint STREQUAL _host_profile_fingerprint)
+    message(FATAL_ERROR "Snapshot storage mode must affect the profile fingerprint")
+endif()
+
 vivid_configure_product_target(
     TARGET Charm-ui-host-equivalent
     PROFILE player_md3_equivalent
@@ -374,6 +389,8 @@ file(WRITE "${CASE_OUTPUT}"
     "host_target_fingerprint=${_host_target_fingerprint}\n"
     "h747_target_fingerprint=${_h747_target_fingerprint}\n"
     "equivalent_profile_fingerprint=${_equivalent_profile_fingerprint}\n"
+    "command_profile_fingerprint=${_command_profile_fingerprint}\n"
+    "snapshot_storage_mode=${_base_snapshot_storage_mode}\n"
     "equivalent_target_fingerprint=${_equivalent_target_fingerprint}\n"
     "widget_kinds=${_kind_count}\n"
     "object_widget_kinds=${_object_kind_count}\n"
@@ -436,7 +453,8 @@ vivid_define_product_profile(
     DRAW_CMD_MAX_COMMANDS 16
     DRAW_CMD_TEXT_BYTES 128
     DRAW_CMD_BLOB_BYTES 64
-    FLOAT_WIDGETS OFF)
+    FLOAT_WIDGETS OFF
+    SNAPSHOT_STORAGE_MODE COMMAND)
 vivid_define_product_profile(
     NAME second
     EXTENDS first
@@ -448,6 +466,8 @@ $MissingSemanticSlotCap = $MinimalProfiles -replace '(?m)^[ \t]*SEMANTIC_SLOT_CA
 $StyleClassMaxOverByte = $MinimalProfiles -replace '(?m)^([ \t]*STYLE_CLASS_MAX[ \t]+)[0-9]+', '${1}257'
 $SemanticSlotCapOverByte = $MinimalProfiles -replace '(?m)^([ \t]*SEMANTIC_SLOT_CAP[ \t]+)[0-9]+', '${1}256'
 $StylePatchSlotCapOverByte = $MinimalProfiles -replace '(?m)^([ \t]*STYLE_PATCH_SLOT_CAP[ \t]+)[0-9]+', '${1}256'
+$MissingSnapshotStorageMode = $MinimalProfiles -replace '\r?\n[ \t]*SNAPSHOT_STORAGE_MODE[ \t]+\w+\)', ')'
+$InvalidSnapshotStorageMode = $MinimalProfiles -replace '(?m)^([ \t]*SNAPSHOT_STORAGE_MODE[ \t]+)\w+', '${1}DUAL'
 
 try {
     if (Test-Path -LiteralPath $FixtureRoot) {
@@ -473,6 +493,16 @@ try {
         -Body $MissingSemanticSlotCap `
         -ExpectSuccess $false `
         -ExpectedPattern "requires SEMANTIC_SLOT_CAP"
+
+    Invoke-CMakeCase -Name "missing-snapshot-storage-mode" `
+        -Body $MissingSnapshotStorageMode `
+        -ExpectSuccess $false `
+        -ExpectedPattern "requires SNAPSHOT_STORAGE_MODE"
+
+    Invoke-CMakeCase -Name "invalid-snapshot-storage-mode" `
+        -Body $InvalidSnapshotStorageMode `
+        -ExpectSuccess $false `
+        -ExpectedPattern "SNAPSHOT_STORAGE_MODE must be NONE, COMMAND, PIXEL,[\s\S]*HYBRID"
 
     Invoke-CMakeCase -Name "style-class-max-over-byte" `
         -Body $StyleClassMaxOverByte `
@@ -504,7 +534,8 @@ vivid_define_product_profile(
     DRAW_CMD_MAX_COMMANDS 16
     DRAW_CMD_TEXT_BYTES 128
     DRAW_CMD_BLOB_BYTES 64
-    FLOAT_WIDGETS OFF)
+    FLOAT_WIDGETS OFF
+    SNAPSHOT_STORAGE_MODE COMMAND)
 '@ -ExpectSuccess $false -ExpectedPattern "SEMANTIC_SLOT_CAP must be <="
 
     Invoke-CMakeCase -Name "style-patch-slot-cap-over-nodes" -Body @'
@@ -522,7 +553,8 @@ vivid_define_product_profile(
     DRAW_CMD_MAX_COMMANDS 16
     DRAW_CMD_TEXT_BYTES 128
     DRAW_CMD_BLOB_BYTES 64
-    FLOAT_WIDGETS OFF)
+    FLOAT_WIDGETS OFF
+    SNAPSHOT_STORAGE_MODE COMMAND)
 '@ -ExpectSuccess $false -ExpectedPattern "STYLE_PATCH_SLOT_CAP must be <="
 
     Invoke-CMakeCase -Name "duplicate-kind" -Body ($WidgetHelper + "`n" + @'
@@ -712,6 +744,26 @@ vivid_configure_product_target(
     RUNTIME_SCENE_INSTANCES 1 STATIC_MEMORY_BUDGET_BYTES 65536
     STATIC_MEMORY_MIN_HEADROOM_BYTES 4096 MAX_HOT_STACK_FRAME_BYTES 1024)
 '@) -ExpectSuccess $false -ExpectedPattern "LAYER_CACHE_SLOTS must be <= 65535"
+
+    Invoke-CMakeCase -Name "snapshot-mode-inheritance" -Body ($MinimalProfiles + "`n" + @'
+_vivid_profile_get(second SNAPSHOT_STORAGE_MODE _mode)
+if(NOT _mode STREQUAL "COMMAND")
+    message(FATAL_ERROR "Inherited snapshot storage mode drifted: ${_mode}")
+endif()
+'@) -ExpectSuccess $true
+
+    Invoke-CMakeCase -Name "none-mode-with-slots" -Body ($MinimalProfiles + "`n" + @'
+vivid_define_product_profile(
+    NAME no_snapshots
+    EXTENDS first
+    SNAPSHOT_STORAGE_MODE NONE)
+vivid_configure_product_target(
+    TARGET Charm-ui PROFILE no_snapshots
+    SCREEN_WIDTH 32 SCREEN_HEIGHT 32 PIXEL_FORMAT RGB565
+    LAYER_CACHE_SLOTS 1 LAYER_CACHE_WIDTH 32 LAYER_CACHE_HEIGHT 32
+    RUNTIME_SCENE_INSTANCES 1 STATIC_MEMORY_BUDGET_BYTES 65536
+    STATIC_MEMORY_MIN_HEADROOM_BYTES 4096 MAX_HOT_STACK_FRAME_BYTES 1024)
+'@) -ExpectSuccess $false -ExpectedPattern "SNAPSHOT_STORAGE_MODE=NONE[\s\S]*LAYER_CACHE_SLOTS=0"
 
     Invoke-CMakeCase -Name "duplicate-profile" -Body ($MinimalProfiles + "`n" + @'
 vivid_define_product_profile(NAME first)

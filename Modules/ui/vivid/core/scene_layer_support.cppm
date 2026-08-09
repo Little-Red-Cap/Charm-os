@@ -194,10 +194,12 @@ export namespace ui::scene {
     static_assert(sizeof(CommandSnapshotPayload)
                   <= sizeof(ui::draw_cmd::DefaultDrawCmdBuffer));
 
-    template<std::size_t MaxSlots>
+    template<std::size_t MaxSlots, bool CommandEnabled, bool PixelEnabled>
     class SnapshotPayloadStore {
     public:
         using CommandPayload = CommandSnapshotPayload;
+        static constexpr bool command_enabled = CommandEnabled;
+        static constexpr bool pixel_enabled = PixelEnabled;
         static constexpr std::size_t stride_bytes =
             static_cast<std::size_t>(layer_cache_width)
             * ui::draw_cmd::bytes_per_pixel(screen_pixel_format);
@@ -206,10 +208,23 @@ export namespace ui::scene {
             * static_cast<std::size_t>(layer_cache_height)
             * ui::draw_cmd::bytes_per_pixel(screen_pixel_format);
         static constexpr std::size_t command_slot_bytes = sizeof(CommandPayload);
-        static constexpr std::size_t slot_bytes =
-            pixel_slot_bytes > command_slot_bytes ? pixel_slot_bytes : command_slot_bytes;
-        static constexpr std::size_t command_capacity_bytes = command_slot_bytes * MaxSlots;
-        static constexpr std::size_t pixel_capacity_bytes = pixel_slot_bytes * MaxSlots;
+        static constexpr std::size_t slot_bytes = []() consteval {
+            if constexpr (command_enabled && pixel_enabled) {
+                return pixel_slot_bytes > command_slot_bytes
+                    ? pixel_slot_bytes
+                    : command_slot_bytes;
+            } else if constexpr (command_enabled) {
+                return command_slot_bytes;
+            } else if constexpr (pixel_enabled) {
+                return pixel_slot_bytes;
+            } else {
+                return std::size_t{0};
+            }
+        }();
+        static constexpr std::size_t command_capacity_bytes =
+            command_enabled ? command_slot_bytes * MaxSlots : 0;
+        static constexpr std::size_t pixel_capacity_bytes =
+            pixel_enabled ? pixel_slot_bytes * MaxSlots : 0;
 
         SnapshotPayloadStore() noexcept {}
         SnapshotPayloadStore(const SnapshotPayloadStore&) = delete;
@@ -223,41 +238,57 @@ export namespace ui::scene {
 
         [[nodiscard]] bool store_command(std::uint32_t slot,
                                          const ui::draw_cmd::DefaultDrawCmdBuffer& source) noexcept {
-            if (!slot_available(slot)) return false;
-            auto* payload = std::construct_at(command_storage(slot));
-            if (!payload->store(source)) {
-                std::destroy_at(payload);
+            if constexpr (!command_enabled) {
+                (void)slot;
+                (void)source;
                 return false;
+            } else {
+                if (!slot_available(slot)) return false;
+                auto* payload = std::construct_at(command_storage(slot));
+                if (!payload->store(source)) {
+                    std::destroy_at(payload);
+                    return false;
+                }
+                kinds_[slot] = PayloadKind::Command;
+                return true;
             }
-            kinds_[slot] = PayloadKind::Command;
-            return true;
         }
 
         [[nodiscard]] bool store_pixel(std::uint32_t slot,
                                        CanvasBase& source,
                                        Rect bounds) noexcept {
-            if (!slot_available(slot)) return false;
-            if (bounds.w <= 0 || bounds.h <= 0) return false;
-            if (bounds.w > layer_cache_width || bounds.h > layer_cache_height) return false;
-            if (bounds.x < 0 || bounds.y < 0
-                || bounds.x + bounds.w > source.width()
-                || bounds.y + bounds.h > source.height()) {
+            if constexpr (!pixel_enabled) {
+                (void)slot;
+                (void)source;
+                (void)bounds;
                 return false;
+            } else {
+                if (!slot_available(slot)) return false;
+                if (bounds.w <= 0 || bounds.h <= 0) return false;
+                if (bounds.w > layer_cache_width || bounds.h > layer_cache_height) return false;
+                if (bounds.x < 0 || bounds.y < 0
+                    || bounds.x + bounds.w > source.width()
+                    || bounds.y + bounds.h > source.height()) {
+                    return false;
+                }
+                if (source.bytes_per_pixel()
+                    != ui::draw_cmd::bytes_per_pixel(screen_pixel_format)) {
+                    return false;
+                }
+                if (!copy_from_canvas(slots_[slot].bytes.data(), source, bounds)) return false;
+                kinds_[slot] = PayloadKind::Pixel;
+                widths_[slot] = bounds.w;
+                heights_[slot] = bounds.h;
+                return true;
             }
-            if (source.bytes_per_pixel() != ui::draw_cmd::bytes_per_pixel(screen_pixel_format)) {
-                return false;
-            }
-            if (!copy_from_canvas(slots_[slot].bytes.data(), source, bounds)) return false;
-            kinds_[slot] = PayloadKind::Pixel;
-            widths_[slot] = bounds.w;
-            heights_[slot] = bounds.h;
-            return true;
         }
 
         [[nodiscard]] bool release(std::uint32_t slot) noexcept {
             if (slot >= MaxSlots || kinds_[slot] == PayloadKind::Empty) return false;
-            if (kinds_[slot] == PayloadKind::Command) {
-                std::destroy_at(command_payload(slot));
+            if constexpr (command_enabled) {
+                if (kinds_[slot] == PayloadKind::Command) {
+                    std::destroy_at(command_payload(slot));
+                }
             }
             kinds_[slot] = PayloadKind::Empty;
             widths_[slot] = 0;
@@ -266,22 +297,47 @@ export namespace ui::scene {
         }
 
         [[nodiscard]] const CommandPayload* command(std::uint32_t slot) const noexcept {
-            if (slot >= MaxSlots || kinds_[slot] != PayloadKind::Command) return nullptr;
-            return command_payload(slot);
+            if constexpr (!command_enabled) {
+                (void)slot;
+                return nullptr;
+            } else {
+                if (slot >= MaxSlots || kinds_[slot] != PayloadKind::Command) return nullptr;
+                return command_payload(slot);
+            }
         }
 
         [[nodiscard]] const std::byte* pixel_row(std::uint32_t slot, int y) const noexcept {
-            if (slot >= MaxSlots || kinds_[slot] != PayloadKind::Pixel) return nullptr;
-            if (y < 0 || y >= heights_[slot]) return nullptr;
-            return slots_[slot].bytes.data() + static_cast<std::size_t>(y) * stride_bytes;
+            if constexpr (!pixel_enabled) {
+                (void)slot;
+                (void)y;
+                return nullptr;
+            } else {
+                if (slot >= MaxSlots || kinds_[slot] != PayloadKind::Pixel) return nullptr;
+                if (y < 0 || y >= heights_[slot]) return nullptr;
+                return slots_[slot].bytes.data() + static_cast<std::size_t>(y) * stride_bytes;
+            }
         }
 
         [[nodiscard]] int pixel_width(std::uint32_t slot) const noexcept {
-            return (slot < MaxSlots && kinds_[slot] == PayloadKind::Pixel) ? widths_[slot] : 0;
+            if constexpr (!pixel_enabled) {
+                (void)slot;
+                return 0;
+            } else {
+                return (slot < MaxSlots && kinds_[slot] == PayloadKind::Pixel)
+                    ? widths_[slot]
+                    : 0;
+            }
         }
 
         [[nodiscard]] int pixel_height(std::uint32_t slot) const noexcept {
-            return (slot < MaxSlots && kinds_[slot] == PayloadKind::Pixel) ? heights_[slot] : 0;
+            if constexpr (!pixel_enabled) {
+                (void)slot;
+                return 0;
+            } else {
+                return (slot < MaxSlots && kinds_[slot] == PayloadKind::Pixel)
+                    ? heights_[slot]
+                    : 0;
+            }
         }
 
         void clear() noexcept {
@@ -299,7 +355,11 @@ export namespace ui::scene {
             Pixel,
         };
 
-        struct alignas(CommandPayload) SlotStorage {
+        static constexpr std::size_t storage_alignment = command_enabled
+            ? alignof(CommandPayload)
+            : alignof(std::byte);
+
+        struct alignas(storage_alignment) SlotStorage {
             std::array<std::byte, slot_bytes> bytes;
         };
 
@@ -340,7 +400,10 @@ export namespace ui::scene {
     };
 
     using DefaultSnapshotPayloadStore =
-        SnapshotPayloadStore<static_cast<std::size_t>(layer_cache_slots)>;
+        SnapshotPayloadStore<
+            static_cast<std::size_t>(layer_cache_slots),
+            snapshot_command_enabled,
+            snapshot_pixel_enabled>;
 
     struct TileStats {
         int tiles_total{0};

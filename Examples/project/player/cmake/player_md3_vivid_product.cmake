@@ -61,7 +61,8 @@ vivid_define_product_profile(
     DRAW_CMD_MAX_COMMANDS 1024
     DRAW_CMD_TEXT_BYTES 4096
     DRAW_CMD_BLOB_BYTES 2048
-    FLOAT_WIDGETS ON)
+    FLOAT_WIDGETS ON
+    SNAPSHOT_STORAGE_MODE HYBRID)
 
 vivid_define_product_profile(
     NAME player_md3_debug

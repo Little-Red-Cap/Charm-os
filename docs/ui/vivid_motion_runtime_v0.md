@@ -61,6 +61,8 @@ fallback 或 reject，不能静默启动另一套页面动画。
 
 当 target 配置 `layer_cache_slots=0` 时，所有需要 snapshot 的 admission 都必须降级为 `StaticCut` 或
 `Reject`，不能返回随后必然以 `NoSnapshotSlot` 失败的 command/pixel snapshot 形态。
+product profile 未启用 pixel storage 时，PageTransition 同样必须正规化为 `StaticCut` 或 `Reject`；当前 runner
+不消费 command compose，不能因 `COMMAND` 可用而返回无法执行的 command transition admission。
 
 新增 recipe 前应先证明现有 recipe 无法表达真实 consumer，并补齐各 profile 的成功、降级和拒绝语义。
 

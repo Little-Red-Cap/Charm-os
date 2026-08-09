@@ -414,6 +414,8 @@ export namespace ui::scene {
                 .pixel_snapshot_bytes = max_snapshot_bytes(spec),
                 .cache_slots = static_cast<std::uint16_t>(layer_cache_slots),
                 .need_double_snapshot = true,
+                .command_snapshot_enabled = false,
+                .pixel_snapshot_enabled = snapshot_pixel_enabled,
             });
         }
 

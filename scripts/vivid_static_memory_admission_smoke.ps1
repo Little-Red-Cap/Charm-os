@@ -109,13 +109,23 @@ function Assert-Admission {
         [string]$FeatureSet,
         [string]$Profile,
         [string]$Status,
-        [int64]$MinimumHeadroom
+        [int64]$MinimumHeadroom,
+        [string]$SnapshotMode = "HYBRID"
     )
 
     if ($Values.featureset -ne $FeatureSet -or
         $Values.profile -ne $Profile -or
-        $Values.status -ne $Status) {
+        $Values.status -ne $Status -or
+        $Values.snapshot_storage_mode -ne $SnapshotMode) {
         throw "Unexpected manifest identity: featureset=$($Values.featureset) profile=$($Values.profile) status=$($Values.status)"
+    }
+    $commandEnabled = $SnapshotMode -in @("COMMAND", "HYBRID")
+    $pixelEnabled = $SnapshotMode -in @("PIXEL", "HYBRID")
+    $expectedCommandEnabled = if ($commandEnabled) { "1" } else { "0" }
+    $expectedPixelEnabled = if ($pixelEnabled) { "1" } else { "0" }
+    if ($Values.snapshot_command_enabled -ne $expectedCommandEnabled -or
+        $Values.snapshot_pixel_enabled -ne $expectedPixelEnabled) {
+        throw "Snapshot capability mismatch: mode=$SnapshotMode command=$($Values.snapshot_command_enabled) pixel=$($Values.snapshot_pixel_enabled)"
     }
     $upper = [int64]$Values.upper_bound_bytes
     $budget = [int64]$Values.budget_bytes
@@ -140,14 +150,16 @@ function Assert-Admission {
     if ($layerCacheSlots -lt 0) {
         throw "Layer cache slot count must be non-negative"
     }
-    if ($layerCacheSlots -eq 0) {
-        if ([int64]$Values.pixel_snapshot_upper_bytes -ne 0 -or
-            [int64]$Values.command_snapshot_upper_bytes -ne 0) {
-            throw "Zero-slot profile retained snapshot payload capacity"
-        }
-    } elseif ([int64]$Values.pixel_snapshot_upper_bytes -le 0 -or
-              [int64]$Values.command_snapshot_upper_bytes -le 0) {
-        throw "Non-zero snapshot slots must retain both capacity projections"
+    $commandCapacity = [int64]$Values.command_snapshot_upper_bytes
+    $pixelCapacity = [int64]$Values.pixel_snapshot_upper_bytes
+    if ($layerCacheSlots -eq 0 -and ($commandCapacity -ne 0 -or $pixelCapacity -ne 0)) {
+        throw "Zero-slot profile retained snapshot payload capacity"
+    }
+    if (($commandEnabled -and $layerCacheSlots -gt 0 -and $commandCapacity -le 0) -or
+        (-not $commandEnabled -and $commandCapacity -ne 0) -or
+        ($pixelEnabled -and $layerCacheSlots -gt 0 -and $pixelCapacity -le 0) -or
+        (-not $pixelEnabled -and $pixelCapacity -ne 0)) {
+        throw "Snapshot capacity does not match mode=$SnapshotMode slots=$layerCacheSlots command=$commandCapacity pixel=$pixelCapacity"
     }
     if ($Values.draw_cmd_max_commands -ne "1024" -or
         $Values.draw_cmd_text_bytes -ne "4096" -or
@@ -165,7 +177,11 @@ function Assert-Admission {
         [int64]$Values.draw_cmd_buffer_upper_bytes -ne $expectedBufferBytes) {
         throw "Unexpected DrawCmd buffer budget"
     }
-    $expectedCommandSnapshotBytes = [int64]$Values.layer_cache_slots * $expectedBufferBytes
+    $expectedCommandSnapshotBytes = if ($commandEnabled) {
+        [int64]$Values.layer_cache_slots * $expectedBufferBytes
+    } else {
+        0
+    }
     $expectedSnapshotPayloadDataBytes = [Math]::Max(
         [int64]$Values.pixel_snapshot_upper_bytes,
         $expectedCommandSnapshotBytes)
@@ -212,7 +228,7 @@ function Assert-Admission {
         ($budget -le 0 -or $headroom -lt $MinimumHeadroom)) {
         throw "Admission headroom is insufficient: upper=$upper budget=$budget headroom=$headroom"
     }
-    Write-Host "[vivid-static-memory] featureset=$FeatureSet profile=$Profile status=$Status upper=$upper budget=$budget headroom=$headroom soa_node=$expectedSoaNodeBytes traversal_frame=$expectedTraversalFrameBytes draw_detail=$($Values.draw_detail_evidence)"
+    Write-Host "[vivid-static-memory] featureset=$FeatureSet profile=$Profile mode=$SnapshotMode status=$Status upper=$upper budget=$budget headroom=$headroom soa_node=$expectedSoaNodeBytes traversal_frame=$expectedTraversalFrameBytes draw_detail=$($Values.draw_detail_evidence)"
 }
 
 function Assert-ProductEvidence {
@@ -228,8 +244,9 @@ function Assert-ProductEvidence {
     $admissionEvidence = Read-JsonFile -Path (Join-Path $generatedDir "admission.json")
     $manifest = Read-KeyValueManifest -Path (Join-Path $generatedDir "static_memory_admission.txt")
 
-    Assert-Admission -Values $manifest -FeatureSet "PRODUCT" -Profile $Profile -Status "admitted" -MinimumHeadroom 524288
-    if ([int64]$profileEvidence.schema -ne 4 -or
+    Assert-Admission -Values $manifest -FeatureSet "PRODUCT" -Profile $Profile -Status "admitted" -MinimumHeadroom 524288 -SnapshotMode "HYBRID"
+    if ([int64]$profileEvidence.schema -ne 5 -or
+        $profileEvidence.snapshot_storage_mode -ne "HYBRID" -or
         [int64]$profileEvidence.workset.semantic_slot_cap -ne 64 -or
         [int64]$admissionEvidence.static_memory.semantic_pool_upper_bytes -ne 1056) {
         throw "PRODUCT sparse semantic evidence mismatch for profile '$Profile'"
@@ -425,7 +442,8 @@ $CommonSoaArgs = @(
     "-DCHARM_VIVID_SCREEN_PIXEL_FORMAT=RGB888",
     "-DCHARM_VIVID_LAYER_CACHE_SLOTS=1",
     "-DCHARM_VIVID_LAYER_CACHE_WIDTH=400",
-    "-DCHARM_VIVID_LAYER_CACHE_HEIGHT=240"
+    "-DCHARM_VIVID_LAYER_CACHE_HEIGHT=240",
+    "-DCHARM_VIVID_SNAPSHOT_STORAGE_MODE=HYBRID"
 )
 $FullArgs = $CommonSoaArgs + @(
     "-DCHARM_VIVID_RUNTIME_SCENE_INSTANCES=1",
@@ -479,6 +497,83 @@ try {
         throw "Zero-slot profile did not remove snapshot payload bytes from the upper bound"
     }
     Write-Host "[vivid-static-memory] zero_snapshot_slots=ok released_upper_bytes=$releasedUpperBytes"
+
+    $commandSnapshotArgs = @($FullArgs | ForEach-Object {
+        if ($_ -like "-DCHARM_VIVID_SNAPSHOT_STORAGE_MODE=*") {
+            "-DCHARM_VIVID_SNAPSHOT_STORAGE_MODE=COMMAND"
+        } else {
+            $_
+        }
+    })
+    Invoke-VividConfigure -SourceDir $SoaSourceDir -FeatureSet "FULL" -ExtraArgs $commandSnapshotArgs | Out-Null
+    $commandSnapshotValues = Read-KeyValueManifest -Path $fullManifest
+    Assert-Admission -Values $commandSnapshotValues -FeatureSet "FULL" -Profile "full" -Status "profile_only" -MinimumHeadroom 0 -SnapshotMode "COMMAND"
+
+    $pixelSnapshotArgs = @($FullArgs | ForEach-Object {
+        if ($_ -like "-DCHARM_VIVID_SNAPSHOT_STORAGE_MODE=*") {
+            "-DCHARM_VIVID_SNAPSHOT_STORAGE_MODE=PIXEL"
+        } else {
+            $_
+        }
+    })
+    Invoke-VividConfigure -SourceDir $SoaSourceDir -FeatureSet "FULL" -ExtraArgs $pixelSnapshotArgs | Out-Null
+    $pixelSnapshotValues = Read-KeyValueManifest -Path $fullManifest
+    Assert-Admission -Values $pixelSnapshotValues -FeatureSet "FULL" -Profile "full" -Status "profile_only" -MinimumHeadroom 0 -SnapshotMode "PIXEL"
+
+    $noneSnapshotArgs = @($FullArgs | ForEach-Object {
+        if ($_ -like "-DCHARM_VIVID_SNAPSHOT_STORAGE_MODE=*") {
+            "-DCHARM_VIVID_SNAPSHOT_STORAGE_MODE=NONE"
+        } elseif ($_ -like "-DCHARM_VIVID_LAYER_CACHE_SLOTS=*") {
+            "-DCHARM_VIVID_LAYER_CACHE_SLOTS=0"
+        } else {
+            $_
+        }
+    })
+    Invoke-VividConfigure -SourceDir $SoaSourceDir -FeatureSet "FULL" -ExtraArgs $noneSnapshotArgs | Out-Null
+    $noneSnapshotValues = Read-KeyValueManifest -Path $fullManifest
+    Assert-Admission -Values $noneSnapshotValues -FeatureSet "FULL" -Profile "full" -Status "profile_only" -MinimumHeadroom 0 -SnapshotMode "NONE"
+
+    $invalidNoneSnapshotArgs = @($FullArgs | ForEach-Object {
+        if ($_ -like "-DCHARM_VIVID_SNAPSHOT_STORAGE_MODE=*") {
+            "-DCHARM_VIVID_SNAPSHOT_STORAGE_MODE=NONE"
+        } else {
+            $_
+        }
+    })
+    $invalidNoneSnapshot = Invoke-VividConfigure -SourceDir $SoaSourceDir -FeatureSet "FULL" -ExtraArgs $invalidNoneSnapshotArgs -ExpectSuccess $false
+    if ($invalidNoneSnapshot -notmatch 'SNAPSHOT_STORAGE_MODE=NONE[\s\S]*LAYER_CACHE_SLOTS=0') {
+        throw "NONE mode with non-zero slots did not report the expected rule"
+    }
+
+    $playerHybridArgs = @($FullArgs | ForEach-Object {
+        if ($_ -like "-DCHARM_VIVID_SCREEN_WIDTH=*") { "-DCHARM_VIVID_SCREEN_WIDTH=568" }
+        elseif ($_ -like "-DCHARM_VIVID_SCREEN_HEIGHT=*") { "-DCHARM_VIVID_SCREEN_HEIGHT=1210" }
+        elseif ($_ -like "-DCHARM_VIVID_LAYER_CACHE_SLOTS=*") { "-DCHARM_VIVID_LAYER_CACHE_SLOTS=2" }
+        elseif ($_ -like "-DCHARM_VIVID_LAYER_CACHE_WIDTH=*") { "-DCHARM_VIVID_LAYER_CACHE_WIDTH=568" }
+        elseif ($_ -like "-DCHARM_VIVID_LAYER_CACHE_HEIGHT=*") { "-DCHARM_VIVID_LAYER_CACHE_HEIGHT=1210" }
+        else { $_ }
+    })
+    Invoke-VividConfigure -SourceDir $SoaSourceDir -FeatureSet "FULL" -ExtraArgs $playerHybridArgs | Out-Null
+    $playerHybridValues = Read-KeyValueManifest -Path $fullManifest
+    Assert-Admission -Values $playerHybridValues -FeatureSet "FULL" -Profile "full" -Status "profile_only" -MinimumHeadroom 0 -SnapshotMode "HYBRID"
+    $playerCommandArgs = @($playerHybridArgs | ForEach-Object {
+        if ($_ -like "-DCHARM_VIVID_SNAPSHOT_STORAGE_MODE=*") {
+            "-DCHARM_VIVID_SNAPSHOT_STORAGE_MODE=COMMAND"
+        } else {
+            $_
+        }
+    })
+    Invoke-VividConfigure -SourceDir $SoaSourceDir -FeatureSet "FULL" -ExtraArgs $playerCommandArgs | Out-Null
+    $playerCommandValues = Read-KeyValueManifest -Path $fullManifest
+    Assert-Admission -Values $playerCommandValues -FeatureSet "FULL" -Profile "full" -Status "profile_only" -MinimumHeadroom 0 -SnapshotMode "COMMAND"
+    $playerCommandReleasedBytes = [int64]$playerHybridValues.upper_bound_bytes `
+        - [int64]$playerCommandValues.upper_bound_bytes
+    if ($playerCommandReleasedBytes -lt 3MB) {
+        throw "COMMAND mode did not release the expected Player-scale pixel snapshot RAM: $playerCommandReleasedBytes"
+    }
+    Write-Host "[vivid-static-memory] player_command_mode=ok released_upper_bytes=$playerCommandReleasedBytes"
+
+    Invoke-VividConfigure -SourceDir $SoaSourceDir -FeatureSet "FULL" -ExtraArgs $FullArgs | Out-Null
 
     $fullDrawDetailArgs = $FullArgs + @("-DCHARM_VIVID_DRAW_DETAIL_EVIDENCE=ON")
     Invoke-VividConfigure -SourceDir $SoaSourceDir -FeatureSet "FULL" -ExtraArgs $fullDrawDetailArgs | Out-Null

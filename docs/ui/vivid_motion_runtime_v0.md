@@ -133,15 +133,17 @@ Motion/PageTransition evidence 至少覆盖：
 - recipe 在 Rich/Cheap/Static/None 下的执行、降级和拒绝；
 - PixelDouble 与 PixelSingle 的 artifact/ownership 差异；
 - CommandSnapshot 的单槽 source replay，以及 opacity、budget、epoch 不满足时的首帧前降级；
-- CommandSnapshot 半透明 replay 的候选/命中/跳过 tile 与 bounds/execute 命令流读取，且同时覆盖稀疏与密集页面；
+- CommandSnapshot 半透明 replay 的候选/命中/跳过 tile 与 bounds/execute 命令流读取，且同时覆盖
+  稀疏与密集页面的完整 transition workload envelope；
 - source/destination capture failure rollback；
 - commit、cancel、rebegin interrupt 后 page truth 与 snapshot release；
 - stale、over-budget 和 unsupported compose 的负例；
 - trace/ledger 能关联 requested/effective profile、admission、capture、compose 与 final state。
 
 推荐 fixture 从 [`vivid_evidence_lab_manifest_v0.md`](vivid_evidence_lab_manifest_v0.md) 进入，因果 verdict
-遵守 [`vivid_causal_verdict_law_v0.md`](vivid_causal_verdict_law_v0.md)。demo 成功只证明其 case，不能
-替代产品性能、视觉结果或实板 display/cache 证据。
+遵守 [`vivid_causal_verdict_law_v0.md`](vivid_causal_verdict_law_v0.md)。COMMAND envelope 只描述 Vivid
+regression workload 的 sample 数、累计与峰值读取；在出现真实产品 COMMAND consumer 前，它不定义
+PRODUCT admission 阈值。demo 成功只证明其 case，不能替代产品性能、视觉结果或实板 display/cache 证据。
 
 primary evidence routes 是 `Examples/ui/vivid/page_transition_demo` 与
 `Examples/ui/vivid/motion_time_demo`；两者的 final `causal_chain` 必须由上述 segment 推导。

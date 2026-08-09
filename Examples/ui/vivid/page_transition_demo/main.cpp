@@ -14,6 +14,7 @@ namespace {
     inline constexpr std::uint64_t command_replay_hit_tile_pixels = 64u * 64u;
     inline constexpr std::uint64_t command_replay_full_pixels =
         static_cast<std::uint64_t>(command_snapshot_width) * command_snapshot_height;
+    inline constexpr rgba command_replay_background{12, 28, 44, 255};
     using TransitionFrameBuffer = FrameBuffer<screen_pixel_format,
                                               command_snapshot_width,
                                               command_snapshot_height>;
@@ -88,6 +89,31 @@ namespace {
         int y{0};
         bool ok{true};
         bool invalidate_layout{false};
+    };
+
+    struct CommandReplayEnvelope {
+        std::uint32_t sample_count{0};
+        std::uint64_t total_tiles_considered{0};
+        std::uint64_t total_tiles_executed{0};
+        std::uint64_t total_tiles_skipped{0};
+        std::uint64_t total_command_reads{0};
+        std::uint64_t peak_command_reads{0};
+        std::uint64_t total_bounds_item_reads{0};
+
+        void observe(const ui::scene::LayerReplayResult& replay) noexcept {
+            const auto& cost = replay.command_cost;
+            const auto command_reads =
+                static_cast<std::uint64_t>(cost.total_command_reads());
+            ++sample_count;
+            total_tiles_considered += cost.tiles_considered;
+            total_tiles_executed += cost.tiles_executed;
+            total_tiles_skipped += cost.tiles_skipped;
+            total_command_reads += command_reads;
+            total_bounds_item_reads += cost.bounds_item_reads;
+            if (command_reads > peak_command_reads) {
+                peak_command_reads = command_reads;
+            }
+        }
     };
 
     inline constexpr unsigned one_pixel_snapshot_bytes = 3;
@@ -288,6 +314,21 @@ namespace {
         if (prepare->invalidate_layout) {
             access.set_rect(destination.root(), {0, 0, 31, 32});
         }
+        return true;
+    }
+
+    [[nodiscard]] bool observe_command_replay_sample(
+        ui::scene::PageTransitionRunner& runner,
+        TransitionScene& env,
+        std::uint64_t now_ms,
+        CommandReplayEnvelope& envelope,
+        const char* message) noexcept {
+        env.canvas.clear(command_replay_background);
+        const auto frame = runner.sample(env.scene, now_ms);
+        if (!expect(frame.valid && frame.source.valid && frame.source.replay.ok(), message)) {
+            return false;
+        }
+        envelope.observe(frame.source.replay);
         return true;
     }
 
@@ -758,10 +799,19 @@ namespace {
         if (!expect_snapshot_count(env, 1,
                                    "command opacity transition owns one snapshot")) return false;
 
-        env.canvas.clear(rgba{12, 28, 44, 255});
+        CommandReplayEnvelope sparse_envelope{};
+        if (!observe_command_replay_sample(runner,
+                                           env,
+                                           25,
+                                           sparse_envelope,
+                                           "sparse command transition samples quarter frame")) {
+            return false;
+        }
+        env.canvas.clear(command_replay_background);
         const auto frame = runner.sample(env.scene, 50);
         if (!expect(frame.valid && frame.source.valid && frame.source.replay.ok(),
                     "command opacity transition replays a middle frame")) return false;
+        sparse_envelope.observe(frame.source.replay);
         if (!expect(frame.source.plan.transform.opacity > 0
                         && frame.source.plan.transform.opacity < 255,
                     "command opacity transition samples intermediate opacity")) return false;
@@ -787,6 +837,27 @@ namespace {
                     "sparse command replay records command stream reads")) {
             return false;
         }
+        if (!observe_command_replay_sample(runner,
+                                           env,
+                                           75,
+                                           sparse_envelope,
+                                           "sparse command transition samples three-quarter frame")
+            || !observe_command_replay_sample(runner,
+                                              env,
+                                              100,
+                                              sparse_envelope,
+                                              "sparse command transition samples endpoint")) {
+            return false;
+        }
+        if (!expect(sparse_envelope.sample_count == 4
+                        && sparse_envelope.total_command_reads > 0
+                        && sparse_envelope.peak_command_reads > 0
+                        && sparse_envelope.total_tiles_considered
+                            == sparse_envelope.total_tiles_executed
+                                + sparse_envelope.total_tiles_skipped,
+                    "sparse command transition records complete workload envelope")) {
+            return false;
+        }
 
         runner.commit(env.scene, access);
         const auto ledger = runner.ledger();
@@ -810,13 +881,22 @@ namespace {
         auto dense_access = dense_env.scene.access();
         const auto dense_begin = dense_runner.begin(dense_env.scene, dense_access, dense_spec);
         if (!expect(dense_begin.started(), "dense command opacity transition starts")) return false;
-        dense_env.canvas.clear(rgba{12, 28, 44, 255});
+        CommandReplayEnvelope dense_envelope{};
+        if (!observe_command_replay_sample(dense_runner,
+                                           dense_env,
+                                           25,
+                                           dense_envelope,
+                                           "dense command transition samples quarter frame")) {
+            return false;
+        }
+        dense_env.canvas.clear(command_replay_background);
         const auto dense_frame = dense_runner.sample(dense_env.scene, 50);
         if (!expect(dense_frame.valid && dense_frame.source.valid
                         && dense_frame.source.replay.ok(),
                     "dense command opacity transition replays a middle frame")) {
             return false;
         }
+        dense_envelope.observe(dense_frame.source.replay);
         const auto dense_cost = dense_frame.source.replay.command_cost;
         if (!expect(dense_cost.tiles_considered == 6
                         && dense_cost.tiles_executed == 6
@@ -835,6 +915,29 @@ namespace {
                     "dense command replay exposes the command visit multiplier")) {
             return false;
         }
+        if (!observe_command_replay_sample(dense_runner,
+                                           dense_env,
+                                           75,
+                                           dense_envelope,
+                                           "dense command transition samples three-quarter frame")
+            || !observe_command_replay_sample(dense_runner,
+                                              dense_env,
+                                              100,
+                                              dense_envelope,
+                                              "dense command transition samples endpoint")) {
+            return false;
+        }
+        if (!expect(dense_envelope.sample_count == sparse_envelope.sample_count
+                        && dense_envelope.total_command_reads
+                            > sparse_envelope.total_command_reads
+                        && dense_envelope.peak_command_reads
+                            > sparse_envelope.peak_command_reads
+                        && dense_envelope.total_tiles_considered
+                            == dense_envelope.total_tiles_executed
+                                + dense_envelope.total_tiles_skipped,
+                    "dense command transition exposes total and peak workload growth")) {
+            return false;
+        }
         dense_runner.commit(dense_env.scene, dense_access);
         if (!expect_snapshot_count(dense_env, 0,
                                    "dense command opacity transition releases snapshot")) {
@@ -842,7 +945,9 @@ namespace {
         }
         std::printf(
             "[pt] evidence=command_replay_cost sparse_tiles=%u/%u/%u "
-            "sparse_reads=%llu/%llu dense_tiles=%u/%u/%u dense_reads=%llu/%llu result=ok\n",
+            "sparse_reads=%llu/%llu dense_tiles=%u/%u/%u dense_reads=%llu/%llu "
+            "samples=%u sparse_envelope=%llu/%llu/%llu/%llu/%llu/%llu "
+            "dense_envelope=%llu/%llu/%llu/%llu/%llu/%llu result=ok\n",
             sparse_cost.tiles_considered,
             sparse_cost.tiles_executed,
             sparse_cost.tiles_skipped,
@@ -852,7 +957,20 @@ namespace {
             dense_cost.tiles_executed,
             dense_cost.tiles_skipped,
             static_cast<unsigned long long>(dense_cost.bounds_command_reads),
-            static_cast<unsigned long long>(dense_cost.execute_command_reads));
+            static_cast<unsigned long long>(dense_cost.execute_command_reads),
+            sparse_envelope.sample_count,
+            static_cast<unsigned long long>(sparse_envelope.total_tiles_considered),
+            static_cast<unsigned long long>(sparse_envelope.total_tiles_executed),
+            static_cast<unsigned long long>(sparse_envelope.total_tiles_skipped),
+            static_cast<unsigned long long>(sparse_envelope.total_command_reads),
+            static_cast<unsigned long long>(sparse_envelope.peak_command_reads),
+            static_cast<unsigned long long>(sparse_envelope.total_bounds_item_reads),
+            static_cast<unsigned long long>(dense_envelope.total_tiles_considered),
+            static_cast<unsigned long long>(dense_envelope.total_tiles_executed),
+            static_cast<unsigned long long>(dense_envelope.total_tiles_skipped),
+            static_cast<unsigned long long>(dense_envelope.total_command_reads),
+            static_cast<unsigned long long>(dense_envelope.peak_command_reads),
+            static_cast<unsigned long long>(dense_envelope.total_bounds_item_reads));
         print_transition_summary("command_opacity", begin, runner.trace(), ledger, env, &frame);
         return true;
     }

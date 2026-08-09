@@ -1,3 +1,4 @@
+#include <cstddef>
 #include <cstdio>
 #include <cstdint>
 
@@ -32,6 +33,10 @@ namespace {
     void print_motion_case(const char* name) noexcept {
         ++motion_summary_case_count;
         std::printf("[mt] case=%s", name);
+    }
+
+    void record_command_snapshot_probe(ui::scene::SceneOverlay& overlay, void*) noexcept {
+        overlay.fill_rect({4, 4, 2, 2}, rgba{30, 140, 230, 255});
     }
 
     [[nodiscard]] bool print_motion_causal_chain_verdict() noexcept {
@@ -385,6 +390,85 @@ int main() {
         .frame = execute_transition_frame,
     });
     if (!expect(!empty_execute.valid, "execute bridge rejects missing source")) return 1;
+    if (!expect(scene.release_snapshot(captured.handle), "pixel snapshot can be released")) return 1;
+
+    scene.set_overlay(record_command_snapshot_probe, nullptr);
+    const auto command_capture = scene.capture_command_snapshot_result({
+        .bounds = {.x = 4, .y = 4, .w = 2, .h = 2},
+    });
+    if (!expect(command_capture.ok(), "scene captures command snapshot")) return 1;
+    canvas.clear(rgba{0, 0, 0, 255});
+    const auto command_identity = ui::scene::execute_motion_compose(scene, {
+        .source = command_capture.handle,
+        .frame = {
+            .state = ui::scene::MotionTransitionState::Running,
+            .motion = {
+                .transform = {},
+                .compose = true,
+            },
+        },
+    });
+    if (!expect(command_identity.valid &&
+                    command_identity.replay.status == ui::scene::LayerReplayStatus::Ok,
+                "identity command snapshot replay succeeds")) {
+        return 1;
+    }
+    const auto command_identity_pixel = canvas.get_pixel(4, 4);
+    if (!expect(command_identity_pixel.r == 30 && command_identity_pixel.g == 140 &&
+                    command_identity_pixel.b == 230,
+                "identity command snapshot replay writes expected pixel")) {
+        return 1;
+    }
+
+    canvas.clear(rgba{0, 0, 0, 255});
+    const auto command_translated = ui::scene::execute_motion_compose(scene, {
+        .source = command_capture.handle,
+        .frame = {
+            .state = ui::scene::MotionTransitionState::Running,
+            .motion = {
+                .transform = {.x = 4},
+                .compose = true,
+            },
+        },
+    });
+    if (!expect(!command_translated.valid &&
+                    command_translated.replay.status == ui::scene::LayerReplayStatus::UnsupportedTransform,
+                "translated command snapshot replay is rejected")) {
+        return 1;
+    }
+    const auto command_original_after_translate = canvas.get_pixel(4, 4);
+    const auto command_target_after_translate = canvas.get_pixel(8, 4);
+    if (!expect(command_original_after_translate.r == 0 && command_original_after_translate.g == 0 &&
+                    command_original_after_translate.b == 0 && command_target_after_translate.r == 0 &&
+                    command_target_after_translate.g == 0 && command_target_after_translate.b == 0,
+                "rejected translated command replay does not write pixels")) {
+        return 1;
+    }
+
+    canvas.clear(rgba{0, 0, 0, 255});
+    const auto command_faded = ui::scene::execute_motion_compose(scene, {
+        .source = command_capture.handle,
+        .frame = {
+            .state = ui::scene::MotionTransitionState::Running,
+            .motion = {
+                .transform = {.opacity = 128},
+                .compose = true,
+            },
+        },
+    });
+    if (!expect(!command_faded.valid &&
+                    command_faded.replay.status == ui::scene::LayerReplayStatus::UnsupportedTransform,
+                "faded command snapshot replay is rejected")) {
+        return 1;
+    }
+    const auto command_original_after_fade = canvas.get_pixel(4, 4);
+    if (!expect(command_original_after_fade.r == 0 && command_original_after_fade.g == 0 &&
+                    command_original_after_fade.b == 0,
+                "rejected faded command replay does not write pixels")) {
+        return 1;
+    }
+    scene.set_overlay(nullptr, nullptr);
+    if (!expect(scene.release_snapshot(command_capture.handle), "command snapshot can be released")) return 1;
 
     static DefaultFrameBuffer page_fb{};
     static DefaultCanvas page_canvas{page_fb};
@@ -487,12 +571,15 @@ int main() {
                 static_cast<unsigned>(dry_run.plan.composite_pixels),
                 static_cast<unsigned>(dry_run.budget.ok));
     print_motion_case("execute");
-    std::printf(" pixels=%u status=%u moved_r=%u moved_g=%u moved_b=%u\n",
+    std::printf(" pixels=%u status=%u moved_r=%u moved_g=%u moved_b=%u command_identity=%u command_translate=%u command_fade=%u\n",
                 static_cast<unsigned>(executed.plan.composite_pixels),
                 static_cast<unsigned>(executed.replay.status),
                 static_cast<unsigned>(moved_pixel.r),
                 static_cast<unsigned>(moved_pixel.g),
-                static_cast<unsigned>(moved_pixel.b));
+                static_cast<unsigned>(moved_pixel.b),
+                static_cast<unsigned>(command_identity.replay.status),
+                static_cast<unsigned>(command_translated.replay.status),
+                static_cast<unsigned>(command_faded.replay.status));
     print_motion_case("page");
     std::printf(" pixels=%u moved_g=%u trace=%u\n",
                 static_cast<unsigned>(page_frame.compose.plan.composite_pixels),

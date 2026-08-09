@@ -74,7 +74,9 @@ compose bridge 只在以下条件满足时生成请求：
 - admission 与 budget 允许本次工作量。
 
 dry-run 只能证明计划和预算可形成，不证明 Scene 已执行。真实 execute 必须返回 replay/compose 状态和
-工作量证据；失败不能提交 page truth。
+工作量证据；失败不能提交 page truth。当前 pixel compose 支持平移与 opacity，command replay 只支持
+identity transform；后者收到平移或非 255 opacity 时必须返回 `UnsupportedTransform`，不能静默按原坐标、
+原透明度执行。
 
 ## Page Transition 事务
 
@@ -101,7 +103,7 @@ begin
 | PixelSingle | source snapshot 合成到 live destination | destination 不产生 snapshot；结束后释放 source |
 | Static/StaticCut | 不启动 motion/capture，prepare 后直接提交目标页 | 是合法运行形态，不是错误 |
 | None/Reject | 不 prepare、不 capture、不改变 page truth | 返回明确拒绝 |
-| unsupported CommandSnapshot path | 显式 static cut 或 reject | 不伪造 command compose |
+| unsupported CommandSnapshot path | 正规化为 StaticCut 或 reject | trace/ledger 不保留未执行的 command admission |
 
 recipe 不能绕过这些形态。Static 与 None 不同：Static 提交目标页，None 保持 begin 前状态并拒绝。
 

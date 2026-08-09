@@ -57,6 +57,9 @@ widget/scene state
 - command/text/blob/workspace 容量固定，耗尽必须产生显式 sticky evidence，不静默截断；
 - FullFrame 与 Tile/PFB 消费同一 record 语义；不同 backend 结果需要一致性证据；
 - command snapshot 只复制已使用的 command/text/blob payload，不复制 live buffer 元数据或临时 workspace；
+- command snapshot replay 当前只支持 identity transform；平移或非 255 opacity 必须在执行命令前返回
+  `UnsupportedTransform`，不能把 target clip 冒充坐标/透明度变换。`PageTransitionRunner` 不执行 command
+  compose，因此相关 fallback 必须以 `StaticCut` 写入 trace/ledger；
 - snapshot handle slot 与 payload slot 一一对应；command 与 pixel payload 共享同一块按较大者定额的 slot
   storage，同一逻辑槽不能让两种 kind 同时占用，禁止恢复两套各自乘 `layer_cache_slots` 的常驻池；
 - `layer_cache_slots=0` 是合法的无快照 profile：Scene 保留稳定 API，但 capture 必须返回无槽，admission

@@ -1,3 +1,5 @@
+#include <cstddef>
+#include <cstdint>
 #include <cstdio>
 
 import charm.gfx.canvas;
@@ -507,7 +509,7 @@ namespace {
         return true;
     }
 
-    [[nodiscard]] bool run_command_snapshot_static_cut() noexcept {
+    [[nodiscard]] bool run_command_fallback_static_cut() noexcept {
         TransitionScene env{};
         env.canvas.set_pixel(2, 2, rgba{250, 50, 40, 255});
         PaintPrepare prepare{.canvas = &env.canvas, .color = rgba{40, 70, 200, 255}, .x = 4, .y = 2};
@@ -518,41 +520,41 @@ namespace {
         }));
         const auto trace = runner.trace();
         const auto ledger = runner.ledger();
-        if (!expect(begin.static_cut(), "command snapshot admission resolves static cut")) return false;
-        if (!expect(begin.admission == ui::scene::LayerAdmission::CommandSnapshot,
-                    "command snapshot admission is selected")) {
+        if (!expect(begin.static_cut(), "command fallback resolves static cut")) return false;
+        if (!expect(begin.admission == ui::scene::LayerAdmission::StaticCut,
+                    "unsupported command fallback is recorded as static cut")) {
             return false;
         }
         if (!expect(trace.effective_profile == ui::scene::LayerProfile::Static,
-                    "command snapshot static cut uses static effective profile")) {
+                    "command fallback uses static effective profile")) {
             return false;
         }
         if (!expect(trace.source_capture_count == 0 && trace.destination_capture_count == 0,
-                    "command snapshot static cut performs no captures")) {
+                    "command fallback performs no captures")) {
             return false;
         }
         if (!expect(!env.source.visible() && env.destination.visible(),
-                    "command snapshot static cut commits page truth")) {
+                    "command fallback commits page truth")) {
             return false;
         }
         if (!expect(env.scene.layer_stats().snapshot_count == 0,
-                    "command snapshot static cut leaves no snapshots")) {
+                    "command fallback leaves no snapshots")) {
             return false;
         }
         if (!expect(ledger.static_cut && ledger.committed,
-                    "command snapshot static cut ledger records commit")) {
+                    "command fallback ledger records commit")) {
             return false;
         }
-        if (!expect(ledger.admission == ui::scene::LayerAdmission::CommandSnapshot &&
+        if (!expect(ledger.admission == ui::scene::LayerAdmission::StaticCut &&
                     ledger.effective_profile == ui::scene::LayerProfile::Static,
-                    "command snapshot static cut is recorded in ledger")) {
+                    "command fallback is recorded as static cut in ledger")) {
             return false;
         }
         if (!expect(ledger.peak_layer_bytes == 0 && ledger.total_composite_pixels == 0,
-                    "command snapshot static cut records no layer cost")) {
+                    "command fallback records no layer cost")) {
             return false;
         }
-        print_transition_summary("command_snapshot_static_cut", begin, trace, ledger, env);
+        print_transition_summary("command_fallback_static_cut", begin, trace, ledger, env);
         return true;
     }
 
@@ -1165,7 +1167,7 @@ int main() {
         if (!run_fade_slide_pixel_double()) { ok = false; break; }
         if (!run_fade_slide_cheap_quantized()) { ok = false; break; }
         if (!run_cancel_during_compose()) { ok = false; break; }
-        if (!run_command_snapshot_static_cut()) { ok = false; break; }
+        if (!run_command_fallback_static_cut()) { ok = false; break; }
         if (!run_static_profile_static_cut()) { ok = false; break; }
         if (!run_none_profile_reject()) { ok = false; break; }
         if (!run_pixel_single_fade_slide_live_destination()) { ok = false; break; }

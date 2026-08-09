@@ -417,6 +417,10 @@ export namespace ui::scene {
                 out.status = LayerReplayStatus::UnsupportedKind;
                 return out;
             }
+            if (plan.transform.x != 0 || plan.transform.y != 0 || plan.transform.opacity != 255) {
+                out.status = LayerReplayStatus::UnsupportedTransform;
+                return out;
+            }
             const auto* record = snapshot_store_.record(plan.source);
             if (!record) {
                 out.status = LayerReplayStatus::MissingSnapshot;

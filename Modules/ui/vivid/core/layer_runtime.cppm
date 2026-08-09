@@ -35,6 +35,7 @@ export namespace ui::scene {
         StaleSnapshot,
         MissingPayload,
         ExecuteFailed,
+        UnsupportedTransform,
     };
 
     enum class LayerCaptureStatus : std::uint8_t {

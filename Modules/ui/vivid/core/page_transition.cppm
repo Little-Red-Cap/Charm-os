@@ -174,13 +174,15 @@ export namespace ui::scene {
             state_ = PageTransitionState::Admitting;
             trace_.last_state = state_;
             trace_.admission = decide_admission(spec);
+            if (trace_.admission == LayerAdmission::CommandSnapshot) {
+                trace_.admission = LayerAdmission::StaticCut;
+            }
             if (trace_.admission == LayerAdmission::Reject) {
                 trace_.begin_status = PageTransitionBeginStatus::Rejected;
                 clear_tracking();
                 return begin_result(PageTransitionBeginStatus::Rejected);
             }
-            if (trace_.admission == LayerAdmission::CommandSnapshot ||
-                trace_.admission == LayerAdmission::StaticCut) {
+            if (trace_.admission == LayerAdmission::StaticCut) {
                 state_ = PageTransitionState::PreparingDestination;
                 trace_.last_state = state_;
                 if (spec.prepare_destination &&

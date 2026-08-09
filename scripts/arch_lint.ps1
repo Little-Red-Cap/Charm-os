@@ -310,8 +310,9 @@ function Invoke-VividImportBoundaryRules {
         "|charm\\.core\\.soa_(kernel|factory|gui|payload)" +
         "|charm\\.gfx\\.draw_cmd(:[A-Za-z0-9_]+)?" +
         "|charm\\.gfx\\.host_tools" +
-        "|charm\\.ui\\.scene\\.(builder_support|layer_support)" +
+        "|charm\\.ui\\.scene\\.(builder_support|layer_support|layer_runtime)" +
         "|charm\\.ui\\.scene:render_detail" +
+        "|charm\\.ui\\.scene:snapshot_store" +
         ")\\b"
 
     $vividBoundaryExcludes = @(

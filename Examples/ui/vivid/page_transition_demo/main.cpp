@@ -57,12 +57,19 @@ namespace {
         scene.validate_snapshot_for_compose(handle);
     };
 
+    template<typename T>
+    concept exposes_snapshot_record = requires(T& scene,
+                                                ui::scene::SnapshotHandle handle) {
+        scene.snapshot_record(handle);
+    };
+
     static_assert(!exposes_snapshot_reserve<ui::scene::Scene>);
     static_assert(!exposes_command_snapshot_update<ui::scene::Scene>);
     static_assert(!exposes_pixel_snapshot_update<ui::scene::Scene>);
     static_assert(!exposes_layer_epoch_query<ui::scene::Scene>);
     static_assert(!exposes_snapshot_epoch_refresh<ui::scene::Scene>);
     static_assert(!exposes_compose_validation_detail<ui::scene::Scene>);
+    static_assert(!exposes_snapshot_record<ui::scene::Scene>);
 
     struct TransitionScene {
         TransitionFrameBuffer fb{};
@@ -776,12 +783,11 @@ namespace {
                                "command transition keeps destination live")) {
             return false;
         }
-        const auto* record = env.scene.snapshot_record(runner.source_snapshot());
         const auto recorded = env.scene.last_cmd_stats();
-        const auto source_payload_bytes = record ? record->bytes : 0u;
-        if (!expect(record && record->kind == ui::scene::SnapshotKind::CommandBuffer
+        const auto source_payload_bytes = begin.source_capture.bytes;
+        if (!expect(begin.source_capture.kind == ui::scene::SnapshotKind::CommandBuffer
                     && recorded.text_used > 0
-                    && record->bytes
+                    && source_payload_bytes
                         == recorded.cmd_bytes + recorded.text_used + recorded.blob_used,
                     "command transition accounts for command text and blob payload")) {
             return false;

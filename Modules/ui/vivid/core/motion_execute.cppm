@@ -6,6 +6,24 @@ export import charm.ui.scene;
 export import charm.ui.scene.motion_compose;
 
 export namespace ui::scene {
+    [[nodiscard]] MotionComposeDryRunResult dry_run_motion_compose(
+        const MotionComposeRequest& request,
+        Scene& scene,
+        const LayerBudget& budget = {}) noexcept {
+        const auto bridge = make_motion_compose_spec(request);
+        if (!bridge.valid) {
+            return {};
+        }
+        const auto plan = scene.make_snapshot_compose_plan(bridge.spec);
+        const auto budget_result = scene.check_layer_budget(plan, budget);
+        return {
+            .valid = plan.valid,
+            .bridge = bridge,
+            .plan = plan,
+            .budget = budget_result,
+        };
+    }
+
     struct MotionComposeExecuteResult {
         bool valid{false};
         MotionComposeBridgeResult bridge{};

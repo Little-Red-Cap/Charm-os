@@ -4,7 +4,6 @@ foreach(_module IN ITEMS
         charm.ui.scene
         charm.ui.scene.anchored_menu
         charm.ui.scene.focus_scope
-        charm.ui.scene.layer_runtime
         charm.ui.scene.list_card_header
         charm.ui.scene.motion_runtime
         charm.ui.scene.page_header
@@ -49,6 +48,7 @@ foreach(_module IN ITEMS
         charm.gfx.draw_cmd
         charm.ui.scene.builder_support
         charm.ui.scene.layer_support
+        charm.ui.scene:snapshot_store
         charm.ui.scene:render_detail)
     vivid_module_policy(NAME "${_module}" ACCESS INTERNAL)
 endforeach()

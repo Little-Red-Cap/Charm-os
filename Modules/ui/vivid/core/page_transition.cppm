@@ -212,7 +212,7 @@ export namespace ui::scene {
             }
             source_snapshot_ = source_capture.handle;
             ++trace_.source_capture_count;
-            ledger_.source_bytes = captured_snapshot_bytes(scene, source_snapshot_);
+            ledger_.source_bytes = source_capture.bytes;
             ledger_.peak_layer_bytes = ledger_.source_bytes + ledger_.destination_bytes;
             source_->mark_transitioning();
 
@@ -268,7 +268,7 @@ export namespace ui::scene {
             }
             destination_snapshot_ = destination_capture.handle;
             ++trace_.destination_capture_count;
-            ledger_.destination_bytes = captured_snapshot_bytes(scene, destination_snapshot_);
+            ledger_.destination_bytes = destination_capture.bytes;
             ledger_.peak_layer_bytes = ledger_.source_bytes + ledger_.destination_bytes;
             destination_->mark_transitioning();
 
@@ -424,13 +424,6 @@ export namespace ui::scene {
             return (spec.recipe.kind != MotionRecipeKind::Slide
                     && spec.recipe.kind != MotionRecipeKind::FadeSlide)
                 || caps.allow_slide;
-        }
-
-        static std::uint32_t captured_snapshot_bytes(
-            const Scene& scene,
-            SnapshotHandle handle) noexcept {
-            const auto* record = scene.snapshot_record(handle);
-            return record ? record->bytes : 0u;
         }
 
         LayerFallbackReason command_snapshot_fallback_reason(

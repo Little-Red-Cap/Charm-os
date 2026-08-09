@@ -36,16 +36,14 @@
             };
             const auto capture = scene.capture_command_snapshot_result(spec);
             const auto handle = capture.handle;
-            const auto* record = scene.snapshot_record(handle);
             const bool lifecycle = capture.ok()
                 && static_cast<bool>(handle)
-                && record
-                && record->kind == ::ui::scene::SnapshotKind::CommandBuffer
+                && capture.kind == ::ui::scene::SnapshotKind::CommandBuffer
                 && scene.snapshot_current(handle)
                 && scene.mark_snapshot_stale(handle)
                 && !scene.snapshot_current(handle)
                 && scene.release_snapshot(handle)
-                && !scene.snapshot_record(handle);
+                && !scene.snapshot_current(handle);
             if (lifecycle && scene.layer_stats().snapshot_count == 0) {
                 ui_ci_emit("layer_snapshot_lifecycle", true, nullptr);
             } else {
@@ -96,13 +94,11 @@
             };
             const auto capture = scene.capture_command_snapshot_result(spec);
             const auto handle = capture.handle;
-            const auto* record = scene.snapshot_record(handle);
             const bool captured = capture.ok()
                 && static_cast<bool>(handle)
-                && record
-                && record->kind == ::ui::scene::SnapshotKind::CommandBuffer
-                && record->command_count > 0
-                && record->bytes > 0
+                && capture.kind == ::ui::scene::SnapshotKind::CommandBuffer
+                && capture.command_count > 0
+                && capture.bytes > 0
                 && scene.layer_stats().snapshot_count == 1
                 && scene.release_snapshot(handle)
                 && scene.layer_stats().snapshot_count == 0;
@@ -161,8 +157,7 @@
             }
             stale_checked = stale_checked
                 && !scene.validate_snapshot(handle)
-                && scene.snapshot_record(handle)
-                && scene.snapshot_record(handle)->stale
+                && !scene.snapshot_current(handle)
                 && scene.release_snapshot(handle);
             if (stale_checked) {
                 ui_ci_emit("layer_snapshot_stale_epoch", true, nullptr);
@@ -316,11 +311,9 @@
                 scene.access().set_rect(ctx.handles.root, root_rect);
             }
             const auto replay = scene.replay_command_snapshot(plan);
-            const auto* record = scene.snapshot_record(handle);
             const bool stale_rejected = plan.valid
                 && replay.status == ::ui::scene::LayerReplayStatus::StaleSnapshot
-                && record
-                && record->stale;
+                && !scene.snapshot_current(handle);
             const bool released = scene.release_snapshot(handle);
             if (stale_rejected && released) {
                 ui_ci_emit("layer_command_snapshot_replay_stale", true, nullptr);
@@ -335,25 +328,21 @@
                 .bounds = Rect{0, 0, screen_width, screen_height},
                 .preferred_kind = ::ui::scene::SnapshotKind::CommandBuffer,
             };
-            const auto first = scene.capture_command_snapshot(spec);
-            const auto* first_record = scene.snapshot_record(first);
-            const auto first_payload = first_record
-                ? first_record->payload_slot
-                : ::ui::scene::kInvalidSnapshotPayloadSlot;
-            const bool first_released = scene.release_snapshot(first);
-            const auto second = scene.capture_command_snapshot(spec);
-            const auto* second_record = scene.snapshot_record(second);
-            const auto second_payload = second_record
-                ? second_record->payload_slot
-                : ::ui::scene::kInvalidSnapshotPayloadSlot;
+            const auto first_capture = scene.capture_command_snapshot_result(spec);
+            const auto first = first_capture.handle;
+            const bool first_released = first_capture.ok()
+                && scene.release_snapshot(first);
+            const auto second_capture = scene.capture_command_snapshot_result(spec);
+            const auto second = second_capture.handle;
             const bool reused = first_released
-                && first_payload != ::ui::scene::kInvalidSnapshotPayloadSlot
-                && second_payload == first_payload
+                && second_capture.ok()
+                && second.slot == first.slot
+                && second.generation != first.generation
                 && scene.release_snapshot(second);
             if (reused) {
-                ui_ci_emit("layer_command_snapshot_payload_reuse", true, nullptr);
+                ui_ci_emit("layer_command_snapshot_slot_reuse", true, nullptr);
             } else {
-                ui_ci_emit("layer_command_snapshot_payload_reuse", false, "command_snapshot_payload_reuse");
+                ui_ci_emit("layer_command_snapshot_slot_reuse", false, "command_snapshot_slot_reuse");
                 res.ok = false;
                 res.failed++;
             }
@@ -365,11 +354,9 @@
                 .preferred_kind = ::ui::scene::SnapshotKind::PixelSurface,
             };
             const auto capture = scene.capture_pixel_snapshot_result(spec);
-            const auto* record = scene.snapshot_record(capture.handle);
             const bool captured = capture.ok()
-                && record
-                && record->kind == ::ui::scene::SnapshotKind::PixelSurface
-                && record->bytes == ::ui::scene::snapshot_pixel_bytes(
+                && capture.kind == ::ui::scene::SnapshotKind::PixelSurface
+                && capture.bytes == ::ui::scene::snapshot_pixel_bytes(
                     ::screen_pixel_format, pixel_bounds.w, pixel_bounds.h);
             const auto plan = scene.make_snapshot_compose_plan({
                 .source = capture.handle,

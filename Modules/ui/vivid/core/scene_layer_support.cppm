@@ -133,6 +133,9 @@ export namespace ui::scene {
     struct LayerCaptureResult {
         LayerCaptureStatus status{LayerCaptureStatus::NoSnapshotSlot};
         SnapshotHandle handle{};
+        SnapshotKind kind{SnapshotKind::EmptyFallback};
+        std::uint32_t bytes{0};
+        std::uint32_t command_count{0};
 
         [[nodiscard]] constexpr bool ok() const noexcept {
             return status == LayerCaptureStatus::Ok;

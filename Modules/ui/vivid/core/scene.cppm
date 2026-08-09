@@ -42,6 +42,7 @@ export import charm.gfx.render_style;
 export import charm.gfx.text_box;
 import charm.gfx.draw_cmd;
 import :render_detail;
+import :snapshot_store;
 
 namespace {
     class CommandSnapshotReadView {
@@ -331,16 +332,13 @@ export namespace ui::scene {
         LayerStats layer_stats() const noexcept { return snapshot_store_.stats(); }
         bool release_snapshot(SnapshotHandle handle) noexcept {
             if (const auto* record = snapshot_store_.record(handle);
-                record && record->payload_slot != kInvalidSnapshotPayloadSlot) {
+                record && record->payload_slot != detail::invalid_snapshot_payload_slot) {
                 (void)snapshot_payloads_.release(record->payload_slot);
             }
             return snapshot_store_.release(handle);
         }
         bool mark_snapshot_stale(SnapshotHandle handle) noexcept {
             return snapshot_store_.mark_stale(handle);
-        }
-        const SnapshotRecord* snapshot_record(SnapshotHandle handle) const noexcept {
-            return snapshot_store_.record(handle);
         }
         bool snapshot_current(SnapshotHandle handle) const noexcept {
             const auto* record = snapshot_store_.record(handle);
@@ -394,7 +392,13 @@ export namespace ui::scene {
                 result.status = LayerCaptureStatus::RecordFailed;
                 return result;
             }
-            result.status = LayerCaptureStatus::Ok;
+            result = {
+                .status = LayerCaptureStatus::Ok,
+                .handle = handle,
+                .kind = SnapshotKind::PixelSurface,
+                .bytes = bytes,
+                .command_count = 0,
+            };
             return result;
         }
         SnapshotHandle capture_pixel_snapshot(const SnapshotSpec& spec) noexcept {
@@ -602,7 +606,7 @@ export namespace ui::scene {
                 out.status = LayerReplayStatus::StaleSnapshot;
                 return out;
             }
-            if (record->payload_slot == kInvalidSnapshotPayloadSlot
+            if (record->payload_slot == detail::invalid_snapshot_payload_slot
                 || snapshot_payloads_.pixel_width(record->payload_slot) <= 0
                 || snapshot_payloads_.pixel_height(record->payload_slot) <= 0) {
                 out.status = LayerReplayStatus::MissingPayload;
@@ -708,7 +712,13 @@ export namespace ui::scene {
                 result.status = LayerCaptureStatus::RecordFailed;
                 return result;
             }
-            result.status = LayerCaptureStatus::Ok;
+            result = {
+                .status = LayerCaptureStatus::Ok,
+                .handle = handle,
+                .kind = SnapshotKind::CommandBuffer,
+                .bytes = command_snapshot_payload_bytes(last_cmd_stats_),
+                .command_count = static_cast<std::uint32_t>(last_cmd_stats_.cmd_count),
+            };
             return result;
         }
 
@@ -737,8 +747,8 @@ export namespace ui::scene {
         }
 
         [[nodiscard]] bool snapshot_payload_available(
-            const SnapshotRecord& record) const noexcept {
-            if (record.payload_slot == kInvalidSnapshotPayloadSlot) return false;
+            const detail::SnapshotRecord& record) const noexcept {
+            if (record.payload_slot == detail::invalid_snapshot_payload_slot) return false;
             switch (record.kind) {
             case SnapshotKind::CommandBuffer:
                 return snapshot_payloads_.command(record.payload_slot) != nullptr;
@@ -772,9 +782,9 @@ export namespace ui::scene {
                 stats.cmd_bytes + stats.text_used + stats.blob_used);
         }
 
-        LayerEpoch make_layer_epoch() const noexcept {
+        detail::LayerEpoch make_layer_epoch() const noexcept {
             const auto& tokens = Theme::instance().get_tokens();
-            LayerEpoch epoch{};
+            detail::LayerEpoch epoch{};
             epoch.layout = kernel_.layout_dirty_version();
             epoch.style = StyleSheet::instance().stylesheet_version();
             epoch.theme = tokens.version;
@@ -806,7 +816,7 @@ export namespace ui::scene {
         ExecStats last_exec_stats_{};
         SceneTimingSource timing_source_{};
         SceneRenderTiming last_render_timing_{};
-        DefaultSnapshotStore snapshot_store_{};
+        detail::DefaultSnapshotStore snapshot_store_{};
         OverlayFn overlay_fn_{nullptr};
         void* overlay_ctx_{nullptr};
     };

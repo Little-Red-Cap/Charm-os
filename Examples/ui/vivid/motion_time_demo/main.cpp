@@ -305,18 +305,25 @@ int main() {
     });
     if (!expect(!missing_snapshot.valid, "compose bridge rejects missing snapshot")) return 1;
 
-    ui::scene::SnapshotStore<2> snapshots{};
-    const auto snapshot = snapshots.reserve({
+    static DefaultFrameBuffer fb{};
+    static DefaultCanvas canvas{fb};
+    static ui::scene::Scene scene{canvas};
+    canvas.clear(rgba{0, 0, 0, 255});
+    const auto planning_capture = scene.capture_pixel_snapshot_result({
         .bounds = {.x = 0, .y = 0, .w = 120, .h = 80},
         .preferred_kind = ui::scene::SnapshotKind::PixelSurface,
-    }, {});
-    if (!expect(static_cast<bool>(snapshot), "snapshot store reserves source")) return 1;
+    });
+    const auto snapshot = planning_capture.handle;
+    if (!expect(planning_capture.ok() && snapshot,
+                "scene captures motion planning source")) {
+        return 1;
+    }
     const auto dry_run = ui::scene::dry_run_motion_compose({
         .source = snapshot,
         .frame = transition_mid,
         .clip = {.x = 0, .y = 0, .w = 80, .h = 80},
         .has_clip = true,
-    }, snapshots, {
+    }, scene, {
         .max_layer_bytes = 100000,
         .max_composite_pixels = 6400,
     });
@@ -342,7 +349,7 @@ int main() {
         .frame = transition_mid,
         .clip = {.x = 0, .y = 0, .w = 80, .h = 80},
         .has_clip = true,
-    }, snapshots, {
+    }, scene, {
         .max_composite_pixels = 100,
     });
     if (!expect(dry_run_over_budget.valid, "over-budget dry-run still returns valid plan")) return 1;
@@ -364,20 +371,18 @@ int main() {
         return 1;
     }
 
-    if (!expect(snapshots.mark_stale(snapshot), "snapshot can be marked stale")) return 1;
+    if (!expect(scene.mark_snapshot_stale(snapshot), "snapshot can be marked stale")) return 1;
     const auto stale_dry_run = ui::scene::dry_run_motion_compose({
         .source = snapshot,
         .frame = transition_mid,
-    }, snapshots);
+    }, scene);
     if (!expect(!stale_dry_run.valid, "dry-run rejects stale snapshot plan")) return 1;
     const auto stale_profile = ui::scene::decide_motion_compose_profile(
         ui::scene::LayerProfile::Cheap,
         stale_dry_run);
     if (!expect(!stale_profile.valid, "profile decision rejects invalid dry-run")) return 1;
+    if (!expect(scene.release_snapshot(snapshot), "motion planning snapshot releases")) return 1;
 
-    static DefaultFrameBuffer fb{};
-    static DefaultCanvas canvas{fb};
-    static ui::scene::Scene scene{canvas};
     WidgetHandle pixel_epoch_root{};
     scene.build([&](ui::scene::SceneBuilder& builder) {
         pixel_epoch_root = builder.create_container();

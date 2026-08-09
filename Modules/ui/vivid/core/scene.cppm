@@ -713,7 +713,7 @@ export namespace ui::scene {
             if (!handle) return result;
             result.handle = handle;
             record_current_scene(record_root);
-            if (!update_command_snapshot(handle)) {
+            if (!command_snapshot_record_complete()) {
                 (void)release_snapshot(handle);
                 result.handle = {};
                 result.status = LayerCaptureStatus::RecordFailed;
@@ -725,18 +725,38 @@ export namespace ui::scene {
                 result.status = LayerCaptureStatus::StoreFailed;
                 return result;
             }
+            if (!update_command_snapshot(handle)) {
+                (void)release_snapshot(handle);
+                result.handle = {};
+                result.status = LayerCaptureStatus::RecordFailed;
+                return result;
+            }
             result.status = LayerCaptureStatus::Ok;
             return result;
         }
 
         void record_current_scene(WidgetHandle record_root = {}) noexcept {
             cmd_buf_.clear();
-            last_cmd_stats_ = detail::to_scene_stats(
+            const auto runtime_stats = detail::to_scene_stats(
                 gui_.record_commands(cmd_buf_, record_root));
             if (!record_root && overlay_fn_) {
                 SceneOverlay overlay{cmd_buf_};
                 overlay_fn_(overlay, overlay_ctx_);
             }
+            last_cmd_stats_ = detail::to_scene_stats(cmd_buf_.stats());
+            last_cmd_stats_.workspace_overflowed = runtime_stats.workspace_overflowed;
+            last_cmd_stats_.traversal_phase_conflicted =
+                runtime_stats.traversal_phase_conflicted;
+            last_cmd_stats_.style_patch_overflowed = runtime_stats.style_patch_overflowed;
+            last_cmd_stats_.semantic_overflowed = runtime_stats.semantic_overflowed;
+        }
+
+        [[nodiscard]] bool command_snapshot_record_complete() const noexcept {
+            return !last_cmd_stats_.cmd_overflowed
+                && !last_cmd_stats_.text_overflowed
+                && !last_cmd_stats_.blob_overflowed
+                && !last_cmd_stats_.workspace_overflowed
+                && !last_cmd_stats_.traversal_phase_conflicted;
         }
 
         LayerEpoch make_layer_epoch() const noexcept {

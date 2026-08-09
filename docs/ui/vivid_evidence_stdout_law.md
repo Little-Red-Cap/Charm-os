@@ -88,7 +88,7 @@ set_tests_properties(${target_name} PROPERTIES
 
 | 示例 | tag | 最终约束 |
 | --- | --- | --- |
-| `page_transition_demo` | `pt` | `[pt] run=page_transition_demo phase=end result=ok cases=18` |
+| `page_transition_demo` | `pt` | `[pt] run=page_transition_demo phase=end result=ok cases=19` |
 | `motion_time_demo` | `mt` | `[mt] run=motion_time_demo phase=end result=ok cases=13` |
 | `component_card_state_demo` | `ccs` | `[ccs] run=component_card_state_demo phase=end result=ok cases=6` |
 | `component_settings_row_demo` | `csr` | `[csr] run=component_settings_row_demo phase=end result=ok cases=5` |

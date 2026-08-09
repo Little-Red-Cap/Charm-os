@@ -74,6 +74,10 @@ generation 失配、显式 stale 或 compose 前置条件失败时才拒绝。
 profile 未编译对应 snapshot kind 时，capture 必须在 reserve 前返回 `UnsupportedKind`；能力已编译但 slot
 为零时返回 `NoSnapshotSlot`，两者不能合并成模糊的 store failure。
 
+command capture 必须先完成 record，再写入 payload，最后发布 snapshot metadata。command/text/blob、
+traversal workspace 溢出或 traversal phase 冲突属于 `RecordFailed`；完整 record 无法写入 payload 才属于
+`StoreFailed`。任一失败都必须释放已保留的 slot 与已构造的 payload，且后续 capture 可以继续复用容量。
+
 `TileSurface` 或其它 snapshot kind 在进入 source、测试和 ownership 证据前不属于 v0 保证。
 
 ## 生命周期闭环

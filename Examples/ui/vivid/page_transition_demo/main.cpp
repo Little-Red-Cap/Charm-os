@@ -254,7 +254,7 @@ namespace {
     inline constexpr bool kCommandOnlyStorage =
         ::snapshot_command_enabled && !::snapshot_pixel_enabled;
     inline constexpr unsigned kTransactionEvidenceCaseCount =
-        kCommandOnlyStorage ? 4u : (::snapshot_command_enabled ? 17u : 15u);
+        kCommandOnlyStorage ? 5u : (::snapshot_command_enabled ? 18u : 15u);
 
     void print_transition_run_begin() noexcept {
         std::printf("[pt] run=page_transition_demo phase=begin\n");
@@ -378,6 +378,60 @@ namespace {
             return false;
         }
         envelope.observe(frame.source.replay);
+        return true;
+    }
+
+    void overflow_command_record(ui::scene::SceneOverlay& overlay, void*) noexcept {
+        constexpr Rect marker{0, 0, 1, 1};
+        for (std::size_t i = 0;
+             i <= charm::vivid::config::kDrawCmd.max_commands;
+             ++i) {
+            overlay.fill_rect(marker, rgba{255, 0, 0, 255});
+        }
+    }
+
+    [[nodiscard]] bool run_command_record_overflow_recovery() noexcept {
+        TransitionScene env{};
+        const ui::scene::SnapshotSpec spec{
+            .bounds = {0, 0, command_snapshot_width, command_snapshot_height},
+            .preferred_kind = ui::scene::SnapshotKind::CommandBuffer,
+        };
+
+        env.scene.set_overlay(overflow_command_record, nullptr);
+        const auto failed = env.scene.capture_command_snapshot_result(spec);
+        const auto failed_stats = env.scene.last_cmd_stats();
+        if (!expect(failed.status == ui::scene::LayerCaptureStatus::RecordFailed
+                        && !failed.handle,
+                    "command overflow is classified as record failure")) {
+            return false;
+        }
+        if (!expect(failed_stats.cmd_overflowed,
+                    "command overflow remains visible in scene evidence")) {
+            return false;
+        }
+        if (!expect(env.scene.layer_stats().snapshot_count == 0,
+                    "command overflow releases reserved snapshot")) {
+            return false;
+        }
+
+        env.scene.set_overlay(nullptr, nullptr);
+        const auto recovered = env.scene.capture_command_snapshot_result(spec);
+        if (!expect(recovered.ok() && recovered.handle,
+                    "command capture recovers after record overflow")) {
+            return false;
+        }
+        if (!expect(!env.scene.last_cmd_stats().cmd_overflowed,
+                    "recovered command capture clears overflow evidence")) {
+            return false;
+        }
+        if (!expect(env.scene.release_snapshot(recovered.handle)
+                        && env.scene.layer_stats().snapshot_count == 0,
+                    "recovered command capture releases snapshot")) {
+            return false;
+        }
+
+        ++transition_summary_case_count;
+        std::puts("[pt] case=command_record_overflow status=record_failed recovered=1 snapshots=0");
         return true;
     }
 
@@ -1804,6 +1858,7 @@ int main() {
     bool ok = true;
     do {
         if constexpr (kCommandOnlyStorage) {
+            if (!run_command_record_overflow_recovery()) { ok = false; break; }
             if (!run_command_snapshot_slide()) { ok = false; break; }
             if (!run_command_fallback_static_cut()) { ok = false; break; }
             if (!run_command_epoch_fallback_static_cut()) { ok = false; break; }
@@ -1815,6 +1870,7 @@ int main() {
         if (!run_fade_slide_cheap_quantized()) { ok = false; break; }
         if (!run_cancel_during_compose()) { ok = false; break; }
         if constexpr (::snapshot_command_enabled) {
+            if (!run_command_record_overflow_recovery()) { ok = false; break; }
             if (!run_command_snapshot_slide()) { ok = false; break; }
         }
         if (!run_command_fallback_static_cut()) { ok = false; break; }

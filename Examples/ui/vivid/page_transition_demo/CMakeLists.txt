@@ -34,13 +34,13 @@ add_test(NAME ${target_name}
     COMMAND $<TARGET_FILE:${target_name}>)
 if(CHARM_VIVID_SNAPSHOT_STORAGE_MODE STREQUAL "COMMAND")
     set(_vivid_page_transition_pass_gate
-        "\\[pt\\] run=page_transition_demo phase=end result=ok cases=5")
+        "\\[pt\\] run=page_transition_demo phase=end result=ok cases=6")
 elseif(CHARM_VIVID_SNAPSHOT_STORAGE_MODE STREQUAL "PIXEL")
     set(_vivid_page_transition_pass_gate
         "\\[pt\\] run=page_transition_demo phase=end result=ok cases=16")
 else()
     set(_vivid_page_transition_pass_gate
-        "\\[pt\\] run=page_transition_demo phase=end result=ok cases=18")
+        "\\[pt\\] run=page_transition_demo phase=end result=ok cases=19")
 endif()
 set_tests_properties(${target_name} PROPERTIES
     PASS_REGULAR_EXPRESSION "${_vivid_page_transition_pass_gate}"

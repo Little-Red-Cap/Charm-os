@@ -1038,7 +1038,7 @@ export namespace ui::draw_cmd {
                 std::size_t stride = 0;
                 if (!read_cmd_at_offset(offset, cmd, stride)) {
                     fail_other();
-                    continue;
+                    break;
                 }
 
                 const auto kind = group_kind(cmd.type);

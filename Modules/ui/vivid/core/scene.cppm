@@ -287,11 +287,7 @@ export namespace ui::scene {
         bool release_snapshot(SnapshotHandle handle) noexcept {
             if (const auto* record = snapshot_store_.record(handle);
                 record && record->payload_slot != kInvalidSnapshotPayloadSlot) {
-                if (record->kind == SnapshotKind::CommandBuffer) {
-                    (void)command_snapshot_payloads_.release(record->payload_slot);
-                } else if (record->kind == SnapshotKind::PixelSurface) {
-                    (void)pixel_snapshot_payloads_.release(record->payload_slot);
-                }
+                (void)snapshot_payloads_.release(record->payload_slot);
             }
             return snapshot_store_.release(handle);
         }
@@ -361,12 +357,15 @@ export namespace ui::scene {
             const auto handle = reserve_snapshot(pixel_spec);
             if (!handle) return result;
             result.handle = handle;
-            const auto payload_slot = pixel_snapshot_payloads_.store(canvas_, pixel_spec.bounds);
-            if (payload_slot == kInvalidSnapshotPayloadSlot) {
+            const auto payload_slot = static_cast<std::uint32_t>(handle.slot);
+            if (!snapshot_payloads_.store_pixel(payload_slot, canvas_, pixel_spec.bounds)) {
                 (void)release_snapshot(handle);
                 result.handle = {};
                 result.status = LayerCaptureStatus::StoreFailed;
                 return result;
+            }
+            if (auto* record = snapshot_store_.mutable_record(handle)) {
+                record->payload_slot = payload_slot;
             }
             const auto bytes = static_cast<std::uint32_t>(
                 snapshot_pixel_bytes(screen_pixel_format, pixel_spec.bounds.w, pixel_spec.bounds.h));
@@ -375,9 +374,6 @@ export namespace ui::scene {
                 result.handle = {};
                 result.status = LayerCaptureStatus::RecordFailed;
                 return result;
-            }
-            if (auto* record = snapshot_store_.mutable_record(handle)) {
-                record->payload_slot = payload_slot;
             }
             result.status = LayerCaptureStatus::Ok;
             return result;
@@ -431,7 +427,7 @@ export namespace ui::scene {
                 out.status = LayerReplayStatus::StaleSnapshot;
                 return out;
             }
-            const auto* payload = command_snapshot_payloads_.get(record->payload_slot);
+            const auto* payload = snapshot_payloads_.command(record->payload_slot);
             if (!payload) {
                 out.status = LayerReplayStatus::MissingPayload;
                 return out;
@@ -467,8 +463,8 @@ export namespace ui::scene {
                 return out;
             }
             if (record->payload_slot == kInvalidSnapshotPayloadSlot
-                || pixel_snapshot_payloads_.width(record->payload_slot) <= 0
-                || pixel_snapshot_payloads_.height(record->payload_slot) <= 0) {
+                || snapshot_payloads_.pixel_width(record->payload_slot) <= 0
+                || snapshot_payloads_.pixel_height(record->payload_slot) <= 0) {
                 out.status = LayerReplayStatus::MissingPayload;
                 return out;
             }
@@ -490,7 +486,7 @@ export namespace ui::scene {
             for (int y = 0; y < plan.source_visible.h; ++y) {
                 const int source_y = plan.source_visible.y - plan.source_bounds.y + y;
                 const int source_x = plan.source_visible.x - plan.source_bounds.x;
-                const auto* src = pixel_snapshot_payloads_.row(record->payload_slot, source_y);
+                const auto* src = snapshot_payloads_.pixel_row(record->payload_slot, source_y);
                 if (!src) {
                     out.status = LayerReplayStatus::ExecuteFailed;
                     return out;
@@ -543,8 +539,8 @@ export namespace ui::scene {
         bool store_command_snapshot_payload(SnapshotHandle handle) noexcept {
             auto* record = snapshot_store_.mutable_record(handle);
             if (!record) return false;
-            const auto payload_slot = command_snapshot_payloads_.store(cmd_buf_);
-            if (payload_slot == kInvalidSnapshotPayloadSlot) {
+            const auto payload_slot = static_cast<std::uint32_t>(handle.slot);
+            if (!snapshot_payloads_.store_command(payload_slot, cmd_buf_)) {
                 return false;
             }
             record->payload_slot = payload_slot;
@@ -559,8 +555,7 @@ export namespace ui::scene {
         ui::draw_cmd::DrawCmdExecutor cmd_exec_{};
         SoaGui gui_;
         WidgetHandle root_{};
-        CommandSnapshotPayloadStore<static_cast<std::size_t>(layer_cache_slots)> command_snapshot_payloads_{};
-        PixelSnapshotPayloadStore<static_cast<std::size_t>(layer_cache_slots)> pixel_snapshot_payloads_{};
+        DefaultSnapshotPayloadStore snapshot_payloads_{};
         CmdStats last_cmd_stats_{};
         ExecStats last_exec_stats_{};
         SceneTimingSource timing_source_{};
@@ -702,6 +697,7 @@ namespace {
         std::uint64_t draw_cmd_compaction_workspace_bytes{0};
         std::uint64_t draw_cmd_executor_bytes{0};
         std::uint64_t soa_traversal_workspace_bytes{0};
+        std::uint64_t snapshot_payload_bytes{0};
         std::uint64_t command_snapshot_bytes{0};
         std::uint64_t pixel_snapshot_bytes{0};
         std::uint64_t theme_bytes{0};
@@ -768,8 +764,9 @@ namespace {
             sizeof(ui::draw_cmd::DefaultDrawCmdCompactionWorkspace),
             sizeof(ui::draw_cmd::DrawCmdExecutor),
             SoaGui::kTraversalWorkspaceBytes,
-            sizeof(ui::scene::CommandSnapshotPayloadStore<static_cast<std::size_t>(layer_cache_slots)>),
-            sizeof(ui::scene::PixelSnapshotPayloadStore<static_cast<std::size_t>(layer_cache_slots)>),
+            sizeof(ui::scene::DefaultSnapshotPayloadStore),
+            ui::scene::DefaultSnapshotPayloadStore::command_capacity_bytes,
+            ui::scene::DefaultSnapshotPayloadStore::pixel_capacity_bytes,
             theme_bytes,
             stylesheet_bytes,
             image_registry_bytes,
@@ -793,6 +790,9 @@ namespace {
     static_assert(kVividStaticMemoryProfile.runtime_global_bytes
                   <= CHARM_VIVID_RUNTIME_GLOBALS_UPPER_BYTES,
                   "Vivid target-ABI runtime globals exceed their configure-time upper bound");
+    static_assert(kVividStaticMemoryProfile.snapshot_payload_bytes
+                  <= CHARM_VIVID_SNAPSHOT_PAYLOAD_UPPER_BYTES,
+                  "Vivid target-ABI snapshot payload store exceeds its configure-time upper bound");
     static_assert(kVividStaticMemoryProfile.total_bytes
                   <= kVividStaticMemoryProfile.upper_bound_bytes,
                   "Vivid configure-time static memory model undercounted target-ABI resident bytes");
@@ -827,24 +827,26 @@ extern "C" [[gnu::used]] void charm_vivid_static_memory_profile_symbols() noexce
         ".set charm_vivid_static_profile_draw_cmd_executor_bytes, %c6\n"
         ".global charm_vivid_static_profile_soa_traversal_workspace_bytes\n"
         ".set charm_vivid_static_profile_soa_traversal_workspace_bytes, %c7\n"
+        ".global charm_vivid_static_profile_snapshot_payload_bytes\n"
+        ".set charm_vivid_static_profile_snapshot_payload_bytes, %c8\n"
         ".global charm_vivid_static_profile_command_snapshot_bytes\n"
-        ".set charm_vivid_static_profile_command_snapshot_bytes, %c8\n"
+        ".set charm_vivid_static_profile_command_snapshot_bytes, %c9\n"
         ".global charm_vivid_static_profile_pixel_snapshot_bytes\n"
-        ".set charm_vivid_static_profile_pixel_snapshot_bytes, %c9\n"
+        ".set charm_vivid_static_profile_pixel_snapshot_bytes, %c10\n"
         ".global charm_vivid_static_profile_runtime_global_bytes\n"
-        ".set charm_vivid_static_profile_runtime_global_bytes, %c10\n"
+        ".set charm_vivid_static_profile_runtime_global_bytes, %c11\n"
         ".global charm_vivid_static_profile_global_bytes\n"
-        ".set charm_vivid_static_profile_global_bytes, %c11\n"
+        ".set charm_vivid_static_profile_global_bytes, %c12\n"
         ".global charm_vivid_static_profile_total_bytes\n"
-        ".set charm_vivid_static_profile_total_bytes, %c12\n"
+        ".set charm_vivid_static_profile_total_bytes, %c13\n"
         ".global charm_vivid_static_profile_upper_bound_bytes\n"
-        ".set charm_vivid_static_profile_upper_bound_bytes, %c13\n"
+        ".set charm_vivid_static_profile_upper_bound_bytes, %c14\n"
         ".global charm_vivid_static_profile_budget_bytes\n"
-        ".set charm_vivid_static_profile_budget_bytes, %c14\n"
+        ".set charm_vivid_static_profile_budget_bytes, %c15\n"
         ".global charm_vivid_static_profile_min_headroom_bytes\n"
-        ".set charm_vivid_static_profile_min_headroom_bytes, %c15\n"
+        ".set charm_vivid_static_profile_min_headroom_bytes, %c16\n"
         ".global charm_vivid_static_profile_exact_headroom_bytes\n"
-        ".set charm_vivid_static_profile_exact_headroom_bytes, %c16\n"
+        ".set charm_vivid_static_profile_exact_headroom_bytes, %c17\n"
         :
         : "i"(profile.scene_bytes),
           "i"(profile.soa_kernel_bytes),
@@ -854,6 +856,7 @@ extern "C" [[gnu::used]] void charm_vivid_static_memory_profile_symbols() noexce
           "i"(profile.draw_cmd_compaction_workspace_bytes),
           "i"(profile.draw_cmd_executor_bytes),
           "i"(profile.soa_traversal_workspace_bytes),
+          "i"(profile.snapshot_payload_bytes),
           "i"(profile.command_snapshot_bytes),
           "i"(profile.pixel_snapshot_bytes),
           "i"(profile.runtime_global_bytes),

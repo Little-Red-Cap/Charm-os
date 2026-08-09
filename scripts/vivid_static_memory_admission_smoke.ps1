@@ -125,6 +125,10 @@ function Assert-Admission {
     }
     foreach ($field in @(
         "command_buffer_upper_bytes",
+        "pixel_snapshot_upper_bytes",
+        "command_snapshot_upper_bytes",
+        "snapshot_payload_metadata_upper_bytes",
+        "snapshot_payload_upper_bytes",
         "draw_cmd_compaction_workspace_upper_bytes",
         "draw_cmd_executor_workspace_upper_bytes",
         "soa_traversal_workspace_upper_bytes",
@@ -149,6 +153,19 @@ function Assert-Admission {
         [int64]$Values.draw_cmd_arena_upper_bytes -ne $expectedArenaBytes -or
         [int64]$Values.draw_cmd_buffer_upper_bytes -ne $expectedBufferBytes) {
         throw "Unexpected DrawCmd buffer budget"
+    }
+    $expectedCommandSnapshotBytes = [int64]$Values.layer_cache_slots * $expectedBufferBytes
+    $expectedSnapshotPayloadDataBytes = [Math]::Max(
+        [int64]$Values.pixel_snapshot_upper_bytes,
+        $expectedCommandSnapshotBytes)
+    $expectedSnapshotPayloadMetadataBytes = [int64]$Values.layer_cache_slots * 16 + 64
+    $expectedSnapshotPayloadBytes = $expectedSnapshotPayloadDataBytes `
+        + $expectedSnapshotPayloadMetadataBytes
+    if ([int64]$Values.command_buffer_upper_bytes -ne $expectedBufferBytes -or
+        [int64]$Values.command_snapshot_upper_bytes -ne $expectedCommandSnapshotBytes -or
+        [int64]$Values.snapshot_payload_metadata_upper_bytes -ne $expectedSnapshotPayloadMetadataBytes -or
+        [int64]$Values.snapshot_payload_upper_bytes -ne $expectedSnapshotPayloadBytes) {
+        throw "Unexpected shared snapshot payload budget"
     }
     if ([int64]$Values.draw_cmd_compaction_workspace_upper_bytes -ne 2048) {
         throw "Unexpected DrawCmd compaction workspace budget"
@@ -225,6 +242,20 @@ function Assert-ProductEvidence {
         [int64]$admissionEvidence.static_memory.draw_cmd_arena_upper_bytes -ne $expectedArenaBytes -or
         [int64]$admissionEvidence.static_memory.draw_cmd_buffer_upper_bytes -ne $expectedBufferBytes) {
         throw "PRODUCT DrawCmd buffer evidence mismatch for profile '$Profile'"
+    }
+    $layerCacheSlots = [int64]$envelopeEvidence.layer_cache.slots
+    $expectedCommandSnapshotBytes = $layerCacheSlots * $expectedBufferBytes
+    $expectedSnapshotPayloadDataBytes = [Math]::Max(
+        [int64]$admissionEvidence.static_memory.pixel_snapshot_upper_bytes,
+        $expectedCommandSnapshotBytes)
+    $expectedSnapshotPayloadMetadataBytes = $layerCacheSlots * 16 + 64
+    $expectedSnapshotPayloadBytes = $expectedSnapshotPayloadDataBytes `
+        + $expectedSnapshotPayloadMetadataBytes
+    if ([int64]$admissionEvidence.static_memory.command_buffer_upper_bytes -ne $expectedBufferBytes -or
+        [int64]$admissionEvidence.static_memory.command_snapshot_upper_bytes -ne $expectedCommandSnapshotBytes -or
+        [int64]$admissionEvidence.static_memory.snapshot_payload_metadata_upper_bytes -ne $expectedSnapshotPayloadMetadataBytes -or
+        [int64]$admissionEvidence.static_memory.snapshot_payload_upper_bytes -ne $expectedSnapshotPayloadBytes) {
+        throw "PRODUCT shared snapshot payload evidence mismatch for profile '$Profile'"
     }
     if ([int64]$admissionEvidence.static_memory.compaction_workspace_upper_bytes -ne 2048) {
         throw "PRODUCT compaction workspace evidence mismatch for profile '$Profile'"

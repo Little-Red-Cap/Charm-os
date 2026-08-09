@@ -14,7 +14,7 @@
 ## Resident RAM 范围
 
 计入 Vivid 自有常驻状态：Scene/SoA kernel、payload/text/semantic/style pools、唯一 live DrawCmd buffer、layer
-snapshot stores、compaction/executor/traversal workspace、theme/stylesheet/image registry 和启用 widget 的
+snapshot payload store、compaction/executor/traversal workspace、theme/stylesheet/image registry 和启用 widget 的
 保守 style reserve。应用级 PerfOverlay runtime、canvas/text profile counter 与 DrawCmd policy 等固定全局
 状态同样计入，不能藏在未解释的 process global 中。
 
@@ -46,13 +46,21 @@ runtime diagnostic/policy 状态。configure model 为 runtime globals 保留独
 DrawCmd command arena 以 canonical `CmdHeader + 最大 payload` 的 record stride 乘算：关闭 detail evidence
 时配置上界为 60B/command，开启时为 64B/command。live buffer 与 compaction workspace 不常驻随机索引
 offset table；executor、compaction、snapshot 与 evidence 都按 byte cursor 遍历。单 buffer 配置上界为
-`arena + text + blob + 4096B`，compaction workspace 固定上界为 `2048B`。C++ `sizeof` 门、manifest 和
+`arena + text + blob + 4096B`，compaction workspace 固定上界为 `2048B`。load 必须解码验证每条 record，
+失败后留下空 stream；executor 对运行期损坏必须计入失败并有界终止。C++ `sizeof` 门、manifest 和
 admission JSON 必须消费同一组 record/arena 证据。
 
 DrawCmd compaction 的五类 batch scratch 生命周期互斥，必须共享一块 64 项、按最大 item 对齐的 fixed byte
 storage。批项必须具有唯一 object representation，并以 `memcpy` 写入 raw blob；padding 必须显式命名并
 确定初始化，不能把历史 storage 字节带入 replay artifact。load/replay 必须拒绝超过 canonical stride 的
 record，即使额外尾字节仍能被旧 decoder 忽略，也不能让它占用未纳入 command arena 的预算。
+
+SnapshotStore 的 handle 总容量只有 `layer_cache_slots`，command 与 pixel payload 因而共享同样数量的逻辑槽。
+每槽只常驻 `max(pixel slot, command slot)` 的 fixed storage，并以 snapshot kind 管理对象生命周期；配置期
+`snapshot_payload_upper_bytes` 取两种总容量的较大者，再显式加上随槽数增长的 kind/尺寸/alignment 元数据上界，
+不能恢复为二者相加或把元数据藏入 scene fixed reserve。目标 ABI 的
+`snapshot_payload_bytes` 是真实常驻值；兼容保留的 `command_snapshot_bytes` / `pixel_snapshot_bytes` 只表示
+各 kind 独占全部逻辑槽时的容量，不得相加为 resident RAM。
 
 DrawCmd executor 不为相邻命令 run 常驻 Rect/DrawCmd 中间数组；命令从固定容量 buffer 单遍读取并立即执行。
 配置期 executor workspace 上界固定为 `4096B`，覆盖真实重叠的 clip stack、tile-hit table 与可选 detail evidence；

@@ -56,7 +56,9 @@ widget/scene state
   构造独立 Scene，不能复制 runtime state；
 - command/text/blob/workspace 容量固定，耗尽必须产生显式 sticky evidence，不静默截断；
 - FullFrame 与 Tile/PFB 消费同一 record 语义；不同 backend 结果需要一致性证据；
-- command snapshot 复制 buffer/payload，不复制临时 workspace；
+- command snapshot 只复制已使用的 command/text/blob payload，不复制 live buffer 元数据或临时 workspace；
+- snapshot handle slot 与 payload slot 一一对应；command 与 pixel payload 共享同一块按较大者定额的 slot
+  storage，同一逻辑槽不能让两种 kind 同时占用，禁止恢复两套各自乘 `layer_cache_slots` 的常驻池；
 - compaction 在 record 完成后执行，不能改变命令可观察顺序或 artifact 语义；
 - compaction workspace 复用的 `DrawCmd` 必须通过类型默认值赋值重置，禁止以 `memset` 假设非 trivial 对象
   的默认语义等于全零位模式；该 reset 必须保持 `noexcept` 且不引入局部大对象；
@@ -66,8 +68,9 @@ widget/scene state
 - executor 对相邻 rect/image/line/path/text run 单遍读取并立即执行；禁止恢复“先收集到 64 项 typed array、
   再逐项执行”的常驻中间表。clip stack 与 tile-hit table 在 Tile 执行期间真实重叠，仍由 executor 独立持有；
 - command arena 只按 canonical `CmdHeader + 最大 payload` stride 乘算，不常驻随机索引 offset table；
-  executor、compaction、snapshot 与 evidence 均按 byte cursor 遍历。load/replay 在一次扫描中验证 record、
-  重建 command count，并拒绝超过 canonical stride 的扩展 record，不能让外部字节绕过静态容量证明；
+  executor、compaction、snapshot 与 evidence 均按 byte cursor 遍历。load/replay 在一次扫描中验证并解码每条
+  record、重建 command count，并拒绝未知 type、payload 不足或超过 canonical stride 的扩展 record；失败后
+  stream 必须保持为空，executor 遇到运行期损坏必须有界退出，不能让外部字节绕过容量证明或锁死渲染；
 - tile 命中索引容量不足时必须回退到正确但更慢的扫描路径；
 - 产品 evidence 只消费 Scene stats 和 artifact 摘要，不依赖 CmdHeader/payload 私有布局。
 

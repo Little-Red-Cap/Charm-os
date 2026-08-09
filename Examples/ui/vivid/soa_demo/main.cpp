@@ -3692,7 +3692,7 @@ int main(int argc, char** argv) {
     }
 #endif
     if (run_ci) {
-        (void)out::println<"[soa] abi style_patch={} draw_cmd={} cmd_buffer={} cmd_arena={} executor={} soa_kernel={} scene={} nodes={} node_storage_slot={} node_runtime_state={} node_style_class={} node_style_patch_slot={} node_semantic_slot={} layout_text_state={} semantic_slots={} semantic_pool={} style_patch_slots={} style_patch_pool={} traversal_frame={} traversal_workspace={} compaction_workspace={} batch_storage={}">(
+        (void)out::println<"[soa] abi style_patch={} draw_cmd={} cmd_buffer={} cmd_arena={} executor={} soa_kernel={} scene={} snapshot_payload={} command_snapshot_capacity={} pixel_snapshot_capacity={} nodes={} node_storage_slot={} node_runtime_state={} node_style_class={} node_style_patch_slot={} node_semantic_slot={} layout_text_state={} semantic_slots={} semantic_pool={} style_patch_slots={} style_patch_pool={} traversal_frame={} traversal_workspace={} compaction_workspace={} batch_storage={}">(
             g_console,
             static_cast<unsigned long long>(sizeof(StylePatch)),
             static_cast<unsigned long long>(sizeof(ui::draw_cmd::DrawCmd)),
@@ -3701,6 +3701,9 @@ int main(int argc, char** argv) {
             static_cast<unsigned long long>(sizeof(ui::draw_cmd::DrawCmdExecutor)),
             static_cast<unsigned long long>(sizeof(SoaKernel)),
             static_cast<unsigned long long>(sizeof(::ui::scene::Scene)),
+            static_cast<unsigned long long>(sizeof(::ui::scene::DefaultSnapshotPayloadStore)),
+            static_cast<unsigned long long>(::ui::scene::DefaultSnapshotPayloadStore::command_capacity_bytes),
+            static_cast<unsigned long long>(::ui::scene::DefaultSnapshotPayloadStore::pixel_capacity_bytes),
             static_cast<unsigned>(SoaKernel::kMaxNodes),
             static_cast<unsigned>(SoaKernel::kNodeStorageSlotBytes),
             static_cast<unsigned>(SoaKernel::kNodeRuntimeStateBytes),
@@ -4457,6 +4460,7 @@ int main(int argc, char** argv) {
     bool compact_ok = true;
     bool executor_stream_ok = true;
     bool cmd_schema_ok = true;
+    bool snapshot_payload_ok = true;
     std::size_t compact_saved = 0;
 
     if (run_compare) {
@@ -4533,7 +4537,7 @@ int main(int argc, char** argv) {
             std::memcpy(oversized_record.data() + sizeof(header), &payload, sizeof(payload));
             const std::size_t record_bytes = ui::draw_cmd::cmd_stride(header.size);
             ui::draw_cmd::DrawCmdBuffer<4, 1, 1> schema_probe{};
-            cmd_schema_ok = record_bytes <= oversized_record.size()
+            const bool oversized_rejected = record_bytes <= oversized_record.size()
                 && !schema_probe.load(oversized_record.data(),
                                       record_bytes,
                                       0,
@@ -4541,7 +4545,100 @@ int main(int argc, char** argv) {
                                       0,
                                       nullptr,
                                       0)
-                && schema_probe.cmd_overflowed();
+                && schema_probe.cmd_overflowed()
+                && schema_probe.size() == 0
+                && schema_probe.cmd_bytes() == 0;
+
+            std::array<std::byte, sizeof(ui::draw_cmd::CmdHeader)> unknown_record{};
+            header = {};
+            header.type = static_cast<ui::draw_cmd::CmdType>(0xFFu);
+            header.size = static_cast<std::uint16_t>(sizeof(header));
+            std::memcpy(unknown_record.data(), &header, sizeof(header));
+            schema_probe.clear();
+            const bool unknown_rejected = !schema_probe.load(unknown_record.data(),
+                                                              unknown_record.size(),
+                                                              1,
+                                                              nullptr,
+                                                              0,
+                                                              nullptr,
+                                                              0)
+                && schema_probe.cmd_overflowed()
+                && schema_probe.size() == 0
+                && schema_probe.cmd_bytes() == 0;
+
+            ui::draw_cmd::DrawCmdBuffer<4, 1, 1> corrupt_stream{};
+            (void)corrupt_stream.fill_rect({0, 0, 1, 1}, kDemoPanel);
+            ui::draw_cmd::DrawCmdBuffer<4, 1, 1> payload_failure_probe{};
+            const bool text_failure_closed = !payload_failure_probe.load(
+                    corrupt_stream.cmd_data(),
+                    corrupt_stream.cmd_bytes(),
+                    corrupt_stream.size(),
+                    nullptr,
+                    1,
+                    nullptr,
+                    0)
+                && payload_failure_probe.text_overflowed()
+                && payload_failure_probe.size() == 0
+                && payload_failure_probe.cmd_bytes() == 0;
+            payload_failure_probe.clear();
+            const bool blob_failure_closed = !payload_failure_probe.load(
+                    corrupt_stream.cmd_data(),
+                    corrupt_stream.cmd_bytes(),
+                    corrupt_stream.size(),
+                    corrupt_stream.text_data(),
+                    corrupt_stream.text_used(),
+                    nullptr,
+                    1)
+                && payload_failure_probe.blob_overflowed()
+                && payload_failure_probe.size() == 0
+                && payload_failure_probe.cmd_bytes() == 0;
+            std::memcpy(&header, corrupt_stream.cmd_data(), sizeof(header));
+            header.type = static_cast<ui::draw_cmd::CmdType>(0xFFu);
+            std::memcpy(const_cast<std::byte*>(corrupt_stream.cmd_data()), &header, sizeof(header));
+            canvas.begin_frame();
+            const auto corrupt_stats = exec.execute(canvas, corrupt_stream);
+            canvas.end_frame();
+
+            cmd_schema_ok = oversized_rejected
+                && unknown_rejected
+                && text_failure_closed
+                && blob_failure_closed
+                && corrupt_stats.failed_cmds == 1;
+        }
+        {
+            static ::ui::scene::DefaultSnapshotPayloadStore payload_store{};
+            payload_store.clear();
+            ui::draw_cmd::DefaultDrawCmdBuffer source{};
+            (void)source.fill_rect({1, 2, 3, 4}, kDemoPanel);
+            const bool command_stored = payload_store.store_command(0, source);
+            ui::draw_cmd::DrawCmd decoded{};
+            std::size_t stride = 0;
+            const auto* command = payload_store.command(0);
+            const bool command_roundtrip = command
+                && command->size() == 1
+                && command->read_cmd_at_offset(0, decoded, stride)
+                && decoded.type == ui::draw_cmd::CmdType::FillRect
+                && decoded.rect.x == 1
+                && decoded.rect.y == 2
+                && decoded.rect.w == 3
+                && decoded.rect.h == 4;
+            const bool occupied_rejected = !payload_store.store_pixel(
+                0, canvas, Rect{0, 0, 2, 2});
+            const bool command_released = payload_store.release(0);
+            const bool pixel_stored = payload_store.store_pixel(
+                0, canvas, Rect{0, 0, 2, 2});
+            const bool pixel_roundtrip = pixel_stored
+                && payload_store.command(0) == nullptr
+                && payload_store.pixel_width(0) == 2
+                && payload_store.pixel_height(0) == 2
+                && payload_store.pixel_row(0, 0) != nullptr;
+            const bool pixel_released = payload_store.release(0);
+            snapshot_payload_ok = command_stored
+                && command_roundtrip
+                && occupied_rejected
+                && command_released
+                && pixel_roundtrip
+                && pixel_released;
         }
         const auto cmp_stats = compare_buf.stats();
         compare_cmd_count = cmp_stats.cmd_count;
@@ -4645,6 +4742,9 @@ int main(int argc, char** argv) {
         }
         if (run_ci && !cmd_schema_ok) {
             ci_mark_fail("cmd_schema");
+        }
+        if (run_ci && !snapshot_payload_ok) {
+            ci_mark_fail("snapshot_payload");
         }
 #endif
 #if defined(VIVID_SOA_TRACE_INPUT)
@@ -4834,6 +4934,7 @@ int main(int argc, char** argv) {
               && compare_ok
               && executor_stream_ok
               && cmd_schema_ok
+              && snapshot_payload_ok
               && dump_ok
               && replay_ok
             && payload_ok
@@ -4882,7 +4983,7 @@ int main(int argc, char** argv) {
             static_cast<unsigned long long>(text_profile.glyphs),
             static_cast<unsigned long long>(text_profile.pixels));
 
-        (void)out::println<"[soa-ci] ok={} hash=0x{:08X} replay_full=0x{:08X} replay_tile=0x{:08X} failed_cmds={} overflows(p/t/b)={}/{}/{} workspace_overflow={} traversal_conflict={} traversal_workspace_ok={} rect_truth_ok={} style_patch_overflow={} style_patch_live={} style_patch_peak={} style_patch_cap={} style_patch_fail={} style_patch_pool_ok={} semantic_overflow={} semantic_live={} semantic_peak={} semantic_cap={} semantic_fail={} semantic_pool_ok={} alloc_fail={} peak_ok={} table_tree_ok={} ui_ok={} executor_stream_ok={} cmd_schema_ok={} compact_saved={} batch_shrink={} batch_shrink_line={} batch_shrink_path={} batch_shrink_rect={} batch_shrink_round={} batch_shrink_image={} batch_shrink_focus={} cmd_raw={} cmd_count={} cmd_saved={} cmd_saved_pct={} cmd_budget={} dispatch_groups={} batch_flushes={} groups(rect/text/img/line/path/other)={}/{}/{}/{}/{}/{} cmds(rect/text/img/line/path/other)={}/{}/{}/{}/{}/{} fail(text/img/blob/path/clip/other)={}/{}/{}/{}/{}/{} clip(push_over/pop_under/invalid)={}/{}/{} tile_flushes={} tile_hit_pct={} tile_dispatch_groups={} tile_batch_flushes={} tile_failed_cmds={} img_new_total={} img_new_after_lock={} img_new_record={} img_new_compact={} img_new_execute={} img_bytes={} img_reuse={} img_growth={} img_overflow={} img_dedup_ok={} img_after_lock_reason={} img_after_lock_tag={} reason={}">(
+        (void)out::println<"[soa-ci] ok={} hash=0x{:08X} replay_full=0x{:08X} replay_tile=0x{:08X} failed_cmds={} overflows(p/t/b)={}/{}/{} workspace_overflow={} traversal_conflict={} traversal_workspace_ok={} rect_truth_ok={} style_patch_overflow={} style_patch_live={} style_patch_peak={} style_patch_cap={} style_patch_fail={} style_patch_pool_ok={} semantic_overflow={} semantic_live={} semantic_peak={} semantic_cap={} semantic_fail={} semantic_pool_ok={} alloc_fail={} peak_ok={} table_tree_ok={} ui_ok={} executor_stream_ok={} cmd_schema_ok={} snapshot_payload_ok={} compact_saved={} batch_shrink={} batch_shrink_line={} batch_shrink_path={} batch_shrink_rect={} batch_shrink_round={} batch_shrink_image={} batch_shrink_focus={} cmd_raw={} cmd_count={} cmd_saved={} cmd_saved_pct={} cmd_budget={} dispatch_groups={} batch_flushes={} groups(rect/text/img/line/path/other)={}/{}/{}/{}/{}/{} cmds(rect/text/img/line/path/other)={}/{}/{}/{}/{}/{} fail(text/img/blob/path/clip/other)={}/{}/{}/{}/{}/{} clip(push_over/pop_under/invalid)={}/{}/{} tile_flushes={} tile_hit_pct={} tile_dispatch_groups={} tile_batch_flushes={} tile_failed_cmds={} img_new_total={} img_new_after_lock={} img_new_record={} img_new_compact={} img_new_execute={} img_bytes={} img_reuse={} img_growth={} img_overflow={} img_dedup_ok={} img_after_lock_reason={} img_after_lock_tag={} reason={}">(
             g_console,
             ok ? 1u : 0u,
             static_cast<unsigned>(compare_hash_full),
@@ -4914,6 +5015,7 @@ int main(int argc, char** argv) {
             ui_ok ? 1u : 0u,
             executor_stream_ok ? 1u : 0u,
             cmd_schema_ok ? 1u : 0u,
+            snapshot_payload_ok ? 1u : 0u,
             static_cast<unsigned>(compact_saved),
             static_cast<unsigned>(compare_batch_shrink),
             static_cast<unsigned>(compare_batch_shrink_line),

@@ -582,12 +582,23 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
     set(VIVID_RUNTIME_GLOBALS_UPPER_BYTES ${_vivid_runtime_globals_upper_bytes})
     math(EXPR _vivid_pixel_snapshot_upper_bytes
         "${CHARM_VIVID_LAYER_CACHE_SLOTS} * ${CHARM_VIVID_LAYER_CACHE_WIDTH} * ${CHARM_VIVID_LAYER_CACHE_HEIGHT} * ${_vivid_screen_bytes_per_pixel}")
-    math(EXPR _vivid_command_buffer_upper_bytes
-        "(${CHARM_VIVID_LAYER_CACHE_SLOTS} + 1) * ${_vivid_draw_cmd_buffer_upper_bytes}")
+    math(EXPR _vivid_command_snapshot_upper_bytes
+        "${CHARM_VIVID_LAYER_CACHE_SLOTS} * ${_vivid_draw_cmd_buffer_upper_bytes}")
+    if (_vivid_pixel_snapshot_upper_bytes GREATER _vivid_command_snapshot_upper_bytes)
+        set(_vivid_snapshot_payload_data_upper_bytes ${_vivid_pixel_snapshot_upper_bytes})
+    else()
+        set(_vivid_snapshot_payload_data_upper_bytes ${_vivid_command_snapshot_upper_bytes})
+    endif()
+    math(EXPR _vivid_snapshot_payload_metadata_upper_bytes
+        "${CHARM_VIVID_LAYER_CACHE_SLOTS} * 16 + 64")
+    math(EXPR _vivid_snapshot_payload_upper_bytes
+        "${_vivid_snapshot_payload_data_upper_bytes} + ${_vivid_snapshot_payload_metadata_upper_bytes}")
+    set(_vivid_command_buffer_upper_bytes ${_vivid_draw_cmd_buffer_upper_bytes})
+    set(VIVID_SNAPSHOT_PAYLOAD_UPPER_BYTES ${_vivid_snapshot_payload_upper_bytes})
     math(EXPR _vivid_soa_upper_bytes
         "${CHARM_VIVID_SOA_MAX_NODES} * ${_vivid_soa_node_upper_bytes} + ${_vivid_semantic_pool_upper_bytes} + ${_vivid_style_patch_pool_upper_bytes} + ${_vivid_payload_slot_cap_total} * ${_vivid_payload_slot_upper_bytes} + ${_vivid_text_arena_bytes} + ${_vivid_soa_fixed_upper_bytes}")
     math(EXPR _vivid_scene_upper_bytes
-        "${_vivid_pixel_snapshot_upper_bytes} + ${_vivid_command_buffer_upper_bytes} + ${_vivid_draw_cmd_compaction_workspace_upper_bytes} + ${_vivid_draw_cmd_executor_workspace_upper_bytes} + ${_vivid_soa_traversal_workspace_upper_bytes} + ${_vivid_soa_upper_bytes} + ${_vivid_scene_fixed_upper_bytes}")
+        "${_vivid_snapshot_payload_upper_bytes} + ${_vivid_command_buffer_upper_bytes} + ${_vivid_draw_cmd_compaction_workspace_upper_bytes} + ${_vivid_draw_cmd_executor_workspace_upper_bytes} + ${_vivid_soa_traversal_workspace_upper_bytes} + ${_vivid_soa_upper_bytes} + ${_vivid_scene_fixed_upper_bytes}")
     math(EXPR _vivid_global_upper_bytes
         "${_vivid_global_fixed_upper_bytes} + ${_vivid_runtime_globals_upper_bytes} + ${CHARM_VIVID_STYLE_CLASS_MAX} * 256 + ${CHARM_VIVID_STYLE_RULE_CAP} * 256 + ${CHARM_VIVID_STYLE_METRICS_POOL_CAP} * 64")
     math(EXPR VIVID_STATIC_MEMORY_UPPER_BOUND_BYTES
@@ -654,7 +665,11 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
         "admission_required=${VIVID_STATIC_MEMORY_ADMISSION_REQUIRED}\n"
         "status=${_vivid_admission_status}\n"
         "scene_instances=${VIVID_RUNTIME_SCENE_INSTANCES}\n"
+        "layer_cache_slots=${VIVID_LAYER_CACHE_SLOTS}\n"
         "pixel_snapshot_upper_bytes=${_vivid_pixel_snapshot_upper_bytes}\n"
+        "command_snapshot_upper_bytes=${_vivid_command_snapshot_upper_bytes}\n"
+        "snapshot_payload_metadata_upper_bytes=${_vivid_snapshot_payload_metadata_upper_bytes}\n"
+        "snapshot_payload_upper_bytes=${_vivid_snapshot_payload_upper_bytes}\n"
         "command_buffer_upper_bytes=${_vivid_command_buffer_upper_bytes}\n"
         "draw_cmd_max_commands=${VIVID_DRAW_CMD_MAX_COMMANDS}\n"
         "draw_cmd_text_bytes=${VIVID_DRAW_CMD_TEXT_BYTES}\n"
@@ -806,6 +821,10 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
             "    \"scene_upper_bytes\": ${_vivid_scene_upper_bytes},\n"
             "    \"runtime_globals_upper_bytes\": ${_vivid_runtime_globals_upper_bytes},\n"
             "    \"global_upper_bytes\": ${_vivid_global_upper_bytes},\n"
+            "    \"pixel_snapshot_upper_bytes\": ${_vivid_pixel_snapshot_upper_bytes},\n"
+            "    \"command_snapshot_upper_bytes\": ${_vivid_command_snapshot_upper_bytes},\n"
+            "    \"snapshot_payload_metadata_upper_bytes\": ${_vivid_snapshot_payload_metadata_upper_bytes},\n"
+            "    \"snapshot_payload_upper_bytes\": ${_vivid_snapshot_payload_upper_bytes},\n"
             "    \"command_buffer_upper_bytes\": ${_vivid_command_buffer_upper_bytes},\n"
             "    \"draw_cmd_record_upper_bytes\": ${_vivid_draw_cmd_record_upper_bytes},\n"
             "    \"draw_cmd_arena_upper_bytes\": ${_vivid_draw_cmd_arena_upper_bytes},\n"

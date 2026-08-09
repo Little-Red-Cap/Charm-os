@@ -99,7 +99,11 @@ export namespace ui::draw_cmd {
 
         bool load(const std::byte* data, std::size_t len) noexcept {
             reset();
-            if (!data || len == 0) return true;
+            if (!data && len != 0) {
+                overflowed_ = true;
+                return false;
+            }
+            if (len == 0) return true;
             if (len > Capacity) {
                 overflowed_ = true;
                 return false;
@@ -247,11 +251,15 @@ export namespace ui::draw_cmd {
             }
             if (cmd_bytes_len > kCmdBytesCapacity) {
                 cmd_overflowed_ = true;
-                cmd_bytes_len = kCmdBytesCapacity;
+                return false;
             }
             if (cmd_count > kMaxCommands) {
                 cmd_overflowed_ = true;
-                cmd_count = kMaxCommands;
+                return false;
+            }
+            if (cmd_bytes_len == 0 && cmd_count != 0) {
+                cmd_overflowed_ = true;
+                return false;
             }
             if (cmd_bytes_len > 0) {
                 std::memcpy(cmd_bytes_.data(), cmd_bytes, cmd_bytes_len);
@@ -260,27 +268,33 @@ export namespace ui::draw_cmd {
             count_ = cmd_count;
             if (cmd_bytes_used_ > 0) {
                 if (!validate_cmd_stream(count_)) {
+                    discard_loaded_stream();
                     cmd_overflowed_ = true;
                     return false;
                 }
             } else {
                 count_ = 0;
             }
-            if (!text || text_bytes == 0) {
+            if (!text && text_bytes != 0) {
+                discard_loaded_stream();
+                text_overflowed_ = true;
+                return false;
+            }
+            if (text_bytes > kTextCapacity) {
+                discard_loaded_stream();
+                text_overflowed_ = true;
+                return false;
+            }
+            if (text_bytes == 0) {
                 text_[0] = '\0';
                 text_used_ = 1;
             } else {
-                if (text_bytes > kTextCapacity) {
-                    text_overflowed_ = true;
-                    text_bytes = kTextCapacity;
-                }
                 std::memcpy(text_.data(), text, text_bytes);
                 text_used_ = text_bytes;
             }
-            if (blob && blob_bytes > 0) {
-                if (!blob_.load(blob, blob_bytes)) {
-                    return false;
-                }
+            if (!blob_.load(blob, blob_bytes)) {
+                discard_loaded_stream();
+                return false;
             }
             return !overflowed();
         }
@@ -1359,9 +1373,17 @@ export namespace ui::draw_cmd {
             return true;
         }
 
+        void discard_loaded_stream() noexcept {
+            count_ = 0;
+            cmd_bytes_used_ = 0;
+            text_[0] = '\0';
+            text_used_ = 1;
+        }
+
         bool validate_cmd_stream(std::size_t expected_count) noexcept {
             std::size_t offset = 0;
             std::size_t actual_count = 0;
+            DrawCmd decoded{};
             while (offset < cmd_bytes_used_) {
                 if (offset + sizeof(CmdHeader) > cmd_bytes_used_) return false;
                 if (actual_count >= kMaxCommands) return false;
@@ -1370,6 +1392,7 @@ export namespace ui::draw_cmd {
                 const std::size_t stride = cmd_stride(header->size);
                 if (stride == 0 || stride > buffer_detail::max_encoded_cmd_stride) return false;
                 if (offset + stride > cmd_bytes_used_) return false;
+                if (!decode_cmd(header, decoded)) return false;
                 offset += stride;
                 ++actual_count;
             }

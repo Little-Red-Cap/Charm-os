@@ -585,12 +585,12 @@ export namespace ui::scene {
 
         [[nodiscard]] bool update_command_snapshot(SnapshotHandle handle,
                                                    std::uint32_t command_count,
-                                                   std::uint32_t command_bytes) noexcept {
+                                                   std::uint32_t payload_bytes) noexcept {
             auto* slot = mutable_record(handle);
             if (!slot) return false;
             slot->kind = SnapshotKind::CommandBuffer;
             slot->command_count = command_count;
-            slot->bytes = command_bytes;
+            slot->bytes = payload_bytes;
             rebuild_stats();
             return true;
         }

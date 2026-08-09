@@ -378,6 +378,13 @@ int main() {
     static DefaultFrameBuffer fb{};
     static DefaultCanvas canvas{fb};
     static ui::scene::Scene scene{canvas};
+    WidgetHandle pixel_epoch_root{};
+    scene.build([&](ui::scene::SceneBuilder& builder) {
+        pixel_epoch_root = builder.create_container();
+        builder.set_rect(pixel_epoch_root, {0, 0, 24, 24});
+        builder.set_input_root(pixel_epoch_root);
+        builder.set_root(pixel_epoch_root);
+    });
     canvas.clear(rgba{0, 0, 0, 255});
     canvas.set_pixel(10, 10, rgba{240, 20, 30, 255});
     const auto captured = scene.capture_pixel_snapshot_result({
@@ -385,6 +392,11 @@ int main() {
         .preferred_kind = ui::scene::SnapshotKind::PixelSurface,
     });
     if (!expect(captured.ok(), "scene captures pixel snapshot")) return 1;
+    scene.access().set_rect(pixel_epoch_root, {0, 0, 23, 24});
+    if (!expect(scene.snapshot_current(captured.handle),
+                "pixel snapshot remains current across scene epoch changes")) {
+        return 1;
+    }
     canvas.set_pixel(20, 10, rgba{0, 0, 0, 255});
     const auto execute_frame = ui::scene::sample_motion_recipe(
         ui::scene::motion_slide(ui::scene::MotionAxis::X, 10, 100),

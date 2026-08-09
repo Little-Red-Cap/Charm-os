@@ -359,7 +359,12 @@ export namespace ui::scene {
         }
         bool snapshot_current(SnapshotHandle handle) const noexcept {
             const auto* record = snapshot_store_.record(handle);
-            return record && !record->stale && record->epoch == make_layer_epoch();
+            if (!record || record->stale || !snapshot_payload_available(*record)) {
+                return false;
+            }
+            return record->kind == SnapshotKind::PixelSurface
+                || (record->kind == SnapshotKind::CommandBuffer
+                    && record->epoch == make_layer_epoch());
         }
         bool validate_snapshot(SnapshotHandle handle) noexcept {
             if (snapshot_current(handle)) return true;
@@ -369,9 +374,6 @@ export namespace ui::scene {
             return false;
         }
         bool validate_snapshot_for_compose(SnapshotHandle handle) noexcept {
-            const auto* record = snapshot_store_.record(handle);
-            if (!record || record->stale) return false;
-            if (record->kind == SnapshotKind::PixelSurface) return true;
             return validate_snapshot(handle);
         }
         bool update_command_snapshot(SnapshotHandle handle) noexcept {
@@ -382,7 +384,7 @@ export namespace ui::scene {
                 return snapshot_store_.update_command_snapshot(
                     handle,
                     static_cast<std::uint32_t>(last_cmd_stats_.cmd_count),
-                    static_cast<std::uint32_t>(last_cmd_stats_.cmd_bytes));
+                    command_snapshot_payload_bytes(last_cmd_stats_));
             }
         }
         LayerCaptureResult capture_command_snapshot_result(const SnapshotSpec& spec) noexcept {
@@ -725,7 +727,7 @@ export namespace ui::scene {
                 result.status = LayerCaptureStatus::StoreFailed;
                 return result;
             }
-            if (!update_command_snapshot(handle)) {
+            if (!publish_command_snapshot(handle)) {
                 (void)release_snapshot(handle);
                 result.handle = {};
                 result.status = LayerCaptureStatus::RecordFailed;
@@ -757,6 +759,42 @@ export namespace ui::scene {
                 && !last_cmd_stats_.blob_overflowed
                 && !last_cmd_stats_.workspace_overflowed
                 && !last_cmd_stats_.traversal_phase_conflicted;
+        }
+
+        [[nodiscard]] bool snapshot_payload_available(
+            const SnapshotRecord& record) const noexcept {
+            if (record.payload_slot == kInvalidSnapshotPayloadSlot) return false;
+            switch (record.kind) {
+            case SnapshotKind::CommandBuffer:
+                return snapshot_payloads_.command(record.payload_slot) != nullptr;
+            case SnapshotKind::PixelSurface:
+                return snapshot_payloads_.pixel_width(record.payload_slot) > 0
+                    && snapshot_payloads_.pixel_height(record.payload_slot) > 0;
+            case SnapshotKind::EmptyFallback:
+                return false;
+            }
+            return false;
+        }
+
+        [[nodiscard]] bool publish_command_snapshot(SnapshotHandle handle) noexcept {
+            const auto* record = snapshot_store_.record(handle);
+            if (!record) return false;
+            const auto* payload = snapshot_payloads_.command(record->payload_slot);
+            if (!payload
+                || payload->size() != last_cmd_stats_.cmd_count
+                || payload->cmd_bytes() != last_cmd_stats_.cmd_bytes) {
+                return false;
+            }
+            return snapshot_store_.update_command_snapshot(
+                handle,
+                static_cast<std::uint32_t>(payload->size()),
+                command_snapshot_payload_bytes(last_cmd_stats_));
+        }
+
+        [[nodiscard]] static constexpr std::uint32_t command_snapshot_payload_bytes(
+            const CmdStats& stats) noexcept {
+            return static_cast<std::uint32_t>(
+                stats.cmd_bytes + stats.text_used + stats.blob_used);
         }
 
         LayerEpoch make_layer_epoch() const noexcept {

@@ -430,8 +430,27 @@ namespace {
             return false;
         }
 
+        const auto incomplete = env.scene.reserve_snapshot(spec);
+        if (!expect(incomplete
+                        && env.scene.update_command_snapshot(incomplete)
+                        && !env.scene.snapshot_current(incomplete),
+                    "metadata without payload is never a current snapshot")) {
+            return false;
+        }
+        const auto incomplete_plan = env.scene.make_snapshot_compose_plan({
+            .source = incomplete,
+        });
+        const auto* incomplete_record = env.scene.snapshot_record(incomplete);
+        if (!expect(!incomplete_plan.valid
+                        && incomplete_record
+                        && incomplete_record->stale
+                        && env.scene.release_snapshot(incomplete),
+                    "compose rejects and releases incomplete snapshot")) {
+            return false;
+        }
+
         ++transition_summary_case_count;
-        std::puts("[pt] case=command_record_overflow status=record_failed recovered=1 snapshots=0");
+        std::puts("[pt] case=command_record_overflow status=record_failed recovered=1 incomplete_rejected=1 snapshots=0");
         return true;
     }
 
@@ -733,9 +752,13 @@ namespace {
             return false;
         }
         const auto* record = env.scene.snapshot_record(runner.source_snapshot());
+        const auto recorded = env.scene.last_cmd_stats();
+        const auto source_payload_bytes = record ? record->bytes : 0u;
         if (!expect(record && record->kind == ui::scene::SnapshotKind::CommandBuffer
-                    && record->bytes > 0,
-                    "command transition owns recorded command payload")) {
+                    && recorded.text_used > 0
+                    && record->bytes
+                        == recorded.cmd_bytes + recorded.text_used + recorded.blob_used,
+                    "command transition accounts for command text and blob payload")) {
             return false;
         }
         env.canvas.clear(rgba{0, 0, 0, 255});
@@ -763,7 +786,7 @@ namespace {
         const auto ledger = runner.ledger();
         if (!expect_snapshot_count(env, 0, "command transition releases snapshot")) return false;
         if (!expect(ledger.committed && ledger.snapshots_released
-                    && ledger.source_bytes > 0
+                    && ledger.source_bytes == source_payload_bytes
                     && ledger.destination_bytes == 0
                     && ledger.peak_layer_bytes == ledger.source_bytes,
                     "command transition ledger records source-only cost")) {

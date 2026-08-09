@@ -453,6 +453,12 @@ export namespace ui::scene {
     };
 
     static_assert(std::is_trivially_destructible_v<CommandSnapshotPayload>);
+    static_assert(static_cast<std::uint64_t>(CommandSnapshotPayload::SourceBuffer::kMaxCommands)
+                  <= 0xFFFFFFFFULL);
+    static_assert(static_cast<std::uint64_t>(CommandSnapshotPayload::SourceBuffer::kCmdBytesCapacity)
+                      + CommandSnapshotPayload::SourceBuffer::kTextCapacity
+                      + CommandSnapshotPayload::SourceBuffer::kBlobCapacity
+                  <= 0xFFFFFFFFULL);
     static_assert(sizeof(CommandSnapshotPayload)
                   <= sizeof(ui::draw_cmd::DefaultDrawCmdBuffer)
                       + CommandSnapshotPayload::spatial_index_storage_bytes

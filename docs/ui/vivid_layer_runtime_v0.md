@@ -59,6 +59,10 @@ DrawCmd command cap 进入静态内存 admission；bounds 超出 envelope 或索
 与 command，skip evidence 必须为零。该能力不改变快照槽仍按 profile mode 定额的事实：`COMMAND` 只支付
 command slot，`HYBRID` 才按 pixel/command 较大者支付。
 
+运行时 `SnapshotRecord::bytes`、layer budget 与 transition ledger 统计 command、text、blob 三段已用
+payload 的总和，不能只统计 command stream。固定槽、occupancy 与 chunk index 的常驻容量由静态内存
+admission 单独证明，不重复伪装成每次 capture 的已用 payload。
+
 ### PixelSurface Snapshot
 
 像素快照是捕获时的 frozen pixel fact。live tree 后续变化不会自动改写该像素；只有 payload 丢失、

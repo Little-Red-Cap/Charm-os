@@ -4700,23 +4700,31 @@ int main(int argc, char** argv) {
             payload_store.clear();
             ui::draw_cmd::DefaultDrawCmdBuffer source{};
             (void)source.fill_rect({1, 2, 3, 4}, kDemoPanel);
+            constexpr Point payload_path[] = {{0, 0}, {2, 3}, {4, 1}};
+            (void)source.draw_path(payload_path, 3, false, kDemoPath);
             const bool command_stored = payload_store.store_command(
                 0, source, Rect{0, 0, 8, 8});
             ui::draw_cmd::DrawCmd decoded{};
             std::size_t stride = 0;
+            ui::draw_cmd::DrawCmd decoded_path{};
+            std::size_t path_stride = 0;
             const auto* command = payload_store.command(0);
             bool command_behavior_ok = false;
             bool occupied_rejected = true;
             if constexpr (snapshot_command_enabled) {
                 const bool command_roundtrip = command_stored
                     && command
-                    && command->size() == 1
+                    && command->size() == 2
+                    && command->cmd_bytes() == source.cmd_bytes()
                     && command->read_cmd_at_offset(0, decoded, stride)
                     && decoded.type == ui::draw_cmd::CmdType::FillRect
                     && decoded.rect.x == 1
                     && decoded.rect.y == 2
                     && decoded.rect.w == 3
-                    && decoded.rect.h == 4;
+                    && decoded.rect.h == 4
+                    && command->read_cmd_at_offset(stride, decoded_path, path_stride)
+                    && decoded_path.type == ui::draw_cmd::CmdType::DrawPath
+                    && command->blob_at(decoded_path.blob).size() == source.blob_used();
                 if constexpr (snapshot_pixel_enabled) {
                     occupied_rejected = !payload_store.store_pixel(
                         0, canvas, Rect{0, 0, 2, 2});

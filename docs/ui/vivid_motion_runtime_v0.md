@@ -133,6 +133,7 @@ Motion/PageTransition evidence 至少覆盖：
 - recipe 在 Rich/Cheap/Static/None 下的执行、降级和拒绝；
 - PixelDouble 与 PixelSingle 的 artifact/ownership 差异；
 - CommandSnapshot 的单槽 source replay，以及 opacity、budget、epoch 不满足时的首帧前降级；
+- CommandSnapshot 半透明 replay 的候选/命中/跳过 tile 与 bounds/execute 命令流读取，且同时覆盖稀疏与密集页面；
 - source/destination capture failure rollback；
 - commit、cancel、rebegin interrupt 后 page truth 与 snapshot release；
 - stale、over-budget 和 unsupported compose 的负例；

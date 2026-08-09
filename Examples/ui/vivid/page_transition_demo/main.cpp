@@ -12,6 +12,8 @@ namespace {
     inline constexpr int command_snapshot_width = 160;
     inline constexpr int command_snapshot_height = 96;
     inline constexpr std::uint64_t command_replay_hit_tile_pixels = 64u * 64u;
+    inline constexpr std::uint64_t command_replay_full_pixels =
+        static_cast<std::uint64_t>(command_snapshot_width) * command_snapshot_height;
     using TransitionFrameBuffer = FrameBuffer<screen_pixel_format,
                                               command_snapshot_width,
                                               command_snapshot_height>;
@@ -31,7 +33,7 @@ namespace {
         ui::scene::PageLayer source{};
         ui::scene::PageLayer destination{};
 
-        TransitionScene() {
+        explicit TransitionScene(bool dense_commands = false) {
             scene.build([&](ui::scene::SceneBuilder& builder) {
                 root = builder.create_container();
                 source_root = builder.create_container();
@@ -43,6 +45,26 @@ namespace {
                 builder.set_rect(destination_root, {0, 0, 32, 32});
                 builder.set_rect(source_probe, {2, 2, 12, 8});
                 builder.set_rect(persistent_probe, {20, 20, 10, 8});
+                if (dense_commands) {
+                    builder.set_rect(root,
+                                     {0, 0, command_snapshot_width, command_snapshot_height});
+                    builder.set_rect(source_root,
+                                     {0, 0, command_snapshot_width, command_snapshot_height});
+                    builder.set_rect(destination_root,
+                                     {0, 0, command_snapshot_width, command_snapshot_height});
+                    constexpr Rect dense_probe_rects[] = {
+                        {66, 2, 12, 8},
+                        {130, 2, 12, 8},
+                        {2, 66, 12, 8},
+                        {66, 66, 12, 8},
+                        {130, 66, 12, 8},
+                    };
+                    for (const auto& rect : dense_probe_rects) {
+                        const auto probe = builder.create_button_static("Dense");
+                        builder.set_rect(probe, rect);
+                        builder.link(source_root, probe);
+                    }
+                }
                 builder.link(root, source_root);
                 builder.link(root, destination_root);
                 builder.link(root, persistent_probe);
@@ -750,6 +772,21 @@ namespace {
                     "command opacity transition blends only the hit tile")) {
             return false;
         }
+        const auto sparse_cost = frame.source.replay.command_cost;
+        if (!expect(sparse_cost.tiles_considered == 6
+                        && sparse_cost.tiles_executed == 1
+                        && sparse_cost.tiles_skipped == 5,
+                    "sparse command replay records one hit and five skipped tiles")) {
+            return false;
+        }
+        if (!expect(sparse_cost.bounds_command_reads > 0
+                        && sparse_cost.execute_command_reads > 0
+                        && sparse_cost.total_command_reads()
+                            == sparse_cost.bounds_command_reads
+                                + sparse_cost.execute_command_reads,
+                    "sparse command replay records command stream reads")) {
+            return false;
+        }
 
         runner.commit(env.scene, access);
         const auto ledger = runner.ledger();
@@ -758,6 +795,64 @@ namespace {
         if (!expect(ledger.committed && ledger.snapshots_released && !ledger.static_cut
                     && ledger.source_bytes > 0 && ledger.destination_bytes == 0,
                     "command opacity transition ledger closes command ownership")) return false;
+
+        TransitionScene dense_env{true};
+        PaintPrepare dense_prepare{
+            .canvas = &dense_env.canvas,
+            .color = rgba{55, 95, 215, 255},
+            .x = 4,
+            .y = 2,
+        };
+        auto dense_spec = command_transition_spec(dense_env, dense_prepare);
+        dense_spec.recipe = ui::scene::motion_fade_slide(
+            ui::scene::MotionAxis::X, 0, 100, 0, 255);
+        ui::scene::PageTransitionRunner dense_runner{};
+        auto dense_access = dense_env.scene.access();
+        const auto dense_begin = dense_runner.begin(dense_env.scene, dense_access, dense_spec);
+        if (!expect(dense_begin.started(), "dense command opacity transition starts")) return false;
+        dense_env.canvas.clear(rgba{12, 28, 44, 255});
+        const auto dense_frame = dense_runner.sample(dense_env.scene, 50);
+        if (!expect(dense_frame.valid && dense_frame.source.valid
+                        && dense_frame.source.replay.ok(),
+                    "dense command opacity transition replays a middle frame")) {
+            return false;
+        }
+        const auto dense_cost = dense_frame.source.replay.command_cost;
+        if (!expect(dense_cost.tiles_considered == 6
+                        && dense_cost.tiles_executed == 6
+                        && dense_cost.tiles_skipped == 0,
+                    "dense command replay records six hit tiles")) {
+            return false;
+        }
+        if (!expect(dense_frame.source.replay.stats.alpha_blend_count
+                        == command_replay_full_pixels,
+                    "dense command replay blends the full target")) {
+            return false;
+        }
+        if (!expect(dense_cost.total_command_reads() > sparse_cost.total_command_reads()
+                        && dense_cost.execute_command_reads
+                            > sparse_cost.execute_command_reads,
+                    "dense command replay exposes the command visit multiplier")) {
+            return false;
+        }
+        dense_runner.commit(dense_env.scene, dense_access);
+        if (!expect_snapshot_count(dense_env, 0,
+                                   "dense command opacity transition releases snapshot")) {
+            return false;
+        }
+        std::printf(
+            "[pt] evidence=command_replay_cost sparse_tiles=%u/%u/%u "
+            "sparse_reads=%llu/%llu dense_tiles=%u/%u/%u dense_reads=%llu/%llu result=ok\n",
+            sparse_cost.tiles_considered,
+            sparse_cost.tiles_executed,
+            sparse_cost.tiles_skipped,
+            static_cast<unsigned long long>(sparse_cost.bounds_command_reads),
+            static_cast<unsigned long long>(sparse_cost.execute_command_reads),
+            dense_cost.tiles_considered,
+            dense_cost.tiles_executed,
+            dense_cost.tiles_skipped,
+            static_cast<unsigned long long>(dense_cost.bounds_command_reads),
+            static_cast<unsigned long long>(dense_cost.execute_command_reads));
         print_transition_summary("command_opacity", begin, runner.trace(), ledger, env, &frame);
         return true;
     }

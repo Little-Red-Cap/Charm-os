@@ -77,12 +77,26 @@ export namespace ui::scene {
         bool overflowed{false};
     };
 
+    struct CommandReplayCost {
+        std::uint32_t tiles_considered{0};
+        std::uint32_t tiles_executed{0};
+        std::uint32_t tiles_skipped{0};
+        std::size_t bounds_command_reads{0};
+        std::size_t bounds_item_reads{0};
+        std::size_t execute_command_reads{0};
+
+        [[nodiscard]] constexpr std::size_t total_command_reads() const noexcept {
+            return bounds_command_reads + execute_command_reads;
+        }
+    };
+
     struct LayerReplayResult {
         LayerReplayStatus status{LayerReplayStatus::InvalidPlan};
         SnapshotHandle source{};
         SnapshotKind kind{SnapshotKind::EmptyFallback};
         Rect target_bounds{};
         ExecStats stats{};
+        CommandReplayCost command_cost{};
 
         [[nodiscard]] constexpr bool ok() const noexcept {
             return status == LayerReplayStatus::Ok;
@@ -101,6 +115,12 @@ export namespace ui::scene {
     class CommandSnapshotPayload {
     public:
         using SourceBuffer = ui::draw_cmd::DefaultDrawCmdBuffer;
+
+        struct DrawHitTestResult {
+            bool hit{false};
+            std::size_t command_reads{0};
+            std::size_t item_reads{0};
+        };
 
         CommandSnapshotPayload() noexcept {}
 
@@ -179,13 +199,18 @@ export namespace ui::scene {
             return std::span<const std::byte>(blob_.data() + ref.offset, ref.length);
         }
 
-        [[nodiscard]] bool any_draw_hits(const Rect& rect) const noexcept {
+        [[nodiscard]] DrawHitTestResult test_draw_hits(const Rect& rect) const noexcept {
+            DrawHitTestResult result{};
             Rect intersection{};
             ui::draw_cmd::DrawCmd cmd{};
             std::size_t offset = 0;
             while (offset < cmd_bytes_used_) {
                 std::size_t stride = 0;
-                if (!read_cmd_at_offset(offset, cmd, stride)) return true;
+                ++result.command_reads;
+                if (!read_cmd_at_offset(offset, cmd, stride)) {
+                    result.hit = true;
+                    return result;
+                }
                 if (cmd.type == ui::draw_cmd::CmdType::PushClip
                     || cmd.type == ui::draw_cmd::CmdType::PopClip) {
                     offset += stride;
@@ -193,20 +218,28 @@ export namespace ui::scene {
                 }
                 if (cmd.type == ui::draw_cmd::CmdType::DrawLineBatch) {
                     const int count = cmd.p0;
-                    if (count <= 0) return true;
+                    if (count <= 0) {
+                        result.hit = true;
+                        return result;
+                    }
                     const auto bytes = blob_at(cmd.blob);
                     if (bytes.size()
                         < static_cast<std::size_t>(count)
                             * sizeof(ui::draw_cmd::LineBatchItem)) {
-                        return true;
+                        result.hit = true;
+                        return result;
                     }
                     const auto items = std::span<const ui::draw_cmd::LineBatchItem>(
                         reinterpret_cast<const ui::draw_cmd::LineBatchItem*>(bytes.data()),
                         count);
                     for (const auto& item : items) {
+                        ++result.item_reads;
                         const Rect bounds = ui::draw_cmd::line_bounds(
                             item.x0, item.y0, item.x1, item.y1);
-                        if (rect_intersect(bounds, rect, intersection)) return true;
+                        if (rect_intersect(bounds, rect, intersection)) {
+                            result.hit = true;
+                            return result;
+                        }
                     }
                     offset += stride;
                     continue;
@@ -214,11 +247,12 @@ export namespace ui::scene {
                 const Rect bounds = ui::draw_cmd::draw_cmd_bounds(cmd);
                 if (rect_valid(bounds)
                     && rect_intersect(bounds, rect, intersection)) {
-                    return true;
+                    result.hit = true;
+                    return result;
                 }
                 offset += stride;
             }
-            return false;
+            return result;
         }
 
     private:

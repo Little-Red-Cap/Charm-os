@@ -7,6 +7,7 @@ module;
 #include <cstddef>
 #include <cstdint>
 #include <new>
+#include <span>
 #include <type_traits>
 
 #ifndef CHARM_VIVID_MEMORY_PROFILE_SYMBOLS
@@ -41,6 +42,43 @@ export import charm.gfx.render_style;
 export import charm.gfx.text_box;
 import charm.gfx.draw_cmd;
 import :render_detail;
+
+namespace {
+    class CommandSnapshotReadView {
+    public:
+        CommandSnapshotReadView(const ui::scene::CommandSnapshotPayload& payload,
+                                std::size_t& command_reads) noexcept
+            : payload_(payload), command_reads_(command_reads) {}
+
+        [[nodiscard]] std::size_t size() const noexcept { return payload_.size(); }
+        [[nodiscard]] std::size_t cmd_bytes() const noexcept { return payload_.cmd_bytes(); }
+        [[nodiscard]] bool overflowed() const noexcept { return payload_.overflowed(); }
+
+        [[nodiscard]] bool read_cmd_at_offset(std::size_t offset,
+                                              ui::draw_cmd::DrawCmd& out,
+                                              std::size_t& stride) const noexcept {
+            ++command_reads_;
+            return payload_.read_cmd_at_offset(offset, out, stride);
+        }
+
+        [[nodiscard]] bool text_span_valid(ui::draw_cmd::TextSpan span) const noexcept {
+            return payload_.text_span_valid(span);
+        }
+
+        [[nodiscard]] const char* text_at(std::uint32_t offset) const noexcept {
+            return payload_.text_at(offset);
+        }
+
+        [[nodiscard]] std::span<const std::byte> blob_at(
+            ui::draw_cmd::BlobRef ref) const noexcept {
+            return payload_.blob_at(ref);
+        }
+
+    private:
+        const ui::scene::CommandSnapshotPayload& payload_;
+        std::size_t& command_reads_;
+    };
+}
 
 export using ::ScrollBarOrientation;
 export using ::SemanticAction;
@@ -478,12 +516,21 @@ export namespace ui::scene {
                         const int width = std::min(tile_width,
                                                    visible_target.x + visible_target.w - tile_x);
                         const Rect tile{tile_x, tile_y, width, height};
+                        ++out.command_cost.tiles_considered;
                         Rect source_tile = layer_inverse_translate_rect(tile, plan.transform);
                         source_tile = layer_intersect_rect(source_tile, plan.source_visible);
-                        if (layer_rect_empty(source_tile)
-                            || !payload->any_draw_hits(source_tile)) {
+                        if (layer_rect_empty(source_tile)) {
+                            ++out.command_cost.tiles_skipped;
                             continue;
                         }
+                        const auto hit_test = payload->test_draw_hits(source_tile);
+                        out.command_cost.bounds_command_reads += hit_test.command_reads;
+                        out.command_cost.bounds_item_reads += hit_test.item_reads;
+                        if (!hit_test.hit) {
+                            ++out.command_cost.tiles_skipped;
+                            continue;
+                        }
+                        ++out.command_cost.tiles_executed;
                         RuntimeCanvas scratch{
                             command_replay_workspace_.data(),
                             width,
@@ -500,7 +547,11 @@ export namespace ui::scene {
 
                         scratch.set_origin(static_cast<int>(plan.transform.x) - tile_x,
                                            static_cast<int>(plan.transform.y) - tile_y);
-                        const auto tile_stats = cmd_exec_.execute(scratch, *payload, &source_tile);
+                        std::size_t command_reads = 0;
+                        const CommandSnapshotReadView measured_payload{*payload, command_reads};
+                        const auto tile_stats = cmd_exec_.execute(
+                            scratch, measured_payload, &source_tile);
+                        out.command_cost.execute_command_reads += command_reads;
                         detail::accumulate_scene_stats(out.stats, tile_stats);
                         scratch.clear_origin();
 
@@ -534,9 +585,12 @@ export namespace ui::scene {
             const auto origin = canvas_.save_origin();
             canvas_.set_origin(origin.x + static_cast<int>(plan.transform.x),
                                origin.y + static_cast<int>(plan.transform.y));
-            out.stats = detail::to_scene_stats(cmd_exec_.execute(canvas_,
-                                                                 *payload,
-                                                                 &plan.source_visible));
+            std::size_t command_reads = 0;
+            const CommandSnapshotReadView measured_payload{*payload, command_reads};
+            const auto draw_stats = cmd_exec_.execute(
+                canvas_, measured_payload, &plan.source_visible);
+            out.stats = detail::to_scene_stats(draw_stats);
+            out.command_cost.execute_command_reads = command_reads;
             canvas_.restore_origin(origin);
             out.stats.alpha_blend_count = alpha_blend_count();
             out.status = out.stats.failed_cmds == 0

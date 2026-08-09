@@ -34,12 +34,32 @@ list(TRANSFORM _vivid_stack_usage_sources STRIP)
 set(_vivid_stack_entry_count 0)
 set(_vivid_stack_max_bytes 0)
 set(_vivid_stack_max_function "")
-set(_vivid_stack_violations "")
 set(_vivid_stack_entries "")
+set(_vivid_stack_violation_count 0)
+set(_vivid_stack_first_violation "")
+set(_vivid_stack_semicolon_token "__VIVID_STACK_SEMICOLON__")
 
 foreach(_vivid_stack_usage_file IN LISTS _vivid_stack_usage_files)
-    file(STRINGS "${_vivid_stack_usage_file}" _vivid_stack_usage_lines ENCODING UTF-8)
-    foreach(_vivid_stack_usage_line IN LISTS _vivid_stack_usage_lines)
+    file(READ "${_vivid_stack_usage_file}" _vivid_stack_usage_text ENCODING UTF-8)
+    string(REPLACE "\r\n" "\n" _vivid_stack_usage_text "${_vivid_stack_usage_text}")
+    string(REPLACE "\r" "\n" _vivid_stack_usage_text "${_vivid_stack_usage_text}")
+    string(REPLACE ";" "${_vivid_stack_semicolon_token}"
+        _vivid_stack_usage_text "${_vivid_stack_usage_text}")
+    while(NOT _vivid_stack_usage_text STREQUAL "")
+        string(FIND "${_vivid_stack_usage_text}" "\n" _vivid_stack_newline_pos)
+        if(_vivid_stack_newline_pos EQUAL -1)
+            set(_vivid_stack_usage_line "${_vivid_stack_usage_text}")
+            set(_vivid_stack_usage_text "")
+        else()
+            string(SUBSTRING "${_vivid_stack_usage_text}"
+                0 ${_vivid_stack_newline_pos} _vivid_stack_usage_line)
+            math(EXPR _vivid_stack_next_line_pos "${_vivid_stack_newline_pos} + 1")
+            string(SUBSTRING "${_vivid_stack_usage_text}"
+                ${_vivid_stack_next_line_pos} -1 _vivid_stack_usage_text)
+        endif()
+        if(_vivid_stack_usage_line STREQUAL "")
+            continue()
+        endif()
         string(REPLACE "\t" ";" _vivid_stack_usage_fields "${_vivid_stack_usage_line}")
         list(LENGTH _vivid_stack_usage_fields _vivid_stack_usage_field_count)
         if(_vivid_stack_usage_field_count LESS 3)
@@ -48,6 +68,8 @@ foreach(_vivid_stack_usage_file IN LISTS _vivid_stack_usage_files)
         list(GET _vivid_stack_usage_fields 0 _vivid_stack_function)
         list(GET _vivid_stack_usage_fields 1 _vivid_stack_bytes)
         list(GET _vivid_stack_usage_fields 2 _vivid_stack_kind)
+        string(REPLACE "${_vivid_stack_semicolon_token}" ";"
+            _vivid_stack_function "${_vivid_stack_function}")
         string(REPLACE "\\" "/" _vivid_stack_function "${_vivid_stack_function}")
         if(NOT _vivid_stack_bytes MATCHES "^[0-9]+$")
             continue()
@@ -67,8 +89,8 @@ foreach(_vivid_stack_usage_file IN LISTS _vivid_stack_usage_files)
             continue()
         endif()
         math(EXPR _vivid_stack_entry_count "${_vivid_stack_entry_count} + 1")
-        list(APPEND _vivid_stack_entries
-            "${_vivid_stack_bytes}|${_vivid_stack_kind}|${_vivid_stack_function}")
+        string(APPEND _vivid_stack_entries
+            "${_vivid_stack_bytes}|${_vivid_stack_kind}|${_vivid_stack_function}\n")
 
         if(_vivid_stack_bytes GREATER _vivid_stack_max_bytes)
             set(_vivid_stack_max_bytes "${_vivid_stack_bytes}")
@@ -80,10 +102,14 @@ foreach(_vivid_stack_usage_file IN LISTS _vivid_stack_usage_files)
             set(_vivid_stack_unbounded TRUE)
         endif()
         if(_vivid_stack_unbounded OR _vivid_stack_bytes GREATER VIVID_STACK_USAGE_MAX_BYTES)
-            list(APPEND _vivid_stack_violations
-                "${_vivid_stack_bytes}|${_vivid_stack_kind}|${_vivid_stack_function}")
+            math(EXPR _vivid_stack_violation_count
+                "${_vivid_stack_violation_count} + 1")
+            if(_vivid_stack_first_violation STREQUAL "")
+                set(_vivid_stack_first_violation
+                    "${_vivid_stack_bytes}|${_vivid_stack_kind}|${_vivid_stack_function}")
+            endif()
         endif()
-    endforeach()
+    endwhile()
 endforeach()
 
 if(_vivid_stack_entry_count EQUAL 0)
@@ -100,19 +126,12 @@ string(CONCAT _vivid_stack_manifest
     "max_allowed_bytes=${VIVID_STACK_USAGE_MAX_BYTES}\n"
     "max_observed_bytes=${_vivid_stack_max_bytes}\n"
     "max_observed_function=${_vivid_stack_max_function}\n"
-    "violation_count=0\n"
-    "\n[entries]\n")
-foreach(_vivid_stack_entry IN LISTS _vivid_stack_entries)
-    string(APPEND _vivid_stack_manifest "${_vivid_stack_entry}\n")
-endforeach()
-list(LENGTH _vivid_stack_violations _vivid_stack_violation_count)
-string(REPLACE "violation_count=0"
-    "violation_count=${_vivid_stack_violation_count}"
-    _vivid_stack_manifest "${_vivid_stack_manifest}")
+    "violation_count=${_vivid_stack_violation_count}\n"
+    "\n[entries]\n"
+    "${_vivid_stack_entries}")
 file(WRITE "${VIVID_STACK_USAGE_OUT}" "${_vivid_stack_manifest}")
 
-if(VIVID_STACK_USAGE_ENFORCE AND _vivid_stack_violations)
-    list(GET _vivid_stack_violations 0 _vivid_stack_first_violation)
+if(VIVID_STACK_USAGE_ENFORCE AND _vivid_stack_violation_count GREATER 0)
     message(FATAL_ERROR
         "vivid-stack-usage: limit=${VIVID_STACK_USAGE_MAX_BYTES} "
         "violations=${_vivid_stack_violation_count} first=${_vivid_stack_first_violation}")

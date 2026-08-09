@@ -41,6 +41,8 @@ PRODUCT 的 source closure 由 Vivid 自己的 Profile Compiler 生成：
 - module policy 只声明 `PRODUCT_ROOT`、`INTERNAL`、`HOST_ONLY`；不得在 CMake 中再维护一份依赖图。
 - profile 只能显式选择 `PRODUCT_ROOT`。SoA kernel、DrawCmd partitions 和 widget implementation 只能由 public root 或 catalog module 的真实 closure 引入。
 - closure 到达 `HOST_ONLY` 会在配置期失败；非 Vivid module 记录为 external requirement，由上层 target 提供。
+- `MCU_MIN` 复用同一 inventory/policy，保留 portable runtime，但不编译 `HOST_ONLY` source；`display_policy`
+  属于可移植显示策略，不因当前主要由 host regression 消费而标成 host-only。
 - `WidgetKind` 保持完整、稳定的 `uint8_t` ABI。profile 只裁剪 active capability、module implementation 与 payload pool，不裁枚举项。
 
 Profile Compiler 是 Vivid `Implementation / Tool`，不进入 Charm Core，也不扩大产品 import 权限。PRODUCT 的旧手写白名单与 `CHARM_VIVID_PAYLOAD_CAP_*` 配置已删除，发现旧变量时配置直接失败。

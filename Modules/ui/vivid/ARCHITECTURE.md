@@ -152,6 +152,8 @@ Product Profile Compiler 是 Vivid 工具，不是 Charm Core 或产品 C++ API�
 
 - C++ `module/import/export import` 是依赖边唯一来源；
 - CMake policy 只标记 product root、internal、host-only 和硬件 envelope；
+- `MCU_MIN` 保留非 widget 的可移植 module inventory，并按同一 policy 排除 `HOST_ONLY` source；任何
+  可移植 module 指向 host-only module 的依赖边必须在 configure 阶段失败；
 - profile 固定产品 root、active Scene WidgetKind、按需 object widget module、snapshot storage mode 和工作集；
   target envelope 固定设备资源与 snapshot slot 几何；
 - 一个 target 只能选择一个不可变 profile/envelope；漂移、未知 root、cycle、internal root、catalog/pool

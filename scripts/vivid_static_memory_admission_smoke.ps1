@@ -668,6 +668,17 @@ try {
     if ($mcuStackSources -contains "Modules/ui/vivid/core/perf_overlay_runtime.cppm") {
         throw "MCU_MIN source manifest contains PerfOverlay runtime"
     }
+    foreach ($hostOnlySource in @(
+        "Modules/ui/vivid/gfx/host_tools.cppm",
+        "Modules/ui/vivid/gfx/snapshot.cppm"
+    )) {
+        if ($mcuStackSources -contains $hostOnlySource) {
+            throw "MCU_MIN source manifest contains host-only module: $hostOnlySource"
+        }
+    }
+    if ($mcuStackSources -notcontains "Modules/ui/vivid/gfx/display_policy.cppm") {
+        throw "MCU_MIN source manifest removed portable display policy"
+    }
 
     Invoke-VividConfigure -SourceDir $ProductFixtureDir -FeatureSet "PRODUCT" -ExtraArgs $ProductBaseArgs | Out-Null
     $baseFingerprint = Assert-ProductEvidence -Profile "player_md3" -DebugProfile $false

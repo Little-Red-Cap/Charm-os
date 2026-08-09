@@ -943,14 +943,15 @@ function(vivid_collect_modules target_name module_list_var base_dirs_var)
     endif()
     if (CHARM_VIVID_FEATURESET STREQUAL "MCU_MIN")
         list(FILTER ${module_list_var} EXCLUDE REGEX "/Modules/ui/vivid/widgets/")
-    endif()
-    if (CHARM_VIVID_FEATURESET STREQUAL "MCU_MIN")
         list(REMOVE_ITEM ${module_list_var}
             "${PROJECT_SOURCE_DIR}/Modules/ui/vivid/core/object.cppm"
             "${PROJECT_SOURCE_DIR}/Modules/ui/vivid/core/input_interaction.cppm"
             "${PROJECT_SOURCE_DIR}/Modules/ui/vivid/core/perf_overlay_runtime.cppm"
             "${PROJECT_SOURCE_DIR}/Modules/ui/vivid/core/virtual_list.cppm"
         )
+        vivid_filter_mcu_module_sources(
+            _vivid_mcu_module_sources "${${module_list_var}}")
+        set(${module_list_var} "${_vivid_mcu_module_sources}")
     endif()
 
     if(VIVID_STATIC_MEMORY_ADMISSION_REQUIRED)

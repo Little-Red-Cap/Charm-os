@@ -20,6 +20,7 @@ foreach(_module IN ITEMS
         charm.ui.scene.top_bar
         charm.gfx.canvas
         charm.gfx.color
+        charm.gfx.display_policy
         charm.gfx.framebuffer
         charm.gfx.image
         charm.gfx.path
@@ -35,8 +36,7 @@ endforeach()
 
 foreach(_module IN ITEMS
         charm.gfx.host_tools
-        charm.gfx.snapshot
-        charm.gfx.display_policy)
+        charm.gfx.snapshot)
     vivid_module_policy(NAME "${_module}" ACCESS HOST_ONLY)
 endforeach()
 

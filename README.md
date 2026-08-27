@@ -25,9 +25,10 @@ Charm 不以某个 MCU、RTOS、Linux、编译器、驱动集合或 image format
 真实板是不同证据域；项目、BSP、backend、loader 与 Resident ELF 是消费者或实现，不自动获得
 Core 身份。
 
-当前 Capability MVP 的源码与三环境证据从
+当前 Capability MVP 的源码与证据从
 [`Examples/system/charm_capability_mvp`](Examples/system/charm_capability_mvp/README.md) 进入；该证据
-验证局部命题，不替代 Constitution 准入。
+验证局部命题，不替代 Constitution 准入。关系 v1 的当前门禁覆盖 Host 与 QEMU；H747 工程损坏，
+本轮不声明 board 兼容或三域复验。
 
 ## 使用顺序
 

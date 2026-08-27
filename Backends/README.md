@@ -13,7 +13,7 @@
 
 | 目录 | ownership |
 |---|---|
-| [`contract/`](contract/README.md) | topology、binding、capability slices 与 common evidence |
+| [`contract/`](contract/README.md) | capability slices 与 common evidence；Core relation 由 `Modules/core` 拥有 |
 | [`host/`](host/README.md) | Host OS/provider integration |
 | [`qemu/`](qemu/README.md) | QEMU machine/runtime evidence |
 | [`board/`](board/README.md) | real-board BSP/provider evidence |
@@ -23,11 +23,11 @@
 ## 依赖规则
 
 - app/domain 声明 capability requirement，不依赖具体 backend；
-- profile binding 只选择 provider instance；
+- profile binding 只选择 Provision；Provider Instance 映射留在 project/backend metadata；
 - concrete backend 依赖 contract 和自己的 OS/simulator/BSP/HAL adapter；
 - Host、QEMU、board implementation 不互相依赖；
 - `Modules/system` 不 import concrete backend implementation；
-- endpoint、transport、HAL handle 和 provider type 不是 binding target。
+- provider instance、endpoint、transport、HAL handle 和 provider type 都不是 binding target。
 
 术语、evidence、capability slice 和失败边界见 backend contract，不在 README 复制。
 

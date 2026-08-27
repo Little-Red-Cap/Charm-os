@@ -129,9 +129,9 @@ namespace {
             Provision::for_block_device(block),
         };
         std::array<Binding, 3> bindings{
-            Binding{app::requirements[0], 0},
-            Binding{app::requirements[1], 1},
-            Binding{app::requirements[2], 2},
+            Binding{app::requirements[0].key, ProvisionKey::text_sink},
+            Binding{app::requirements[1].key, ProvisionKey::clock},
+            Binding{app::requirements[2].key, ProvisionKey::block_device},
         };
     };
 
@@ -225,7 +225,7 @@ namespace {
     bool mismatch_case() {
         HostFixture fixture{};
         auto bindings = fixture.bindings;
-        bindings[2].provision_index = 1;
+        bindings[2].provision = ProvisionKey::clock;
         const auto resolved = resolve(app::requirements, ProfileView{fixture.provisions, bindings});
         std::size_t app_start_count = 0;
         if (resolved.is_ok()) {
@@ -249,7 +249,7 @@ namespace {
     bool invalid_provision_case() {
         HostFixture fixture{};
         auto provisions = fixture.provisions;
-        provisions[1] = Provision{ContractId::clock, nullptr, nullptr, nullptr};
+        provisions[1] = Provision::invalid(ProvisionKey::clock, ContractKey::clock);
         const auto resolved = resolve(app::requirements, ProfileView{provisions, fixture.bindings});
         std::size_t app_start_count = 0;
         if (resolved.is_ok()) {

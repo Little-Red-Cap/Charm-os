@@ -61,9 +61,9 @@ namespace {
             Provision::for_block_device(block),
         };
         std::array<Binding, 3> bindings{
-            Binding{app::requirements[0], 0},
-            Binding{app::requirements[1], 1},
-            Binding{app::requirements[2], 2},
+            Binding{app::requirements[0].key, ProvisionKey::text_sink},
+            Binding{app::requirements[1].key, ProvisionKey::clock},
+            Binding{app::requirements[2].key, ProvisionKey::block_device},
         };
 
         static Transfer text_write(void* context, const std::string_view text_value) noexcept {
@@ -222,11 +222,11 @@ namespace {
         for (std::size_t failed_index = 0; failed_index < app::requirements.size(); ++failed_index) {
             FaultFixture fixture{};
             auto bindings = fixture.bindings;
-            bindings[failed_index].provision_index = fixture.provisions.size();
+            bindings[failed_index].provision = ProvisionKey::unknown;
             expect_resolution_failure(
                 suite,
                 resolve(app::requirements, ProfileView{fixture.provisions, bindings}),
-                ResolutionFailure::invalid_provision_index,
+                ResolutionFailure::unknown_provision,
                 failed_index);
             ++cases;
         }
@@ -234,7 +234,13 @@ namespace {
         for (std::size_t failed_index = 0; failed_index < app::requirements.size(); ++failed_index) {
             FaultFixture fixture{};
             auto bindings = fixture.bindings;
-            bindings[failed_index].provision_index = (failed_index + 1U) % fixture.provisions.size();
+            constexpr std::array provision_keys{
+                ProvisionKey::text_sink,
+                ProvisionKey::clock,
+                ProvisionKey::block_device,
+            };
+            bindings[failed_index].provision =
+                provision_keys[(failed_index + 1U) % provision_keys.size()];
             expect_resolution_failure(
                 suite,
                 resolve(app::requirements, ProfileView{fixture.provisions, bindings}),
@@ -248,13 +254,14 @@ namespace {
             auto provisions = fixture.provisions;
             switch (failed_index) {
             case 0:
-                provisions[0] = Provision{ContractId::text_sink, nullptr, nullptr, nullptr};
+                provisions[0] = Provision::invalid(ProvisionKey::text_sink, ContractKey::text_sink);
                 break;
             case 1:
-                provisions[1] = Provision{ContractId::clock, nullptr, nullptr, nullptr};
+                provisions[1] = Provision::invalid(ProvisionKey::clock, ContractKey::clock);
                 break;
             default:
-                provisions[2] = Provision{ContractId::block_device, nullptr, nullptr, nullptr};
+                provisions[2] = Provision::invalid(
+                    ProvisionKey::block_device, ContractKey::block_device);
                 break;
             }
             expect_resolution_failure(

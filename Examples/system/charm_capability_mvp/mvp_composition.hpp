@@ -1,61 +1,90 @@
 #pragma once
 
 #include "mvp_contracts.hpp"
+#include "../../../Modules/core/capability/relations.hpp"
 
 #include <cstddef>
 #include <cstdint>
 #include <span>
 
 namespace charm::mvp {
-    enum class ContractId : std::uint8_t {
+    enum class ContractKey : std::uint8_t {
         text_sink = 0,
         clock,
         block_device,
     };
 
-    enum class RoleId : std::uint8_t {
+    enum class RequirementKey : std::uint8_t {
         report = 0,
         monotonic_time,
         record_store,
+        unknown,
     };
 
-    struct Requirement {
-        ContractId contract{ContractId::text_sink};
-        RoleId role{RoleId::report};
-
-        [[nodiscard]] constexpr bool operator==(const Requirement&) const noexcept = default;
+    enum class ProvisionKey : std::uint8_t {
+        text_sink = 0,
+        clock,
+        block_device,
+        unknown,
     };
+
+    using Requirement = capability::Requirement<ContractKey, RequirementKey>;
+    using ProvisionRelation = capability::Provision<ContractKey, ProvisionKey>;
+    using Binding = capability::Binding<RequirementKey, ProvisionKey>;
+    using ResolvedBinding = capability::ResolvedBinding<RequirementKey, ProvisionKey>;
+    using ResolutionFailure = capability::ResolutionFailure;
 
     struct Provision {
-        ContractId contract{ContractId::text_sink};
+        ProvisionRelation relation{};
         const TextSink* text_sink{nullptr};
         const Clock* clock{nullptr};
         const BlockDevice* block_device{nullptr};
 
         [[nodiscard]] static constexpr Provision for_text_sink(
             const TextSink& endpoint) noexcept {
-            return Provision{ContractId::text_sink, &endpoint, nullptr, nullptr};
+            return Provision{
+                {ProvisionKey::text_sink, ContractKey::text_sink},
+                &endpoint,
+                nullptr,
+                nullptr,
+            };
         }
 
         [[nodiscard]] static constexpr Provision for_clock(
             const Clock& endpoint) noexcept {
-            return Provision{ContractId::clock, nullptr, &endpoint, nullptr};
+            return Provision{
+                {ProvisionKey::clock, ContractKey::clock},
+                nullptr,
+                &endpoint,
+                nullptr,
+            };
         }
 
         [[nodiscard]] static constexpr Provision for_block_device(
             const BlockDevice& endpoint) noexcept {
-            return Provision{ContractId::block_device, nullptr, nullptr, &endpoint};
+            return Provision{
+                {ProvisionKey::block_device, ContractKey::block_device},
+                nullptr,
+                nullptr,
+                &endpoint,
+            };
+        }
+
+        [[nodiscard]] static constexpr Provision invalid(
+            const ProvisionKey key,
+            const ContractKey contract) noexcept {
+            return Provision{{key, contract}, nullptr, nullptr, nullptr};
         }
 
         [[nodiscard]] constexpr bool valid() const noexcept {
-            switch (contract) {
-            case ContractId::text_sink:
+            switch (relation.contract) {
+            case ContractKey::text_sink:
                 return text_sink != nullptr && clock == nullptr && block_device == nullptr &&
                        text_sink->valid();
-            case ContractId::clock:
+            case ContractKey::clock:
                 return text_sink == nullptr && clock != nullptr && block_device == nullptr &&
                        clock->valid();
-            case ContractId::block_device:
+            case ContractKey::block_device:
                 return text_sink == nullptr && clock == nullptr && block_device != nullptr &&
                        block_device->valid();
             }
@@ -63,23 +92,9 @@ namespace charm::mvp {
         }
     };
 
-    struct Binding {
-        Requirement requirement{};
-        std::size_t provision_index{0};
-    };
-
     struct ProfileView {
         std::span<const Provision> provisions{};
         std::span<const Binding> bindings{};
-    };
-
-    enum class ResolutionFailure : std::uint8_t {
-        none = 0,
-        missing_binding,
-        duplicate_binding,
-        invalid_provision_index,
-        contract_mismatch,
-        invalid_provision,
     };
 
     [[nodiscard]] constexpr const char* resolution_failure_name(
@@ -87,12 +102,18 @@ namespace charm::mvp {
         switch (failure) {
         case ResolutionFailure::none:
             return "none";
+        case ResolutionFailure::duplicate_requirement:
+            return "duplicate_requirement";
+        case ResolutionFailure::duplicate_provision:
+            return "duplicate_provision";
         case ResolutionFailure::missing_binding:
             return "missing_binding";
         case ResolutionFailure::duplicate_binding:
             return "duplicate_binding";
-        case ResolutionFailure::invalid_provision_index:
-            return "invalid_provision_index";
+        case ResolutionFailure::unknown_requirement:
+            return "unknown_requirement";
+        case ResolutionFailure::unknown_provision:
+            return "unknown_provision";
         case ResolutionFailure::contract_mismatch:
             return "contract_mismatch";
         case ResolutionFailure::invalid_provision:
@@ -126,6 +147,42 @@ namespace charm::mvp {
         ProfileView profile) noexcept {
         ResolvedContext context{};
 
+        for (std::size_t left = 0; left < requirements.size(); ++left) {
+            for (std::size_t right = left + 1U; right < requirements.size(); ++right) {
+                if (requirements[left].key == requirements[right].key) {
+                    return {ResolutionFailure::duplicate_requirement, right, {}};
+                }
+            }
+        }
+        for (std::size_t left = 0; left < profile.provisions.size(); ++left) {
+            for (std::size_t right = left + 1U; right < profile.provisions.size(); ++right) {
+                if (profile.provisions[left].relation.key ==
+                    profile.provisions[right].relation.key) {
+                    return {ResolutionFailure::duplicate_provision, right, {}};
+                }
+            }
+        }
+
+        for (std::size_t binding_index = 0;
+             binding_index < profile.bindings.size();
+             ++binding_index) {
+            const auto& binding = profile.bindings[binding_index];
+            bool requirement_known = false;
+            bool provision_known = false;
+            for (const auto& requirement : requirements) {
+                requirement_known = requirement_known || requirement.key == binding.requirement;
+            }
+            for (const auto& provision : profile.provisions) {
+                provision_known = provision_known || provision.relation.key == binding.provision;
+            }
+            if (!requirement_known) {
+                return {ResolutionFailure::unknown_requirement, binding_index, {}};
+            }
+            if (!provision_known) {
+                return {ResolutionFailure::unknown_provision, binding_index, {}};
+            }
+        }
+
         for (std::size_t requirement_index = 0;
              requirement_index < requirements.size();
              ++requirement_index) {
@@ -133,7 +190,7 @@ namespace charm::mvp {
             const Binding* selected = nullptr;
 
             for (const auto& binding : profile.bindings) {
-                if (binding.requirement != requirement) {
+                if (binding.requirement != requirement.key) {
                     continue;
                 }
                 if (selected != nullptr) {
@@ -145,42 +202,49 @@ namespace charm::mvp {
             if (selected == nullptr) {
                 return {ResolutionFailure::missing_binding, requirement_index, {}};
             }
-            if (selected->provision_index >= profile.provisions.size()) {
-                return {ResolutionFailure::invalid_provision_index, requirement_index, {}};
-            }
 
-            const auto& provision = profile.provisions[selected->provision_index];
-            if (provision.contract != requirement.contract) {
+            const Provision* provision = nullptr;
+            for (const auto& candidate : profile.provisions) {
+                if (candidate.relation.key == selected->provision) {
+                    provision = &candidate;
+                    break;
+                }
+            }
+            if (provision == nullptr) {
+                return {ResolutionFailure::unknown_provision, requirement_index, {}};
+            }
+            if (provision->relation.contract != requirement.contract) {
                 return {ResolutionFailure::contract_mismatch, requirement_index, {}};
             }
-            if (!provision.valid()) {
+            if (!provision->valid()) {
                 return {ResolutionFailure::invalid_provision, requirement_index, {}};
             }
-            switch (requirement.contract) {
-            case ContractId::text_sink: {
-                const auto* endpoint = provision.text_sink;
-                if (requirement.role != RoleId::report) {
+            const ResolvedBinding resolved{requirement.key, provision->relation.key};
+            switch (resolved.requirement) {
+            case RequirementKey::report: {
+                if (requirement.contract != ContractKey::text_sink) {
                     return {ResolutionFailure::invalid_provision, requirement_index, {}};
                 }
-                context.report = endpoint;
+                context.report = provision->text_sink;
                 break;
             }
-            case ContractId::clock: {
-                const auto* endpoint = provision.clock;
-                if (requirement.role != RoleId::monotonic_time) {
+            case RequirementKey::monotonic_time: {
+                if (requirement.contract != ContractKey::clock) {
                     return {ResolutionFailure::invalid_provision, requirement_index, {}};
                 }
-                context.monotonic_time = endpoint;
+                context.monotonic_time = provision->clock;
                 break;
             }
-            case ContractId::block_device: {
-                const auto* endpoint = provision.block_device;
-                if (requirement.role != RoleId::record_store) {
+            case RequirementKey::record_store: {
+                if (requirement.contract != ContractKey::block_device) {
                     return {ResolutionFailure::invalid_provision, requirement_index, {}};
                 }
-                context.record_store = endpoint;
+                context.record_store = provision->block_device;
                 break;
             }
+            case RequirementKey::unknown:
+                return {ResolutionFailure::unknown_requirement, requirement_index, {}};
+                break;
             }
         }
 

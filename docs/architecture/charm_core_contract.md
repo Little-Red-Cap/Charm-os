@@ -83,6 +83,17 @@ Binding 是在一次组合中选择某个 Provision 满足某个 Requirement 的
 缺少 required capability、存在不允许的歧义或契约不兼容时，必须在应用启动前产生稳定的
 `ResolutionFailure`。不得让应用运行后再通过空指针、平台分支或 provider fallback 猜测环境。
 
+### 3.5 公共关系投影
+
+首个公共 C++ 投影位于
+[`Modules/core/capability/relations.hpp`](../../Modules/core/capability/relations.hpp)。它只包含
+`Requirement`、`Provision`、`Binding`、`ResolvedBinding` 和 `ResolutionFailure`，不包含 resolver、
+Profile、Provider、Backend、ContextView、Evidence 或 registry。
+
+Contract、Requirement 和 Provision identity 由项目局部强类型 key 表达；key 的底层数字不具备
+跨 project、跨 build 或持久化稳定性。消费方 role 由 Requirement key 作用域化，不建立全局 role
+命名空间。字符串只能作为 explain/evidence label，不能参与 resolution。
+
 ## 4. 不属于最小模型的内容
 
 ### 4.1 Component

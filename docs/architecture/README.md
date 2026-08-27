@@ -22,6 +22,7 @@ Charm 是一个能力导向的嵌入式应用平台。
 | 主题 | 入口 |
 |---|---|
 | Core 冲突审计 | [`charm_core_semantic_audit.md`](charm_core_semantic_audit.md) |
+| Capability relation v1 准入 | [`charm_capability_relations_v1_admission.md`](charm_capability_relations_v1_admission.md) |
 | 依赖与入口 | [`dependency_contract.md`](dependency_contract.md)、[`entry_surface_contract.md`](entry_surface_contract.md)、[`dependency_whitelist.md`](dependency_whitelist.md) |
 | Driver/device/interface | [`driver_model.md`](driver_model.md)、[`interface_admission_policy.md`](interface_admission_policy.md) |
 | device 局部接口 | [`i2c_device_contract_v0.md`](i2c_device_contract_v0.md)、[`spi_device_contract_v0.md`](spi_device_contract_v0.md)、[`gpio_device_contract_v0.md`](gpio_device_contract_v0.md)、[`BlockDevice`](../storage/block_device_contract.md)、[`stream_io_device_contract_v0.md`](stream_io_device_contract_v0.md)、[`timebase_device_contract_v0.md`](timebase_device_contract_v0.md) |
@@ -33,14 +34,12 @@ Signal/State 与能力回收历史见对应 archive；归档材料不覆盖现�
 
 ## Exploration
 
-- [`charm_spine_v0.md`](charm_spine_v0.md)
-- [`rte_capability_composition_contract_v0.md`](rte_capability_composition_contract_v0.md)
 - [`system_compiler_roadmap.md`](system_compiler_roadmap.md)
 - [`system_compiler_vocabulary_v0.md`](system_compiler_vocabulary_v0.md)
-- [`rte_to_h747_platform_roadmap.md`](rte_to_h747_platform_roadmap.md)
 
 完整历史讨论见 [`../archive/architecture-exploration-v0/README.md`](../archive/architecture-exploration-v0/README.md)。
-System Compiler、IR、Graph 和 RTE 不因出现在本列表而成为 Core 身份。
+RTE/Spine 源码原型已经退役；同名冻结摘要只供旧链接追溯，不再作为活动架构入口。System Compiler、
+IR、Graph 和 RTE 不因出现在历史材料中而成为 Core 身份。
 
 ## 使用规则
 

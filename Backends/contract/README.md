@@ -10,7 +10,7 @@
 
 | 目标 | 文件 |
 |---|---|
-| topology 与 binding | [`capability_topology.hpp`](capability_topology.hpp) |
+| Core relations | [`relations.hpp`](../../Modules/core/capability/relations.hpp) |
 | common evidence/facts | [`backend_evidence.hpp`](backend_evidence.hpp) |
 | console/output | [`console_output.hpp`](console_output.hpp) |
 | block/storage | [`block_storage.hpp`](block_storage.hpp) |

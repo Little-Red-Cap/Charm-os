@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [ValidateSet("host", "qemu", "h747")]
-    [string[]]$Domains = @("host", "qemu", "h747"),
+    [string[]]$Domains = @("host", "qemu"),
     [switch]$SelfTest
 )
 

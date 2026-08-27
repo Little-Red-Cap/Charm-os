@@ -22,8 +22,8 @@
 
 | 范围 | 源码事实 | 裁决影响 |
 |---|---|---|
-| Core relations | `Modules/` 没有共同的 `Requirement / Provision / ResolvedBinding / ResolutionFailure` 类型 | Constitution 允许这些关系，不代表稳定实现已经存在 |
-| topology candidate | [`Backends/contract/capability_topology.hpp`](../../Backends/contract/capability_topology.hpp) 定义 `Requirement`、`Provided`、`ProfileBinding`、`RuntimeBinding` 和 `ContextView` | 它位于 Backend 并混合 compile-time metadata 与 runtime ref，仍是候选实现 |
+| Core relations | [`relations.hpp`](../../Modules/core/capability/relations.hpp) 提供最小公共关系投影 | resolver、Profile、ProviderRef 和 ContextView 仍不属于 Core |
+| retired topology | Backend-owned topology 与 smoke-local RTE/Spine 关系副本已退役 | Backend 只消费 Core relation，不再反向拥有组合语义 |
 | Capability contracts | TextSink、BlockDevice、Clock 在 Backends、Modules 和 fixtures 中存在不同形状 | 同名不能自动合并，也不能任选一份改名为 canonical |
 | `charm.core` | [`charm.core.cppm`](../../Modules/core/charm.core.cppm) 聚合 util、`semantic.core`、init、trace、container 和 algorithm | 聚合便利不等于这些 module 都是 Core Primitive |
 | semantic tooling | [`semantic.core`](../../Modules/core/semantic/semantic.core.cppm) 包含 Verdict、Witness、FailureDomain 和 reflection extraction | 当前有真实 consumer，但语义属于 evidence/tooling；目录位置不构成准入 |
@@ -62,3 +62,7 @@ Host/QEMU/real-board 是不同证据域。Host 程序读取 QEMU/board metadata 
 [`charm_capability_mvp`](../../Examples/system/charm_capability_mvp/README.md) 进入，并以当次 Host、
 QEMU 与 H747 输出为准。证据门禁通过只满足准入前置条件，不代表 topology、Capability interface、
 `semantic.core`、RTE、init graph 或任一 Runtime 已获准成为 Charm Core。
+
+Capability relation v1 的当前准入记录见
+[`charm_capability_relations_v1_admission.md`](charm_capability_relations_v1_admission.md)。H747 工程当前
+不在该轮验证范围内，旧日志不能替代当前源码执行。

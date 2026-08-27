@@ -10,9 +10,9 @@
 
 namespace charm::mvp::app {
     inline constexpr std::array requirements{
-        Requirement{ContractId::text_sink, RoleId::report},
-        Requirement{ContractId::clock, RoleId::monotonic_time},
-        Requirement{ContractId::block_device, RoleId::record_store},
+        Requirement{RequirementKey::report, ContractKey::text_sink},
+        Requirement{RequirementKey::monotonic_time, ContractKey::clock},
+        Requirement{RequirementKey::record_store, ContractKey::block_device},
     };
 
     enum class RunCode : std::uint8_t {

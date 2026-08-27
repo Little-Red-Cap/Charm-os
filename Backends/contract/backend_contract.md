@@ -3,7 +3,7 @@
 ## 文档状态
 
 - `status`: `contract candidate`
-- `scope`: backend topology、capability binding、provider evidence 与已提取 capability slices
+- `scope`: backend provider/adaptation、provider evidence 与 capability slices
 - `authority`: 本目录 contract headers 与 header/reference/system smokes
 
 该 contract 独立于 `Modules/platform/`。现有 platform prototype 可以被 backend adapter 包装，但不能反向
@@ -14,13 +14,14 @@
 ```text
 Application/Domain Requirement
   -> Profile Binding
-  -> Provider Instance
+  -> Provision
+  -> Provider Instance mapping
   -> Provider Adapter
   -> Backend Resource
 ```
 
-binding 只能指向 provider instance。provider type、adapter、transport、HAL handle、backend token、file path
-和 endpoint 都不是 binding target。
+binding 只能指向 Provision。Provider Instance、provider type、adapter、transport、HAL handle、backend token、
+file path 和 endpoint 都不是 binding target。
 
 ## 词汇边界
 
@@ -30,9 +31,9 @@ binding 只能指向 provider instance。provider type、adapter、transport、H
 | runtime domain | backend 内实际执行代码的 domain，如 host process、QEMU core、MCU core |
 | capability | app/domain 可消费的语义契约 |
 | requirement | consumer 对 capability role 的声明 |
-| binding | profile 将 requirement 映射到 provider instance 的装配结果 |
+| binding | profile 将 requirement 映射到 Provision 的装配结果 |
 | provider type | implementation family metadata，不是实例 identity |
-| provider instance | profile 可选择的具体 provider identity |
+| provider instance | 发布一个或多个 Provision 的具体实现 identity；只进入项目装配和 evidence |
 | adapter | provider 内部机制转换，不进入 consumer dependency |
 | endpoint | provider 发布的消费 surface，不等于 provider instance |
 | BSP | real-board clocks/pinmux/memory/startup/vendor glue 和硬件 binding |
@@ -64,10 +65,10 @@ console/timer/trap 不能替代 H747 外设，board build-only 也不能替代�
 
 | header | ownership |
 |---|---|
-| `capability_topology.hpp` | requirement、provided token、provider instance、binding、context topology |
+| [`relations.hpp`](../../Modules/core/capability/relations.hpp) | Core-owned Requirement、Provision、Binding 与解析结果 |
 | `backend_evidence.hpp` | backend identity、exports、selected binding、facts 与 readiness |
-| `console_output.hpp` | `ByteSink`、`TextSink`、`LineSource`、roles、transfer/status evidence |
-| `block_storage.hpp` | `BlockDevice`、roles、published `BlockEndpoint`、status/evidence |
+| `console_output.hpp` | `ByteSink`、`TextSink`、`LineSource`、transfer/status evidence |
+| `block_storage.hpp` | `BlockDevice`、published `BlockEndpoint`、status/evidence |
 | `raster_display.hpp` | bounded read-only raster、pixel format、dirty/clipping/present result |
 
 这些 header 仍是 `Backends/contract` candidate，不自动成为 `Modules/` public API。Store/FAT/ImageStore、
@@ -76,7 +77,7 @@ backend，不进入这些 slices。
 
 ## Dependency Rules
 
-- app/domain 只消费 capability role 和中性 surface，不依赖具体 backend/provider identity；
+- app/domain 声明 project-local Requirement key 并消费中性 surface，不依赖具体 backend/provider identity；
 - `Modules/system` 不 import Host/QEMU/board implementation；
 - concrete backend 可以依赖 contract 和自己的 OS/simulator/BSP/HAL adapter；
 - backend implementation 之间不能互相依赖；

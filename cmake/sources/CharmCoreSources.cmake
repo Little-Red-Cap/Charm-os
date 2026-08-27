@@ -3,12 +3,7 @@ include("${CMAKE_CURRENT_LIST_DIR}/CharmSourceHelpers.cmake")
 
 function(charm_collect_core_sources out_modules out_base_dirs)
     charm_collect_cppm(_modules
-        "${CHARM_SOURCE_ROOT}/Modules/control/*.cppm"
-        "${CHARM_SOURCE_ROOT}/Modules/core/*.cppm"
-        "${CHARM_SOURCE_ROOT}/Modules/core/semantic/*.cppm"
-        "${CHARM_SOURCE_ROOT}/Modules/gfx/*.cppm"
-        "${CHARM_SOURCE_ROOT}/Modules/init/*.cppm"
-        "${CHARM_SOURCE_ROOT}/Modules/ui/vivid/gfx/color.cppm"
+        "${CHARM_SOURCE_ROOT}/Modules/core/**/*.cppm"
     )
 
     if (NOT CHARM_TARGET_HAS_CXX_MATH)
@@ -24,11 +19,6 @@ function(charm_collect_core_sources out_modules out_base_dirs)
     if (NOT CHARM_TARGET_HAS_HOSTED_CXX)
         list(REMOVE_ITEM _modules
             "${CHARM_SOURCE_ROOT}/Modules/core/alg/alg_color_extract.cppm")
-    endif()
-
-    if (NOT CHARM_ENABLE_FREETYPE)
-        list(REMOVE_ITEM _modules
-            "${CHARM_SOURCE_ROOT}/Modules/gfx/font/font_provider_freetype.cppm")
     endif()
 
     set(${out_modules} "${_modules}" PARENT_SCOPE)

@@ -680,8 +680,8 @@
                 : 0U;
         }
 
-        static std::uint64_t transition_now_us() noexcept {
-    return monotonic_now_us();
+        std::uint64_t transition_now_us() const noexcept {
+            return monotonic_now_us();
         }
 
         void reset_transition_capture_timing() noexcept {

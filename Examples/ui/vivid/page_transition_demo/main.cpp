@@ -762,6 +762,81 @@ namespace {
         return true;
     }
 
+    [[nodiscard]] bool run_compose_plan_integrity() noexcept {
+        if constexpr (!::snapshot_command_enabled && !::snapshot_pixel_enabled) {
+            return true;
+        }
+
+        TransitionScene env{};
+        const ui::scene::SnapshotSpec snapshot_spec{
+            .bounds = Rect{0, 0, 16, 16},
+            .preferred_kind = ::snapshot_command_enabled
+                ? ui::scene::SnapshotKind::CommandBuffer
+                : ui::scene::SnapshotKind::PixelSurface,
+        };
+        ui::scene::LayerCaptureResult capture{};
+        if constexpr (::snapshot_command_enabled) {
+            capture = env.scene.capture_command_snapshot_result(snapshot_spec);
+        } else {
+            capture = env.scene.capture_pixel_snapshot_result(snapshot_spec);
+        }
+        if (!expect(capture.ok(), "compose plan integrity captures source")) return false;
+
+        const auto plan = env.scene.make_snapshot_compose_plan({
+            .source = capture.handle,
+            .transform = {.x = 2, .y = 1, .opacity = 255},
+            .clip = Rect{2, 1, 16, 16},
+            .has_clip = true,
+        });
+        if (!expect(plan.valid, "compose plan integrity receives Scene plan")) return false;
+
+        const auto replay_with = [&](ui::scene::Scene& scene,
+                                     const ui::scene::LayerComposePlan& candidate) noexcept {
+            if constexpr (::snapshot_command_enabled) {
+                return scene.replay_command_snapshot(candidate);
+            } else {
+                return scene.compose_pixel_snapshot(candidate);
+            }
+        };
+
+        auto bounds_tampered = plan;
+        ++bounds_tampered.source_visible.x;
+        const auto bounds_replay = replay_with(env.scene, bounds_tampered);
+        if (!expect(bounds_replay.status == ui::scene::LayerReplayStatus::InvalidPlan,
+                    "compose plan rejects source bounds tampering")) {
+            return false;
+        }
+        if (!expect(!env.scene.check_layer_budget(bounds_tampered, {}).ok,
+                    "compose budget rejects tampered plan")) {
+            return false;
+        }
+
+        auto opacity_tampered = plan;
+        opacity_tampered.transform.opacity = 127;
+        const auto opacity_replay = replay_with(env.scene, opacity_tampered);
+        if (!expect(opacity_replay.status == ui::scene::LayerReplayStatus::InvalidPlan,
+                    "compose plan rejects opacity tampering")) {
+            return false;
+        }
+
+        TransitionScene other{};
+        const auto cross_scene_replay = replay_with(other.scene, plan);
+        if (!expect(cross_scene_replay.status == ui::scene::LayerReplayStatus::InvalidPlan,
+                    "compose plan rejects cross-Scene replay")) {
+            return false;
+        }
+        if (!expect(env.scene.release_snapshot(capture.handle),
+                    "compose plan integrity releases source")) {
+            return false;
+        }
+        if (!expect(!env.scene.check_layer_budget(plan, {}).ok,
+                    "compose budget rejects released snapshot")) {
+            return false;
+        }
+        std::puts("[pt] case=compose_plan_integrity result=ok");
+        return true;
+    }
+
     [[nodiscard]] bool run_command_snapshot_slide() noexcept {
         TransitionScene env{};
         PaintPrepare prepare{.canvas = &env.canvas, .color = rgba{40, 70, 200, 255}, .x = 4, .y = 2};
@@ -1911,6 +1986,7 @@ int main() {
     print_transition_run_begin();
     bool ok = true;
     do {
+        if (!run_compose_plan_integrity()) { ok = false; break; }
         if constexpr (kCommandOnlyStorage) {
             if (!run_command_record_overflow_recovery()) { ok = false; break; }
             if (!run_command_snapshot_slide()) { ok = false; break; }

@@ -1,12 +1,12 @@
-#include "Backends/contract/capability_topology.hpp"
 #include "Backends/contract/raster_display.hpp"
+#include "Modules/core/capability/relations.hpp"
 
 #include <array>
 #include <cstddef>
 #include <cstdio>
 #include <limits>
 
-namespace topo = charm::backend::contract;
+namespace relation = charm::capability;
 namespace raster = charm::backend::contract::raster;
 
 namespace {
@@ -39,13 +39,24 @@ namespace {
 
     struct MissingPresent {};
 
-    using PrimaryRequirement = topo::Requirement<raster::RasterDisplay, raster::role::primary>;
-    using PrimaryProvided = topo::Provided<raster::RasterDisplay, raster::role::primary>;
+    enum class ContractKey : std::uint8_t {
+        raster_display,
+    };
+    enum class RequirementKey : std::uint8_t {
+        primary,
+    };
+    enum class ProvisionKey : std::uint8_t {
+        memory_display,
+    };
+
+    constexpr relation::Requirement<ContractKey, RequirementKey> primary_requirement{
+        RequirementKey::primary, ContractKey::raster_display};
+    constexpr relation::Provision<ContractKey, ProvisionKey> primary_provision{
+        ProvisionKey::memory_display, ContractKey::raster_display};
 
     static_assert(raster::RasterDisplay::satisfied_by<MemoryDisplay>);
     static_assert(!raster::RasterDisplay::satisfied_by<MissingPresent>);
-    static_assert(PrimaryRequirement::kind::name == "RasterDisplay");
-    static_assert(PrimaryProvided::role::name == "primary");
+    static_assert(primary_requirement.contract == primary_provision.contract);
     static_assert(raster::bytes_per_pixel(raster::PixelFormat::rgb565) == 2U);
     static_assert(raster::bytes_per_pixel(raster::PixelFormat::rgb888) == 3U);
     static_assert(raster::bytes_per_pixel(raster::PixelFormat::argb8888) == 4U);

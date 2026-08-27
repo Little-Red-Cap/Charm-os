@@ -1,7 +1,7 @@
-#include "Backends/contract/capability_topology.hpp"
 #include "Backends/contract/backend_evidence.hpp"
 #include "Backends/contract/console_output.hpp"
 #include "Backends/host/host_reference.hpp"
+#include "Modules/core/capability/relations.hpp"
 
 #include <array>
 #include <cstddef>
@@ -9,9 +9,8 @@
 #include <optional>
 #include <span>
 #include <string_view>
-#include <tuple>
 
-namespace topo = charm::backend::contract;
+namespace relation = charm::capability;
 namespace be = charm::backend::contract;
 namespace console = charm::backend::contract::console;
 namespace host = charm::backend::host;
@@ -51,91 +50,58 @@ namespace cap {
     };
 }
 
-namespace role {
-    struct log {};
-    struct shell {};
-    struct app_store {};
-}
-
-namespace provider_instance {
-    struct buffered_console {
-        using charm_provider_instance_tag = void;
-        static constexpr std::string_view name{host::BufferedConsoleProvider::provider_instance};
-    };
-
-    struct memory_block_app_store {
-        using charm_provider_instance_tag = void;
-        static constexpr std::string_view name{host::MemoryBlockProvider::provider_instance};
-    };
-}
-
-namespace provider_type {
-    struct host_buffered_console_provider {};
-    struct host_memory_block_provider {};
-}
-
-namespace backend {
-    struct host_reference {};
-}
-
-namespace runtime_domain {
-    struct host_process {};
-}
-
-namespace adapter {
-    struct host_memory_console_adapter {};
-    struct host_memory_block_adapter {};
-}
-
 namespace {
-    using LogReq = topo::Requirement<cap::TextSink, role::log>;
-    using ShellReq = topo::Requirement<cap::LineSource, role::shell>;
-    using AppStoreReq = topo::Requirement<cap::BlockDevice, role::app_store>;
+    enum class ContractKey : std::uint8_t {
+        text_sink,
+        line_source,
+        block_device,
+    };
+    enum class RequirementKey : std::uint8_t {
+        log,
+        shell,
+        app_store,
+    };
+    enum class ProvisionKey : std::uint8_t {
+        console_text,
+        console_line,
+        memory_block,
+    };
 
-    using LogProv = topo::Provided<cap::TextSink, role::log>;
-    using ShellProv = topo::Provided<cap::LineSource, role::shell>;
-    using AppStoreProv = topo::Provided<cap::BlockDevice, role::app_store>;
-
-    using ConsoleDesc = topo::ProviderDesc<provider_instance::buffered_console,
-                                           topo::ProviderSet<LogProv, ShellProv>>;
-    using BlockDesc = topo::ProviderDesc<provider_instance::memory_block_app_store,
-                                         topo::ProviderSet<AppStoreProv>>;
-    using Providers = std::tuple<ConsoleDesc, BlockDesc>;
-
-    using ConsoleMeta = topo::ProviderMeta<provider_instance::buffered_console,
-                                           provider_type::host_buffered_console_provider,
-                                           backend::host_reference,
-                                           runtime_domain::host_process,
-                                           adapter::host_memory_console_adapter>;
-    using BlockMeta = topo::ProviderMeta<provider_instance::memory_block_app_store,
-                                         provider_type::host_memory_block_provider,
-                                         backend::host_reference,
-                                         runtime_domain::host_process,
-                                         adapter::host_memory_block_adapter>;
-    using Metas = std::tuple<ConsoleMeta, BlockMeta>;
-
-    using LogBinding = topo::ProfileBinding<LogReq, provider_instance::buffered_console>;
-    using ShellBinding = topo::ProfileBinding<ShellReq, provider_instance::buffered_console>;
-    using AppStoreBinding = topo::ProfileBinding<AppStoreReq, provider_instance::memory_block_app_store>;
-    using BadAppStoreBinding = topo::ProfileBinding<AppStoreReq, provider_instance::buffered_console>;
-    using Bindings = std::tuple<LogBinding, ShellBinding, AppStoreBinding>;
-    using Requirements = topo::RequirementSet<LogReq, ShellReq, AppStoreReq>;
+    constexpr std::array requirements{
+        relation::Requirement<ContractKey, RequirementKey>{
+            RequirementKey::log, ContractKey::text_sink},
+        relation::Requirement<ContractKey, RequirementKey>{
+            RequirementKey::shell, ContractKey::line_source},
+        relation::Requirement<ContractKey, RequirementKey>{
+            RequirementKey::app_store, ContractKey::block_device},
+    };
+    constexpr std::array provisions{
+        relation::Provision<ContractKey, ProvisionKey>{
+            ProvisionKey::console_text, ContractKey::text_sink},
+        relation::Provision<ContractKey, ProvisionKey>{
+            ProvisionKey::console_line, ContractKey::line_source},
+        relation::Provision<ContractKey, ProvisionKey>{
+            ProvisionKey::memory_block, ContractKey::block_device},
+    };
+    constexpr std::array bindings{
+        relation::Binding<RequirementKey, ProvisionKey>{
+            RequirementKey::log, ProvisionKey::console_text},
+        relation::Binding<RequirementKey, ProvisionKey>{
+            RequirementKey::shell, ProvisionKey::console_line},
+        relation::Binding<RequirementKey, ProvisionKey>{
+            RequirementKey::app_store, ProvisionKey::memory_block},
+    };
 
     static_assert(cap::TextSink::satisfied_by<host::BufferedConsoleProvider>);
     static_assert(cap::LineSource::satisfied_by<host::BufferedConsoleProvider>);
     static_assert(cap::BlockDevice::satisfied_by<host::MemoryBlockProvider>);
-    static_assert(topo::binding_valid_v<LogBinding, Providers>);
-    static_assert(topo::binding_valid_v<ShellBinding, Providers>);
-    static_assert(topo::binding_valid_v<AppStoreBinding, Providers>);
-    static_assert(!topo::binding_valid_v<BadAppStoreBinding, Providers>);
-    static_assert(topo::requirements_bound_once_v<Bindings, Requirements>);
-    static_assert(topo::binding_has_meta_v<LogBinding, Metas>);
-    static_assert(topo::binding_has_meta_v<AppStoreBinding, Metas>);
+    static_assert(requirements.size() == bindings.size());
+    static_assert(provisions.size() == bindings.size());
 
-    bool diagnostics_app(auto& context) {
-        auto& log = context.template get<LogReq>();
-        auto& shell = context.template get<ShellReq>();
-        auto& app_store = context.template get<AppStoreReq>();
+    bool diagnostics_app(host::BufferedConsoleProvider& console_provider,
+                         host::MemoryBlockProvider& app_store) {
+        auto& log = console_provider;
+        auto& shell = console_provider;
 
         log.scripted_lines[0] = "status";
         log.scripted_line_count = 1;
@@ -172,22 +138,13 @@ namespace {
     bool run_smoke() {
         host::ReferenceBackend backend{};
 
-        using LogRef = topo::ProviderRef<cap::TextSink, provider_instance::buffered_console, host::BufferedConsoleProvider>;
-        using ShellRef = topo::ProviderRef<cap::LineSource, provider_instance::buffered_console, host::BufferedConsoleProvider>;
-        using AppStoreRef = topo::ProviderRef<cap::BlockDevice, provider_instance::memory_block_app_store, host::MemoryBlockProvider>;
-
-        topo::ContextView context{
-            topo::RuntimeBinding<LogReq, LogRef>{LogRef{backend.console}},
-            topo::RuntimeBinding<ShellReq, ShellRef>{ShellRef{backend.console}},
-            topo::RuntimeBinding<AppStoreReq, AppStoreRef>{AppStoreRef{backend.app_store}},
-        };
-
         bool ok = true;
-        ok &= expect(diagnostics_app(context), "app should consume host providers through requirements");
+        ok &= expect(diagnostics_app(backend.console, backend.app_store),
+                     "app should consume explicitly materialized host provisions");
         ok &= expect(backend.console.bytes_accepted == 4U, "console provider should record accepted bytes");
         ok &= expect(backend.console.flush_count == 1U, "console provider should record flushes");
         ok &= expect(backend.console.lines_polled == 1U, "console provider should record line polling");
-        const auto log_frame = backend.console.evidence_frame(console::TextSink::name, "log");
+        const auto log_frame = backend.console.evidence_frame(console::TextSink::label, "log");
         const auto log_view = console::project_view(log_frame);
         ok &= expect(log_view.capability_name == "TextSink", "host console evidence should use contract console capability");
         ok &= expect(log_view.requirement_role == "log", "host console evidence should preserve role");

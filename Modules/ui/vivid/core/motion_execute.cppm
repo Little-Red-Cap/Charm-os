@@ -6,6 +6,30 @@ export import charm.ui.scene;
 export import charm.ui.scene.motion_compose;
 
 export namespace ui::scene {
+    struct MotionComposeDryRunResult {
+        bool valid{false};
+        MotionComposeBridgeResult bridge{};
+        LayerComposePlan plan{};
+        LayerBudgetResult budget{};
+    };
+
+    struct MotionComposeProfileDecision {
+        bool valid{false};
+        LayerProfileDecision profile{};
+    };
+
+    constexpr MotionComposeProfileDecision decide_motion_compose_profile(
+        LayerProfile requested,
+        const MotionComposeDryRunResult& dry_run) noexcept {
+        if (!dry_run.valid) {
+            return {};
+        }
+        return {
+            .valid = true,
+            .profile = decide_layer_profile(requested, dry_run.budget),
+        };
+    }
+
     [[nodiscard]] MotionComposeDryRunResult dry_run_motion_compose(
         const MotionComposeRequest& request,
         Scene& scene,

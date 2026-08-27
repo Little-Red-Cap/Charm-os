@@ -1,5 +1,5 @@
-#include "Backends/contract/capability_topology.hpp"
 #include "Backends/contract/console_output.hpp"
+#include "Modules/core/capability/relations.hpp"
 
 #include <array>
 #include <cstddef>
@@ -9,7 +9,6 @@
 #include <optional>
 #include <span>
 #include <string_view>
-#include <tuple>
 
 namespace cap {
     using Status = charm::backend::contract::console::Status;
@@ -20,10 +19,13 @@ namespace cap {
     using LineSource = charm::backend::contract::console::LineSource;
 }
 
-namespace role {
-    using log = charm::backend::contract::console::role::log;
-    using debug_trace = charm::backend::contract::console::role::debug_trace;
-    using shell = charm::backend::contract::console::role::shell;
+namespace requirement_label {
+    struct log {
+        static constexpr std::string_view name{"log"};
+    };
+    struct shell {
+        static constexpr std::string_view name{"shell"};
+    };
 }
 
 namespace provider_instance {
@@ -102,8 +104,8 @@ namespace console_evidence {
         (void)presentation.ring_used;
         (void)presentation.ring_size;
         return ConsoleEvidenceView{
-            .capability_name = cap::TextSink::name,
-            .requirement_role = role::log::name,
+            .capability_name = cap::TextSink::label,
+            .requirement_role = requirement_label::log::name,
             .provider_instance = "h747.usart1.console",
             .runtime_domain = "h747_cm7",
             .transport = "usart1",
@@ -120,52 +122,52 @@ namespace console_evidence {
     }
 }
 
-namespace topo = charm::backend::contract;
+namespace relation = charm::capability;
 
 namespace {
-    using LogReq = topo::Requirement<cap::TextSink, role::log>;
-    using TraceReq = topo::Requirement<cap::TextSink, role::debug_trace>;
-    using ShellReq = topo::Requirement<cap::LineSource, role::shell>;
+    enum class ContractKey : std::uint8_t {
+        text_sink,
+        line_source,
+    };
+    enum class RequirementKey : std::uint8_t {
+        log,
+        shell,
+    };
+    enum class ProvisionKey : std::uint8_t {
+        console_text,
+        console_line,
+    };
 
-    using LogProv = topo::Provided<cap::TextSink, role::log>;
-    using TraceProv = topo::Provided<cap::TextSink, role::debug_trace>;
-    using ShellProv = topo::Provided<cap::LineSource, role::shell>;
+    constexpr std::array requirements{
+        relation::Requirement<ContractKey, RequirementKey>{
+            RequirementKey::log, ContractKey::text_sink},
+        relation::Requirement<ContractKey, RequirementKey>{
+            RequirementKey::shell, ContractKey::line_source},
+    };
+    constexpr std::array provisions{
+        relation::Provision<ContractKey, ProvisionKey>{
+            ProvisionKey::console_text, ContractKey::text_sink},
+        relation::Provision<ContractKey, ProvisionKey>{
+            ProvisionKey::console_line, ContractKey::line_source},
+    };
+    constexpr std::array bindings{
+        relation::Binding<RequirementKey, ProvisionKey>{
+            RequirementKey::log, ProvisionKey::console_text},
+        relation::Binding<RequirementKey, ProvisionKey>{
+            RequirementKey::shell, ProvisionKey::console_line},
+    };
 
-    using BufferedConsoleDesc = topo::ProviderDesc<provider_instance::host_buffered_console,
-                                                   topo::ProviderSet<LogProv, ShellProv>>;
-    using TraceBufferDesc = topo::ProviderDesc<provider_instance::host_trace_buffer,
-                                               topo::ProviderSet<TraceProv>>;
-    using Providers = std::tuple<BufferedConsoleDesc, TraceBufferDesc>;
-
-    using BufferedConsoleMeta = topo::ProviderMeta<provider_instance::host_buffered_console,
-                                                   provider_type::host_buffered_console_provider,
-                                                   backend::host,
-                                                   runtime_domain::host_process,
-                                                   adapter::host_memory_console_adapter,
-                                                   transport::memory_buffer>;
+    struct BufferedConsoleMeta {
+        using provider_instance = provider_instance::host_buffered_console;
+        using provider_type = provider_type::host_buffered_console_provider;
+        using backend = backend::host;
+        using runtime_domain = runtime_domain::host_process;
+        using adapter = adapter::host_memory_console_adapter;
+    };
     using BufferedConsoleTransport = transport::memory_buffer;
 
-    using LogBinding = topo::ProfileBinding<LogReq, provider_instance::host_buffered_console>;
-    using ShellBinding = topo::ProfileBinding<ShellReq, provider_instance::host_buffered_console>;
-    using TraceBinding = topo::ProfileBinding<TraceReq, provider_instance::host_trace_buffer>;
-    using BadShellBinding = topo::ProfileBinding<ShellReq, provider_instance::host_trace_buffer>;
-    using DuplicateBindings = std::tuple<LogBinding, ShellBinding, LogBinding>;
-    using ValidBindings = std::tuple<LogBinding, ShellBinding>;
-    using Requirements = topo::RequirementSet<LogReq, ShellReq>;
-
-    static_assert(topo::CanMakeProfileBinding<LogReq, provider_instance::host_buffered_console>);
-    static_assert(!topo::CanMakeProfileBinding<LogReq, provider_type::host_buffered_console_provider>);
-    static_assert(!topo::CanMakeProfileBinding<LogReq, adapter::host_memory_console_adapter>);
-    static_assert(!topo::CanMakeProfileBinding<LogReq, backend::host>);
-    static_assert(!topo::CanMakeProfileBinding<LogReq, transport::memory_buffer>);
-    static_assert(!topo::CanMakeProfileBinding<LogReq, hal::file_api>);
-
-    static_assert(topo::binding_valid_v<LogBinding, Providers>);
-    static_assert(topo::binding_valid_v<ShellBinding, Providers>);
-    static_assert(topo::binding_valid_v<TraceBinding, Providers>);
-    static_assert(!topo::binding_valid_v<BadShellBinding, Providers>);
-    static_assert(topo::requirements_bound_once_v<ValidBindings, Requirements>);
-    static_assert(!topo::requirements_bound_once_v<DuplicateBindings, Requirements>);
+    static_assert(requirements.size() == bindings.size());
+    static_assert(provisions.size() == bindings.size());
 
     struct BufferedConsole {
         std::array<std::byte, 32> tx{};
@@ -235,8 +237,8 @@ namespace {
 
     [[nodiscard]] console_evidence::ConsoleEvidenceFrame make_log_evidence(const BufferedConsole& provider) noexcept {
         return console_evidence::ConsoleEvidenceFrame{
-            .capability_name = cap::TextSink::name,
-            .requirement_role = role::log::name,
+            .capability_name = cap::TextSink::label,
+            .requirement_role = requirement_label::log::name,
             .provider_instance = BufferedConsoleMeta::provider_instance::name,
             .provider_type = BufferedConsoleMeta::provider_type::name,
             .backend = BufferedConsoleMeta::backend::name,
@@ -258,14 +260,14 @@ namespace {
 
     [[nodiscard]] console_evidence::ConsoleEvidenceFrame make_shell_evidence(const BufferedConsole& provider) noexcept {
         auto frame = make_log_evidence(provider);
-        frame.capability_name = cap::LineSource::name;
-        frame.requirement_role = role::shell::name;
+        frame.capability_name = cap::LineSource::label;
+        frame.requirement_role = requirement_label::shell::name;
         return frame;
     }
 
-    bool diagnostics_app(auto& context) {
-        auto& log = context.template get<LogReq>();
-        auto& shell = context.template get<ShellReq>();
+    bool diagnostics_app(BufferedConsole& provider) {
+        auto& log = provider;
+        auto& shell = provider;
 
         const auto hello = log.write("hello");
         const auto line = shell.poll_line();
@@ -290,16 +292,10 @@ namespace {
         BufferedConsole provider{};
         console_evidence::ConsoleEvidenceCollector collector{};
 
-        using LogRef = topo::ProviderRef<cap::TextSink, provider_instance::host_buffered_console, BufferedConsole>;
-        using ShellRef = topo::ProviderRef<cap::LineSource, provider_instance::host_buffered_console, BufferedConsole>;
-        topo::ContextView context{
-            topo::RuntimeBinding<LogReq, LogRef>{LogRef{provider}},
-            topo::RuntimeBinding<ShellReq, ShellRef>{ShellRef{provider}},
-        };
-
         bool ok = true;
         ok &= expect(collector.count == 0U, "evidence collector should not be part of app execution");
-        ok &= expect(diagnostics_app(context), "app should consume TextSink and LineSource requirements");
+        ok &= expect(diagnostics_app(provider),
+                     "app should consume explicitly materialized console provisions");
         ok &= expect(provider.tx_used == 5U && provider.flush_count == 1U, "provider should record app output");
         ok &= expect(provider.lines_polled == 1U, "provider should record line polling");
         ok &= expect(collector.count == 0U, "app should not collect provider evidence directly");

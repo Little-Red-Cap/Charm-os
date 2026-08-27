@@ -191,6 +191,7 @@ namespace charm::backend::host {
             contract::CapabilityExport{
                 .capability_name = "TextSink",
                 .requirement_role = "log",
+                .provision_label = "console.text",
                 .provider_instance = BufferedConsoleProvider::provider_instance,
                 .provider_type = BufferedConsoleProvider::provider_type,
                 .runtime_domain = BufferedConsoleProvider::runtime_domain,
@@ -199,6 +200,7 @@ namespace charm::backend::host {
             contract::CapabilityExport{
                 .capability_name = "LineSource",
                 .requirement_role = "shell",
+                .provision_label = "console.line",
                 .provider_instance = BufferedConsoleProvider::provider_instance,
                 .provider_type = BufferedConsoleProvider::provider_type,
                 .runtime_domain = BufferedConsoleProvider::runtime_domain,
@@ -207,6 +209,7 @@ namespace charm::backend::host {
             contract::CapabilityExport{
                 .capability_name = "BlockDevice",
                 .requirement_role = "app_store",
+                .provision_label = "block.memory.app_store",
                 .provider_instance = MemoryBlockProvider::provider_instance,
                 .provider_type = MemoryBlockProvider::provider_type,
                 .runtime_domain = MemoryBlockProvider::runtime_domain,
@@ -218,18 +221,21 @@ namespace charm::backend::host {
             contract::BindingEvidence{
                 .capability_name = "TextSink",
                 .requirement_role = "log",
+                .provision_label = "console.text",
                 .provider_instance = BufferedConsoleProvider::provider_instance,
                 .selection = "explicit_binding",
             },
             contract::BindingEvidence{
                 .capability_name = "LineSource",
                 .requirement_role = "shell",
+                .provision_label = "console.line",
                 .provider_instance = BufferedConsoleProvider::provider_instance,
                 .selection = "explicit_binding",
             },
             contract::BindingEvidence{
                 .capability_name = "BlockDevice",
                 .requirement_role = "app_store",
+                .provision_label = "block.memory.app_store",
                 .provider_instance = MemoryBlockProvider::provider_instance,
                 .selection = "explicit_binding",
             },

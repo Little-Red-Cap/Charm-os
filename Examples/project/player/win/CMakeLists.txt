@@ -38,12 +38,12 @@ foreach(_target IN ITEMS ${PLAYER_TARGET_VIVID} ${PLAYER_TARGET_VIVID_MD3})
     target_sources(${_target}
         PRIVATE
             "${CMAKE_CURRENT_SOURCE_DIR}/main.ui_ci.object_tree.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/main.host_module.cppm"
         PRIVATE
         FILE_SET modules TYPE CXX_MODULES
         BASE_DIRS
             "${CHARM_ROOT}"
         FILES
-            "${CMAKE_CURRENT_SOURCE_DIR}/main.host_module.cppm"
             "${CMAKE_CURRENT_SOURCE_DIR}/player.font_cache_win32.cppm"
             "${CMAKE_CURRENT_SOURCE_DIR}/player.host_features_compat.cppm"
             "${CMAKE_CURRENT_SOURCE_DIR}/player.time_utils_win32.cppm"
@@ -170,7 +170,7 @@ set(CHARM_PLAYER_EXCLUDE_REGEX_BASE "/stm32f407/|/stn32h747[^/]*/|/stn32common/"
 set(CHARM_PLAYER_EXCLUDE_REGEX_VIVID "${CHARM_PLAYER_EXCLUDE_REGEX_BASE}|/app-ink/")
 set(CHARM_PLAYER_EXCLUDE_REGEX_INK "${CHARM_PLAYER_EXCLUDE_REGEX_BASE}|/app-vivid/|/player\\.runtime(_probe)?\\.cppm$")
 set(CHARM_PLAYER_EXCLUDE_REGEX_MD3
-    "${CHARM_PLAYER_EXCLUDE_REGEX_BASE}|/app-ink/|/app-vivid/|/player\\.md3_port\\.cppm$")
+    "${CHARM_PLAYER_EXCLUDE_REGEX_BASE}|/app-ink/|/app-vivid/|/player\\.md3_port\\.cppm$|/player\\.(platform|runtime|board_runtime|runtime_probe|runtime_shell)\\.cppm$")
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     set_source_files_properties(

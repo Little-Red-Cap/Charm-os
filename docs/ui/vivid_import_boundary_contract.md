@@ -68,7 +68,8 @@ Profile Compiler 是 Vivid `Implementation / Tool`，不进入 Charm Core，也�
   command/pixel payload 或 replay workspace。
 - `builder_support` 负责 construction/access aliases，不负责 render/snapshot/evidence formatting。
 - `layer_support` 只负责 layer stats 与 capture/replay value result，不公开 Scene payload/record 存储。
-- `layer_runtime` 只定义 handle/spec/plan/budget 等值协议，不拥有或导出 snapshot store。
+- `layer_runtime` 只定义 handle/spec/budget 等纯值协议，不拥有或导出 snapshot store；Scene-issued compose
+  plan 由 `charm.ui.scene` 自身拥有。
 - `scene:render_detail` 负责 Scene-private stats conversion、pixel decode/blend 与 compose glue，不建立第二个 render surface。
 
 ### Internal runtime

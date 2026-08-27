@@ -1,5 +1,5 @@
 #include "Backends/contract/block_storage.hpp"
-#include "Backends/contract/capability_topology.hpp"
+#include "Modules/core/capability/relations.hpp"
 
 #include <array>
 #include <cstddef>
@@ -7,9 +7,8 @@
 #include <cstring>
 #include <span>
 #include <string_view>
-#include <tuple>
 
-namespace topo = charm::backend::contract;
+namespace relation = charm::capability;
 namespace block = charm::backend::contract::block;
 
 namespace provider_instance {
@@ -17,30 +16,6 @@ namespace provider_instance {
         using charm_provider_instance_tag = void;
         static constexpr std::string_view name{"host.memory_block_app_store"};
     };
-}
-
-namespace provider_type {
-    struct memory_block_provider {};
-}
-
-namespace backend {
-    struct host_reference {};
-}
-
-namespace runtime_domain {
-    struct host_process {};
-}
-
-namespace adapter {
-    struct memory_block_adapter {};
-}
-
-namespace media_kind {
-    struct host_memory {};
-}
-
-namespace hal {
-    struct file_api {};
 }
 
 namespace {
@@ -101,35 +76,28 @@ namespace {
         }
     };
 
-    using AppStoreReq = topo::Requirement<block::BlockDevice, block::role::app_store>;
-    using ResourceReq = topo::Requirement<block::BlockDevice, block::role::resource_media>;
-    using AppStoreProv = topo::Provided<block::BlockDevice, block::role::app_store>;
+    enum class ContractKey : std::uint8_t {
+        block_device,
+    };
+    enum class RequirementKey : std::uint8_t {
+        app_store,
+    };
+    enum class ProvisionKey : std::uint8_t {
+        memory_block,
+    };
 
-    using ProviderDesc = topo::ProviderDesc<provider_instance::memory_block_app_store,
-                                            topo::ProviderSet<AppStoreProv>>;
-    using Providers = std::tuple<ProviderDesc>;
-    using ProviderMeta = topo::ProviderMeta<provider_instance::memory_block_app_store,
-                                            provider_type::memory_block_provider,
-                                            backend::host_reference,
-                                            runtime_domain::host_process,
-                                            adapter::memory_block_adapter,
-                                            media_kind::host_memory>;
-    using Metas = std::tuple<ProviderMeta>;
-    using AppStoreBinding = topo::ProfileBinding<AppStoreReq, provider_instance::memory_block_app_store>;
-    using BadResourceBinding = topo::ProfileBinding<ResourceReq, provider_instance::memory_block_app_store>;
-    using Requirements = topo::RequirementSet<AppStoreReq>;
-    using Bindings = std::tuple<AppStoreBinding>;
+    constexpr relation::Requirement<ContractKey, RequirementKey> requirement{
+        RequirementKey::app_store, ContractKey::block_device};
+    constexpr relation::Provision<ContractKey, ProvisionKey> provision{
+        ProvisionKey::memory_block, ContractKey::block_device};
+    constexpr relation::Binding<RequirementKey, ProvisionKey> binding{
+        RequirementKey::app_store, ProvisionKey::memory_block};
 
     static_assert(block::BlockDevice::satisfied_by<MemoryBlock>);
     static_assert(!block::BlockDevice::satisfied_by<MissingGeometry>);
-    static_assert(topo::binding_valid_v<AppStoreBinding, Providers>);
-    static_assert(!topo::binding_valid_v<BadResourceBinding, Providers>);
-    static_assert(topo::requirements_bound_once_v<Bindings, Requirements>);
-    static_assert(topo::binding_has_meta_v<AppStoreBinding, Metas>);
-    static_assert(!topo::CanMakeProfileBinding<AppStoreReq, provider_type::memory_block_provider>);
-    static_assert(!topo::CanMakeProfileBinding<AppStoreReq, adapter::memory_block_adapter>);
-    static_assert(!topo::CanMakeProfileBinding<AppStoreReq, block::BlockEndpoint>);
-    static_assert(!topo::CanMakeProfileBinding<AppStoreReq, hal::file_api>);
+    static_assert(requirement.contract == provision.contract);
+    static_assert(binding.requirement == requirement.key);
+    static_assert(binding.provision == provision.key);
 
     bool expect(const bool condition, const char* message) {
         if (!condition) {
@@ -170,8 +138,8 @@ namespace {
                      "provider should record last block error");
 
         const block::EvidenceFrame frame{
-            .capability_name = block::BlockDevice::name,
-            .requirement_role = block::role::app_store::name,
+            .capability_name = block::BlockDevice::label,
+            .requirement_role = "app_store",
             .provider_instance = provider_instance::memory_block_app_store::name,
             .provider_type = "host memory block provider",
             .block_endpoint = endpoint.name,

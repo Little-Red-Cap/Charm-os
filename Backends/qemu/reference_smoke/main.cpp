@@ -1,14 +1,15 @@
 #include "Backends/contract/backend_evidence.hpp"
-#include "Backends/contract/capability_topology.hpp"
 #include "Backends/qemu/qemu_reference.hpp"
+#include "Modules/core/capability/relations.hpp"
 
+#include <array>
 #include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <span>
 #include <string_view>
-#include <tuple>
 
-namespace topo = charm::backend::contract;
+namespace relation = charm::capability;
 namespace be = charm::backend::contract;
 namespace qemu = charm::backend::qemu;
 
@@ -24,60 +25,28 @@ namespace cap {
     };
 }
 
-namespace role {
-    struct early_console {};
-}
-
-namespace provider_instance {
-    struct early_console {
-        using charm_provider_instance_tag = void;
-        static constexpr std::string_view name{qemu::EarlyConsoleProvider::provider_instance};
-    };
-}
-
-namespace provider_type {
-    struct early_console_provider {};
-}
-
-namespace backend {
-    struct qemu_mps2_an500 {};
-}
-
-namespace runtime_domain {
-    struct qemu_m7 {};
-}
-
-namespace adapter {
-    struct qemu_console_adapter {};
-}
-
-namespace peripheral_endpoint {
-    struct h747_dsi {};
-}
-
 namespace {
-    using EarlyConsoleReq = topo::Requirement<cap::TextSink, role::early_console>;
-    using EarlyConsoleProv = topo::Provided<cap::TextSink, role::early_console>;
-    using EarlyConsoleDesc = topo::ProviderDesc<provider_instance::early_console,
-                                                topo::ProviderSet<EarlyConsoleProv>>;
-    using Providers = std::tuple<EarlyConsoleDesc>;
-    using EarlyConsoleMeta = topo::ProviderMeta<provider_instance::early_console,
-                                                provider_type::early_console_provider,
-                                                backend::qemu_mps2_an500,
-                                                runtime_domain::qemu_m7,
-                                                adapter::qemu_console_adapter>;
-    using Metas = std::tuple<EarlyConsoleMeta>;
-    using EarlyConsoleBinding = topo::ProfileBinding<EarlyConsoleReq, provider_instance::early_console>;
-    using Requirements = topo::RequirementSet<EarlyConsoleReq>;
-    using Bindings = std::tuple<EarlyConsoleBinding>;
+    enum class ContractKey : std::uint8_t {
+        text_sink,
+    };
+    enum class RequirementKey : std::uint8_t {
+        early_console,
+    };
+    enum class ProvisionKey : std::uint8_t {
+        semihost_console,
+    };
+
+    constexpr relation::Requirement<ContractKey, RequirementKey> requirement{
+        RequirementKey::early_console, ContractKey::text_sink};
+    constexpr relation::Provision<ContractKey, ProvisionKey> provision{
+        ProvisionKey::semihost_console, ContractKey::text_sink};
+    constexpr relation::Binding<RequirementKey, ProvisionKey> binding{
+        RequirementKey::early_console, ProvisionKey::semihost_console};
 
     static_assert(cap::TextSink::satisfied_by<qemu::EarlyConsoleProvider>);
-    static_assert(topo::binding_valid_v<EarlyConsoleBinding, Providers>);
-    static_assert(topo::requirements_bound_once_v<Bindings, Requirements>);
-    static_assert(topo::binding_has_meta_v<EarlyConsoleBinding, Metas>);
-    static_assert(!topo::CanMakeProfileBinding<EarlyConsoleReq, backend::qemu_mps2_an500>);
-    static_assert(!topo::CanMakeProfileBinding<EarlyConsoleReq, adapter::qemu_console_adapter>);
-    static_assert(!topo::CanMakeProfileBinding<EarlyConsoleReq, peripheral_endpoint::h747_dsi>);
+    static_assert(requirement.contract == provision.contract);
+    static_assert(binding.requirement == requirement.key);
+    static_assert(binding.provision == provision.key);
 
     bool expect(const bool condition, const char* message) {
         if (!condition) {

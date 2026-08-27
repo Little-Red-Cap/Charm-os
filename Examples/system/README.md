@@ -18,7 +18,7 @@
 | App Lab Host 主链 | [`app_lab_mainline_smoke`](app_lab_mainline_smoke/README.md) |
 | AppHost / poster | [`app_host_poster_demo`](app_host_poster_demo/README.md) |
 | Capability MVP | [`charm_capability_mvp`](charm_capability_mvp/README.md) |
-| reflected profile exploration | [`charm_spine_reflected_profile_smoke`](charm_spine_reflected_profile_smoke/README.md) |
+| Capability Core relations | [`charm_capability_relations`](charm_capability_relations/README.md) |
 
 QEMU token、failure taxonomy 和 runner 参数只在对应目录维护。
 
@@ -30,10 +30,10 @@ QEMU token、failure taxonomy 和 runner 参数只在对应目录维护。
 | Dev Loader receive/packet/handoff | `dev_loader_*` | [`Examples/dev_loader`](../dev_loader/README.md) |
 | Resident artifact/inspect/launcher | `resident_*` | [`resident image contract`](../../docs/architecture/resident_image_platform_v1_contract.md) |
 | runtime device/slot | `device_*` | [`driver model`](../../docs/architecture/driver_model.md)、[`IO`](../../docs/io/README.md) |
-| capability/backend adapter | `capability_topology_bridge_smoke`、`*_provider_smoke` | [`Core contract`](../../docs/architecture/charm_core_contract.md) |
+| capability/backend adapter | `charm_capability_relations`、`*_provider_smoke` | [`Core contract`](../../docs/architecture/charm_core_contract.md) |
 | power/signal | `power_demo`、`signal_state_closure_demo` | [`system docs`](../../docs/system/README.md) |
 | Player fixture | `player_*` | [`Player project`](../project/player/README.md) |
-| frozen RTE/Spine exploration | `rte_*`、`charm_spine_*`、`static_reflection_probe` | [`architecture exploration`](../../docs/architecture/README.md) |
+| static reflection toolchain probe | `static_reflection_probe` | [`architecture exploration`](../../docs/architecture/README.md) |
 
 每个 target、负例和编译参数由目录内 CMake/source 定义，本页不维护完整清单。
 

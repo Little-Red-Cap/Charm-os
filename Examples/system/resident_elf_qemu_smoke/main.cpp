@@ -157,11 +157,15 @@ void clear_run_region() noexcept {
     std::memset(g_elf_load_region, 0, sizeof(g_elf_load_region));
 }
 
-void reset_packetstream_buffers() noexcept {
+void clear_packetstream_runtime_buffers() noexcept {
     std::memset(g_packetstream_storage, 0, sizeof(g_packetstream_storage));
     std::memset(g_packetstream_transport_buffer, 0, sizeof(g_packetstream_transport_buffer));
-    std::memset(g_packetstream_stream, 0, sizeof(g_packetstream_stream));
     std::memset(g_packetstream_received_cache, 0, sizeof(g_packetstream_received_cache));
+}
+
+void reset_packetstream_buffers() noexcept {
+    clear_packetstream_runtime_buffers();
+    std::memset(g_packetstream_stream, 0, sizeof(g_packetstream_stream));
 }
 
 bool copy_elf_for_mutation(const unsigned char* image_bytes, std::size_t image_size) noexcept {
@@ -691,6 +695,112 @@ bool run_received_app(std::string_view name,
         received_name[cursor++] = name[i];
     }
     return run_image(std::string_view{received_name, cursor}, staged.image, arg_text);
+}
+
+bool verify_packetstream_fragmentation(const unsigned char* image_bytes,
+                                       std::size_t image_size) noexcept {
+    reset_packetstream_buffers();
+
+    const std::span<const std::byte> payload{
+        reinterpret_cast<const std::byte*>(image_bytes),
+        image_size,
+    };
+    constexpr std::uint32_t kPacketChunkSize = 257U;
+    constexpr std::uint32_t kIngressChunks[]{
+        1U,
+        27U,
+        113U,
+        256U,
+        512U,
+    };
+    const auto built = loader::packet_stream_build(loader::PacketStreamBuildConfig{
+                                                       .payload = payload,
+                                                       .chunk_size = kPacketChunkSize,
+                                                       .check_crc = true,
+                                                       .append_launch_dry_run = true,
+                                                   },
+                                                   std::span<std::byte>{g_packetstream_stream, sizeof(g_packetstream_stream)});
+    if (built.code != loader::PacketStreamBuildCode::ok) {
+        qemu_backend::write("resident-elf-qemu: packetstream fragmentation=failed build=");
+        qemu_backend::log_view(loader::packet_stream_build_code_name(built.code));
+        qemu_backend::write("\n");
+        return false;
+    }
+
+    for (const auto ingress_chunk : kIngressChunks) {
+        // Keep the generated stream immutable while each frontend model gets fresh receive state.
+        clear_packetstream_runtime_buffers();
+        MemoryStorage storage{
+            .data = g_packetstream_storage,
+            .size = sizeof(g_packetstream_storage),
+        };
+        loader::PacketRuntime packet_runtime{make_loader_storage(storage)};
+        loader::ByteTransportRuntime transport{
+            packet_runtime,
+            loader::ByteTransportConfig{
+                .buffer = std::span<std::byte>{g_packetstream_transport_buffer, sizeof(g_packetstream_transport_buffer)},
+                .max_payload_size = 512U,
+            },
+        };
+
+        loader::ByteTransportResult status{};
+        std::uint32_t offset = 0U;
+        while (offset < built.bytes_written) {
+            const auto remaining = built.bytes_written - offset;
+            const auto count = remaining < ingress_chunk ? remaining : ingress_chunk;
+            status = transport.ingest(std::span<const std::byte>{g_packetstream_stream + offset, count});
+            if (status.code != loader::ByteTransportCode::ok) {
+                break;
+            }
+            offset += count;
+        }
+        if (status.code == loader::ByteTransportCode::ok) {
+            status = transport.status();
+        }
+
+        const auto read = loader::received_image_read(loader::ReceivedImageReadConfig{
+            .status = status.packet.receive,
+            .manifest = status.packet.manifest,
+            .storage = make_loader_storage(storage),
+            .output = std::span<std::byte>{g_packetstream_received_cache, payload.size()},
+        });
+        const bool matches = read.code == loader::ReceivedImageReadCode::ok &&
+                             read.bytes_read == payload.size() &&
+                             std::memcmp(g_packetstream_received_cache, payload.data(), payload.size()) == 0;
+        const bool passed = status.code == loader::ByteTransportCode::ok &&
+                            status.packet.packet_code == loader::PacketCode::ok &&
+                            status.packet.receive.stage == loader::Stage::launch_ready &&
+                            status.packet.receive.code == loader::Code::ok &&
+                            status.packet.receive.actual_crc32 == status.packet.receive.expected_crc32 &&
+                            matches;
+        if (!passed) {
+            qemu_backend::write("resident-elf-qemu: packetstream fragmentation=failed ingress=");
+            qemu_backend::write_dec(ingress_chunk);
+            qemu_backend::write(" transport=");
+            qemu_backend::log_view(loader::byte_transport_code_name(status.code));
+            qemu_backend::write(" packet=");
+            qemu_backend::log_view(loader::packet_code_name(status.packet.packet_code));
+            qemu_backend::write(" stage=");
+            qemu_backend::log_view(loader::stage_name(status.packet.receive.stage));
+            qemu_backend::write(" code=");
+            qemu_backend::log_view(loader::code_name(status.packet.receive.code));
+            qemu_backend::write(" read=");
+            qemu_backend::log_view(loader::received_image_read_code_name(read.code));
+            qemu_backend::write(" bytes=");
+            qemu_backend::write_dec(read.bytes_read);
+            qemu_backend::write(" match=");
+            qemu_backend::write_dec(matches ? 1U : 0U);
+            qemu_backend::write("\n");
+            return false;
+        }
+    }
+
+    qemu_backend::write("resident-elf-qemu: packetstream fragmentation=ok packet_chunk=");
+    qemu_backend::write_dec(kPacketChunkSize);
+    qemu_backend::write(" ingress=1,27,113,256,512 payload=");
+    qemu_backend::write_dec(static_cast<std::uint32_t>(payload.size()));
+    qemu_backend::write("\n");
+    return true;
 }
 
 bool run_packetstream_received_app(std::string_view name,
@@ -1512,6 +1622,7 @@ extern "C" int resident_elf_qemu_main() {
     ok = qemu_backend::probe_unsupported_capabilities() && ok;
     ok = run_direct_app("hello_app", hello_app_elf, hello_app_elf_len, "alpha beta") && ok;
     ok = run_received_app("hello_app", hello_app_elf, hello_app_elf_len, "alpha beta") && ok;
+    ok = verify_packetstream_fragmentation(hello_app_elf, hello_app_elf_len) && ok;
     ok = run_packetstream_received_app("hello_app", hello_app_elf, hello_app_elf_len, "alpha beta") && ok;
     ok = run_store_app("hello_app", "alpha beta") && ok;
     ok = run_direct_app("argv_app", argv_app_elf, argv_app_elf_len, "one two three") && ok;

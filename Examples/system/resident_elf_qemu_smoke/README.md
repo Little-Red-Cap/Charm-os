@@ -11,6 +11,12 @@ in-memory Store v1 image, and stages `hello_app`, `player_min`,
 `argv_app`, `bss_app`, `data_app`, and `large_fit_app` back out of that Store before running
 them through the same staged runtime adapter. `argv_app` validates that AppRuntime builds the
 same `argc/argv` list for direct and Store-backed QEMU ELF runs. The
+packetstream path also builds one `hello_app` stream with 257-byte packet payloads, then replays
+that same immutable stream through fresh `ByteTransportRuntime` and `PacketRuntime` instances
+with 1, 27, 113, 256, and 512-byte ingress chunks. Each replay must reach `launch_ready`, retain
+the verified CRC, read the complete received image, and reproduce every payload byte. This is a
+raw byte-stream fragmentation contract check; it does not model USB CDC throughput or H747 USB
+peripherals.
 `prepare:argv_app` case validates the prepare-only path: ELF load and argv
 materialization complete, but the App entry is not called and no capability is
 touched. `console_error_app` validates that `console.write(nullptr, nonzero)`
@@ -352,6 +358,11 @@ independent directory. That directory owns `qemu-ci.log`, `qemu-ci.err.log`,
 `resident_elf_qemu_smoke`. For fully independent QEMU runs, also pass distinct
 `-BuildDir` and `-AppOutDir` values so generated firmware, generated App ELFs,
 and evidence files do not share writable paths.
+
+Without explicit path arguments, the smoke reuses one ignored working root:
+`cmake-build-resident-elf-qemu`. Its `apps` and `evidence` children contain all
+generated App ELF and QEMU evidence output, keeping source directories and
+`Examples/app_abi/elf_samples/out-qemu` free of routine run artifacts.
 Use
 `-ValidateLog resident_elf_qemu_smoke/qemu-ci.log` to classify an existing QEMU
 log without rebuilding or launching QEMU. Use

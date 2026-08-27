@@ -24,7 +24,10 @@
             std::byte{0x04}, std::byte{0x05}, std::byte{0x06}, std::byte{0x07},
         };
         static std::array<std::byte, player::PlayerOwnedDisplayBuffer::buffer_bytes> board_buffer{};
-        static player::PlayerBoardRuntimeStorage<PlayerUiContext, player::PlayerPage> board_runtime_storage{};
+        static player::HostPlayerBoardRuntimeStorage<
+            PlayerUiContext,
+            player::PlayerPage,
+            player::PlayerPlatform> board_runtime_storage{};
 
         UiCiTouchSampleScript touch_script{
             .samples = {
@@ -67,7 +70,7 @@
         const auto& font = bindings.app_config.font_resources;
 
         PlayerUiContext board_ctx{};
-        player::PlayerBoardRuntimeConfig<player::PlayerPage> runtime_config{
+        player::HostPlayerBoardRuntimeConfig<player::PlayerPage> runtime_config{
             .port = runtime_config_port,
             .storage_config = player::default_storage_config(),
             .start_page = player::PlayerPage::Home,
@@ -76,7 +79,7 @@
             .clear_color = kUiBackground,
         };
         player::PlayerDisplaySink runtime_sink =
-            player::make_player_board_runtime(g_clock, board_ctx, runtime_config, board_runtime_storage);
+        player::make_host_player_board_runtime(g_clock, board_ctx, runtime_config, board_runtime_storage);
         if (board_runtime_storage.runtime) {
             (void)board_runtime_storage.runtime->bootstrap();
         }
@@ -188,7 +191,7 @@
         };
     }
 
-    bool runtime_probe_result_matches_external_surface(const player::PlayerRuntimeMemoryProbeResult& result,
+    bool runtime_probe_result_matches_external_surface(const player::HostPlayerRuntimeMemoryProbeResult& result,
                                                        const player::PlayerDisplaySurface& presented) noexcept {
         return result.ok
             && presented.pixels == RuntimeMemoryProbeHostStorage::external_buffer.data()
@@ -200,11 +203,11 @@
             && result.dirty.h == screen_height;
     }
 
-    player::PlayerRuntimeMemoryProbeResult run_memory_display_sink_probe(const PreviewOptions& options = PreviewOptions{}) {
+    player::HostPlayerRuntimeMemoryProbeResult run_memory_display_sink_probe(const PreviewOptions& options = PreviewOptions{}) {
         auto memory_cfg = make_runtime_probe_config(options);
         player::MemoryDisplaySinkState sink_state{};
         player::PlayerDisplaySink sink = player::make_memory_display_sink(sink_state);
-        auto result = player::run_player_runtime_memory_probe(g_clock,
+        auto result = player::run_host_player_runtime_memory_probe(g_clock,
                                                               RuntimeMemoryProbeHostStorage::memory_platform,
                                                               RuntimeMemoryProbeHostStorage::memory_ctx,
                                                               std::move(memory_cfg),
@@ -253,7 +256,7 @@
         return true;
     }
 
-    player::PlayerRuntimeMemoryProbeResult run_board_display_sink_probe(const PreviewOptions& options = PreviewOptions{}) {
+    player::HostPlayerRuntimeMemoryProbeResult run_board_display_sink_probe(const PreviewOptions& options = PreviewOptions{}) {
         auto memory_cfg = make_runtime_probe_config(options);
         UiCiBoardDisplayCallbackState callback_state{};
         player::PlayerBoardDisplaySinkState sink_state{};
@@ -265,7 +268,7 @@
                 .flush_dirty = &ui_ci_board_flush_dirty,
                 .present = &ui_ci_board_present,
             });
-        auto result = player::run_player_runtime_memory_probe(g_clock,
+        auto result = player::run_host_player_runtime_memory_probe(g_clock,
                                                               RuntimeMemoryProbeHostStorage::memory_platform,
                                                               RuntimeMemoryProbeHostStorage::memory_ctx,
                                                               std::move(memory_cfg),

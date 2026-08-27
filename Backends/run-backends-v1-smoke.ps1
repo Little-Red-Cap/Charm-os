@@ -5,11 +5,6 @@ $repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
 
 $smokes = @(
     @{
-        Name = 'backends_contract_topology_header_smoke'
-        Source = 'Backends/contract/topology_header_smoke'
-        Build = 'Backends/contract/topology_header_smoke/cmake-build-backends-contract-topology-header-smoke'
-    },
-    @{
         Name = 'backends_contract_evidence_header_smoke'
         Source = 'Backends/contract/evidence_header_smoke'
         Build = 'Backends/contract/evidence_header_smoke/cmake-build-backends-contract-evidence-header-smoke'
@@ -43,11 +38,6 @@ $smokes = @(
         Name = 'backends_board_reference_smoke'
         Source = 'Backends/board/reference_smoke'
         Build = 'Backends/board/reference_smoke/cmake-build-backends-board-reference-smoke'
-    },
-    @{
-        Name = 'capability_topology_bridge_smoke'
-        Source = 'Examples/system/capability_topology_bridge_smoke'
-        Build = 'Examples/system/capability_topology_bridge_smoke/cmake-build-capability-topology-bridge-smoke'
     },
     @{
         Name = 'console_output_provider_smoke'

@@ -33,7 +33,7 @@ namespace charm::backend::contract::console {
     };
 
     struct ByteSink {
-        static constexpr std::string_view name{"ByteSink"};
+        static constexpr std::string_view label{"ByteSink"};
 
         template <typename T>
         static constexpr bool satisfied_by = requires(T& sink, std::span<const std::byte> bytes) {
@@ -43,7 +43,7 @@ namespace charm::backend::contract::console {
     };
 
     struct TextSink {
-        static constexpr std::string_view name{"TextSink"};
+        static constexpr std::string_view label{"TextSink"};
 
         template <typename T>
         static constexpr bool satisfied_by =
@@ -54,31 +54,13 @@ namespace charm::backend::contract::console {
     };
 
     struct LineSource {
-        static constexpr std::string_view name{"LineSource"};
+        static constexpr std::string_view label{"LineSource"};
 
         template <typename T>
         static constexpr bool satisfied_by = requires(T& source) {
             { source.poll_line() } noexcept -> std::same_as<std::optional<std::string_view>>;
         };
     };
-
-    namespace role {
-        struct log {
-            static constexpr std::string_view name{"log"};
-        };
-
-        struct debug_trace {
-            static constexpr std::string_view name{"debug_trace"};
-        };
-
-        struct shell {
-            static constexpr std::string_view name{"shell"};
-        };
-
-        struct early_console {
-            static constexpr std::string_view name{"early_console"};
-        };
-    }
 
     enum class EvidenceStatus : std::uint8_t {
         ok,

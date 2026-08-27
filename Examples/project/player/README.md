@@ -82,8 +82,9 @@ cmake --build --preset build-player-legacy-win-md3-debug
 ```
 
 legacy preset 也复用同一个 `cmake-build-player`；切回 canonical 时重新运行对应 configure preset。
-legacy storage VHD 没有仓库内默认路径；需要时显式传
-`-DPLAYER_HOST_STORAGE_VHD_PATH=<path>` 或设置同名环境变量。
+legacy storage VHD 不提交到仓库。配置时优先使用
+`-DPLAYER_HOST_STORAGE_VHD_PATH=<path>` 或同名环境变量；两者均未提供时，Windows legacy
+工程会在 Charm checkout 及其上两级目录中查找 `dev.vhd`，便于复用现有开发工作区资源盘。
 
 canonical Player-on-Host 执行端使用同一个 `Charm::player-md3`，只在显式 Host preset 中启用：
 

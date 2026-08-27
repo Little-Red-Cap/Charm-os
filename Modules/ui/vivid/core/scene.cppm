@@ -170,6 +170,29 @@ export namespace ui::scene {
         return end >= start ? clamp_scene_timing_us(end - start) : 0U;
     }
 
+    class Scene;
+
+    struct LayerComposePlan {
+        constexpr LayerComposePlan() noexcept = default;
+
+        bool valid{false};
+        SnapshotHandle source{};
+        SnapshotKind kind{SnapshotKind::EmptyFallback};
+        Rect source_bounds{};
+        Rect source_visible{};
+        Rect target_bounds{};
+        LayerTransform transform{};
+        std::uint32_t composite_pixels{0};
+        std::uint32_t source_bytes{0};
+
+    private:
+        friend class Scene;
+        std::uint32_t seal_{0};
+    };
+
+    static_assert(std::is_trivially_copyable_v<LayerComposePlan>);
+    static_assert(sizeof(LayerComposePlan) <= 80);
+
     class SceneOverlay {
     public:
         explicit SceneOverlay(ui::draw_cmd::DefaultDrawCmdBuffer& buf) noexcept : buf_(buf) {}
@@ -420,18 +443,33 @@ export namespace ui::scene {
         }
         LayerComposePlan make_snapshot_compose_plan(const LayerComposeSpec& spec) noexcept {
             if (!validate_snapshot_for_compose(spec.source)) return {};
-            return snapshot_store_.make_compose_plan(spec);
+            const auto source = snapshot_store_.make_compose_plan(spec);
+            if (!source.valid) return {};
+            LayerComposePlan plan{};
+            plan.valid = true;
+            plan.source = source.source;
+            plan.kind = source.kind;
+            plan.source_bounds = source.source_bounds;
+            plan.source_visible = source.source_visible;
+            plan.target_bounds = source.target_bounds;
+            plan.transform = source.transform;
+            plan.composite_pixels = source.composite_pixels;
+            plan.source_bytes = source.source_bytes;
+            seal_compose_plan(plan);
+            return plan;
         }
         LayerBudgetResult check_layer_budget(const LayerComposePlan& plan,
                                              const LayerBudget& budget) const noexcept {
-            return snapshot_store_.check_budget(plan, budget);
+            if (!compose_plan_authentic(plan)) return {.ok = false};
+            return snapshot_store_.check_budget(
+                plan.source, plan.composite_pixels, budget);
         }
         LayerReplayResult replay_command_snapshot(const LayerComposePlan& plan) noexcept {
             LayerReplayResult out{};
+            if (!compose_plan_authentic(plan)) return out;
             out.source = plan.source;
             out.kind = plan.kind;
             out.target_bounds = plan.target_bounds;
-            if (!plan.valid) return out;
             if constexpr (!snapshot_command_enabled) {
                 out.status = LayerReplayStatus::UnsupportedKind;
                 return out;
@@ -585,10 +623,10 @@ export namespace ui::scene {
         }
         LayerReplayResult compose_pixel_snapshot(const LayerComposePlan& plan) noexcept {
             LayerReplayResult out{};
+            if (!compose_plan_authentic(plan)) return out;
             out.source = plan.source;
             out.kind = plan.kind;
             out.target_bounds = plan.target_bounds;
-            if (!plan.valid) return out;
             if constexpr (!snapshot_pixel_enabled) {
                 out.status = LayerReplayStatus::UnsupportedKind;
                 return out;
@@ -664,6 +702,60 @@ export namespace ui::scene {
 
     private:
         friend class PageLayer;
+
+        [[nodiscard]] static constexpr std::uint32_t mix_compose_plan_seal(
+            std::uint32_t hash,
+            std::uint32_t value) noexcept {
+            return (hash ^ value) * 16777619u;
+        }
+
+        static constexpr void mix_compose_plan_rect(
+            std::uint32_t& hash,
+            const Rect& rect) noexcept {
+            hash = mix_compose_plan_seal(hash, static_cast<std::uint32_t>(rect.x));
+            hash = mix_compose_plan_seal(hash, static_cast<std::uint32_t>(rect.y));
+            hash = mix_compose_plan_seal(hash, static_cast<std::uint32_t>(rect.w));
+            hash = mix_compose_plan_seal(hash, static_cast<std::uint32_t>(rect.h));
+        }
+
+        [[nodiscard]] std::uint32_t compose_plan_seal(
+            const LayerComposePlan& plan) const noexcept {
+            std::uint32_t hash = 2166136261u;
+            const auto owner = reinterpret_cast<std::uintptr_t>(this);
+            hash = mix_compose_plan_seal(hash, static_cast<std::uint32_t>(owner));
+            if constexpr (sizeof(std::uintptr_t) > sizeof(std::uint32_t)) {
+                hash = mix_compose_plan_seal(
+                    hash,
+                    static_cast<std::uint32_t>(
+                        static_cast<std::uint64_t>(owner) >> 32u));
+            }
+            hash = mix_compose_plan_seal(hash, plan.valid ? 1u : 0u);
+            hash = mix_compose_plan_seal(hash, plan.source.slot);
+            hash = mix_compose_plan_seal(hash, plan.source.generation);
+            hash = mix_compose_plan_seal(hash, static_cast<std::uint32_t>(plan.kind));
+            mix_compose_plan_rect(hash, plan.source_bounds);
+            mix_compose_plan_rect(hash, plan.source_visible);
+            mix_compose_plan_rect(hash, plan.target_bounds);
+            hash = mix_compose_plan_seal(
+                hash, static_cast<std::uint32_t>(plan.transform.x));
+            hash = mix_compose_plan_seal(
+                hash, static_cast<std::uint32_t>(plan.transform.y));
+            hash = mix_compose_plan_seal(hash, plan.transform.opacity);
+            hash = mix_compose_plan_seal(hash, plan.composite_pixels);
+            hash = mix_compose_plan_seal(hash, plan.source_bytes);
+            return hash == 0 ? 1u : hash;
+        }
+
+        void seal_compose_plan(LayerComposePlan& plan) const noexcept {
+            plan.seal_ = plan.valid ? compose_plan_seal(plan) : 0u;
+        }
+
+        [[nodiscard]] bool compose_plan_authentic(
+            const LayerComposePlan& plan) const noexcept {
+            return plan.valid
+                && plan.seal_ != 0
+                && plan.seal_ == compose_plan_seal(plan);
+        }
 
         [[nodiscard]] SnapshotHandle reserve_snapshot_slot(
             const SnapshotSpec& spec) noexcept {

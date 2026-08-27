@@ -1,5 +1,5 @@
 #include "Backends/contract/block_storage.hpp"
-#include "Backends/contract/capability_topology.hpp"
+#include "Modules/core/capability/relations.hpp"
 
 #include <array>
 #include <cstddef>
@@ -8,7 +8,6 @@
 #include <cstring>
 #include <span>
 #include <string_view>
-#include <tuple>
 
 namespace cap {
     using Status = charm::backend::contract::block::Status;
@@ -16,9 +15,10 @@ namespace cap {
     using BlockDevice = charm::backend::contract::block::BlockDevice;
 }
 
-namespace role {
-    using app_store = charm::backend::contract::block::role::app_store;
-    using resource_media = charm::backend::contract::block::role::resource_media;
+namespace requirement_label {
+    struct app_store {
+        static constexpr std::string_view name{"app_store"};
+    };
 }
 
 namespace provider_instance {
@@ -85,45 +85,38 @@ namespace block_evidence {
     using charm::backend::contract::block::status_from_error;
 }
 
-namespace topo = charm::backend::contract;
+namespace relation = charm::capability;
 
 namespace {
-    using AppStoreReq = topo::Requirement<cap::BlockDevice, role::app_store>;
-    using ResourceReq = topo::Requirement<cap::BlockDevice, role::resource_media>;
-    using AppStoreProv = topo::Provided<cap::BlockDevice, role::app_store>;
-    using ResourceProv = topo::Provided<cap::BlockDevice, role::resource_media>;
+    enum class ContractKey : std::uint8_t {
+        block_device,
+    };
+    enum class RequirementKey : std::uint8_t {
+        app_store,
+    };
+    enum class ProvisionKey : std::uint8_t {
+        memory_block,
+    };
 
-    using AppStoreProviderDesc = topo::ProviderDesc<provider_instance::host_memory_block_app_store,
-                                                    topo::ProviderSet<AppStoreProv>>;
-    using ResourceProviderDesc = topo::ProviderDesc<provider_instance::host_memory_block_resource,
-                                                    topo::ProviderSet<ResourceProv>>;
-    using Providers = std::tuple<AppStoreProviderDesc, ResourceProviderDesc>;
+    constexpr relation::Requirement<ContractKey, RequirementKey> requirement{
+        RequirementKey::app_store, ContractKey::block_device};
+    constexpr relation::Provision<ContractKey, ProvisionKey> provision{
+        ProvisionKey::memory_block, ContractKey::block_device};
+    constexpr relation::Binding<RequirementKey, ProvisionKey> binding{
+        RequirementKey::app_store, ProvisionKey::memory_block};
 
-    using AppStoreMeta = topo::ProviderMeta<provider_instance::host_memory_block_app_store,
-                                            provider_type::host_memory_block_provider,
-                                            backend::host,
-                                            runtime_domain::host_process,
-                                            adapter::host_memory_block_adapter,
-                                            media_kind::host_memory>;
+    struct AppStoreMeta {
+        using provider_instance = provider_instance::host_memory_block_app_store;
+        using provider_type = provider_type::host_memory_block_provider;
+        using backend = backend::host;
+        using runtime_domain = runtime_domain::host_process;
+        using adapter = adapter::host_memory_block_adapter;
+    };
     using AppStoreMediaKind = media_kind::host_memory;
 
-    using AppStoreBinding = topo::ProfileBinding<AppStoreReq, provider_instance::host_memory_block_app_store>;
-    using BadResourceBinding = topo::ProfileBinding<ResourceReq, provider_instance::host_memory_block_app_store>;
-    using ValidBindings = std::tuple<AppStoreBinding>;
-    using DuplicateBindings = std::tuple<AppStoreBinding, AppStoreBinding>;
-    using Requirements = topo::RequirementSet<AppStoreReq>;
-
-    static_assert(topo::CanMakeProfileBinding<AppStoreReq, provider_instance::host_memory_block_app_store>);
-    static_assert(!topo::CanMakeProfileBinding<AppStoreReq, provider_type::host_memory_block_provider>);
-    static_assert(!topo::CanMakeProfileBinding<AppStoreReq, adapter::host_memory_block_adapter>);
-    static_assert(!topo::CanMakeProfileBinding<AppStoreReq, backend::host>);
-    static_assert(!topo::CanMakeProfileBinding<AppStoreReq, hal::file_api>);
-    static_assert(!topo::CanMakeProfileBinding<AppStoreReq, block::BlockEndpoint>);
-
-    static_assert(topo::binding_valid_v<AppStoreBinding, Providers>);
-    static_assert(!topo::binding_valid_v<BadResourceBinding, Providers>);
-    static_assert(topo::requirements_bound_once_v<ValidBindings, Requirements>);
-    static_assert(!topo::requirements_bound_once_v<DuplicateBindings, Requirements>);
+    static_assert(requirement.contract == provision.contract);
+    static_assert(binding.requirement == requirement.key);
+    static_assert(binding.provision == provision.key);
 
     struct MemoryBlockProvider {
         static constexpr std::uint64_t kBlockSize = 16;
@@ -231,8 +224,8 @@ namespace {
         const auto block_size = provider.block_size();
         const auto block_count = provider.block_count();
         return block_evidence::BlockEvidenceFrame{
-            .capability_name = cap::BlockDevice::name,
-            .requirement_role = role::app_store::name,
+            .capability_name = cap::BlockDevice::label,
+            .requirement_role = requirement_label::app_store::name,
             .provider_instance = AppStoreMeta::provider_instance::name,
             .provider_type = AppStoreMeta::provider_type::name,
             .block_endpoint = endpoint.name,

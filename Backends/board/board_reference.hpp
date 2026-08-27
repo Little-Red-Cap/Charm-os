@@ -55,6 +55,7 @@ namespace charm::backend::board {
             contract::CapabilityExport{
                 .capability_name = "TextSink",
                 .requirement_role = "early_console",
+                .provision_label = "uart.text",
                 .provider_instance = EarlyUartConsoleProviderEvidence::provider_instance,
                 .provider_type = EarlyUartConsoleProviderEvidence::provider_type,
                 .runtime_domain = EarlyUartConsoleProviderEvidence::runtime_domain,
@@ -63,6 +64,7 @@ namespace charm::backend::board {
             contract::CapabilityExport{
                 .capability_name = "LineSource",
                 .requirement_role = "shell",
+                .provision_label = "uart.line",
                 .provider_instance = EarlyUartConsoleProviderEvidence::provider_instance,
                 .provider_type = EarlyUartConsoleProviderEvidence::provider_type,
                 .runtime_domain = EarlyUartConsoleProviderEvidence::runtime_domain,
@@ -71,6 +73,7 @@ namespace charm::backend::board {
             contract::CapabilityExport{
                 .capability_name = "BlockDevice",
                 .requirement_role = "app_store",
+                .provision_label = "qspi.block",
                 .provider_instance = QspiBlockProviderEvidence::provider_instance,
                 .provider_type = QspiBlockProviderEvidence::provider_type,
                 .runtime_domain = QspiBlockProviderEvidence::runtime_domain,
@@ -79,6 +82,7 @@ namespace charm::backend::board {
             contract::CapabilityExport{
                 .capability_name = "BlockDevice",
                 .requirement_role = "resource_media",
+                .provision_label = "emmc.block",
                 .provider_instance = EmmcRawSlotProviderEvidence::provider_instance,
                 .provider_type = EmmcRawSlotProviderEvidence::provider_type,
                 .runtime_domain = EmmcRawSlotProviderEvidence::runtime_domain,
@@ -90,24 +94,28 @@ namespace charm::backend::board {
             contract::BindingEvidence{
                 .capability_name = "TextSink",
                 .requirement_role = "early_console",
+                .provision_label = "uart.text",
                 .provider_instance = EarlyUartConsoleProviderEvidence::provider_instance,
                 .selection = "explicit_binding",
             },
             contract::BindingEvidence{
                 .capability_name = "LineSource",
                 .requirement_role = "shell",
+                .provision_label = "uart.line",
                 .provider_instance = EarlyUartConsoleProviderEvidence::provider_instance,
                 .selection = "explicit_binding",
             },
             contract::BindingEvidence{
                 .capability_name = "BlockDevice",
                 .requirement_role = "app_store",
+                .provision_label = "qspi.block",
                 .provider_instance = QspiBlockProviderEvidence::provider_instance,
                 .selection = "explicit_binding",
             },
             contract::BindingEvidence{
                 .capability_name = "BlockDevice",
                 .requirement_role = "resource_media",
+                .provision_label = "emmc.block",
                 .provider_instance = EmmcRawSlotProviderEvidence::provider_instance,
                 .selection = "explicit_binding",
             },

@@ -90,6 +90,11 @@ capture result 以值语义返回 kind、实际 payload bytes 和 command count�
 occupied/stale record 属于 Scene private partition；command/pixel payload 与 replay workspace 属于 internal
 runtime module。产品 evidence 不持有 store/record 指针，也不以内存 slot 编号证明资源复用。
 
+compose plan 是由目标 `Scene` 签发的短生命周期值，内部 32-bit seal 覆盖 Scene identity、handle、kind、
+source/target rectangles、transform 与 budget evidence。调用方可以复制和读取 plan，但手工构造、字段篡改
+或跨 Scene 使用必须在 budget/replay 前返回无效；plan 保持 trivially copyable，尺寸上限为 80B，不增加
+Scene 常驻 RAM。
+
 `TileSurface` 或其它 snapshot kind 在进入 source、测试和 ownership 证据前不属于 v0 保证。
 
 ## 生命周期闭环

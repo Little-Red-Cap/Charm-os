@@ -94,11 +94,11 @@
             return false;
         }
 
-        const auto previous_binding = player::cover_resource_provider_binding();
-        player::set_cover_resource_provider_binding(player::PlayerCoverResourceProviderBinding{
+        const auto previous_binding = controller->cover_resource_binding;
+        controller->cover_resource_binding = player::PlayerCoverResourceProviderBinding{
             .ctx = nullptr,
             .resolve_fn = &ui_ci_static_cover_provider,
-        });
+        };
 
         controller->cover_strategy = player::CoverStrategy::embedded_only;
         controller->cover_ready = true;
@@ -115,8 +115,8 @@
             && controller->current_cover.height == 2
             && controller->current_cover.key.view() == "/ui-ci/static-cover-resource";
 
-        player::set_cover_resource_provider_binding(previous_binding);
-        const auto active_binding = player::cover_resource_provider_binding();
+        controller->cover_resource_binding = previous_binding;
+        const auto active_binding = controller->cover_resource_binding;
         const bool restored = active_binding.ctx == previous_binding.ctx
             && active_binding.resolve_fn == previous_binding.resolve_fn;
         return provider_used && restored;

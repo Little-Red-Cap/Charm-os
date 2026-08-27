@@ -5,6 +5,8 @@
 #include <string_view>
 
 namespace charm::backend::contract {
+    // String fields in this file are non-authoritative presentation labels.
+    // Relation identity is carried by project-local strong keys.
     enum class BackendKind {
         host,
         qemu,
@@ -46,6 +48,7 @@ namespace charm::backend::contract {
     struct CapabilityExport {
         std::string_view capability_name{};
         std::string_view requirement_role{};
+        std::string_view provision_label{};
         std::string_view provider_instance{};
         std::string_view provider_type{};
         std::string_view runtime_domain{};
@@ -55,6 +58,7 @@ namespace charm::backend::contract {
     struct BindingEvidence {
         std::string_view capability_name{};
         std::string_view requirement_role{};
+        std::string_view provision_label{};
         std::string_view provider_instance{};
         std::string_view selection{};
     };

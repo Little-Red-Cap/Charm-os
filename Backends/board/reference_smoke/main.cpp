@@ -1,14 +1,15 @@
 #include "Backends/board/board_reference.hpp"
 #include "Backends/contract/backend_evidence.hpp"
-#include "Backends/contract/capability_topology.hpp"
+#include "Modules/core/capability/relations.hpp"
 
+#include <array>
 #include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <span>
 #include <string_view>
-#include <tuple>
 
-namespace topo = charm::backend::contract;
+namespace relation = charm::capability;
 namespace be = charm::backend::contract;
 namespace board = charm::backend::board;
 
@@ -26,110 +27,58 @@ namespace cap {
     };
 }
 
-namespace role {
-    struct early_console {};
-    struct shell {};
-    struct app_store {};
-    struct resource_media {};
-}
-
-namespace provider_instance {
-    struct h747_usart1_console {
-        using charm_provider_instance_tag = void;
-        static constexpr std::string_view name{board::EarlyUartConsoleProviderEvidence::provider_instance};
-    };
-
-    struct h747_qspi_block {
-        using charm_provider_instance_tag = void;
-        static constexpr std::string_view name{board::QspiBlockProviderEvidence::provider_instance};
-    };
-
-    struct h747_emmc_raw_slot_block {
-        using charm_provider_instance_tag = void;
-        static constexpr std::string_view name{board::EmmcRawSlotProviderEvidence::provider_instance};
-    };
-}
-
-namespace provider_type {
-    struct h747_uart_console_provider {};
-    struct h747_qspi_block_provider {};
-    struct h747_emmc_raw_slot_block_provider {};
-}
-
-namespace backend {
-    struct board_h747 {};
-}
-
-namespace runtime_domain {
-    struct h747_cm7 {};
-}
-
-namespace adapter {
-    struct stm32_hal_uart_tx_dma_adapter {};
-    struct stm32_hal_qspi_adapter {};
-    struct stm32_hal_sdmmc_adapter {};
-}
-
-namespace transport {
-    struct usart1 {};
-}
-
 namespace {
-    using ConsoleReq = topo::Requirement<cap::TextSink, role::early_console>;
-    using ShellReq = topo::Requirement<cap::LineSource, role::shell>;
-    using AppStoreReq = topo::Requirement<cap::BlockDevice, role::app_store>;
-    using ResourceMediaReq = topo::Requirement<cap::BlockDevice, role::resource_media>;
+    enum class ContractKey : std::uint8_t {
+        text_sink,
+        line_source,
+        block_device,
+    };
+    enum class RequirementKey : std::uint8_t {
+        early_console,
+        shell,
+        app_store,
+        resource_media,
+    };
+    enum class ProvisionKey : std::uint8_t {
+        uart_text,
+        uart_line,
+        qspi_block,
+        emmc_block,
+    };
 
-    using ConsoleProv = topo::Provided<cap::TextSink, role::early_console>;
-    using ShellProv = topo::Provided<cap::LineSource, role::shell>;
-    using AppStoreProv = topo::Provided<cap::BlockDevice, role::app_store>;
-    using ResourceMediaProv = topo::Provided<cap::BlockDevice, role::resource_media>;
+    constexpr std::array requirements{
+        relation::Requirement<ContractKey, RequirementKey>{
+            RequirementKey::early_console, ContractKey::text_sink},
+        relation::Requirement<ContractKey, RequirementKey>{
+            RequirementKey::shell, ContractKey::line_source},
+        relation::Requirement<ContractKey, RequirementKey>{
+            RequirementKey::app_store, ContractKey::block_device},
+        relation::Requirement<ContractKey, RequirementKey>{
+            RequirementKey::resource_media, ContractKey::block_device},
+    };
+    constexpr std::array provisions{
+        relation::Provision<ContractKey, ProvisionKey>{
+            ProvisionKey::uart_text, ContractKey::text_sink},
+        relation::Provision<ContractKey, ProvisionKey>{
+            ProvisionKey::uart_line, ContractKey::line_source},
+        relation::Provision<ContractKey, ProvisionKey>{
+            ProvisionKey::qspi_block, ContractKey::block_device},
+        relation::Provision<ContractKey, ProvisionKey>{
+            ProvisionKey::emmc_block, ContractKey::block_device},
+    };
+    constexpr std::array bindings{
+        relation::Binding<RequirementKey, ProvisionKey>{
+            RequirementKey::early_console, ProvisionKey::uart_text},
+        relation::Binding<RequirementKey, ProvisionKey>{
+            RequirementKey::shell, ProvisionKey::uart_line},
+        relation::Binding<RequirementKey, ProvisionKey>{
+            RequirementKey::app_store, ProvisionKey::qspi_block},
+        relation::Binding<RequirementKey, ProvisionKey>{
+            RequirementKey::resource_media, ProvisionKey::emmc_block},
+    };
 
-    using ConsoleDesc = topo::ProviderDesc<provider_instance::h747_usart1_console,
-                                           topo::ProviderSet<ConsoleProv, ShellProv>>;
-    using QspiDesc = topo::ProviderDesc<provider_instance::h747_qspi_block,
-                                        topo::ProviderSet<AppStoreProv>>;
-    using EmmcDesc = topo::ProviderDesc<provider_instance::h747_emmc_raw_slot_block,
-                                        topo::ProviderSet<ResourceMediaProv>>;
-    using Providers = std::tuple<ConsoleDesc, QspiDesc, EmmcDesc>;
-
-    using ConsoleMeta = topo::ProviderMeta<provider_instance::h747_usart1_console,
-                                           provider_type::h747_uart_console_provider,
-                                           backend::board_h747,
-                                           runtime_domain::h747_cm7,
-                                           adapter::stm32_hal_uart_tx_dma_adapter>;
-    using QspiMeta = topo::ProviderMeta<provider_instance::h747_qspi_block,
-                                        provider_type::h747_qspi_block_provider,
-                                        backend::board_h747,
-                                        runtime_domain::h747_cm7,
-                                        adapter::stm32_hal_qspi_adapter>;
-    using EmmcMeta = topo::ProviderMeta<provider_instance::h747_emmc_raw_slot_block,
-                                        provider_type::h747_emmc_raw_slot_block_provider,
-                                        backend::board_h747,
-                                        runtime_domain::h747_cm7,
-                                        adapter::stm32_hal_sdmmc_adapter>;
-    using Metas = std::tuple<ConsoleMeta, QspiMeta, EmmcMeta>;
-
-    using ConsoleBinding = topo::ProfileBinding<ConsoleReq, provider_instance::h747_usart1_console>;
-    using ShellBinding = topo::ProfileBinding<ShellReq, provider_instance::h747_usart1_console>;
-    using AppStoreBinding = topo::ProfileBinding<AppStoreReq, provider_instance::h747_qspi_block>;
-    using ResourceMediaBinding = topo::ProfileBinding<ResourceMediaReq, provider_instance::h747_emmc_raw_slot_block>;
-    using BadStorageBinding = topo::ProfileBinding<AppStoreReq, provider_instance::h747_usart1_console>;
-    using Requirements = topo::RequirementSet<ConsoleReq, ShellReq, AppStoreReq, ResourceMediaReq>;
-    using Bindings = std::tuple<ConsoleBinding, ShellBinding, AppStoreBinding, ResourceMediaBinding>;
-
-    static_assert(topo::binding_valid_v<ConsoleBinding, Providers>);
-    static_assert(topo::binding_valid_v<ShellBinding, Providers>);
-    static_assert(topo::binding_valid_v<AppStoreBinding, Providers>);
-    static_assert(topo::binding_valid_v<ResourceMediaBinding, Providers>);
-    static_assert(!topo::binding_valid_v<BadStorageBinding, Providers>);
-    static_assert(topo::requirements_bound_once_v<Bindings, Requirements>);
-    static_assert(topo::binding_has_meta_v<ConsoleBinding, Metas>);
-    static_assert(topo::binding_has_meta_v<AppStoreBinding, Metas>);
-    static_assert(topo::binding_has_meta_v<ResourceMediaBinding, Metas>);
-    static_assert(!topo::CanMakeProfileBinding<ConsoleReq, backend::board_h747>);
-    static_assert(!topo::CanMakeProfileBinding<ConsoleReq, adapter::stm32_hal_uart_tx_dma_adapter>);
-    static_assert(!topo::CanMakeProfileBinding<ConsoleReq, transport::usart1>);
+    static_assert(requirements.size() == provisions.size());
+    static_assert(requirements.size() == bindings.size());
 
     bool expect(const bool condition, const char* message) {
         if (!condition) {

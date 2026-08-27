@@ -79,6 +79,8 @@ widget/scene state
   record 账本位于 private partition，payload/replay 存储位于 internal module。产品调用方只能读取 capture
   result 的 kind/bytes/command count，不能持有 storage、record 指针、构造半成品 snapshot，或通过刷新
   epoch 复活 stale command payload；
+- `LayerComposePlan` 由目标 `Scene` 签发并绑定其完整字段；复制和读取是合法操作，手工构造、字段篡改或
+  跨 Scene replay 必须返回 `InvalidPlan`，不能让产品提供的可写矩形进入 payload 指针运算；
 - snapshot storage mode 属于 product profile，决定编译进产品的能力和 `Scene` 布局；slot 数、尺寸和 pixel
   format 属于 target envelope。未编译 kind 的 capture 必须在 reserve 前返回 `UnsupportedKind`；
 - `layer_cache_slots=0` 是合法的无快照 target envelope：Scene 保留稳定 API，但 capture 必须返回无槽，admission

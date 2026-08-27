@@ -44,7 +44,7 @@ function Get-QemuElfEvidenceRoot {
         [string]$RequestedEvidenceDir
     )
 
-    $DefaultEvidenceRoot = Join-Path $RepoRoot "Examples\system\resident_elf_qemu_smoke"
+    $DefaultEvidenceRoot = Join-Path $RepoRoot "Examples\system\resident_elf_qemu_smoke\cmake-build-resident-elf-qemu\evidence"
     if ([string]::IsNullOrWhiteSpace($RequestedEvidenceDir)) {
         return [System.IO.Path]::GetFullPath($DefaultEvidenceRoot)
     }
@@ -211,6 +211,20 @@ function Invoke-SelfTest {
     }
     if (-not $DefaultLog.EndsWith("Examples\project\h747-lab\cmake-build-h747-lab-debug\resident_platform_evidence_bundle.log", [System.StringComparison]::OrdinalIgnoreCase)) {
         throw "selftest_failed: default log path is unexpected: $DefaultLog"
+    }
+    $DefaultQemuBuild = Resolve-QemuElfRoot `
+        -RepoRoot $RepoRoot `
+        -RequestedPath "" `
+        -DefaultPath (Join-Path $RepoRoot "Examples\system\resident_elf_qemu_smoke\cmake-build-resident-elf-qemu")
+    $DefaultQemuApps = Resolve-QemuElfRoot `
+        -RepoRoot $RepoRoot `
+        -RequestedPath "" `
+        -DefaultPath (Join-Path $DefaultQemuBuild "apps")
+    $DefaultQemuEvidence = Get-QemuElfEvidenceRoot -RepoRoot $RepoRoot -RequestedEvidenceDir ""
+    if (-not $DefaultQemuBuild.EndsWith("Examples\system\resident_elf_qemu_smoke\cmake-build-resident-elf-qemu", [System.StringComparison]::OrdinalIgnoreCase) -or
+        -not $DefaultQemuApps.EndsWith("Examples\system\resident_elf_qemu_smoke\cmake-build-resident-elf-qemu\apps", [System.StringComparison]::OrdinalIgnoreCase) -or
+        -not $DefaultQemuEvidence.EndsWith("Examples\system\resident_elf_qemu_smoke\cmake-build-resident-elf-qemu\evidence", [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "selftest_failed: default QEMU working root is unexpected: build=$DefaultQemuBuild apps=$DefaultQemuApps evidence=$DefaultQemuEvidence"
     }
     if (-not (Test-Path -LiteralPath (Join-Path $RepoRoot "Examples\app_abi\elf_samples\build_resident_platform_artifacts.ps1"))) {
         throw "selftest_failed: artifact build script is missing"
@@ -3706,8 +3720,8 @@ $Log = [System.IO.Path]::GetFullPath($Log)
 $LogDir = Split-Path -Parent $Log
 
 $QemuElfEvidenceRoot = Get-QemuElfEvidenceRoot -RepoRoot $RepoRoot -RequestedEvidenceDir $QemuElfEvidenceDir
-$QemuElfDefaultBuildRoot = Join-Path $RepoRoot "Examples\system\resident_elf_qemu_smoke\cmake-build-resident-elf-qemu-smoke"
-$QemuElfDefaultAppOutRoot = Join-Path $RepoRoot "Examples\app_abi\elf_samples\out-qemu"
+$QemuElfDefaultBuildRoot = Join-Path $RepoRoot "Examples\system\resident_elf_qemu_smoke\cmake-build-resident-elf-qemu"
+$QemuElfDefaultAppOutRoot = Join-Path $QemuElfDefaultBuildRoot "apps"
 $QemuElfBuildRoot = Resolve-QemuElfRoot -RepoRoot $RepoRoot -RequestedPath $QemuElfBuildDir -DefaultPath $QemuElfDefaultBuildRoot
 $QemuElfAppOutRoot = Resolve-QemuElfRoot -RepoRoot $RepoRoot -RequestedPath $QemuElfAppOutDir -DefaultPath $QemuElfDefaultAppOutRoot
 $InspectSource = Join-Path $RepoRoot "Examples\system\resident_platform_inspect_tool"

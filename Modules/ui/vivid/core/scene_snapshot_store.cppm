@@ -9,6 +9,18 @@ module charm.ui.scene:snapshot_store;
 import charm.ui.scene.layer_runtime;
 
 namespace ui::scene::detail {
+    struct SnapshotComposePlan {
+        bool valid{false};
+        SnapshotHandle source{};
+        SnapshotKind kind{SnapshotKind::EmptyFallback};
+        Rect source_bounds{};
+        Rect source_visible{};
+        Rect target_bounds{};
+        LayerTransform transform{};
+        std::uint32_t composite_pixels{0};
+        std::uint32_t source_bytes{0};
+    };
+
     struct LayerEpoch {
         std::uint32_t layout{0};
         std::uint32_t style{0};
@@ -157,9 +169,9 @@ namespace ui::scene::detail {
             return result;
         }
 
-        [[nodiscard]] LayerComposePlan make_compose_plan(
+        [[nodiscard]] SnapshotComposePlan make_compose_plan(
             const LayerComposeSpec& spec) const noexcept {
-            LayerComposePlan plan{};
+            SnapshotComposePlan plan{};
             const auto* slot = record(spec.source);
             if (!slot || slot->stale) return plan;
             plan.source = spec.source;
@@ -180,15 +192,20 @@ namespace ui::scene::detail {
         }
 
         [[nodiscard]] LayerBudgetResult check_budget(
-            const LayerComposePlan& plan,
+            SnapshotHandle source,
+            std::uint32_t composite_pixels,
             const LayerBudget& budget) const noexcept {
             LayerBudgetResult result{};
-            const auto* slot = record(plan.source);
+            const auto* slot = record(source);
+            if (!slot || slot->stale) {
+                result.ok = false;
+                return result;
+            }
             if (budget.max_layer_bytes > 0 && stats_.layer_bytes > budget.max_layer_bytes) {
                 result.layer_bytes_over = true;
             }
             if (budget.max_composite_pixels > 0
-                && plan.composite_pixels > budget.max_composite_pixels) {
+                && composite_pixels > budget.max_composite_pixels) {
                 result.composite_pixels_over = true;
             }
             if (slot && budget.max_command_count > 0

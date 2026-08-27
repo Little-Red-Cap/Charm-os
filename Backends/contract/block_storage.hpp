@@ -23,7 +23,7 @@ namespace charm::backend::contract::block {
     };
 
     struct BlockDevice {
-        static constexpr std::string_view name{"BlockDevice"};
+        static constexpr std::string_view label{"BlockDevice"};
 
         template <typename T>
         static constexpr bool satisfied_by = requires(T& dev,
@@ -37,16 +37,6 @@ namespace charm::backend::contract::block {
             { dev.block_count() } noexcept -> std::same_as<std::uint64_t>;
         };
     };
-
-    namespace role {
-        struct app_store {
-            static constexpr std::string_view name{"app_store"};
-        };
-
-        struct resource_media {
-            static constexpr std::string_view name{"resource_media"};
-        };
-    }
 
     using ReadFn = Status (*)(void*, std::uint64_t, std::span<std::byte>) noexcept;
     using WriteFn = Status (*)(void*, std::uint64_t, std::span<const std::byte>) noexcept;

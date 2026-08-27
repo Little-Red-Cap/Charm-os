@@ -3,9 +3,9 @@ param(
     [string]$QemuExe = "D:\Toolchains\qemu\qemu-system-arm.exe",
     [string]$ToolchainPrefix = "arm-none-eabi-",
     [string]$HostCompiler = "D:/Toolchains/w64devkit/bin/g++.exe",
-    [string]$BuildDir = "$PSScriptRoot\cmake-build-resident-elf-qemu-smoke",
-    [string]$AppOutDir = "$PSScriptRoot\..\..\app_abi\elf_samples\out-qemu",
-    [string]$EvidenceDir = "",
+    [string]$BuildDir = "$PSScriptRoot\cmake-build-resident-elf-qemu",
+    [string]$AppOutDir = "$PSScriptRoot\cmake-build-resident-elf-qemu\apps",
+    [string]$EvidenceDir = "$PSScriptRoot\cmake-build-resident-elf-qemu\evidence",
     [string]$FrameSignatureOut = "$PSScriptRoot\frame-signatures.json",
     [string]$GoldenFrameSignatures = "$PSScriptRoot\frame-signatures.golden.json",
     [string]$FrameDumpOut = "$PSScriptRoot\frame-dumps.json",
@@ -796,6 +796,7 @@ function Get-ExpectedTokens {
         "resident-elf-qemu: run-region base=0x20080000 expected=0x20080000 size=65536",
         "resident-elf-qemu: stage-cache bytes=16384",
         "resident-elf-qemu: packetstream-buffers storage=16384 transport=2048 stream=32768 received=16384",
+        "resident-elf-qemu: packetstream fragmentation=ok packet_chunk=257 ingress=1,27,113,256,512 payload=5132",
         "resident-elf-qemu: store entries=31 bytes=",
         "resident-elf-qemu: store-media kind=memory bytes=",
         "resident-elf-qemu: unsupported storage_open=1 storage_read=1 storage_write=1 storage_close=1 afe_configure=1 afe_read=1 storage_count=1/1/1/1 afe_count=1/1",
@@ -7374,20 +7375,33 @@ if ($DryRun) {
     exit 0
 }
 
-$EvidenceLock = Acquire-QemuEvidenceLock
+$cachePath = Join-Path $build "CMakeCache.txt"
+if (Test-Path $cachePath) {
+    $cacheText = Get-Content -Raw -Encoding UTF8 $cachePath
+    $cachedToolchainLine = @($cacheText -split "`r?`n" |
+        Where-Object { $_.StartsWith("CMAKE_TOOLCHAIN_FILE:FILEPATH=", [System.StringComparison]::Ordinal) } |
+        Select-Object -First 1)
+    $cachedToolchainPath = if ($cachedToolchainLine.Count -eq 1) {
+        $cachedToolchainLine[0].Substring("CMAKE_TOOLCHAIN_FILE:FILEPATH=".Length)
+    } else {
+        ""
+    }
+    $toolchainMatches = -not [string]::IsNullOrWhiteSpace($cachedToolchainPath) -and
+        [string]::Equals(
+            [System.IO.Path]::GetFullPath($cachedToolchainPath),
+            [System.IO.Path]::GetFullPath($toolchainFile.Path),
+            [System.StringComparison]::OrdinalIgnoreCase)
+    if (-not $toolchainMatches) {
+        Write-Host "resident-elf-qemu: build cache toolchain changed; resetting build=$build"
+        Remove-Item -Recurse -Force $build
+    }
+}
 
 if (-not (Test-Path $appOut)) {
     New-Item -ItemType Directory -Path $appOut | Out-Null
 }
 
-$cachePath = Join-Path $build "CMakeCache.txt"
-if (Test-Path $cachePath) {
-    $cacheText = Get-Content -Raw -Encoding UTF8 $cachePath
-    $expectedToolchainLine = "CMAKE_TOOLCHAIN_FILE:FILEPATH=$($toolchainFile.Path)"
-    if (-not $cacheText.Contains($expectedToolchainLine)) {
-        Remove-Item -Recurse -Force $build
-    }
-}
+$EvidenceLock = Acquire-QemuEvidenceLock
 
 $ldscriptTemplate = Join-Path $appSampleDir "app_elf.ld"
 $ldscript = Join-Path $appOut "app_elf.qemu.generated.ld"

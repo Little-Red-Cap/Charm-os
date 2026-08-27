@@ -135,6 +135,33 @@ QEMU evidence 可以额外提供 `qemu_elf_failure_transport/stage/load/runtime`
 这类归档摘要，但它们只是对现有 transport、stage、load、runtime 边界的分类索引，
 不能替代 `lookup/load/abi/argv/start/exit` 主诊断模型。
 
+## 稳定冻结
+
+以下扩面项在当前阶段明确冻结。它们都属于 Resident image platform 的局部部署或
+运行时实现，不能借由实现规模进入 Charm Core，也不能用 Host-only 或 QEMU-only
+结果提前解除：
+
+- Store v2、签名验证、slot、rollback 或任何产品生命周期元数据。
+- filesystem App catalog、目录扫描、按路径发现 App 或 package manager 语义。
+- 将 ELF execute region 从当前 D1 RAM 迁移到 SDRAM；SDRAM 继续只承担 receive/stage
+  arena，直到另有独立的 execute/cache/MPU 证据。
+- ModuleX v1 之外的 image-format 扩面，包括 BSS、XIP、复杂 relocation、第二套入口 ABI
+  或以 ModuleX 替代 ELF 主链。
+- H747 CM4 mailbox、跨核 capability proxy、多核调度或把异构 domain 伪装成普通线程。
+- Lua、JavaScript 或其它解释器作为板端 App 执行路径、image format 或新的 App ABI。
+
+解除冻结必须同时满足以下前置条件：
+
+1. `charm_capability_mvp` 已有 Host、QEMU、H747 三域的真实、可比较、可复测 evidence，
+   包含正例和启动前 missing-binding 负例。
+2. 目录迁移后的 H747 BSP full-platform source set 已恢复到能配置 `dev_loader`，并重新取得
+   Resident ELF 的 received、Store、load、run H747 证据。
+3. 上述 H747 证据与 Host/QEMU resident ELF baseline 的 image format、`AppRuntime` 主阶段和
+   `CharmAppApi v1` 边界一致，没有以临时 monitor 命令、裸跳或私有 entry 绕开主链。
+
+在这些条件满足前，修复 BSP 构建契约、保持既有 ELF 路径可诊断，以及重跑现有 evidence
+优先于任何新 store、loader、执行域或脚本语言能力。
+
 ## 当前非目标
 
 - 不把 `dev_loader` 定义为产品 bootloader。

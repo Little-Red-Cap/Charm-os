@@ -1,5 +1,5 @@
-#include "Backends/contract/capability_topology.hpp"
 #include "Backends/contract/console_output.hpp"
+#include "Modules/core/capability/relations.hpp"
 
 #include <array>
 #include <cstddef>
@@ -8,9 +8,8 @@
 #include <optional>
 #include <span>
 #include <string_view>
-#include <tuple>
 
-namespace topo = charm::backend::contract;
+namespace relation = charm::capability;
 namespace console = charm::backend::contract::console;
 
 namespace provider_instance {
@@ -18,26 +17,6 @@ namespace provider_instance {
         using charm_provider_instance_tag = void;
         static constexpr std::string_view name{"host.buffered_console"};
     };
-}
-
-namespace provider_type {
-    struct buffered_console_provider {};
-}
-
-namespace backend {
-    struct host_reference {};
-}
-
-namespace runtime_domain {
-    struct host_process {};
-}
-
-namespace adapter {
-    struct memory_console_adapter {};
-}
-
-namespace transport {
-    struct memory_buffer {};
 }
 
 namespace {
@@ -88,35 +67,46 @@ namespace {
         }
     };
 
-    using LogReq = topo::Requirement<console::TextSink, console::role::log>;
-    using ShellReq = topo::Requirement<console::LineSource, console::role::shell>;
-    using LogProv = topo::Provided<console::TextSink, console::role::log>;
-    using ShellProv = topo::Provided<console::LineSource, console::role::shell>;
+    enum class ContractKey : std::uint8_t {
+        text_sink,
+        line_source,
+    };
+    enum class RequirementKey : std::uint8_t {
+        log,
+        shell,
+    };
+    enum class ProvisionKey : std::uint8_t {
+        console_text,
+        console_line,
+    };
 
-    using ConsoleDesc = topo::ProviderDesc<provider_instance::buffered_console,
-                                           topo::ProviderSet<LogProv, ShellProv>>;
-    using Providers = std::tuple<ConsoleDesc>;
-    using ConsoleMeta = topo::ProviderMeta<provider_instance::buffered_console,
-                                           provider_type::buffered_console_provider,
-                                           backend::host_reference,
-                                           runtime_domain::host_process,
-                                           adapter::memory_console_adapter,
-                                           transport::memory_buffer>;
-    using Metas = std::tuple<ConsoleMeta>;
-    using LogBinding = topo::ProfileBinding<LogReq, provider_instance::buffered_console>;
-    using ShellBinding = topo::ProfileBinding<ShellReq, provider_instance::buffered_console>;
-    using Requirements = topo::RequirementSet<LogReq, ShellReq>;
-    using Bindings = std::tuple<LogBinding, ShellBinding>;
+    constexpr std::array requirements{
+        relation::Requirement<ContractKey, RequirementKey>{
+            RequirementKey::log, ContractKey::text_sink},
+        relation::Requirement<ContractKey, RequirementKey>{
+            RequirementKey::shell, ContractKey::line_source},
+    };
+    constexpr std::array provisions{
+        relation::Provision<ContractKey, ProvisionKey>{
+            ProvisionKey::console_text, ContractKey::text_sink},
+        relation::Provision<ContractKey, ProvisionKey>{
+            ProvisionKey::console_line, ContractKey::line_source},
+    };
+    constexpr std::array bindings{
+        relation::Binding<RequirementKey, ProvisionKey>{
+            RequirementKey::log, ProvisionKey::console_text},
+        relation::Binding<RequirementKey, ProvisionKey>{
+            RequirementKey::shell, ProvisionKey::console_line},
+    };
 
     static_assert(console::ByteSink::satisfied_by<GoodConsole>);
     static_assert(console::TextSink::satisfied_by<GoodConsole>);
     static_assert(console::LineSource::satisfied_by<GoodConsole>);
     static_assert(!console::ByteSink::satisfied_by<MissingFlush>);
     static_assert(!console::TextSink::satisfied_by<MissingFlush>);
-    static_assert(topo::binding_valid_v<LogBinding, Providers>);
-    static_assert(topo::binding_valid_v<ShellBinding, Providers>);
-    static_assert(topo::requirements_bound_once_v<Bindings, Requirements>);
-    static_assert(topo::binding_has_meta_v<LogBinding, Metas>);
+    static_assert(requirements.size() == bindings.size());
+    static_assert(provisions[0].contract == requirements[0].contract);
+    static_assert(provisions[1].contract == requirements[1].contract);
 
     bool expect(const bool condition, const char* message) {
         if (!condition) {
@@ -134,8 +124,8 @@ namespace {
 
         console::EvidenceCollector<1> collector{};
         const console::EvidenceFrame frame{
-            .capability_name = console::TextSink::name,
-            .requirement_role = console::role::log::name,
+            .capability_name = console::TextSink::label,
+            .requirement_role = "log",
             .provider_instance = provider_instance::buffered_console::name,
             .provider_type = "host buffered console provider",
             .backend = "host.reference",

@@ -75,21 +75,17 @@
 - [`canonical_worlds/README.md`](canonical_worlds/README.md)
 - `canonical_worlds/minimal_kernel_runtime.world.json`
 
-如果你现在看的不是“这个世界是什么”，而是“这个世界相对基线哪里漂了、哪里塌了”，再读：
+旧 canonical-world compare 讨论已经归档，需要追溯其比较思路时再读：
 
-- [`../../docs/system/world_compare_v0.md`](../../docs/system/world_compare_v0.md)
+- [`../../docs/archive/system-compiler-front-page-v0/README.md`](../../docs/archive/system-compiler-front-page-v0/README.md)
 
 这批目录当前大多没有自己的 README，适合配合下面这些系统文档一起看：
 
 - [`../../docs/system/minimal_kernel_runtime_bridge_contract.md`](../../docs/system/minimal_kernel_runtime_bridge_contract.md)
-- [`../../docs/system/minimal_kernel_runtime_service_contract.md`](../../docs/system/minimal_kernel_runtime_service_contract.md)
-- [`../../docs/system/minimal_kernel_task_runtime_api_contract.md`](../../docs/system/minimal_kernel_task_runtime_api_contract.md)
-- [`../../docs/system/minimal_kernel_task_syscall_api_contract.md`](../../docs/system/minimal_kernel_task_syscall_api_contract.md)
-- [`../../docs/system/minimal_kernel_task_syscall_catalog_contract.md`](../../docs/system/minimal_kernel_task_syscall_catalog_contract.md)
-- [`../../docs/system/minimal_kernel_task_syscall_dispatch_contract.md`](../../docs/system/minimal_kernel_task_syscall_dispatch_contract.md)
 - [`../../docs/system/minimal_kernel_task_syscall_table_contract.md`](../../docs/system/minimal_kernel_task_syscall_table_contract.md)
-- [`../../docs/system/minimal_kernel_task_syscall_frame_contract.md`](../../docs/system/minimal_kernel_task_syscall_frame_contract.md)
 - [`../../docs/system/minimal_kernel_trap_syscall_contract.md`](../../docs/system/minimal_kernel_trap_syscall_contract.md)
+- [`../../docs/system/minimal_kernel_trap_ingress_contract.md`](../../docs/system/minimal_kernel_trap_ingress_contract.md)
+- [`../../docs/system/armv7a_runtime_trap_mapping_contract.md`](../../docs/system/armv7a_runtime_trap_mapping_contract.md)
 
 ### 我想看 Windows 历史验证路径
 

@@ -152,7 +152,7 @@ namespace charm::backend::contract::raster {
     };
 
     struct RasterDisplay {
-        static constexpr std::string_view name{"RasterDisplay"};
+        static constexpr std::string_view label{"RasterDisplay"};
 
         template <typename T>
         static constexpr bool satisfied_by = requires(T& display,
@@ -162,9 +162,4 @@ namespace charm::backend::contract::raster {
         };
     };
 
-    namespace role {
-        struct primary {
-            static constexpr std::string_view name{"primary"};
-        };
-    }
 }

@@ -146,18 +146,6 @@ export namespace ui::scene {
         std::uint32_t source_bytes{0};
     };
 
-    struct LayerComposePlan {
-        bool valid{false};
-        SnapshotHandle source{};
-        SnapshotKind kind{SnapshotKind::EmptyFallback};
-        Rect source_bounds{};
-        Rect source_visible{};
-        Rect target_bounds{};
-        LayerTransform transform{};
-        std::uint32_t composite_pixels{0};
-        std::uint32_t source_bytes{0};
-    };
-
     struct LayerBudget {
         std::uint32_t max_layer_bytes{0};
         std::uint32_t max_composite_pixels{0};

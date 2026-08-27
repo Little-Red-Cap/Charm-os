@@ -28,4 +28,5 @@
 - 除正式 public 清单与显式允许白名单外，新增对 deprecated/internal 模块的依赖即构建失败。
 
 ## 相关文档
-- 公开入口与 deprecated/internal 清单：`docs/architecture_overview.md`
+- 聚合入口状态：`docs/architecture/entry_surface_contract.md`
+- UI 专题入口：`docs/ui/README.md`

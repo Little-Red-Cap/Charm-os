@@ -105,6 +105,7 @@ namespace charm::backend::qemu {
             contract::CapabilityExport{
                 .capability_name = "TextSink",
                 .requirement_role = "early_console",
+                .provision_label = "console.semihost",
                 .provider_instance = EarlyConsoleProvider::provider_instance,
                 .provider_type = EarlyConsoleProvider::provider_type,
                 .runtime_domain = EarlyConsoleProvider::runtime_domain,
@@ -116,6 +117,7 @@ namespace charm::backend::qemu {
             contract::BindingEvidence{
                 .capability_name = "TextSink",
                 .requirement_role = "early_console",
+                .provision_label = "console.semihost",
                 .provider_instance = EarlyConsoleProvider::provider_instance,
                 .selection = "explicit_binding",
             },

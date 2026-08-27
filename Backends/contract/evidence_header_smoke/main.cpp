@@ -10,6 +10,7 @@ namespace {
         be::CapabilityExport{
             .capability_name = "TextSink",
             .requirement_role = "log",
+            .provision_label = "console.text",
             .provider_instance = "host.buffered_console",
             .provider_type = "host buffered console provider",
             .runtime_domain = "host_process",
@@ -18,6 +19,7 @@ namespace {
         be::CapabilityExport{
             .capability_name = "BlockDevice",
             .requirement_role = "app_store",
+            .provision_label = "block.memory.app_store",
             .provider_instance = "host.memory_block_app_store",
             .provider_type = "host memory block provider",
             .runtime_domain = "host_process",
@@ -29,12 +31,14 @@ namespace {
         be::BindingEvidence{
             .capability_name = "TextSink",
             .requirement_role = "log",
+            .provision_label = "console.text",
             .provider_instance = "host.buffered_console",
             .selection = "explicit_binding",
         },
         be::BindingEvidence{
             .capability_name = "BlockDevice",
             .requirement_role = "app_store",
+            .provision_label = "block.memory.app_store",
             .provider_instance = "host.memory_block_app_store",
             .selection = "explicit_binding",
         },
@@ -136,6 +140,10 @@ namespace {
 
         bool ok = true;
         ok &= expect(host_view.identity.kind == be::BackendKind::host, "host identity should keep backend kind");
+        ok &= expect(host_view.selected_bindings[0].provision_label == "console.text",
+                     "binding evidence should identify the selected provision");
+        ok &= expect(host_view.selected_bindings[0].provider_instance == "host.buffered_console",
+                     "provider instance should remain separate evidence metadata");
         ok &= expect(host_summary.capability_export_count == 2U, "summary should count capability exports");
         ok &= expect(host_summary.selected_binding_count == 2U, "summary should count selected bindings");
         ok &= expect(host_summary.required_fact_count == 2U, "summary should count required facts");

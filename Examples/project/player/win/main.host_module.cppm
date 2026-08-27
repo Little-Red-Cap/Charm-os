@@ -1,5 +1,3 @@
-module;
-
 #if defined(_WIN32)
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
@@ -35,14 +33,11 @@ module;
 
 #include "main.ui_ci_shared.hpp"
 
-export module player.win.main_host;
-
 import audio.player;
 import audio.result;
 import player.app;
 import player.app_config;
 import player.board_port;
-import player.board_runtime;
 import player.cover_resource;
 import player.controller;
 import player.display;
@@ -57,26 +52,26 @@ import player.media_library;
 #if CHARM_PLAYER_LYRICS
 import player.lyrics;
 #endif
-import player.platform;
 import player.storage;
 import player.playback;
 import player.playback_session;
 import player.product_config;
+import player.scene_runtime;
 import player.time_utils_win32;
-import player.runtime;
-import player.runtime_probe;
 import player.ui_builder;
 import player.ui;
 import player.cover;
 import charm.core.config;
 import charm.core.event;
+import charm.gfx.canvas;
 import charm.ui.scene;
-import charm.ui.scene.scene_evidence;
 import ui.input_adapter;
 import charm.gfx.color;
+import charm.gfx.framebuffer;
 import charm.gfx.text_box;
 import charm.gfx.image;
 import charm.gfx.draw_cmd;
+import charm.gfx.draw_cmd_evidence;
 import charm.gfx.snapshot;
 import charm.font.typography;
 import charm.font.font_noto_ascii_16;
@@ -91,6 +86,8 @@ import util.core;
 import input.raw_event;
 import platform.win.time_source;
 
+#include "main.runtime_support.hpp"
+
 namespace {
     using namespace player::fs_utils;
     using namespace player::ui;
@@ -103,7 +100,7 @@ namespace {
     static charm::system::Clock g_clock{nullptr, {.now_us = &now_us}};
     using PlayerUiContext = player::PlayerController;
     using UiHandles = player::UiHandles;
-    using PlayerRuntime = player::PlayerRuntime<PlayerUiContext, player::PlayerPage>;
+    using PlayerRuntime = player::PlayerRuntime<PlayerUiContext, player::PlayerPage, player::PlayerPlatform>;
 
     static player::PlayerOwnedDisplayBuffer g_display_buffer{};
     static player::PlayerPlatform g_platform{g_display_buffer.surface()};
@@ -264,7 +261,7 @@ namespace {
     }
 }
 
-export int run_player_win_main(int argc, char** argv) {
+int run_player_win_main(int argc, char** argv) {
     player::font_cache_win32::bind();
     player::time_utils_win32::bind();
     PreviewOptions options = parse_preview_options(argc, argv);

@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
-    [ValidateSet("host", "qemu", "h747")]
-    [string[]]$Domains = @("host", "qemu"),
+    [ValidateSet("host")]
+    [string[]]$Domains = @("host"),
     [switch]$SelfTest
 )
 
@@ -99,8 +99,6 @@ $SharedFiles = @(
 )
 $Consumers = [ordered]@{
     host = Join-Path $PSScriptRoot "main.cpp"
-    qemu = Join-Path $PSScriptRoot "qemu\main.cpp"
-    h747 = Join-Path $CharmRoot "Examples\project\h747-lab\apps\capability_mvp\capability_mvp.cpp"
 }
 
 if ($Domains.Count -eq 0) {

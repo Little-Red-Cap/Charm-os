@@ -1,11 +1,16 @@
 [CmdletBinding()]
 param(
-    [string]$RepoRoot = (Split-Path -Parent $PSScriptRoot)
+    [string]$RepoRoot = ''
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $OutputEncoding = [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
+
+if ([string]::IsNullOrWhiteSpace($RepoRoot)) {
+    $scriptPath = $MyInvocation.MyCommand.Path
+    $RepoRoot = Split-Path -Parent (Split-Path -Parent $scriptPath)
+}
 
 function Fail([string]$Message) {
     throw "[charm-core-governance] $Message"

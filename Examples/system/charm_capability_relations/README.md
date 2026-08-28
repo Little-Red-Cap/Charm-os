@@ -14,7 +14,7 @@ Capability Contract、resolver、Provider、Profile、Backend 或全局 registry
 
 - `model`：项目局部强类型 key、共享 Provision 与非权威 label；
 - `resolution`：重复、缺失、未知和 contract mismatch；
-- `projection`：ResolvedBinding 分别投影 init、显式 app context 和只读 evidence。
+- `projection`：ResolvedBinding 投影为显式 app context 和只读 evidence，不依赖 init/runtime。
 
 运行：
 
@@ -22,5 +22,5 @@ Capability Contract、resolver、Provider、Profile、Backend 或全局 registry
 .\Examples\system\charm_capability_relations\run_host_ci.ps1
 ```
 
-当前 gate 覆盖 Host Clang 与 GCC。H747 工程当前损坏，本目录不以旧 board log 代替当前验证，
-也不声明本轮变更已经重新完成三域认证。
+当前 gate 是 Host Clang；GCC 可作为兼容性补充运行。QEMU、真实板和旧 board log 不属于当前
+OnlyCore 验证范围。

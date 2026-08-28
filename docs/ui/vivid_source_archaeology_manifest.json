@@ -1,0 +1,773 @@
+{
+    "schema":  1,
+    "status":  "supporting-exploration",
+    "authority":  {
+                      "vivid_source":  "95759c7647606afb0a740f76f581bf2a198bde2c",
+                      "core_semantics":  "9a7ef5db185564e4f1cff853916cd05856597f02",
+                      "archive_wip":  "40f610cbd4fea55e9e1ca37bcbf4bd616d81a30d",
+                      "merge_base":  "0cdfbbdc29b3ef583c4f774928a18bda408b6068"
+                  },
+    "audit_tools":  {
+                        "dev_ref":  "95759c7647606afb0a740f76f581bf2a198bde2c",
+                        "blob_sha":  {
+                                         "Modules/ui/vivid/cmake/product_profile_compiler.cmake":  "b26247503f68a7e7db9cfab8e111c66575419b25",
+                                         "Modules/ui/vivid/cmake/vivid_module_policy.cmake":  "a9e5e2ccba59af795d11b42a607e13f9b9eae1ee",
+                                         "Modules/ui/vivid/cmake/widget_catalog_compiler.cmake":  "109726abbdec60e295474f6e2a1fc9b8d2b83056",
+                                         "scripts/vivid_product_profile_compiler_smoke.ps1":  "d30aa5e1419d31c1b677853a7f713163d6820092",
+                                         "scripts/vivid_stack_usage_gate_smoke.ps1":  "652363bba94879c10be797918daf40030720cc5f",
+                                         "scripts/vivid_static_memory_admission_smoke.ps1":  "32901286214686535fb13cdcb0647c08a1822937"
+                                     }
+                    },
+    "snapshots":  {
+                      "dev":  {
+                                  "ref":  "95759c7647606afb0a740f76f581bf2a198bde2c",
+                                  "cppm_files":  163,
+                                  "modules":  163,
+                                  "import_edges":  904,
+                                  "unique_imports":  100,
+                                  "internal_import_edges":  755,
+                                  "external_import_edges":  149,
+                                  "lexical_import_frontier":  [
+                                                                  "alg_arc",
+                                                                  "alg_circle",
+                                                                  "alg_list_scroll",
+                                                                  "alg_round_rect",
+                                                                  "alg_scroll_bounds",
+                                                                  "alg_scroll_thumb",
+                                                                  "alg_text_layout",
+                                                                  "alg_text_parse",
+                                                                  "alg_text_scroll",
+                                                                  "alg_virtual_list",
+                                                                  "charm.core.config.generated",
+                                                                  "charm.core.event",
+                                                                  "charm.core.soa_pool_caps",
+                                                                  "charm.font",
+                                                                  "charm.font.provider_vfs",
+                                                                  "charm.font.typography",
+                                                                  "out.core",
+                                                                  "out.format",
+                                                                  "out.sink",
+                                                                  "service.state",
+                                                                  "service_dirty_rects",
+                                                                  "ui.render_backend",
+                                                                  "util.core",
+                                                                  "util.delegate",
+                                                                  "util.expected"
+                                                              ],
+                                  "external_owners":  {
+                                                          "alg_arc":  {
+                                                                          "owner":  "Modules/core/alg/alg_arc.cppm",
+                                                                          "kind":  "external-source"
+                                                                      },
+                                                          "alg_circle":  {
+                                                                             "owner":  "Modules/core/alg/alg_circle.cppm",
+                                                                             "kind":  "external-source"
+                                                                         },
+                                                          "alg_list_scroll":  {
+                                                                                  "owner":  "Modules/core/alg/alg_list_scroll.cppm",
+                                                                                  "kind":  "external-source"
+                                                                              },
+                                                          "alg_round_rect":  {
+                                                                                 "owner":  "Modules/core/alg/alg_round_rect.cppm",
+                                                                                 "kind":  "external-source"
+                                                                             },
+                                                          "alg_scroll_bounds":  {
+                                                                                    "owner":  "Modules/core/alg/alg_scroll_bounds.cppm",
+                                                                                    "kind":  "external-source"
+                                                                                },
+                                                          "alg_scroll_thumb":  {
+                                                                                   "owner":  "Modules/core/alg/alg_scroll_thumb.cppm",
+                                                                                   "kind":  "external-source"
+                                                                               },
+                                                          "alg_text_layout":  {
+                                                                                  "owner":  "Modules/core/alg/alg_text_layout.cppm",
+                                                                                  "kind":  "external-source"
+                                                                              },
+                                                          "alg_text_parse":  {
+                                                                                 "owner":  "Modules/core/alg/alg_text_parse.cppm",
+                                                                                 "kind":  "external-source"
+                                                                             },
+                                                          "alg_text_scroll":  {
+                                                                                  "owner":  "Modules/core/alg/alg_text_scroll.cppm",
+                                                                                  "kind":  "external-source"
+                                                                              },
+                                                          "alg_virtual_list":  {
+                                                                                   "owner":  "Modules/core/alg/alg_virtual_list.cppm",
+                                                                                   "kind":  "external-source"
+                                                                               },
+                                                          "charm.core.config.generated":  {
+                                                                                              "owner":  "Vivid Profile Compiler generated module",
+                                                                                              "kind":  "generated"
+                                                                                          },
+                                                          "charm.core.event":  {
+                                                                                   "owner":  "Modules/ui/common/charm.core.event.cppm",
+                                                                                   "kind":  "external-source"
+                                                                               },
+                                                          "charm.core.soa_pool_caps":  {
+                                                                                           "owner":  "Vivid Profile Compiler generated module",
+                                                                                           "kind":  "generated"
+                                                                                       },
+                                                          "charm.font":  {
+                                                                             "owner":  "Modules/gfx/font/font.cppm",
+                                                                             "kind":  "external-source"
+                                                                         },
+                                                          "charm.font.provider_vfs":  {
+                                                                                          "owner":  "Modules/gfx/font/font_provider_vfs.cppm",
+                                                                                          "kind":  "external-source"
+                                                                                      },
+                                                          "charm.font.typography":  {
+                                                                                        "owner":  "Modules/gfx/font/typography.cppm",
+                                                                                        "kind":  "external-source"
+                                                                                    },
+                                                          "out.core":  {
+                                                                           "owner":  "Modules/io/out/out.core.cppm",
+                                                                           "kind":  "external-source"
+                                                                       },
+                                                          "out.format":  {
+                                                                             "owner":  "Modules/io/out/out.format.cppm",
+                                                                             "kind":  "external-source"
+                                                                         },
+                                                          "out.sink":  {
+                                                                           "owner":  "Modules/io/out/out.sink.cppm",
+                                                                           "kind":  "external-source"
+                                                                       },
+                                                          "service.state":  {
+                                                                                "owner":  "Modules/core/service/state.cppm",
+                                                                                "kind":  "external-source"
+                                                                            },
+                                                          "service_dirty_rects":  {
+                                                                                      "owner":  "Modules/core/service/service_dirty_rects.cppm",
+                                                                                      "kind":  "external-source"
+                                                                                  },
+                                                          "ui.render_backend":  {
+                                                                                    "owner":  "Modules/ui/common/ui.render_backend.cppm",
+                                                                                    "kind":  "external-source"
+                                                                                },
+                                                          "util.core":  {
+                                                                            "owner":  "Modules/core/util/core.cppm",
+                                                                            "kind":  "external-source"
+                                                                        },
+                                                          "util.delegate":  {
+                                                                                "owner":  "Modules/core/util/delegate.cppm",
+                                                                                "kind":  "external-source"
+                                                                            },
+                                                          "util.expected":  {
+                                                                                "owner":  "Modules/core/util/expected.cppm",
+                                                                                "kind":  "external-source"
+                                                                            }
+                                                      },
+                                  "policy":  {
+                                                 "product_root":  [
+                                                                      "charm.gfx.canvas",
+                                                                      "charm.gfx.color",
+                                                                      "charm.gfx.display_policy",
+                                                                      "charm.gfx.framebuffer",
+                                                                      "charm.gfx.image",
+                                                                      "charm.gfx.path",
+                                                                      "charm.gfx.pixel_format",
+                                                                      "charm.gfx.render_style",
+                                                                      "charm.gfx.svg",
+                                                                      "charm.gfx.text_box",
+                                                                      "charm.ui.scene",
+                                                                      "charm.ui.scene.anchored_menu",
+                                                                      "charm.ui.scene.focus_scope",
+                                                                      "charm.ui.scene.list_card_header",
+                                                                      "charm.ui.scene.motion_runtime",
+                                                                      "charm.ui.scene.page_header",
+                                                                      "charm.ui.scene.page_layers",
+                                                                      "charm.ui.scene.page_transition",
+                                                                      "charm.ui.scene.path_bar",
+                                                                      "charm.ui.scene.pill",
+                                                                      "charm.ui.scene.pill_surface",
+                                                                      "charm.ui.scene.scene_evidence",
+                                                                      "charm.ui.scene.seek_bar_style",
+                                                                      "charm.ui.scene.text_style",
+                                                                      "charm.ui.scene.title_block",
+                                                                      "charm.ui.scene.top_bar",
+                                                                      "charm.ui.vivid",
+                                                                      "charm.ui.vivid.font_package",
+                                                                      "charm.ui.vivid.font_runtime",
+                                                                      "charm.ui.vivid.perf_overlay_runtime"
+                                                                  ],
+                                                 "host_only":  [
+                                                                   "charm.gfx.host_tools",
+                                                                   "charm.gfx.snapshot"
+                                                               ],
+                                                 "internal_explicit":  [
+                                                                           "charm.core.soa_factory",
+                                                                           "charm.core.soa_gui",
+                                                                           "charm.core.soa_kernel",
+                                                                           "charm.core.soa_payload",
+                                                                           "charm.gfx.draw_cmd",
+                                                                           "charm.ui.scene.builder_support",
+                                                                           "charm.ui.scene.layer_support",
+                                                                           "charm.ui.scene.snapshot_payload_store",
+                                                                           "charm.ui.scene:render_detail",
+                                                                           "charm.ui.scene:snapshot_store",
+                                                                           "charm.ui.vivid_internal"
+                                                                       ],
+                                                 "internal_by_default":  [
+                                                                             "charm.core.config",
+                                                                             "charm.core.geometry",
+                                                                             "charm.core.handle",
+                                                                             "charm.core.input_interaction",
+                                                                             "charm.core.object",
+                                                                             "charm.core.soa_gui.basic_recorders",
+                                                                             "charm.core.soa_gui.collection_recorders",
+                                                                             "charm.core.soa_gui.feedback_recorders",
+                                                                             "charm.core.soa_gui.style_support",
+                                                                             "charm.core.soa_kernel:actions",
+                                                                             "charm.core.soa_kernel:behavior",
+                                                                             "charm.core.soa_kernel:input",
+                                                                             "charm.core.soa_kernel:input_core",
+                                                                             "charm.core.soa_kernel:kernel_class",
+                                                                             "charm.core.soa_kernel:layout_state",
+                                                                             "charm.core.soa_kernel:payload",
+                                                                             "charm.core.soa_kernel:payload_lists",
+                                                                             "charm.core.soa_kernel:payload_views",
+                                                                             "charm.core.soa_kernel:semantic",
+                                                                             "charm.core.soa_kernel:storage",
+                                                                             "charm.core.soa_kernel:types",
+                                                                             "charm.core.soa_layout",
+                                                                             "charm.core.soa_registry",
+                                                                             "charm.core.soa_router",
+                                                                             "charm.core.structured_view",
+                                                                             "charm.core.style",
+                                                                             "charm.core.style_evidence",
+                                                                             "charm.core.style_impact",
+                                                                             "charm.core.style_sheet",
+                                                                             "charm.core.theme_preset",
+                                                                             "charm.core.virtual_list",
+                                                                             "charm.core.widget_registry",
+                                                                             "charm.core.widget_spec",
+                                                                             "charm.gfx.draw_cmd:buffer",
+                                                                             "charm.gfx.draw_cmd:executor",
+                                                                             "charm.gfx.draw_cmd:schema",
+                                                                             "charm.gfx.draw_cmd_evidence",
+                                                                             "charm.gfx.framebuffer:core",
+                                                                             "charm.gfx.pixel_ops",
+                                                                             "charm.gfx.render_core",
+                                                                             "charm.ui.scene.layer_runtime",
+                                                                             "charm.ui.scene.motion_compose",
+                                                                             "charm.ui.scene.motion_execute",
+                                                                             "charm.ui.scene.motion_page_transition",
+                                                                             "charm.ui.scene.motion_plan",
+                                                                             "charm.ui.scene.motion_recipe",
+                                                                             "charm.ui.scene.motion_time",
+                                                                             "charm.ui.scene.motion_transition",
+                                                                             "charm.widgets.arc",
+                                                                             "charm.widgets.bar",
+                                                                             "charm.widgets.battery_gasgauge",
+                                                                             "charm.widgets.battery_gauge",
+                                                                             "charm.widgets.busy_wheel",
+                                                                             "charm.widgets.button",
+                                                                             "charm.widgets.chart",
+                                                                             "charm.widgets.checkbox",
+                                                                             "charm.widgets.cloudy_glass",
+                                                                             "charm.widgets.code_block",
+                                                                             "charm.widgets.console_box",
+                                                                             "charm.widgets.crt_screen",
+                                                                             "charm.widgets.dial",
+                                                                             "charm.widgets.dropdown",
+                                                                             "charm.widgets.dropdown_popup",
+                                                                             "charm.widgets.dynamic_nebula",
+                                                                             "charm.widgets.foldable_panel",
+                                                                             "charm.widgets.gauge",
+                                                                             "charm.widgets.histogram",
+                                                                             "charm.widgets.histogram_view",
+                                                                             "charm.widgets.icon_list",
+                                                                             "charm.widgets.image",
+                                                                             "charm.widgets.image_box",
+                                                                             "charm.widgets.label",
+                                                                             "charm.widgets.led",
+                                                                             "charm.widgets.list",
+                                                                             "charm.widgets.list_utils",
+                                                                             "charm.widgets.list_view",
+                                                                             "charm.widgets.menu",
+                                                                             "charm.widgets.menu_item",
+                                                                             "charm.widgets.menu_tree",
+                                                                             "charm.widgets.message_box",
+                                                                             "charm.widgets.meter_pointer",
+                                                                             "charm.widgets.modal_dialog",
+                                                                             "charm.widgets.number_input",
+                                                                             "charm.widgets.number_list",
+                                                                             "charm.widgets.perf_overlay",
+                                                                             "charm.widgets.popup_layer",
+                                                                             "charm.widgets.primitives_canvas",
+                                                                             "charm.widgets.progress",
+                                                                             "charm.widgets.progress_bar_drill",
+                                                                             "charm.widgets.progress_bar_round",
+                                                                             "charm.widgets.progress_bar_simple",
+                                                                             "charm.widgets.progress_flowing",
+                                                                             "charm.widgets.progress_wheel",
+                                                                             "charm.widgets.radio",
+                                                                             "charm.widgets.radio_group",
+                                                                             "charm.widgets.rich_text",
+                                                                             "charm.widgets.ring_indication",
+                                                                             "charm.widgets.roller",
+                                                                             "charm.widgets.scroll_container",
+                                                                             "charm.widgets.scrollbar",
+                                                                             "charm.widgets.segmented_control",
+                                                                             "charm.widgets.slider",
+                                                                             "charm.widgets.spectrum_view",
+                                                                             "charm.widgets.spin_zoom_widget",
+                                                                             "charm.widgets.spinner",
+                                                                             "charm.widgets.spinning_wheel",
+                                                                             "charm.widgets.stepper",
+                                                                             "charm.widgets.switcher",
+                                                                             "charm.widgets.table_view",
+                                                                             "charm.widgets.tabview",
+                                                                             "charm.widgets.text_area",
+                                                                             "charm.widgets.text_box",
+                                                                             "charm.widgets.text_input",
+                                                                             "charm.widgets.text_list",
+                                                                             "charm.widgets.text_tracking_list",
+                                                                             "charm.widgets.timeline",
+                                                                             "charm.widgets.toggle_group",
+                                                                             "charm.widgets.tree_view",
+                                                                             "charm.widgets.waveform",
+                                                                             "charm.widgets.waveform_view"
+                                                                         ]
+                                             },
+                                  "scc":  {
+                                              "components":  163,
+                                              "cycles":  0,
+                                              "method":  "module import graph; no cycles observed"
+                                          }
+                              },
+                      "archive":  {
+                                      "ref":  "40f610cbd4fea55e9e1ca37bcbf4bd616d81a30d",
+                                      "cppm_files":  163,
+                                      "modules":  163,
+                                      "import_edges":  904,
+                                      "unique_imports":  100,
+                                      "internal_import_edges":  755,
+                                      "external_import_edges":  149,
+                                      "lexical_import_frontier":  [
+                                                                      "alg_arc",
+                                                                      "alg_circle",
+                                                                      "alg_list_scroll",
+                                                                      "alg_round_rect",
+                                                                      "alg_scroll_bounds",
+                                                                      "alg_scroll_thumb",
+                                                                      "alg_text_layout",
+                                                                      "alg_text_parse",
+                                                                      "alg_text_scroll",
+                                                                      "alg_virtual_list",
+                                                                      "charm.core.config.generated",
+                                                                      "charm.core.event",
+                                                                      "charm.core.soa_pool_caps",
+                                                                      "charm.font",
+                                                                      "charm.font.provider_vfs",
+                                                                      "charm.font.typography",
+                                                                      "out.core",
+                                                                      "out.format",
+                                                                      "out.sink",
+                                                                      "service.state",
+                                                                      "service_dirty_rects",
+                                                                      "ui.render_backend",
+                                                                      "util.core",
+                                                                      "util.delegate",
+                                                                      "util.expected"
+                                                                  ],
+                                      "external_owners":  {
+                                                              "alg_arc":  {
+                                                                              "owner":  "Modules/core/alg/alg_arc.cppm",
+                                                                              "kind":  "external-source"
+                                                                          },
+                                                              "alg_circle":  {
+                                                                                 "owner":  "Modules/core/alg/alg_circle.cppm",
+                                                                                 "kind":  "external-source"
+                                                                             },
+                                                              "alg_list_scroll":  {
+                                                                                      "owner":  "Modules/core/alg/alg_list_scroll.cppm",
+                                                                                      "kind":  "external-source"
+                                                                                  },
+                                                              "alg_round_rect":  {
+                                                                                     "owner":  "Modules/core/alg/alg_round_rect.cppm",
+                                                                                     "kind":  "external-source"
+                                                                                 },
+                                                              "alg_scroll_bounds":  {
+                                                                                        "owner":  "Modules/core/alg/alg_scroll_bounds.cppm",
+                                                                                        "kind":  "external-source"
+                                                                                    },
+                                                              "alg_scroll_thumb":  {
+                                                                                       "owner":  "Modules/core/alg/alg_scroll_thumb.cppm",
+                                                                                       "kind":  "external-source"
+                                                                                   },
+                                                              "alg_text_layout":  {
+                                                                                      "owner":  "Modules/core/alg/alg_text_layout.cppm",
+                                                                                      "kind":  "external-source"
+                                                                                  },
+                                                              "alg_text_parse":  {
+                                                                                     "owner":  "Modules/core/alg/alg_text_parse.cppm",
+                                                                                     "kind":  "external-source"
+                                                                                 },
+                                                              "alg_text_scroll":  {
+                                                                                      "owner":  "Modules/core/alg/alg_text_scroll.cppm",
+                                                                                      "kind":  "external-source"
+                                                                                  },
+                                                              "alg_virtual_list":  {
+                                                                                       "owner":  "Modules/core/alg/alg_virtual_list.cppm",
+                                                                                       "kind":  "external-source"
+                                                                                   },
+                                                              "charm.core.config.generated":  {
+                                                                                                  "owner":  "Vivid Profile Compiler generated module",
+                                                                                                  "kind":  "generated"
+                                                                                              },
+                                                              "charm.core.event":  {
+                                                                                       "owner":  "Modules/ui/common/charm.core.event.cppm",
+                                                                                       "kind":  "external-source"
+                                                                                   },
+                                                              "charm.core.soa_pool_caps":  {
+                                                                                               "owner":  "Vivid Profile Compiler generated module",
+                                                                                               "kind":  "generated"
+                                                                                           },
+                                                              "charm.font":  {
+                                                                                 "owner":  "Modules/gfx/font/font.cppm",
+                                                                                 "kind":  "external-source"
+                                                                             },
+                                                              "charm.font.provider_vfs":  {
+                                                                                              "owner":  "Modules/gfx/font/font_provider_vfs.cppm",
+                                                                                              "kind":  "external-source"
+                                                                                          },
+                                                              "charm.font.typography":  {
+                                                                                            "owner":  "Modules/gfx/font/typography.cppm",
+                                                                                            "kind":  "external-source"
+                                                                                        },
+                                                              "out.core":  {
+                                                                               "owner":  "Modules/io/out/out.core.cppm",
+                                                                               "kind":  "external-source"
+                                                                           },
+                                                              "out.format":  {
+                                                                                 "owner":  "Modules/io/out/out.format.cppm",
+                                                                                 "kind":  "external-source"
+                                                                             },
+                                                              "out.sink":  {
+                                                                               "owner":  "Modules/io/out/out.sink.cppm",
+                                                                               "kind":  "external-source"
+                                                                           },
+                                                              "service.state":  {
+                                                                                    "owner":  "Modules/core/service/state.cppm",
+                                                                                    "kind":  "external-source"
+                                                                                },
+                                                              "service_dirty_rects":  {
+                                                                                          "owner":  "Modules/core/service/service_dirty_rects.cppm",
+                                                                                          "kind":  "external-source"
+                                                                                      },
+                                                              "ui.render_backend":  {
+                                                                                        "owner":  "Modules/ui/common/ui.render_backend.cppm",
+                                                                                        "kind":  "external-source"
+                                                                                    },
+                                                              "util.core":  {
+                                                                                "owner":  "Modules/core/util/core.cppm",
+                                                                                "kind":  "external-source"
+                                                                            },
+                                                              "util.delegate":  {
+                                                                                    "owner":  "Modules/core/util/delegate.cppm",
+                                                                                    "kind":  "external-source"
+                                                                                },
+                                                              "util.expected":  {
+                                                                                    "owner":  "Modules/core/util/expected.cppm",
+                                                                                    "kind":  "external-source"
+                                                                                }
+                                                          },
+                                      "policy":  {
+                                                     "product_root":  [
+                                                                          "charm.gfx.canvas",
+                                                                          "charm.gfx.color",
+                                                                          "charm.gfx.display_policy",
+                                                                          "charm.gfx.framebuffer",
+                                                                          "charm.gfx.image",
+                                                                          "charm.gfx.path",
+                                                                          "charm.gfx.pixel_format",
+                                                                          "charm.gfx.render_style",
+                                                                          "charm.gfx.svg",
+                                                                          "charm.gfx.text_box",
+                                                                          "charm.ui.scene",
+                                                                          "charm.ui.scene.anchored_menu",
+                                                                          "charm.ui.scene.focus_scope",
+                                                                          "charm.ui.scene.list_card_header",
+                                                                          "charm.ui.scene.motion_runtime",
+                                                                          "charm.ui.scene.page_header",
+                                                                          "charm.ui.scene.page_layers",
+                                                                          "charm.ui.scene.page_transition",
+                                                                          "charm.ui.scene.path_bar",
+                                                                          "charm.ui.scene.pill",
+                                                                          "charm.ui.scene.pill_surface",
+                                                                          "charm.ui.scene.scene_evidence",
+                                                                          "charm.ui.scene.seek_bar_style",
+                                                                          "charm.ui.scene.text_style",
+                                                                          "charm.ui.scene.title_block",
+                                                                          "charm.ui.scene.top_bar",
+                                                                          "charm.ui.vivid",
+                                                                          "charm.ui.vivid.font_package",
+                                                                          "charm.ui.vivid.font_runtime",
+                                                                          "charm.ui.vivid.perf_overlay_runtime"
+                                                                      ],
+                                                     "host_only":  [
+                                                                       "charm.gfx.host_tools",
+                                                                       "charm.gfx.snapshot"
+                                                                   ],
+                                                     "internal_explicit":  [
+                                                                               "charm.core.soa_factory",
+                                                                               "charm.core.soa_gui",
+                                                                               "charm.core.soa_kernel",
+                                                                               "charm.core.soa_payload",
+                                                                               "charm.gfx.draw_cmd",
+                                                                               "charm.ui.scene.builder_support",
+                                                                               "charm.ui.scene.layer_support",
+                                                                               "charm.ui.scene.snapshot_payload_store",
+                                                                               "charm.ui.scene:render_detail",
+                                                                               "charm.ui.scene:snapshot_store",
+                                                                               "charm.ui.vivid_internal"
+                                                                           ],
+                                                     "internal_by_default":  [
+                                                                                 "charm.core.config",
+                                                                                 "charm.core.geometry",
+                                                                                 "charm.core.handle",
+                                                                                 "charm.core.input_interaction",
+                                                                                 "charm.core.object",
+                                                                                 "charm.core.soa_gui.basic_recorders",
+                                                                                 "charm.core.soa_gui.collection_recorders",
+                                                                                 "charm.core.soa_gui.feedback_recorders",
+                                                                                 "charm.core.soa_gui.style_support",
+                                                                                 "charm.core.soa_kernel:actions",
+                                                                                 "charm.core.soa_kernel:behavior",
+                                                                                 "charm.core.soa_kernel:input",
+                                                                                 "charm.core.soa_kernel:input_core",
+                                                                                 "charm.core.soa_kernel:kernel_class",
+                                                                                 "charm.core.soa_kernel:layout_state",
+                                                                                 "charm.core.soa_kernel:payload",
+                                                                                 "charm.core.soa_kernel:payload_lists",
+                                                                                 "charm.core.soa_kernel:payload_views",
+                                                                                 "charm.core.soa_kernel:semantic",
+                                                                                 "charm.core.soa_kernel:storage",
+                                                                                 "charm.core.soa_kernel:types",
+                                                                                 "charm.core.soa_layout",
+                                                                                 "charm.core.soa_registry",
+                                                                                 "charm.core.soa_router",
+                                                                                 "charm.core.structured_view",
+                                                                                 "charm.core.style",
+                                                                                 "charm.core.style_evidence",
+                                                                                 "charm.core.style_impact",
+                                                                                 "charm.core.style_sheet",
+                                                                                 "charm.core.theme_preset",
+                                                                                 "charm.core.virtual_list",
+                                                                                 "charm.core.widget_registry",
+                                                                                 "charm.core.widget_spec",
+                                                                                 "charm.gfx.draw_cmd:buffer",
+                                                                                 "charm.gfx.draw_cmd:executor",
+                                                                                 "charm.gfx.draw_cmd:schema",
+                                                                                 "charm.gfx.draw_cmd_evidence",
+                                                                                 "charm.gfx.framebuffer:core",
+                                                                                 "charm.gfx.pixel_ops",
+                                                                                 "charm.gfx.render_core",
+                                                                                 "charm.ui.scene.layer_runtime",
+                                                                                 "charm.ui.scene.motion_compose",
+                                                                                 "charm.ui.scene.motion_execute",
+                                                                                 "charm.ui.scene.motion_page_transition",
+                                                                                 "charm.ui.scene.motion_plan",
+                                                                                 "charm.ui.scene.motion_recipe",
+                                                                                 "charm.ui.scene.motion_time",
+                                                                                 "charm.ui.scene.motion_transition",
+                                                                                 "charm.widgets.arc",
+                                                                                 "charm.widgets.bar",
+                                                                                 "charm.widgets.battery_gasgauge",
+                                                                                 "charm.widgets.battery_gauge",
+                                                                                 "charm.widgets.busy_wheel",
+                                                                                 "charm.widgets.button",
+                                                                                 "charm.widgets.chart",
+                                                                                 "charm.widgets.checkbox",
+                                                                                 "charm.widgets.cloudy_glass",
+                                                                                 "charm.widgets.code_block",
+                                                                                 "charm.widgets.console_box",
+                                                                                 "charm.widgets.crt_screen",
+                                                                                 "charm.widgets.dial",
+                                                                                 "charm.widgets.dropdown",
+                                                                                 "charm.widgets.dropdown_popup",
+                                                                                 "charm.widgets.dynamic_nebula",
+                                                                                 "charm.widgets.foldable_panel",
+                                                                                 "charm.widgets.gauge",
+                                                                                 "charm.widgets.histogram",
+                                                                                 "charm.widgets.histogram_view",
+                                                                                 "charm.widgets.icon_list",
+                                                                                 "charm.widgets.image",
+                                                                                 "charm.widgets.image_box",
+                                                                                 "charm.widgets.label",
+                                                                                 "charm.widgets.led",
+                                                                                 "charm.widgets.list",
+                                                                                 "charm.widgets.list_utils",
+                                                                                 "charm.widgets.list_view",
+                                                                                 "charm.widgets.menu",
+                                                                                 "charm.widgets.menu_item",
+                                                                                 "charm.widgets.menu_tree",
+                                                                                 "charm.widgets.message_box",
+                                                                                 "charm.widgets.meter_pointer",
+                                                                                 "charm.widgets.modal_dialog",
+                                                                                 "charm.widgets.number_input",
+                                                                                 "charm.widgets.number_list",
+                                                                                 "charm.widgets.perf_overlay",
+                                                                                 "charm.widgets.popup_layer",
+                                                                                 "charm.widgets.primitives_canvas",
+                                                                                 "charm.widgets.progress",
+                                                                                 "charm.widgets.progress_bar_drill",
+                                                                                 "charm.widgets.progress_bar_round",
+                                                                                 "charm.widgets.progress_bar_simple",
+                                                                                 "charm.widgets.progress_flowing",
+                                                                                 "charm.widgets.progress_wheel",
+                                                                                 "charm.widgets.radio",
+                                                                                 "charm.widgets.radio_group",
+                                                                                 "charm.widgets.rich_text",
+                                                                                 "charm.widgets.ring_indication",
+                                                                                 "charm.widgets.roller",
+                                                                                 "charm.widgets.scroll_container",
+                                                                                 "charm.widgets.scrollbar",
+                                                                                 "charm.widgets.segmented_control",
+                                                                                 "charm.widgets.slider",
+                                                                                 "charm.widgets.spectrum_view",
+                                                                                 "charm.widgets.spin_zoom_widget",
+                                                                                 "charm.widgets.spinner",
+                                                                                 "charm.widgets.spinning_wheel",
+                                                                                 "charm.widgets.stepper",
+                                                                                 "charm.widgets.switcher",
+                                                                                 "charm.widgets.table_view",
+                                                                                 "charm.widgets.tabview",
+                                                                                 "charm.widgets.text_area",
+                                                                                 "charm.widgets.text_box",
+                                                                                 "charm.widgets.text_input",
+                                                                                 "charm.widgets.text_list",
+                                                                                 "charm.widgets.text_tracking_list",
+                                                                                 "charm.widgets.timeline",
+                                                                                 "charm.widgets.toggle_group",
+                                                                                 "charm.widgets.tree_view",
+                                                                                 "charm.widgets.waveform",
+                                                                                 "charm.widgets.waveform_view"
+                                                                             ]
+                                                 },
+                                      "scc":  {
+                                                  "components":  163,
+                                                  "cycles":  0,
+                                                  "method":  "module import graph; no cycles observed"
+                                              }
+                                  }
+                  },
+    "archive_patch_queue":  [
+                                {
+                                    "patch_id":  "ARCHIVE-VIVID-001",
+                                    "source_range":  "0cdfbbdc29b3ef583c4f774928a18bda408b6068..40f610cbd4fea55e9e1ca37bcbf4bd616d81a30d",
+                                    "file":  "Examples/ui/vivid/page_transition_demo/main.cpp",
+                                    "status":  "Quarantined",
+                                    "verification":  "pending semantic hunk review",
+                                    "note":  "File is not an acceptance unit; split by semantic hunk before adjudication."
+                                },
+                                {
+                                    "patch_id":  "ARCHIVE-VIVID-002",
+                                    "source_range":  "0cdfbbdc29b3ef583c4f774928a18bda408b6068..40f610cbd4fea55e9e1ca37bcbf4bd616d81a30d",
+                                    "file":  "Modules/ui/vivid/ARCHITECTURE.md",
+                                    "status":  "Quarantined",
+                                    "verification":  "pending semantic hunk review",
+                                    "note":  "File is not an acceptance unit; split by semantic hunk before adjudication."
+                                },
+                                {
+                                    "patch_id":  "ARCHIVE-VIVID-003",
+                                    "source_range":  "0cdfbbdc29b3ef583c4f774928a18bda408b6068..40f610cbd4fea55e9e1ca37bcbf4bd616d81a30d",
+                                    "file":  "Modules/ui/vivid/core/layer_runtime.cppm",
+                                    "status":  "Quarantined",
+                                    "verification":  "pending semantic hunk review",
+                                    "note":  "File is not an acceptance unit; split by semantic hunk before adjudication."
+                                },
+                                {
+                                    "patch_id":  "ARCHIVE-VIVID-004",
+                                    "source_range":  "0cdfbbdc29b3ef583c4f774928a18bda408b6068..40f610cbd4fea55e9e1ca37bcbf4bd616d81a30d",
+                                    "file":  "Modules/ui/vivid/core/motion_compose.cppm",
+                                    "status":  "Quarantined",
+                                    "verification":  "pending semantic hunk review",
+                                    "note":  "File is not an acceptance unit; split by semantic hunk before adjudication."
+                                },
+                                {
+                                    "patch_id":  "ARCHIVE-VIVID-005",
+                                    "source_range":  "0cdfbbdc29b3ef583c4f774928a18bda408b6068..40f610cbd4fea55e9e1ca37bcbf4bd616d81a30d",
+                                    "file":  "Modules/ui/vivid/core/motion_execute.cppm",
+                                    "status":  "Quarantined",
+                                    "verification":  "pending semantic hunk review",
+                                    "note":  "File is not an acceptance unit; split by semantic hunk before adjudication."
+                                },
+                                {
+                                    "patch_id":  "ARCHIVE-VIVID-006",
+                                    "source_range":  "0cdfbbdc29b3ef583c4f774928a18bda408b6068..40f610cbd4fea55e9e1ca37bcbf4bd616d81a30d",
+                                    "file":  "Modules/ui/vivid/core/scene.cppm",
+                                    "status":  "Quarantined",
+                                    "verification":  "pending semantic hunk review",
+                                    "note":  "File is not an acceptance unit; split by semantic hunk before adjudication."
+                                },
+                                {
+                                    "patch_id":  "ARCHIVE-VIVID-007",
+                                    "source_range":  "0cdfbbdc29b3ef583c4f774928a18bda408b6068..40f610cbd4fea55e9e1ca37bcbf4bd616d81a30d",
+                                    "file":  "Modules/ui/vivid/core/scene_snapshot_store.cppm",
+                                    "status":  "Quarantined",
+                                    "verification":  "pending semantic hunk review",
+                                    "note":  "File is not an acceptance unit; split by semantic hunk before adjudication."
+                                },
+                                {
+                                    "patch_id":  "ARCHIVE-VIVID-008",
+                                    "source_range":  "0cdfbbdc29b3ef583c4f774928a18bda408b6068..40f610cbd4fea55e9e1ca37bcbf4bd616d81a30d",
+                                    "file":  "docs/ui/ui_kernel_contract.md",
+                                    "status":  "Quarantined",
+                                    "verification":  "pending semantic hunk review",
+                                    "note":  "File is not an acceptance unit; split by semantic hunk before adjudication."
+                                },
+                                {
+                                    "patch_id":  "ARCHIVE-VIVID-009",
+                                    "source_range":  "0cdfbbdc29b3ef583c4f774928a18bda408b6068..40f610cbd4fea55e9e1ca37bcbf4bd616d81a30d",
+                                    "file":  "docs/ui/vivid_import_boundary_contract.md",
+                                    "status":  "Quarantined",
+                                    "verification":  "pending semantic hunk review",
+                                    "note":  "File is not an acceptance unit; split by semantic hunk before adjudication."
+                                },
+                                {
+                                    "patch_id":  "ARCHIVE-VIVID-010",
+                                    "source_range":  "0cdfbbdc29b3ef583c4f774928a18bda408b6068..40f610cbd4fea55e9e1ca37bcbf4bd616d81a30d",
+                                    "file":  "docs/ui/vivid_layer_runtime_v0.md",
+                                    "status":  "Quarantined",
+                                    "verification":  "pending semantic hunk review",
+                                    "note":  "File is not an acceptance unit; split by semantic hunk before adjudication."
+                                }
+                            ],
+    "profile_requirements":  {
+                                 "compiler_raw":  "record from product_profile_compiler output",
+                                 "normalized_closure":  "record from generated module_closure.json",
+                                 "lexical_frontier":  "record from all import declarations, independent of policy"
+                             },
+    "evidence":  {
+                     "profile_closure":  {
+                                             "player_md3":  {
+                                                                "modules":  69,
+                                                                "sources":  68,
+                                                                "normalized_external_requirements":  4
+                                                            },
+                                             "player_md3_debug":  {
+                                                                      "modules":  73,
+                                                                      "sources":  72,
+                                                                      "normalized_external_requirements":  4
+                                                                  },
+                                             "profile_fingerprint":  "180caf1e6f46b2d82fc54761a25e81317e00283b7d71fc3499f60000a9876720",
+                                             "host_target_fingerprint":  "222d40c405fef09c572672d9015718164b071cac6edcc912114fefc6d0f41c23",
+                                             "h747_target_fingerprint":  "2baf4844112aeb8ae0588fb47c7eb942d86e1025f24443ea16a5157b5c1561be",
+                                             "lexical_frontier":  {
+                                                                      "full":  25,
+                                                                      "player_md3":  16,
+                                                                      "player_md3_debug":  17
+                                                                  }
+                                         },
+                     "runtime":  {
+                                     "dev_page_transition":  "passed",
+                                     "archive_page_transition":  "segfault",
+                                     "dev_static_memory":  "passed",
+                                     "archive_static_memory":  "passed"
+                                 },
+                     "gfx_min":  "pending",
+                     "scene_min":  "pending",
+                     "player_pressure":  "dev page_transition passes; archive page_transition segfaults"
+                 }
+}

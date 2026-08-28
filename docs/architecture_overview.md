@@ -15,7 +15,7 @@
 |---|---|
 | `Modules/core/capability/relations.hpp` | 当前唯一保留的 Core 公共关系投影 |
 | `Examples/system/charm_capability_relations` | 关系模型的最小 Host 证据 |
-| `Examples/system/charm_capability_mvp` | Capability MVP 的 Host 证据与失败矩阵 |
+| `Examples/system/charm_capability_mvp` | Capability MVP 的 Host 完整矩阵与 QEMU 局部运行证据 |
 | `Examples/system/charm_core_external_consumer` | 安装后 `Charm::core` 消费证据 |
 | `Examples/system/charm_core_arm_build_only` | ARM freestanding build-only 消费证据 |
 | `docs/architecture` | Core 契约、审计和准入记录 |
@@ -33,8 +33,8 @@ facade 已从 OnlyCore 移除。
 
 ```text
 Requirement / Provision / Binding
-        -> Host 局部验证与解析
-        -> Host relation evidence
+        -> Host relation 与完整 MVP failure matrix
+        -> QEMU MVP positive / missing-binding evidence
 ```
 
 OnlyCore 不包含 init graph、runtime、driver、backend、loader、UI、Audio 或板级装配路径。

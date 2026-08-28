@@ -184,6 +184,7 @@ foreach ($token in $retiredBuildSurface) {
 $consumerFiles = @(
     'Examples/system/charm_capability_relations/CMakeLists.txt',
     'Examples/system/charm_capability_mvp/CMakeLists.txt',
+    'Examples/system/charm_capability_mvp/qemu/CMakeLists.txt',
     'Examples/system/charm_core_external_consumer/CMakeLists.txt',
     'Examples/system/charm_core_arm_build_only/CMakeLists.txt'
 )
@@ -218,6 +219,13 @@ foreach ($case in $negativeRelationCases) {
     if (-not $relationCmake.Contains($case)) {
         Fail "Core relation negative case not wired: $case"
     }
+}
+
+$portableVerifier = Get-Content -Raw -Encoding utf8 (
+    Join-Path $root 'Examples/system/charm_capability_mvp/verify_portable_source_boundary.ps1')
+if (-not $portableVerifier.Contains('[ValidateSet("host", "qemu")]') -or
+    -not $portableVerifier.Contains('qemu = Join-Path $PSScriptRoot "qemu/main.cpp"')) {
+    Fail 'MVP portable consumer domains drift'
 }
 
 $tracked = @(& git -C $root -c core.quotepath=false ls-files)

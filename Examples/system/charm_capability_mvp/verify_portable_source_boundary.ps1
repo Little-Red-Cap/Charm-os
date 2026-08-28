@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
-    [ValidateSet("host")]
-    [string[]]$Domains = @("host"),
+    [ValidateSet("host", "qemu")]
+    [string[]]$Domains = @("host", "qemu"),
     [switch]$SelfTest
 )
 
@@ -99,6 +99,7 @@ $SharedFiles = @(
 )
 $Consumers = [ordered]@{
     host = Join-Path $PSScriptRoot "main.cpp"
+    qemu = Join-Path $PSScriptRoot "qemu/main.cpp"
 }
 
 if ($Domains.Count -eq 0) {

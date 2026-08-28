@@ -3,7 +3,7 @@
 ## 文档状态
 
 - `status`: `exploration`
-- `scope`: Charm MVP 的 Host 当前证据
+- `scope`: Charm MVP 的 Host 与 QEMU 当前证据
 - `authority`: [`CONSTITUTION.md`](../../../CONSTITUTION.md) 与
   [`charm_core_contract.md`](../../../docs/architecture/charm_core_contract.md)
 
@@ -33,15 +33,17 @@ Contract、Requirement 和 Provision 使用三个不同的 project-local `enum c
 | Domain | 变化 | 必须证明 |
 |---|---|---|
 | Host | Host profile/providers | positive run、完整 resolution/app failure matrix、失败后不继续调用 |
+| QEMU | `virt` 固件与局部 providers | 同一 app positive run、可比较 evidence、missing binding 在启动前失败 |
 
-Host matrix 覆盖每个 requirement position、binding order 和 App failure stage。QEMU、真实板和旧
-board log 不属于当前 OnlyCore 证据范围。
+Host matrix 覆盖每个 requirement position、binding order 和 App failure stage。QEMU 当前只覆盖正例和
+missing binding，不等同于 Host 完整失败矩阵。真实板和旧 board log 不属于当前 OnlyCore 证据范围。
 
 ## 验证入口
 
 | 范围 | 入口 |
 |---|---|
 | Host | [`run_host_ci.ps1`](run_host_ci.ps1) |
+| QEMU | [`qemu/run_qemu_ci.ps1`](qemu/run_qemu_ci.ps1) |
 | portable source boundary | [`verify_portable_source_boundary.ps1`](verify_portable_source_boundary.ps1) |
 
 编译器版本、case count、默认 build path 和当前通过状态由 Host runner 输出维护。
@@ -51,5 +53,5 @@ conditional compilation。
 
 ## 边界
 
-当前 gate 证明局部 Contract projection 和 relation v1 在 Host 上可运行；它不批准 Provider、Profile、
-Evidence 或任一 runtime 进入 Charm Core，也不声明 QEMU 或真实板兼容。
+当前 gate 证明同一 portable app 在 Host 和 QEMU 正例中运行，并在两域对 missing binding 作相同启动前
+分类；它不批准 Provider、Profile、Evidence 或任一 runtime 进入 Charm Core，也不声明真实板兼容。

@@ -24,7 +24,7 @@ Charm 是一个能力导向的嵌入式应用平台。
 | Core 冲突审计 | [`charm_core_semantic_audit.md`](charm_core_semantic_audit.md) |
 | Capability relation v1 准入 | [`charm_capability_relations_v1_admission.md`](charm_capability_relations_v1_admission.md) |
 | OnlyCore 当前源码 | [`../../Modules/core/capability/relations.hpp`](../../Modules/core/capability/relations.hpp) |
-| OnlyCore Host 证据 | [`../../Examples/system/charm_capability_relations/README.md`](../../Examples/system/charm_capability_relations/README.md) |
+| OnlyCore Host/QEMU 证据 | [`../../Examples/system/charm_capability_mvp/README.md`](../../Examples/system/charm_capability_mvp/README.md) |
 
 其它 device、IO、runtime、板级和 deployment 材料已从 OnlyCore 活动文档区移除，只从快照分支或
 Git 历史追溯。RTE/Spine 源码原型已经退役；System Compiler、

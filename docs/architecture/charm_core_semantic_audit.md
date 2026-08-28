@@ -60,10 +60,10 @@ consumer 直接包含 `relations.hpp`，不再提供兼容 facade。
 
 当前举证从
 [`charm_capability_relations`](../../Examples/system/charm_capability_relations/README.md) 和
-[`charm_capability_mvp`](../../Examples/system/charm_capability_mvp/README.md) 进入，仅覆盖 Host。
-证据通过只满足局部准入前置条件，不代表 topology、Capability interface、RTE、init graph 或任一
-Runtime 已获准成为 Charm Core。
+[`charm_capability_mvp`](../../Examples/system/charm_capability_mvp/README.md) 进入。relations 只覆盖 Host；
+MVP 覆盖 Host 完整矩阵和 QEMU 正例/missing binding。证据通过只满足局部准入前置条件，不代表
+topology、Capability interface、RTE、init graph 或任一 Runtime 已获准成为 Charm Core。
 
 Capability relation v1 的当前准入记录见
-[`charm_capability_relations_v1_admission.md`](charm_capability_relations_v1_admission.md)。QEMU、板级
-工程和旧日志不在当前 OnlyCore 验证范围内，不能替代当前源码执行。
+[`charm_capability_relations_v1_admission.md`](charm_capability_relations_v1_admission.md)。真实板工程和旧日志
+不在当前 OnlyCore 验证范围内，不能替代当前源码执行；QEMU 局部结果也不能外推为板级证据。

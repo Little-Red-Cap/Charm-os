@@ -25,6 +25,6 @@ key 类型，以及三个关系类型的默认构造。负例 target 不进入�
 .\Examples\system\charm_capability_relations\run_host_ci.ps1
 ```
 
-当前远端 gate 分别运行 Host Clang 与 GCC；QEMU 的 MVP 运行证据从相邻
-[`charm_capability_mvp`](../charm_capability_mvp/README.md) 进入。真实板和旧 board log 不属于当前
-OnlyCore 验证范围。
+本地 runner 已分别验证 Host Clang 与 GCC；workflow 已定义对应远端 jobs，首次 Actions 结果须以远端 run
+为准。QEMU 的 MVP 运行证据从相邻 [`charm_capability_mvp`](../charm_capability_mvp/README.md) 进入。真实板和
+旧 board log 不属于当前 OnlyCore 验证范围。

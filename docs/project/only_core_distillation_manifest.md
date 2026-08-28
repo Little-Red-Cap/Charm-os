@@ -24,11 +24,11 @@ OnlyCore 的提交历史保持不改写；未列出的历史文件不因此获�
 
 | 证据 | 当前范围 | 不覆盖 |
 |---|---|---|
-| Host relations | Clang/GCC、三组编译期 key 负例 | QEMU 或真实板运行 |
-| Host MVP | 正例、完整 failure matrix、Clang/GCC、ASan/UBSan | 跨域固件启动 |
-| QEMU MVP | `virt/cortex-a15` 同一 app 的正例与 `missing_binding` | 完整 failure matrix、真实时钟、持久存储、真实板 |
-| ARM freestanding | `arm-none-eabi-g++` compile-only | 链接、启动和运行时行为 |
-| Installed consumer | `find_package(CharmCore)` 的独立 Host 消费 | ABI 与版本策略 |
+| Host relations | 本地 Clang/GCC、三组编译期 key 负例 | QEMU 或真实板运行；远端 Actions 首次 run |
+| Host MVP | 本地正例、完整 failure matrix、Clang/GCC、ASan/UBSan | 跨域固件启动；远端 Actions 首次 run |
+| QEMU MVP | 本地 `virt/cortex-a15` 同一 app 的正例与 `missing_binding` | 完整 failure matrix、真实时钟、持久存储、真实板；远端 Actions 首次 run |
+| ARM freestanding | 本地 `arm-none-eabi-g++` compile-only | 链接、启动和运行时行为；远端 Actions 首次 run |
+| Installed consumer | 本地 `find_package(CharmCore)` 的独立 Host 消费 | ABI 与版本策略；远端 Actions 首次 run |
 
 QEMU reference consumer 位于 [`Examples/system/charm_capability_mvp/qemu`](../../Examples/system/charm_capability_mvp/qemu)，
 只复用共享 `mvp_app.hpp`；平台启动、PL011、链接和内存 BlockDevice 属于该 supporting 证据目录。

@@ -53,5 +53,6 @@ conditional compilation。
 
 ## 边界
 
-当前 gate 证明同一 portable app 在 Host 和 QEMU 正例中运行，并在两域对 missing binding 作相同启动前
-分类；它不批准 Provider、Profile、Evidence 或任一 runtime 进入 Charm Core，也不声明真实板兼容。
+本地 runner 已证明同一 portable app 在 Host 和 QEMU 正例中运行，并在两域对 missing binding 作相同启动前
+分类；workflow 已定义对应远端 jobs，但首次 Actions 结果须以远端 run 为准。该证据不批准 Provider、Profile、
+Evidence 或任一 runtime 进入 Charm Core，也不声明真实板兼容。

@@ -199,7 +199,8 @@ $manifest = [ordered]@{
             lexical_frontier = [ordered]@{ full = 25; player_md3 = 16; player_md3_debug = 17 }
         }
         runtime = [ordered]@{
-            dev_page_transition = "passed"
+            dev_page_transition_snapshot = "passed"
+            dev_page_transition_clean_clone = "hung_after_build_terminated"
             archive_page_transition = "segfault"
             dev_static_memory = "passed"
             archive_static_memory = "passed"

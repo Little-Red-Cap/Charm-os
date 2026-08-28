@@ -76,9 +76,10 @@ demo 段错误，因此 `LayerComposePlan` 改动暂定 `Quarantined / causality
 |---|---|---|
 | `gfx-min` | `pending` | DrawCmd、Canvas、Framebuffer、FullFrame/Tile 的窄闭包尚未单独建立 |
 | `scene-min` | `pending` | Scene、最小 state/invalidation 到 DrawCmd/artifact 尚未单独建立 |
-| `player-pressure` | `dev passed`, `archive failed` | `dev` page-transition 通过；archive 段错误；两份 static-memory 通过 |
+| `player-pressure` | `dev snapshot passed`, `clean clone hung`, `archive failed` | 导出的精确 dev 快照 page-transition 通过；干净 clone 重跑在构建后无输出并终止；archive 段错误；两份 static-memory 通过 |
 
-当前 full-runtime demo 只能证明 Charm 全仓消费者行为，不能证明 Vivid 可独立拆仓。
+当前 full-runtime demo 只能证明 Charm 全仓消费者行为，不能证明 Vivid 可独立拆仓。干净 clone 的重跑结果
+单独记录为挂起，不覆盖此前精确 dev 快照的通过证据。
 
 ## 审计工具固定
 

@@ -7,7 +7,7 @@
 - `authority`: [`CONSTITUTION.md`](../../../CONSTITUTION.md) 与
   [`charm_core_contract.md`](../../../docs/architecture/charm_core_contract.md)
 
-本示例使用 `arm-none-eabi-g++`、freestanding、无异常和无 RTTI 选项编译公共关系投影，只生成对象文件。
+本示例使用 `arm-none-eabi-g++`、freestanding、无异常、无 RTTI 和无线程安全静态初始化选项编译公共关系投影，只生成对象文件。
 
 运行：
 

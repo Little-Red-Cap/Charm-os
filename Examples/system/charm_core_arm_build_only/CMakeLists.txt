@@ -10,6 +10,7 @@ target_compile_options(charm-core-arm-build-only PRIVATE
     -ffreestanding
     -fno-exceptions
     -fno-rtti
+    -fno-threadsafe-statics
     -Wall
     -Wextra
     -Wpedantic

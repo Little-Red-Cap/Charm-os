@@ -39,3 +39,6 @@ Core 身份。
 
 核心审计完成前，不新增未经裁决的 Core 概念、公共身份或顶层架构主线。构建与专题任务从
 [`docs/agent/routes/README.md`](docs/agent/routes/README.md) 进入。
+
+感谢以下开源项目
+* dr_libs

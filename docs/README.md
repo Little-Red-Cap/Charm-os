@@ -27,7 +27,7 @@ Charm 是一个能力导向的嵌入式应用平台。
 | `archived` | 历史追溯，不进入推荐路径 |
 
 涉及 Charm 身份与 Core 语义时，权威顺序为：Constitution、canonical 核心契约、根 README、
-专题 supporting 文档、exploration、archive/reference/generated。文件名中的 `contract`、`overview`
+专题 supporting 文档、exploration、Git 历史。文件名中的 `contract`、`overview`
 或 `roadmap` 不授予权威。
 
 [`AGENTS.md`](../AGENTS.md) 负责操作与协作规则，不替代架构裁决。
@@ -42,6 +42,5 @@ Charm 是一个能力导向的嵌入式应用平台。
 | 构建 | [`build route`](agent/routes/build.md) |
 | 文档维护 | [`documentation_maintenance.md`](documentation_maintenance.md)、[`docs route`](agent/routes/docs.md) |
 
-Resident image、minimal-kernel、RTE、Spine、IO、UI 和 System Compiler 文档只作历史追溯；不要从
-文档数量、schema 或旧 smoke 名称反推当前实现或 Core 身份。历史多战线状态见
-[`repo-tracks-pre-core-reset`](archive/repo-tracks-pre-core-reset/README.md)。
+Resident image、minimal-kernel、RTE、Spine、IO、UI 和 System Compiler 材料已从 OnlyCore 活动树移除；
+不要从 Git 历史中的文档数量、schema 或旧 smoke 名称反推当前实现或 Core 身份。

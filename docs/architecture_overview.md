@@ -7,7 +7,7 @@
 - `authority`: [`CONSTITUTION.md`](../CONSTITUTION.md)
 
 本文回答代码放在哪里、从哪里进入。它不定义 Charm Core，也不记录易失效的构建或测试进度。
-旧版阶段盘点见 [`architecture-inventory-v0`](archive/architecture-inventory-v0/README.md)。
+旧版阶段盘点只从快照分支或 Git 历史追溯。
 
 ## 仓库结构
 
@@ -17,7 +17,6 @@
 | `Examples/system/charm_capability_relations` | 关系模型的最小 Host 证据 |
 | `Examples/system/charm_capability_mvp` | Capability MVP 的 Host 证据与失败矩阵 |
 | `docs/architecture` | Core 契约、审计和准入记录 |
-| `docs/archive` | 提纯前的历史材料，不作为当前实现入口 |
 | `scripts/check_charm_core_governance.ps1` | Canonical 文档和链接的治理检查 |
 
 目录只表示当前所有权，不授予 Core 身份。

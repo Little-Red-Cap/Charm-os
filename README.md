@@ -18,7 +18,7 @@ Requirement、Provision 与 Binding 的解析。完整语义由
 | Core 最小关系与边界 | [`charm_core_contract.md`](docs/architecture/charm_core_contract.md) |
 | 当前源码分区与运行路径 | [`architecture_overview.md`](docs/architecture_overview.md) |
 | 专题文档 | [`docs/README.md`](docs/README.md) |
-| 示例、语义 smoke 与板级工程 | [`Examples/README.md`](Examples/README.md) |
+| Core 示例与 Host 证据 | [`Examples/README.md`](Examples/README.md) |
 
 Charm 不以某个 MCU、RTOS、Linux、编译器、驱动集合或 image format 定义自己。Host、QEMU 和
 真实板是不同证据域；项目、BSP、backend、loader 与 Resident ELF 是消费者或实现，不自动获得
@@ -38,6 +38,3 @@ Core 身份。
 
 核心审计完成前，不新增未经裁决的 Core 概念、公共身份或顶层架构主线。构建与专题任务从
 [`docs/agent/routes/README.md`](docs/agent/routes/README.md) 进入。
-
-感谢以下开源项目
-* dr_libs

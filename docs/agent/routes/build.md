@@ -12,5 +12,5 @@
 3. 目标目录的 README、CMake 与 source
 4. [CMake skill](../skills/charm-cmake/SKILL.md)
 
-构建事实以 preset/CMake/target 为准；行为或使用入口变化时同步对应 README。仅遇到 imported declaration
-linkage 冲突时再读 [专项事件记录](../../architecture/cpp_modules_stdlib_linkage_conflicts.md)。
+构建事实以 preset、CMake、target 和真实 consumer 为准；行为或使用入口变化时同步对应 README。
+OnlyCore 的公共构建入口只有 `Charm::core`。

@@ -12,7 +12,6 @@
 | 代码审查 | [`code-review/SKILL.md`](code-review/SKILL.md) |
 | 代码生成与模块骨架 | [`codegen/SKILL.md`](codegen/SKILL.md) |
 | 架构评审与能力归属 | [`architect-review/SKILL.md`](architect-review/SKILL.md) |
-| Block device 与 VFS 挂载 | [`charm-block-device/SKILL.md`](charm-block-device/SKILL.md) |
 | UTF-8 与乱码修复 | [`charm-docs-utf8/SKILL.md`](charm-docs-utf8/SKILL.md) |
 | CMake 与构建接线 | [`charm-cmake/SKILL.md`](charm-cmake/SKILL.md) |
 

@@ -26,9 +26,8 @@ Charm 是一个能力导向的嵌入式应用平台。
 | OnlyCore 当前源码 | [`../../Modules/core/capability/relations.hpp`](../../Modules/core/capability/relations.hpp) |
 | OnlyCore Host 证据 | [`../../Examples/system/charm_capability_relations/README.md`](../../Examples/system/charm_capability_relations/README.md) |
 
-其它 device、IO、runtime、板级和 deployment 材料已从 OnlyCore 活动文档区移除，
-完整历史讨论见 [`../archive/architecture-exploration-v0/README.md`](../archive/architecture-exploration-v0/README.md)。
-RTE/Spine 源码原型已经退役；归档摘要只供旧链接追溯，不再作为活动架构入口。System Compiler、
+其它 device、IO、runtime、板级和 deployment 材料已从 OnlyCore 活动文档区移除，只从快照分支或
+Git 历史追溯。RTE/Spine 源码原型已经退役；System Compiler、
 IR、Graph 和 RTE 不因出现在历史材料中而成为 Core 身份。
 
 ## 使用规则

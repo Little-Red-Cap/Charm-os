@@ -29,25 +29,13 @@ project policy, MCU restrictions and local error types are not repository-wide r
 ## Ownership And Dependencies
 
 - [ ] Does Core remain free of project, board, HAL, UI and product facts?
-- [ ] Does the consumer use the narrowest existing entry, with board/vendor details behind the actual backend?
-- [ ] If `init.graph` is used, are provides/requires, phase, runlevel, capacity
-      and first-error behavior correct?
+- [ ] Does the consumer link `Charm::core` and use the public include path instead of bypassing the target?
 - [ ] Is each cross-boundary dependency justified by a real consumer rather than a historical directory model?
 
 ## Execution And Resources
 
-- [ ] For ISR/realtime/kernel/DMA paths, are blocking, allocation, formatting, cache and concurrency explicit?
-- [ ] For non-blocking IO, do zero progress, partial transfer and `would_block` match the owning contract?
-- [ ] Is timeout driven by the owning clock/reactor/scheduler instead of a hidden busy loop?
-- [ ] Are task/ISR/reactor handoffs explicit and observable?
-- [ ] Does third-party code remain at a controlled adapter/build boundary?
-
-## Signal, State And Wiring
-
-- [ ] Is `emit()` limited to synchronous same-domain notification?
-- [ ] Is persistent truth stored in state rather than reconstructed from events?
-- [ ] Do cross-context actions use explicit post/queue/ingress?
-- [ ] Is connection ownership visible, shorter than target lifetime, and safe under topology mutation rules?
+- [ ] Does the public header remain free of allocation, exceptions, platform vocabulary and hidden state?
+- [ ] Are build-only, Host-run and cross-environment claims kept separate?
 
 ## Temporary Exceptions
 
@@ -60,5 +48,4 @@ Report findings first by severity, with file/line, impact and repair direction. 
 residual risk; do not add empty sections or style-only filler.
 
 Rules: [`charm-architecture`](../../rules/charm-architecture.md),
-[`embedded-modern-cpp`](../../rules/embedded-modern-cpp.md), and the
-[`signal/state contract`](../../../architecture/signal_state_contract_v0.md).
+[`embedded-modern-cpp`](../../rules/embedded-modern-cpp.md).

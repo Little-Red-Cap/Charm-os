@@ -23,5 +23,4 @@ AGENTS.md -> route -> relevant rules/contract -> skill -> optional template/glos
 - 源码、CMake、真实 target 和当次验证仍是实现事实来源。
 - 文件移动或删除后同步更新直接入口和相对链接。
 
-历史指导体系见
-[`agent-guidance-v0`](../archive/agent-guidance-v0/README.md)。
+提纯前的指导体系只从快照分支或 Git 历史追溯，不进入当前 Agent 路由。

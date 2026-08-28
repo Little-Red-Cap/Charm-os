@@ -110,8 +110,6 @@ if ($canonicalArchitecture.Count -ne 1 -or
 $expectedStatuses = @{
     'docs/overview.md' = 'supporting'
     'docs/architecture_overview.md' = 'supporting'
-    'docs/archive/architecture-exploration-v0/rte_capability_composition_contract_v0.md' = 'exploration'
-    'docs/archive/architecture-exploration-v0/spine_h747_retained_notes.md' = 'exploration'
 }
 foreach ($entry in $expectedStatuses.GetEnumerator()) {
     $path = Join-Path $root $entry.Key
@@ -124,12 +122,68 @@ foreach ($entry in $expectedStatuses.GetEnumerator()) {
     }
 }
 
+$rootCmake = Get-Content -Raw -Encoding utf8 (Join-Path $root 'CMakeLists.txt')
+$requiredBuildSurface = @(
+    'add_library(Charm-core INTERFACE)',
+    'target_compile_features(Charm-core INTERFACE cxx_std_26)',
+    'add_library(Charm::core ALIAS Charm-core)'
+)
+foreach ($token in $requiredBuildSurface) {
+    if (-not $rootCmake.Contains($token)) {
+        Fail "Core build surface missing: $token"
+    }
+}
+$retiredBuildSurface = @(
+    'Charm::os',
+    'Charm-build-config',
+    'CHARM_ENABLE_TEST_MODULES',
+    'CHARM_TARGET_HAS_HOSTED_CXX',
+    'CHARM_TARGET_HAS_CXX_MATH'
+)
+foreach ($token in $retiredBuildSurface) {
+    if ($rootCmake.Contains($token)) {
+        Fail "retired build surface present: $token"
+    }
+}
+
+$consumerFiles = @(
+    'Examples/system/charm_capability_relations/CMakeLists.txt',
+    'Examples/system/charm_capability_mvp/CMakeLists.txt'
+)
+foreach ($relative in $consumerFiles) {
+    $content = Get-Content -Raw -Encoding utf8 (Join-Path $root $relative)
+    if (-not $content.Contains('Charm::core')) {
+        Fail "Core consumer does not link Charm::core: $relative"
+    }
+}
+
+$tracked = @(& git -C $root -c core.quotepath=false ls-files)
+if ($LASTEXITCODE -ne 0) {
+    Fail 'cannot enumerate tracked files'
+}
+$retiredRoots = @(
+    'Backends/',
+    'targets/',
+    'schemas/',
+    'docs/archive/',
+    'docs/system/',
+    'docs/io/',
+    'docs/storage/',
+    'docs/ui/',
+    'docs/usb/'
+)
+foreach ($relative in $tracked) {
+    foreach ($prefix in $retiredRoots) {
+        if ($relative.StartsWith($prefix, [StringComparison]::Ordinal)) {
+            Fail "retired path tracked: $relative"
+        }
+    }
+}
+
 $linkFiles = $canonical + @(
     'docs/architecture/charm_core_semantic_audit.md',
     'docs/overview.md',
-    'docs/architecture_overview.md',
-    'docs/archive/architecture-exploration-v0/rte_capability_composition_contract_v0.md',
-    'docs/archive/architecture-exploration-v0/spine_h747_retained_notes.md'
+    'docs/architecture_overview.md'
 )
 $linkCount = 0
 foreach ($relative in $linkFiles) {
@@ -163,5 +217,7 @@ foreach ($relative in $linkFiles) {
 Write-Output "[charm-core-governance] canonical=ok files=$($canonical.Count)"
 Write-Output "[charm-core-governance] verdicts=ok count=$($verdictConcepts.Count)"
 Write-Output "[charm-core-governance] classified=ok count=$($expectedStatuses.Count)"
+Write-Output "[charm-core-governance] build-surface=ok consumers=$($consumerFiles.Count)"
+Write-Output "[charm-core-governance] retired-roots=ok count=$($retiredRoots.Count)"
 Write-Output "[charm-core-governance] links=ok count=$linkCount"
 Write-Output '[charm-core-governance] ok'

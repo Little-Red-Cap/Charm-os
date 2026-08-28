@@ -3,8 +3,6 @@ cmake-build-*
 out
 Draft
 ThirdParty
-!Modules/thirdparty/
-!Modules/thirdparty/**
 __pycache__/
 *.pyc
 *.log

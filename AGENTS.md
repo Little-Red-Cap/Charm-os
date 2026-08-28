@@ -39,7 +39,7 @@ Charm 当前处于核心收敛阶段。除非用户明确批准，否则暂停�
 3. 根目录 `README.md`、`docs/README.md` 与相关目录的 `README.md`
 4. 已标为 supporting 的专题 `*_contract.md` / `*_overview.md`，仅在各自范围内有效
 5. 标为 exploration 的 `*_plan.md` / `*_roadmap.md` / `*_draft.md` / `*_review.md` / `*_v0.md`
-6. `reference/*` / `generated/*` / `archive/*`
+6. Git 历史与独立快照分支
 
 补充：
 
@@ -54,7 +54,7 @@ Charm 当前处于核心收敛阶段。除非用户明确批准，否则暂停�
   `docs/architecture/charm_core_contract.md` 为准。
 - OnlyCore 当前只维护 Core 关系投影与 Host 证据；IO、USB、存储、系统运行时、板级和
   Resident ELF 材料不属于当前实现入口。
-- 提纯前的多战线材料统一位于 `docs/archive/`，仅供追溯，不作为当前路线依据。
+- 提纯前的多战线材料由 `archive/pre-onlycore-noncore-wip` 与 Git 历史保管，不作为当前路线依据。
 
 ## 任务直达路由
 
@@ -80,21 +80,9 @@ Charm 当前处于核心收敛阶段。除非用户明确批准，否则暂停�
 
 先读：`docs/agent/routes/utf8.md`
 
-### 我在看 init.graph / 装配问题
-
-先读：`docs/agent/routes/init-graph.md`
-
-### 我在看 IO 契约 / Channel / Reactor / Registry
-
-先读：`docs/agent/routes/io.md`（OnlyCore 中仅保留退役说明）
-
 ### 我在看 capability map / 能力归属
 
 先读：`docs/agent/routes/capability.md`
-
-### 我在看 block device / 存储接线
-
-先读：`docs/agent/routes/block-device.md`（OnlyCore 中仅保留退役说明）
 
 ### 我在看 CMake / preset / 构建接线
 

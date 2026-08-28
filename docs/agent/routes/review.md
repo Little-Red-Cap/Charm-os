@@ -13,5 +13,4 @@
 4. [Checklist](../skills/code-review/checklist.md)
 5. [输出模板](../templates/review-output.md)
 
-涉及 signal/state 时补读 [对应契约](../../architecture/signal_state_contract_v0.md)。输出以按严重性排序、
-带文件行号的 findings 为主，并说明测试缺口和残余风险。
+输出以按严重性排序、带文件行号的 findings 为主，并说明测试缺口和残余风险。

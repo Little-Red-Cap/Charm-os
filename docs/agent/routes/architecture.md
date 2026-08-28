@@ -13,5 +13,5 @@
 5. [`charm-architecture rule`](../rules/charm-architecture.md)
 6. [`architect-review skill`](../skills/architect-review/SKILL.md)
 
-OnlyCore 当前不维护 signal/state、真实板或 deployment supporting contract；相关历史材料见
-`docs/archive/`，不作为当前路线入口。
+OnlyCore 当前不维护 signal/state、真实板或 deployment supporting contract；相关材料只从快照分支
+或 Git 历史追溯，不作为当前路线入口。

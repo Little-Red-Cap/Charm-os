@@ -13,5 +13,5 @@
 4. [Codegen skill](../skills/codegen/SKILL.md)
 5. [输出模板](../templates/codegen-output.md)
 
-涉及 signal/state 时补读 [对应契约](../../architecture/signal_state_contract_v0.md)。先明确 ownership、
-依赖、错误与验证边界，再生成代码。
+先明确 ownership、依赖、错误与验证边界，再生成代码。OnlyCore 当前停线规则禁止未经裁决的新公共
+Core 类型和架构主线。

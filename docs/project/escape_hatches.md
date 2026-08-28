@@ -10,7 +10,7 @@ Escape hatch 必须在目标代码附近使用 `ESCAPE_HATCH` 标记，并说明
 不在本文维护容易漂移的登记表：
 
 ```powershell
-git grep -n ESCAPE_HATCH -- Modules Examples targets
+git grep -n ESCAPE_HATCH -- Modules Examples
 ```
 
 Review 时至少核对：替代方案为何不足、性能/平台/ABI 证据、影响范围、失败风险和移除条件。

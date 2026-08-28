@@ -1,6 +1,0 @@
-CompileFlags:
-  CompilationDatabase: cmake-build-onlycore-host
-
-HeaderInsertion: Never
-Diagnostics:
-  UnusedIncludes: Strict

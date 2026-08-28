@@ -2,9 +2,9 @@
 
 ## 文档状态
 
-- `status`: `supporting`
-- `scope`: `trace_core`、`service_trace`、`kernel.trace` 与局部 producer adapter
-- `source`: `Modules/core/trace_core.cppm`、`Modules/core/service/service_trace*.cppm`
+- `status`: `archived`
+- `scope`: 提纯前 trace_core、service_trace、kernel.trace 与局部 producer adapter
+- `source`: 提纯前源码快照；OnlyCore 当前不再提供 trace module
 
 ## Core vocabulary
 
@@ -41,5 +41,5 @@ kernel/runtime trace 也不会自动汇入这些结构。
 - buffer overflow、aggregator ID overflow 或 sink drop 统计；
 - 稳定公共 ABI 或跨版本 ID 兼容承诺。
 
-验证入口：`Examples/system/power_demo`、`Examples/ink/demo` 以及使用各局部 trace buffer 的 host
-smoke。通过这些 fixture 不证明真实板 IRQ、多核、时钟或长期 telemetry 行为。
+提纯前的验证入口仅供追溯。OnlyCore 当前没有 trace 实现或 trace smoke，不声明真实板 IRQ、多核、
+时钟或长期 telemetry 行为。

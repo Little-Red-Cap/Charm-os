@@ -23,14 +23,11 @@ Charm 是一个能力导向的嵌入式应用平台。
 |---|---|
 | Core 冲突审计 | [`charm_core_semantic_audit.md`](charm_core_semantic_audit.md) |
 | Capability relation v1 准入 | [`charm_capability_relations_v1_admission.md`](charm_capability_relations_v1_admission.md) |
-| 依赖与入口 | [`dependency_contract.md`](dependency_contract.md)、[`entry_surface_contract.md`](entry_surface_contract.md)、[`dependency_whitelist.md`](dependency_whitelist.md) |
-| Driver/device/interface | [`driver_model.md`](driver_model.md)、[`interface_admission_policy.md`](interface_admission_policy.md) |
-| device 局部接口 | [`i2c_device_contract_v0.md`](i2c_device_contract_v0.md)、[`spi_device_contract_v0.md`](spi_device_contract_v0.md)、[`gpio_device_contract_v0.md`](gpio_device_contract_v0.md)、[`BlockDevice`](../storage/block_device_contract.md)、[`stream_io_device_contract_v0.md`](stream_io_device_contract_v0.md)、[`timebase_device_contract_v0.md`](timebase_device_contract_v0.md) |
-| signal/state 与真实板缺口 | [`signal_state_contract_v0.md`](signal_state_contract_v0.md)、[`real_board_landing_gap_audit_v0.md`](real_board_landing_gap_audit_v0.md) |
-| resident image/deployment | [`resident_image_platform_v1_contract.md`](resident_image_platform_v1_contract.md) |
+| OnlyCore 当前源码 | [`../../Modules/core/capability/relations.hpp`](../../Modules/core/capability/relations.hpp) |
+| OnlyCore Host 证据 | [`../../Examples/system/charm_capability_relations/README.md`](../../Examples/system/charm_capability_relations/README.md) |
 
-device 早期讨论见 [`../archive/device-interface-drafts-v0/`](../archive/device-interface-drafts-v0/)，
-Signal/State 与能力回收历史见对应 archive；归档材料不覆盖现行契约。
+其它 device、IO、runtime、板级和 deployment 文档保留为 supporting/历史材料，不是当前 OnlyCore
+实现入口，也不能反向定义 Core。
 
 ## Exploration
 

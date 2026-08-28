@@ -15,6 +15,7 @@ Charm 是一个能力导向的嵌入式应用平台。
 1. [`CONSTITUTION.md`](../CONSTITUTION.md)：Charm 身份与 Core 准入。
 2. [根 README](../README.md)：仓库定位与当前实现入口。
 3. [`charm_core_contract.md`](architecture/charm_core_contract.md)：最小 Core 关系与边界。
+4. [`only_core_distillation_sop.md`](project/only_core_distillation_sop.md)：OnlyCore 提纯流程和证据要求。
 
 ## 状态与权威
 
@@ -33,18 +34,14 @@ Charm 是一个能力导向的嵌入式应用平台。
 
 ## 按任务进入
 
-| 任务 | 入口 |
+| 任务 | 当前入口 |
 |---|---|
-| Core 语义与能力归属 | [`architecture/README.md`](architecture/README.md)、[`architecture route`](agent/routes/architecture.md)、[`capability route`](agent/routes/capability.md) |
-| 当前代码与机制盘点 | [`overview.md`](overview.md)、[`architecture_overview.md`](architecture_overview.md)、[`capability_map.md`](capability_map.md) |
-| 初始化、runtime、POSIX、SSU | [`system/README.md`](system/README.md) |
-| IO 与存储 | [`io/README.md`](io/README.md)、[`storage/README.md`](storage/README.md) |
-| SoC、板级事实与 handoff | [`board/README.md`](board/README.md) |
-| Trace 与诊断数据结构 | [`trace/README.md`](trace/README.md) |
-| 项目规范与协作 | [`project/README.md`](project/README.md) |
+| Core 语义与能力归属 | [`architecture/README.md`](architecture/README.md)、[`architecture route`](agent/routes/architecture.md) |
+| 当前源码与证据 | [`overview.md`](overview.md)、[`architecture_overview.md`](architecture_overview.md)、[`Examples/README.md`](../Examples/README.md) |
+| OnlyCore 提纯与协作 | [`project/only_core_distillation_sop.md`](project/only_core_distillation_sop.md)、[`project/README.md`](project/README.md) |
 | 构建 | [`build route`](agent/routes/build.md) |
 | 文档维护 | [`documentation_maintenance.md`](documentation_maintenance.md)、[`docs route`](agent/routes/docs.md) |
 
-Resident image、minimal-kernel、RTE、Spine 和 System Compiler 的状态由对应专题入口声明；不要从
-文档数量、schema 或 smoke 名称反推 Core 身份。历史多战线状态见
+Resident image、minimal-kernel、RTE、Spine、IO、UI 和 System Compiler 文档只作历史追溯；不要从
+文档数量、schema 或旧 smoke 名称反推当前实现或 Core 身份。历史多战线状态见
 [`repo-tracks-pre-core-reset`](archive/repo-tracks-pre-core-reset/README.md)。

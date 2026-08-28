@@ -1,9 +1,11 @@
 # init.graph Contract
 
-> status: `supporting`
+> status: `archived`
 >
-> authority: [`init.graph.cppm`](../../Modules/core/init/init.graph.cppm) and
-> [`init.node.cppm`](../../Modules/core/init/init.node.cppm)
+> authority: 提纯前源码快照；OnlyCore 当前不再提供 init.graph/init.node。
+
+OnlyCore 已移除本契约对应的实现。以下内容仅用于理解提纯前的历史行为，不是当前 API、Core 入口或
+新的接线依据。
 
 `init::Graph<MaxNodes, MaxCaps>` builds a fixed-capacity initialization order
 from explicit nodes and capability dependencies. It is not a Service/Component

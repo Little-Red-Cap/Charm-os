@@ -2,15 +2,13 @@
 
 ## 文档状态
 
-- `status`: `supporting`
-- `scope`: `init.graph`、provides/requires 与启动顺序路由
+- `status`: `archived`
+- `scope`: 提纯前 init.graph 路线的追溯入口
 
 ## 最短路径
 
 1. [Init graph contract](../../system/init_graph_contract.md)
-2. [`init.graph`](../../../Modules/core/init/init.graph.cppm) 与
-   [`init.node`](../../../Modules/core/init/init.node.cppm)
-3. [Init graph skill](../skills/charm-init-graph/SKILL.md)
-4. [架构规则](../rules/charm-architecture.md)
+2. [架构规则](../rules/charm-architecture.md)
 
-初始化顺序必须来自图；missing、duplicate、cycle、phase 和容量失败不能由手写顺序或 fallback 隐藏。
+OnlyCore 已移除 init.graph/init.node，不接受新的 init graph 接线。需要追溯旧行为时只读归档契约；
+不得把该路线重新带回当前 Core。

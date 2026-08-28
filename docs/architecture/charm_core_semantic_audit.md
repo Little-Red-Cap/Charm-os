@@ -25,8 +25,8 @@
 | Core relations | [`relations.hpp`](../../Modules/core/capability/relations.hpp) 提供最小公共关系投影 | resolver、Profile、ProviderRef 和 ContextView 仍不属于 Core |
 | retired topology | Backend-owned topology 与 smoke-local RTE/Spine 关系副本已退役 | Backend 只消费 Core relation，不再反向拥有组合语义 |
 | Capability contracts | TextSink、BlockDevice、Clock 在 Backends、Modules 和 fixtures 中存在不同形状 | 同名不能自动合并，也不能任选一份改名为 canonical |
-| `charm.core` | [`charm.core.cppm`](../../Modules/core/charm.core.cppm) 聚合 util、`semantic.core`、init、trace、container 和 algorithm | 聚合便利不等于这些 module 都是 Core Primitive |
-| semantic tooling | [`semantic.core`](../../Modules/core/semantic/semantic.core.cppm) 包含 Verdict、Witness、FailureDomain 和 reflection extraction | 当前有真实 consumer，但语义属于 evidence/tooling；目录位置不构成准入 |
+| 退役 Core facade | `charm.core`、`charm.foundation`、`semantic.core`、init、service、alg 和 util module 已从 OnlyCore 移除 | 旧聚合便利不等于这些 module 是 Core Primitive |
+| semantic tooling | 旧 `semantic.core` 曾包含 Verdict、Witness、FailureDomain 和 reflection extraction | 这些语义属于 evidence/tooling，已不作为 OnlyCore 源码入口 |
 | overloaded names | Binding、Profile、Graph、Runtime、Evidence 在 init、network、project、kernel 和 tools 中表达不同问题 | 必须保留限定名称，禁止构造无共同语义的统一类型 |
 | project facts | BSP、board profile、linker、vendor SDK、ELF/ModuleX loader 都有真实实现 | 它们可重要且稳定，但仍是 Project Fact 或 Implementation/Tool |
 
@@ -50,19 +50,20 @@ Host/QEMU/real-board 是不同证据域。Host 程序读取 QEMU/board metadata 
 
 ### 所有权债务
 
-`charm.core` 与 `semantic.core` 的当前 import 已被多个 module 消费，不能仅因命名不符合 Constitution
-就直接移动或删除。修正所有权前必须先识别 consumer、提供替代 import，并保持行为回归。
+旧 `charm.core` 与 `semantic.core` 的 import consumer 已随外围 module 一并退役。OnlyCore 的关系
+consumer 直接包含 `relations.hpp`，不再提供兼容 facade。
 
 ## 审查输出
 
 涉及新公共名词时，评审必须给出 Constitution 六问、真实 consumer、唯一裁决等级、失败语义和
 至少一个反例。证据不足时保留在局部 implementation 或 exploration，不新增 Core API。
 
-跨环境举证从
-[`charm_capability_mvp`](../../Examples/system/charm_capability_mvp/README.md) 进入，并以当次 Host、
-QEMU 与 H747 输出为准。证据门禁通过只满足准入前置条件，不代表 topology、Capability interface、
-`semantic.core`、RTE、init graph 或任一 Runtime 已获准成为 Charm Core。
+当前举证从
+[`charm_capability_relations`](../../Examples/system/charm_capability_relations/README.md) 和
+[`charm_capability_mvp`](../../Examples/system/charm_capability_mvp/README.md) 进入，仅覆盖 Host。
+证据通过只满足局部准入前置条件，不代表 topology、Capability interface、RTE、init graph 或任一
+Runtime 已获准成为 Charm Core。
 
 Capability relation v1 的当前准入记录见
-[`charm_capability_relations_v1_admission.md`](charm_capability_relations_v1_admission.md)。H747 工程当前
-不在该轮验证范围内，旧日志不能替代当前源码执行。
+[`charm_capability_relations_v1_admission.md`](charm_capability_relations_v1_admission.md)。QEMU、板级
+工程和旧日志不在当前 OnlyCore 验证范围内，不能替代当前源码执行。

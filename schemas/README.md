@@ -6,8 +6,8 @@
 - `scope`: `schemas/` 机器可读协议与 sample 路由
 - `authority`: 各 `*.schema.json`、producer 与 validator
 
-本页不复制字段定义。Schema 文件定义 wire shape；producer 定义字段来源；validator 定义当前
-可执行校验。三者缺一时，文件存在不能证明协议已闭环或运行事实成立。
+本页不复制字段定义。这里的 Schema 文件是提纯前各专题的历史机器产物样例，不属于 OnlyCore 当前
+实现入口，也不证明协议已闭环或运行事实成立。
 
 ## 内容与入口
 
@@ -15,24 +15,14 @@
 - Projection、summary 与 compare schema 只承载既有事实和 verdict，不重新判定上游结果。
 - Shared definition 提供可复用的 envelope、reference 与 status shape；`examples/` 保存测试 fixture。
 
-准确文件集合以本目录为准，可执行支持范围以 validator 内的 schema registry 或 dedicated validator
-为准。通用 materialized-graph validator 只支持其
-[`SCHEMA_FILES`](../scripts/validate_materialized_graph_artifacts.py) 注册项；minimal-kernel 与其他专题产物
-应从对应 supporting contract 进入。文件位于本目录不代表任意 validator 会自动接受它。
+准确文件集合以本目录为历史记录；OnlyCore 当前没有 schema validator 或生成器入口。
 
 ## Samples
 
 `schemas/examples/*.json` 是测试 fixture，不是运行证据、默认配置或产品 manifest。Sample 可以固定
 正例 shape、静态引用和 consumer 输入，但不能证明真实 producer 已运行。
 
-卫生检查：
-
-```powershell
-./scripts/schema_examples_hygiene_smoke.ps1
-```
-
-该 smoke 只检查 JSON 可解析、仓库静态引用存在且使用 forward slash；它不执行 JSON Schema
-validation、compare 或 CI verdict。
+旧卫生检查脚本已随外围路线退役。
 
 ## 增改规则
 

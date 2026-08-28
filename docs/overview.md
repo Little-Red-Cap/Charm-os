@@ -14,10 +14,8 @@
 1. [`../CONSTITUTION.md`](../CONSTITUTION.md)：Core 准入与裁决等级。
 2. [`architecture/charm_core_contract.md`](architecture/charm_core_contract.md)：Capability Contract、
    Requirement、Provision、Binding 和 Project/OS 边界。
-3. [`architecture_overview.md`](architecture_overview.md)：源码分区、聚合入口、静态/动态装配和专题路由。
-4. 按问题进入对应目录 README：[`io/README.md`](io/README.md)、[`system/README.md`](system/README.md)、
-   [`storage/README.md`](storage/README.md)、[`input/README.md`](input/README.md)、
-   [`usb/README.md`](usb/README.md)、[`project/README.md`](project/README.md)。
+3. [`architecture_overview.md`](architecture_overview.md)：OnlyCore 当前源码分区和证据路径。
+4. [`project/only_core_distillation_sop.md`](project/only_core_distillation_sop.md)：提纯顺序和停止条件。
 
 ## 读取规则
 

@@ -15,7 +15,7 @@
 
 1. **实现替换**：关系记录不包含 provider object、HAL、Backend 或 resolver；替换所有实现后仍成立。
 2. **消费方必要性**：同一应用在 Host/QEMU 中必须区分需求、可用供给和本次选择，不能只依赖实现指针。
-3. **独立可证明性**：Capability MVP 的运行时 resolver 与 Backend/reference 的 constexpr 关系检查是两套实现；集中矩阵覆盖正反例。
+3. **独立可证明性**：关系示例的 constexpr 关系检查与 MVP Host resolver 是两套局部实现；示例矩阵覆盖正反例。
 4. **平台无关性**：公共 header 只依赖 scoped enum key 和值关系，不包含 OS、MCU、vendor 或产品名称。
 5. **低例外预算**：没有 optional method、动态分配、字符串匹配、全局 registry 或平台分支。
 6. **浅概念依赖**：只依赖 Capability Contract、Requirement、Provision 和 Binding；projection 不反向定义这些语义。
@@ -43,5 +43,5 @@
 
 ## 当前证据范围
 
-Host Clang/GCC、Host sanitizer、真实 QEMU Cortex-M7 和 Backend reference smokes 是本轮门禁。H747
-工程当前损坏，未修改、未构建、未烧录；旧 board evidence 仅作历史材料，不证明当前源码兼容性。
+OnlyCore 当前门禁为 Host Clang 关系示例和 MVP Host 失败矩阵。GCC、sanitizer、QEMU、真实板和
+Backend reference 不在本轮源码范围内；旧 board evidence 仅作历史材料，不证明当前源码兼容性。

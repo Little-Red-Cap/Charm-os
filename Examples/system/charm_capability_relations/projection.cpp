@@ -3,13 +3,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdio>
-#include <span>
 #include <string_view>
-
-import init.graph;
-import init.node;
-import util.core;
-import util.error;
 
 namespace relation = charm::capability;
 
@@ -51,6 +45,31 @@ namespace {
         ResolvedBinding{RequirementKey::app_display, ProvisionKey::display},
     };
 
+    constexpr bool relation_contracts_match() noexcept {
+        for (const auto& binding : bindings) {
+            bool matched = false;
+            for (const auto& requirement : requirements) {
+                if (requirement.key != binding.requirement) {
+                    continue;
+                }
+                for (const auto& provision : provisions) {
+                    if (provision.key == binding.provision) {
+                        matched = true;
+                        if (requirement.contract != provision.contract) {
+                            return false;
+                        }
+                        break;
+                    }
+                }
+                break;
+            }
+            if (!matched) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     constexpr std::string_view requirement_label(const RequirementKey key) noexcept {
         switch (key) {
         case RequirementKey::display_power:
@@ -69,30 +88,6 @@ namespace {
             return "display";
         }
         return "unknown";
-    }
-
-    struct Trace {
-        std::array<std::string_view, 3> entries{};
-        std::size_t count{0};
-
-        void append(const std::string_view value) noexcept {
-            entries[count++] = value;
-        }
-    };
-
-    util::Result<void> start_power(void* context) noexcept {
-        static_cast<Trace*>(context)->append("power");
-        return {};
-    }
-
-    util::Result<void> start_display(void* context) noexcept {
-        static_cast<Trace*>(context)->append("display");
-        return {};
-    }
-
-    util::Result<void> start_app(void* context) noexcept {
-        static_cast<Trace*>(context)->append("app");
-        return {};
     }
 
     struct DisplayProvider {
@@ -150,44 +145,12 @@ namespace {
     }
 
     bool run_projection() noexcept {
-        static_assert(requirements[0].contract == provisions[0].contract);
-        static_assert(requirements[1].contract == provisions[1].contract);
+        static_assert(relation_contracts_match());
         static_assert(bindings[0].requirement == resolved[0].requirement);
-
-        Trace trace{};
-        constexpr std::array no_caps = std::array<init::CapId, 0>{};
-        const std::array power_caps{init::cap_id(provision_label(ProvisionKey::power))};
-        const std::array display_caps{init::cap_id(provision_label(ProvisionKey::display))};
-        const std::array display_requires{init::cap_id(provision_label(resolved[0].provision))};
-        const std::array app_requires{init::cap_id(provision_label(resolved[1].provision))};
-
-        const init::Node power{
-            "power", init::Phase::service, static_cast<util::u32>(init::Runlevel::all),
-            power_caps, no_caps, start_power, nullptr, &trace};
-        const init::Node display{
-            "display", init::Phase::service, static_cast<util::u32>(init::Runlevel::all),
-            display_caps, display_requires, start_display, nullptr, &trace};
-        const init::Node app{
-            "app", init::Phase::app, static_cast<util::u32>(init::Runlevel::all),
-            no_caps, app_requires, start_app, nullptr, &trace};
-        const std::array<const init::Node*, 3> nodes{&app, &display, &power};
-
-        init::Graph<4, 4> graph{};
-        const auto built = graph.build(nodes);
-        if (!expect(built.has_value(), "resolved bindings should project to init graph")) {
-            return false;
-        }
-        const auto started = graph.start();
-        if (!expect(started.has_value(), "projected init graph should start")) {
-            return false;
-        }
-        if (!expect(trace.entries == std::array<std::string_view, 3>{"power", "display", "app"},
-                    "init projection should preserve dependency order")) {
-            return false;
-        }
+        static_assert(bindings[1].provision == resolved[1].provision);
 
         DisplayProvider provider{};
-        auto context = materialize_context(provider);
+        const auto context = materialize_context(provider);
         if (!expect(context.valid(), "resolved binding should materialize explicit app context")) {
             return false;
         }

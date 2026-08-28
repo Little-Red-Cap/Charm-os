@@ -67,8 +67,11 @@ archive 相对共同祖先的 Vivid 语义差异来自 `0cdfbbd..40f610c`，共 
 
 这些文件目前均为 `Quarantined`，不是自动接受的补丁。必须继续按 semantic hunk 拆分，记录
 意图、依赖、验证和 `Accept / Reject / Deferred / Quarantined` 裁决。archive page-transition
-demo 段错误，因此 `LayerComposePlan` 改动暂定 `Quarantined / causality pending`；段错误本身
-不能证明该改动就是根因。
+demo 的默认栈运行退出码为 `0xC00000FD`。临时诊断显示 `sizeof(TransitionScene)=381416` 字节；在
+`run_compose_plan_integrity()` 中把两个实例改为静态存储后，恢复默认栈即可完整通过；使用
+`-Xlinker /STACK:8388608` 也可通过。因此当前结论是测试夹具栈溢出，不应放宽生产门禁。
+`LayerComposePlan` 改动仍暂定 `Quarantined`，待未来以 caller-owned workspace 或等价非栈存储修正夹具后
+重新验证；段错误本身不能证明该改动就是唯一根因。
 
 ## 证据矩阵
 

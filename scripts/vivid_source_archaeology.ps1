@@ -202,6 +202,10 @@ $manifest = [ordered]@{
             dev_page_transition_snapshot = "passed"
             dev_page_transition_clean_clone = "hung_after_build_terminated"
             archive_page_transition = "segfault"
+            archive_page_transition_exit_code = "0xC00000FD"
+            archive_transition_scene_size_bytes = 381416
+            archive_stack_override_diagnostic = "-Xlinker /STACK:8388608 passed"
+            archive_static_storage_variant = "passed"
             dev_static_memory = "passed"
             archive_static_memory = "passed"
         }

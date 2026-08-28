@@ -1,4 +1,4 @@
-#include "Modules/core/capability/relations.hpp"
+#include "core/capability/relations.hpp"
 
 #include <array>
 #include <cstdio>

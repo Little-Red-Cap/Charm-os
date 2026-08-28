@@ -34,9 +34,24 @@ jobs:
         shell: msys2 {0}
         run: cmake --build cmake-build-onlycore-ci
 
+      - name: Verify Core governance
+        shell: pwsh
+        run: ./scripts/check_charm_core_governance.ps1
+
       - name: Verify Core relation evidence
         shell: msys2 {0}
         run: |
           cmake --fresh -S Examples/system/charm_capability_relations -B cmake-build-onlycore-relations -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=clang++
           cmake --build cmake-build-onlycore-relations
           ctest --test-dir cmake-build-onlycore-relations --output-on-failure
+
+      - name: Verify MVP Host evidence
+        shell: msys2 {0}
+        run: |
+          cmake --fresh -S Examples/system/charm_capability_mvp -B cmake-build-onlycore-mvp -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=clang++
+          cmake --build cmake-build-onlycore-mvp
+          ctest --test-dir cmake-build-onlycore-mvp --output-on-failure
+
+      - name: Verify portable source boundary
+        shell: pwsh
+        run: ./Examples/system/charm_capability_mvp/verify_portable_source_boundary.ps1

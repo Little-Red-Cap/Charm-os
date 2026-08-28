@@ -1,7 +1,7 @@
 #pragma once
 
 #include "mvp_contracts.hpp"
-#include "../../../Modules/core/capability/relations.hpp"
+#include "core/capability/relations.hpp"
 
 #include <cstddef>
 #include <cstdint>

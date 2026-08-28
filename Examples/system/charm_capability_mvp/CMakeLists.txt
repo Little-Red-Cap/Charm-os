@@ -2,9 +2,12 @@ cmake_minimum_required(VERSION 4.0)
 project(charm-capability-mvp-host LANGUAGES CXX)
 set(target_name ${PROJECT_NAME})
 
-set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD 26)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+
+get_filename_component(CHARM_ROOT "${CMAKE_CURRENT_LIST_DIR}/../../.." ABSOLUTE)
+add_subdirectory("${CHARM_ROOT}" "${CMAKE_CURRENT_BINARY_DIR}/charm-core" EXCLUDE_FROM_ALL)
 
 add_executable(${target_name}
     main.cpp
@@ -14,6 +17,9 @@ set(matrix_target_name charm-capability-mvp-host-failure-matrix)
 add_executable(${matrix_target_name}
     host_failure_matrix.cpp
 )
+
+target_link_libraries(${target_name} PRIVATE Charm::core)
+target_link_libraries(${matrix_target_name} PRIVATE Charm::core)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
     target_compile_options(${target_name} PRIVATE -Wall -Wextra -Wpedantic)

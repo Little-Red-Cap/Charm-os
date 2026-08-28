@@ -21,7 +21,8 @@
 | OnlyCore 提纯 | [`only_core_distillation_sop.md`](only_core_distillation_sop.md) |
 
 系统与架构问题优先进入 [`architecture_overview.md`](../architecture_overview.md) 和
-[`system/README.md`](../system/README.md)。
+[`architecture/charm_core_contract.md`](../architecture/charm_core_contract.md)。OnlyCore 当前实现入口
+见 [`only_core_distillation_sop.md`](only_core_distillation_sop.md)。
 
 ## 提案与历史
 

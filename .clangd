@@ -1,5 +1,5 @@
 CompileFlags:
-  CompilationDatabase: cmake-build-debug
+  CompilationDatabase: cmake-build-onlycore-host
 
 HeaderInsertion: Never
 Diagnostics:

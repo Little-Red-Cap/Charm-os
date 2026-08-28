@@ -1,0 +1,42 @@
+name: OnlyCore Host
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - OnlyCore
+  pull_request:
+    branches:
+      - OnlyCore
+
+jobs:
+  host:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup MSYS2 (CLANG64)
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: CLANG64
+          update: true
+          cache: true
+          install: >-
+            mingw-w64-clang-x86_64-clang
+            mingw-w64-clang-x86_64-ninja
+            mingw-w64-clang-x86_64-cmake
+
+      - name: Configure and build root
+        shell: msys2 {0}
+        run: cmake --fresh -S . -B cmake-build-onlycore-ci -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build root
+        shell: msys2 {0}
+        run: cmake --build cmake-build-onlycore-ci
+
+      - name: Verify Core relation evidence
+        shell: msys2 {0}
+        run: |
+          cmake --fresh -S Examples/system/charm_capability_relations -B cmake-build-onlycore-relations -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=clang++
+          cmake --build cmake-build-onlycore-relations
+          ctest --test-dir cmake-build-onlycore-relations --output-on-failure

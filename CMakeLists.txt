@@ -14,9 +14,6 @@ option(CHARM_ENABLE_TEST_MODULES "Include Modules/*/tests/*.cppm" OFF)
 option(CHARM_TARGET_HAS_HOSTED_CXX "Target provides hosted C++ facilities" ON)
 option(CHARM_TARGET_HAS_CXX_MATH "Target provides C++ math facilities" ON)
 
-set(CHARM_SOURCE_ROOT "${CMAKE_CURRENT_SOURCE_DIR}")
-include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/sources/CharmSourceHelpers.cmake")
-
 add_library(Charm-build-config INTERFACE)
 add_library(Charm::build-config ALIAS Charm-build-config)
 target_compile_options(Charm-build-config INTERFACE -Wall)

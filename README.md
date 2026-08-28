@@ -8,8 +8,7 @@ Requirement、Provision 与 Binding 的解析。完整语义由
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=flat-square)](LICENSE)
 [![C++26](https://img.shields.io/badge/C%2B%2B-26-blue.svg?style=flat-square)](https://en.cppreference.com/w/cpp)
-[![Clang Build Status](https://github.com/Little-Red-Cap/Charm-os/actions/workflows/build-clang.yml/badge.svg)](https://github.com/Little-Red-Cap/Charm-os/actions)
-[![ARM Build Status](https://github.com/Little-Red-Cap/Charm-os/actions/workflows/build-arm-none-eabi.yml/badge.svg)](https://github.com/Little-Red-Cap/Charm-os/actions)
+[![OnlyCore Host](https://github.com/Little-Red-Cap/Charm-os/actions/workflows/onlycore-host.yml/badge.svg)](https://github.com/Little-Red-Cap/Charm-os/actions)
 
 ## 仓库范围
 
@@ -27,8 +26,8 @@ Core 身份。
 
 当前 Capability MVP 的源码与证据从
 [`Examples/system/charm_capability_mvp`](Examples/system/charm_capability_mvp/README.md) 进入；该证据
-验证局部命题，不替代 Constitution 准入。关系 v1 的当前门禁覆盖 Host 与 QEMU；H747 工程损坏，
-本轮不声明 board 兼容或三域复验。
+验证局部命题，不替代 Constitution 准入。OnlyCore 当前只维护 Host 关系证据，
+不声明 QEMU、板级或外围运行时兼容性。
 
 ## 使用顺序
 

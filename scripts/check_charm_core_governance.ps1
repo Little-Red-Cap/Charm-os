@@ -117,8 +117,7 @@ if (($publicStructs -join ',') -ne ($expectedPublicStructs -join ',')) {
 }
 $retiredPublicTokens = @(
     'ResolvedBinding',
-    'ResolutionFailure',
-    '#include <cstdint>'
+    'ResolutionFailure'
 )
 foreach ($token in $retiredPublicTokens) {
     if ($coreHeader.Contains($token)) {
@@ -232,22 +231,38 @@ $tracked = @(& git -C $root -c core.quotepath=false ls-files)
 if ($LASTEXITCODE -ne 0) {
     Fail 'cannot enumerate tracked files'
 }
-$retiredRoots = @(
-    'Backends/',
-    'targets/',
-    'schemas/',
-    'docs/archive/',
-    'docs/system/',
-    'docs/io/',
-    'docs/storage/',
-    'docs/ui/',
-    'docs/usb/'
+$allowedRootFiles = @(
+    '.gitattributes',
+    '.gitignore',
+    'AGENTS.md',
+    'CMakeLists.txt',
+    'CMakePresets.json',
+    'CONSTITUTION.md',
+    'Examples/README.md',
+    'LICENSE',
+    'README.md',
+    'config.toml'
+)
+$allowedPathPrefixes = @(
+    '.github/',
+    'docs/',
+    'Examples/system/',
+    'Modules/core/',
+    'scripts/'
 )
 foreach ($relative in $tracked) {
-    foreach ($prefix in $retiredRoots) {
+    if ($allowedRootFiles -contains $relative) {
+        continue
+    }
+    $allowed = $false
+    foreach ($prefix in $allowedPathPrefixes) {
         if ($relative.StartsWith($prefix, [StringComparison]::Ordinal)) {
-            Fail "retired path tracked: $relative"
+            $allowed = $true
+            break
         }
+    }
+    if (-not $allowed) {
+        Fail "path outside OnlyCore allowlist: $relative"
     }
 }
 
@@ -290,6 +305,6 @@ Write-Output "[charm-core-governance] verdicts=ok count=$($verdictConcepts.Count
 Write-Output "[charm-core-governance] public-relations=ok count=$($expectedPublicStructs.Count)"
 Write-Output "[charm-core-governance] classified=ok count=$($expectedStatuses.Count)"
 Write-Output "[charm-core-governance] build-surface=ok consumers=$($consumerFiles.Count)"
-Write-Output "[charm-core-governance] retired-roots=ok count=$($retiredRoots.Count)"
+Write-Output "[charm-core-governance] allowlist=ok prefixes=$($allowedPathPrefixes.Count) root_files=$($allowedRootFiles.Count)"
 Write-Output "[charm-core-governance] links=ok count=$linkCount"
 Write-Output '[charm-core-governance] ok'

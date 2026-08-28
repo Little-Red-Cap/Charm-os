@@ -28,11 +28,21 @@ namespace charm::mvp {
         unknown,
     };
 
+    enum class ResolutionFailure : std::uint8_t {
+        none = 0,
+        duplicate_requirement,
+        duplicate_provision,
+        missing_binding,
+        duplicate_binding,
+        unknown_requirement,
+        unknown_provision,
+        contract_mismatch,
+        invalid_provision,
+    };
+
     using Requirement = capability::Requirement<ContractKey, RequirementKey>;
     using ProvisionRelation = capability::Provision<ContractKey, ProvisionKey>;
     using Binding = capability::Binding<RequirementKey, ProvisionKey>;
-    using ResolvedBinding = capability::ResolvedBinding<RequirementKey, ProvisionKey>;
-    using ResolutionFailure = capability::ResolutionFailure;
 
     struct Provision {
         ProvisionRelation relation{};
@@ -219,8 +229,7 @@ namespace charm::mvp {
             if (!provision->valid()) {
                 return {ResolutionFailure::invalid_provision, requirement_index, {}};
             }
-            const ResolvedBinding resolved{requirement.key, provision->relation.key};
-            switch (resolved.requirement) {
+            switch (selected->requirement) {
             case RequirementKey::report: {
                 if (requirement.contract != ContractKey::text_sink) {
                     return {ResolutionFailure::invalid_provision, requirement_index, {}};

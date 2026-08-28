@@ -18,7 +18,7 @@ $coreHeader = Join-Path $scriptRoot '../../../Modules/core/capability/relations.
 $coreText = Get-Content -LiteralPath $coreHeader -Raw -Encoding UTF8
 $forbidden = [regex]::Match(
     $coreText,
-    '(?i)(string(_view)?|provider|backend|adapter|contextview|registry|resolver|profile|void\s*\*|span\s*<|tuple\s*<)')
+    '(?i)(string(_view)?|provider|backend|adapter|contextview|registry|resolver|profile|resolvedbinding|resolutionfailure|void\s*\*|span\s*<|tuple\s*<)')
 if ($forbidden.Success) {
     throw "core_relation_boundary_violation: token=$($forbidden.Value)"
 }

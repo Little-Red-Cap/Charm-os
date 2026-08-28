@@ -79,6 +79,7 @@ $verdictConcepts = @(
     'Requirement',
     'Provision',
     'Binding',
+    'ResolvedBinding / BindingSnapshot',
     'Provider',
     'Component',
     'Profile',
@@ -91,6 +92,27 @@ $verdictConcepts = @(
 foreach ($concept in $verdictConcepts) {
     if (-not $constitution.Contains("| $concept |")) {
         Fail "first verdict missing: $concept"
+    }
+}
+
+$coreHeaderPath = Join-Path $root 'Modules/core/capability/relations.hpp'
+$coreHeader = Get-Content -Raw -Encoding utf8 $coreHeaderPath
+$publicStructs = @(
+    [regex]::Matches($coreHeader, '\bstruct\s+([A-Za-z_][A-Za-z0-9_]*)') |
+        ForEach-Object { $_.Groups[1].Value }
+)
+$expectedPublicStructs = @('Requirement', 'Provision', 'Binding')
+if (($publicStructs -join ',') -ne ($expectedPublicStructs -join ',')) {
+    Fail "Core public struct set drift: $($publicStructs -join ', ')"
+}
+$retiredPublicTokens = @(
+    'ResolvedBinding',
+    'ResolutionFailure',
+    '#include <cstdint>'
+)
+foreach ($token in $retiredPublicTokens) {
+    if ($coreHeader.Contains($token)) {
+        Fail "retired Core public token present: $token"
     }
 }
 
@@ -216,6 +238,7 @@ foreach ($relative in $linkFiles) {
 
 Write-Output "[charm-core-governance] canonical=ok files=$($canonical.Count)"
 Write-Output "[charm-core-governance] verdicts=ok count=$($verdictConcepts.Count)"
+Write-Output "[charm-core-governance] public-relations=ok count=$($expectedPublicStructs.Count)"
 Write-Output "[charm-core-governance] classified=ok count=$($expectedStatuses.Count)"
 Write-Output "[charm-core-governance] build-surface=ok consumers=$($consumerFiles.Count)"
 Write-Output "[charm-core-governance] retired-roots=ok count=$($retiredRoots.Count)"

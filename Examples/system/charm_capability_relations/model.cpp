@@ -27,7 +27,6 @@ namespace {
     using Requirement = relation::Requirement<ContractKey, RequirementKey>;
     using Provision = relation::Provision<ContractKey, ProvisionKey>;
     using Binding = relation::Binding<RequirementKey, ProvisionKey>;
-    using ResolvedBinding = relation::ResolvedBinding<RequirementKey, ProvisionKey>;
 
     constexpr std::array requirements{
         Requirement{RequirementKey::report, ContractKey::text_sink},
@@ -49,7 +48,6 @@ namespace {
     static_assert(std::is_trivially_copyable_v<Requirement>);
     static_assert(std::is_trivially_copyable_v<Provision>);
     static_assert(std::is_trivially_copyable_v<Binding>);
-    static_assert(std::is_trivially_copyable_v<ResolvedBinding>);
     static_assert(bindings[0].provision == bindings[1].provision);
     static_assert(requirements[0].key != requirements[1].key);
 

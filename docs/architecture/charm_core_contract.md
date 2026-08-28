@@ -42,7 +42,7 @@ Profile
   -> selects Binding(Requirement, Provision)
 
 Resolution
-  -> ResolvedBinding | ResolutionFailure
+  -> validated Binding set | stable failure category
   -> Application starts only after all required bindings resolve
 ```
 
@@ -77,18 +77,21 @@ Provider Manager 或全局 Provider Registry。
 Binding 是在一次组合中选择某个 Provision 满足某个 Requirement 的关系。它不是服务定位器，
 不是依赖注入容器，也不是 runtime object graph。
 
-解析完成后的 `ResolvedBinding` 或 `BindingSnapshot` 是结果物。MVP 允许 Profile 和 Binding
-由人手写，只要求显式、可审查和可重复；Compiler 生成不是成立前提。
+解析结果可以由已验证的 Binding 集合或局部 `ResolvedBinding` / `BindingSnapshot` 表达，但“已经验证”
+不会自动创造第二种 Core 关系。只有真实 consumer 需要独立布局、生命周期或传输边界时，结果物才申请
+公共 Stable Boundary 投影。MVP 允许 Profile 和 Binding 由人手写，只要求显式、可审查和可重复；
+Compiler 生成不是成立前提。
 
-缺少 required capability、存在不允许的歧义或契约不兼容时，必须在应用启动前产生稳定的
-`ResolutionFailure`。不得让应用运行后再通过空指针、平台分支或 provider fallback 猜测环境。
+缺少 required capability、存在不允许的歧义或契约不兼容时，必须在应用启动前产生稳定、可比较的
+失败类别。具体枚举由 resolver 或 Contract 投影拥有，直到跨环境证据证明一组公共分类稳定。不得让
+应用运行后再通过空指针、平台分支或 provider fallback 猜测环境。
 
 ### 3.5 公共关系投影
 
 首个公共 C++ 投影位于
 [`Modules/core/capability/relations.hpp`](../../Modules/core/capability/relations.hpp)。它只包含
-`Requirement`、`Provision`、`Binding`、`ResolvedBinding` 和 `ResolutionFailure`，不包含 resolver、
-Profile、Provider、Backend、ContextView、Evidence 或 registry。
+`Requirement`、`Provision` 和 `Binding`，不包含 resolver、解析结果类型、失败枚举、Profile、Provider、
+Backend、ContextView、Evidence 或 registry。
 
 Contract、Requirement 和 Provision identity 由项目局部强类型 key 表达；key 的底层数字不具备
 跨 project、跨 build 或持久化稳定性。消费方 role 由 Requirement key 作用域化，不建立全局 role

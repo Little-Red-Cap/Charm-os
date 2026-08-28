@@ -28,16 +28,27 @@ namespace {
         unknown,
     };
 
+    enum class ResolutionFailure : unsigned char {
+        none,
+        duplicate_requirement,
+        duplicate_provision,
+        missing_binding,
+        duplicate_binding,
+        unknown_requirement,
+        unknown_provision,
+        contract_mismatch,
+    };
+
     using Requirement = relation::Requirement<ContractKey, RequirementKey>;
     using Provision = relation::Provision<ContractKey, ProvisionKey>;
     using Binding = relation::Binding<RequirementKey, ProvisionKey>;
 
     struct Result {
-        relation::ResolutionFailure failure{relation::ResolutionFailure::none};
+        ResolutionFailure failure{ResolutionFailure::none};
         std::size_t index{0};
 
         [[nodiscard]] constexpr bool is_ok() const noexcept {
-            return failure == relation::ResolutionFailure::none;
+            return failure == ResolutionFailure::none;
         }
     };
 
@@ -48,14 +59,14 @@ namespace {
         for (std::size_t left = 0; left < requirements.size(); ++left) {
             for (std::size_t right = left + 1U; right < requirements.size(); ++right) {
                 if (requirements[left].key == requirements[right].key) {
-                    return {relation::ResolutionFailure::duplicate_requirement, right};
+                    return {ResolutionFailure::duplicate_requirement, right};
                 }
             }
         }
         for (std::size_t left = 0; left < provisions.size(); ++left) {
             for (std::size_t right = left + 1U; right < provisions.size(); ++right) {
                 if (provisions[left].key == provisions[right].key) {
-                    return {relation::ResolutionFailure::duplicate_provision, right};
+                    return {ResolutionFailure::duplicate_provision, right};
                 }
             }
         }
@@ -77,13 +88,13 @@ namespace {
                 }
             }
             if (requirement == nullptr) {
-                return {relation::ResolutionFailure::unknown_requirement, binding_index};
+                return {ResolutionFailure::unknown_requirement, binding_index};
             }
             if (provision == nullptr) {
-                return {relation::ResolutionFailure::unknown_provision, binding_index};
+                return {ResolutionFailure::unknown_provision, binding_index};
             }
             if (requirement->contract != provision->contract) {
-                return {relation::ResolutionFailure::contract_mismatch, binding_index};
+                return {ResolutionFailure::contract_mismatch, binding_index};
             }
         }
 
@@ -97,13 +108,13 @@ namespace {
                 }
             }
             if (count == 0U) {
-                return {relation::ResolutionFailure::missing_binding, requirement_index};
+                return {ResolutionFailure::missing_binding, requirement_index};
             }
             if (count > 1U) {
-                return {relation::ResolutionFailure::duplicate_binding, requirement_index};
+                return {ResolutionFailure::duplicate_binding, requirement_index};
             }
         }
-        return {relation::ResolutionFailure::none, requirements.size()};
+        return {ResolutionFailure::none, requirements.size()};
     }
 
     constexpr std::array requirements{
@@ -130,7 +141,7 @@ namespace {
         return value;
     }();
     static_assert(validate(duplicate_requirements, provisions, bindings).failure ==
-                  relation::ResolutionFailure::duplicate_requirement);
+                  ResolutionFailure::duplicate_requirement);
 
     constexpr auto duplicate_provisions = [] {
         auto value = provisions;
@@ -138,15 +149,15 @@ namespace {
         return value;
     }();
     static_assert(validate(requirements, duplicate_provisions, bindings).failure ==
-                  relation::ResolutionFailure::duplicate_provision);
+                  ResolutionFailure::duplicate_provision);
 
     constexpr std::array missing_binding{bindings[0], bindings[1]};
     static_assert(validate(requirements, provisions, missing_binding).failure ==
-                  relation::ResolutionFailure::missing_binding);
+                  ResolutionFailure::missing_binding);
 
     constexpr std::array duplicate_binding{bindings[0], bindings[1], bindings[2], bindings[0]};
     static_assert(validate(requirements, provisions, duplicate_binding).failure ==
-                  relation::ResolutionFailure::duplicate_binding);
+                  ResolutionFailure::duplicate_binding);
 
     constexpr auto unknown_requirement = [] {
         auto value = bindings;
@@ -154,7 +165,7 @@ namespace {
         return value;
     }();
     static_assert(validate(requirements, provisions, unknown_requirement).failure ==
-                  relation::ResolutionFailure::unknown_requirement);
+                  ResolutionFailure::unknown_requirement);
 
     constexpr auto unknown_provision = [] {
         auto value = bindings;
@@ -162,7 +173,7 @@ namespace {
         return value;
     }();
     static_assert(validate(requirements, provisions, unknown_provision).failure ==
-                  relation::ResolutionFailure::unknown_provision);
+                  ResolutionFailure::unknown_provision);
 
     constexpr auto mismatch = [] {
         auto value = bindings;
@@ -170,7 +181,7 @@ namespace {
         return value;
     }();
     static_assert(validate(requirements, provisions, mismatch).failure ==
-                  relation::ResolutionFailure::contract_mismatch);
+                  ResolutionFailure::contract_mismatch);
 }
 
 int main() {

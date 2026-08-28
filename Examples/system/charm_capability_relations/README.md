@@ -14,7 +14,7 @@ Capability Contract、resolver、Provider、Profile、Backend 或全局 registry
 
 - `model`：项目局部强类型 key、共享 Provision 与非权威 label；
 - `resolution`：重复、缺失、未知和 contract mismatch；
-- `projection`：ResolvedBinding 投影为显式 app context 和只读 evidence，不依赖 init/runtime。
+- `projection`：已验证 Binding 投影为显式 app context 和只读 evidence，不引入同形结果类型。
 
 运行：
 

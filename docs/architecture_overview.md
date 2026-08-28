@@ -31,7 +31,7 @@ facade 已从 OnlyCore 移除。
 
 ```text
 Requirement / Provision / Binding
-        -> ResolvedBinding
+        -> Host 局部验证与解析
         -> Host relation evidence
 ```
 

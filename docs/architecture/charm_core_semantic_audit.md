@@ -22,7 +22,7 @@
 
 | 范围 | 源码事实 | 裁决影响 |
 |---|---|---|
-| Core relations | [`relations.hpp`](../../Modules/core/capability/relations.hpp) 提供最小公共关系投影 | resolver、Profile、ProviderRef 和 ContextView 仍不属于 Core |
+| Core relations | [`relations.hpp`](../../Modules/core/capability/relations.hpp) 只提供 Requirement、Provision 与 Binding | resolver、结果物、失败枚举、Profile、ProviderRef 和 ContextView 不进入公共 Core header |
 | retired topology | Backend-owned topology 与 smoke-local RTE/Spine 关系副本已退役 | Backend 只消费 Core relation，不再反向拥有组合语义 |
 | Capability contracts | TextSink、BlockDevice、Clock 在 Backends、Modules 和 fixtures 中存在不同形状 | 同名不能自动合并，也不能任选一份改名为 canonical |
 | 退役 Core facade | `charm.core`、`charm.foundation`、`semantic.core`、init、service、alg 和 util module 已从 OnlyCore 移除 | 旧聚合便利不等于这些 module 是 Core Primitive |

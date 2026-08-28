@@ -99,7 +99,7 @@ Charm 当前定位为一个能力导向的嵌入式应用平台。这个定位�
 | Requirement | `Core Primitive` | 消费方声明“需要某项契约”的关系。 |
 | Provision | `Core Primitive` | 某实现声明“可满足某项契约”的关系。 |
 | Binding | `Core Derived` | 在一次组合中，把 Requirement 关联到 Provision 的关系；不是容器或运行时对象。 |
-| ResolvedBinding / BindingSnapshot | `Stable Boundary` | 某次解析的结果物，不是新的核心原语。 |
+| ResolvedBinding / BindingSnapshot | `Stable Boundary` | 某次解析的结果物，不是新的核心原语；该裁决不自动批准公共 Core 类型。 |
 | Provider | `Core Derived` | 仅表示 Provision 关系中的提供方角色；公共 Provider 基类、管理器或注册表不获准。 |
 | Component | `Stable Boundary` | MVP 中可审查的静态装配单位；不得成为所有对象的共同基类。 |
 | Profile | `Stable Boundary` | 一组项目级组合选择；不定义 Capability Contract。 |

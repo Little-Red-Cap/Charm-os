@@ -26,7 +26,6 @@ namespace {
     using Requirement = relation::Requirement<ContractKey, RequirementKey>;
     using Provision = relation::Provision<ContractKey, ProvisionKey>;
     using Binding = relation::Binding<RequirementKey, ProvisionKey>;
-    using ResolvedBinding = relation::ResolvedBinding<RequirementKey, ProvisionKey>;
 
     constexpr std::array requirements{
         Requirement{RequirementKey::display_power, ContractKey::power},
@@ -39,10 +38,6 @@ namespace {
     constexpr std::array bindings{
         Binding{RequirementKey::display_power, ProvisionKey::power},
         Binding{RequirementKey::app_display, ProvisionKey::display},
-    };
-    constexpr std::array resolved{
-        ResolvedBinding{RequirementKey::display_power, ProvisionKey::power},
-        ResolvedBinding{RequirementKey::app_display, ProvisionKey::display},
     };
 
     constexpr bool relation_contracts_match() noexcept {
@@ -107,7 +102,7 @@ namespace {
     };
 
     [[nodiscard]] AppContext materialize_context(DisplayProvider& display) noexcept {
-        for (const auto& item : resolved) {
+        for (const auto& item : bindings) {
             if (item.requirement == RequirementKey::app_display &&
                 item.provision == ProvisionKey::display) {
                 return {&display};
@@ -123,12 +118,12 @@ namespace {
     };
 
     [[nodiscard]] constexpr auto project_evidence() noexcept {
-        std::array<EvidenceRow, resolved.size()> rows{};
-        for (std::size_t index = 0; index < resolved.size(); ++index) {
+        std::array<EvidenceRow, bindings.size()> rows{};
+        for (std::size_t index = 0; index < bindings.size(); ++index) {
             rows[index] = {
-                requirement_label(resolved[index].requirement),
-                provision_label(resolved[index].provision),
-                resolved[index].provision == ProvisionKey::power
+                requirement_label(bindings[index].requirement),
+                provision_label(bindings[index].provision),
+                bindings[index].provision == ProvisionKey::power
                     ? "host.power_provider"
                     : "host.display_provider",
             };
@@ -146,8 +141,6 @@ namespace {
 
     bool run_projection() noexcept {
         static_assert(relation_contracts_match());
-        static_assert(bindings[0].requirement == resolved[0].requirement);
-        static_assert(bindings[1].provision == resolved[1].provision);
 
         DisplayProvider provider{};
         const auto context = materialize_context(provider);

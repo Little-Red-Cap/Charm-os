@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cstdint>
 #include <type_traits>
 
 namespace charm::capability {
@@ -40,27 +39,4 @@ namespace charm::capability {
         [[nodiscard]] constexpr bool operator==(const Binding&) const noexcept = default;
     };
 
-    template <typename RequirementKey, typename ProvisionKey>
-    struct ResolvedBinding {
-        static_assert(std::is_scoped_enum_v<RequirementKey>);
-        static_assert(std::is_scoped_enum_v<ProvisionKey>);
-        static_assert(!std::is_same_v<RequirementKey, ProvisionKey>);
-
-        RequirementKey requirement{};
-        ProvisionKey provision{};
-
-        [[nodiscard]] constexpr bool operator==(const ResolvedBinding&) const noexcept = default;
-    };
-
-    enum class ResolutionFailure : std::uint8_t {
-        none = 0,
-        duplicate_requirement,
-        duplicate_provision,
-        missing_binding,
-        duplicate_binding,
-        unknown_requirement,
-        unknown_provision,
-        contract_mismatch,
-        invalid_provision,
-    };
 }

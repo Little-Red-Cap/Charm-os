@@ -56,6 +56,23 @@ jobs:
           cmake --build cmake-build-onlycore-relations
           ctest --test-dir cmake-build-onlycore-relations --output-on-failure
 
+      - name: Verify Core relation compile-time rejection
+        shell: msys2 {0}
+        run: |
+          for target in \
+            charm-capability-relations-negative-same_requirement_key \
+            charm-capability-relations-negative-same_provision_key \
+            charm-capability-relations-negative-same_binding_key; do
+            if ! cmake --build cmake-build-onlycore-relations --target help | grep -F "$target: phony"; then
+              echo "compile rejection target missing: $target"
+              exit 1
+            fi
+            if cmake --build cmake-build-onlycore-relations --target "$target"; then
+              echo "compile rejection failed: $target"
+              exit 1
+            fi
+          done
+
       - name: Verify MVP Host evidence
         shell: msys2 {0}
         run: |

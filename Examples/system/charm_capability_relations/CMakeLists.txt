@@ -17,6 +17,16 @@ foreach(test_name IN ITEMS model resolution)
     endif()
 endforeach()
 
+foreach(case_name IN ITEMS
+        same_requirement_key
+        same_provision_key
+        same_binding_key)
+    set(target_name "charm-capability-relations-negative-${case_name}")
+    add_library(${target_name} OBJECT EXCLUDE_FROM_ALL
+        "negative_${case_name}.cpp")
+    target_link_libraries(${target_name} PRIVATE Charm::core)
+endforeach()
+
 set(projection_target charm-capability-relations-projection)
 add_executable(${projection_target} projection.cpp)
 target_link_libraries(${projection_target} PRIVATE Charm::core)

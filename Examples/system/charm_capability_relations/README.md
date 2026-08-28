@@ -16,6 +16,9 @@ Capability Contract、resolver、Provider、Profile、Backend 或全局 registry
 - `resolution`：重复、缺失、未知和 contract mismatch；
 - `projection`：已验证 Binding 投影为显式 app context 和只读 evidence，不引入同形结果类型。
 
+三个编译期负例分别拒绝 Contract/Requirement、Contract/Provision 和 Requirement/Provision 复用同一
+key 类型。负例 target 不进入默认构建，Host runner 必须观察到它们构建失败。
+
 运行：
 
 ```powershell

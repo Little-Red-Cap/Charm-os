@@ -24,6 +24,11 @@ if ($forbidden.Success) {
 }
 
 $profiles = if ($Profile -eq 'all') { @('clang', 'gcc') } else { @($Profile) }
+$negativeTargets = @(
+    'charm-capability-relations-negative-same_requirement_key',
+    'charm-capability-relations-negative-same_provision_key',
+    'charm-capability-relations-negative-same_binding_key'
+)
 foreach ($name in $profiles) {
     $compiler = if ($name -eq 'clang') { 'D:/Toolchains/LLVM/bin/clang++.exe' } else { 'D:/Toolchains/w64devkit/bin/g++.exe' }
     & cmake --fresh -S $scriptRoot -B $BuildDir -G Ninja "-DCMAKE_CXX_COMPILER=$compiler"
@@ -32,6 +37,18 @@ foreach ($name in $profiles) {
     if ($LASTEXITCODE -ne 0) { throw "build_failed: profile=$name" }
     & ctest --test-dir $BuildDir --output-on-failure
     if ($LASTEXITCODE -ne 0) { throw "ctest_failed: profile=$name" }
+    $targetHelp = (& cmake --build $BuildDir --target help) -join "`n"
+    if ($LASTEXITCODE -ne 0) { throw "target_help_failed: profile=$name" }
+    foreach ($target in $negativeTargets) {
+        if (-not $targetHelp.Contains("${target}: phony")) {
+            throw "compile_rejection_target_missing: profile=$name target=$target"
+        }
+        & cmake --build $BuildDir --target $target *> $null
+        if ($LASTEXITCODE -eq 0) {
+            throw "compile_rejection_failed: profile=$name target=$target"
+        }
+        Write-Output "[charm-capability-relations-ci] profile=$name target=$target status=rejected"
+    }
     Write-Output "[charm-capability-relations-ci] profile=$name status=ok"
 }
 

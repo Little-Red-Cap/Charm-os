@@ -200,6 +200,26 @@ if (-not $externalConsumer.Contains('find_package(CharmCore CONFIG REQUIRED)') -
     Fail 'installed Core consumer boundary drift'
 }
 
+$relationCmake = Get-Content -Raw -Encoding utf8 (
+    Join-Path $root 'Examples/system/charm_capability_relations/CMakeLists.txt')
+$negativeRelationCases = @(
+    'same_requirement_key',
+    'same_provision_key',
+    'same_binding_key'
+)
+if (-not $relationCmake.Contains('charm-capability-relations-negative-${case_name}')) {
+    Fail 'Core relation negative target template missing'
+}
+foreach ($case in $negativeRelationCases) {
+    $relative = "Examples/system/charm_capability_relations/negative_${case}.cpp"
+    if (-not (Test-Path -LiteralPath (Join-Path $root $relative) -PathType Leaf)) {
+        Fail "Core relation negative case missing: $case"
+    }
+    if (-not $relationCmake.Contains($case)) {
+        Fail "Core relation negative case not wired: $case"
+    }
+}
+
 $tracked = @(& git -C $root -c core.quotepath=false ls-files)
 if ($LASTEXITCODE -ne 0) {
     Fail 'cannot enumerate tracked files'

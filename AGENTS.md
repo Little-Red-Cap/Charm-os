@@ -52,19 +52,9 @@ Charm 当前处于核心收敛阶段。除非用户明确批准，否则暂停�
 
 - Charm 的正式定位和 MVP 以 `CONSTITUTION.md` 与
   `docs/architecture/charm_core_contract.md` 为准。
-- `docs/repo_governance.md`、`docs/current_tracks_index.md` 记录停线前的多战线状态，
-  当前只作为 supporting snapshot，不是核心身份入口。
-- `docs/reference/vsf/*` 主要保留为早期历史参考，不是当前主路线入口。
-- `docs/system/minimal_kernel_task_syscall_frame_contract.md` 当前存在历史编码损坏，待恢复，不作为首选入口。
-- 如果当前在看 minimal-kernel runtime 总证据链 / 上半层 + 下半层合并验收，优先读：
-  - `docs/system/minimal_kernel_runtime_evidence_bundle_contract.md`
-- 如果当前在看 minimal-kernel host smoke / 冷启动与热复用证据链，优先读：
-  - `docs/system/minimal_kernel_host_smoke_bundle_contract.md`
-- 如果当前在看最小 syscall / trap 链，恢复前优先读：
-  - `docs/system/minimal_kernel_task_syscall_table_contract.md`
-  - `docs/system/minimal_kernel_trap_syscall_contract.md`
-  - `docs/system/minimal_kernel_trap_ingress_contract.md`
-  - `docs/system/armv7a_runtime_trap_mapping_contract.md`
+- OnlyCore 当前只维护 Core 关系投影与 Host 证据；IO、USB、存储、系统运行时、板级和
+  Resident ELF 材料不属于当前实现入口。
+- 提纯前的多战线材料统一位于 `docs/archive/`，仅供追溯，不作为当前路线依据。
 
 ## 任务直达路由
 
@@ -96,7 +86,7 @@ Charm 当前处于核心收敛阶段。除非用户明确批准，否则暂停�
 
 ### 我在看 IO 契约 / Channel / Reactor / Registry
 
-先读：`docs/agent/routes/io.md`
+先读：`docs/agent/routes/io.md`（OnlyCore 中仅保留退役说明）
 
 ### 我在看 capability map / 能力归属
 
@@ -104,7 +94,7 @@ Charm 当前处于核心收敛阶段。除非用户明确批准，否则暂停�
 
 ### 我在看 block device / 存储接线
 
-先读：`docs/agent/routes/block-device.md`
+先读：`docs/agent/routes/block-device.md`（OnlyCore 中仅保留退役说明）
 
 ### 我在看 CMake / preset / 构建接线
 

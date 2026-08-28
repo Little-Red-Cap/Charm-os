@@ -17,5 +17,5 @@
 - blocking thread 在 blocked 状态只接收明确允许的事件；sync、init、terminate 是早期默认放行集合。
 - unblock mask 是任务策略，不应被隐藏成 scheduler 的全局规则。
 
-现行行为必须读取 [`docs/system/README.md`](../../../system/README.md) 与
-[`Modules/system/kernel`](../../../../Modules/system/kernel/) 源码，并以当次测试为准。
+OnlyCore 已移除该运行时路线。需要恢复时，请从 `archive/pre-onlycore-noncore-wip` 或 Git 历史取回
+对应文档和源码，再以当次测试为准。

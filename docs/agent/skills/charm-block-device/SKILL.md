@@ -1,11 +1,9 @@
-# charm-block-device
+# charm-block-device（OnlyCore 已退役）
 
-> status: `supporting`
+> status: `archived`
 
-Use this skill for block-media adapters, registry binding, cache wrappers or VFS
-block mounts. Start from the
-[`BlockDevice contract`](../../../storage/block_device_contract.md); do not
-assume every media consumer needs registry or filesystem mounting.
+OnlyCore 不包含 block-media adapter、registry binding、cache wrapper 或 VFS mount。旧主线需要
+恢复这条路线时，应从 `archive/pre-onlycore-noncore-wip` 或 Git 历史恢复完整专题文档后再使用本页。
 
 ## Determine The Boundary
 

@@ -1,15 +1,11 @@
-# IO Route
+# IO Route（OnlyCore 已退役）
+
+> OnlyCore 不包含 IO、Channel、Reactor 或 Registry 实现。本页只保留旧主线的路由名称，
+> 相关正文已移入 `docs/archive/`；不要据此新增当前 Core 入口。
 
 ## 文档状态
 
-- `status`: `supporting`
-- `scope`: Channel、Reactor、Registry 与 IO layering 路由
+- `status`: `archived`
+- `scope`: 提纯前 IO 路由的历史说明
 
-## 最短路径
-
-1. [IO 入口](../../io/README.md)
-2. [Channel](../../io/io_channel_contract.md)
-3. [Reactor](../../io/io_reactor_contract.md)
-4. [Registry](../../io/io_registry_contract.md)
-
-Channel 不等待且不得返回 `Ok(0)`；Reactor 负责事件推进；Registry 只发布 non-owning endpoint。
+当前 OnlyCore 的活动入口见 `docs/architecture/charm_core_contract.md` 和关系示例。

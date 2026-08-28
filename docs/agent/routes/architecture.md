@@ -13,6 +13,5 @@
 5. [`charm-architecture rule`](../rules/charm-architecture.md)
 6. [`architect-review skill`](../skills/architect-review/SKILL.md)
 
-涉及 signal/state 时补读
-[`signal_state_contract_v0.md`](../../architecture/signal_state_contract_v0.md)；真实板问题补读
-[`real_board_landing_gap_audit_v0.md`](../../architecture/real_board_landing_gap_audit_v0.md)。
+OnlyCore 当前不维护 signal/state、真实板或 deployment supporting contract；相关历史材料见
+`docs/archive/`，不作为当前路线入口。

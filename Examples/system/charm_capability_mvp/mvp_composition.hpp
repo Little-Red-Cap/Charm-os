@@ -45,7 +45,7 @@ namespace charm::mvp {
     using Binding = capability::Binding<RequirementKey, ProvisionKey>;
 
     struct Provision {
-        ProvisionRelation relation{};
+        ProvisionRelation relation{ProvisionKey::unknown, ContractKey::text_sink};
         const TextSink* text_sink{nullptr};
         const Clock* clock{nullptr};
         const BlockDevice* block_device{nullptr};

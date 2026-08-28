@@ -205,7 +205,8 @@ $relationCmake = Get-Content -Raw -Encoding utf8 (
 $negativeRelationCases = @(
     'same_requirement_key',
     'same_provision_key',
-    'same_binding_key'
+    'same_binding_key',
+    'default_construction'
 )
 if (-not $relationCmake.Contains('charm-capability-relations-negative-${case_name}')) {
     Fail 'Core relation negative target template missing'

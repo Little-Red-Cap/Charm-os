@@ -9,8 +9,12 @@ namespace charm::capability {
         static_assert(std::is_scoped_enum_v<RequirementKey>);
         static_assert(!std::is_same_v<ContractKey, RequirementKey>);
 
-        RequirementKey key{};
-        ContractKey contract{};
+        constexpr Requirement(RequirementKey key_value,
+                              ContractKey contract_value) noexcept
+            : key(key_value), contract(contract_value) {}
+
+        RequirementKey key;
+        ContractKey contract;
 
         [[nodiscard]] constexpr bool operator==(const Requirement&) const noexcept = default;
     };
@@ -21,8 +25,12 @@ namespace charm::capability {
         static_assert(std::is_scoped_enum_v<ProvisionKey>);
         static_assert(!std::is_same_v<ContractKey, ProvisionKey>);
 
-        ProvisionKey key{};
-        ContractKey contract{};
+        constexpr Provision(ProvisionKey key_value,
+                            ContractKey contract_value) noexcept
+            : key(key_value), contract(contract_value) {}
+
+        ProvisionKey key;
+        ContractKey contract;
 
         [[nodiscard]] constexpr bool operator==(const Provision&) const noexcept = default;
     };
@@ -33,8 +41,12 @@ namespace charm::capability {
         static_assert(std::is_scoped_enum_v<ProvisionKey>);
         static_assert(!std::is_same_v<RequirementKey, ProvisionKey>);
 
-        RequirementKey requirement{};
-        ProvisionKey provision{};
+        constexpr Binding(RequirementKey requirement_value,
+                          ProvisionKey provision_value) noexcept
+            : requirement(requirement_value), provision(provision_value) {}
+
+        RequirementKey requirement;
+        ProvisionKey provision;
 
         [[nodiscard]] constexpr bool operator==(const Binding&) const noexcept = default;
     };

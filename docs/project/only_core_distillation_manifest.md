@@ -38,7 +38,7 @@ QEMU reference consumer 位于 [`Examples/system/charm_capability_mvp/qemu`](../
 - 公共 resolver、`ResolvedBinding`、`ResolutionFailure`、Profile、Provider base、Manager、Registry、ContextView 和 Evidence collector。
 - Backend、Driver、Loader、Compiler、IR、Graph、Runtime、RTE、Spine、topology 和 init graph 的统一 Core 抽象。
 - `TextSink`、`Clock`、`BlockDevice` 等具体 Contract 的全局 canonical 化。
-- 关系 aggregate 默认构造与 `invalid = 0` 的 API 取舍；另行裁决，不与本清单绑定。
+- 关系投影已删除默认构造；项目 enum 的 `0` 值仍由各 consumer 自行定义，不进入公共语义。
 - 真实板跨环境 MVP 证据；需要独立板级工程、配置和可重复运行记录。
 
 ## 待独立项目承接

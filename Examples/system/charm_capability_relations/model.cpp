@@ -48,6 +48,9 @@ namespace {
     static_assert(std::is_trivially_copyable_v<Requirement>);
     static_assert(std::is_trivially_copyable_v<Provision>);
     static_assert(std::is_trivially_copyable_v<Binding>);
+    static_assert(!std::is_default_constructible_v<Requirement>);
+    static_assert(!std::is_default_constructible_v<Provision>);
+    static_assert(!std::is_default_constructible_v<Binding>);
     static_assert(bindings[0].provision == bindings[1].provision);
     static_assert(requirements[0].key != requirements[1].key);
 

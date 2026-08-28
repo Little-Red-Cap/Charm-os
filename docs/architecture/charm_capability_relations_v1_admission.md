@@ -23,6 +23,9 @@
 5. **低例外预算**：没有 optional method、动态分配、字符串匹配、全局 registry 或平台分支。
 6. **浅概念依赖**：只依赖 Capability Contract、Requirement、Provision 和 Binding；projection 不反向定义这些语义。
 
+关系投影要求显式提供 key 与 contract/provision key；三个关系类型没有默认构造，因此项目 enum 的 `0`
+值不会被误当成有效关系。
+
 ## 裁决
 
 | public type | verdict | boundary |

@@ -170,7 +170,7 @@ namespace {
 
         for (const auto& order : permutations) {
             FaultFixture fixture{};
-            std::array<Binding, 3> bindings{};
+            auto bindings = fixture.bindings;
             for (std::size_t index = 0; index < bindings.size(); ++index) {
                 bindings[index] = fixture.bindings[order[index]];
             }
@@ -188,7 +188,7 @@ namespace {
 
         for (std::size_t failed_index = 0; failed_index < app::requirements.size(); ++failed_index) {
             FaultFixture fixture{};
-            std::array<Binding, 2> bindings{};
+            std::array<Binding, 2> bindings{fixture.bindings[0], fixture.bindings[1]};
             std::size_t output_index = 0;
             for (std::size_t index = 0; index < fixture.bindings.size(); ++index) {
                 if (index != failed_index) {

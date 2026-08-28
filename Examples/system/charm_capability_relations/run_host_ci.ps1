@@ -27,7 +27,8 @@ $profiles = if ($Profile -eq 'all') { @('clang', 'gcc') } else { @($Profile) }
 $negativeTargets = @(
     'charm-capability-relations-negative-same_requirement_key',
     'charm-capability-relations-negative-same_provision_key',
-    'charm-capability-relations-negative-same_binding_key'
+    'charm-capability-relations-negative-same_binding_key',
+    'charm-capability-relations-negative-default_construction'
 )
 
 function Resolve-Compiler([string]$Name) {

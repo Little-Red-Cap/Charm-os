@@ -25,5 +25,6 @@ key 类型。负例 target 不进入默认构建，Host runner 必须观察到�
 .\Examples\system\charm_capability_relations\run_host_ci.ps1
 ```
 
-当前 gate 是 Host Clang；GCC 可作为兼容性补充运行。QEMU、真实板和旧 board log 不属于当前
+当前远端 gate 分别运行 Host Clang 与 GCC；QEMU 的 MVP 运行证据从相邻
+[`charm_capability_mvp`](../charm_capability_mvp/README.md) 进入。真实板和旧 board log 不属于当前
 OnlyCore 验证范围。

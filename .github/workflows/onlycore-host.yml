@@ -1,4 +1,4 @@
-name: OnlyCore Host
+name: OnlyCore Gate
 
 on:
   workflow_dispatch:
@@ -10,12 +10,13 @@ on:
       - OnlyCore
 
 jobs:
-  host:
+  host-clang:
+    name: Host Clang
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup MSYS2 (CLANG64)
+      - name: Setup Clang
         uses: msys2/setup-msys2@v2
         with:
           msystem: CLANG64
@@ -26,60 +27,93 @@ jobs:
             mingw-w64-clang-x86_64-ninja
             mingw-w64-clang-x86_64-cmake
 
-      - name: Configure and build root
-        shell: msys2 {0}
-        run: cmake --fresh -S . -B cmake-build-onlycore-ci -G Ninja -DCMAKE_BUILD_TYPE=Release
-
-      - name: Build root
-        shell: msys2 {0}
-        run: cmake --build cmake-build-onlycore-ci
-
-      - name: Install Core package
-        shell: msys2 {0}
-        run: cmake --install cmake-build-onlycore-ci --prefix cmake-build-onlycore-install
-
-      - name: Verify installed Core consumer
+      - name: Build and install Core
         shell: msys2 {0}
         run: |
-          cmake --fresh -S Examples/system/charm_core_external_consumer -B cmake-build-onlycore-external-consumer -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_PREFIX_PATH="$PWD/cmake-build-onlycore-install"
-          cmake --build cmake-build-onlycore-external-consumer
-          ctest --test-dir cmake-build-onlycore-external-consumer --output-on-failure
+          cmake --fresh -S . -B cmake-build-onlycore-clang -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=clang++
+          cmake --build cmake-build-onlycore-clang
+          cmake --install cmake-build-onlycore-clang --prefix cmake-build-onlycore-clang-install
 
-      - name: Verify Core governance
+      - name: Verify Clang consumers
+        shell: msys2 {0}
+        run: |
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File Examples/system/charm_capability_relations/run_host_ci.ps1 -Profile clang -BuildDir cmake-build-onlycore-relations-clang
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File Examples/system/charm_capability_mvp/run_host_ci.ps1 -Profile clang-debug -BuildDir cmake-build-onlycore-mvp-clang
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File Examples/system/charm_core_external_consumer/run_host_ci.ps1 -Profile clang -BuildDir cmake-build-onlycore-external-clang
+
+      - name: Verify source and governance boundaries
         shell: pwsh
-        run: ./scripts/check_charm_core_governance.ps1
+        run: |
+          ./Examples/system/charm_capability_mvp/verify_portable_source_boundary.ps1
+          ./scripts/check_charm_core_governance.ps1
 
-      - name: Verify Core relation evidence
+  host-gcc:
+    name: Host GCC
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup GCC
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          cache: true
+          install: >-
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-ninja
+            mingw-w64-ucrt-x86_64-cmake
+
+      - name: Verify GCC consumers
         shell: msys2 {0}
         run: |
-          cmake --fresh -S Examples/system/charm_capability_relations -B cmake-build-onlycore-relations -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=clang++
-          cmake --build cmake-build-onlycore-relations
-          ctest --test-dir cmake-build-onlycore-relations --output-on-failure
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File Examples/system/charm_capability_relations/run_host_ci.ps1 -Profile gcc -BuildDir cmake-build-onlycore-relations-gcc
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File Examples/system/charm_capability_mvp/run_host_ci.ps1 -Profile gcc-debug -BuildDir cmake-build-onlycore-mvp-gcc
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File Examples/system/charm_core_external_consumer/run_host_ci.ps1 -Profile gcc -BuildDir cmake-build-onlycore-external-gcc
 
-      - name: Verify Core relation compile-time rejection
+  host-sanitize:
+    name: Host Clang ASan UBSan
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Clang
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: CLANG64
+          update: true
+          cache: true
+          install: >-
+            mingw-w64-clang-x86_64-clang
+            mingw-w64-clang-x86_64-ninja
+            mingw-w64-clang-x86_64-cmake
+
+      - name: Verify sanitizer evidence
+        shell: msys2 {0}
+        run: >-
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File Examples/system/charm_capability_mvp/run_host_ci.ps1
+          -Profile clang-sanitize -BuildDir cmake-build-onlycore-mvp-sanitize
+
+  embedded:
+    name: ARM Freestanding and QEMU
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup ARM and QEMU
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: CLANG64
+          update: true
+          cache: true
+          install: >-
+            mingw-w64-clang-x86_64-arm-none-eabi-gcc
+            mingw-w64-clang-x86_64-qemu
+            mingw-w64-clang-x86_64-ninja
+            mingw-w64-clang-x86_64-cmake
+
+      - name: Verify ARM build-only and QEMU runtime
         shell: msys2 {0}
         run: |
-          for target in \
-            charm-capability-relations-negative-same_requirement_key \
-            charm-capability-relations-negative-same_provision_key \
-            charm-capability-relations-negative-same_binding_key; do
-            if ! cmake --build cmake-build-onlycore-relations --target help | grep -F "$target: phony"; then
-              echo "compile rejection target missing: $target"
-              exit 1
-            fi
-            if cmake --build cmake-build-onlycore-relations --target "$target"; then
-              echo "compile rejection failed: $target"
-              exit 1
-            fi
-          done
-
-      - name: Verify MVP Host evidence
-        shell: msys2 {0}
-        run: |
-          cmake --fresh -S Examples/system/charm_capability_mvp -B cmake-build-onlycore-mvp -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=clang++
-          cmake --build cmake-build-onlycore-mvp
-          ctest --test-dir cmake-build-onlycore-mvp --output-on-failure
-
-      - name: Verify portable source boundary
-        shell: pwsh
-        run: ./Examples/system/charm_capability_mvp/verify_portable_source_boundary.ps1
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File Examples/system/charm_core_arm_build_only/run_build_only.ps1 -BuildDir cmake-build-onlycore-arm
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File Examples/system/charm_capability_mvp/qemu/run_qemu_ci.ps1 -BuildDir cmake-build-onlycore-qemu -TimeoutSeconds 10

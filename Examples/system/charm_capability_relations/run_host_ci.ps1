@@ -29,8 +29,18 @@ $negativeTargets = @(
     'charm-capability-relations-negative-same_provision_key',
     'charm-capability-relations-negative-same_binding_key'
 )
+
+function Resolve-Compiler([string]$Name) {
+    $command = Get-Command $Name -ErrorAction SilentlyContinue
+    if ($null -eq $command) {
+        throw "compiler_missing: $Name"
+    }
+    return $command.Source
+}
+
 foreach ($name in $profiles) {
-    $compiler = if ($name -eq 'clang') { 'D:/Toolchains/LLVM/bin/clang++.exe' } else { 'D:/Toolchains/w64devkit/bin/g++.exe' }
+    $compilerName = if ($name -eq 'clang') { 'clang++' } else { 'g++' }
+    $compiler = Resolve-Compiler -Name $compilerName
     & cmake --fresh -S $scriptRoot -B $BuildDir -G Ninja "-DCMAKE_CXX_COMPILER=$compiler"
     if ($LASTEXITCODE -ne 0) { throw "configure_failed: profile=$name" }
     & cmake --build $BuildDir

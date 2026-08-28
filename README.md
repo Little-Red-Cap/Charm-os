@@ -8,7 +8,7 @@ Requirement、Provision 与 Binding 的解析。完整语义由
 
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-green.svg?style=flat-square)](LICENSE)
 [![C++26](https://img.shields.io/badge/C%2B%2B-26-blue.svg?style=flat-square)](https://en.cppreference.com/w/cpp)
-[![OnlyCore Host](https://github.com/Little-Red-Cap/Charm-os/actions/workflows/onlycore-host.yml/badge.svg)](https://github.com/Little-Red-Cap/Charm-os/actions)
+[![OnlyCore Gate](https://github.com/Little-Red-Cap/Charm-os/actions/workflows/onlycore-host.yml/badge.svg)](https://github.com/Little-Red-Cap/Charm-os/actions)
 
 ## 仓库范围
 

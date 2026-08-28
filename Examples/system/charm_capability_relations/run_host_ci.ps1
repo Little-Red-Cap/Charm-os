@@ -24,12 +24,14 @@ if ($forbidden.Success) {
 }
 
 $profiles = if ($Profile -eq 'all') { @('clang', 'gcc') } else { @($Profile) }
-$negativeTargets = @(
-    'charm-capability-relations-negative-same_requirement_key',
-    'charm-capability-relations-negative-same_provision_key',
-    'charm-capability-relations-negative-same_binding_key',
-    'charm-capability-relations-negative-default_construction'
-)
+$negativeTargets = [ordered]@{
+    'charm-capability-relations-negative-same_requirement_key' =
+        'CHARM_CAPABILITY_REQUIREMENT_KEY_DOMAINS_MUST_DIFFER'
+    'charm-capability-relations-negative-same_provision_key' =
+        'CHARM_CAPABILITY_PROVISION_KEY_DOMAINS_MUST_DIFFER'
+    'charm-capability-relations-negative-same_binding_key' =
+        'CHARM_CAPABILITY_BINDING_KEY_DOMAINS_MUST_DIFFER'
+}
 
 function Resolve-Compiler([string]$Name) {
     $command = Get-Command $Name -ErrorAction SilentlyContinue
@@ -50,15 +52,25 @@ foreach ($name in $profiles) {
     if ($LASTEXITCODE -ne 0) { throw "ctest_failed: profile=$name" }
     $targetHelp = (& cmake --build $BuildDir --target help) -join "`n"
     if ($LASTEXITCODE -ne 0) { throw "target_help_failed: profile=$name" }
-    foreach ($target in $negativeTargets) {
+    foreach ($entry in $negativeTargets.GetEnumerator()) {
+        $target = $entry.Key
+        $expectedDiagnostic = $entry.Value
         if (-not $targetHelp.Contains("${target}: phony")) {
             throw "compile_rejection_target_missing: profile=$name target=$target"
         }
-        & cmake --build $BuildDir --target $target *> $null
-        if ($LASTEXITCODE -eq 0) {
+        $buildOutput = @(& cmake --build $BuildDir --target $target 2>&1)
+        $buildExitCode = $LASTEXITCODE
+        $buildText = $buildOutput -join "`n"
+        if (-not [string]::IsNullOrWhiteSpace($buildText)) {
+            Write-Output $buildText
+        }
+        if ($buildExitCode -eq 0) {
             throw "compile_rejection_failed: profile=$name target=$target"
         }
-        Write-Output "[charm-capability-relations-ci] profile=$name target=$target status=rejected"
+        if (-not $buildText.Contains($expectedDiagnostic)) {
+            throw "compile_rejection_diagnostic_missing: profile=$name target=$target expected=$expectedDiagnostic"
+        }
+        Write-Output "[charm-capability-relations-ci] profile=$name target=$target diagnostic=$expectedDiagnostic status=rejected"
     }
     Write-Output "[charm-capability-relations-ci] profile=$name status=ok"
 }

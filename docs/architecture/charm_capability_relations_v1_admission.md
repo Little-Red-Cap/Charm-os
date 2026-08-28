@@ -51,7 +51,8 @@
 
 ## 当前证据范围
 
-本地 runner 已覆盖 Host Clang/GCC 关系示例、MVP Host 失败矩阵、Clang sanitizer、安装后消费、
-`arm-none-eabi-g++` freestanding build-only 消费，以及 QEMU `virt` 正例和 missing binding；workflow 已定义
-对应远端 jobs，首次 Actions 结果须以远端 run 为准。QEMU 尚未覆盖 Host 的完整失败矩阵，build-only 与 QEMU
-也不能替代真实板；因此结果物与失败分类仍不升级为公共投影。
+本地 runner 与首次全绿远端证据 [run 33140346354](https://github.com/Little-Red-Cap/Charm-os/actions/runs/33140346354)
+均覆盖 Host Clang/GCC 关系示例、MVP Host 失败矩阵、Clang sanitizer、安装后消费、
+`arm-none-eabi-g++` freestanding build-only 消费，以及 QEMU `virt` 正例和 missing binding。后续状态以每个
+commit 对应的 Actions run 为准。QEMU 尚未覆盖 Host 的完整失败矩阵，build-only 与 QEMU 也不能替代真实板；
+因此结果物与失败分类仍不升级为公共投影。

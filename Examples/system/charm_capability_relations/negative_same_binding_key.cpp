@@ -6,4 +6,7 @@ enum class SharedKey : unsigned char {
 
 using InvalidBinding = charm::capability::Binding<SharedKey, SharedKey>;
 
-InvalidBinding invalid_binding{};
+InvalidBinding invalid_binding{
+    SharedKey::value,
+    SharedKey::value,
+};

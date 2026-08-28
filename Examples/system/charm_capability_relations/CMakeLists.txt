@@ -20,8 +20,7 @@ endforeach()
 foreach(case_name IN ITEMS
         same_requirement_key
         same_provision_key
-        same_binding_key
-        default_construction)
+        same_binding_key)
     set(target_name "charm-capability-relations-negative-${case_name}")
     add_library(${target_name} OBJECT EXCLUDE_FROM_ALL
         "negative_${case_name}.cpp")

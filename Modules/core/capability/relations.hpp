@@ -7,7 +7,9 @@ namespace charm::capability {
     struct Requirement {
         static_assert(std::is_scoped_enum_v<ContractKey>);
         static_assert(std::is_scoped_enum_v<RequirementKey>);
-        static_assert(!std::is_same_v<ContractKey, RequirementKey>);
+        static_assert(
+            !std::is_same_v<ContractKey, RequirementKey>,
+            "CHARM_CAPABILITY_REQUIREMENT_KEY_DOMAINS_MUST_DIFFER");
 
         constexpr Requirement(RequirementKey key_value,
                               ContractKey contract_value) noexcept
@@ -23,7 +25,9 @@ namespace charm::capability {
     struct Provision {
         static_assert(std::is_scoped_enum_v<ContractKey>);
         static_assert(std::is_scoped_enum_v<ProvisionKey>);
-        static_assert(!std::is_same_v<ContractKey, ProvisionKey>);
+        static_assert(
+            !std::is_same_v<ContractKey, ProvisionKey>,
+            "CHARM_CAPABILITY_PROVISION_KEY_DOMAINS_MUST_DIFFER");
 
         constexpr Provision(ProvisionKey key_value,
                             ContractKey contract_value) noexcept
@@ -39,7 +43,9 @@ namespace charm::capability {
     struct Binding {
         static_assert(std::is_scoped_enum_v<RequirementKey>);
         static_assert(std::is_scoped_enum_v<ProvisionKey>);
-        static_assert(!std::is_same_v<RequirementKey, ProvisionKey>);
+        static_assert(
+            !std::is_same_v<RequirementKey, ProvisionKey>,
+            "CHARM_CAPABILITY_BINDING_KEY_DOMAINS_MUST_DIFFER");
 
         constexpr Binding(RequirementKey requirement_value,
                           ProvisionKey provision_value) noexcept

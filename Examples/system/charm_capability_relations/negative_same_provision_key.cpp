@@ -6,4 +6,7 @@ enum class SharedKey : unsigned char {
 
 using InvalidProvision = charm::capability::Provision<SharedKey, SharedKey>;
 
-InvalidProvision invalid_provision{};
+InvalidProvision invalid_provision{
+    SharedKey::value,
+    SharedKey::value,
+};

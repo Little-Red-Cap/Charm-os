@@ -6,4 +6,7 @@ enum class SharedKey : unsigned char {
 
 using InvalidRequirement = charm::capability::Requirement<SharedKey, SharedKey>;
 
-InvalidRequirement invalid_requirement{};
+InvalidRequirement invalid_requirement{
+    SharedKey::value,
+    SharedKey::value,
+};

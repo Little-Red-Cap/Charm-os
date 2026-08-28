@@ -15,7 +15,7 @@ OnlyCore 的提交历史保持不改写；未列出的历史文件不因此获�
 | 范围 | 当前处理 | 后续证据或所有者 |
 |---|---|---|
 | Vivid、Player、UI、Audio 与产品资源 | 从当前活动树移出 | 独立 Vivid / 产品工程承接 |
-| Backend、provider、板级 SDK、BSP、startup、linker 与 vendor 工程 | 从当前活动树移出 | Project/BareWorkspace 与真实板工程承接 |
+| Backend、provider、板级 SDK、BSP、板级/产品 startup、linker 与 vendor 工程 | 从当前活动树移出 | Project/BareWorkspace 与真实板工程承接 |
 | init graph、RTE、Spine、旧 topology、System Compiler、IR、Graph 与 runtime facade | 旧探索退役 | 仅从快照分支或 Git 历史追溯 |
 | Resident ELF、ModuleX、部署和产品生命周期接线 | 从当前活动树移出 | 独立 deployment / 产品工程承接 |
 | 旧 `charm.core`、`charm.foundation`、`semantic.core` 聚合 facade | 删除，不保留兼容入口 | 消费方直接使用当前公共关系投影 |
@@ -24,11 +24,14 @@ OnlyCore 的提交历史保持不改写；未列出的历史文件不因此获�
 
 | 证据 | 当前范围 | 不覆盖 |
 |---|---|---|
-| Host relations | 本地 Clang/GCC、三组编译期 key 负例 | QEMU 或真实板运行；远端 Actions 首次 run |
-| Host MVP | 本地正例、完整 failure matrix、Clang/GCC、ASan/UBSan | 跨域固件启动；远端 Actions 首次 run |
-| QEMU MVP | 本地 `virt/cortex-a15` 同一 app 的正例与 `missing_binding` | 完整 failure matrix、真实时钟、持久存储、真实板；远端 Actions 首次 run |
-| ARM freestanding | 本地 `arm-none-eabi-g++` compile-only | 链接、启动和运行时行为；远端 Actions 首次 run |
-| Installed consumer | 本地 `find_package(CharmCore)` 的独立 Host 消费 | ABI 与版本策略；远端 Actions 首次 run |
+| Host relations | Clang/GCC、三组编译期 key 负例 | QEMU 或真实板运行 |
+| Host MVP | 正例、完整 failure matrix、Clang/GCC、ASan/UBSan | 跨域固件启动 |
+| QEMU MVP | `virt/cortex-a15` 同一 app 的正例与 `missing_binding` | 完整 failure matrix、真实时钟、持久存储、真实板 |
+| ARM freestanding | `arm-none-eabi-g++` compile-only | 链接、启动和运行时行为 |
+| Installed consumer | `find_package(CharmCore)` 的独立 Host 消费 | ABI 与版本策略 |
+
+首次全绿远端证据是 [run 33140346354](https://github.com/Little-Red-Cap/Charm-os/actions/runs/33140346354)
+@ `17a32f05`；后续状态以每个 commit 对应的 Actions run 为准。
 
 QEMU reference consumer 位于 [`Examples/system/charm_capability_mvp/qemu`](../../Examples/system/charm_capability_mvp/qemu)，
 只复用共享 `mvp_app.hpp`；平台启动、PL011、链接和内存 BlockDevice 属于该 supporting 证据目录。

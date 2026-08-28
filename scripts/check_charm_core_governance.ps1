@@ -56,6 +56,16 @@ foreach ($relative in $positionFiles) {
     }
 }
 
+$licenseName = Get-Content -Encoding utf8 (Join-Path $root 'LICENSE') -TotalCount 1
+if ($licenseName -ne 'Apache License') {
+    Fail "license drift: LICENSE"
+}
+$rootReadme = Get-Content -Raw -Encoding utf8 (Join-Path $root 'README.md')
+$licenseBadge = '[![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-green.svg?style=flat-square)](LICENSE)'
+if (-not $rootReadme.Contains($licenseBadge)) {
+    Fail "license badge drift: README.md"
+}
+
 $legacyClaims = @(
     (TextFromCodePoints @(22810, 25112, 32447, 27597, 20179)),
     (TextFromCodePoints @(24403, 21069, 26368, 37325, 35201, 30340, 26041, 27861, 35770)),

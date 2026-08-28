@@ -6,7 +6,7 @@ Charm 是一个能力导向的嵌入式应用平台。
 Requirement、Provision 与 Binding 的解析。完整语义由
 [`Charm Core Contract`](docs/architecture/charm_core_contract.md) 定义。
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=flat-square)](LICENSE)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-green.svg?style=flat-square)](LICENSE)
 [![C++26](https://img.shields.io/badge/C%2B%2B-26-blue.svg?style=flat-square)](https://en.cppreference.com/w/cpp)
 [![OnlyCore Host](https://github.com/Little-Red-Cap/Charm-os/actions/workflows/onlycore-host.yml/badge.svg)](https://github.com/Little-Red-Cap/Charm-os/actions)
 

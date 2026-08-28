@@ -184,7 +184,8 @@ foreach ($token in $retiredBuildSurface) {
 $consumerFiles = @(
     'Examples/system/charm_capability_relations/CMakeLists.txt',
     'Examples/system/charm_capability_mvp/CMakeLists.txt',
-    'Examples/system/charm_core_external_consumer/CMakeLists.txt'
+    'Examples/system/charm_core_external_consumer/CMakeLists.txt',
+    'Examples/system/charm_core_arm_build_only/CMakeLists.txt'
 )
 foreach ($relative in $consumerFiles) {
     $content = Get-Content -Raw -Encoding utf8 (Join-Path $root $relative)

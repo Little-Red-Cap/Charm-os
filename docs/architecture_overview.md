@@ -17,6 +17,7 @@
 | `Examples/system/charm_capability_relations` | 关系模型的最小 Host 证据 |
 | `Examples/system/charm_capability_mvp` | Capability MVP 的 Host 证据与失败矩阵 |
 | `Examples/system/charm_core_external_consumer` | 安装后 `Charm::core` 消费证据 |
+| `Examples/system/charm_core_arm_build_only` | ARM freestanding build-only 消费证据 |
 | `docs/architecture` | Core 契约、审计和准入记录 |
 | `scripts/check_charm_core_governance.ps1` | Canonical 文档和链接的治理检查 |
 

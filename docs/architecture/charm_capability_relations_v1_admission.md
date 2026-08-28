@@ -46,6 +46,6 @@
 
 ## 当前证据范围
 
-OnlyCore 当前门禁覆盖 Host Clang/GCC 关系示例、MVP Host 失败矩阵、Clang sanitizer 和安装后消费。
-QEMU、真实板和 Backend reference 不在当前源码范围内；因此结果物与失败分类不得从 Host 局部实现
-升级为公共投影。
+OnlyCore 当前门禁覆盖 Host Clang/GCC 关系示例、MVP Host 失败矩阵、Clang sanitizer、安装后消费，
+以及 `arm-none-eabi-g++` freestanding build-only 消费。build-only 不能替代 QEMU 或真实板运行；Backend
+reference 也不在当前源码范围内。因此结果物与失败分类不得从 Host 局部实现升级为公共投影。

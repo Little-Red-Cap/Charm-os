@@ -26,8 +26,8 @@ Core 身份。
 
 当前 Capability MVP 的源码与证据从
 [`Examples/system/charm_capability_mvp`](Examples/system/charm_capability_mvp/README.md) 进入；该证据
-验证局部命题，不替代 Constitution 准入。OnlyCore 当前只维护 Host 关系证据，
-不声明 QEMU、板级或外围运行时兼容性。
+验证局部命题，不替代 Constitution 准入。OnlyCore 当前维护 Host 运行证据和 ARM freestanding
+build-only 证据，不声明 QEMU、板级或外围运行时兼容性。
 
 ## 使用顺序
 

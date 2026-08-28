@@ -239,16 +239,27 @@ $allowedRootFiles = @(
     'CMakePresets.json',
     'CONSTITUTION.md',
     'Examples/README.md',
+    'docs/README.md',
+    'docs/architecture_overview.md',
+    'docs/documentation_maintenance.md',
+    'docs/overview.md',
+    'Examples/system/README.md',
     'LICENSE',
     'README.md',
-    'config.toml'
+    'config.toml',
+    '.github/PULL_REQUEST_TEMPLATE.md',
+    '.github/workflows/onlycore-host.yml',
+    'Modules/core/capability/relations.hpp',
+    'scripts/check_charm_core_governance.ps1'
 )
 $allowedPathPrefixes = @(
-    '.github/',
-    'docs/',
-    'Examples/system/',
-    'Modules/core/',
-    'scripts/'
+    'docs/agent/',
+    'docs/architecture/',
+    'docs/project/',
+    'Examples/system/charm_capability_mvp/',
+    'Examples/system/charm_capability_relations/',
+    'Examples/system/charm_core_arm_build_only/',
+    'Examples/system/charm_core_external_consumer/'
 )
 foreach ($relative in $tracked) {
     if ($allowedRootFiles -contains $relative) {

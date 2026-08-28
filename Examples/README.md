@@ -9,6 +9,7 @@ OnlyCore 示例只用于验证已准入的 Core 关系语义。示例通过不�
 |---|---|
 | [`system/charm_capability_relations`](system/charm_capability_relations/README.md) | `Requirement`、`Provision`、`Binding` 和解析失败关系的 Host 验证 |
 | [`system/charm_capability_mvp`](system/charm_capability_mvp/README.md) | Core 能力模型的最小组合证据 |
+| [`system/charm_core_external_consumer`](system/charm_core_external_consumer/README.md) | 安装后通过 `find_package` 消费 `Charm::core` |
 
 本地构建目录使用仓库约定的 `cmake-build-*` 命名。仓库总入口见
 [根 README](../README.md)，OnlyCore 提纯流程见

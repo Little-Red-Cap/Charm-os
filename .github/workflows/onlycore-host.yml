@@ -34,6 +34,17 @@ jobs:
         shell: msys2 {0}
         run: cmake --build cmake-build-onlycore-ci
 
+      - name: Install Core package
+        shell: msys2 {0}
+        run: cmake --install cmake-build-onlycore-ci --prefix cmake-build-onlycore-install
+
+      - name: Verify installed Core consumer
+        shell: msys2 {0}
+        run: |
+          cmake --fresh -S Examples/system/charm_core_external_consumer -B cmake-build-onlycore-external-consumer -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_PREFIX_PATH="$PWD/cmake-build-onlycore-install"
+          cmake --build cmake-build-onlycore-external-consumer
+          ctest --test-dir cmake-build-onlycore-external-consumer --output-on-failure
+
       - name: Verify Core governance
         shell: pwsh
         run: ./scripts/check_charm_core_governance.ps1

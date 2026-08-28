@@ -9,3 +9,4 @@
 |---|---|
 | [`charm_capability_relations`](charm_capability_relations/README.md) | Core 关系模型、解析和投影验证 |
 | [`charm_capability_mvp`](charm_capability_mvp/README.md) | 最小能力组合验证 |
+| [`charm_core_external_consumer`](charm_core_external_consumer/README.md) | 安装后的独立 CMake 消费验证 |

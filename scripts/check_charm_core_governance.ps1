@@ -158,7 +158,10 @@ $rootCmake = Get-Content -Raw -Encoding utf8 (Join-Path $root 'CMakeLists.txt')
 $requiredBuildSurface = @(
     'add_library(Charm-core INTERFACE)',
     'target_compile_features(Charm-core INTERFACE cxx_std_26)',
-    'add_library(Charm::core ALIAS Charm-core)'
+    'add_library(Charm::core ALIAS Charm-core)',
+    'EXPORT_NAME core',
+    'install(EXPORT CharmCoreTargets',
+    'FILE CharmCoreConfig.cmake'
 )
 foreach ($token in $requiredBuildSurface) {
     if (-not $rootCmake.Contains($token)) {
@@ -180,13 +183,20 @@ foreach ($token in $retiredBuildSurface) {
 
 $consumerFiles = @(
     'Examples/system/charm_capability_relations/CMakeLists.txt',
-    'Examples/system/charm_capability_mvp/CMakeLists.txt'
+    'Examples/system/charm_capability_mvp/CMakeLists.txt',
+    'Examples/system/charm_core_external_consumer/CMakeLists.txt'
 )
 foreach ($relative in $consumerFiles) {
     $content = Get-Content -Raw -Encoding utf8 (Join-Path $root $relative)
     if (-not $content.Contains('Charm::core')) {
         Fail "Core consumer does not link Charm::core: $relative"
     }
+}
+$externalConsumer = Get-Content -Raw -Encoding utf8 (
+    Join-Path $root 'Examples/system/charm_core_external_consumer/CMakeLists.txt')
+if (-not $externalConsumer.Contains('find_package(CharmCore CONFIG REQUIRED)') -or
+    $externalConsumer.Contains('add_subdirectory')) {
+    Fail 'installed Core consumer boundary drift'
 }
 
 $tracked = @(& git -C $root -c core.quotepath=false ls-files)

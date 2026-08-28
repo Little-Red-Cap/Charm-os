@@ -39,6 +39,7 @@ Charm 是一个能力导向的嵌入式应用平台。
 | Core 语义与能力归属 | [`architecture/README.md`](architecture/README.md)、[`architecture route`](agent/routes/architecture.md) |
 | 当前源码与证据 | [`overview.md`](overview.md)、[`architecture_overview.md`](architecture_overview.md)、[`Examples/README.md`](../Examples/README.md) |
 | OnlyCore 提纯与协作 | [`project/only_core_distillation_sop.md`](project/only_core_distillation_sop.md)、[`project/README.md`](project/README.md) |
+| OnlyCore 当前提纯清单 | [`project/only_core_distillation_manifest.md`](project/only_core_distillation_manifest.md) |
 | 构建 | [`build route`](agent/routes/build.md) |
 | 文档维护 | [`documentation_maintenance.md`](documentation_maintenance.md)、[`docs route`](agent/routes/docs.md) |
 

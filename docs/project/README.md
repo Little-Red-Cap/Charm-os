@@ -18,6 +18,7 @@
 | PowerShell / UTF-8 | [`Powershell设置utf8.md`](tooling/Powershell设置utf8.md) |
 | CMake / preset / 构建目录 | [`build route`](../agent/routes/build.md) |
 | OnlyCore 提纯 | [`only_core_distillation_sop.md`](only_core_distillation_sop.md) |
+| OnlyCore 当前清单 | [`only_core_distillation_manifest.md`](only_core_distillation_manifest.md) |
 
 系统与架构问题优先进入 [`architecture_overview.md`](../architecture_overview.md) 和
 [`architecture/charm_core_contract.md`](../architecture/charm_core_contract.md)。OnlyCore 当前实现入口

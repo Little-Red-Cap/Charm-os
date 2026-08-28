@@ -1,8 +1,8 @@
 [CmdletBinding()]
 param(
     [ValidateSet('clang-debug', 'gcc-debug', 'clang-sanitize', 'all')]
-    [string]$Profile = 'all',
-    [string]$BuildDir = (Join-Path $PSScriptRoot 'cmake-build-charm-capability-mvp'),
+    [string]$Profile = 'clang-debug',
+    [string]$BuildDir = '',
     [switch]$DryRun,
     [switch]$SelfTest
 )
@@ -11,7 +11,11 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $OutputEncoding = [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 
-$sourceDir = $PSScriptRoot
+$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$sourceDir = $scriptRoot
+if ([string]::IsNullOrWhiteSpace($BuildDir)) {
+    $BuildDir = Join-Path $scriptRoot 'cmake-build-charm-capability-mvp'
+}
 $buildDirFull = [System.IO.Path]::GetFullPath($BuildDir)
 
 function Get-ProfileSpec {
